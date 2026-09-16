@@ -1,0 +1,13 @@
+{
+  "name": "@nighthall/ws-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "types": "./src/index.ts",
+  "sideEffects": false,
+  "scripts": {
+    "check": "tsc --noEmit --strict --target ES2022 --module nodenext --allowImportingTsExtensions --skipLibCheck src/index.ts",
+    "test": "node --experimental-strip-types --test src/peer.test.ts"
+  }
+}
