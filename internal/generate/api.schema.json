@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nighthall:api-contract:1",
+  "title": "Nighthall API contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile", "name", "types", "methods", "events"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "profile": {"const": "nighthall.duplex/1"},
+    "name": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"},
+    "types": {"type": "object", "propertyNames": {"$ref": "#/$defs/typeName"}, "additionalProperties": {"$ref": "#/$defs/type"}},
+    "methods": {"type": "array", "items": {"$ref": "#/$defs/method"}},
+    "events": {"type": "array", "items": {"$ref": "#/$defs/event"}},
+    "errors": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["code", "description"], "properties": {"code": {"type": "string", "minLength": 1}, "description": {"type": "string"}}}}
+  },
+  "$defs": {
+    "typeName": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9_]*$"},
+    "identifier": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+    "direction": {"enum": ["client_to_server", "server_to_client"]},
+    "expr": {"oneOf": [
+      {"type": "string", "pattern": "^(?:string|boolean|number|integer|timestamp|json|[A-Z][A-Za-z0-9_]*)$"},
+      {"type": "object", "additionalProperties": false, "required": ["array"], "properties": {"array": {"$ref": "#/$defs/expr"}}},
+      {"type": "object", "additionalProperties": false, "required": ["map"], "properties": {"map": {"$ref": "#/$defs/expr"}}}
+    ]},
+    "field": {
+      "type": "object", "additionalProperties": false, "required": ["name", "type"],
+      "properties": {
+        "name": {"$ref": "#/$defs/identifier"}, "go_name": {"$ref": "#/$defs/typeName"},
+        "description": {"type": "string"},
+        "type": {"$ref": "#/$defs/expr"}, "required": {"type": "boolean", "default": true},
+        "nullable": {"type": "boolean", "default": false}
+      }
+    },
+    "type": {"oneOf": [
+      {"type": "object", "additionalProperties": false, "required": ["kind", "fields"], "properties": {
+        "description": {"type": "string"},
+        "kind": {"const": "record"}, "fields": {"type": "array", "items": {"$ref": "#/$defs/field"}},
+        "extends": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/typeName"}}, "open": {"type": "boolean"}
+      }},
+      {"type": "object", "additionalProperties": false, "required": ["kind", "values"], "properties": {"kind": {"const": "enum"}, "description": {"type": "string"}, "values": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}}},
+      {"type": "object", "additionalProperties": false, "required": ["kind", "type"], "properties": {"kind": {"const": "alias"}, "description": {"type": "string"}, "type": {"$ref": "#/$defs/expr"}}}
+    ]},
+    "method": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "go_name", "ts_name", "direction", "result"],
+      "properties": {
+        "description": {"type": "string"},
+        "name": {"type": "string", "minLength": 1}, "go_name": {"$ref": "#/$defs/typeName"}, "ts_name": {"$ref": "#/$defs/identifier"},
+        "direction": {"$ref": "#/$defs/direction"}, "request": {"$ref": "#/$defs/typeName"}, "result": {"$ref": "#/$defs/expr"}
+      }
+    },
+    "event": {
+      "type": "object", "additionalProperties": false, "required": ["name", "go_name", "ts_name", "direction", "type"],
+      "properties": {
+        "description": {"type": "string"},
+        "name": {"type": "string", "minLength": 1}, "go_name": {"$ref": "#/$defs/typeName"}, "ts_name": {"$ref": "#/$defs/identifier"},
+        "direction": {"$ref": "#/$defs/direction"}, "type": {"$ref": "#/$defs/expr"}
+      }
+    }
+  }
+}
