@@ -1,4 +1,4 @@
-package generate
+package contract
 
 import (
 	"encoding/json"
@@ -16,6 +16,10 @@ func contractFixture(t *testing.T) map[string]any {
 	return value
 }
 
+func fields(v map[string]any, name string) []any {
+	return v["types"].(map[string]any)[name].(map[string]any)["fields"].([]any)
+}
+
 func TestContractDefaultsAndEmbeddedSchema(t *testing.T) {
 	api, diagnostics := Parse(contractFixture(t))
 	if len(diagnostics) != 0 {
@@ -30,11 +34,11 @@ func TestContractDefaultsAndEmbeddedSchema(t *testing.T) {
 	if !json.Valid(EmbeddedSchema()) {
 		t.Fatal("caller mutated embedded schema")
 	}
-	if DefaultGoName("work_item_id") != "WorkItemID" {
-		t.Fatal("unexpected field name conversion")
-	}
 }
 
+// TestContractValidationRejectsUnsupportedContracts breaks the fixture one
+// way at a time and expects the contract's own diagnostics to name it. What
+// only a language can refuse is that language's test.
 func TestContractValidationRejectsUnsupportedContracts(t *testing.T) {
 	tests := []struct {
 		name, code string
@@ -49,31 +53,23 @@ func TestContractValidationRejectsUnsupportedContracts(t *testing.T) {
 		{"primitive request", "invalid_request", func(v map[string]any) {
 			v["types"].(map[string]any)["Input"] = map[string]any{"kind": "alias", "type": "string"}
 		}},
-		{"wire field collision", "field_collision", func(v map[string]any) { fields(v, "Input")[1].(map[string]any)["name"] = "message" }},
-		{"Go field collision", "generated_name_collision", func(v map[string]any) { fields(v, "Input")[1].(map[string]any)["go_name"] = "Message" }},
-		{"reserved codec field", "reserved_name", func(v map[string]any) { fields(v, "Input")[0].(map[string]any)["go_name"] = "MarshalJSON" }},
-		{"invalid direction", "schema_validation", func(v map[string]any) { v["methods"].([]any)[0].(map[string]any)["direction"] = "both" }},
-		{"reserved method", "reserved_name", func(v map[string]any) { v["methods"].([]any)[0].(map[string]any)["go_name"] = "Close" }},
-		{"thenable client method", "reserved_name", func(v map[string]any) { v["methods"].([]any)[0].(map[string]any)["ts_name"] = "then" }},
-		{"event helper collision", "generated_name_collision", func(v map[string]any) { v["methods"].([]any)[0].(map[string]any)["go_name"] = "OnChanged" }},
-		{"peer field collision", "generated_name_collision", func(v map[string]any) { v["methods"].([]any)[0].(map[string]any)["go_name"] = "Peer" }},
-		{"TypeScript event helper collision", "generated_name_collision", func(v map[string]any) { v["methods"].([]any)[0].(map[string]any)["ts_name"] = "onChanged" }},
-		{"reserved type", "reserved_name", func(v map[string]any) {
-			v["types"].(map[string]any)["Client"] = map[string]any{"kind": "record", "fields": []any{}}
+		{"unresolved request", "unresolved_type", func(v map[string]any) { v["methods"].([]any)[0].(map[string]any)["request"] = "Missing" }},
+		{"inheritance from an alias", "invalid_inheritance", func(v map[string]any) {
+			v["types"].(map[string]any)["Message"] = map[string]any{"kind": "alias", "type": "string"}
+			v["types"].(map[string]any)["Input"].(map[string]any)["extends"] = []any{"Message"}
 		}},
+		{"wire field collision", "field_collision", func(v map[string]any) { fields(v, "Input")[1].(map[string]any)["name"] = "message" }},
+		{"invalid direction", "schema_validation", func(v map[string]any) { v["methods"].([]any)[0].(map[string]any)["direction"] = "both" }},
 		{"enum duplicate", "schema_validation", func(v map[string]any) {
 			v["types"].(map[string]any)["Status"] = map[string]any{"kind": "enum", "values": []any{"a", "a"}}
-		}},
-		{"enum generated collision", "generated_name_collision", func(v map[string]any) {
-			v["types"].(map[string]any)["Status"] = map[string]any{"kind": "enum", "values": []any{"in-progress", "in_progress"}}
-		}},
-		{"enum type collision", "generated_name_collision", func(v map[string]any) {
-			v["types"].(map[string]any)["Status"] = map[string]any{"kind": "enum", "values": []any{""}}
 		}},
 		{"ambiguous expression", "schema_validation", func(v map[string]any) {
 			fields(v, "Input")[0].(map[string]any)["type"] = map[string]any{"array": "string", "map": "string"}
 		}},
 		{"non-finite JSON", "invalid_json", func(v map[string]any) { v["schema_version"] = json.Number("1.2.3") }},
+		{"duplicate error code", "duplicate_error", func(v map[string]any) {
+			v["errors"] = []any{map[string]any{"code": "denied", "description": "a"}, map[string]any{"code": "denied", "description": "b"}}
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -90,8 +86,38 @@ func TestContractValidationRejectsUnsupportedContracts(t *testing.T) {
 	}
 }
 
-func fields(v map[string]any, name string) []any {
-	return v["types"].(map[string]any)[name].(map[string]any)["fields"].([]any)
+// TestParseStopsAtTheSchema holds the two-phase rule the kernel relies on: a
+// contract the schema refuses gets the schema's diagnostics and nothing
+// else, and Check is safe on anything the schema accepts.
+func TestParseStopsAtTheSchema(t *testing.T) {
+	v := contractFixture(t)
+	v["typo"] = true
+	fields(v, "Input")[0].(map[string]any)["type"] = "Missing"
+	_, diagnostics := Parse(v)
+	for _, d := range diagnostics {
+		if d.Code != "schema_validation" {
+			t.Fatalf("Parse went past the schema: %+v", diagnostics)
+		}
+	}
+	if len(diagnostics) == 0 {
+		t.Fatal("schema accepted an unknown field")
+	}
+	v = contractFixture(t)
+	v["types"].(map[string]any)["Input"].(map[string]any)["extends"] = []any{"Input"}
+	api, diagnostics := Parse(v)
+	if len(diagnostics) != 0 {
+		t.Fatal(diagnostics)
+	}
+	if len(api.FlattenedFields("Input")) != 2 {
+		t.Fatal("a self-inheriting record did not walk its own fields once")
+	}
+	found := false
+	for _, d := range Check(api) {
+		found = found || d.Code == "cyclic_type"
+	}
+	if !found {
+		t.Fatal("a self-inheriting record passed Check")
+	}
 }
 
 func TestContractInheritanceAndAliases(t *testing.T) {
@@ -101,6 +127,14 @@ func TestContractInheritanceAndAliases(t *testing.T) {
 	types["ExtendedInput"] = map[string]any{"kind": "alias", "type": "Extended"}
 	if diagnostics := Validate(v); len(diagnostics) != 0 {
 		t.Fatal(diagnostics)
+	}
+	api, _ := Parse(v)
+	var order []string
+	for _, field := range api.FlattenedFields("Extended") {
+		order = append(order, field.Name)
+	}
+	if strings.Join(order, " ") != "message count additional" {
+		t.Fatalf("inherited fields out of wire order: %v", order)
 	}
 	types["Extended"].(map[string]any)["fields"] = []any{map[string]any{"name": "message", "type": "string"}}
 	if diagnostics := Validate(v); len(diagnostics) == 0 {

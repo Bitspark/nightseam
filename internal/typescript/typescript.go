@@ -1,10 +1,131 @@
-package generate
+// Package typescript renders an API family as a TypeScript client package:
+// the wire types with their validator, the client, a manifest and a compiler
+// configuration. It implements spi.Language and is named nowhere but where
+// the tool is composed.
+//
+// It descends from Nightshift's dev/go/repo/generate/typescript.go and the
+// TypeScript checks of its contract.go (D-001).
+package typescript
 
 import (
+	"encoding/json"
 	"fmt"
 	"path"
+	"slices"
 	"strings"
+
+	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/contract"
+	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/spi"
 )
+
+// Options places the generated package. A path left empty is derived from
+// the family's name when a contract is rendered.
+type Options struct {
+	ClientPath string
+}
+
+// New returns the TypeScript language with its options.
+func New(options Options) spi.Language { return &language{options} }
+
+type language struct{ options Options }
+
+func (*language) Name() string { return "typescript" }
+
+func (l *language) resolve(api contract.API) (string, error) {
+	p := l.options.ClientPath
+	if p == "" {
+		p = "api/ts/" + api.Name + "-client"
+	}
+	if p == "." || p == ".." || strings.Contains(p, "\\") || strings.Contains(p, ":") || strings.HasPrefix(p, "/") || path.Clean(p) != p || strings.HasPrefix(p, "../") {
+		return "", fmt.Errorf("invalid output path %q", p)
+	}
+	return p, nil
+}
+
+// Render emits the four files of the client package.
+func (l *language) Render(api contract.API) ([]spi.File, error) {
+	dir, err := l.resolve(api)
+	if err != nil {
+		return nil, err
+	}
+	return generateTS(api, dir), nil
+}
+
+// reservedTypes are the identifiers the generated client declares or would
+// shadow in the module that declares the contract's types; a contract type
+// of that name is refused.
+var reservedTypes = strings.Fields("Client Handler TypeExpression WireType WireField Array Record Promise AbortSignal Date Number Object Set Error")
+
+// A method named then would also make the client a Promise-like value, breaking
+// the async dial factory through JavaScript's thenable assimilation.
+var reservedMethods = strings.Fields("constructor close call notify handle connect then")
+var reservedWords = strings.Fields("break case catch class const continue debugger default delete do else enum export extends false finally for function if import in instanceof new null return super switch this throw true try typeof var void while with as implements interface let package private protected public static yield any boolean number string symbol type from of namespace unknown never object")
+
+// Check reports the names the contract would make TypeScript generate that
+// it cannot: names the client reserves or the language does, and collisions
+// among the client's members.
+func (*language) Check(api contract.API) []contract.Diagnostic {
+	diagnostics := []contract.Diagnostic{}
+	add := func(code, pointer, message string) {
+		diagnostics = append(diagnostics, contract.Diagnostic{Code: code, Pointer: pointer, Message: message})
+	}
+	for _, name := range api.TypeNames() {
+		if slices.Contains(reservedTypes, name) {
+			add("reserved_name", "/types/"+contract.EscapePointer(name), "Type name is reserved by the generated TypeScript client: "+name+".")
+		}
+	}
+	// The TypeScript namespace is shared across methods and events in each direction.
+	operations := map[string]string{}
+	operation := func(kind string, index int, tsName, direction string) {
+		p := fmt.Sprintf("/%s/%d", kind, index)
+		key := direction + ":" + tsName
+		if previous, ok := operations[key]; ok {
+			add("operation_collision", p+"/ts_name", "Operation name collides with "+previous+".")
+		} else {
+			operations[key] = p
+		}
+		if slices.Contains(reservedMethods, tsName) {
+			add("reserved_name", p+"/ts_name", "Operation name is reserved by the generated TypeScript client.")
+		}
+		if slices.Contains(reservedWords, tsName) {
+			add("reserved_name", p+"/ts_name", "Operation name is a reserved TypeScript identifier.")
+		}
+	}
+	for i, method := range api.Methods {
+		operation("methods", i, method.TSName, method.Direction)
+	}
+	for i, event := range api.Events {
+		operation("events", i, event.TSName, event.Direction)
+	}
+	// Events add receive helpers as well as emit helpers, so their receiver
+	// namespace crosses the protocol's direction boundary.
+	client := map[string]string{"peer": "generated client field", "close": "generated client method", "constructor": "generated client constructor"}
+	register := func(name, pointer string) {
+		if previous, exists := client[name]; exists {
+			add("generated_name_collision", pointer, "Generated member "+name+" collides with "+previous+".")
+		} else {
+			client[name] = pointer
+		}
+	}
+	for i, method := range api.Methods {
+		if method.Direction == "client_to_server" {
+			register(method.TSName, fmt.Sprintf("/methods/%d/ts_name", i))
+		}
+	}
+	for i, event := range api.Events {
+		p := fmt.Sprintf("/events/%d/ts_name", i)
+		if event.Direction == "client_to_server" {
+			register("emit"+upperFirst(event.TSName), p)
+		} else {
+			register("on"+upperFirst(event.TSName), p)
+		}
+	}
+	return diagnostics
+}
+
+func quote(value string) string      { encoded, _ := json.Marshal(value); return string(encoded) }
+func expression(value any) string    { encoded, _ := json.Marshal(value); return string(encoded) }
+func canonicalJSON(value any) []byte { data, _ := json.Marshal(value); return data }
 
 func tsType(expression any) string {
 	switch t := expression.(type) {
@@ -31,17 +152,19 @@ func tsType(expression any) string {
 	}
 	return "unknown"
 }
-func generateTS(api API, options Options) (map[string][]byte, error) {
-	files := map[string][]byte{}
+
+// generateTS renders the four files of the client package into dir.
+func generateTS(api contract.API, dir string) []spi.File {
+	var files []spi.File
 	var types strings.Builder
-	types.WriteString(generatedHeader)
-	for _, name := range sortedTypeNames(api) {
+	types.WriteString(spi.Header)
+	for _, name := range api.TypeNames() {
 		t := api.Types[name]
 		switch t.Kind {
 		case "record":
 			fmt.Fprintf(&types, "export interface %s", name)
 			types.WriteString(" {\n")
-			fields := flattenedAPIFields(api, name)
+			fields := api.FlattenedFields(name)
 			for _, field := range fields {
 				optional := ""
 				if !field.Required {
@@ -71,9 +194,9 @@ func generateTS(api API, options Options) (map[string][]byte, error) {
 	types.Write(canonicalJSON(api.Types))
 	types.WriteString(" as unknown as Record<string, WireType>;\n")
 	types.WriteString(tsValidationTemplate)
-	files[path.Join(options.TSClientPath, "src/types.ts")] = []byte(types.String())
+	files = append(files, spi.File{Path: path.Join(dir, "src/types.ts"), Data: []byte(types.String())})
 	var client strings.Builder
-	client.WriteString(generatedHeader)
+	client.WriteString(spi.Header)
 	client.WriteString("import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type RequestContext } from '@nighthall/ws-runtime';\nimport { validateWire } from './types.ts';\nimport type * as Protocol from './types.ts';\nexport * from './types.ts';\nexport { DuplexError };\nexport interface Handler {\n")
 	for _, m := range api.Methods {
 		if m.Direction == "server_to_client" {
@@ -107,11 +230,11 @@ func generateTS(api API, options Options) (map[string][]byte, error) {
 		}
 	}
 	client.WriteString("}\n")
-	files[path.Join(options.TSClientPath, "src/index.ts")] = []byte(client.String())
+	files = append(files, spi.File{Path: path.Join(dir, "src/index.ts"), Data: []byte(client.String())})
 	manifest := map[string]any{"name": "@nighthall/" + api.Name + "-client", "version": "0.0.0", "private": true, "type": "module", "exports": "./src/index.ts", "scripts": map[string]any{"check": "tsc --noEmit"}, "dependencies": map[string]any{"@nighthall/ws-runtime": "0.1.0"}}
-	files[path.Join(options.TSClientPath, "package.json")] = append(canonicalJSON(manifest), '\n')
-	files[path.Join(options.TSClientPath, "tsconfig.json")] = []byte("{\"compilerOptions\":{\"target\":\"ES2022\",\"module\":\"NodeNext\",\"moduleResolution\":\"NodeNext\",\"strict\":true,\"skipLibCheck\":true,\"noEmit\":true,\"allowImportingTsExtensions\":true,\"lib\":[\"ES2022\",\"DOM\"]},\"include\":[\"src/**/*.ts\"]}\n")
-	return files, nil
+	files = append(files, spi.File{Path: path.Join(dir, "package.json"), Data: append(canonicalJSON(manifest), '\n')})
+	files = append(files, spi.File{Path: path.Join(dir, "tsconfig.json"), Data: []byte("{\"compilerOptions\":{\"target\":\"ES2022\",\"module\":\"NodeNext\",\"moduleResolution\":\"NodeNext\",\"strict\":true,\"skipLibCheck\":true,\"noEmit\":true,\"allowImportingTsExtensions\":true,\"lib\":[\"ES2022\",\"DOM\"]},\"include\":[\"src/**/*.ts\"]}\n")})
+	return files
 }
 func upperFirst(value string) string {
 	if value == "" {
@@ -119,13 +242,13 @@ func upperFirst(value string) string {
 	}
 	return strings.ToUpper(value[:1]) + value[1:]
 }
-func tsRequest(m Method) string {
+func tsRequest(m contract.Method) string {
 	if m.Request == "" {
 		return "Record<string, never>"
 	}
 	return "Protocol." + m.Request
 }
-func tsRequestExpr(m Method) string {
+func tsRequestExpr(m contract.Method) string {
 	if m.Request == "" {
 		return "{ empty: true }"
 	}

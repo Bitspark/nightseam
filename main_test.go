@@ -1,8 +1,10 @@
-package generate
+package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -11,12 +13,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/kernel"
 )
 
-func exampleAPI(t *testing.T) map[string]any {
-	t.Helper()
-	var value map[string]any
-	err := json.Unmarshal([]byte(`{
+// These tests exercise the tool as composed: every language, through the
+// kernel, from the contract to compiled and communicating packages.
+
+const probeContract = `{
  "schema_version":1,"profile":"nighthall.duplex/1","name":"probe",
  "types":{
   "Base":{"kind":"record","fields":[{"name":"text","type":"string"}]},
@@ -32,8 +36,12 @@ func exampleAPI(t *testing.T) map[string]any {
  ],
  "events":[{"name":"changed","go_name":"Changed","ts_name":"changed","direction":"server_to_client","type":"Payload"}],
  "errors":[{"code":"denied","description":"The caller is denied"}]
-}`), &value)
-	if err != nil {
+}`
+
+func exampleAPI(t *testing.T) map[string]any {
+	t.Helper()
+	var value map[string]any
+	if err := json.Unmarshal([]byte(probeContract), &value); err != nil {
 		t.Fatal(err)
 	}
 	return value
@@ -41,11 +49,11 @@ func exampleAPI(t *testing.T) map[string]any {
 
 func TestDeterministicGeneration(t *testing.T) {
 	api := exampleAPI(t)
-	first, err := Generate(api, Options{})
+	first, err := kernel.Generate(api, languages(module)...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := Generate(api, Options{})
+	second, err := kernel.Generate(api, languages(module)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,9 +68,6 @@ func TestDeterministicGeneration(t *testing.T) {
 			t.Errorf("empty output %s", name)
 		}
 	}
-	if _, err := Generate(api, Options{ClientPath: "../outside"}); err == nil {
-		t.Fatal("accepted escaping path")
-	}
 }
 
 func TestGeneratedGoFamilyCompilesAndCommunicates(t *testing.T) {
@@ -76,13 +81,24 @@ func TestGeneratedGoFamilyCompilesAndCommunicates(t *testing.T) {
 	runFixture(t, directory, "go", "test", "-count=1", "./...")
 }
 
+// repositoryRoot is the nearest ancestor of the test's directory that holds
+// go.mod, so moving the package does not move the fixtures' source.
 func repositoryRoot(t *testing.T) string {
 	t.Helper()
-	root, err := filepath.Abs(filepath.Join("..", "..", "..", "..", ".."))
+	dir, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return root
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("no go.mod above the test directory")
+		}
+		dir = parent
+	}
 }
 func writeFixture(t *testing.T, root, name string, data []byte) {
 	t.Helper()
@@ -123,7 +139,7 @@ func copyFixtureTree(t *testing.T, source, destination string) {
 }
 func renderFixture(t *testing.T, directory, root string) {
 	t.Helper()
-	result, err := Generate(exampleAPI(t), Options{Module: "example.test/generated"})
+	result, err := kernel.Generate(exampleAPI(t), languages("example.test/generated")...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +203,7 @@ func TestWorkbenchContractRenders(t *testing.T) {
 	if err = json.Unmarshal(data, &api); err != nil {
 		t.Fatal(err)
 	}
-	result, err := Generate(api, Options{})
+	result, err := kernel.Generate(api, languages(module)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,6 +212,123 @@ func TestWorkbenchContractRenders(t *testing.T) {
 	}
 	if !strings.Contains(string(result.Files["api/ts/workbench-client/src/index.ts"]), "async subscribe(") {
 		t.Fatal("missing typed subscription acknowledgement")
+	}
+}
+
+// run executes the tool against a checkout and returns what it printed.
+func run(t *testing.T, root string, args ...string) (stdout, stderr string, err error) {
+	t.Helper()
+	command := newCommand()
+	var out, errs bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&errs)
+	command.SetArgs(append([]string{"--root", root}, args...))
+	err = command.Execute()
+	return out.String(), errs.String(), err
+}
+
+// TestCommands drives generate, check and validate over a checkout that
+// holds one contract: what is stale is written once, then holds.
+func TestCommands(t *testing.T) {
+	root := t.TempDir()
+	if _, _, err := run(t, root, "generate"); err == nil || !strings.Contains(err.Error(), "no contracts in") {
+		t.Fatalf("an empty checkout generated: %v", err)
+	}
+	writeFixture(t, root, "api/contracts/probe.json", []byte(probeContract))
+	out, _, err := run(t, root, "validate")
+	if err != nil || !strings.Contains(out, "1 contracts; valid") {
+		t.Fatalf("validate: %v\n%s", err, out)
+	}
+	_, errs, err := run(t, root, "check")
+	if err == nil || !strings.Contains(err.Error(), "stale") || !strings.Contains(errs, "stale generated output: api/go/probe-protocol/types_generated.go") {
+		t.Fatalf("check passed an ungenerated checkout: %v\n%s", err, errs)
+	}
+	out, _, err = run(t, root, "generate", "probe")
+	if err != nil || strings.Count(out, "generated ") != 8 {
+		t.Fatalf("generate: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "api", "ts", "probe-client", "src", "index.ts")); err != nil {
+		t.Fatal(err)
+	}
+	if out, errs, err := run(t, root, "check"); err != nil || out != "" || errs != "" {
+		t.Fatalf("check after generate: %v\n%s%s", err, out, errs)
+	}
+	if out, _, err := run(t, root, "generate"); err != nil || out != "" {
+		t.Fatalf("generate rewrote what was current: %v\n%s", err, out)
+	}
+	if _, _, err := run(t, root, "generate", "nope"); err == nil || !strings.Contains(err.Error(), `no contract named "nope"`) || !strings.Contains(err.Error(), "probe") {
+		t.Fatalf("unknown family: %v", err)
+	}
+	writeFixture(t, root, "api/contracts/other.json", []byte(probeContract))
+	if _, _, err := run(t, root, "validate", "other"); err == nil || !strings.Contains(err.Error(), "names API") {
+		t.Fatalf("a contract named for another family passed: %v", err)
+	}
+	writeFixture(t, root, "api/contracts/other.json", []byte(strings.Replace(strings.Replace(probeContract, `"name":"probe"`, `"name":"other"`, 1), `"go_name":"Echo"`, `"go_name":"Close"`, 1)))
+	_, errs, err = run(t, root, "validate", "other")
+	if err == nil || !strings.Contains(err.Error(), "problems") || !strings.Contains(errs, "other /methods/0/go_name:") || !strings.Contains(errs, "[reserved_name]") {
+		t.Fatalf("validate did not report the diagnostic: %v\n%s", err, errs)
+	}
+	if _, _, err := run(t, root, "generate"); err == nil || !strings.Contains(err.Error(), "other: invalid API contract") {
+		t.Fatalf("generate rendered a refused contract: %v", err)
+	}
+}
+
+// TestImportDirection holds the seam: the kernel, the contract and the seam
+// never import a language; a language imports neither the kernel nor
+// another language; only the tool itself composes them.
+func TestImportDirection(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	data, err := exec.CommandContext(ctx, "go", "list", "-deps", "-test", "-json", "./...").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	type pkg struct {
+		ImportPath string
+		Imports    []string
+	}
+	const tool = "github.com/Bitspark/nighthall/tools/go/generate-api"
+	internal := tool + "/internal/"
+	// What each package of the seam may import of the others; the tool
+	// itself may import any. No entry names a language.
+	allowed := map[string]map[string]bool{
+		"contract":   {},
+		"spi":        {"contract": true},
+		"kernel":     {"contract": true, "spi": true},
+		"golang":     {"contract": true, "spi": true},
+		"typescript": {"contract": true, "spi": true},
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	seen := 0
+	for {
+		var p pkg
+		if err := decoder.Decode(&p); err == io.EOF {
+			break
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		name := strings.Split(p.ImportPath, " [")[0]
+		if !strings.HasPrefix(name, tool) || strings.HasSuffix(name, ".test") {
+			continue
+		}
+		seen++
+		if name == tool {
+			continue
+		}
+		from := strings.TrimPrefix(name, internal)
+		rules, ok := allowed[from]
+		if !ok {
+			t.Errorf("unexpected package %s", name)
+			continue
+		}
+		for _, imported := range p.Imports {
+			if target, within := strings.CutPrefix(imported, internal); within && !rules[target] {
+				t.Errorf("%s imports %s; only the tool composes what the seam separates", from, target)
+			}
+		}
+	}
+	if seen < 6 {
+		t.Fatalf("saw %d packages of the tool", seen)
 	}
 }
 

@@ -1,12 +1,19 @@
-package generate
+package golang
 
-import "strings"
+import (
+	"strings"
 
-func generateValidation(api API) string {
+	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/contract"
+	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/spi"
+)
+
+// generateValidation renders the protocol package's runtime validator, an
+// interpreter over the contract's own types.
+func generateValidation(api contract.API) string {
 	// Contract data is embedded in each generated protocol package so no developer
 	// library becomes an application runtime dependency.
 	schema := string(canonicalJSON(api.Types))
-	return generatedHeader + "package " + pkg(api, "protocol") + "\n" + strings.ReplaceAll(goValidationTemplate, "CONTRACT_JSON", quote(schema))
+	return spi.Header + "package " + pkg(api, "protocol") + "\n" + strings.ReplaceAll(goValidationTemplate, "CONTRACT_JSON", quote(schema))
 }
 
 const goValidationTemplate = `

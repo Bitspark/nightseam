@@ -1,11 +1,15 @@
-package generate
+package golang
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/contract"
 )
 
-func generateBinding(api API, options Options) string {
+// generateBinding renders the server side: the Handler interface a server
+// implements, the Remote it calls back through, and NewHandler.
+func generateBinding(api contract.API, p paths) string {
 	var b strings.Builder
 	b.WriteString("// Remote provides typed calls back to the connected client.\ntype Remote struct{Peer *wsruntime.Peer}\n")
 	b.WriteString("type Handler interface {\n")
@@ -28,10 +32,12 @@ func generateBinding(api API, options Options) string {
 	}
 	b.WriteString("options.Options.Handlers=handlers;return wsruntime.NewHandler(options)}\n")
 	writeEvents(&b, api, "Remote", "server_to_client")
-	return goFile(api, "binding", b.String(), options)
+	return goFile(api, "binding", b.String(), p)
 }
 
-func generateClient(api API, options Options) string {
+// generateClient renders the caller side: Dial, the typed calls, and the
+// Handler interface for calls the server makes back.
+func generateClient(api contract.API, p paths) string {
 	var b strings.Builder
 	b.WriteString("type Client struct{Peer *wsruntime.Peer}\n")
 	b.WriteString("type Handler interface{\n")
@@ -61,10 +67,10 @@ func generateClient(api API, options Options) string {
 		}
 	}
 	writeEvents(&b, api, "Client", "client_to_server")
-	return goFile(api, "client", b.String(), options)
+	return goFile(api, "client", b.String(), p)
 }
 
-func writeRegistration(b *strings.Builder, m Method, handler, remote string) {
+func writeRegistration(b *strings.Builder, m contract.Method, handler, remote string) {
 	fmt.Fprintf(b, "if _,exists:=handlers[%q];exists{return nil,fmt.Errorf(\"duplicate handler %%s\",%q)}\n", m.Name, m.Name)
 	fmt.Fprintf(b, "handlers[%q]=func(ctx context.Context,peer *wsruntime.Peer,raw json.RawMessage)(any,error){\n", m.Name)
 	params := ""
@@ -76,7 +82,7 @@ func writeRegistration(b *strings.Builder, m Method, handler, remote string) {
 	}
 	fmt.Fprintf(b, "result,err:=%s.%s(ctx,%s%s);if err!=nil{return nil,err};if err=protocol.ValidateValue(protocol.TypeExpression(%q),result);err!=nil{return nil,err};return result,nil}\n", handler, m.GoName, remote, params, expression(m.Result))
 }
-func writeCaller(b *strings.Builder, m Method, receiver string) {
+func writeCaller(b *strings.Builder, m contract.Method, receiver string) {
 	result := goType(m.Result, "protocol.")
 	fmt.Fprintf(b, "func(c *%s)%s(ctx context.Context%s)(%s,error){var result %s;", receiver, m.GoName, paramSignature(m), result, result)
 	if m.Request != "" {
@@ -84,7 +90,7 @@ func writeCaller(b *strings.Builder, m Method, receiver string) {
 	}
 	fmt.Fprintf(b, "var raw json.RawMessage;if err:=c.Peer.Call(ctx,%q,%s,&raw);err!=nil{return result,err};if err:=protocol.ValidateExpressionRaw(protocol.TypeExpression(%q),raw);err!=nil{return result,err};if err:=json.Unmarshal(raw,&result);err!=nil{return result,err};return result,nil}\n", m.Name, paramValue(m), expression(m.Result))
 }
-func writeEvents(b *strings.Builder, api API, receiver, outbound string) {
+func writeEvents(b *strings.Builder, api contract.API, receiver, outbound string) {
 	for _, event := range api.Events {
 		if event.Direction == outbound {
 			fmt.Fprintf(b, "func(c *%s)Emit%s(ctx context.Context,data %s)error{if err:=protocol.ValidateValue(protocol.TypeExpression(%q),data);err!=nil{return err};return c.Peer.Emit(ctx,%q,data)}\n", receiver, event.GoName, goType(event.Type, "protocol."), expression(event.Type), event.Name)
