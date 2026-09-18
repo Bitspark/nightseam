@@ -93,7 +93,7 @@ and on nothing else.
 | npm | Go | what it is |
 | --- | --- | --- |
 | [`@nightseam/duplex`](duplex/ts) | [`duplex/go`](duplex/go) | the seam: ordered frames both ways, an explicit close with a code and a reason, a WebSocket adapter and an in-memory pipe |
-| [`@nightseam/runtime`](runtime/ts) | [`runtime/go`](runtime/go) | the peer of the profile: correlation, cancellation, backpressure, presence, trace context, the wire validator |
+| [`@nightseam/runtime`](runtime/ts) | [`runtime/go`](runtime/go) | the peer of the profile: correlation, cancellation, backpressure, presence, trace context, the wire validator, the observer and its console and slog adapters |
 | [`@nightseam/tunnel`](tunnel/ts) | [`tunnel/go`](tunnel/go) | channels multiplexed over one peer, each one a connection of the seam, with per-channel credit |
 | [`@nightseam/session`](session/ts) | [`session/go`](session/go) | a session over a tunnel's channels: the relay, the registry, the holder of control, the log |
 | — | [`cmd/nightseam`](cmd/nightseam) | the generator |
