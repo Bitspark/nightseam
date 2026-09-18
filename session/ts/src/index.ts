@@ -8,8 +8,8 @@
  * What lives here is mechanism — what can be stated in terms of the profile
  * and a family's session tier, and is the same for every consumer: routing
  * by kind and method against the family's decides and asks, minting the ids
- * a frame carries downstream, the holder as state, the log's shape and an
- * in-memory one. Who may attach, who may take control, how long a lease
+ * a consumer's request carries on to the machine, the holder as state, the
+ * log's shape and an in-memory one. Who may attach, who may take control, how long a lease
  * lasts, where the log is kept: the consumer's, and the registry never asks.
  *
  * The relay reads a frame as the plain object it is and rewrites only `id`.

@@ -124,7 +124,12 @@ export function run(connect: Connect): void {
     const client = await Client.attach(one.near, {}, answering);
     assert.deepEqual(await client.echo(payload('value')), { text: 'machine:value', count: 1 });
     await peer.emit('changed', payload('moved', 2));
-    assert.deepEqual(await heard.next(), { version: 1, kind: 'event', event: 'changed', data: { text: 'moved', count: 2 } });
+    // What the peer sends is the peer's — a trace context among it — so the
+    // event is held to what it is, not to the members it arrives with.
+    const event = await heard.next();
+    assert.equal(event.kind, 'event');
+    assert.equal(event.event, 'changed');
+    assert.deepEqual(event.data, { text: 'moved', count: 2 });
     await tick();
     // The observer saw the event and nothing of the exchange it was not part of.
     assert.deepEqual(heard.envelopes.map(envelope => envelope.kind), ['event']);
