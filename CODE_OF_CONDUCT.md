@@ -31,9 +31,9 @@ elsewhere.
 ## Reporting and enforcement
 
 Report a concern privately to the maintainers, through **[a private report on
-the repository's Security tab](https://github.com/Bitspark/nightseam/security/advisories/new)** —
-today that form is the repository's private channel, and it reaches the
-maintainers and nobody else. Say what happened and where; you do not have to
+the repository's Security tab][private-report]** — today that form is the
+repository's private channel, and it reaches the maintainers and nobody
+else. Say what happened and where; you do not have to
 have a remedy in mind. A report is not shared beyond the people needed to act
 on it, and the person who reports is not identified to the person reported
 without their agreement.
@@ -45,3 +45,5 @@ maintainer who is the subject of a report takes no part in handling it.
 
 Conduct that GitHub itself governs — spam, impersonation, threats — can also
 be reported to GitHub.
+
+[private-report]: https://github.com/Bitspark/nightseam/security/advisories/new

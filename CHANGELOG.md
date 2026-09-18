@@ -1,6 +1,6 @@
 # Changelog
 
-Versions move in lockstep: the four TypeScript packages, the version the
+Versions move in lockstep: the published TypeScript packages, the version the
 generator writes into a generated client's manifest, and the Go module's tag
 are one number. Entries are in the words of the commits that landed them.
 

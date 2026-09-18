@@ -10,13 +10,24 @@ import (
 )
 
 // TestVersionsMoveInLockstep holds every spelling of the version to one
-// number: the four TypeScript packages and the version the generator writes
-// into a generated client's manifest. The Go module's version is its tag,
-// which the release workflow holds to the same number (RELEASING.md).
+// number: every published TypeScript package and the version the generator
+// writes into a generated client's manifest. The Go module's version is its
+// tag, which the release workflow holds to the same number (RELEASING.md).
+// The packages are found rather than listed, the way scripts/packages.mjs
+// finds them, so that a component added beside the others is held to the one
+// version without anyone remembering to name it here.
 func TestVersionsMoveInLockstep(t *testing.T) {
 	root := repositoryRoot(t)
-	for _, directory := range []string{"duplex/ts", "runtime/ts", "tunnel/ts", "session/ts"} {
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(directory), "package.json"))
+	manifests, err := filepath.Glob(filepath.Join(root, "*", "ts", "package.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A glob that matched nothing would hold nothing and say so by passing.
+	if len(manifests) < 4 {
+		t.Fatalf("found %d manifests under */ts; the workspace has more than that", len(manifests))
+	}
+	for _, file := range manifests {
+		data, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)
 		}

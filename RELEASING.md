@@ -1,8 +1,7 @@
 # Releasing
 
-A release is one version across the four TypeScript packages
-(`@nightseam/duplex`, `@nightseam/runtime`, `@nightseam/tunnel`,
-`@nightseam/session`), the version the generator writes into a generated
+A release is one version across every published TypeScript package under
+the `@nightseam` scope, the version the generator writes into a generated
 client's manifest (`DefaultRuntimeVersion` in
 `internal/targets/typescript/target.go`), and the Go module's tag. They move
 together, and a test in the fast tier (`cmd/nightseam`, `TestVersions…`)
@@ -10,7 +9,10 @@ fails when they drift.
 
 ## What is published
 
-- **npm**: the four packages, under the `@nightseam` organization, public.
+- **npm**: every package under `*/ts`, in the `@nightseam` organization,
+  public. They are found rather than listed — `scripts/packages.mjs` reads
+  them off the workspace, and `TestVersionsMoveInLockstep` globs the same
+  paths — so a component added beside the others is released with them.
   Each is built to `dist/` — ES modules with declarations and source maps
   that carry the sources — by `pnpm -r build`; the tarball holds `dist`,
   the package's README, and a copy of `LICENSE` and `NOTICE`. In the
@@ -28,14 +30,14 @@ fails when they drift.
 1. Be on `main`, clean, with both tiers green: `go test ./...` and
    `pnpm -r check && pnpm -r test`.
 2. Set the version everywhere: `node scripts/version.mjs 0.3.0`. It rewrites
-   the four manifests and the generator's constant; since the constant is
-   in the generated manifests' goldens, then run
+   every manifest and the generator's constant; since the constant is in
+   the generated manifests' goldens, then run
    `go test ./cmd/nightseam -short -run Golden -update` and commit the two
    together: `release: 0.3.0`, with the changelog's *Unreleased* section
    moved under the version.
 3. Tag and push: `git tag v0.3.0 && git push origin main v0.3.0`.
 4. The `release` workflow runs on the tag: it checks the versions against
-   the tag, installs, runs both tiers, builds, publishes the four packages
+   the tag, installs, runs both tiers, builds, publishes the packages
    with the repository's `NPM_TOKEN` secret, and creates the GitHub release
    with that version's changelog section as its notes.
 

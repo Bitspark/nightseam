@@ -41,7 +41,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r check
-      # The four packages are built here and not only at a tag, so that a
+      # The packages are built here and not only at a tag, so that a
       # tsconfig.build.json that stopped emitting fails a pull request rather
       # than a release.
       - run: pnpm -r build

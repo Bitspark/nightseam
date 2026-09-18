@@ -4,11 +4,8 @@
 // release-notes.md for the GitHub release. The workflow runs it on a tag;
 // run it by hand to rehearse. See RELEASING.md.
 import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const packages = ["duplex/ts", "runtime/ts", "tunnel/ts", "session/ts"];
+import { join } from "node:path";
+import { packages, root } from "./packages.mjs";
 const tag = process.argv[2];
 if (!/^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(tag ?? "")) {
   console.error("usage: node scripts/release-prepare.mjs v<major.minor.patch>");

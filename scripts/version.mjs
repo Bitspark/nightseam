@@ -1,18 +1,15 @@
-// Sets the one version everywhere it is spelled: the four package manifests
+// Sets the one version everywhere it is spelled: every package manifest
 // and the generator's DefaultRuntimeVersion. The Go module's version is its
 // tag, cut afterwards; the goldens that embed the constant are rewritten by
 // `go test ./cmd/nightseam -short -run Golden -update`. See RELEASING.md.
 import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+import { join } from "node:path";
+import { packages, root } from "./packages.mjs";
 const version = process.argv[2];
 if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version ?? "")) {
   console.error("usage: node scripts/version.mjs <major.minor.patch>");
   process.exit(2);
 }
-export const packages = ["duplex/ts", "runtime/ts", "tunnel/ts", "session/ts"];
 for (const directory of packages) {
   const file = join(root, directory, "package.json");
   const manifest = JSON.parse(readFileSync(file, "utf8"));

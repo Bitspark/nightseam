@@ -91,7 +91,7 @@ message needs a paragraph is usually two commits.
 
 ## Releases
 
-Versions move in lockstep across the four TypeScript packages, the
+Versions move in lockstep across the published TypeScript packages, the
 generator's `DefaultRuntimeVersion` and the Go module's tag; `RELEASING.md`
 has the procedure. Between releases, `CHANGELOG.md` collects what landed
 under *Unreleased*, in the words of the commits.

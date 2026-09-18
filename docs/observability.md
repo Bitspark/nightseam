@@ -37,13 +37,13 @@ peer, _, err := runtime.Dial(ctx, url, runtime.DialOptions{
 const peer = new DuplexPeer({ observer: consoleObserver() });
 ```
 
-`runtime/go/slogobserver` writes one `slog` record per event, timed at the
-event's own instant rather than at the moment the record is written.
-`consoleObserver()` in `@nightseam/runtime` writes one line per event, and
-takes the four console methods and a clock so that a test captures it with
-four functions. Both write an event of a type they do not know — one a layer
-above them added — rather than dropping it. Neither is required: an observer
-is one interface with one method.
+An adapter ships for each language and neither is required, an observer
+being one interface with one method: `runtime/go/slogobserver` writes one
+`slog` record per event, timed at the event's own instant rather than at the
+moment the record is written, and `consoleObserver()` in `@nightseam/runtime`
+writes one line per event, taking the four console methods and a clock so
+that a test captures it with four functions. Both write an event of a type
+they do not know — one a layer above them added — rather than dropping it.
 
 ## The events
 
