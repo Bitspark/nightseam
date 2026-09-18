@@ -36,13 +36,34 @@ type Caller interface {
 
 var _ Caller = (*Client)(nil)
 
-// install registers the reverse-call handlers on the options a peer is made with.
+// install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
 func install(handler Handler, options *runtime.Options) error {
 	handlers := map[string]runtime.Handler{}
 	for name, existing := range options.Handlers {
 		handlers[name] = existing
 	}
 	options.Handlers = handlers
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["events.list"] = "workbench"
+	families["me"] = "workbench"
+	families["projects.create"] = "workbench"
+	families["projects.list"] = "workbench"
+	families["projects.update"] = "workbench"
+	families["subscribe"] = "workbench"
+	families["work.cancel"] = "workbench"
+	families["work.create"] = "workbench"
+	families["work.dependencies"] = "workbench"
+	families["work.get"] = "workbench"
+	families["work.list"] = "workbench"
+	families["work.publish"] = "workbench"
+	families["work.reopen"] = "workbench"
+	families["work.steps"] = "workbench"
+	families["work.update"] = "workbench"
+	families["workbench.changed"] = "workbench"
+	options.Families = families
 	return nil
 }
 

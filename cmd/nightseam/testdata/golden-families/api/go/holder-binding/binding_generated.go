@@ -17,7 +17,7 @@ type Handler[SEnvelope, SPayload any] interface {
 	Hold(ctx context.Context, remote *Remote[SEnvelope, SPayload], params protocol.Held[SEnvelope, SPayload]) (SPayload, error)
 }
 
-// install registers the family's methods on the options a peer is made with.
+// install registers the family's methods on the options a peer is made with and labels its names with the family.
 func install[SEnvelope, SPayload any](handler Handler[SEnvelope, SPayload], options *runtime.Options) error {
 	if handler == nil {
 		return fmt.Errorf("handler is required")
@@ -47,6 +47,12 @@ func install[SEnvelope, SPayload any](handler Handler[SEnvelope, SPayload], opti
 		return result, nil
 	}
 	options.Handlers = handlers
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["hold"] = "holder"
+	options.Families = families
 	return nil
 }
 

@@ -47,7 +47,7 @@ func Asks(method string) bool {
 // Conversation is where the agent's own conversation id arrives: the event, and the path to the id in its data.
 var Conversation = struct{ Event, Path string }{"changed", "text"}
 
-// install registers the reverse-call handlers on the options a peer is made with.
+// install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
 func install(handler Handler, options *runtime.Options) error {
 	if handler == nil {
 		return fmt.Errorf("reverse-call handler is required")
@@ -77,6 +77,17 @@ func install(handler Handler, options *runtime.Options) error {
 		return result, nil
 	}
 	options.Handlers = handlers
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["echo"] = "probe"
+	families["no_args"] = "probe"
+	families["seen"] = "probe"
+	families["reverse"] = "probe"
+	families["changed"] = "probe"
+	families["noticed"] = "probe"
+	options.Families = families
 	return nil
 }
 

@@ -14,7 +14,7 @@ type Remote struct{ Peer *runtime.Peer }
 type Handler interface {
 }
 
-// install registers the family's methods on the options a peer is made with.
+// install registers the family's methods on the options a peer is made with and labels its names with the family.
 func install(handler Handler, options *runtime.Options) error {
 	if handler == nil {
 		return fmt.Errorf("handler is required")
@@ -24,6 +24,11 @@ func install(handler Handler, options *runtime.Options) error {
 		handlers[name] = existing
 	}
 	options.Handlers = handlers
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	options.Families = families
 	return nil
 }
 

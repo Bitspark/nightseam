@@ -18,7 +18,7 @@ type Handler[SEnvelope, SHandle, TEnvelope any] interface {
 	Relay(ctx context.Context, remote *Remote[SEnvelope, SHandle, TEnvelope], params TEnvelope) (protocol.Both[SEnvelope, SHandle, TEnvelope], error)
 }
 
-// install registers the family's methods on the options a peer is made with.
+// install registers the family's methods on the options a peer is made with and labels its names with the family.
 func install[SEnvelope, SHandle, TEnvelope any](handler Handler[SEnvelope, SHandle, TEnvelope], options *runtime.Options) error {
 	if handler == nil {
 		return fmt.Errorf("handler is required")
@@ -68,6 +68,14 @@ func install[SEnvelope, SHandle, TEnvelope any](handler Handler[SEnvelope, SHand
 		return result, nil
 	}
 	options.Handlers = handlers
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["named"] = "pair"
+	families["relay"] = "pair"
+	families["echoed"] = "pair"
+	options.Families = families
 	return nil
 }
 

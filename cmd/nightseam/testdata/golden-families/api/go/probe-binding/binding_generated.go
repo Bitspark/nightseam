@@ -36,7 +36,7 @@ func (c *Remote) Reverse(ctx context.Context, params protocol.Payload) (protocol
 	return result, nil
 }
 
-// install registers the family's methods on the options a peer is made with.
+// install registers the family's methods on the options a peer is made with and labels its names with the family.
 func install(handler Handler, options *runtime.Options) error {
 	if handler == nil {
 		return fmt.Errorf("handler is required")
@@ -82,6 +82,15 @@ func install(handler Handler, options *runtime.Options) error {
 		return result, nil
 	}
 	options.Handlers = handlers
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["echo"] = "probe"
+	families["no_args"] = "probe"
+	families["reverse"] = "probe"
+	families["changed"] = "probe"
+	options.Families = families
 	return nil
 }
 

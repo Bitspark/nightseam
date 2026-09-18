@@ -28,9 +28,9 @@ export class Client implements Caller {
     peer.handle("reverse", async (params, context) => { try { validateWire("Payload", params); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.reverse(params as Protocol.Payload, context); validateWire("Payload", result); return result; });
   }
   /** Connects to a WebSocket endpoint and speaks the family over it. */
-  static async dial(url: string, options: PeerOptions = {}, handler?: Handler): Promise<Client> { const peer = new DuplexPeer(options); const client = new Client(peer, handler); await peer.connect(url); return client; }
+  static async dial(url: string, options: PeerOptions = {}, handler?: Handler): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "echo": "probe", "no_args": "probe", "reverse": "probe", "changed": "probe" } }); const client = new Client(peer, handler); await peer.connect(url); return client; }
   /** Speaks the family over a connection of the seam — a tunnel channel, a pipe, an open socket — as the client side of it. */
-  static async attach(connection: FrameConnection, options: PeerOptions = {}, handler?: Handler): Promise<Client> { const peer = new DuplexPeer(options); const client = new Client(peer, handler); await peer.attach(connection); return client; }
+  static async attach(connection: FrameConnection, options: PeerOptions = {}, handler?: Handler): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "echo": "probe", "no_args": "probe", "reverse": "probe", "changed": "probe" } }); const client = new Client(peer, handler); await peer.attach(connection); return client; }
   /** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */
   static async open(tunnel: Tunnel, handle: Protocol.Handle, options: PeerOptions = {}, handler?: Handler): Promise<Client> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach(channel, options, handler); }
   close(): void { this.peer.close(); }

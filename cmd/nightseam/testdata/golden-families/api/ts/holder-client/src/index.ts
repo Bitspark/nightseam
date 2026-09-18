@@ -24,9 +24,9 @@ export class Client<S extends AnyFamily & { "Payload": unknown } = SessionFamily
     this.slots = { "S": s };
   }
   /** Connects to a WebSocket endpoint and speaks the family over it. */
-  static async dial<S extends AnyFamily & { "Payload": unknown } = SessionFamily>(url: string, s: FamilyBinding<S>, options: PeerOptions = {}, handler?: Handler<S>): Promise<Client<S>> { const peer = new DuplexPeer(options); const client = new Client<S>(peer, s, handler); await peer.connect(url); return client; }
+  static async dial<S extends AnyFamily & { "Payload": unknown } = SessionFamily>(url: string, s: FamilyBinding<S>, options: PeerOptions = {}, handler?: Handler<S>): Promise<Client<S>> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "hold": "holder" } }); const client = new Client<S>(peer, s, handler); await peer.connect(url); return client; }
   /** Speaks the family over a connection of the seam — a tunnel channel, a pipe, an open socket — as the client side of it. */
-  static async attach<S extends AnyFamily & { "Payload": unknown } = SessionFamily>(connection: FrameConnection, s: FamilyBinding<S>, options: PeerOptions = {}, handler?: Handler<S>): Promise<Client<S>> { const peer = new DuplexPeer(options); const client = new Client<S>(peer, s, handler); await peer.attach(connection); return client; }
+  static async attach<S extends AnyFamily & { "Payload": unknown } = SessionFamily>(connection: FrameConnection, s: FamilyBinding<S>, options: PeerOptions = {}, handler?: Handler<S>): Promise<Client<S>> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "hold": "holder" } }); const client = new Client<S>(peer, s, handler); await peer.attach(connection); return client; }
   /** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */
   static async open<S extends AnyFamily & { "Payload": unknown } = SessionFamily>(tunnel: Tunnel, handle: Protocol.Handle, s: FamilyBinding<S>, options: PeerOptions = {}, handler?: Handler<S>): Promise<Client<S>> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach<S>(channel, s, options, handler); }
   close(): void { this.peer.close(); }

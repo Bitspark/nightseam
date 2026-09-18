@@ -24,13 +24,19 @@ func _[AEnvelope, BEnvelope any]() {
 	var _ Caller[AEnvelope, BEnvelope] = (*Client[AEnvelope, BEnvelope])(nil)
 }
 
-// install registers the reverse-call handlers on the options a peer is made with.
+// install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
 func install[AEnvelope, BEnvelope any](handler Handler[AEnvelope, BEnvelope], options *runtime.Options) error {
 	handlers := map[string]runtime.Handler{}
 	for name, existing := range options.Handlers {
 		handlers[name] = existing
 	}
 	options.Handlers = handlers
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["look"] = "album"
+	options.Families = families
 	return nil
 }
 

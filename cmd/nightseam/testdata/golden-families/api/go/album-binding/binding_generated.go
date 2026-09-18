@@ -17,7 +17,7 @@ type Handler[AEnvelope, BEnvelope any] interface {
 	Look(ctx context.Context, remote *Remote[AEnvelope, BEnvelope], params protocol.Mine[AEnvelope]) (protocol.Both[AEnvelope, BEnvelope], error)
 }
 
-// install registers the family's methods on the options a peer is made with.
+// install registers the family's methods on the options a peer is made with and labels its names with the family.
 func install[AEnvelope, BEnvelope any](handler Handler[AEnvelope, BEnvelope], options *runtime.Options) error {
 	if handler == nil {
 		return fmt.Errorf("handler is required")
@@ -47,6 +47,12 @@ func install[AEnvelope, BEnvelope any](handler Handler[AEnvelope, BEnvelope], op
 		return result, nil
 	}
 	options.Handlers = handlers
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["look"] = "album"
+	options.Families = families
 	return nil
 }
 

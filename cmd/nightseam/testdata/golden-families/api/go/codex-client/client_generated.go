@@ -30,7 +30,7 @@ func Decides(method string) bool { return false }
 // Asks reports whether a method the server sends raises a request the holder of control must answer.
 func Asks(method string) bool { return false }
 
-// install registers the reverse-call handlers on the options a peer is made with.
+// install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
 func install(handler Handler, options *runtime.Options) error {
 	if handler == nil {
 		return fmt.Errorf("reverse-call handler is required")
@@ -60,6 +60,15 @@ func install(handler Handler, options *runtime.Options) error {
 		return result, nil
 	}
 	options.Handlers = handlers
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["echo"] = "codex"
+	families["no_args"] = "codex"
+	families["reverse"] = "codex"
+	families["changed"] = "codex"
+	options.Families = families
 	return nil
 }
 

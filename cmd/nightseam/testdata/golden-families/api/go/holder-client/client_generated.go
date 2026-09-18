@@ -24,13 +24,19 @@ func _[SEnvelope, SPayload any]() {
 	var _ Caller[SEnvelope, SPayload] = (*Client[SEnvelope, SPayload])(nil)
 }
 
-// install registers the reverse-call handlers on the options a peer is made with.
+// install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
 func install[SEnvelope, SPayload any](handler Handler[SEnvelope, SPayload], options *runtime.Options) error {
 	handlers := map[string]runtime.Handler{}
 	for name, existing := range options.Handlers {
 		handlers[name] = existing
 	}
 	options.Handlers = handlers
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["hold"] = "holder"
+	options.Families = families
 	return nil
 }
 

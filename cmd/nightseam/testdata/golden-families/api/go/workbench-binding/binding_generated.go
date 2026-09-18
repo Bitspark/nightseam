@@ -31,7 +31,7 @@ type Handler interface {
 	UpdateWorkItem(ctx context.Context, remote *Remote, params protocol.UpdateWorkItemParams) (protocol.WorkItem, error)
 }
 
-// install registers the family's methods on the options a peer is made with.
+// install registers the family's methods on the options a peer is made with and labels its names with the family.
 func install(handler Handler, options *runtime.Options) error {
 	if handler == nil {
 		return fmt.Errorf("handler is required")
@@ -337,6 +337,27 @@ func install(handler Handler, options *runtime.Options) error {
 		return result, nil
 	}
 	options.Handlers = handlers
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["events.list"] = "workbench"
+	families["me"] = "workbench"
+	families["projects.create"] = "workbench"
+	families["projects.list"] = "workbench"
+	families["projects.update"] = "workbench"
+	families["subscribe"] = "workbench"
+	families["work.cancel"] = "workbench"
+	families["work.create"] = "workbench"
+	families["work.dependencies"] = "workbench"
+	families["work.get"] = "workbench"
+	families["work.list"] = "workbench"
+	families["work.publish"] = "workbench"
+	families["work.reopen"] = "workbench"
+	families["work.steps"] = "workbench"
+	families["work.update"] = "workbench"
+	families["workbench.changed"] = "workbench"
+	options.Families = families
 	return nil
 }
 
