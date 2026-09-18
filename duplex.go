@@ -2,8 +2,8 @@
 // frames duplex connection. It is ordered, message-framed, bidirectional and
 // closed explicitly with a code and a reason, and it is nothing else — no
 // JSON, no requests, no correlation, no events, no reconnection. The
-// nighthall.duplex/1 profile runs over it, and so does an agent's own
-// protocol relayed verbatim; beneath it the transport is a WebSocket today
+// nighthall.duplex/1 profile runs over it, and through the profile every
+// family of Nighthall's API; beneath it the transport is a WebSocket today
 // and may be something else tomorrow, and neither side of the seam knows
 // which.
 //
