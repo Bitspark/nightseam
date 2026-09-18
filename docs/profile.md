@@ -14,11 +14,13 @@ A frames duplex connection: ordered, message-framed, bidirectional, closed
 explicitly with a code and a reason, and nothing else — `duplex.Conn` in Go,
 `FrameConnection` in TypeScript. A WebSocket is one; an in-memory pipe and a
 tunnel channel are others; every transport is held to one conformance suite
-(`duplex/go/duplextest`). Close codes are the WebSocket registry's numbers on
-every transport: 1000 normal, 1001 going away, 1002 protocol error, 1006
-abnormal closure, 1008 policy violation, 1009 too large, 1011 internal, and
-4000–4999 for what runs above the seam; the profile itself closes with
-**4011** when the other side broke it.
+per language — `duplex/go/duplextest` and `duplex/ts/src/conformance.ts`,
+each run by the pipe, the WebSocket adapter and the tunnel channel. Close
+codes are the WebSocket registry's numbers on every transport: 1000 normal,
+1001 going away, 1002 protocol error, 1006 abnormal closure, 1008 policy
+violation, 1009 too large, 1011 internal, and 4000–4999 for what runs above
+the seam; the profile itself closes with **4011** when the other side broke
+it.
 
 The profile sends text frames only and refuses a binary frame; a frame
 larger than the peer's limit is refused before delivery and the connection

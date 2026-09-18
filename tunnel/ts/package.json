@@ -48,6 +48,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "check": "tsc --noEmit --strict --target ES2022 --module nodenext --allowImportingTsExtensions --skipLibCheck src/index.ts src/observer.check.ts",
-    "test": "node --experimental-strip-types --test --test-timeout=10000 src/tunnel.test.ts"
+    "test": "node --experimental-strip-types --test --test-timeout=10000 src/tunnel.test.ts src/seam.test.ts"
   }
 }

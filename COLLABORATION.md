@@ -16,7 +16,8 @@ consumer's concept to be stated, it belongs in the consumer.
 ## Parity
 
 Every runtime component exists in Go and in TypeScript, and the two are held
-to one suite: the seam to `duplex/go/duplextest`, the wire validator to
+to one suite: the seam to `duplex/go/duplextest` and its twin
+`duplex/ts/src/conformance.ts`, the wire validator to
 `runtime/testdata/validator-cases.json`, the session component to
 `session/go/sessiontest` and its twin `session/ts/src/conformance.ts`, the
 tunnel and the session to a cross-language gate over a real socket. A change

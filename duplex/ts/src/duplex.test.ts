@@ -1,0 +1,196 @@
+// The seam's two transports in TypeScript: the in-memory pipe and the
+// WebSocket adapter, each held to the suite every transport is held to, and
+// then the adapter held to what it alone does — the shapes a socket delivers
+// a message in, the close event's code and reason, and the socket surface it
+// reads state and buffered off. The suite is the twin of duplextest, which
+// duplex/go runs over the pipe and duplex/go/ws over a real socket.
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { run } from './conformance.ts';
+import { pipe, webSocketConnection } from './index.ts';
+import type { Frame, WebSocketLike } from './index.ts';
+
+run('the in-memory pipe', async () => {
+  const [a, b] = pipe();
+  return { a, b, end: () => { a.close(); } };
+});
+
+run('a WebSocket', async () => {
+  const [left, right] = Socket.pair();
+  return { a: webSocketConnection(left), b: webSocketConnection(right), end: () => { left.close(); } };
+});
+
+test('the pipe delivers in a later turn, never inside the send', async () => {
+  const [a, b] = pipe();
+  const frames: Frame[] = [];
+  b.listen({ frame: frame => { frames.push(frame); } });
+  a.send({ kind: 'text', data: 'now' });
+  assert.deepEqual(frames, [], 'a pipe delivered a frame inside the send');
+  await settled();
+  assert.deepEqual(frames, [{ kind: 'text', data: 'now' }]);
+  a.close();
+});
+
+test('a socket that opens says so, and a string, an ArrayBuffer and a Uint8Array are the two kinds of frame', async () => {
+  const socket = new Socket();
+  const connection = webSocketConnection(socket);
+  const frames: Frame[] = [];
+  let opened = 0;
+  connection.listen({ open: () => { opened++; }, frame: frame => { frames.push(frame); } });
+  socket.dispatchEvent(new Event('open'));
+  socket.receive('a string');
+  socket.receive(new Uint8Array([1, 2, 3]).buffer);
+  socket.receive(new Uint8Array([4, 5]));
+  await settled();
+  assert.equal(opened, 1, 'the open event reached the handler once');
+  assert.deepEqual(frames.map(frame => frame.kind), ['text', 'binary', 'binary']);
+  assert.equal(frames[0]!.data, 'a string');
+  assert.deepEqual(new Uint8Array(frames[1]!.data as ArrayBuffer), new Uint8Array([1, 2, 3]));
+  assert.deepEqual(frames[2]!.data, new Uint8Array([4, 5]));
+});
+
+test('a Blob is read as the bytes it holds, and what a socket delivered after it waits behind it', async () => {
+  const socket = new Socket();
+  const connection = webSocketConnection(socket);
+  const frames: Frame[] = [];
+  connection.listen({ frame: frame => { frames.push(frame); } });
+  socket.receive(new Blob([new Uint8Array([7, 8, 9])]));
+  socket.receive('behind the blob');
+  await settled();
+  assert.deepEqual(frames.map(frame => frame.kind), ['binary', 'text'], 'a frame overtook the blob before it');
+  assert.deepEqual(new Uint8Array(frames[0]!.data as ArrayBuffer), new Uint8Array([7, 8, 9]));
+  assert.equal(frames[1]!.data, 'behind the blob');
+});
+
+test('binaryType is asked for arraybuffer, and a socket that refuses it is adapted all the same', () => {
+  const socket = new Socket();
+  webSocketConnection(socket);
+  assert.equal(socket.binaryType, 'arraybuffer', 'binary would arrive as a Blob, a turn behind everything else');
+  const refusing = new Socket();
+  Object.defineProperty(refusing, 'binaryType', { get: () => 'blob', set: () => { throw new Error('Not settable here.'); } });
+  const connection = webSocketConnection(refusing);
+  assert.equal(connection.state, 'open', 'a socket that refuses binaryType was not adapted');
+});
+
+test('a message of no shape the seam knows is an error and no frame, as is the socket\'s own error', async () => {
+  const socket = new Socket();
+  const connection = webSocketConnection(socket);
+  const frames: Frame[] = [];
+  let errors = 0;
+  connection.listen({ frame: frame => { frames.push(frame); }, error: () => { errors++; } });
+  socket.receive(42);
+  socket.dispatchEvent(new Event('error'));
+  await settled();
+  assert.equal(errors, 2, 'a message of no shape and an error event are two errors');
+  assert.deepEqual(frames, [], 'a message of no shape became a frame');
+});
+
+test('the close event\'s code and reason reach the handler, and a close that carries neither is 1005', async () => {
+  const told = new Socket();
+  const toldConnection = webSocketConnection(told);
+  let closed: { code: number; reason: string } | undefined;
+  toldConnection.listen({ close: (code, reason) => { closed = { code, reason }; } });
+  told.close(4011, 'the duplex profile closed it');
+  await settled();
+  assert.deepEqual(closed, { code: 4011, reason: 'the duplex profile closed it' });
+
+  const silent = new Socket();
+  const silentConnection = webSocketConnection(silent);
+  let none: { code: number; reason: string } | undefined;
+  silentConnection.listen({ close: (code, reason) => { none = { code, reason } } });
+  silent.readyState = 3;
+  silent.dispatchEvent(new Event('close'));
+  await settled();
+  assert.deepEqual(none, { code: 1005, reason: '' }, 'a close event with no code is the registry\'s no status present');
+});
+
+test('the handlers are detached when the connection closes, so a message after it reaches nobody', async () => {
+  const socket = new Socket();
+  const connection = webSocketConnection(socket);
+  const frames: Frame[] = [];
+  connection.listen({ frame: frame => { frames.push(frame); } });
+  socket.close(1000, '');
+  socket.readyState = 1;
+  socket.receive('after the close');
+  await settled();
+  assert.deepEqual(frames, [], 'a message after the close reached a handler');
+});
+
+test('state is the socket\'s readyState and buffered its bufferedAmount, and a send it cannot take throws', () => {
+  const socket = new Socket();
+  const connection = webSocketConnection(socket);
+  for (const [readyState, state] of [[0, 'connecting'], [1, 'open'], [2, 'closing'], [3, 'closed'], [9, 'closed']] as const) {
+    socket.readyState = readyState;
+    assert.equal(connection.state, state, `readyState ${readyState}`);
+  }
+  socket.readyState = 1;
+  socket.bufferedAmount = 4096;
+  assert.equal(connection.buffered, 4096);
+  socket.readyState = 2;
+  assert.throws(() => connection.send({ kind: 'text', data: 'not now' }), /not open/);
+});
+
+test('close passes the code and the reason it was given, and normal closure where it was given none', () => {
+  const socket = new Socket();
+  const connection = webSocketConnection(socket);
+  connection.close();
+  assert.deepEqual(socket.closes, [{ code: 1000, reason: '' }]);
+  const second = new Socket();
+  webSocketConnection(second).close(4010, 'a policy of the family');
+  assert.deepEqual(second.closes, [{ code: 4010, reason: 'a policy of the family' }]);
+});
+
+/**
+ * A socket pair in memory, as faithful to a WebSocket as the adapter reads
+ * one: a message is delivered in a later turn, binary in the shape
+ * binaryType asks for, and a close ends both ends with the code and the
+ * reason the closing side gave. No WebSocket is involved anywhere, as in the
+ * runtime's own suites.
+ */
+class Socket extends EventTarget implements WebSocketLike {
+  readyState = 1;
+  bufferedAmount = 0;
+  binaryType = 'blob';
+  readonly closes: { code: number; reason: string }[] = [];
+  partner?: Socket;
+
+  static pair(): [Socket, Socket] {
+    const left = new Socket();
+    const right = new Socket();
+    left.partner = right;
+    right.partner = left;
+    return [left, right];
+  }
+
+  send(data: string | ArrayBuffer | Uint8Array): void {
+    if (this.readyState !== 1) throw new Error('The socket is not open.');
+    const partner = this.partner;
+    if (!partner) return;
+    const delivered = typeof data === 'string' ? data : partner.shape(data);
+    queueMicrotask(() => { if (partner.readyState === 1) partner.receive(delivered); });
+  }
+
+  /** Delivers one message as a socket does, whatever the test made of it. */
+  receive(data: unknown): void {
+    this.dispatchEvent(new MessageEvent('message', { data }));
+  }
+
+  close(code = 1000, reason = ''): void {
+    this.closes.push({ code, reason });
+    if (this.readyState === 3) return;
+    this.readyState = 3;
+    this.dispatchEvent(Object.assign(new Event('close'), { code, reason }));
+    this.partner?.close(code, reason);
+  }
+
+  /** Binary arrives as binaryType asks: an ArrayBuffer of its own bytes, or a Blob. */
+  private shape(data: ArrayBuffer | Uint8Array): ArrayBuffer | Blob {
+    const bytes = data instanceof Uint8Array ? data.slice() : new Uint8Array(data).slice();
+    return this.binaryType === 'blob' ? new Blob([bytes]) : bytes.buffer;
+  }
+}
+
+/** Every turn a socket or a blob could need; nothing of the seam is slower. */
+async function settled(): Promise<void> {
+  for (let i = 0; i < 5; i++) await new Promise(resolve => { setTimeout(resolve, 2); });
+}

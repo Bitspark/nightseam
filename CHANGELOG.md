@@ -55,6 +55,30 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- The seam has a conformance suite in TypeScript too, and three transports run
+  it: `duplex/ts/src/conformance.ts`, the twin of `duplex/go/duplextest`, run
+  by the in-memory pipe and the WebSocket adapter in `duplex/ts` and by a
+  channel in `tunnel/ts`, as the Go suite is run by `duplex/go`,
+  `duplex/go/ws` and `tunnel/go`. `@nightseam/duplex` had no test file and no
+  test script at all and so published untested, while `pnpm -r test` passed
+  over it in silence — a package with no script looking exactly like one whose
+  tests pass. The suite holds what a `FrameConnection` promises and nothing of
+  the transport keeping it: frames in order and whole either way, every
+  listener given every one of them and detaching one leaving the others, a
+  close carrying its code and its reason to both sides and refusing what is
+  sent after it, and `buffered` counting what a send left behind and nothing
+  once the transport took it. Two promises of the Go suite are not the seam's
+  in this language and the suite says so rather than asking for them: a
+  receive limit, which is the peer's option and the tunnel's here and refused
+  with 1009 by each, and an abort, a close being how a connection ends. The
+  WebSocket adapter is held to its own mapping besides — the three shapes a
+  socket delivers a message in, a Blob read as bytes with what followed it
+  waiting behind it, `binaryType`, a close event with no code as the
+  registry's 1005, and the detach that follows a close.
+  `TestEveryPublishedPackageIsTested` now holds every published package to
+  having a test script and to running every test file it has, so that the
+  parity rule of COLLABORATION.md is run and not only read.
+
 - An observer that gives up gives up alone in Go, as it already did in
   TypeScript: `Observe` is called on whichever goroutine the traffic ran on —
   the reader, a handler, a caller — and a panic there ended the connection and

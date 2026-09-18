@@ -19,4 +19,6 @@ const [left, right] = pipe();
 `FrameConnection` and never touches a WebSocket itself; a tunnel channel or
 an in-memory pipe is a `FrameConnection` too, and the peer runs over either
 unchanged. This package is the TypeScript half of the seam; `duplex/go` in
-the repository is the Go half, and both are held to one conformance suite.
+the repository is the Go half, and each is held to the conformance suite of
+its language — `src/conformance.ts` here, `duplex/go/duplextest` there —
+which the pipe, the WebSocket adapter and a tunnel channel all run.
