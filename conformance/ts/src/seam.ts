@@ -9,9 +9,9 @@ export type Ended = { code: number; reason: string } | { failed: true };
 
 /**
  * A connection under control: what it received while the runner was not
- * asking, and how it ended. A lazily consumed WebSocket is consumed all the
- * same — a socket reads whether anyone listens — so lazy is honoured where
- * it matters, on a tunnel's channel, and taken as eager here.
+ * asking, and how it ended. A lazily consumed connection has no reader until
+ * conn.receive asks; on a tunnel's channel that is what holds credit back,
+ * which is the one way a sender is made to wait.
  */
 export class Conn {
   readonly frames = new Inbox<{ frame?: Frame; ended?: Ended }>();
@@ -24,10 +24,11 @@ export class Conn {
     this.connection = connection;
     this.socket = socket;
     this.lazy = lazy;
-    this.attachReader();
+    if (!lazy) this.attachReader();
   }
 
   attachReader(): void {
+    if (this.detach) return;
     this.detach = this.connection.listen({
       frame: frame => this.frames.put({ frame }),
       close: (code, reason) => this.finish({ code, reason }),
@@ -146,7 +147,7 @@ export function seamOps(t: Testee): Record<string, Op> {
       const lazy = lazyOf(args);
       return { a: t.mint('c', new Conn(a, undefined, lazy)), b: t.mint('c', new Conn(b, undefined, lazy)) };
     },
-    'conn.send': args => {
+    'conn.send': async args => {
       const c = conn(args);
       if (c.ended) throw closeError(c.ended);
       const kind = kindOf(args);
@@ -158,10 +159,18 @@ export function seamOps(t: Testee): Record<string, Op> {
       } catch (error) {
         throw c.ended ? closeError(c.ended) : fail('closed', String(error));
       }
+      // A send here never blocks; it has settled when nothing of it is
+      // buffered — on a channel, when the other side's credit took it.
+      const deadline = Date.now() + withinOf(args);
+      while (c.connection.buffered > 0 && !c.ended) {
+        if (Date.now() >= deadline) throw fail('timeout', 'the send did not settle: the frame waits on the other side');
+        await new Promise(resolve => setTimeout(resolve, 5));
+      }
       return {};
     },
     'conn.receive': async args => {
       const c = conn(args);
+      c.attachReader();
       const { item } = await c.frames.await(withinOf(args), () => true);
       if (!item) throw fail('timeout', 'nothing received');
       if (item.ended) {
@@ -195,6 +204,7 @@ export function seamOps(t: Testee): Record<string, Op> {
     },
     'conn.await_close': async args => {
       const c = conn(args);
+      c.attachReader();
       const { item } = await c.frames.await(withinOf(args), i => i.ended !== undefined);
       if (!item?.ended) throw fail('timeout', 'the connection did not end');
       c.frames.put(item);

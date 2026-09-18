@@ -129,7 +129,7 @@ func copyFixtureTree(t *testing.T, source, destination string) {
 			}
 			return nil
 		}
-		if strings.HasSuffix(p, "_test.go") || strings.HasSuffix(p, ".test.ts") || filepath.Base(p) == "interop.ts" {
+		if strings.HasSuffix(p, "_test.go") || strings.HasSuffix(p, ".test.ts") {
 			return nil
 		}
 		relative, err := filepath.Rel(source, p)
