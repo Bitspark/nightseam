@@ -1,0 +1,62 @@
+{
+  "name": "@nightseam/otel",
+  "version": "0.2.0",
+  "description": "The OpenTelemetry adapter for Nightseam: a Propagator over the W3C trace context propagator and an Observer that opens a span per request and records the rest.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bitspark/nightseam.git",
+    "directory": "otel/ts"
+  },
+  "homepage": "https://github.com/Bitspark/nightseam#readme",
+  "bugs": "https://github.com/Bitspark/nightseam/issues",
+  "keywords": [
+    "duplex",
+    "opentelemetry",
+    "tracing",
+    "trace-context",
+    "observability"
+  ],
+  "type": "module",
+  "exports": "./src/index.ts",
+  "types": "./src/index.ts",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "dependencies": {
+    "@nightseam/runtime": "workspace:*",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "^2.0.0"
+  },
+  "devDependencies": {
+    "@nightseam/duplex": "workspace:*",
+    "@nightseam/session": "workspace:*",
+    "@nightseam/tunnel": "workspace:*",
+    "@opentelemetry/context-async-hooks": "^2.0.0",
+    "@opentelemetry/sdk-trace-base": "^2.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit --strict --target ES2022 --module nodenext --allowImportingTsExtensions --skipLibCheck src/index.ts src/observer.check.ts",
+    "test": "node --experimental-strip-types --test --test-timeout=10000 src/propagator.test.ts src/observer.test.ts src/spans.test.ts src/dependencies.test.ts"
+  }
+}
