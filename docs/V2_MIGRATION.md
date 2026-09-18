@@ -1,6 +1,11 @@
 # The v2 migration
 
-Nightseam is being redesigned: a v2 declaration language (a directory per
+**Done.** Every milestone below landed on `main` between `df4ad3c` and the
+commit that added this line; the v1 generator is deleted, the CLI runs v2,
+and the README describes the language as it now is. The page stays as the
+record of how the redesign was held to the old generator.
+
+Nightseam was redesigned: a v2 declaration language (a directory per
 family with tier files, two sides instead of a direction, one reference
 form, names by convention with per-target override files) and a new
 internal architecture (a typed type-expression AST, small single-purpose
@@ -9,7 +14,7 @@ validator interpreter in the runtimes). The model it implements is written
 up in `../bitlink/MODEL.md`; the profile and the runtime packages stay as
 they are, and the name stays Nightseam until v2 is stable.
 
-This page is the working agreement while the two generators coexist.
+This page was the working agreement while the two generators coexisted.
 
 ## The freeze
 
@@ -62,6 +67,34 @@ git diff --stat -- cmd/nightseam/testdata
 A diff under `testdata/surface` or `testdata/reserved` is a change to the
 public API of the generated packages, or to what a consumer may name, and
 gets its own sentence in the commit.
+
+## What the redesign decided beyond the plan
+
+- Every tier file may carry `types` and `imports`; a type is declared in
+  the tier it belongs to. The corpus needed it: `carrier.Frame` holds
+  `S.Envelope`, a protocol-tier type.
+- One reference form means one rule: every family a declaration names is
+  imported, including one whose `Envelope` fills a slot and one that fills
+  an application's parameter. The old `nested_import` rule went with it;
+  imports resolve transitively and an import cycle is refused instead.
+- Targets own whole directories; the kernel refuses a rendered path
+  outside them. A per-family `Place` in a target's config puts a family
+  elsewhere, and a family that refers to it finds it there too — which is
+  what the commuting diagram's right path needs, and what the old
+  `importPath` did by accident.
+- The validator interpreter moved into both runtimes, held to one
+  conformance table, and reads `apply`, `ref` and the field constraints.
+  A type drawn from a parameter is the TypeScript binding's to validate,
+  and passed through in Go, whose generated codecs validate it where the
+  generic type is instantiated; the table has no case that depends on the
+  difference.
+- The runtimes read the previous language's slot spellings,
+  `{"envelope": X}` and `{"connection": X}`, as `X.Envelope` and
+  `X.Handle`, so a hand-written caller of a validator keeps working.
+- The Go surface of every package v2 renders for the converted corpus is
+  identical to v1's — the surface goldens taken from v1 in M0 hold against
+  v2 unchanged — and the TypeScript modules export what v1's do, plus
+  `TypeExpression`.
 
 ## Milestones
 

@@ -57,6 +57,11 @@ Nightseam's:
 
 ## Relation to Nightseam
 
+A family aifunc3 declares for Nightseam is written in the directory form,
+`api/contracts/<family>/{model,protocol,session}.json`; one written in the
+earlier layer files is converted by `go tool nightseam upgrade` (see the
+README).
+
 aifunc3 is where the Glyph / Rune / Mark stack was built — a declaration
 DSL with a full type algebra (`units/data/glyph`), a nine-stage generator
 with per-language backends for TypeScript and Rust (`units/lib/rune`), and

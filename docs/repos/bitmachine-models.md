@@ -4,7 +4,7 @@ A survey of everything in [bitmachine](bitmachine.md) that does what
 Nightseam does. Paths are relative to `C:\Development\bitspark\bitmachine`,
 on `main` at commit `f64b23c992` (2026-05-17). The yardstick is
 Nightseam's own model in
-[internal/legacy/contract/api.schema.json](../../internal/legacy/contract/api.schema.json);
+[internal/load/schemas/](../../internal/load/schemas/);
 see the [aifunc3 page](aifunc3-models.md) for it spelled out.
 
 Related pages: [aifunc3](aifunc3-models.md) · [plexis](plexis-models.md)
