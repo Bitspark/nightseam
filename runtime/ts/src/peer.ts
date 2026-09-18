@@ -328,38 +328,7 @@ export class DuplexPeer {
     }
     let frame: Envelope;
     try {
-      const value: unknown = JSON.parse(data);
-      if (!isObject(value) || value.version !== 1) throw new Error();
-      frame = value;
-      switch (frame.kind) {
-        case 'request':
-          keys(frame, ['version', 'kind', 'id', 'method', 'params']);
-          requestID(frame.id, this.remotePrefix);
-          requireName(frame.method, 'method');
-          if (!Object.hasOwn(frame, 'params')) throw new Error();
-          break;
-        case 'response':
-          keys(frame, ['version', 'kind', 'id', 'result', 'error']);
-          requestID(frame.id, this.localPrefix);
-          if (Object.hasOwn(frame, 'result') === Object.hasOwn(frame, 'error')) throw new Error();
-          if (Object.hasOwn(frame, 'error')) {
-            if (!isObject(frame.error)) throw new Error();
-            keys(frame.error, ['code', 'message', 'data']);
-            requireName(frame.error.code, 'code');
-            if (typeof frame.error.message !== 'string') throw new Error();
-          }
-          break;
-        case 'cancel':
-          keys(frame, ['version', 'kind', 'id']);
-          requestID(frame.id, this.remotePrefix);
-          break;
-        case 'event':
-          keys(frame, ['version', 'kind', 'event', 'data']);
-          requireName(frame.event, 'event');
-          if (!Object.hasOwn(frame, 'data')) throw new Error();
-          break;
-        default: throw new Error();
-      }
+      frame = decodeEnvelope(data, this.localPrefix, this.remotePrefix);
     } catch {
       this.fail(new DuplexError('invalid_message', 'Invalid duplex frame.'));
       return;
@@ -520,6 +489,48 @@ export class DuplexPeer {
   }
 }
 
+/**
+ * One frame of the profile, validated by kind. Every kind may carry W3C trace
+ * context; the members are kept on the envelope for a caller that propagates
+ * them, and the peer itself reads neither. Not part of the package surface.
+ */
+export function decodeEnvelope(data: string, localPrefix: string, remotePrefix: string): Envelope {
+  const value: unknown = JSON.parse(data);
+  if (!isObject(value) || value.version !== 1) throw new Error();
+  const frame: Envelope = value;
+  switch (frame.kind) {
+    case 'request':
+      keys(frame, ['version', 'kind', 'id', 'method', 'params', ...TRACE]);
+      requestID(frame.id, remotePrefix);
+      requireName(frame.method, 'method');
+      if (!Object.hasOwn(frame, 'params')) throw new Error();
+      break;
+    case 'response':
+      keys(frame, ['version', 'kind', 'id', 'result', 'error', ...TRACE]);
+      requestID(frame.id, localPrefix);
+      if (Object.hasOwn(frame, 'result') === Object.hasOwn(frame, 'error')) throw new Error();
+      if (Object.hasOwn(frame, 'error')) {
+        if (!isObject(frame.error)) throw new Error();
+        keys(frame.error, ['code', 'message', 'data']);
+        requireName(frame.error.code, 'code');
+        if (typeof frame.error.message !== 'string') throw new Error();
+      }
+      break;
+    case 'cancel':
+      keys(frame, ['version', 'kind', 'id', ...TRACE]);
+      requestID(frame.id, remotePrefix);
+      break;
+    case 'event':
+      keys(frame, ['version', 'kind', 'event', 'data', ...TRACE]);
+      requireName(frame.event, 'event');
+      if (!Object.hasOwn(frame, 'data')) throw new Error();
+      break;
+    default: throw new Error();
+  }
+  trace(frame);
+  return frame;
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -528,6 +539,15 @@ function isWebSocketLike(value: FrameConnection | WebSocketLike): value is WebSo
 }
 function keys(frame: Envelope, allowed: string[]): void {
   if (Object.keys(frame).some(key => !allowed.includes(key))) throw new Error('Unknown frame property.');
+}
+/** W3C Trace Context, verbatim: an optional member of every kind, never of an error. */
+const TRACE = ['traceparent', 'tracestate'];
+const TRACEPARENT = /^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/;
+function trace(frame: Envelope): void {
+  if (Object.hasOwn(frame, 'traceparent') && (typeof frame.traceparent !== 'string' || !TRACEPARENT.test(frame.traceparent))) {
+    throw new Error('Invalid traceparent.');
+  }
+  if (Object.hasOwn(frame, 'tracestate') && typeof frame.tracestate !== 'string') throw new Error('Invalid tracestate.');
 }
 function requireName(value: unknown, field: string): asserts value is string {
   if (typeof value !== 'string' || value.length === 0) throw new DuplexError('invalid_message', `${field} must be a nonempty string.`);

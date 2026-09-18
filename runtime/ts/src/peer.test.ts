@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DuplexPeer, DuplexError } from './peer.ts';
+import { DuplexPeer, DuplexError, decodeEnvelope } from './peer.ts';
 import type { PeerOptions, WebSocketLike } from './peer.ts';
 import { webSocketConnection } from '@nightseam/duplex';
 import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from '@nightseam/duplex';
@@ -415,6 +415,88 @@ test('two peers complete a call, an event and a cancel over an in-memory frame p
   assert.deepEqual(left.frames.map(frame => frame.kind), ['text', 'text', 'text']);
   assert.deepEqual(left.frames.map(frame => JSON.parse(frame.data as string).kind), ['request', 'request', 'cancel']);
   assert.deepEqual(right.frames.map(frame => JSON.parse(frame.data as string).kind), ['response', 'event', 'response']);
+});
+
+/** One W3C traceparent, the example of the specification, and a vendor's state beside it. */
+const TRACEPARENT = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+const TRACESTATE = 'vendor=t61rcWkgMzE';
+/** Every kind as a server peer receives it: a request and a cancel from the client, a response to its own. */
+const everyKind: Record<string, unknown>[] = [
+  { version: 1, kind: 'request', id: 'c:1', method: 'echo', params: {} },
+  { version: 1, kind: 'response', id: 's:1', result: 1 },
+  { version: 1, kind: 'cancel', id: 'c:1' },
+  { version: 1, kind: 'event', event: 'notice', data: null },
+];
+
+test('trace context is kept on the decoded envelope of every kind, and tracestate stands alone', () => {
+  for (const kind of everyKind) {
+    const traced = { ...kind, traceparent: TRACEPARENT, tracestate: TRACESTATE };
+    assert.deepEqual(decodeEnvelope(JSON.stringify(traced), 's:', 'c:'), traced, kind.kind as string);
+    // An intermediary may strip one member and not the other.
+    const alone = { ...kind, tracestate: TRACESTATE };
+    const decoded = decodeEnvelope(JSON.stringify(alone), 's:', 'c:');
+    assert.deepEqual(decoded, alone);
+    assert.equal(Object.hasOwn(decoded, 'traceparent'), false);
+    // A frame without either decodes as before.
+    assert.deepEqual(decodeEnvelope(JSON.stringify(kind), 's:', 'c:'), kind);
+  }
+});
+
+test('a traced frame of every kind routes as before, and the peer emits no trace of its own', async t => {
+  const socket = new Socket();
+  const peer = new DuplexPeer();
+  await peer.attach(socket);
+  t.after(() => peer.close());
+  const trace = { traceparent: TRACEPARENT, tracestate: TRACESTATE };
+  const notice = deferred<unknown>();
+  const started = deferred();
+  const aborted = deferred();
+  peer.onEvent('notice', data => { notice.resolve(data); });
+  peer.handle('echo', params => params);
+  peer.handle('wait', (_params, context) => new Promise(resolve => {
+    context.signal.addEventListener('abort', () => { aborted.resolve(); resolve(null); }, { once: true });
+    started.resolve();
+  }));
+  const pending = peer.call('ping');
+  socket.receive({ version: 1, kind: 'response', id: 'c:1', result: 'pong', ...trace });
+  assert.equal(await pending, 'pong');
+  socket.receive({ version: 1, kind: 'event', event: 'notice', data: { value: 1 }, ...trace });
+  assert.deepEqual(await notice.promise, { value: 1 });
+  socket.receive({ version: 1, kind: 'request', id: 's:1', method: 'echo', params: { value: 2 }, ...trace });
+  socket.receive({ version: 1, kind: 'request', id: 's:2', method: 'wait', params: {}, ...trace });
+  await started.promise;
+  socket.receive({ version: 1, kind: 'cancel', id: 's:2', ...trace });
+  await aborted.promise;
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(peer.status, 'connected');
+  assert.deepEqual(socket.sent.map(frame => frame.id), ['c:1', 's:1', 's:2']);
+  assert.deepEqual(socket.sent.find(frame => frame.id === 's:1')?.result, { value: 2 });
+  assert.equal(socket.sent.some(frame => Object.hasOwn(frame, 'traceparent') || Object.hasOwn(frame, 'tracestate')), false);
+});
+
+test('a malformed traceparent is refused as any invalid frame is', async () => {
+  const malformed = [
+    '',
+    '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7',
+    '00-4BF92F3577B34DA6A3CE929D0E0E4736-00f067aa0ba902b7-01',
+    '00-4bf92f3577b34da6a3ce929d0e0e473-00f067aa0ba902b7-01',
+    ' 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+  ];
+  for (const kind of everyKind) {
+    for (const traceparent of malformed) {
+      const socket = new Socket();
+      const peer = new DuplexPeer({ role: 'server' });
+      await peer.attach(socket);
+      socket.receive({ ...kind, traceparent });
+      assert.equal(peer.status, 'disconnected', `${kind.kind as string} ${traceparent}`);
+    }
+    // A member that is present but not a string is refused the same way.
+    const socket = new Socket();
+    const peer = new DuplexPeer({ role: 'server' });
+    await peer.attach(socket);
+    socket.receive({ ...kind, traceparent: TRACEPARENT, tracestate: 7 });
+    assert.equal(peer.status, 'disconnected', kind.kind as string);
+  }
 });
 
 test('the WebSocket adapter maps state, buffered bytes, frames, and the close code and reason', async () => {
