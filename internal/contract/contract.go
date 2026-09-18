@@ -679,7 +679,6 @@ func Check(api API) []Diagnostic {
 					add("layer_violation", pointer, fmt.Sprintf("A %s slot refines another family's %s and may sit in the %s layer or above, not in %s.", kind, Layers[needs], Layers[needs], Layers[context]))
 				}
 			}
-			add("unsupported_slot", pointer, "A "+kind+" slot has no generic rendering yet; substitute a family into it first.")
 			return
 		}
 		switch x := expr.(type) {
@@ -827,4 +826,184 @@ func Check(api API) []Diagnostic {
 		errorsSeen[publicError.Code] = true
 	}
 	return diagnostics
+}
+
+// The two kinds of slot: an envelope is one message of a family, a
+// connection a handle to a channel that speaks it.
+const (
+	EnvelopeSlot   = "envelope"
+	ConnectionSlot = "connection"
+)
+
+// SlotKinds is every slot kind, in the order a language declares the type
+// parameters they become.
+var SlotKinds = []string{EnvelopeSlot, ConnectionSlot}
+
+// SlotType is the type a slot of a kind draws from the family that fills
+// it: an envelope slot the family's Envelope, a connection slot its Handle.
+func SlotType(kind string) string {
+	if kind == ConnectionSlot {
+		return HandleType
+	}
+	return EnvelopeType
+}
+
+// Expressions visits every type expression the contract holds — each
+// record's own fields, each alias's target, each method's result and each
+// event's type — and the elements of the arrays and maps within them.
+func (api API) Expressions(visit func(expr TypeExpr)) {
+	var walk func(expr TypeExpr)
+	walk = func(expr TypeExpr) {
+		visit(expr)
+		if object, ok := expr.(map[string]any); ok {
+			for _, key := range []string{"array", "map"} {
+				if child, ok := object[key]; ok {
+					walk(child)
+				}
+			}
+		}
+	}
+	for _, name := range api.TypeNames() {
+		t := api.Types[name]
+		for _, field := range t.Fields {
+			walk(field.Type)
+		}
+		if t.Kind == "alias" {
+			walk(t.Type)
+		}
+	}
+	for _, method := range api.Methods {
+		walk(method.Result)
+	}
+	for _, event := range api.Events {
+		walk(event.Type)
+	}
+}
+
+// SlotFamilies names the families the contract's slots name, sorted: each
+// fills its slot with its own Envelope or Handle, whether or not the family
+// is imported. The session role is not a family and is not among them.
+func (api API) SlotFamilies() []string {
+	seen := map[string]bool{}
+	api.Expressions(func(expr TypeExpr) {
+		if _, family, ok := Slot(expr); ok && family != SessionRole {
+			seen[family] = true
+		}
+	})
+	return sortedNames(seen)
+}
+
+// References names every family whose generated package this one's refers
+// to: the families it imports and the families its slots name, sorted.
+func (api API) References() []string {
+	seen := map[string]bool{}
+	for _, family := range api.Imports {
+		seen[family] = true
+	}
+	for _, family := range api.SlotFamilies() {
+		seen[family] = true
+	}
+	return sortedNames(seen)
+}
+
+func sortedNames(set map[string]bool) []string {
+	names := make([]string, 0, len(set))
+	for name := range set {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// Generics is what makes a family generic. A slot of the session role is
+// filled where the generated code is instantiated, so a type that holds one
+// — directly, or through the types it refers to, its own family's or an
+// imported one's — is generic in the role's family, and so is a family with
+// such a type. Types maps each generic type to the slot kinds it uses, in
+// SlotKinds order; Family is the union over every type and operation;
+// Imported is Types of each imported family. A plain type or family has no
+// kinds. A slot of a named family is not generic: it is that family's
+// Envelope or Handle.
+type Generics struct {
+	Types    map[string][]string
+	Family   []string
+	Imported map[string]map[string][]string
+}
+
+// Generic reports whether the family is generic at all.
+func (g Generics) Generic() bool { return len(g.Family) > 0 }
+
+// Generics computes what is generic in the family.
+func (api API) Generics() Generics {
+	g := Generics{Types: map[string][]string{}, Imported: map[string]map[string][]string{}}
+	for name, other := range api.Imported {
+		g.Imported[name] = other.Generics().Types
+	}
+	union := func(sets ...[]string) []string {
+		var out []string
+		for _, kind := range SlotKinds {
+			for _, set := range sets {
+				if slices.Contains(set, kind) && !slices.Contains(out, kind) {
+					out = append(out, kind)
+				}
+			}
+		}
+		return out
+	}
+	// kindsOf is the kinds an expression uses, given the kinds known of every
+	// type so far; the fixpoint below reaches the types through references.
+	var kindsOf func(expr TypeExpr) []string
+	kindsOf = func(expr TypeExpr) []string {
+		if kind, family, ok := Slot(expr); ok {
+			if family == SessionRole {
+				return []string{kind}
+			}
+			return nil
+		}
+		switch x := expr.(type) {
+		case string:
+			if family, name, ok := Reference(x); ok {
+				return g.Imported[family][name]
+			}
+			return g.Types[x]
+		case map[string]any:
+			for _, key := range []string{"array", "map"} {
+				if child, ok := x[key]; ok {
+					return kindsOf(child)
+				}
+			}
+		}
+		return nil
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, name := range api.TypeNames() {
+			t := api.Types[name]
+			var sets [][]string
+			switch t.Kind {
+			case "record":
+				for _, field := range api.FlattenedFields(name) {
+					sets = append(sets, kindsOf(field.Type))
+				}
+			case "alias":
+				sets = append(sets, kindsOf(t.Type))
+			}
+			if kinds := union(sets...); len(kinds) > len(g.Types[name]) {
+				g.Types[name] = kinds
+				changed = true
+			}
+		}
+	}
+	var sets [][]string
+	for _, kinds := range g.Types {
+		sets = append(sets, kinds)
+	}
+	for _, method := range api.Methods {
+		sets = append(sets, kindsOf(method.Result))
+	}
+	for _, event := range api.Events {
+		sets = append(sets, kindsOf(event.Type))
+	}
+	g.Family = union(sets...)
+	return g
 }

@@ -8,19 +8,29 @@ import (
 )
 
 // generateValidation renders the protocol package's runtime validator, an
-// interpreter over the contract's own types. A type of an imported family is
-// validated by that family's own validator, which the file imports.
+// interpreter over the contract's own types. A type of another family —
+// imported, or filling a slot by name — is validated by that family's own
+// validator, which the file imports. What fills a slot of the session role
+// is JSON to the validator: the family that fills it is chosen where the
+// generic type is instantiated, and its codec validates there.
 func generateValidation(api contract.API, p paths) string {
 	// Contract data is embedded in each generated protocol package so no developer
 	// library becomes an application runtime dependency.
 	schema := string(canonicalJSON(api.Types))
 	var validators strings.Builder
 	validators.WriteString("var importedValidators = map[string]func(string,[]byte)error{")
-	for _, family := range api.Imports {
+	for _, family := range api.References() {
 		fmt.Fprintf(&validators, "%q: %s.ValidateRaw,", family, importAlias(family))
 	}
 	validators.WriteString("}\n")
-	source := strings.ReplaceAll(goValidationTemplate, "CONTRACT_JSON", quote(schema)) + validators.String()
+	source := strings.NewReplacer(
+		"CONTRACT_JSON", quote(schema),
+		"SESSION_ROLE", quote(contract.SessionRole),
+		"ENVELOPE_SLOT", quote(contract.EnvelopeSlot),
+		"CONNECTION_SLOT", quote(contract.ConnectionSlot),
+		"ENVELOPE_TYPE", quote(contract.EnvelopeType),
+		"HANDLE_TYPE", quote(contract.HandleType),
+	).Replace(goValidationTemplate) + validators.String()
 	return goFile(api, "protocol", source, p)
 }
 
@@ -47,6 +57,8 @@ func flattenedFields(name string) []wireField {var out []wireField;t:=wireTypes[
 func validateWire(expression any,value any,location string) error {
  bad:=func(want string)error{return fmt.Errorf("%s: expected %s",location,want)}
  if composite,ok:=expression.(map[string]any);ok{
+  if family,ok:=composite[ENVELOPE_SLOT];ok {return validateSlot(ENVELOPE_TYPE,family,value,location)}
+  if family,ok:=composite[CONNECTION_SLOT];ok {return validateSlot(HANDLE_TYPE,family,value,location)}
   if element,ok:=composite["array"];ok {items,ok:=value.([]any);if !ok{return bad("array")};for i,item:=range items{if err:=validateWire(element,item,fmt.Sprintf("%s[%d]",location,i));err!=nil{return err}};return nil}
   if element,ok:=composite["map"];ok {items,ok:=value.(map[string]any);if !ok{return bad("object")};for key,item:=range items{if err:=validateWire(element,item,location+"."+key);err!=nil{return err}};return nil}
   if _,ok:=composite["empty"];ok {items,ok:=value.(map[string]any);if !ok||len(items)!=0{return bad("empty object")};return nil}
@@ -68,6 +80,12 @@ func validateWire(expression any,value any,location string) error {
  case "record":obj,ok:=value.(map[string]any);if !ok{return bad(name+" object")};allowed:=map[string]bool{};for _,field:=range flattenedFields(name){allowed[field.Name]=true;member,present:=obj[field.Name];required:=field.Required==nil||*field.Required;if !present{if required{return fmt.Errorf("%s.%s: required field missing",location,field.Name)};continue};if member==nil&&field.Nullable{continue};if member==nil&&!field.Nullable{return fmt.Errorf("%s.%s: null is not permitted",location,field.Name)};if err:=validateWire(field.Type,member,location+"."+field.Name);err!=nil{return err}};for key,value:=range obj{if !allowed[key]{if !t.Open{return fmt.Errorf("%s.%s: unknown field",location,key)};if err:=validateJSON(value,location+"."+key);err!=nil{return err}}};return nil
  }
  return bad("supported type")
+}
+// validateSlot validates what fills a slot: a value of a named family by that family's validator; one of the session role as JSON, since the family that fills it is chosen where the generic type is instantiated, and its codec validates there.
+func validateSlot(typeName string,family any,value any,location string) error {
+ name,_:=family.(string);if name==SESSION_ROLE{return validateJSON(value,location)}
+ validate,ok:=importedValidators[name];if !ok{return fmt.Errorf("%s: expected known family",location)}
+ data,err:=json.Marshal(value);if err!=nil{return err};if err:=validate(typeName,data);err!=nil{return fmt.Errorf("%s: %w",location,err)};return nil
 }
 func validateJSON(value any,location string)error{switch typed:=value.(type){case json.Number:if n,err:=typed.Float64();err!=nil||math.IsInf(n,0)||math.IsNaN(n){return fmt.Errorf("%s: expected finite JSON number",location)};case []any:for i,item:=range typed{if err:=validateJSON(item,fmt.Sprintf("%s[%d]",location,i));err!=nil{return err}};case map[string]any:for key,item:=range typed{if err:=validateJSON(item,location+"."+key);err!=nil{return err}}};return nil}
 // Check decimal integer precision without constructing huge powers from an

@@ -58,10 +58,9 @@ func TestEveryFamilyCarriesEnvelopeAndHandle(t *testing.T) {
 	}
 }
 
-// TestSlotsAreCheckedAndUnsupportedUntilSubstituted: a slot names a family
-// of the world or the session role, never its own contract, and no slot
-// renders until a family is substituted into it.
-func TestSlotsAreCheckedAndUnsupportedUntilSubstituted(t *testing.T) {
+// TestSlotsAreChecked: a slot names a family of the world or the session
+// role, never its own contract; a slot of the session role needs a member.
+func TestSlotsAreChecked(t *testing.T) {
 	api, diagnostics := Parse(carrierFixture(t))
 	if len(diagnostics) != 0 {
 		t.Fatal(diagnostics)
@@ -72,8 +71,8 @@ func TestSlotsAreCheckedAndUnsupportedUntilSubstituted(t *testing.T) {
 	for _, d := range Check(api) {
 		codes[d.Code]++
 	}
-	if codes["unsupported_slot"] != 3 || codes["unresolved_type"] != 0 {
-		t.Fatalf("expected three unsupported slots and nothing unresolved, got %v", codes)
+	if len(codes) != 0 {
+		t.Fatalf("a slotted contract within its world was refused: %v", codes)
 	}
 	api.Sessions = nil
 	found := false
@@ -178,5 +177,61 @@ func TestSubstituteFillsEverySlot(t *testing.T) {
 	Substitute(original, "probe")
 	if _, _, ok := Slot(original["types"].(map[string]any)["Frame"].(map[string]any)["fields"].([]any)[1].(map[string]any)["type"]); !ok {
 		t.Fatal("Substitute mutated its input")
+	}
+}
+
+// TestGenericsFollowTheSessionSlots: a type holding a slot of the session
+// role is generic in the kinds it holds, and so is a type that refers to it,
+// through an alias or across families; a slot of a named family is not; the
+// family is generic in the union; a substituted contract is plain.
+func TestGenericsFollowTheSessionSlots(t *testing.T) {
+	api, diagnostics := Parse(carrierFixture(t))
+	if len(diagnostics) != 0 {
+		t.Fatal(diagnostics)
+	}
+	g := api.Generics()
+	for name, want := range map[string]string{"Frame": "envelope", "Frames": "envelope", "Attachment": "connection"} {
+		if got := strings.Join(g.Types[name], ","); got != want {
+			t.Errorf("%s is generic in %q, want %q", name, got, want)
+		}
+	}
+	for _, plain := range []string{EnvelopeType, HandleType} {
+		if _, generic := g.Types[plain]; generic {
+			t.Errorf("%s is generic", plain)
+		}
+	}
+	if got := strings.Join(g.Family, ","); got != "envelope,connection" || !g.Generic() {
+		t.Errorf("the family is generic in %q", got)
+	}
+	if got := strings.Join(api.SlotFamilies(), ","); got != "probe" {
+		t.Errorf("the slots name %q", got)
+	}
+	if got := strings.Join(api.References(), ","); got != "probe" {
+		t.Errorf("the contract refers to %q", got)
+	}
+	v := contractFixture(t)
+	v["imports"] = []any{"carrier"}
+	fields(v, "Input")[0].(map[string]any)["type"] = "carrier.Frames"
+	other, diagnostics := Parse(v)
+	if len(diagnostics) != 0 {
+		t.Fatal(diagnostics)
+	}
+	other.Imported = map[string]API{"carrier": api}
+	og := other.Generics()
+	if strings.Join(og.Types["Input"], ",") != "envelope" || strings.Join(og.Family, ",") != "envelope" {
+		t.Errorf("a family referring to a generic type of another is generic in %v, %v", og.Types, og.Family)
+	}
+	if strings.Join(og.Imported["carrier"]["Frames"], ",") != "envelope" {
+		t.Error("the imported family's generics are not carried")
+	}
+	substituted, diagnostics := Parse(Substitute(carrierFixture(t), "probe"))
+	if len(diagnostics) != 0 {
+		t.Fatal(diagnostics)
+	}
+	if sg := substituted.Generics(); sg.Generic() || len(sg.Types) != 0 {
+		t.Errorf("the substituted contract is generic: %v", sg)
+	}
+	if got := strings.Join(substituted.References(), ","); got != "probe" {
+		t.Errorf("the substituted contract refers to %q", got)
 	}
 }

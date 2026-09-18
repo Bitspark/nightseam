@@ -93,6 +93,7 @@ func (l *language) Render(api contract.API) ([]spi.File, error) {
 	if err != nil {
 		return nil, err
 	}
+	g := api.Generics()
 	var files []spi.File
 	put := func(dir, file, source string) error {
 		formatted, err := format.Source([]byte(source))
@@ -102,16 +103,16 @@ func (l *language) Render(api contract.API) ([]spi.File, error) {
 		files = append(files, spi.File{Path: path.Join(dir, file), Data: formatted})
 		return nil
 	}
-	if err := put(p.protocol, "types_generated.go", generateTypes(api, p)); err != nil {
+	if err := put(p.protocol, "types_generated.go", generateTypes(api, g, p)); err != nil {
 		return nil, err
 	}
 	if err := put(p.protocol, "validation_generated.go", generateValidation(api, p)); err != nil {
 		return nil, err
 	}
-	if err := put(p.binding, "binding_generated.go", generateBinding(api, p)); err != nil {
+	if err := put(p.binding, "binding_generated.go", generateBinding(api, g, p)); err != nil {
 		return nil, err
 	}
-	if err := put(p.client, "client_generated.go", generateClient(api, p)); err != nil {
+	if err := put(p.client, "client_generated.go", generateClient(api, g, p)); err != nil {
 		return nil, err
 	}
 	return files, nil
@@ -119,7 +120,7 @@ func (l *language) Render(api contract.API) ([]spi.File, error) {
 
 // reservedTypes are the identifiers the generated Go packages and the
 // runtime declare or would shadow; a contract type of that name is refused.
-var reservedTypes = strings.Fields("API Client Caller Server Binding Handler Handlers ClientHandlers ServerHandlers Peer PublicError Optional Remote NewHandler Dial Decides Asks Conversation ValidateRaw ValidateExpressionRaw ValidateValue TypeExpression")
+var reservedTypes = strings.Fields("API Client Caller Server Binding Handler Handlers ClientHandlers ServerHandlers Peer PublicError Optional Remote NewHandler Dial Decides Asks Conversation ValidateRaw ValidateExpressionRaw ValidateValue TypeExpression E H")
 var reservedMethods = strings.Fields("Close Call Notify Handle Connect")
 
 // Check reports the names the contract would make Go generate that it
@@ -300,7 +301,41 @@ func fieldName(field contract.Field) string {
 // enum value; the checker and the emitter share it by construction.
 func enumConstantName(typeName, value string) string { return typeName + goName(value) }
 
-func goType(expr any, prefix string) string {
+// parameterNames spells a slot kind of the session role as the type
+// parameter it becomes: E for an envelope, H for a handle. Go has no
+// associated types, so a type takes a parameter for each kind it uses and
+// the family's operations take the union; a consumer instantiates them with
+// the family's own types, and the codecs of those validate what fills the
+// slots.
+var parameterNames = map[string]string{contract.EnvelopeSlot: "E", contract.ConnectionSlot: "H"}
+
+func parameters(kinds []string) []string {
+	names := make([]string, len(kinds))
+	for i, kind := range kinds {
+		names[i] = parameterNames[kind]
+	}
+	return names
+}
+
+// declare renders the type parameters of a declaration that uses the kinds,
+// [E, H any], or nothing for a plain one.
+func declare(kinds []string) string {
+	if len(kinds) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(parameters(kinds), ", ") + " any]"
+}
+
+// apply renders the type arguments a reference passes on, [E, H], or
+// nothing.
+func apply(kinds []string) string {
+	if len(kinds) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(parameters(kinds), ", ") + "]"
+}
+
+func goType(g contract.Generics, expr any, prefix string) string {
 	switch t := expr.(type) {
 	case string:
 		switch t {
@@ -318,22 +353,28 @@ func goType(expr any, prefix string) string {
 			return "any"
 		default:
 			if family, name, ok := contract.Reference(t); ok {
-				return importAlias(family) + "." + name
+				return importAlias(family) + "." + name + apply(g.Imported[family][name])
 			}
-			return prefix + t
+			return prefix + t + apply(g.Types[t])
 		}
 	case map[string]any:
+		if kind, family, ok := contract.Slot(t); ok {
+			if family == contract.SessionRole {
+				return parameterNames[kind]
+			}
+			return importAlias(family) + "." + contract.SlotType(kind)
+		}
 		if a, ok := t["array"]; ok {
-			return "[]" + goType(a, prefix)
+			return "[]" + goType(g, a, prefix)
 		}
 		if m, ok := t["map"]; ok {
-			return "map[string]" + goType(m, prefix)
+			return "map[string]" + goType(g, m, prefix)
 		}
 	}
 	return "any"
 }
-func goFieldType(field contract.Field) string {
-	t := goType(field.Type, "")
+func goFieldType(g contract.Generics, field contract.Field) string {
+	t := goType(g, field.Type, "")
 	if field.Nullable {
 		t = "runtime.Nullable[" + t + "]"
 	}
@@ -387,16 +428,16 @@ func importPath(module, family string) string { return module + "/api/go/" + fam
 
 func goFile(api contract.API, suffix, source string, p paths) string {
 	fixed := map[string]string{"bytes": "bytes", "context": "context", "json": "encoding/json", "io": "io", "math": "math", "strconv": "strconv", "strings": "strings", "time": "time", "fmt": "fmt", "errors": "errors", "http": "net/http", "protocol": p.module + "/" + p.protocol, "runtime": p.runtime}
-	for _, family := range api.Imports {
+	for _, family := range api.References() {
 		fixed[importAlias(family)] = importPath(p.module, family)
 	}
 	return spi.Header + "package " + pkg(api, suffix) + "\n" + importsFor(source, fixed) + source
 }
-func paramSignature(method contract.Method) string {
+func paramSignature(g contract.Generics, method contract.Method) string {
 	if method.Request == "" {
 		return ""
 	}
-	return ", params protocol." + method.Request
+	return ", params " + goType(g, method.Request, "protocol.")
 }
 func paramValue(method contract.Method) string {
 	if method.Request == "" {

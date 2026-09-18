@@ -9,38 +9,50 @@ import (
 
 // generateTypes renders the protocol package's wire types: a struct per
 // record with codecs that validate on both directions, a string type with
-// constants per enum, an alias per alias.
-func generateTypes(api contract.API, p paths) string {
+// constants per enum, an alias per alias. A type that holds a slot of the
+// session role takes the slot as a type parameter, E for an envelope and H
+// for a handle, and so does every type that refers to it; a consumer
+// instantiates them with the family that fills the slot, and the codec of
+// that family's type validates what fills it.
+func generateTypes(api contract.API, g contract.Generics, p paths) string {
 	var b strings.Builder
 	for _, name := range api.TypeNames() {
 		t := api.Types[name]
+		kinds := g.Types[name]
 		switch t.Kind {
 		case "record":
-			fmt.Fprintf(&b, "type %s struct {\n", name)
-			fields := api.FlattenedFields(name)
-			for _, field := range fields {
+			var body strings.Builder
+			for _, field := range api.FlattenedFields(name) {
 				tag := field.Name
 				if !field.Required {
 					tag += ",omitzero"
 				}
-				fmt.Fprintf(&b, "%s %s `json:%q`\n", fieldName(field), goFieldType(field), tag)
+				fmt.Fprintf(&body, "%s %s `json:%q`\n", fieldName(field), goFieldType(g, field), tag)
 			}
 			if t.Open {
-				b.WriteString("AdditionalFields map[string]json.RawMessage `json:\"-\"`\n")
+				body.WriteString("AdditionalFields map[string]json.RawMessage `json:\"-\"`\n")
 			}
-			b.WriteString("}\n")
-			{
-				fmt.Fprintf(&b, "func (v %s) MarshalJSON() ([]byte,error) { type wire %s; data,err:=json.Marshal(wire(v));if err!=nil{return nil,err};", name, name)
-				if t.Open {
-					fmt.Fprintf(&b, "var obj map[string]json.RawMessage;if err=json.Unmarshal(data,&obj);err!=nil{return nil,err};declared:=map[string]bool{};for _,key:=range recordFields(%q){declared[key]=true};for key,value:=range v.AdditionalFields{if declared[key]{return nil,fmt.Errorf(\"additional field overlaps declared field %%s\",key)};obj[key]=value};data,err=json.Marshal(obj);if err!=nil{return nil,err};", name)
-				}
-				fmt.Fprintf(&b, "if err=ValidateRaw(%q,data);err!=nil{return nil,err};return data,nil }\n", name)
-				fmt.Fprintf(&b, "func (v *%s) UnmarshalJSON(data []byte) error {if err:=ValidateRaw(%q,data);err!=nil{return err};type wire %s;var decoded wire;if err:=json.Unmarshal(data,&decoded);err!=nil{return err};*v=%s(decoded);", name, name, name, name)
-				if t.Open {
-					fmt.Fprintf(&b, "var fields map[string]json.RawMessage;if err:=json.Unmarshal(data,&fields);err!=nil{return err};for _,key:=range recordFields(%q){delete(fields,key)};v.AdditionalFields=fields;", name)
-				}
-				b.WriteString("return nil}\n")
+			fmt.Fprintf(&b, "type %s%s struct {\n%s}\n", name, declare(kinds), body.String())
+			// The codecs go through a wire type with the record's fields and no
+			// methods, so that they do not recurse into themselves: a local type
+			// for a plain record; for a generic one, since Go declares no type
+			// inside a generic function, the struct literal itself, converted
+			// to and from.
+			self := name + apply(kinds)
+			wire, local := "wire", fmt.Sprintf("type wire %s;", self)
+			if len(kinds) > 0 {
+				wire, local = "(struct {\n"+body.String()+"})", ""
 			}
+			fmt.Fprintf(&b, "func (v %s) MarshalJSON() ([]byte,error) { %sdata,err:=json.Marshal(%s(v));if err!=nil{return nil,err};", self, local, wire)
+			if t.Open {
+				fmt.Fprintf(&b, "var obj map[string]json.RawMessage;if err=json.Unmarshal(data,&obj);err!=nil{return nil,err};declared:=map[string]bool{};for _,key:=range recordFields(%q){declared[key]=true};for key,value:=range v.AdditionalFields{if declared[key]{return nil,fmt.Errorf(\"additional field overlaps declared field %%s\",key)};obj[key]=value};data,err=json.Marshal(obj);if err!=nil{return nil,err};", name)
+			}
+			fmt.Fprintf(&b, "if err=ValidateRaw(%q,data);err!=nil{return nil,err};return data,nil }\n", name)
+			fmt.Fprintf(&b, "func (v *%s) UnmarshalJSON(data []byte) error {if err:=ValidateRaw(%q,data);err!=nil{return err};%svar decoded %s;if err:=json.Unmarshal(data,&decoded);err!=nil{return err};*v=%s(decoded);", self, name, local, wire, self)
+			if t.Open {
+				fmt.Fprintf(&b, "var fields map[string]json.RawMessage;if err:=json.Unmarshal(data,&fields);err!=nil{return err};for _,key:=range recordFields(%q){delete(fields,key)};v.AdditionalFields=fields;", name)
+			}
+			b.WriteString("return nil}\n")
 		case "enum":
 			fmt.Fprintf(&b, "type %s string\nconst(\n", name)
 			for _, value := range t.Values {
@@ -48,7 +60,7 @@ func generateTypes(api contract.API, p paths) string {
 			}
 			b.WriteString(")\n")
 		case "alias":
-			fmt.Fprintf(&b, "type %s = %s\n", name, goType(t.Type, ""))
+			fmt.Fprintf(&b, "type %s%s = %s\n", name, declare(kinds), goType(g, t.Type, ""))
 		}
 	}
 	return goFile(api, "protocol", b.String(), p)
