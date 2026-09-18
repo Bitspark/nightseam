@@ -80,9 +80,12 @@ func TestGeneratedGoFamilyCompilesAndCommunicates(t *testing.T) {
 	renderFixture(t, directory, root)
 	copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
 	copyFixtureTree(t, filepath.Join(root, "duplex/ts"), filepath.Join(directory, "duplex/ts"))
-	writeFixture(t, directory, "runtime-loader.mjs", []byte(`export async function resolve(specifier,context,next){const map={'@nightseam/runtime':'./runtime/ts/src/index.ts','@nightseam/duplex':'./duplex/ts/src/index.ts'};if(map[specifier])return {url:new URL(map[specifier],import.meta.url).href,shortCircuit:true};return next(specifier,context);}`))
+	copyFixtureTree(t, filepath.Join(root, "tunnel/ts"), filepath.Join(directory, "tunnel/ts"))
+	writeFixture(t, directory, "runtime-loader.mjs", []byte(`export async function resolve(specifier,context,next){const map={'@nightseam/runtime':'./runtime/ts/src/index.ts','@nightseam/duplex':'./duplex/ts/src/index.ts','@nightseam/tunnel':'./tunnel/ts/src/index.ts'};if(map[specifier])return {url:new URL(map[specifier],import.meta.url).href,shortCircuit:true};return next(specifier,context);}`))
 	writeFixture(t, directory, "roundtrip.mjs", []byte(`import assert from 'node:assert/strict';import {Client} from './api/ts/probe-client/src/index.ts';const client=await Client.dial(process.argv[2],{}, {reverse(params){return {...params,text:'typescript:'+params.text};}});let observed;client.onChanged(data=>{observed=data;});const result=await client.echo({text:'value',count:7,note:null});assert.equal(result.text,'typescript:value');assert.equal(result.note,null);assert.equal(observed.count,7);await assert.rejects(client.echo({text:'bad',count:9007199254740992}));client.close();`))
 	writeFixture(t, directory, "integration_test.go", []byte(goIntegrationFixture))
+	writeFixture(t, directory, "tunnel_test.go", []byte(goTunnelFixture))
+	writeFixture(t, directory, "tunnel-roundtrip.mjs", []byte(tsTunnelRoundtrip))
 	runFixture(t, directory, "go", "test", "-count=1", "./...")
 }
 
@@ -193,9 +196,10 @@ func TestGeneratedTypeScriptChecksAndValidates(t *testing.T) {
 	renderFixture(t, directory, root)
 	copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
 	copyFixtureTree(t, filepath.Join(root, "duplex/ts"), filepath.Join(directory, "duplex/ts"))
+	copyFixtureTree(t, filepath.Join(root, "tunnel/ts"), filepath.Join(directory, "tunnel/ts"))
 	// Node refuses to strip source TypeScript inside node_modules. A paths entry
 	// gives the compiler the runtime; executable validation imports protocol types.
-	config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@nightseam/runtime": []string{"./runtime/ts/src/index.ts"}, "@nightseam/duplex": []string{"./duplex/ts/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts"}}
+	config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@nightseam/runtime": []string{"./runtime/ts/src/index.ts"}, "@nightseam/duplex": []string{"./duplex/ts/src/index.ts"}, "@nightseam/tunnel": []string{"./tunnel/ts/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts", "tunnel/ts/**/*.ts"}}
 	data, _ := json.Marshal(config)
 	writeFixture(t, directory, "tsconfig.json", data)
 	writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))

@@ -8,9 +8,11 @@ import (
 )
 
 // generateBinding renders the server side: the Handler interface a server
-// implements, the Remote it calls back through, and NewHandler. Those of a
-// generic family are generic in the parameters its types use, E and H, and
-// a server instantiates them with the family that fills the slots.
+// implements, the Remote it calls back through, NewHandler for a WebSocket
+// endpoint and Serve for any connection of the seam — a tunnel channel, a
+// pipe. Those of a generic family are generic in the parameters its types
+// use, E and H, and a server instantiates them with the family that fills
+// the slots.
 func generateBinding(api contract.API, g contract.Generics, p paths) string {
 	decl, args := declare(g.Family), apply(g.Family)
 	var b strings.Builder
@@ -27,20 +29,25 @@ func generateBinding(api contract.API, g contract.Generics, p paths) string {
 			writeCaller(&b, g, m, "Remote"+args)
 		}
 	}
-	fmt.Fprintf(&b, "// NewHandler requires explicit authentication and origin policy through options.\nfunc NewHandler%s(handler Handler%s,options runtime.ServerOptions)(http.Handler,error){if handler==nil{return nil,fmt.Errorf(\"handler is required\")};handlers:=map[string]runtime.Handler{};for name,existing:=range options.Options.Handlers{handlers[name]=existing};\n", decl, args)
+	// install registers the family's methods on the options a peer is made
+	// with, beside whatever the caller registered; NewHandler and Serve share it.
+	fmt.Fprintf(&b, "// install registers the family's methods on the options a peer is made with.\nfunc install%s(handler Handler%s,options *runtime.Options)error{if handler==nil{return fmt.Errorf(\"handler is required\")};handlers:=map[string]runtime.Handler{};for name,existing:=range options.Handlers{handlers[name]=existing};\n", decl, args)
 	for _, m := range api.Methods {
 		if m.Direction == "client_to_server" {
 			writeRegistration(&b, g, m, "handler", "&Remote"+args+"{Peer:peer}")
 		}
 	}
-	b.WriteString("options.Options.Handlers=handlers;return runtime.NewHandler(options)}\n")
+	b.WriteString("options.Handlers=handlers;return nil}\n")
+	fmt.Fprintf(&b, "// NewHandler serves the family at a WebSocket endpoint; it requires explicit authentication and origin policy through options.\nfunc NewHandler%s(handler Handler%s,options runtime.ServerOptions)(http.Handler,error){if err:=install%s(handler,&options.Options);err!=nil{return nil,err};return runtime.NewHandler(options)}\n", decl, args, args)
+	fmt.Fprintf(&b, "// Serve serves the family over a connection of the seam — a tunnel channel, a pipe, an accepted socket — as the server side of it; the peer is the caller's to close.\nfunc Serve%s(ctx context.Context,conn duplex.Conn,options runtime.Options,handler Handler%s)(*runtime.Peer,error){if err:=install%s(handler,&options);err!=nil{return nil,err};return runtime.NewPeer(ctx,conn,runtime.ServerRole,options)}\n", decl, args, args)
 	writeEvents(&b, g, api, "Remote"+args, "server_to_client")
 	return goFile(api, "binding", b.String(), p)
 }
 
-// generateClient renders the caller side: Dial, the typed calls, and the
-// Handler interface for calls the server makes back. Those of a generic
-// family are generic as the binding's are.
+// generateClient renders the caller side: Dial over a WebSocket, Attach
+// over any connection of the seam, Open over the channel a handle names on
+// a tunnel, the typed calls, and the Handler interface for calls the server
+// makes back. Those of a generic family are generic as the binding's are.
 func generateClient(api contract.API, g contract.Generics, p paths) string {
 	decl, args := declare(g.Family), apply(g.Family)
 	var b strings.Builder
@@ -75,17 +82,22 @@ func generateClient(api contract.API, g contract.Generics, p paths) string {
 			fmt.Fprintf(&b, "// Conversation is where the agent's own conversation id arrives: the event, and the path to the id in its data.\nvar Conversation=struct{Event,Path string}{%q,%q}\n", s.Conversation.Event, s.Conversation.Path)
 		}
 	}
-	fmt.Fprintf(&b, "// Dial connects after installing reverse-call handlers. No request is retried.\nfunc Dial%s(ctx context.Context,url string,options runtime.DialOptions,handler Handler%s)(*Client%s,error){\n", decl, args, args)
+	// install registers the reverse-call handlers on the options a peer is
+	// made with; Dial and Attach share it.
+	fmt.Fprintf(&b, "// install registers the reverse-call handlers on the options a peer is made with.\nfunc install%s(handler Handler%s,options *runtime.Options)error{\n", decl, args)
 	if reverse {
-		b.WriteString("if handler==nil{return nil,fmt.Errorf(\"reverse-call handler is required\")};\n")
+		b.WriteString("if handler==nil{return fmt.Errorf(\"reverse-call handler is required\")};\n")
 	}
-	b.WriteString("handlers:=map[string]runtime.Handler{};for name,existing:=range options.Options.Handlers{handlers[name]=existing};\n")
+	b.WriteString("handlers:=map[string]runtime.Handler{};for name,existing:=range options.Handlers{handlers[name]=existing};\n")
 	for _, m := range api.Methods {
 		if m.Direction == "server_to_client" {
 			writeRegistration(&b, g, m, "handler", "&Client"+args+"{Peer:peer}")
 		}
 	}
-	fmt.Fprintf(&b, "options.Options.Handlers=handlers;peer,response,err:=runtime.Dial(ctx,url,options);if err!=nil{if response!=nil&&response.Body!=nil{_ = response.Body.Close()};return nil,err};return &Client%s{Peer:peer},nil}\n", args)
+	b.WriteString("options.Handlers=handlers;return nil}\n")
+	fmt.Fprintf(&b, "// Dial connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.\nfunc Dial%s(ctx context.Context,url string,options runtime.DialOptions,handler Handler%s)(*Client%s,error){if err:=install%s(handler,&options.Options);err!=nil{return nil,err};peer,response,err:=runtime.Dial(ctx,url,options);if err!=nil{if response!=nil&&response.Body!=nil{_ = response.Body.Close()};return nil,err};return &Client%s{Peer:peer},nil}\n", decl, args, args, args, args)
+	fmt.Fprintf(&b, "// Attach speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.\nfunc Attach%s(ctx context.Context,conn duplex.Conn,options runtime.Options,handler Handler%s)(*Client%s,error){if err:=install%s(handler,&options);err!=nil{return nil,err};peer,err:=runtime.NewPeer(ctx,conn,runtime.ClientRole,options);if err!=nil{return nil,err};return &Client%s{Peer:peer},nil}\n", decl, args, args, args, args)
+	fmt.Fprintf(&b, "// Open resolves a handle to the channel it names on a tunnel and speaks the family over it.\nfunc Open%s(ctx context.Context,t *tunnel.Tunnel,handle protocol.Handle,options runtime.Options,handler Handler%s)(*Client%s,error){channel,ok:=t.Channel(handle.Channel);if !ok{return nil,fmt.Errorf(\"no channel %%d on the connection\",handle.Channel)};return Attach%s(ctx,channel,options,handler)}\n", decl, args, args, args)
 	fmt.Fprintf(&b, "func(c *Client%s)Close()error{return c.Peer.Close()}\n", args)
 	for _, m := range api.Methods {
 		if m.Direction == "client_to_server" {
@@ -110,7 +122,7 @@ func membership(names []string) string {
 }
 
 func writeRegistration(b *strings.Builder, g contract.Generics, m contract.Method, handler, remote string) {
-	fmt.Fprintf(b, "if _,exists:=handlers[%q];exists{return nil,fmt.Errorf(\"duplicate handler %%s\",%q)}\n", m.Name, m.Name)
+	fmt.Fprintf(b, "if _,exists:=handlers[%q];exists{return fmt.Errorf(\"duplicate handler %%s\",%q)}\n", m.Name, m.Name)
 	fmt.Fprintf(b, "handlers[%q]=func(ctx context.Context,peer *runtime.Peer,raw json.RawMessage)(any,error){\n", m.Name)
 	params := ""
 	if m.Request != "" {

@@ -26,21 +26,28 @@ import (
 )
 
 // Options places the generated packages. Module is the import path they are
-// rooted at and is required; Runtime is the import path of the runtime they
-// bind to, Nightseam's own when left empty. A path left empty is derived
+// rooted at and is required; Runtime, Seam and Tunnel are the import paths
+// of the runtime they bind to, of the seam beneath it and of the tunnel
+// over it, Nightseam's own when left empty. A path left empty is derived
 // from the family's name when a contract is rendered.
 type Options struct {
 	Module       string
 	Runtime      string
+	Seam         string
+	Tunnel       string
 	ProtocolPath string
 	BindingPath  string
 	ClientPath   string
 }
 
-// DefaultRuntime is the runtime the generated packages bind to unless
-// Options.Runtime names another: the Go peer of the nightseam.duplex/1
-// profile.
-const DefaultRuntime = "github.com/Bitspark/nightseam/runtime/go"
+// The packages the generated ones bind to unless the options name others:
+// the Go peer of the nightseam.duplex/1 profile, the seam it speaks over,
+// and the tunnel that multiplexes channels over it.
+const (
+	DefaultRuntime = "github.com/Bitspark/nightseam/runtime/go"
+	DefaultSeam    = "github.com/Bitspark/nightseam/duplex/go"
+	DefaultTunnel  = "github.com/Bitspark/nightseam/tunnel/go"
+)
 
 // New returns the Go language with its options.
 func New(options Options) spi.Language { return &language{options} }
@@ -50,17 +57,23 @@ type language struct{ options Options }
 func (*language) Name() string { return "go" }
 
 // paths are the options resolved for one family.
-type paths struct{ module, runtime, protocol, binding, client string }
+type paths struct{ module, runtime, seam, tunnel, protocol, binding, client string }
 
 var goImportPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_./~-]*$`)
 
 func (l *language) resolve(api contract.API) (paths, error) {
-	p := paths{l.options.Module, l.options.Runtime, l.options.ProtocolPath, l.options.BindingPath, l.options.ClientPath}
+	p := paths{l.options.Module, l.options.Runtime, l.options.Seam, l.options.Tunnel, l.options.ProtocolPath, l.options.BindingPath, l.options.ClientPath}
 	if p.module == "" {
 		return paths{}, fmt.Errorf("a Go module path is required to root the generated packages")
 	}
 	if p.runtime == "" {
 		p.runtime = DefaultRuntime
+	}
+	if p.seam == "" {
+		p.seam = DefaultSeam
+	}
+	if p.tunnel == "" {
+		p.tunnel = DefaultTunnel
 	}
 	if p.protocol == "" {
 		p.protocol = "api/go/" + api.Name + "-protocol"
@@ -71,7 +84,7 @@ func (l *language) resolve(api contract.API) (paths, error) {
 	if p.client == "" {
 		p.client = "api/go/" + api.Name + "-client"
 	}
-	for _, s := range []string{p.module, p.runtime, p.protocol, p.binding, p.client} {
+	for _, s := range []string{p.module, p.runtime, p.seam, p.tunnel, p.protocol, p.binding, p.client} {
 		if !goImportPattern.MatchString(s) || strings.HasPrefix(s, "/") || strings.HasSuffix(s, "/") {
 			return paths{}, fmt.Errorf("invalid Go module or package path %q", s)
 		}
@@ -427,7 +440,7 @@ func importAlias(family string) string { return strings.ReplaceAll(family, "-", 
 func importPath(module, family string) string { return module + "/api/go/" + family + "-protocol" }
 
 func goFile(api contract.API, suffix, source string, p paths) string {
-	fixed := map[string]string{"bytes": "bytes", "context": "context", "json": "encoding/json", "io": "io", "math": "math", "strconv": "strconv", "strings": "strings", "time": "time", "fmt": "fmt", "errors": "errors", "http": "net/http", "protocol": p.module + "/" + p.protocol, "runtime": p.runtime}
+	fixed := map[string]string{"bytes": "bytes", "context": "context", "json": "encoding/json", "io": "io", "math": "math", "strconv": "strconv", "strings": "strings", "time": "time", "fmt": "fmt", "errors": "errors", "http": "net/http", "protocol": p.module + "/" + p.protocol, "runtime": p.runtime, "duplex": p.seam, "tunnel": p.tunnel}
 	for _, family := range api.References() {
 		fixed[importAlias(family)] = importPath(p.module, family)
 	}

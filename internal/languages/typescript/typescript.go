@@ -22,21 +22,26 @@ import (
 
 // Options places the generated package. Scope is the npm scope the package
 // and the packages of the families it imports are published under, and is
-// required; Runtime and RuntimeVersion name the runtime package the client
-// depends on, Nightseam's own when left empty. A path left empty is derived
-// from the family's name when a contract is rendered.
+// required; Runtime and Tunnel name the runtime package the client depends
+// on and the tunnel package it opens channels of, RuntimeVersion the
+// version of both, Nightseam's own when left empty. A path left empty is
+// derived from the family's name when a contract is rendered.
 type Options struct {
 	Scope          string
 	Runtime        string
+	Tunnel         string
 	RuntimeVersion string
 	ClientPath     string
 }
 
-// DefaultRuntime is the runtime package the generated client depends on
-// unless Options.Runtime names another: the TypeScript peer of the
-// nightseam.duplex/1 profile; DefaultRuntimeVersion the version it asks for.
-const DefaultRuntime = "@nightseam/runtime"
-const DefaultRuntimeVersion = "0.1.0"
+// The packages the generated client depends on unless the options name
+// others: the TypeScript peer of the nightseam.duplex/1 profile and the
+// tunnel over it, at the version DefaultRuntimeVersion.
+const (
+	DefaultRuntime        = "@nightseam/runtime"
+	DefaultTunnel         = "@nightseam/tunnel"
+	DefaultRuntimeVersion = "0.1.0"
+)
 
 // scopePattern is an npm scope: an @ and one package-name segment.
 var scopePattern = regexp.MustCompile(`^@[a-z0-9][a-z0-9._-]*$`)
@@ -49,15 +54,18 @@ type language struct{ options Options }
 func (*language) Name() string { return "typescript" }
 
 // settings are the options resolved for one family.
-type settings struct{ scope, runtime, runtimeVersion, dir string }
+type settings struct{ scope, runtime, tunnel, runtimeVersion, dir string }
 
 func (l *language) resolve(api contract.API) (settings, error) {
-	s := settings{l.options.Scope, l.options.Runtime, l.options.RuntimeVersion, l.options.ClientPath}
+	s := settings{l.options.Scope, l.options.Runtime, l.options.Tunnel, l.options.RuntimeVersion, l.options.ClientPath}
 	if !scopePattern.MatchString(s.scope) {
 		return settings{}, fmt.Errorf("an npm scope such as @example is required to name the generated packages; got %q", s.scope)
 	}
 	if s.runtime == "" {
 		s.runtime = DefaultRuntime
+	}
+	if s.tunnel == "" {
+		s.tunnel = DefaultTunnel
 	}
 	if s.runtimeVersion == "" {
 		s.runtimeVersion = DefaultRuntimeVersion
@@ -359,7 +367,7 @@ func generateTS(api contract.API, g contract.Generics, s settings) []spi.File {
 	}
 	var client strings.Builder
 	client.WriteString(spi.Header)
-	client.WriteString("import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type RequestContext } from " + quote(s.runtime) + ";\nimport { validateWire } from './types.ts';\n")
+	client.WriteString("import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type RequestContext, type FrameConnection } from " + quote(s.runtime) + ";\nimport type { Tunnel } from " + quote(s.tunnel) + ";\nimport { validateWire } from './types.ts';\n")
 	if g.Generic() {
 		client.WriteString("import type { AnyFamily, FamilyBinding, SessionFamily, Slots } from './types.ts';\n")
 	}
@@ -405,7 +413,9 @@ func generateTS(api contract.API, g contract.Generics, s settings) []spi.File {
 			fmt.Fprintf(&client, "    if (!handler) throw new Error('reverse-call handler is required');\n    peer.handle(%q, async (params, context) => { try { validateWire(%s, params%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, context); validateWire(%s, result%s); return result; });\n", m.Name, tsRequestExpr(m), slots, m.TSName, tsRequest(g, m), expression(m.Result), slots)
 		}
 	}
-	fmt.Fprintf(&client, "  }\n  static async dial%s(url: string, %soptions: PeerOptions = {}, handler?: Handler%s): Promise<Client%s> { const peer = new DuplexPeer(options); const client = new Client%s(peer, %shandler); await peer.connect(url); return client; }\n  close(): void { this.peer.close(); }\n", decl, binding, args, args, args, pass)
+	fmt.Fprintf(&client, "  }\n  /** Connects to a WebSocket endpoint and speaks the family over it. */\n  static async dial%s(url: string, %soptions: PeerOptions = {}, handler?: Handler%s): Promise<Client%s> { const peer = new DuplexPeer(options); const client = new Client%s(peer, %shandler); await peer.connect(url); return client; }\n", decl, binding, args, args, args, pass)
+	fmt.Fprintf(&client, "  /** Speaks the family over a connection of the seam — a tunnel channel, a pipe, an open socket — as the client side of it. */\n  static async attach%s(connection: FrameConnection, %soptions: PeerOptions = {}, handler?: Handler%s): Promise<Client%s> { const peer = new DuplexPeer(options); const client = new Client%s(peer, %shandler); await peer.attach(connection); return client; }\n", decl, binding, args, args, args, pass)
+	fmt.Fprintf(&client, "  /** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */\n  static async open%s(tunnel: Tunnel, handle: Protocol.Handle, %soptions: PeerOptions = {}, handler?: Handler%s): Promise<Client%s> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach%s(channel, %soptions, handler); }\n  close(): void { this.peer.close(); }\n", decl, binding, args, args, args, pass)
 	for _, m := range api.Methods {
 		if m.Direction == "client_to_server" {
 			parameters := "params: " + tsRequest(g, m) + ", options?: CallOptions"
@@ -427,7 +437,7 @@ func generateTS(api contract.API, g contract.Generics, s settings) []spi.File {
 	}
 	client.WriteString("}\n")
 	files = append(files, spi.File{Path: path.Join(s.dir, "src/index.ts"), Data: []byte(client.String())})
-	dependencies := map[string]any{s.runtime: s.runtimeVersion}
+	dependencies := map[string]any{s.runtime: s.runtimeVersion, s.tunnel: s.runtimeVersion}
 	for _, family := range tsReferences(api, g) {
 		dependencies[tsPackage(s.scope, family)] = "0.0.0"
 	}
