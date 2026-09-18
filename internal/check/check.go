@@ -8,7 +8,6 @@ package check
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/Bitspark/nightseam/internal/analysis"
 	"github.com/Bitspark/nightseam/internal/diag"
@@ -486,66 +485,12 @@ func Overrides(f *analysis.Family) []diag.Diagnostic {
 			continue
 		}
 		for _, key := range sortedKeys(toSet(o.Names)) {
-			if _, ok := Locate(f, key); !ok {
+			if _, ok := f.Locate(key); !ok {
 				c.Addf(diag.Location{File: file, Pointer: "/names/" + diag.Escape(key)}, "unknown_override", "%s names nothing this family declares: a type, Type.field, Enum.value, a method or event, or errors.code.", key)
 			}
 		}
 	}
 	return c.Diagnostics
-}
-
-// Locate answers an override's path key with the declaration it names:
-// Type, Type.field, Enum.value, a method or an event of either side, or
-// errors.code. A name both sides declare is ambiguous and not found.
-func Locate(f *analysis.Family, key string) (diag.Location, bool) {
-	if strings.HasPrefix(key, "errors.") {
-		if f.Protocol != nil {
-			if e, ok := f.Protocol.Error(strings.TrimPrefix(key, "errors.")); ok {
-				return e.At, true
-			}
-		}
-		return diag.Location{}, false
-	}
-	if typeName, member, ok := strings.Cut(key, "."); ok && model.IsParameter(typeName) {
-		t, declared := f.Types[typeName]
-		if !declared || model.IsInjected(typeName) {
-			return diag.Location{}, false
-		}
-		for _, field := range t.Fields {
-			if field.Name == member {
-				return field.At, true
-			}
-		}
-		for i, value := range t.Values {
-			if value == member {
-				return t.At.Sub("values", i), true
-			}
-		}
-		return diag.Location{}, false
-	}
-	if t, ok := f.Types[key]; ok && !model.IsInjected(key) {
-		return t.At, true
-	}
-	if f.Protocol == nil {
-		return diag.Location{}, false
-	}
-	var found []diag.Location
-	for _, side := range []*model.Side{&f.Protocol.Server, &f.Protocol.Client} {
-		for _, m := range side.Methods {
-			if m.Name == key {
-				found = append(found, m.At)
-			}
-		}
-		for _, e := range side.Events {
-			if e.Name == key {
-				found = append(found, e.At)
-			}
-		}
-	}
-	if len(found) == 1 {
-		return found[0], true
-	}
-	return diag.Location{}, false
 }
 
 func sortedKeys(set map[string]bool) []string {

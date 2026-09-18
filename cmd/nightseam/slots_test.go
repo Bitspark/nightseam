@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -62,32 +61,6 @@ func rightLanguages(module, scope string) []spi.Language {
 		golang.New(golang.Options{Module: module, ProtocolPath: "gen/go/carrier-protocol", BindingPath: "gen/go/carrier-binding", ClientPath: "gen/go/carrier-client"}),
 		typescript.New(typescript.Options{Scope: scope, ClientPath: "gen/ts/carrier-client"}),
 	}
-}
-
-// renderSlotFixture renders probe, the substituted carrier — the left path
-// — and the carrier as written — the right path — into a temporary module
-// that resolves Nightseam to this checkout.
-func renderSlotFixture(t *testing.T, directory, root string) {
-	t.Helper()
-	world, probe, substituted := slotWorld(t)
-	render := func(input map[string]any, languages []spi.Language) {
-		result, err := kernel.GenerateIn(world, input, languages...)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for p, data := range result.Files {
-			writeFixture(t, directory, p, data)
-		}
-	}
-	render(probe, languages(module, scope))
-	render(substituted, languages(module, scope))
-	render(world["carrier"], rightLanguages(module, scope))
-	writeFixture(t, directory, "go.mod", []byte("module example.test/generated\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/Bitspark/nightseam v0.0.0\n\tgithub.com/coder/websocket v1.8.15\n)\n\nreplace github.com/Bitspark/nightseam => "+filepath.ToSlash(root)+"\n"))
-	sum, err := os.ReadFile(filepath.Join(root, "go.sum"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeFixture(t, directory, "go.sum", sum)
 }
 
 // TestSlottedContractRendersGenerically: the carrier as written renders —
@@ -235,26 +208,31 @@ func exprString(expr ast.Expr) string {
 // opaque instantiation passes it through; and the left path delegates a
 // slot's validation to probe.
 func TestDiagramCommutesInGo(t *testing.T) {
-	root := repositoryRoot(t)
-	fixture(t, root, "go", "node")
-	directory := t.TempDir()
-	renderSlotFixture(t, directory, root)
-	copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
-	copyFixtureTree(t, filepath.Join(root, "duplex/ts"), filepath.Join(directory, "duplex/ts"))
-	copyFixtureTree(t, filepath.Join(root, "tunnel/ts"), filepath.Join(directory, "tunnel/ts"))
-	writeFixture(t, directory, "loader.mjs", []byte(slotLoader))
-	writeFixture(t, directory, "roundtrip-generic.mjs", []byte(tsGenericRoundtrip))
-	writeFixture(t, directory, "diagram_test.go", []byte(goDiagramFixture))
-	writeFixture(t, directory, "delegation_test.go", []byte(`package generated
-import ("testing";carrier "example.test/generated/api/go/carrier-protocol")
-func TestDelegation(t *testing.T){
- if err:=carrier.ValidateRaw("Frame",[]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{}}}"));err!=nil{t.Fatal(err)}
- if err:=carrier.ValidateRaw("Frame",[]byte("{\"sequence\":1,\"message\":{\"version\":1}}"));err==nil{t.Fatal("an envelope without a kind passed")}
- if err:=carrier.ValidateRaw("Frame",[]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"extra\":true}}"));err==nil{t.Fatal("an unknown envelope field passed")}
- if err:=carrier.ValidateExpressionRaw("probe.Nope",[]byte("{}"));err==nil{t.Fatal("an unknown imported type passed")}
- if err:=carrier.ValidateExpressionRaw("nobody.Envelope",[]byte("{}"));err==nil{t.Fatal("an unknown family passed")}
-}`))
-	runFixture(t, directory, "go", "test", "-count=1", "./...")
+	for _, g := range generations {
+		t.Run(g.name, func(t *testing.T) {
+			root := repositoryRoot(t)
+			fixture(t, root, "go", "node")
+			directory := t.TempDir()
+			g.slots(t, directory)
+			fixtureModule(t, directory, root)
+			copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
+			copyFixtureTree(t, filepath.Join(root, "duplex/ts"), filepath.Join(directory, "duplex/ts"))
+			copyFixtureTree(t, filepath.Join(root, "tunnel/ts"), filepath.Join(directory, "tunnel/ts"))
+			writeFixture(t, directory, "loader.mjs", []byte(slotLoader))
+			writeFixture(t, directory, "roundtrip-generic.mjs", []byte(tsGenericRoundtrip))
+			writeFixture(t, directory, "diagram_test.go", []byte(goDiagramFixture))
+			writeFixture(t, directory, "delegation_test.go", []byte(`package generated
+		import ("testing";carrier "example.test/generated/api/go/carrier-protocol")
+		func TestDelegation(t *testing.T){
+		 if err:=carrier.ValidateRaw("Frame",[]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{}}}"));err!=nil{t.Fatal(err)}
+		 if err:=carrier.ValidateRaw("Frame",[]byte("{\"sequence\":1,\"message\":{\"version\":1}}"));err==nil{t.Fatal("an envelope without a kind passed")}
+		 if err:=carrier.ValidateRaw("Frame",[]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"extra\":true}}"));err==nil{t.Fatal("an unknown envelope field passed")}
+		 if err:=carrier.ValidateExpressionRaw("probe.Nope",[]byte("{}"));err==nil{t.Fatal("an unknown imported type passed")}
+		 if err:=carrier.ValidateExpressionRaw("nobody.Envelope",[]byte("{}"));err==nil{t.Fatal("an unknown family passed")}
+		}`))
+			runFixture(t, directory, "go", "test", "-count=1", "./...")
+		})
+	}
 }
 
 // slotLoader resolves the runtime and probe's client for Node, which does
@@ -469,43 +447,48 @@ func TestGenericTypeScriptClientSpeaksWithPlainServer(t *testing.T) {
 // rendering, which tsc holds through Equals; and the generic validator bound
 // to probe validates as the plain one delegates.
 func TestDiagramCommutesInTypeScript(t *testing.T) {
-	root := repositoryRoot(t)
-	tsc := fixture(t, root, "node", "tsc")
-	directory := t.TempDir()
-	renderSlotFixture(t, directory, root)
-	copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
-	copyFixtureTree(t, filepath.Join(root, "duplex/ts"), filepath.Join(directory, "duplex/ts"))
-	copyFixtureTree(t, filepath.Join(root, "tunnel/ts"), filepath.Join(directory, "tunnel/ts"))
-	writeFixture(t, directory, "gen/ts/diagram.ts", []byte(tsDiagramFixture))
-	config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@nightseam/runtime": []string{"./runtime/ts/src/index.ts"}, "@nightseam/duplex": []string{"./duplex/ts/src/index.ts"}, "@nightseam/tunnel": []string{"./tunnel/ts/src/index.ts"}, "@example/probe-client": []string{"./api/ts/probe-client/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts", "tunnel/ts/**/*.ts", "gen/**/*.ts"}}
-	data, _ := json.Marshal(config)
-	writeFixture(t, directory, "tsconfig.json", data)
-	writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))
-	runFixture(t, directory, "node", tsc, "--project", "tsconfig.json")
-	writeFixture(t, directory, "loader.mjs", []byte(slotLoader))
-	writeFixture(t, directory, "delegation.mjs", []byte(`import assert from 'node:assert/strict';import {validateWire} from './api/ts/carrier-client/src/types.ts';
-validateWire('Frame',{sequence:1,message:{version:1,kind:'event',event:'changed',data:{}}});
-assert.throws(()=>validateWire('Frame',{sequence:1,message:{version:1}}));
-assert.throws(()=>validateWire('Frame',{sequence:1,message:{version:1,kind:'event',extra:true}}));
-assert.throws(()=>validateWire('probe.Nope',{}));assert.throws(()=>validateWire('nobody.Envelope',{}));
-`))
-	runFixture(t, directory, "node", "--loader", "./loader.mjs", "delegation.mjs")
-	writeFixture(t, directory, "generic.mjs", []byte(`import assert from 'node:assert/strict';
-import {validateWire, family as carrier} from './gen/ts/carrier-client/src/types.ts';
-import {family as probe} from './api/ts/probe-client/src/index.ts';
-const good = {sequence: 1, message: {version: 1, kind: 'event', event: 'changed', data: {}}};
-validateWire('Frame', good, '$', {S: probe});
-validateWire('Frames', [good], '$', {S: probe});
-assert.throws(() => validateWire('Frame', {sequence: 1, message: {version: 1}}, '$', {S: probe}));
-assert.throws(() => validateWire('Frame', {sequence: 1, message: {version: 1, kind: 'event', extra: true}}, '$', {S: probe}));
-assert.throws(() => validateWire('Frame', good), /binding of the parameter S/);
-assert.throws(() => validateWire({envelope: 'probe'}, {version: 1}));
-validateWire({envelope: 'probe'}, good.message);
-assert.throws(() => validateWire({connection: 'nobody'}, {channel: 1}));
-assert.equal(carrier.name, 'carrier');
-assert.equal(probe.name, 'probe');
-`))
-	runFixture(t, directory, "node", "--loader", "./loader.mjs", "generic.mjs")
+	for _, g := range generations {
+		t.Run(g.name, func(t *testing.T) {
+			root := repositoryRoot(t)
+			tsc := fixture(t, root, "node", "tsc")
+			directory := t.TempDir()
+			g.slots(t, directory)
+			fixtureModule(t, directory, root)
+			copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
+			copyFixtureTree(t, filepath.Join(root, "duplex/ts"), filepath.Join(directory, "duplex/ts"))
+			copyFixtureTree(t, filepath.Join(root, "tunnel/ts"), filepath.Join(directory, "tunnel/ts"))
+			writeFixture(t, directory, "gen/ts/diagram.ts", []byte(tsDiagramFixture))
+			config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@nightseam/runtime": []string{"./runtime/ts/src/index.ts"}, "@nightseam/duplex": []string{"./duplex/ts/src/index.ts"}, "@nightseam/tunnel": []string{"./tunnel/ts/src/index.ts"}, "@example/probe-client": []string{"./api/ts/probe-client/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts", "tunnel/ts/**/*.ts", "gen/**/*.ts"}}
+			data, _ := json.Marshal(config)
+			writeFixture(t, directory, "tsconfig.json", data)
+			writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))
+			runFixture(t, directory, "node", tsc, "--project", "tsconfig.json")
+			writeFixture(t, directory, "loader.mjs", []byte(slotLoader))
+			writeFixture(t, directory, "delegation.mjs", []byte(`import assert from 'node:assert/strict';import {validateWire} from './api/ts/carrier-client/src/types.ts';
+		validateWire('Frame',{sequence:1,message:{version:1,kind:'event',event:'changed',data:{}}});
+		assert.throws(()=>validateWire('Frame',{sequence:1,message:{version:1}}));
+		assert.throws(()=>validateWire('Frame',{sequence:1,message:{version:1,kind:'event',extra:true}}));
+		assert.throws(()=>validateWire('probe.Nope',{}));assert.throws(()=>validateWire('nobody.Envelope',{}));
+		`))
+			runFixture(t, directory, "node", "--loader", "./loader.mjs", "delegation.mjs")
+			writeFixture(t, directory, "generic.mjs", []byte(`import assert from 'node:assert/strict';
+		import {validateWire, family as carrier} from './gen/ts/carrier-client/src/types.ts';
+		import {family as probe} from './api/ts/probe-client/src/index.ts';
+		const good = {sequence: 1, message: {version: 1, kind: 'event', event: 'changed', data: {}}};
+		validateWire('Frame', good, '$', {S: probe});
+		validateWire('Frames', [good], '$', {S: probe});
+		assert.throws(() => validateWire('Frame', {sequence: 1, message: {version: 1}}, '$', {S: probe}));
+		assert.throws(() => validateWire('Frame', {sequence: 1, message: {version: 1, kind: 'event', extra: true}}, '$', {S: probe}));
+		assert.throws(() => validateWire('Frame', good), /binding of the parameter S/);
+		assert.throws(() => validateWire({envelope: 'probe'}, {version: 1}));
+		validateWire({envelope: 'probe'}, good.message);
+		assert.throws(() => validateWire({connection: 'nobody'}, {channel: 1}));
+		assert.equal(carrier.name, 'carrier');
+		assert.equal(probe.name, 'probe');
+		`))
+			runFixture(t, directory, "node", "--loader", "./loader.mjs", "generic.mjs")
+		})
+	}
 }
 
 // tsDiagramFixture is the diagram at the type level: an instantiation of the
@@ -812,59 +795,64 @@ func TestASlotDrawsAnyTypeOfTheBoundFamily(t *testing.T) {
 // with a type of no family, is refused by the compiler at every entry
 // point, whether the type arguments are spelled or inferred.
 func TestMixedInstantiationDoesNotCompile(t *testing.T) {
-	root := repositoryRoot(t)
-	fixture(t, root, "go")
-	directory := t.TempDir()
-	renderSlotFixture(t, directory, root)
-	writeFixture(t, directory, "mixed_test.go", []byte(`//go:build mixed
+	for _, g := range generations {
+		t.Run(g.name, func(t *testing.T) {
+			root := repositoryRoot(t)
+			fixture(t, root, "go")
+			directory := t.TempDir()
+			g.slots(t, directory)
+			fixtureModule(t, directory, root)
+			writeFixture(t, directory, "mixed_test.go", []byte(`//go:build mixed
 
-package generated
-import (
- "context"
- rightclient "example.test/generated/gen/go/carrier-client"
- probe "example.test/generated/api/go/probe-protocol"
- "github.com/Bitspark/nightseam/runtime/go"
-)
-var _, _ = rightclient.Dial[probe.Envelope, string](context.Background(), "", runtime.DialOptions{}, nil)
-`))
-	writeFixture(t, directory, "mixed_families_test.go", []byte(`//go:build families
+		package generated
+		import (
+		 "context"
+		 rightclient "example.test/generated/gen/go/carrier-client"
+		 probe "example.test/generated/api/go/probe-protocol"
+		 "github.com/Bitspark/nightseam/runtime/go"
+		)
+		var _, _ = rightclient.Dial[probe.Envelope, string](context.Background(), "", runtime.DialOptions{}, nil)
+		`))
+			writeFixture(t, directory, "mixed_families_test.go", []byte(`//go:build families
 
-package generated
-import (
- "context"
- rightclient "example.test/generated/gen/go/carrier-client"
- probe "example.test/generated/api/go/probe-protocol"
- "github.com/Bitspark/nightseam/runtime/go"
-)
-var _, _ = rightclient.Dial[probe.Envelope, runtime.Raw](context.Background(), "", runtime.DialOptions{}, nil)
-`))
-	// The compiler reports one inference failure per package, so each case
-	// is its own build.
-	for tag, want := range map[string]string{"mixed": "string) does not satisfy runtime.Of[STag] (missing method Of)", "families": "Raw) does not satisfy runtime.Of[STag] (wrong type for method Of)"} {
-		command := exec.Command("go", "vet", "-tags", tag, ".")
-		command.Dir = directory
-		out, err := command.CombinedOutput()
-		if err == nil {
-			t.Fatalf("a mixed instantiation compiled under -tags %s", tag)
-		}
-		if !strings.Contains(string(out), want) {
-			t.Errorf("the compiler did not refuse as expected, wanting %q:\n%s", want, out)
-		}
-	}
-	// The same package, instantiated coherently, compiles: the fixture's own
-	// tests are the proof, and so is the relay's opaque instantiation.
-	writeFixture(t, directory, "opaque_test.go", []byte(`package generated
-import (
- "context"
- rightclient "example.test/generated/gen/go/carrier-client"
- "github.com/Bitspark/nightseam/runtime/go"
-)
-var _ = func() { _, _ = rightclient.Dial[runtime.Raw, runtime.Raw](context.Background(), "", runtime.DialOptions{}, nil) }
-`))
-	command := exec.Command("go", "vet", ".")
-	command.Dir = directory
-	if out, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("the opaque instantiation did not compile:\n%s", out)
+		package generated
+		import (
+		 "context"
+		 rightclient "example.test/generated/gen/go/carrier-client"
+		 probe "example.test/generated/api/go/probe-protocol"
+		 "github.com/Bitspark/nightseam/runtime/go"
+		)
+		var _, _ = rightclient.Dial[probe.Envelope, runtime.Raw](context.Background(), "", runtime.DialOptions{}, nil)
+		`))
+			// The compiler reports one inference failure per package, so each case
+			// is its own build.
+			for tag, want := range map[string]string{"mixed": "string) does not satisfy runtime.Of[STag] (missing method Of)", "families": "Raw) does not satisfy runtime.Of[STag] (wrong type for method Of)"} {
+				command := exec.Command("go", "vet", "-tags", tag, ".")
+				command.Dir = directory
+				out, err := command.CombinedOutput()
+				if err == nil {
+					t.Fatalf("a mixed instantiation compiled under -tags %s", tag)
+				}
+				if !strings.Contains(string(out), want) {
+					t.Errorf("the compiler did not refuse as expected, wanting %q:\n%s", want, out)
+				}
+			}
+			// The same package, instantiated coherently, compiles: the fixture's own
+			// tests are the proof, and so is the relay's opaque instantiation.
+			writeFixture(t, directory, "opaque_test.go", []byte(`package generated
+		import (
+		 "context"
+		 rightclient "example.test/generated/gen/go/carrier-client"
+		 "github.com/Bitspark/nightseam/runtime/go"
+		)
+		var _ = func() { _, _ = rightclient.Dial[runtime.Raw, runtime.Raw](context.Background(), "", runtime.DialOptions{}, nil) }
+		`))
+			command := exec.Command("go", "vet", ".")
+			command.Dir = directory
+			if out, err := command.CombinedOutput(); err != nil {
+				t.Fatalf("the opaque instantiation did not compile:\n%s", out)
+			}
+		})
 	}
 }
 

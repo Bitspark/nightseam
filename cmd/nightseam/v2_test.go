@@ -96,3 +96,62 @@ func TestInvalidCorpusIsRefusedV2(t *testing.T) {
 		})
 	}
 }
+
+// renderV2 renders every family of a v2 checkout with the v2 kernel.
+func renderV2(t *testing.T, root string) map[string][]byte {
+	t.Helper()
+	k := v2Kernel(module, scope)
+	world := k.Load(os.DirFS(root), "api/contracts")
+	files := map[string][]byte{}
+	for _, name := range world.Names {
+		result, err := k.Render(world, name)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		for p, data := range result.Files {
+			if previous, exists := files[p]; exists && string(previous) != string(data) {
+				t.Fatalf("%s is rendered twice, differently", p)
+			}
+			files[p] = data
+		}
+	}
+	return files
+}
+
+// TestV2CorpusRendersGolden: what every v2 target renders for the v2 corpus
+// is exactly the files under testdata/v2/golden.
+func TestV2CorpusRendersGolden(t *testing.T) {
+	holdGolden(t, filepath.Join(v2Root, "golden"), renderV2(t, filepath.Join(v2Root, "corpus")))
+}
+
+// TestUpgradeIsSurfaceEquivalent: the exported Go surface of every package
+// v2 renders for the converted corpus is identical to what v1 rendered for
+// the corpus it was converted from — identifier for identifier, signature
+// for signature — so that a consumer of the one is a consumer of the other.
+func TestUpgradeIsSurfaceEquivalent(t *testing.T) {
+	a := &app{root: corpusRoot, module: module, scope: scope}
+	names, err := a.chosen(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v1, err := a.render(names)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2 := renderV2(t, filepath.Join(v2Root, "corpus"))
+	for p, data := range v1 {
+		if !strings.HasSuffix(p, ".go") {
+			continue
+		}
+		rendered, ok := v2[p]
+		if !ok {
+			t.Errorf("v2 does not render %s", p)
+			continue
+		}
+		want := strings.Join(goSurface(t, p, string(data)), "\n")
+		got := strings.Join(goSurface(t, p, string(rendered)), "\n")
+		if want != got {
+			t.Errorf("the surface of %s differs:\n%s", p, diff(want, got))
+		}
+	}
+}

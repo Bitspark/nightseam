@@ -119,12 +119,12 @@ func TestLocate(t *testing.T) {
 		"protocol.json": modeltest.Protocol(`"server": {"methods": {"m": {"result": "string"}}}, "client": {"events": {"m": {"type": "string"}}}, "errors": {"c": "C."}`),
 	})
 	for key, want := range map[string]string{"A": "model.json#/types/A", "A.x": "model.json#/types/A/fields/0", "E.v": "model.json#/types/E/values/0", "errors.c": "protocol.json#/errors/c"} {
-		if at, ok := Locate(f, key); !ok || at.String() != want {
+		if at, ok := f.Locate(key); !ok || at.String() != want {
 			t.Errorf("%s located at %s, %v", key, at, ok)
 		}
 	}
 	for _, key := range []string{"m", "Nope", "A.nope", "errors.nope", "Envelope", "Envelope.kind"} {
-		if _, ok := Locate(f, key); ok {
+		if _, ok := f.Locate(key); ok {
 			t.Errorf("%s was located", key)
 		}
 	}

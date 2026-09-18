@@ -92,7 +92,8 @@ type Field struct {
 
 // Length bounds a string's or array's length.
 type Length struct {
-	Min, Max *int
+	Min *int `json:"min,omitempty"`
+	Max *int `json:"max,omitempty"`
 }
 
 // Protocol is the protocol tier: the profile the family speaks, the

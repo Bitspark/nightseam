@@ -1,0 +1,68 @@
+{
+  "description": "The conformance table of the wire validator every runtime carries: one family's wire description, one imported family's, and cases of a type expression, a JSON value, and whether the value is valid. Both runtimes read this file.",
+  "wire": {
+    "Base": {"kind": "record", "fields": [{"name": "text", "type": "string", "required": true}]},
+    "Payload": {"kind": "record", "extends": ["Base"], "fields": [
+      {"name": "count", "type": "integer", "required": true, "min": 0, "max": 100},
+      {"name": "note", "type": "string", "required": false, "nullable": true, "length": {"min": 1, "max": 5}},
+      {"name": "tag", "type": "string", "required": false, "pattern": "^[a-z]+$"},
+      {"name": "when", "type": "timestamp", "required": false}
+    ]},
+    "Open": {"kind": "record", "open": true, "fields": [{"name": "id", "type": "string", "required": true}]},
+    "Status": {"kind": "enum", "values": ["on", "off"]},
+    "Payloads": {"kind": "alias", "type": {"array": "Payload"}},
+    "Counts": {"kind": "alias", "type": {"map": "integer"}},
+    "User": {"kind": "entity", "key": "id", "fields": [{"name": "id", "type": "string", "required": true}, {"name": "name", "type": "string", "required": true}]},
+    "Held": {"kind": "record", "fields": [{"name": "message", "type": "S.Envelope", "required": true}, {"name": "who", "type": {"ref": "User"}, "required": true}, {"name": "other", "type": "peer.Thing", "required": true}]},
+    "Frame": {"kind": "record", "fields": [{"name": "inner", "type": {"apply": "peer.Box", "with": {"S": "peer"}}, "required": true}]}
+  },
+  "imported": {
+    "peer": {
+      "Thing": {"kind": "record", "fields": [{"name": "n", "type": "integer", "required": true}]},
+      "Box": {"kind": "record", "fields": [{"name": "item", "type": "S.Envelope", "required": true}]}
+    }
+  },
+  "cases": [
+    {"expression": "string", "value": "x", "valid": true},
+    {"expression": "string", "value": 1, "valid": false},
+    {"expression": "boolean", "value": true, "valid": true},
+    {"expression": "integer", "value": 7, "valid": true},
+    {"expression": "integer", "value": 7.5, "valid": false},
+    {"expression": "integer", "value": 9007199254740992, "valid": false},
+    {"expression": "integer", "value": 1e3, "valid": true},
+    {"expression": "number", "value": 7.5, "valid": true},
+    {"expression": "timestamp", "value": "2024-02-29T00:00:00Z", "valid": true},
+    {"expression": "timestamp", "value": "2024-02-30T00:00:00Z", "valid": false},
+    {"expression": "json", "value": {"any": [1, "two", null]}, "valid": true},
+    {"expression": "Status", "value": "on", "valid": true},
+    {"expression": "Status", "value": "dim", "valid": false},
+    {"expression": "Payload", "value": {"text": "t", "count": 3}, "valid": true},
+    {"expression": "Payload", "value": {"count": 3}, "valid": false},
+    {"expression": "Payload", "value": {"text": "t", "count": 3, "note": null}, "valid": true},
+    {"expression": "Payload", "value": {"text": "t", "count": 3, "extra": 1}, "valid": false},
+    {"expression": "Payload", "value": {"text": null, "count": 3}, "valid": false},
+    {"expression": "Payload", "value": {"text": "t", "count": 101}, "valid": false},
+    {"expression": "Payload", "value": {"text": "t", "count": -1}, "valid": false},
+    {"expression": "Payload", "value": {"text": "t", "count": 3, "note": "toolong"}, "valid": false},
+    {"expression": "Payload", "value": {"text": "t", "count": 3, "note": ""}, "valid": false},
+    {"expression": "Payload", "value": {"text": "t", "count": 3, "tag": "abc"}, "valid": true},
+    {"expression": "Payload", "value": {"text": "t", "count": 3, "tag": "ABC"}, "valid": false},
+    {"expression": "Open", "value": {"id": "1", "anything": {"deep": [true]}}, "valid": true},
+    {"expression": "Payloads", "value": [{"text": "t", "count": 1}], "valid": true},
+    {"expression": "Payloads", "value": [{"text": "t"}], "valid": false},
+    {"expression": "Counts", "value": {"a": 1}, "valid": true},
+    {"expression": "Counts", "value": {"a": "1"}, "valid": false},
+    {"expression": {"array": "Status"}, "value": ["on"], "valid": true},
+    {"expression": {"map": "Status"}, "value": {"k": "off"}, "valid": true},
+    {"expression": {"empty": true}, "value": {}, "valid": true},
+    {"expression": {"empty": true}, "value": {"x": 1}, "valid": false},
+    {"expression": "Held", "value": {"message": {"anything": 1}, "who": "user-1", "other": {"n": 2}}, "valid": true},
+    {"expression": "Held", "value": {"message": {"anything": 1}, "who": 5, "other": {"n": 2}}, "valid": false},
+    {"expression": "Held", "value": {"message": {"anything": 1}, "who": "u", "other": {"n": "two"}}, "valid": false},
+    {"expression": "peer.Thing", "value": {"n": 1}, "valid": true},
+    {"expression": "nobody.Thing", "value": {"n": 1}, "valid": false},
+    {"expression": "Frame", "value": {"inner": {"item": {"free": "json"}}}, "valid": true},
+    {"expression": "Frame", "value": {"inner": {"nope": 1}}, "valid": false},
+    {"expression": "Nope", "value": 1, "valid": false}
+  ]
+}
