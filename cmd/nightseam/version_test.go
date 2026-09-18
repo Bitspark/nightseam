@@ -42,11 +42,13 @@ func TestVersionsMoveInLockstep(t *testing.T) {
 		if err := json.Unmarshal(data, &manifest); err != nil {
 			t.Fatal(err)
 		}
+		// A private manifest is a workspace member and not a release — the
+		// conformance testee — and scripts/packages.mjs leaves it out the same way.
+		if manifest.Private {
+			continue
+		}
 		if manifest.Version != typescript.DefaultRuntimeVersion {
 			t.Errorf("%s is %s; the generator writes %s into generated manifests (scripts/version.mjs sets both)", manifest.Name, manifest.Version, typescript.DefaultRuntimeVersion)
-		}
-		if manifest.Private {
-			t.Errorf("%s is private; it is published", manifest.Name)
 		}
 		published = manifest.Version
 	}

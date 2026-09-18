@@ -44,7 +44,7 @@
         "expect": {"description": "The answer's ok value must match this, with placeholders."},
         "expect_error": {
           "type": "object",
-          "description": "The op must answer with an error matching this: its code, and whatever members an error of that op carries."
+          "description": "The op must answer with an error matching this: its code, and whatever members an error of that op carries. Beside expect, the step holds whichever kind the answer is to the one written for it."
         },
         "assert": {
           "type": "object", "additionalProperties": false,

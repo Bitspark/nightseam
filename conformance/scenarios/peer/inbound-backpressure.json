@@ -76,7 +76,11 @@
         "event": "flood",
         "data": 3
       },
-      "expect": "$any"
+      "expect": "$any",
+      "expect_error": {
+        "code": "$any"
+      },
+      "note": "the stalled side ends within its write deadline; a sender's emit past the stall succeeds or fails as its runtime reports a send, so the step holds either"
     },
     {
       "on": "b",
@@ -90,10 +94,10 @@
         "max": 8,
         "until": "error"
       },
+      "expect": "$any",
       "expect_error": {
         "code": "$any"
-      },
-      "note": "a sender past the stall sees its sends fail once the receiver ended; the receiver's end is the fact"
+      }
     },
     {
       "on": "a",

@@ -99,7 +99,10 @@ func Run(ctx context.Context, a, b *Testee, s Scenario) Outcome {
 				return fail(args, rendered, "the error is not the one expected: "+strings.TrimPrefix(err.Error(), "the answer"))
 			}
 		} else {
-			if step.ExpectError != nil {
+			// A step with both expect and expect_error holds whichever kind
+			// the answer is to the one written for it; with expect_error alone
+			// the op must fail.
+			if step.ExpectError != nil && !step.HasExpect {
 				return fail(args, rendered, "expected an error "+render(step.ExpectError)+", the op succeeded")
 			}
 			if step.HasExpect {
