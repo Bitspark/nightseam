@@ -229,3 +229,31 @@ func (k *Kernel) Stale(fsys fs.FS, world *World, chosen []string, rendered map[s
 	sort.Strings(stale)
 	return stale, nil
 }
+
+// Scaffold writes the hand-written side of a family's slots — what each
+// target that can scaffold declares for the consumer to implement — into
+// dir. A file that exists is never rewritten: it is the consumer's.
+func (k *Kernel) Scaffold(world *World, name, dir string) ([]spi.File, error) {
+	if diagnostics := k.Validate(world, name); len(diagnostics) != 0 {
+		return nil, fmt.Errorf("invalid family: %s", diagnostics[0])
+	}
+	f := render.Build(Resolve(world, name))
+	var files []spi.File
+	for _, target := range k.targets {
+		scaffolder, ok := target.(spi.Scaffolder)
+		if !ok || !k.consumes(target, f) {
+			continue
+		}
+		rendered, err := scaffolder.Scaffold(f, dir)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", target.Name(), err)
+		}
+		for _, file := range rendered {
+			if !safe(file.Path) || !strings.HasPrefix(file.Path, dir+"/") {
+				return nil, fmt.Errorf("%s: scaffold %q lies outside %s", target.Name(), file.Path, dir)
+			}
+			files = append(files, file)
+		}
+	}
+	return files, nil
+}

@@ -63,6 +63,17 @@ type Target interface {
 	Render(f *render.Family) ([]File, error)
 }
 
+// Scaffolder is a target that can write the hand-written side of a slot
+// once: an implementation of what its rendering declares — a server's
+// handler, a client's handler of what the server sends — into a directory
+// of the consumer's own, for the consumer to fill in. The generator writes
+// it on request and never again.
+type Scaffolder interface {
+	// Scaffold renders the stubs for a family into dir, relative to the
+	// checkout; each file's path lies under dir.
+	Scaffold(f *render.Family, dir string) ([]File, error)
+}
+
 // File is one rendered source.
 type File struct {
 	Path string

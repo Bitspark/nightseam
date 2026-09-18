@@ -9,13 +9,26 @@ import (
 // TestFamiliesCompile: every family under testdata/families renders into
 // packages that compile, in both languages, in one module — the generic
 // ones, the one whose protocol has no operation, the one with an entity,
-// a ref and constraints. What the goldens hold byte for byte, the
-// compilers hold as code.
+// a ref and constraints — and so do the handlers init scaffolds for each.
+// What the goldens hold byte for byte, the compilers hold as code.
 func TestFamiliesCompile(t *testing.T) {
 	root := repositoryRoot(t)
 	tsc := fixture(t, root, "go", "node", "tsc")
 	directory := t.TempDir()
 	writeAll(t, directory, renderV2(t, familiesRoot))
+	k, world, err := (&app{root: familiesRoot, module: module, scope: scope}).world()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range world.Names {
+		stubs, err := k.Scaffold(world, name, "api/impl/"+name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, stub := range stubs {
+			writeFixture(t, directory, stub.Path, stub.Data)
+		}
+	}
 	fixtureModule(t, directory, root)
 	runFixture(t, directory, "go", "vet", "./...")
 	copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
@@ -25,7 +38,7 @@ func TestFamiliesCompile(t *testing.T) {
 	for _, name := range []string{"album", "carrier", "codex", "holder", "ledger", "pair", "probe", "workbench"} {
 		paths[scope+"/"+name+"-client"] = []string{"./api/ts/" + name + "-client/src/index.ts"}
 	}
-	config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": paths}, "include": []string{"api/ts/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts", "tunnel/ts/**/*.ts"}}
+	config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": paths}, "include": []string{"api/ts/**/*.ts", "api/impl/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts", "tunnel/ts/**/*.ts"}}
 	data, _ := json.Marshal(config)
 	writeFixture(t, directory, "tsconfig.json", data)
 	writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))

@@ -11,6 +11,7 @@
 //	nightseam check [family...]      fail if the checked-in output is stale
 //	nightseam validate [family...]   report every diagnostic; exit 1 if any
 //	nightseam upgrade [family...]    rewrite layer files of the previous language into the directory form
+//	nightseam init <family>          write the handlers a consumer implements, once, into a directory of its own
 //
 // The generated Go packages are rooted at the checkout's module, read from
 // its go.mod or given as --module; the TypeScript packages at an npm
@@ -232,6 +233,7 @@ already up to date.`,
 
 	root.AddCommand(
 		upgradeCommand(a),
+		initCommand(a, family),
 		&cobra.Command{
 			Use:               "generate [family...]",
 			Short:             "Render every family, or the named ones, writing what changed",
@@ -337,4 +339,49 @@ already up to date.`,
 		},
 	)
 	return root
+}
+
+// initCommand scaffolds the hand-written side of a family's slots:
+// nightseam init <family> [--dir <dir>].
+func initCommand(a *app, family func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)) *cobra.Command {
+	var dir string
+	cmd := &cobra.Command{
+		Use:               "init <family>",
+		Short:             "Write the handlers a consumer implements for a family, once, into a directory of its own",
+		Long:              "init writes the hand-written side of a family's slots — the Go server's Handler, the TypeScript client's handler of what the server sends — as stubs into a directory the consumer owns, api/impl/<family> unless --dir says otherwise. A file that exists is left as it is: init writes once and never rewrites.",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: family,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if _, err := a.chosen(args); err != nil {
+				return err
+			}
+			k, world, err := a.world()
+			if err != nil {
+				return err
+			}
+			target := strings.ReplaceAll(dir, "{family}", args[0])
+			target = strings.TrimSuffix(filepath.ToSlash(target), "/")
+			files, err := k.Scaffold(world, args[0], target)
+			if err != nil {
+				return err
+			}
+			for _, file := range files {
+				destination := filepath.Join(a.root, filepath.FromSlash(file.Path))
+				if _, err := os.Stat(destination); err == nil {
+					fmt.Fprintln(cmd.OutOrStdout(), "kept", file.Path)
+					continue
+				}
+				if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+					return err
+				}
+				if err := os.WriteFile(destination, file.Data, 0o644); err != nil {
+					return err
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), "wrote", file.Path)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&dir, "dir", "api/impl/{family}", "where to write the stubs, a pattern over the family's name")
+	return cmd
 }

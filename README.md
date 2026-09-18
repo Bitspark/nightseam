@@ -262,6 +262,7 @@ go tool nightseam validate            # every diagnostic of every family
 go tool nightseam generate [family]   # render what is stale
 go tool nightseam check               # fail if the checked-in output is stale
 go tool nightseam upgrade             # rewrite layer files of the previous language into the directory form
+go tool nightseam init <family>       # write the handlers a consumer implements, once, into api/impl/<family>
 ```
 
 `validate` prints each diagnostic as `family/file#pointer: message [code]`.
@@ -277,7 +278,15 @@ A checkout declared in the previous language's layer files —
 command that converts it: `upgrade` rewrites them into the directory form,
 sides in place of directions, one reference form in place of the slot
 objects, and a hand-spelled name into an override only where the
-convention would spell it otherwise.
+convention would spell it otherwise; `upgrade --file <contract.json>`
+converts a contract declared in one file, under the name it carries.
+
+Behavior is written into slots: `init <family>` writes the Go server's
+`Handler` — a type implementing the binding package's interface, every
+method returning an `unimplemented` error, generic in what the family is
+— and the TypeScript client's handler of what the server sends, as stubs
+under `api/impl/<family>` (or `--dir`), for the consumer to fill in. It
+writes once and never rewrites: the directory is the consumer's.
 
 ## Development
 

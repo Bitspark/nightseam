@@ -169,3 +169,73 @@ func TestGenerateRemovesWhatNothingRenders(t *testing.T) {
 		t.Fatalf("generating one family touched another: %v\n%s", err, out)
 	}
 }
+
+// TestInitWritesTheHandlersOnce: init writes a Go server handler and a
+// TypeScript client handler for a family into a directory of the
+// consumer's own, compiling against the generated packages, and leaves
+// a file that exists as it is.
+func TestInitWritesTheHandlersOnce(t *testing.T) {
+	root := t.TempDir()
+	writeFamily(t, root, "probe")
+	out, _, err := run(t, root, "init", "probe")
+	if err != nil || !strings.Contains(out, "wrote api/impl/probe/handler.go") || !strings.Contains(out, "wrote api/impl/probe/handler.ts") {
+		t.Fatalf("init: %v\n%s", err, out)
+	}
+	handler, err := os.ReadFile(filepath.Join(root, "api/impl/probe/handler.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"package probe", "var _ binding.Handler = Handler{}", "func (Handler) Echo(ctx context.Context, remote *binding.Remote, params protocol.Payload) (protocol.Payload, error)", `Code: "unimplemented"`} {
+		if !strings.Contains(string(handler), want) {
+			t.Errorf("the Go handler lacks %s:\n%s", want, handler)
+		}
+	}
+	stub, err := os.ReadFile(filepath.Join(root, "api/impl/probe/handler.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(stub), "export const handler: Handler = {") || !strings.Contains(string(stub), "async reverse(params: Protocol.Payload, context: RequestContext): Promise<Protocol.Payload>") {
+		t.Errorf("the TypeScript handler is wrong:\n%s", stub)
+	}
+	writeFixture(t, root, "api/impl/probe/handler.go", []byte("package probe // mine\n"))
+	out, _, err = run(t, root, "init", "probe")
+	if err != nil || !strings.Contains(out, "kept api/impl/probe/handler.go") {
+		t.Fatalf("init rewrote: %v\n%s", err, out)
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "api/impl/probe/handler.go")); string(data) != "package probe // mine\n" {
+		t.Fatal("init rewrote the consumer's file")
+	}
+	// A generic family's handler is generic in the same parameters.
+	writeFamily(t, root, "carrier")
+	if _, _, err := run(t, root, "init", "carrier", "--dir", "impl/{family}"); err != nil {
+		t.Fatal(err)
+	}
+	generic, _ := os.ReadFile(filepath.Join(root, "impl/carrier/handler.go"))
+	if !strings.Contains(string(generic), "type Handler[SEnvelope, SHandle any] struct{}") || !strings.Contains(string(generic), "func (Handler[SEnvelope, SHandle]) Relay(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle], params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)") {
+		t.Errorf("the generic handler is wrong:\n%s", generic)
+	}
+}
+
+// TestUpgradeConvertsASingleFile: a contract of the previous language in
+// one file converts into the directory form under its own name, the file
+// left where it is.
+func TestUpgradeConvertsASingleFile(t *testing.T) {
+	root := t.TempDir()
+	writeFixture(t, root, "contracts/thing.json", []byte(`{"schema_version": 1, "profile": "nightseam.duplex/1", "name": "thing", "role": "session",
+		"types": {"Item": {"kind": "record", "fields": [{"name": "id", "type": "string", "go_name": "ID"}]}, "Held": {"kind": "record", "fields": [{"name": "message", "type": {"envelope": "thing"}}]}},
+		"methods": [{"name": "get", "go_name": "Fetch", "ts_name": "get", "direction": "client_to_server", "request": "Item", "result": "Item"}],
+		"events": [], "errors": []}`))
+	out, _, err := run(t, root, "upgrade", "--file", filepath.Join(root, "contracts/thing.json"))
+	if err != nil || strings.Count(out, "wrote api/contracts/thing/") != 4 {
+		t.Fatalf("upgrade --file: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "contracts/thing.json")); err != nil {
+		t.Fatal("the source file was removed")
+	}
+	if _, _, err := run(t, root, "validate"); err == nil {
+		t.Fatal("a family holding its own envelope validated")
+	}
+	if _, _, err := run(t, root, "upgrade", "--file", filepath.Join(root, "contracts/thing.json")); err == nil || !strings.Contains(err.Error(), "already in the directory form") {
+		t.Fatalf("a family in the directory form was upgraded again: %v", err)
+	}
+}
