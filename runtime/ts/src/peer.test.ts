@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DuplexPeer, DuplexError, decodeEnvelope } from './peer.ts';
 import type { PeerOptions, WebSocketLike } from './peer.ts';
+import type { Observer, ObserverEvent } from './observer.ts';
 import { webSocketConnection } from '@nightseam/duplex';
 import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from '@nightseam/duplex';
 
@@ -580,4 +581,204 @@ test('a close from the far side surfaces its code and reason to the close handle
   assert.deepEqual(seen, [1008, 'policy violation']);
   assert.equal((await failure.promise).code, 'disconnected');
   assert.equal(socket.closeCount, 0);
+});
+
+/** A string that stands for a payload: it is in every params, result, error and event below. */
+const SENTINEL = 'sentinel-6d9f2c-payload';
+
+/** An observer that keeps what it saw, which is all an observer is asked to do. */
+function recorder(): Observer & { events: ObserverEvent[] } {
+  const events: ObserverEvent[] = [];
+  return { events, observe(event) { events.push(event); } };
+}
+
+/**
+ * One event as a test reads it: the wall clock and the trace are asserted where
+ * they are the point, a size and a duration as facts that are reported at all.
+ */
+function shape(event: ObserverEvent): Record<string, unknown> {
+  const { at, trace, bytes, durationMs, ...rest } = event as unknown as Record<string, unknown>;
+  void at; void trace;
+  if (typeof bytes === 'number') rest.bytes = bytes > 0;
+  if (typeof durationMs === 'number') rest.durationMs = durationMs >= 0;
+  for (const [key, value] of Object.entries(rest)) if (value === undefined) delete rest[key];
+  return rest;
+}
+
+function traceparent(event: ObserverEvent): unknown {
+  return (event as unknown as { trace?: { traceparent?: unknown } }).trace?.traceparent;
+}
+
+function backpressure(events: ObserverEvent[]): Record<string, unknown>[] {
+  return events.filter(event => event.type === 'backpressure').map(shape);
+}
+
+test('no payload reaches an observer: not params, not a result, not an error, not an event', async () => {
+  const consumer = recorder();
+  const machine = recorder();
+  const { client, server } = await paired({ observer: consumer }, { observer: machine });
+  const delivered = deferred();
+  client.onEvent('notice', () => { delivered.resolve(); });
+  server.handle('read', params => ({ echoed: params, secret: SENTINEL }));
+  server.handle('deny', () => { throw new DuplexError('denied', 'Access denied', { secret: SENTINEL }); });
+  server.handle('boom', () => { throw new Error('handler failed'); });
+  assert.deepEqual(await client.call('read', { secret: SENTINEL }), { echoed: { secret: SENTINEL }, secret: SENTINEL });
+  await assert.rejects(client.call('deny', { secret: SENTINEL }), { code: 'denied', data: { secret: SENTINEL } });
+  await assert.rejects(client.call('boom', { secret: SENTINEL }), { code: 'internal' });
+  await server.emit('notice', { secret: SENTINEL });
+  await delivered.promise;
+  client.close();
+  for (const observed of [consumer.events, machine.events]) {
+    assert.ok(observed.length > 0);
+    for (const event of observed) assert.equal(JSON.stringify(event).includes(SENTINEL), false, event.type);
+    assert.equal(JSON.stringify(observed).includes(SENTINEL), false);
+  }
+  // The paths that carried it were the observed ones, not some other traffic.
+  assert.deepEqual(machine.events.filter(event => event.type === 'handler.panic').map(shape), [
+    { type: 'handler.panic', method: 'boom', value: 'Error: handler failed', family: '' },
+  ]);
+  assert.ok(consumer.events.some(event => event.type === 'event.delivered'));
+  assert.ok(consumer.events.some(event => event.type === 'request.ended' && event.outcome === 'error'));
+});
+
+test('for one call, one event and one close an observer sees the events in order, in both directions', async () => {
+  const [left, right] = Pipe.pair();
+  const consumer = recorder();
+  const machine = recorder();
+  const families = { 'work.read': 'work' };
+  const client = new DuplexPeer({ observer: consumer, families });
+  const server = new DuplexPeer({ role: 'server', observer: machine, families });
+  await Promise.all([client.attach(left), server.attach(right)]);
+  const delivered = deferred();
+  client.onEvent('notice', () => { delivered.resolve(); });
+  server.handle('work.read', () => ({ ok: true }));
+  assert.deepEqual(await client.call('work.read', { id: 'w1' }), { ok: true });
+  await server.emit('notice', { value: 1 });
+  await delivered.promise;
+  client.close();
+  assert.deepEqual(consumer.events.map(shape), [
+    { type: 'connection.opened', role: 'client' },
+    { type: 'request.started', id: 'c:1', method: 'work.read', incoming: false, family: 'work' },
+    { type: 'frame.sent', kind: 'request', name: 'work.read', bytes: true, id: 'c:1', family: 'work' },
+    { type: 'frame.received', kind: 'response', name: 'work.read', bytes: true, id: 'c:1', family: 'work' },
+    { type: 'request.ended', id: 'c:1', method: 'work.read', incoming: false, durationMs: true, outcome: 'ok', family: 'work' },
+    { type: 'frame.received', kind: 'event', name: 'notice', bytes: true, family: '' },
+    { type: 'event.delivered', name: 'notice', bytes: true, family: '' },
+    { type: 'connection.closed', code: 1000, reason: 'Duplex connection closed', local: true },
+  ]);
+  assert.deepEqual(machine.events.map(shape), [
+    { type: 'connection.opened', role: 'server' },
+    { type: 'frame.received', kind: 'request', name: 'work.read', bytes: true, id: 'c:1', family: 'work' },
+    { type: 'request.started', id: 'c:1', method: 'work.read', incoming: true, family: 'work' },
+    { type: 'frame.sent', kind: 'response', name: 'work.read', bytes: true, id: 'c:1', family: 'work' },
+    { type: 'request.ended', id: 'c:1', method: 'work.read', incoming: true, durationMs: true, outcome: 'ok', family: 'work' },
+    { type: 'frame.sent', kind: 'event', name: 'notice', bytes: true, family: '' },
+    { type: 'event.emitted', name: 'notice', bytes: true, family: '' },
+    { type: 'connection.closed', code: 1000, reason: 'Duplex connection closed', local: false },
+  ]);
+  // What concerns a frame carries that frame's trace; the call's four events carry one.
+  const call = consumer.events.slice(1, 5).map(traceparent);
+  assert.equal(typeof call[0], 'string');
+  assert.deepEqual(call, [call[0], call[0], call[0], call[0]]);
+  assert.deepEqual(machine.events.slice(1, 5).map(traceparent), [call[0], call[0], call[0], call[0]]);
+  // A connection or backpressure event concerns none, stated rather than nullable.
+  assert.equal(traceparent(consumer.events[0]), undefined);
+  assert.equal(traceparent(consumer.events[7]), undefined);
+});
+
+test('a handler that throws yields handler.panic with the value, never its params', async t => {
+  const machine = recorder();
+  const { client, server } = await paired({}, { observer: machine, families: { boom: 'work' } });
+  t.after(() => client.close());
+  server.handle('boom', () => { throw new Error('handler exploded'); });
+  server.handle('deny', () => { throw new DuplexError('denied', 'Access denied'); });
+  await assert.rejects(client.call('boom', { secret: SENTINEL }), { code: 'internal' });
+  await assert.rejects(client.call('deny', { secret: SENTINEL }), { code: 'denied' });
+  // A public error is the handler answering, not the runtime's panic.
+  assert.deepEqual(machine.events.filter(event => event.type === 'handler.panic').map(shape), [
+    { type: 'handler.panic', method: 'boom', value: 'Error: handler exploded', family: 'work' },
+  ]);
+  assert.deepEqual(machine.events.filter(event => event.type === 'request.ended').map(shape), [
+    { type: 'request.ended', id: 'c:1', method: 'boom', incoming: true, durationMs: true, outcome: 'error', errorCode: 'internal', family: 'work' },
+    { type: 'request.ended', id: 'c:2', method: 'deny', incoming: true, durationMs: true, outcome: 'error', errorCode: 'denied', family: '' },
+  ]);
+  assert.equal(JSON.stringify(machine.events).includes(SENTINEL), false);
+});
+
+test('an outcome is what ended the call: an error code, a cancellation, a deadline, a disconnect', async () => {
+  const consumer = recorder();
+  const { client, server } = await paired({ observer: consumer });
+  server.handle('deny', () => { throw new DuplexError('denied', 'Access denied'); });
+  server.handle('wait', (_params, context) => new Promise(resolve => {
+    context.signal.addEventListener('abort', () => resolve(null), { once: true });
+  }));
+  await assert.rejects(client.call('deny'), { code: 'denied' });
+  const controller = new AbortController();
+  const cancelled = assert.rejects(client.call('wait', {}, { signal: controller.signal }), { code: 'cancelled' });
+  controller.abort();
+  await cancelled;
+  await assert.rejects(client.call('wait', {}, { timeoutMs: 10 }), { code: 'request_timeout' });
+  const outstanding = assert.rejects(client.call('wait'), { code: 'disconnected' });
+  client.close();
+  await outstanding;
+  assert.deepEqual(consumer.events.filter(event => event.type === 'request.ended').map(shape), [
+    { type: 'request.ended', id: 'c:1', method: 'deny', incoming: false, durationMs: true, outcome: 'error', errorCode: 'denied', family: '' },
+    { type: 'request.ended', id: 'c:2', method: 'wait', incoming: false, durationMs: true, outcome: 'cancelled', errorCode: 'cancelled', family: '' },
+    { type: 'request.ended', id: 'c:3', method: 'wait', incoming: false, durationMs: true, outcome: 'timeout', errorCode: 'request_timeout', family: '' },
+    { type: 'request.ended', id: 'c:4', method: 'wait', incoming: false, durationMs: true, outcome: 'error', errorCode: 'disconnected', family: '' },
+  ]);
+});
+
+test('backpressure is observed where a frame waits, where the queue fills and where the deadline passes', async () => {
+  // A socket whose buffer never drains: the first frame waits, the second meets a full queue.
+  const socket = new Socket();
+  socket.bufferedAmount = 1;
+  const full = recorder();
+  const peer = new DuplexPeer({ maxQueuedMessages: 1, observer: full });
+  await peer.attach(socket);
+  const first = assert.rejects(peer.emit('first'), { code: 'busy' });
+  await assert.rejects(peer.emit('second'), { code: 'busy' });
+  await first;
+  assert.equal(peer.status, 'disconnected');
+  assert.deepEqual(backpressure(full.events), [
+    { type: 'backpressure', queued: 1, stalled: false, deadlineMs: 10_000 },
+    { type: 'backpressure', queued: 1, stalled: true, deadlineMs: 10_000 },
+  ]);
+
+  const slow = new Socket();
+  slow.bufferedAmount = 1;
+  const missed = recorder();
+  const blocked = new DuplexPeer({ writeTimeoutMs: 10, observer: missed });
+  await blocked.attach(slow);
+  await assert.rejects(blocked.emit('blocked'), { code: 'write_timeout' });
+  assert.deepEqual(backpressure(missed.events), [
+    { type: 'backpressure', queued: 1, stalled: false, deadlineMs: 10 },
+    { type: 'backpressure', queued: 1, stalled: true, deadlineMs: 10 },
+  ]);
+
+  // The event queue is the other side of the same limit.
+  const listening = new Socket();
+  const queued = recorder();
+  const receiver = new DuplexPeer({ maxQueuedMessages: 1, observer: queued });
+  await receiver.attach(listening);
+  const held = deferred();
+  receiver.onEvent(() => held.promise);
+  listening.receive({ version: 1, kind: 'event', event: 'one', data: {} });
+  listening.receive({ version: 1, kind: 'event', event: 'two', data: {} });
+  assert.equal(receiver.status, 'disconnected');
+  held.resolve();
+  assert.deepEqual(backpressure(queued.events), [
+    { type: 'backpressure', queued: 1, stalled: true, deadlineMs: 10_000 },
+  ]);
+  assert.deepEqual(queued.events.filter(event => event.type === 'event.delivered').map(shape), [
+    { type: 'event.delivered', name: 'one', bytes: true, family: '' },
+  ]);
+});
+
+test('an observer that throws interrupts no routing', async t => {
+  const { client, server } = await paired({ observer: { observe() { throw new Error('observer failed'); } } });
+  t.after(() => client.close());
+  server.handle('ping', () => 'pong');
+  assert.equal(await client.call('ping'), 'pong');
+  assert.equal(client.status, 'connected');
 });

@@ -3,6 +3,8 @@ export type {
   PeerOptions, CallOptions, EmitOptions, RequestContext, RequestHandler, Dispatcher,
   EventListener, PeerStatus,
 } from './peer.ts';
+export { NO_OBSERVER } from './observer.ts';
+export type { Observer, ObserverEvent } from './observer.ts';
 export { defaultPropagator } from './trace.ts';
 export type { Trace, Propagator } from './trace.ts';
 export { webSocketConnection } from '@nightseam/duplex';
