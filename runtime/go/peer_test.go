@@ -53,6 +53,45 @@ func newPair(t *testing.T, serverOptions, clientOptions ws.Options) (*ws.Peer, *
 	return client, remote
 }
 
+// rawPeer is one peer reached over a raw connection, so a test spells the
+// frames it sends byte for byte rather than letting a peer encode them.
+func rawPeer(t *testing.T, options ws.Options) (*ws.Peer, *websocket.Conn, context.Context) {
+	t.Helper()
+	connected := make(chan *ws.Peer, 1)
+	handler, err := ws.NewHandler(ws.ServerOptions{
+		Options:      options,
+		Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
+		CheckOrigin:  func(*http.Request) bool { return true },
+		OnConnect:    func(peer *ws.Peer) { connected <- peer },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+	conn, _, err := websocket.Dial(ctx, server.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.CloseNow() })
+	return receive(t, connected), conn, ctx
+}
+
+func readFrame(ctx context.Context, t *testing.T, conn *websocket.Conn) map[string]json.RawMessage {
+	t.Helper()
+	kind, data, err := conn.Read(ctx)
+	if err != nil || kind != websocket.MessageText {
+		t.Fatalf("read frame: kind=%v error=%v", kind, err)
+	}
+	var members map[string]json.RawMessage
+	if err := json.Unmarshal(data, &members); err != nil {
+		t.Fatalf("decode frame %s: %v", data, err)
+	}
+	return members
+}
+
 func TestReverseCallCompletesWhileOriginalRequestIsOutstanding(t *testing.T) {
 	client, _ := newPair(t, ws.Options{Handlers: map[string]ws.Handler{
 		"outer": func(ctx context.Context, peer *ws.Peer, _ json.RawMessage) (any, error) {
@@ -345,32 +384,20 @@ func TestServerRequiresAndEnforcesAuthenticationAndOriginPolicies(t *testing.T) 
 }
 
 func TestMalformedWireFramesDisconnect(t *testing.T) {
+	// Each row is a frame that would be served but for the one member named:
+	// a traceparent of another form is refused as any other malformed frame is.
 	for _, data := range []string{
 		`{"version":2,"kind":"event","event":"progress","data":1}`,
 		`{"version":1,"kind":"request","id":"s:1","method":"wait","params":null}`,
 		`{"version":1,"kind":"response","id":"s:1","result":null,"error":{"code":"bad","message":"bad"}}`,
 		`{"version":1,"kind":"event","event":"progress","data":1,"extra":true}`,
+		`{"version":1,"kind":"event","event":"progress","data":1,"traceparent":"nonsense"}`,
+		`{"version":1,"kind":"request","id":"c:1","method":"wait","params":{},"traceparent":"00-4BF92F3577B34DA6A3CE929D0E0E4736-00f067aa0ba902b7-01"}`,
+		`{"version":1,"kind":"request","id":"c:1","method":"wait","params":{},"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-99"}`,
+		`{"version":1,"kind":"cancel","id":"c:1","traceparent":""}`,
 	} {
 		t.Run(data, func(t *testing.T) {
-			connected := make(chan *ws.Peer, 1)
-			handler, err := ws.NewHandler(ws.ServerOptions{
-				Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
-				CheckOrigin:  func(*http.Request) bool { return true },
-				OnConnect:    func(peer *ws.Peer) { connected <- peer },
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			server := httptest.NewServer(handler)
-			defer server.Close()
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			conn, _, err := websocket.Dial(ctx, server.URL, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer conn.CloseNow()
-			peer := receive(t, connected)
+			peer, conn, ctx := rawPeer(t, ws.Options{})
 			if err := conn.Write(ctx, websocket.MessageText, []byte(data)); err != nil {
 				t.Fatal(err)
 			}
@@ -379,5 +406,63 @@ func TestMalformedWireFramesDisconnect(t *testing.T) {
 				t.Fatal("malformed frame closed without error")
 			}
 		})
+	}
+}
+
+// The members are optional on every kind and the peer emits none of its own:
+// what a frame carries it carries past the decoder, and the frame is served.
+func TestTraceContextTravelsOnEveryFrameKind(t *testing.T) {
+	const trace = `"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01","tracestate":"congo=t61rcWkgMzE"`
+	events, cancelled := make(chan string, 2), make(chan struct{})
+	peer, conn, ctx := rawPeer(t, ws.Options{
+		Events: map[string]ws.EventHandler{
+			"progress": func(_ context.Context, _ *ws.Peer, data json.RawMessage) { events <- string(data) },
+		},
+		Handlers: map[string]ws.Handler{
+			"outer": func(ctx context.Context, peer *ws.Peer, _ json.RawMessage) (any, error) {
+				var answer string
+				if err := peer.Call(ctx, "reverse", nil, &answer); err != nil {
+					return nil, err
+				}
+				return answer, nil
+			},
+			"wait": func(ctx context.Context, _ *ws.Peer, _ json.RawMessage) (any, error) {
+				<-ctx.Done()
+				close(cancelled)
+				return nil, ctx.Err()
+			},
+		},
+	})
+	write := func(data string) {
+		t.Helper()
+		if err := conn.Write(ctx, websocket.MessageText, []byte(data)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(`{"version":1,"kind":"event","event":"progress","data":1,` + trace + `}`)
+	if got := receive(t, events); got != "1" {
+		t.Fatalf("traced event = %s", got)
+	}
+	// A traced request is served, and the response to the reverse call it makes
+	// is itself traced: both kinds cross the decoder in one exchange.
+	write(`{"version":1,"kind":"request","id":"c:1","method":"outer","params":{},` + trace + `}`)
+	reverse := readFrame(ctx, t, conn)
+	if string(reverse["method"]) != `"reverse"` {
+		t.Fatalf("reverse request = %v", reverse)
+	}
+	write(`{"version":1,"kind":"response","id":` + string(reverse["id"]) + `,"result":"back",` + trace + `}`)
+	if response := readFrame(ctx, t, conn); string(response["id"]) != `"c:1"` || string(response["result"]) != `"back"` {
+		t.Fatalf("response to traced request = %v", response)
+	}
+	// An intermediary may strip one member and not the other.
+	write(`{"version":1,"kind":"event","event":"progress","data":2,"tracestate":"congo=t61rcWkgMzE"}`)
+	if got := receive(t, events); got != "2" {
+		t.Fatalf("event carrying tracestate alone = %s", got)
+	}
+	write(`{"version":1,"kind":"request","id":"c:2","method":"wait","params":{},` + trace + `}`)
+	write(`{"version":1,"kind":"cancel","id":"c:2",` + trace + `}`)
+	receive(t, cancelled)
+	if peer.Err() != nil {
+		t.Fatalf("a traced frame closed the connection: %v", peer.Err())
 	}
 }

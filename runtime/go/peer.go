@@ -108,6 +108,9 @@ type frame struct {
 	Error   *PublicError    `json:"error,omitempty"`
 	Event   string          `json:"event,omitempty"`
 	Data    json.RawMessage `json:"data,omitempty"`
+	// W3C Trace Context, which every kind may carry and none requires.
+	Traceparent string `json:"traceparent,omitempty"`
+	Tracestate  string `json:"tracestate,omitempty"`
 }
 
 type pendingResult struct {
@@ -480,6 +483,23 @@ func validID(id, prefix string) bool {
 	return len(n) <= 20
 }
 
+// validTraceparent holds a traceparent to the one form W3C Trace Context gives
+// it: version, trace id, parent id and flags, lower-case hexadecimal, dashed.
+func validTraceparent(value string) bool {
+	if len(value) != 55 || value[2] != '-' || value[35] != '-' || value[52] != '-' {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if i == 2 || i == 35 || i == 52 {
+			continue
+		}
+		if c := value[i]; (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 func (p *Peer) startRequest(f frame) {
 	p.mu.Lock()
 	if _, exists := p.incoming[f.ID]; exists {
@@ -626,7 +646,7 @@ func decodeFrame(data []byte) (frame, error) {
 		return f, errors.New("unsupported duplex frame version")
 	}
 	valid := false
-	allowed := map[string]bool{"version": true, "kind": true}
+	allowed := map[string]bool{"version": true, "kind": true, "traceparent": true, "tracestate": true}
 	switch f.Kind {
 	case "request":
 		allowed["id"], allowed["method"], allowed["params"] = true, true, true
@@ -650,6 +670,11 @@ func decodeFrame(data []byte) (frame, error) {
 		}
 	}
 	if f.Error != nil && (f.Error.Code == "" || f.Error.Message == "") {
+		valid = false
+	}
+	// A trace the peer cannot read is a trace it would carry wrongly; tracestate
+	// has no form of its own and travels alone when an intermediary strips one.
+	if _, traced := fields["traceparent"]; traced && !validTraceparent(f.Traceparent) {
 		valid = false
 	}
 	if !valid {
