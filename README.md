@@ -18,6 +18,7 @@ runtime/ts/             @nightseam/runtime, the TypeScript peer for the browser 
 runtime/testdata/       the conformance table both validators are held to
 tunnel/go/              channels multiplexed over one peer, each a Conn: the third transport, with per-channel credit
 tunnel/ts/              @nightseam/tunnel, the same over a DuplexPeer, each channel a FrameConnection
+session/ts/             @nightseam/session: a session over a tunnel's channels — the relay, the registry, the holder of control, the in-memory log
 cmd/nightseam/          the generator: generate, check, validate, upgrade; the corpus and its goldens under testdata
 internal/model/         the typed declaration of a family: the tiers, the sealed type-expression AST, the decoders
 internal/load/          files to families: the tier table, the shape schemas, the world of a checkout
