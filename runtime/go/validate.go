@@ -177,13 +177,6 @@ func (s *Schema) validate(expression any, value any, location string) error {
 		if reference, ok := composite["apply"].(string); ok {
 			return s.foreign(reference, value, location)
 		}
-		// The previous language's spelling of a slot, {"envelope": X} and
-		// {"connection": X}, is read as X.Envelope and X.Handle.
-		for slot, typeName := range map[string]string{"envelope": "Envelope", "connection": "Handle"} {
-			if target, ok := composite[slot].(string); ok {
-				return s.validate(target+"."+typeName, value, location)
-			}
-		}
 		if _, ok := composite["empty"]; ok {
 			items, ok := value.(map[string]any)
 			if !ok || len(items) != 0 {

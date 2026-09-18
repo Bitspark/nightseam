@@ -68,8 +68,6 @@
     {"expression": "peer.Envelope", "value": {"version": 1, "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", "tracestate": "vendor=1"}, "valid": true},
     {"expression": "peer.Envelope", "value": {"version": 1, "tracestate": "vendor=1"}, "valid": true},
     {"expression": "peer.Envelope", "value": {"version": 1, "traceparent": 1}, "valid": false},
-    {"expression": {"envelope": "peer"}, "value": {"version": 1}, "valid": true},
-    {"expression": {"connection": "nobody"}, "value": {"channel": 1}, "valid": false},
     {"expression": "Frame", "value": {"inner": {"nope": 1}}, "valid": false},
     {"expression": "Nope", "value": 1, "valid": false}
   ]

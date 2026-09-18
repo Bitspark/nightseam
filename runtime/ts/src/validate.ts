@@ -14,8 +14,7 @@
 // of the family, "family.Type" for an imported family's, "S.Type" for a
 // parameter's, {array: T}, {map: T}, {ref: "Entity"} for the entity's key,
 // {apply: "family.Type", with: {...}} for an imported generic type, and
-// {empty: true} for a request that takes nothing. The previous language's
-// {envelope: X} and {connection: X} are read as X.Envelope and X.Handle.
+// {empty: true} for a request that takes nothing.
 
 export type TypeExpression =
   | string
@@ -23,9 +22,7 @@ export type TypeExpression =
   | { map: TypeExpression }
   | { ref: string }
   | { apply: string; with: Record<string, string> }
-  | { empty: true }
-  | { envelope: string }
-  | { connection: string };
+  | { empty: true };
 
 export interface WireField {
   name: string;
@@ -149,8 +146,6 @@ export function createValidator(types: Record<string, WireType>, imported: Recor
   const validateWire: Validator = (type, value, location = '$', slots) => {
     const bad = (expected: string): never => { throw new Error(location + ': expected ' + expected); };
     if (typeof type === 'object') {
-      if ('envelope' in type) { validateWire(type.envelope + '.Envelope', value, location, slots); return; }
-      if ('connection' in type) { validateWire(type.connection + '.Handle', value, location, slots); return; }
       if ('array' in type) {
         if (!Array.isArray(value)) bad('array');
         let index = 0;

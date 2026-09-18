@@ -243,9 +243,9 @@ func TestInstantiationValidatesThroughTheFamily(t *testing.T) {
  if string(opaque.Message) != "{\"version\":1}" { t.Fatalf("passed through %s", opaque.Message) }
  if err := right.ValidateRaw("Frame", []byte("{\"sequence\":1,\"message\":{\"version\":1}}")); err != nil { t.Fatalf("the raw validator did not see the role's slot as JSON: %v", err) }
  if err := right.ValidateRaw("Frame", []byte("{\"sequence\":1}")); err == nil { t.Fatal("a frame without a message passed") }
- if err := right.ValidateExpressionRaw(map[string]any{"envelope": "probe"}, []byte("{\"version\":1}")); err == nil { t.Fatal("the slot of a named family did not delegate to it") }
- if err := right.ValidateExpressionRaw(map[string]any{"envelope": "probe"}, []byte("{\"version\":1,\"kind\":\"event\"}")); err != nil { t.Fatal(err) }
- if err := right.ValidateExpressionRaw(map[string]any{"connection": "nobody"}, []byte("{\"channel\":1}")); err == nil { t.Fatal("a slot of an unknown family passed") }
+ if err := right.ValidateExpressionRaw("probe.Envelope", []byte("{\"version\":1}")); err == nil { t.Fatal("a reference to a named family's envelope did not delegate to it") }
+ if err := right.ValidateExpressionRaw("probe.Envelope", []byte("{\"version\":1,\"kind\":\"event\"}")); err != nil { t.Fatal(err) }
+ if err := right.ValidateExpressionRaw("nobody.Handle", []byte("{\"channel\":1}")); err == nil { t.Fatal("a reference to an unknown family passed") }
 }
 func TestGenericTypeScriptClientSpeaksWithPlainServer(t *testing.T) {
  if _, err := exec.LookPath("node"); err != nil { t.Skip("Node is not installed") }
@@ -303,9 +303,9 @@ func TestDiagramCommutesInTypeScript(t *testing.T) {
 		validateWire('Frame', {sequence: 1, message: {version: 1, kind: 'event', event: 'changed', data: {}, traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01', tracestate: 'vendor=1'}}, '$', {S: probe});
 		assert.throws(() => validateWire('Frame', {sequence: 1, message: {version: 1, kind: 'event', event: 'changed', data: {}, traceparent: 1}}, '$', {S: probe}));
 		assert.throws(() => validateWire('Frame', good), /binding of the parameter S/);
-		assert.throws(() => validateWire({envelope: 'probe'}, {version: 1}));
-		validateWire({envelope: 'probe'}, good.message);
-		assert.throws(() => validateWire({connection: 'nobody'}, {channel: 1}));
+		assert.throws(() => validateWire('probe.Envelope', {version: 1}));
+		validateWire('probe.Envelope', good.message);
+		assert.throws(() => validateWire('nobody.Handle', {channel: 1}));
 		assert.equal(carrier.name, 'carrier');
 		assert.equal(probe.name, 'probe');
 		`))
