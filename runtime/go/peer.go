@@ -65,6 +65,12 @@ type Options struct {
 	RequestTimeout        time.Duration
 	WriteTimeout          time.Duration
 	Propagator            Propagator
+	// Observer is told what the peer does with the traffic it carries; nil
+	// observes nothing and costs nothing. Families labels a method or event
+	// name with the family it belongs to, which the generated install fills:
+	// an unlabelled name has no family, and the runtime parses none.
+	Observer Observer
+	Families map[string]string
 }
 
 func (o Options) normalized() (Options, error) {
@@ -182,6 +188,7 @@ func NewPeer(ctx context.Context, conn duplex.Conn, role Role, options Options) 
 	for k, v := range o.Events {
 		p.eventHandlers[k] = v
 	}
+	p.observeOpened(role)
 	go p.readLoop()
 	go p.writeLoop()
 	go p.eventLoop()
@@ -218,6 +225,7 @@ func (p *Peer) fail(err error) {
 		close(p.done)
 		// An abort avoids a close-handshake wait after a stalled consumer or peer.
 		_ = p.conn.Abort()
+		p.observeClosed(err)
 	})
 }
 
@@ -297,8 +305,17 @@ func (p *Peer) Call(ctx context.Context, method string, params, result any) erro
 	p.pending[id] = reply
 	p.mu.Unlock()
 	defer func() { p.mu.Lock(); delete(p.pending, id); p.mu.Unlock() }()
-	if err := p.enqueue(ctx, frame{Version: 1, Kind: "request", ID: id, Method: method, Params: data,
-		Traceparent: trace.Parent, Tracestate: trace.State}); err != nil {
+	started := p.requestStarted(id, method, false, trace)
+	err = p.await(ctx, id, trace, reply, frame{Version: 1, Kind: "request", ID: id, Method: method, Params: data,
+		Traceparent: trace.Parent, Tracestate: trace.State}, result)
+	p.requestEnded(started, id, method, false, trace, err)
+	return err
+}
+
+// await sends one request and waits for whatever ends it: the response, the
+// caller's own end, or the connection's.
+func (p *Peer) await(ctx context.Context, id string, trace Trace, reply <-chan pendingResult, request frame, result any) error {
+	if err := p.enqueue(ctx, request); err != nil {
 		return err
 	}
 	select {
@@ -324,7 +341,8 @@ func (p *Peer) Call(ctx context.Context, method string, params, result any) erro
 // Cancellation is best effort; a congested transport must not extend the
 // caller's already-expired deadline while waiting to send its cancellation.
 func (p *Peer) cancelRequest(id string, trace Trace) {
-	data, err := json.Marshal(frame{Version: 1, Kind: "cancel", ID: id, Traceparent: trace.Parent, Tracestate: trace.State})
+	f := frame{Version: 1, Kind: "cancel", ID: id, Traceparent: trace.Parent, Tracestate: trace.State}
+	data, err := json.Marshal(f)
 	if err != nil || int64(len(data)) > p.options.MaxFrameBytes {
 		return
 	}
@@ -335,6 +353,7 @@ func (p *Peer) cancelRequest(id string, trace Trace) {
 	}
 	select {
 	case p.outputs <- data:
+		p.observeSent(f, len(data))
 	default:
 	}
 }
@@ -350,8 +369,12 @@ func (p *Peer) Emit(ctx context.Context, event string, data any) error {
 		return err
 	}
 	trace := p.options.Propagator.Inject(ctx)
-	return p.enqueue(ctx, frame{Version: 1, Kind: "event", Event: event, Data: encoded,
-		Traceparent: trace.Parent, Tracestate: trace.State})
+	f := frame{Version: 1, Kind: "event", Event: event, Data: encoded,
+		Traceparent: trace.Parent, Tracestate: trace.State}
+	// The application emitted it here; the frame carrying it is sent when the
+	// queue takes it, which is one event of its own and may not happen at all.
+	p.observeEmitted(f)
+	return p.enqueue(ctx, f)
 }
 
 func (p *Peer) enqueue(ctx context.Context, f frame) error {
@@ -370,20 +393,29 @@ func (p *Peer) enqueue(ctx context.Context, f frame) error {
 		return p.Err()
 	default:
 	}
+	select {
+	case p.outputs <- data:
+		p.observeSent(f, len(data))
+		return nil
+	default:
+	}
 	// A full queue can be a healthy transient burst (for example durable event
 	// replay). Pace the producer for one write deadline before declaring the
 	// consumer stalled. Cancellation belongs to this send and does not close an
 	// otherwise healthy connection.
+	p.observeBackpressure(len(p.outputs), false, p.options.WriteTimeout)
 	timer := time.NewTimer(p.options.WriteTimeout)
 	defer timer.Stop()
 	select {
 	case p.outputs <- data:
+		p.observeSent(f, len(data))
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-p.done:
 		return p.Err()
 	case <-timer.C:
+		p.observeBackpressure(len(p.outputs), true, p.options.WriteTimeout)
 		p.fail(ErrBackpressure)
 		return ErrBackpressure
 	}
@@ -436,6 +468,7 @@ func (p *Peer) readLoop() {
 				return
 			}
 		}
+		p.observeReceived(f, len(received.Data))
 		switch f.Kind {
 		case "response":
 			p.mu.Lock()
@@ -475,11 +508,13 @@ func (p *Peer) enqueueEvent(event queuedEvent) bool {
 	// A tight decoder loop can fill a small queue before its ready consumer gets
 	// a scheduling turn. Yield once, without waiting on application callbacks;
 	// responses and cancellation must still use this same independent reader.
+	p.observeBackpressure(len(p.events), false, 0)
 	runtime.Gosched()
 	select {
 	case p.events <- event:
 		return true
 	default:
+		p.observeBackpressure(len(p.events), true, 0)
 		p.fail(ErrBackpressure)
 		return false
 	}
@@ -529,14 +564,21 @@ func (p *Peer) startRequest(f frame) {
 	p.mu.Unlock()
 	// A response carries its request's trace, whether a handler ran or not.
 	trace := Trace{Parent: f.Traceparent, State: f.Tracestate}
+	// A request this peer refuses for want of a method or of a slot is still a
+	// request it began: what starts is what ends, and the refusal is the outcome.
+	started := p.requestStarted(f.ID, f.Method, true, trace)
 	if handler == nil {
-		p.rejectRequest(f.ID, trace, &PublicError{Code: "method_not_found", Message: "Unknown method"})
+		refusal := &PublicError{Code: "method_not_found", Message: "Unknown method"}
+		p.requestEnded(started, f.ID, f.Method, true, trace, refusal)
+		p.rejectRequest(f.ID, trace, refusal)
 		return
 	}
 	select {
 	case p.slots <- struct{}{}:
 	default:
-		p.rejectRequest(f.ID, trace, &PublicError{Code: "busy", Message: "Too many concurrent requests"})
+		refusal := &PublicError{Code: "busy", Message: "Too many concurrent requests"}
+		p.requestEnded(started, f.ID, f.Method, true, trace, refusal)
+		p.rejectRequest(f.ID, trace, refusal)
 		return
 	}
 	// What the handler sends is a child of the request that ran it.
@@ -546,10 +588,13 @@ func (p *Peer) startRequest(f frame) {
 	p.mu.Unlock()
 	go func() {
 		defer func() { cancel(); p.mu.Lock(); delete(p.incoming, f.ID); p.mu.Unlock(); <-p.slots }()
-		result, err := invokeHandler(ctx, p, handler, f.Params)
+		result, err := invokeHandler(ctx, p, handler, f)
 		if err == nil && ctx.Err() != nil {
 			err = ctx.Err()
 		}
+		// The request ended when the handler returned; the frame answering it
+		// is sent after, so that the two are observed in the order they happen.
+		p.requestEnded(started, f.ID, f.Method, true, trace, err)
 		p.respond(f.ID, trace, result, err)
 	}()
 }
@@ -559,14 +604,16 @@ func (p *Peer) startRequest(f frame) {
 // an already active reverse call. A flood exhausting the rejection capacity
 // closes the overloaded connection after giving the writer a scheduling turn.
 func (p *Peer) rejectRequest(id string, trace Trace, public *PublicError) {
-	data, err := json.Marshal(frame{Version: 1, Kind: "response", ID: id, Error: public,
-		Traceparent: trace.Parent, Tracestate: trace.State})
+	f := frame{Version: 1, Kind: "response", ID: id, Error: public,
+		Traceparent: trace.Parent, Tracestate: trace.State}
+	data, err := json.Marshal(f)
 	if err != nil || int64(len(data)) > p.options.MaxFrameBytes {
 		p.fail(errors.New("duplex rejection exceeds frame limit"))
 		return
 	}
 	select {
 	case p.outputs <- data:
+		p.observeSent(f, len(data))
 		return
 	case <-p.done:
 		return
@@ -575,19 +622,23 @@ func (p *Peer) rejectRequest(id string, trace Trace, public *PublicError) {
 	runtime.Gosched()
 	select {
 	case p.outputs <- data:
+		p.observeSent(f, len(data))
 	case <-p.done:
 	default:
 		p.fail(ErrBackpressure)
 	}
 }
 
-func invokeHandler(ctx context.Context, p *Peer, h Handler, data json.RawMessage) (result any, err error) {
+// invokeHandler takes the whole frame so that a panic is reported as what the
+// handler was called for, never as what it was called with.
+func invokeHandler(ctx context.Context, p *Peer, h Handler, f frame) (result any, err error) {
 	defer func() {
-		if recover() != nil {
+		if value := recover(); value != nil {
+			p.observePanic(f, value)
 			err = errors.New("duplex handler panic")
 		}
 	}()
-	return h(ctx, p, data)
+	return h(ctx, p, f.Params)
 }
 
 func (p *Peer) respond(id string, trace Trace, result any, err error) {
@@ -627,6 +678,7 @@ func (p *Peer) eventLoop() {
 		case queued := <-p.events:
 			event := queued.event
 			ctx := p.options.Propagator.Extract(p.ctx, queued.trace)
+			p.observeDelivered(queued)
 			p.mu.Lock()
 			handler := p.eventHandlers[event.Name]
 			listeners := make([]func(context.Context, Event), 0, len(p.listeners))

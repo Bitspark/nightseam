@@ -1,0 +1,312 @@
+package runtime
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/Bitspark/nightseam/duplex/go"
+)
+
+// Observer is what a peer tells about the traffic it carries. It emits and
+// never aggregates, and it chooses no backend: an observer sees names, ids,
+// sizes, durations, outcomes and close codes — never a payload. A params
+// object reaches no observer by any path, and diagnostic logging is one
+// observer among others; the runtime writes to no logger of its own.
+//
+// Observe is called on whichever goroutine the event happened on — the
+// reader, a handler, a caller — and so from several at once: an observer that
+// keeps anything keeps it under a lock of its own, and one that blocks holds
+// up the connection it is watching.
+type Observer interface{ Observe(event ObserverEvent) }
+
+// ObserverEvent is one thing a peer did, sealed over the types below: a type
+// switch is the consumer's dispatch, and a later profile may add a case to it.
+// It is not named Event because an Event of this package is one event of the
+// profile, which an observer only ever hears about.
+type ObserverEvent interface{ isObserverEvent() }
+
+// ConnectionOpened is the peer taking the connection over, before it has read
+// or written anything on it.
+type ConnectionOpened struct {
+	At   time.Time
+	Role Role
+}
+
+// ConnectionClosed is the connection ending, once and whatever ended it. Local
+// says this side ended it, which is every case but the one a peer can lay at
+// the other's door: a close the remote sent, with its code and its reason.
+type ConnectionClosed struct {
+	At     time.Time
+	Code   int
+	Reason string
+	Local  bool
+}
+
+// FrameSent is one frame queued for the transport, which is as far as this peer
+// carries it. Name is what the frame names — the method of a request, the name
+// of an event — and a response and a cancel name nothing, a response's method
+// being no member of the wire.
+type FrameSent struct {
+	At     time.Time
+	Kind   string
+	Name   string
+	Bytes  int
+	ID     string
+	Trace  Trace
+	Family string
+}
+
+// FrameReceived is one frame the decoder accepted, before anything routed it.
+// A frame the decoder refused closes the connection and is no frame at all.
+type FrameReceived struct {
+	At     time.Time
+	Kind   string
+	Name   string
+	Bytes  int
+	ID     string
+	Trace  Trace
+	Family string
+}
+
+// RequestStarted is a request beginning, whichever side raised it: Incoming is
+// one this peer serves, and a request it refuses for want of a method or of a
+// slot begins and ends like any other.
+type RequestStarted struct {
+	At       time.Time
+	ID       string
+	Method   string
+	Incoming bool
+	Trace    Trace
+	Family   string
+}
+
+// RequestEnded pairs with every RequestStarted. Duration is the span between
+// the two, and ErrorCode names what the application refused with where the
+// outcome is Errored — a cancellation and a deadline are outcomes of their own
+// and name no code.
+type RequestEnded struct {
+	At        time.Time
+	ID        string
+	Method    string
+	Incoming  bool
+	Duration  time.Duration
+	Outcome   Outcome
+	ErrorCode string
+	Trace     Trace
+	Family    string
+}
+
+// EventEmitted is the application emitting an event, before the frame carrying
+// it is queued. Bytes is the size of the event's data, as EventDelivered's is.
+type EventEmitted struct {
+	At     time.Time
+	Name   string
+	Bytes  int
+	Trace  Trace
+	Family string
+}
+
+// EventDelivered is an event reaching the application, before its handler and
+// the listeners run.
+type EventDelivered struct {
+	At     time.Time
+	Name   string
+	Bytes  int
+	Trace  Trace
+	Family string
+}
+
+// Backpressure is a queue that could not take a frame: Queued is its depth,
+// Deadline the write deadline the producer then waited out where it waited,
+// and Stalled the peer giving up on the consumer and closing the connection.
+type Backpressure struct {
+	At       time.Time
+	Queued   int
+	Stalled  bool
+	Deadline time.Duration
+}
+
+// HandlerPanic is a method handler that gave up. Value is the panic value as
+// %v renders it and nothing else: what the handler was given is the handler's,
+// and reaches no observer here.
+type HandlerPanic struct {
+	At     time.Time
+	Method string
+	Value  string
+	Trace  Trace
+	Family string
+}
+
+func (ConnectionOpened) isObserverEvent() {}
+func (ConnectionClosed) isObserverEvent() {}
+func (FrameSent) isObserverEvent()        {}
+func (FrameReceived) isObserverEvent()    {}
+func (RequestStarted) isObserverEvent()   {}
+func (RequestEnded) isObserverEvent()     {}
+func (EventEmitted) isObserverEvent()     {}
+func (EventDelivered) isObserverEvent()   {}
+func (Backpressure) isObserverEvent()     {}
+func (HandlerPanic) isObserverEvent()     {}
+
+// Outcome is how a request ended.
+type Outcome int
+
+const (
+	OutcomeOK Outcome = iota
+	OutcomeErrored
+	OutcomeCancelled
+	OutcomeTimedOut
+)
+
+func (o Outcome) String() string {
+	switch o {
+	case OutcomeOK:
+		return "ok"
+	case OutcomeErrored:
+		return "error"
+	case OutcomeCancelled:
+		return "cancelled"
+	case OutcomeTimedOut:
+		return "timeout"
+	}
+	return fmt.Sprintf("outcome(%d)", int(o))
+}
+
+// outcomeOf reads an outcome from what ended the request, and the public code
+// where it ended in one. A remote peer's refusal arrives as a public error
+// whatever it says, so a response of code cancelled is the caller's error and
+// not the caller's cancellation.
+func outcomeOf(err error) (Outcome, string) {
+	var public *PublicError
+	switch {
+	case err == nil:
+		return OutcomeOK, ""
+	case errors.As(err, &public) && public != nil:
+		return OutcomeErrored, public.Code
+	case errors.Is(err, context.DeadlineExceeded):
+		return OutcomeTimedOut, ""
+	case errors.Is(err, context.Canceled):
+		return OutcomeCancelled, ""
+	}
+	return OutcomeErrored, ""
+}
+
+// Observer is what this peer was given, or nil. Whatever runs over a peer — a
+// tunnel, a session — observes through this one rather than taking its own.
+func (p *Peer) Observer() Observer { return p.options.Observer }
+
+// family is the family a method or event name belongs to, as the generated
+// install labelled it. An unlabelled name has no family rather than a guessed
+// one: the runtime parses no names.
+func (p *Peer) family(name string) string { return p.options.Families[name] }
+
+// named is what a frame names; trace is the W3C members it carries, verbatim.
+func (f frame) named() string {
+	if f.Event != "" {
+		return f.Event
+	}
+	return f.Method
+}
+
+func (f frame) traced() Trace { return Trace{Parent: f.Traceparent, State: f.Tracestate} }
+
+// Every hook point below asks for an observer before it builds anything: a
+// peer given none reads no clock and allocates no event for nobody.
+
+func (p *Peer) observeOpened(role Role) {
+	if p.options.Observer == nil {
+		return
+	}
+	p.options.Observer.Observe(ConnectionOpened{At: time.Now(), Role: role})
+}
+
+// observeClosed says what ended the connection. The peer aborts rather than
+// closing with a handshake, so a local close carries the code this side
+// decided on and the failure that decided it, which names nothing carried.
+func (p *Peer) observeClosed(err error) {
+	if p.options.Observer == nil {
+		return
+	}
+	closed := ConnectionClosed{At: time.Now(), Code: int(duplex.CodeDuplex), Reason: err.Error(), Local: true}
+	var remote *duplex.CloseError
+	switch {
+	case errors.As(err, &remote):
+		closed.Code, closed.Reason, closed.Local = int(remote.Code), remote.Reason, false
+	case errors.Is(err, ErrClosed):
+		closed.Code, closed.Reason = int(duplex.CodeNormal), ""
+	}
+	p.options.Observer.Observe(closed)
+}
+
+func (p *Peer) observeSent(f frame, bytes int) {
+	if p.options.Observer == nil {
+		return
+	}
+	name := f.named()
+	p.options.Observer.Observe(FrameSent{At: time.Now(), Kind: f.Kind, Name: name, Bytes: bytes,
+		ID: f.ID, Trace: f.traced(), Family: p.family(name)})
+}
+
+func (p *Peer) observeReceived(f frame, bytes int) {
+	if p.options.Observer == nil {
+		return
+	}
+	name := f.named()
+	p.options.Observer.Observe(FrameReceived{At: time.Now(), Kind: f.Kind, Name: name, Bytes: bytes,
+		ID: f.ID, Trace: f.traced(), Family: p.family(name)})
+}
+
+// requestStarted returns when the request began, which requestEnded measures
+// its duration from; a peer with no observer measures nothing.
+func (p *Peer) requestStarted(id, method string, incoming bool, trace Trace) time.Time {
+	if p.options.Observer == nil {
+		return time.Time{}
+	}
+	at := time.Now()
+	p.options.Observer.Observe(RequestStarted{At: at, ID: id, Method: method, Incoming: incoming,
+		Trace: trace, Family: p.family(method)})
+	return at
+}
+
+func (p *Peer) requestEnded(started time.Time, id, method string, incoming bool, trace Trace, err error) {
+	if p.options.Observer == nil {
+		return
+	}
+	at := time.Now()
+	outcome, code := outcomeOf(err)
+	p.options.Observer.Observe(RequestEnded{At: at, ID: id, Method: method, Incoming: incoming,
+		Duration: at.Sub(started), Outcome: outcome, ErrorCode: code, Trace: trace, Family: p.family(method)})
+}
+
+func (p *Peer) observeEmitted(f frame) {
+	if p.options.Observer == nil {
+		return
+	}
+	p.options.Observer.Observe(EventEmitted{At: time.Now(), Name: f.Event, Bytes: len(f.Data),
+		Trace: f.traced(), Family: p.family(f.Event)})
+}
+
+func (p *Peer) observeDelivered(queued queuedEvent) {
+	if p.options.Observer == nil {
+		return
+	}
+	p.options.Observer.Observe(EventDelivered{At: time.Now(), Name: queued.event.Name, Bytes: len(queued.event.Data),
+		Trace: queued.trace, Family: p.family(queued.event.Name)})
+}
+
+func (p *Peer) observeBackpressure(queued int, stalled bool, deadline time.Duration) {
+	if p.options.Observer == nil {
+		return
+	}
+	p.options.Observer.Observe(Backpressure{At: time.Now(), Queued: queued, Stalled: stalled, Deadline: deadline})
+}
+
+func (p *Peer) observePanic(f frame, value any) {
+	if p.options.Observer == nil {
+		return
+	}
+	p.options.Observer.Observe(HandlerPanic{At: time.Now(), Method: f.Method, Value: fmt.Sprint(value),
+		Trace: f.traced(), Family: p.family(f.Method)})
+}
