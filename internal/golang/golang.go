@@ -108,7 +108,7 @@ func (l *language) Render(api contract.API) ([]spi.File, error) {
 
 // reservedTypes are the identifiers the generated Go packages and the
 // runtime declare or would shadow; a contract type of that name is refused.
-var reservedTypes = strings.Fields("API Client Server Binding Handler Handlers ClientHandlers ServerHandlers Peer PublicError Optional Remote NewHandler Dial ValidateRaw ValidateExpressionRaw ValidateValue TypeExpression")
+var reservedTypes = strings.Fields("API Client Caller Server Binding Handler Handlers ClientHandlers ServerHandlers Peer PublicError Optional Remote NewHandler Dial Decides Asks Conversation ValidateRaw ValidateExpressionRaw ValidateValue TypeExpression")
 var reservedMethods = strings.Fields("Close Call Notify Handle Connect")
 
 // Check reports the names the contract would make Go generate that it

@@ -238,7 +238,7 @@ func TestCommands(t *testing.T) {
 	if _, _, err := run(t, root, "generate"); err == nil || !strings.Contains(err.Error(), "no contracts in") {
 		t.Fatalf("an empty checkout generated: %v", err)
 	}
-	writeFixture(t, root, "api/contracts/probe.json", []byte(probeContract))
+	writeLayers(t, root, "probe", false)
 	out, _, err := run(t, root, "validate")
 	if err != nil || !strings.Contains(out, "1 contracts; valid") {
 		t.Fatalf("validate: %v\n%s", err, out)
@@ -263,11 +263,18 @@ func TestCommands(t *testing.T) {
 	if _, _, err := run(t, root, "generate", "nope"); err == nil || !strings.Contains(err.Error(), `no contract named "nope"`) || !strings.Contains(err.Error(), "probe") {
 		t.Fatalf("unknown family: %v", err)
 	}
-	writeFixture(t, root, "api/contracts/other.json", []byte(probeContract))
+	writeFixture(t, root, "api/contracts/other.rpc.json", []byte(`{"schema_version":1,"profile":"nighthall.duplex/1","name":"probe","layer":"rpc","methods":[],"events":[]}`))
 	if _, _, err := run(t, root, "validate", "other"); err == nil || !strings.Contains(err.Error(), "names API") {
 		t.Fatalf("a contract named for another family passed: %v", err)
 	}
-	writeFixture(t, root, "api/contracts/other.json", []byte(strings.Replace(strings.Replace(probeContract, `"name":"probe"`, `"name":"other"`, 1), `"go_name":"Echo"`, `"go_name":"Close"`, 1)))
+	os.Remove(filepath.Join(root, "api", "contracts", "other.rpc.json"))
+	writeLayers(t, root, "other", false)
+	rpc := filepath.Join(root, "api", "contracts", "other.rpc.json")
+	data, err := os.ReadFile(rpc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFixture(t, root, "api/contracts/other.rpc.json", []byte(strings.Replace(string(data), `"go_name":"Echo"`, `"go_name":"Close"`, 1)))
 	_, errs, err = run(t, root, "validate", "other")
 	if err == nil || !strings.Contains(err.Error(), "problems") || !strings.Contains(errs, "other /methods/0/go_name:") || !strings.Contains(errs, "[reserved_name]") {
 		t.Fatalf("validate did not report the diagnostic: %v\n%s", err, errs)

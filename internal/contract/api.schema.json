@@ -9,16 +9,30 @@
     "schema_version": {"const": 1},
     "profile": {"const": "nighthall.duplex/1"},
     "name": {"$ref": "#/$defs/familyName"},
-    "role": {"enum": ["session"], "description": "A session family: one a session can speak, and so a member of the union a slot names as session."},
+    "role": {"enum": ["session"], "description": "A session family: one a session can speak, and so a member of the union a slot names as session. Set by the loader for a family with a sess layer; a merged contract may set it by hand."},
+    "layer": {"$ref": "#/$defs/layer", "description": "In a layer file, which layer it declares. Absent in a merged contract."},
+    "layers": {"type": "object", "propertyNames": {"$ref": "#/$defs/typeName"}, "additionalProperties": {"$ref": "#/$defs/layer"}, "description": "In a merged contract, the layer each type was declared in, as the loader recorded it; what the direction rule is checked against. Absent, no direction is checked."},
     "imports": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/familyName"}, "description": "Families whose types this contract refers to as family.Type. An imported family imports nothing itself."},
     "types": {"type": "object", "propertyNames": {"$ref": "#/$defs/typeName"}, "additionalProperties": {"$ref": "#/$defs/type"}},
     "methods": {"type": "array", "items": {"$ref": "#/$defs/method"}},
     "events": {"type": "array", "items": {"$ref": "#/$defs/event"}},
+    "session": {"$ref": "#/$defs/session", "description": "The sess layer: how a connection of this family's RPC is governed and driven."},
     "errors": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["code", "description"], "properties": {"code": {"type": "string", "minLength": 1}, "description": {"type": "string"}}}}
   },
   "$defs": {
     "typeName": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9_]*$"},
     "familyName": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"},
+    "layer": {"enum": ["dto", "rpc", "sess"]},
+    "session": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "decides": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}, "description": "The methods that need control to send: an observer's is refused."},
+        "asks": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}, "description": "The server-to-client methods that raise a request the holder of control must answer."},
+        "conversation": {"type": "object", "additionalProperties": false, "required": ["event", "path"], "properties": {"event": {"type": "string", "minLength": 1}, "path": {"type": "string", "minLength": 1}}, "description": "Where the agent's own conversation id arrives: an event, and the path to the id in its data."},
+        "options": {"type": "object", "description": "A JSON Schema for the launch options a cell of this family accepts, in the agent's own names."},
+        "platforms": {"type": "array", "items": {"type": "object"}, "description": "On which platforms each mode exists and which option values do not."}
+      }
+    },
     "slotFamily": {"type": "string", "pattern": "^(?:session|[a-z][a-z0-9]*(?:-[a-z0-9]+)*)$", "description": "The family a slot is of, or session for whichever session family applies."},
     "identifier": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
     "direction": {"enum": ["client_to_server", "server_to_client"]},

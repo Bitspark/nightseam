@@ -1,7 +1,10 @@
 // generate-api renders the checked-in API contracts into the generated
-// packages. A contract is the spec.api document at api/contracts/<family>.json;
-// a family is rendered by every language the tool is composed with, today Go
-// and TypeScript.
+// packages. A family is declared in layer files under api/contracts —
+// <family>.dto.json for its data, <family>.rpc.json for its operations,
+// <family>.sess.json for how a session of it is governed — merged into one
+// spec.api contract and rendered by every language the tool is composed
+// with, today Go and TypeScript. A declaration refers to its own layer or a
+// lower one, never a higher one, and the tool refuses one that does.
 //
 //	go run ./tools/go/generate-api generate [family...]   render every contract in api/contracts, or the named ones
 //	go run ./tools/go/generate-api check [family...]      fail if the checked-in output is stale
@@ -27,6 +30,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/contract"
 	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/golang"
 	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/kernel"
 	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/spi"
@@ -57,8 +61,10 @@ type app struct{ root string }
 
 func (a *app) contracts() string { return filepath.Join(a.root, "api", "contracts") }
 
-// families names the contracts in api/contracts, in order. A checkout with
-// no contracts directory has none.
+// families names the contracts in api/contracts, in order: a family is
+// declared in layer files, <family>.dto.json, <family>.rpc.json and
+// <family>.sess.json, and is named once whatever layers it has. A checkout
+// with no contracts directory has none.
 func (a *app) families() ([]string, error) {
 	entries, err := os.ReadDir(a.contracts())
 	if os.IsNotExist(err) {
@@ -67,14 +73,36 @@ func (a *app) families() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	seen := map[string]bool{}
 	var names []string
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
-			names = append(names, strings.TrimSuffix(entry.Name(), ".json"))
+		family, _, ok := layerFile(entry.Name())
+		if entry.IsDir() || !ok || seen[family] {
+			continue
 		}
+		seen[family] = true
+		names = append(names, family)
 	}
 	sort.Strings(names)
 	return names, nil
+}
+
+// layerFile splits a layer file's name, <family>.<layer>.json, into its
+// family and its layer.
+func layerFile(name string) (family, layer string, ok bool) {
+	if !strings.HasSuffix(name, ".json") {
+		return "", "", false
+	}
+	stem := strings.TrimSuffix(name, ".json")
+	at := strings.LastIndexByte(stem, '.')
+	if at <= 0 {
+		return "", "", false
+	}
+	family, layer = stem[:at], stem[at+1:]
+	if !slices.Contains(contract.Layers, layer) {
+		return "", "", false
+	}
+	return family, layer, true
 }
 
 // chosen resolves a command's arguments to families: every contract when
@@ -101,21 +129,38 @@ func (a *app) chosen(args []string) ([]string, error) {
 	return args, nil
 }
 
+// load reads a family's layer files and merges them into the one contract
+// the kernel renders. Each file must name the family it is filed under and
+// the layer its name says; what the merge refuses is reported by file.
 func (a *app) load(name string) (map[string]any, error) {
-	data, err := os.ReadFile(filepath.Join(a.contracts(), name+".json"))
-	if err != nil {
-		return nil, err
+	files := map[string]map[string]any{}
+	for _, layer := range contract.Layers {
+		data, err := os.ReadFile(filepath.Join(a.contracts(), name+"."+layer+".json"))
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		var file map[string]any
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.UseNumber()
+		if err := decoder.Decode(&file); err != nil {
+			return nil, fmt.Errorf("%s.%s contract: %w", name, layer, err)
+		}
+		if file["name"] != name {
+			return nil, fmt.Errorf("%s.%s contract names API %v", name, layer, file["name"])
+		}
+		files[layer] = file
 	}
-	var contract map[string]any
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-	if err := decoder.Decode(&contract); err != nil {
-		return nil, fmt.Errorf("%s contract: %w", name, err)
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no layer files for family %q in %s", name, a.contracts())
 	}
-	if contract["name"] != name {
-		return nil, fmt.Errorf("%s contract names API %v", name, contract["name"])
+	merged, diagnostics := contract.Merge(files)
+	if len(diagnostics) != 0 {
+		return nil, fmt.Errorf("%s contract: %s: %s", name, diagnostics[0].Pointer, diagnostics[0].Message)
 	}
-	return contract, nil
+	return merged, nil
 }
 
 // world loads every contract in the checkout, by family: what a family may
@@ -182,8 +227,9 @@ func newCommand() *cobra.Command {
 		Use:   "generate-api",
 		Short: "Render api/contracts into the generated Go and TypeScript packages",
 		Long: `generate-api renders the checked-in API contracts into the generated
-packages. A contract is the spec.api document at api/contracts/<family>.json;
-a family is rendered by every language the tool is composed with, today Go
+packages. A family is declared in layer files under api/contracts,
+<family>.dto.json, <family>.rpc.json and <family>.sess.json, merged into one
+contract and rendered by every language the tool is composed with, today Go
 and TypeScript. Nothing is written that is already up to date.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,

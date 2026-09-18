@@ -49,6 +49,23 @@ func generateClient(api contract.API, p paths) string {
 		}
 	}
 	b.WriteString("}\n")
+	// The RPC layer's caller side as an interface, which the session type
+	// implements; a consumer may stand another implementation in its place.
+	b.WriteString("// Caller is the RPC layer's caller side: every operation a client sends. Client implements it.\ntype Caller interface{\n")
+	for _, m := range api.Methods {
+		if m.Direction == "client_to_server" {
+			fmt.Fprintf(&b, "%s(ctx context.Context%s)(%s,error)\n", m.GoName, paramSignature(m), goType(m.Result, "protocol."))
+		}
+	}
+	b.WriteString("}\nvar _ Caller=(*Client)(nil)\n")
+	if s := api.Session; s != nil {
+		// The sess layer's governance, as code both halves read.
+		b.WriteString("// Decides reports whether a method needs control to send: an observer's is refused.\nfunc Decides(method string)bool{" + membership(s.Decides) + "}\n")
+		b.WriteString("// Asks reports whether a server-to-client method raises a request the holder of control must answer.\nfunc Asks(method string)bool{" + membership(s.Asks) + "}\n")
+		if s.Conversation != nil {
+			fmt.Fprintf(&b, "// Conversation is where the agent's own conversation id arrives: the event, and the path to the id in its data.\nvar Conversation=struct{Event,Path string}{%q,%q}\n", s.Conversation.Event, s.Conversation.Path)
+		}
+	}
 	b.WriteString("// Dial connects after installing reverse-call handlers. No request is retried.\nfunc Dial(ctx context.Context,url string,options wsruntime.DialOptions,handler Handler)(*Client,error){\n")
 	if reverse {
 		b.WriteString("if handler==nil{return nil,fmt.Errorf(\"reverse-call handler is required\")};\n")
@@ -68,6 +85,19 @@ func generateClient(api contract.API, p paths) string {
 	}
 	writeEvents(&b, api, "Client", "client_to_server")
 	return goFile(api, "client", b.String(), p)
+}
+
+// membership renders the body of a function reporting whether its string
+// argument is one of the names.
+func membership(names []string) string {
+	if len(names) == 0 {
+		return "return false"
+	}
+	quoted := make([]string, len(names))
+	for i, name := range names {
+		quoted[i] = quote(name)
+	}
+	return "switch method{case " + strings.Join(quoted, ",") + ":return true};return false"
 }
 
 func writeRegistration(b *strings.Builder, m contract.Method, handler, remote string) {

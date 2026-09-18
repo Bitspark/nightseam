@@ -54,7 +54,7 @@ func (l *language) Render(api contract.API) ([]spi.File, error) {
 // reservedTypes are the identifiers the generated client declares or would
 // shadow in the module that declares the contract's types; a contract type
 // of that name is refused.
-var reservedTypes = strings.Fields("Client Handler TypeExpression WireType WireField Array Record Promise AbortSignal Date Number Object Set Error")
+var reservedTypes = strings.Fields("Client Caller Handler TypeExpression WireType WireField Array Record Promise AbortSignal Date Number Object Set Error")
 
 // A method named then would also make the client a Promise-like value, breaking
 // the async dial factory through JavaScript's thenable assimilation.
@@ -237,7 +237,28 @@ func generateTS(api contract.API, dir string) []spi.File {
 		}
 	}
 	client.WriteString("}\n")
-	client.WriteString("export class Client {\n  readonly peer: DuplexPeer;\n  constructor(peer: DuplexPeer, handler?: Handler) {\n    this.peer = peer;\n")
+	// The RPC layer's caller side as an interface, which the session class
+	// implements; a consumer may stand another implementation in its place.
+	client.WriteString("export interface Caller {\n")
+	for _, m := range api.Methods {
+		if m.Direction == "client_to_server" {
+			parameters := "params: " + tsRequest(m) + ", options?: CallOptions"
+			if m.Request == "" {
+				parameters = "options?: CallOptions"
+			}
+			fmt.Fprintf(&client, "  %s(%s): Promise<%s>;\n", m.TSName, parameters, tsQualified(m.Result))
+		}
+	}
+	client.WriteString("}\n")
+	if s := api.Session; s != nil {
+		// The sess layer's governance, as data both halves read.
+		fmt.Fprintf(&client, "/** The methods that need control to send. */\nexport const decides: ReadonlySet<string> = new Set(%s);\n", expression(orEmpty(s.Decides)))
+		fmt.Fprintf(&client, "/** The server-to-client methods that raise a request the holder of control must answer. */\nexport const asks: ReadonlySet<string> = new Set(%s);\n", expression(orEmpty(s.Asks)))
+		if s.Conversation != nil {
+			fmt.Fprintf(&client, "/** Where the agent's own conversation id arrives: the event, and the path to the id in its data. */\nexport const conversation = { event: %s, path: %s } as const;\n", quote(s.Conversation.Event), quote(s.Conversation.Path))
+		}
+	}
+	client.WriteString("export class Client implements Caller {\n  readonly peer: DuplexPeer;\n  constructor(peer: DuplexPeer, handler?: Handler) {\n    this.peer = peer;\n")
 	for _, m := range api.Methods {
 		if m.Direction == "server_to_client" {
 			fmt.Fprintf(&client, "    if (!handler) throw new Error('reverse-call handler is required');\n    peer.handle(%q, async (params, context) => { try { validateWire(%s, params); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, context); validateWire(%s, result); return result; });\n", m.Name, tsRequestExpr(m), m.TSName, tsRequest(m), expression(m.Result))
@@ -273,6 +294,15 @@ func generateTS(api contract.API, dir string) []spi.File {
 	files = append(files, spi.File{Path: path.Join(dir, "tsconfig.json"), Data: []byte("{\"compilerOptions\":{\"target\":\"ES2022\",\"module\":\"NodeNext\",\"moduleResolution\":\"NodeNext\",\"strict\":true,\"skipLibCheck\":true,\"noEmit\":true,\"allowImportingTsExtensions\":true,\"lib\":[\"ES2022\",\"DOM\"]},\"include\":[\"src/**/*.ts\"]}\n")})
 	return files
 }
+
+// orEmpty renders an absent list as an empty one.
+func orEmpty(list []string) []string {
+	if list == nil {
+		return []string{}
+	}
+	return list
+}
+
 func upperFirst(value string) string {
 	if value == "" {
 		return value

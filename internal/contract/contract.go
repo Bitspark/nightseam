@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -31,18 +32,65 @@ type TypeExpr = any
 // name, and Sessions those of them that declare the session role. None of
 // the three is part of the contract's bytes.
 type API struct {
-	SchemaVersion int             `json:"schema_version"`
-	Profile       string          `json:"profile"`
-	Name          string          `json:"name"`
-	Role          string          `json:"role,omitempty"`
-	Imports       []string        `json:"imports,omitempty"`
-	Types         map[string]Type `json:"types"`
-	Methods       []Method        `json:"methods"`
-	Events        []Event         `json:"events"`
-	Errors        []PublicError   `json:"errors,omitempty"`
-	Imported      map[string]API  `json:"-"`
-	Families      []string        `json:"-"`
-	Sessions      []string        `json:"-"`
+	SchemaVersion int               `json:"schema_version"`
+	Profile       string            `json:"profile"`
+	Name          string            `json:"name"`
+	Role          string            `json:"role,omitempty"`
+	Layer         string            `json:"layer,omitempty"`
+	Layers        map[string]string `json:"layers,omitempty"`
+	Imports       []string          `json:"imports,omitempty"`
+	Types         map[string]Type   `json:"types"`
+	Methods       []Method          `json:"methods"`
+	Events        []Event           `json:"events"`
+	Errors        []PublicError     `json:"errors,omitempty"`
+	Session       *Session          `json:"session,omitempty"`
+	Imported      map[string]API    `json:"-"`
+	Families      []string          `json:"-"`
+	Sessions      []string          `json:"-"`
+}
+
+// Session is the sess layer of a family: how a connection of its RPC is
+// governed and driven. Decides names the methods that need control to send,
+// Asks the server-to-client methods that raise a request, Conversation where
+// the agent's own conversation id arrives; Options and Platforms are the
+// launch options a cell accepts and where each mode exists, carried for the
+// harness and the web app and not interpreted here.
+type Session struct {
+	Decides      []string      `json:"decides,omitempty"`
+	Asks         []string      `json:"asks,omitempty"`
+	Conversation *Conversation `json:"conversation,omitempty"`
+	Options      any           `json:"options,omitempty"`
+	Platforms    any           `json:"platforms,omitempty"`
+}
+
+// Conversation is an event and the path to the conversation id in its data.
+type Conversation struct {
+	Event string `json:"event"`
+	Path  string `json:"path"`
+}
+
+// The layers a family is declared in, lowest first. A declaration refers to
+// its own layer or a lower one, never a higher one: data refers to data;
+// operations to operations and data, and may hold an envelope of another
+// family's operations; a session to sessions, operations and data, and may
+// hold a handle to a connection of another family's session.
+const (
+	LayerDTO  = "dto"
+	LayerRPC  = "rpc"
+	LayerSess = "sess"
+)
+
+// Layers is every layer, lowest first.
+var Layers = []string{LayerDTO, LayerRPC, LayerSess}
+
+// layerRank orders the layers; an unknown layer ranks below every one.
+func layerRank(layer string) int {
+	for i, known := range Layers {
+		if known == layer {
+			return i
+		}
+	}
+	return -1
 }
 
 // The types every family carries so that another family may hold one of its
@@ -228,6 +276,100 @@ func Parse(input map[string]any) (API, []Diagnostic) {
 		return api, diagnostics
 	}
 	return api, nil
+}
+
+// sections is what a layer file may carry, beyond what every file carries.
+var sections = map[string][]string{
+	LayerDTO:  {"imports", "types"},
+	LayerRPC:  {"imports", "types", "methods", "events", "errors"},
+	LayerSess: {"imports", "types", "session"},
+}
+
+// Merge joins a family's layer files, by layer, into the one contract the
+// generator renders: the union of their imports and types, the operations of
+// the rpc layer, the session section of the sess layer, and a record of the
+// layer each type was declared in, which Check holds the direction rule
+// against. A family with a sess layer is a session family. Each file must
+// name the family and its own layer and carry only its layer's sections; a
+// type declared twice is refused.
+func Merge(files map[string]map[string]any) (map[string]any, []Diagnostic) {
+	var diagnostics []Diagnostic
+	add := func(pointer, code, message string) {
+		diagnostics = append(diagnostics, Diagnostic{code, pointer, message})
+	}
+	merged := map[string]any{"types": map[string]any{}, "methods": []any{}, "events": []any{}}
+	layers := map[string]any{}
+	imports := map[string]bool{}
+	name := ""
+	for _, layer := range Layers {
+		file, present := files[layer]
+		if !present {
+			continue
+		}
+		if file["layer"] != layer {
+			add("/"+layer+"/layer", "wrong_layer", fmt.Sprintf("The %s file declares layer %v.", layer, file["layer"]))
+		}
+		fileName, _ := file["name"].(string)
+		if name == "" {
+			name = fileName
+		} else if fileName != name {
+			add("/"+layer+"/name", "wrong_family", fmt.Sprintf("The %s file names family %q; the family is %q.", layer, fileName, name))
+		}
+		for key, value := range file {
+			switch key {
+			case "schema_version", "profile", "name", "layer":
+				merged[key] = value
+			case "imports":
+				for _, imported := range asList(value) {
+					if text, ok := imported.(string); ok {
+						imports[text] = true
+					}
+				}
+			case "types":
+				types, _ := value.(map[string]any)
+				for typeName, t := range types {
+					if _, declared := layers[typeName]; declared {
+						add("/"+layer+"/types/"+EscapePointer(typeName), "duplicate_type", fmt.Sprintf("Type %s is declared in the %s layer as well as in %v.", typeName, layer, layers[typeName]))
+						continue
+					}
+					merged["types"].(map[string]any)[typeName] = t
+					layers[typeName] = layer
+				}
+			case "methods", "events", "errors", "session":
+				if !slices.Contains(sections[layer], key) {
+					add("/"+layer+"/"+key, "wrong_section", fmt.Sprintf("The %s layer does not carry %s.", layer, key))
+					continue
+				}
+				merged[key] = value
+			default:
+				add("/"+layer+"/"+key, "unknown_section", fmt.Sprintf("A layer file does not carry %s.", key))
+			}
+		}
+	}
+	delete(merged, "layer")
+	if len(imports) > 0 {
+		names := make([]string, 0, len(imports))
+		for imported := range imports {
+			names = append(names, imported)
+		}
+		sort.Strings(names)
+		list := make([]any, len(names))
+		for i, imported := range names {
+			list[i] = imported
+		}
+		merged["imports"] = list
+	}
+	merged["layers"] = layers
+	if _, sess := files[LayerSess]; sess {
+		merged["role"] = SessionRole
+	}
+	Sort(diagnostics)
+	return merged, diagnostics
+}
+
+func asList(value any) []any {
+	list, _ := value.([]any)
+	return list
 }
 
 // Reference splits a type expression that names another family's type,
@@ -487,15 +629,33 @@ func Check(api API) []Diagnostic {
 		families[name] = true
 	}
 	sessions := len(api.Sessions)
-	var expression func(TypeExpr, string, string)
-	expression = func(expr TypeExpr, pointer, owner string) {
+	// The layer a declaration is in, and the layer a type is declared in. A
+	// type the loader did not record — one every family carries, or one of
+	// a contract merged by hand — is data. Without a record of layers, no
+	// direction is checked: the contract was not written in layers.
+	layered := api.Layers != nil
+	layerOf := func(typeName string, in map[string]string) int {
+		if layer, ok := in[typeName]; ok {
+			return layerRank(layer)
+		}
+		return layerRank(LayerDTO)
+	}
+	// context is the rank of the declaration an expression sits in: its
+	// declaring type's layer, or rpc for a method or an event.
+	var expression func(TypeExpr, string, string, int)
+	expression = func(expr TypeExpr, pointer, owner string, context int) {
 		if family, name, ok := Reference(expr); ok {
 			if !imported[family] {
 				add("unresolved_type", pointer, "Type "+family+"."+name+" names a family this contract does not import.")
 				return
 			}
-			if _, ok := api.Imported[family].Types[name]; !ok {
+			other := api.Imported[family]
+			if _, ok := other.Types[name]; !ok {
 				add("unresolved_type", pointer, "Unknown type "+name+" in family "+family+".")
+				return
+			}
+			if layered && other.Layers != nil && layerOf(name, other.Layers) > context {
+				add("layer_violation", pointer, fmt.Sprintf("A %s declaration refers to %s.%s, declared in %s; a declaration refers to its own layer or a lower one.", Layers[context], family, name, other.Layers[name]))
 			}
 			return
 		}
@@ -510,6 +670,15 @@ func Check(api API) []Diagnostic {
 			case !families[family]:
 				add("unresolved_type", pointer, "Unknown family "+family+": it is not among the contracts rendered together.")
 			}
+			if layered {
+				needs := layerRank(LayerRPC)
+				if kind == "connection" {
+					needs = layerRank(LayerSess)
+				}
+				if context < needs {
+					add("layer_violation", pointer, fmt.Sprintf("A %s slot refines another family's %s and may sit in the %s layer or above, not in %s.", kind, Layers[needs], Layers[needs], Layers[context]))
+				}
+			}
 			add("unsupported_slot", pointer, "A "+kind+" slot has no generic rendering yet; substitute a family into it first.")
 			return
 		}
@@ -522,15 +691,45 @@ func Check(api API) []Diagnostic {
 				add("unresolved_type", pointer, "Unknown type "+x+".")
 				return
 			}
+			if layered && layerOf(x, api.Layers) > context {
+				add("layer_violation", pointer, fmt.Sprintf("A %s declaration refers to %s, declared in %s; a declaration refers to its own layer or a lower one.", Layers[context], x, api.Layers[x]))
+			}
 			if owner != "" {
 				edges[owner] = append(edges[owner], x)
 			}
 		case map[string]any:
 			for _, kind := range []string{"array", "map"} {
 				if child, ok := x[kind]; ok {
-					expression(child, pointer+"/"+kind, owner)
+					expression(child, pointer+"/"+kind, owner, context)
 				}
 			}
+		}
+	}
+	if api.Session != nil {
+		methods := map[string]Method{}
+		for _, method := range api.Methods {
+			methods[method.Name] = method
+		}
+		events := map[string]bool{}
+		for _, event := range api.Events {
+			events[event.Name] = true
+		}
+		for i, name := range api.Session.Decides {
+			if _, ok := methods[name]; !ok {
+				add("unknown_operation", fmt.Sprintf("/session/decides/%d", i), "Decides names "+name+", which is not a method of this family.")
+			}
+		}
+		for i, name := range api.Session.Asks {
+			method, ok := methods[name]
+			switch {
+			case !ok:
+				add("unknown_operation", fmt.Sprintf("/session/asks/%d", i), "Asks names "+name+", which is not a method of this family.")
+			case method.Direction != "server_to_client":
+				add("invalid_direction", fmt.Sprintf("/session/asks/%d", i), "Asks names "+name+", which the client sends; an asking method is one the server sends.")
+			}
+		}
+		if c := api.Session.Conversation; c != nil && !events[c.Event] {
+			add("unknown_operation", "/session/conversation/event", "The conversation arrives in "+c.Event+", which is not an event of this family.")
 		}
 	}
 	for _, name := range names {
@@ -549,10 +748,10 @@ func Check(api API) []Diagnostic {
 				}
 			}
 			for i, field := range t.Fields {
-				expression(field.Type, fmt.Sprintf("%s/fields/%d/type", pointer, i), name)
+				expression(field.Type, fmt.Sprintf("%s/fields/%d/type", pointer, i), name, layerOf(name, api.Layers))
 			}
 		case "alias":
-			expression(t.Type, pointer+"/type", name)
+			expression(t.Type, pointer+"/type", name, layerOf(name, api.Layers))
 		}
 	}
 	// All recursive value graphs are unsupported, including recursion through arrays.
@@ -610,13 +809,15 @@ func Check(api API) []Diagnostic {
 				add("unresolved_type", p+"/request", "Unknown request type "+method.Request+".")
 			} else if t.Kind != "record" {
 				add("invalid_request", p+"/request", "Method request must name a record.")
+			} else if layered && layerOf(method.Request, api.Layers) > layerRank(LayerRPC) {
+				add("layer_violation", p+"/request", "A method's request "+method.Request+" is declared in "+api.Layers[method.Request]+"; an operation refers to its own layer or a lower one.")
 			}
 		}
-		expression(method.Result, p+"/result", "")
+		expression(method.Result, p+"/result", "", layerRank(LayerRPC))
 	}
 	for i, event := range api.Events {
 		operation("events", i, event.Name, event.Direction)
-		expression(event.Type, fmt.Sprintf("/events/%d/type", i), "")
+		expression(event.Type, fmt.Sprintf("/events/%d/type", i), "", layerRank(LayerRPC))
 	}
 	errorsSeen := map[string]bool{}
 	for i, publicError := range api.Errors {
