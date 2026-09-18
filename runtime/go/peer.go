@@ -64,6 +64,7 @@ type Options struct {
 	MaxFrameBytes         int64
 	RequestTimeout        time.Duration
 	WriteTimeout          time.Duration
+	Propagator            Propagator
 }
 
 func (o Options) normalized() (Options, error) {
@@ -84,6 +85,9 @@ func (o Options) normalized() (Options, error) {
 	}
 	if o.WriteTimeout == 0 {
 		o.WriteTimeout = 10 * time.Second
+	}
+	if o.Propagator == nil {
+		o.Propagator = DefaultPropagator
 	}
 	for name, h := range o.Handlers {
 		if name == "" || h == nil {
@@ -111,6 +115,14 @@ type frame struct {
 	// W3C Trace Context, which every kind may carry and none requires.
 	Traceparent string `json:"traceparent,omitempty"`
 	Tracestate  string `json:"tracestate,omitempty"`
+}
+
+// queuedEvent keeps an event's trace beside it across the bounded queue: the
+// handler runs under the context the trace was extracted into, not under one
+// the reader has already left behind.
+type queuedEvent struct {
+	event Event
+	trace Trace
 }
 
 type pendingResult struct {
@@ -141,7 +153,7 @@ type Peer struct {
 	listeners     map[uint64]func(context.Context, Event)
 	listenerID    uint64
 	outputs       chan []byte
-	events        chan Event
+	events        chan queuedEvent
 	slots         chan struct{}
 }
 
@@ -160,7 +172,7 @@ func NewPeer(ctx context.Context, conn duplex.Conn, role Role, options Options) 
 	p := &Peer{conn: conn, ctx: ctx, cancel: cancel, options: o, prefix: "c:", remotePrefix: "s:", done: make(chan struct{}),
 		pending: make(map[string]chan pendingResult), incoming: make(map[string]context.CancelFunc), handlers: make(map[string]Handler),
 		eventHandlers: make(map[string]EventHandler), listeners: make(map[uint64]func(context.Context, Event)),
-		outputs: make(chan []byte, o.QueueCapacity), events: make(chan Event, o.QueueCapacity), slots: make(chan struct{}, o.MaxConcurrentHandlers)}
+		outputs: make(chan []byte, o.QueueCapacity), events: make(chan queuedEvent, o.QueueCapacity), slots: make(chan struct{}, o.MaxConcurrentHandlers)}
 	if role == ServerRole {
 		p.prefix, p.remotePrefix = "s:", "c:"
 	}
@@ -272,6 +284,9 @@ func (p *Peer) Call(ctx context.Context, method string, params, result any) erro
 		return err
 	}
 	id := p.prefix + strconv.FormatUint(p.next.Add(1), 10)
+	// One trace serves the request and the cancellation that may follow it: a
+	// cancel carries its request's members, not a sibling span of them.
+	trace := p.options.Propagator.Inject(ctx)
 	reply := make(chan pendingResult, 1)
 	p.mu.Lock()
 	if p.err != nil {
@@ -282,7 +297,8 @@ func (p *Peer) Call(ctx context.Context, method string, params, result any) erro
 	p.pending[id] = reply
 	p.mu.Unlock()
 	defer func() { p.mu.Lock(); delete(p.pending, id); p.mu.Unlock() }()
-	if err := p.enqueue(ctx, frame{Version: 1, Kind: "request", ID: id, Method: method, Params: data}); err != nil {
+	if err := p.enqueue(ctx, frame{Version: 1, Kind: "request", ID: id, Method: method, Params: data,
+		Traceparent: trace.Parent, Tracestate: trace.State}); err != nil {
 		return err
 	}
 	select {
@@ -298,7 +314,7 @@ func (p *Peer) Call(ctx context.Context, method string, params, result any) erro
 		}
 		return nil
 	case <-ctx.Done():
-		p.cancelRequest(id)
+		p.cancelRequest(id, trace)
 		return ctx.Err()
 	case <-p.done:
 		return p.Err()
@@ -307,8 +323,8 @@ func (p *Peer) Call(ctx context.Context, method string, params, result any) erro
 
 // Cancellation is best effort; a congested transport must not extend the
 // caller's already-expired deadline while waiting to send its cancellation.
-func (p *Peer) cancelRequest(id string) {
-	data, err := json.Marshal(frame{Version: 1, Kind: "cancel", ID: id})
+func (p *Peer) cancelRequest(id string, trace Trace) {
+	data, err := json.Marshal(frame{Version: 1, Kind: "cancel", ID: id, Traceparent: trace.Parent, Tracestate: trace.State})
 	if err != nil || int64(len(data)) > p.options.MaxFrameBytes {
 		return
 	}
@@ -333,7 +349,9 @@ func (p *Peer) Emit(ctx context.Context, event string, data any) error {
 	if err != nil {
 		return err
 	}
-	return p.enqueue(ctx, frame{Version: 1, Kind: "event", Event: event, Data: encoded})
+	trace := p.options.Propagator.Inject(ctx)
+	return p.enqueue(ctx, frame{Version: 1, Kind: "event", Event: event, Data: encoded,
+		Traceparent: trace.Parent, Tracestate: trace.State})
 }
 
 func (p *Peer) enqueue(ctx context.Context, f frame) error {
@@ -441,14 +459,14 @@ func (p *Peer) readLoop() {
 		case "request":
 			p.startRequest(f)
 		case "event":
-			if !p.enqueueEvent(Event{Name: f.Event, Data: f.Data}) {
+			if !p.enqueueEvent(queuedEvent{event: Event{Name: f.Event, Data: f.Data}, trace: Trace{Parent: f.Traceparent, State: f.Tracestate}}) {
 				return
 			}
 		}
 	}
 }
 
-func (p *Peer) enqueueEvent(event Event) bool {
+func (p *Peer) enqueueEvent(event queuedEvent) bool {
 	select {
 	case p.events <- event:
 		return true
@@ -509,17 +527,20 @@ func (p *Peer) startRequest(f frame) {
 	}
 	handler := p.handlers[f.Method]
 	p.mu.Unlock()
+	// A response carries its request's trace, whether a handler ran or not.
+	trace := Trace{Parent: f.Traceparent, State: f.Tracestate}
 	if handler == nil {
-		p.rejectRequest(f.ID, &PublicError{Code: "method_not_found", Message: "Unknown method"})
+		p.rejectRequest(f.ID, trace, &PublicError{Code: "method_not_found", Message: "Unknown method"})
 		return
 	}
 	select {
 	case p.slots <- struct{}{}:
 	default:
-		p.rejectRequest(f.ID, &PublicError{Code: "busy", Message: "Too many concurrent requests"})
+		p.rejectRequest(f.ID, trace, &PublicError{Code: "busy", Message: "Too many concurrent requests"})
 		return
 	}
-	ctx, cancel := context.WithTimeout(p.ctx, p.options.RequestTimeout)
+	// What the handler sends is a child of the request that ran it.
+	ctx, cancel := context.WithTimeout(p.options.Propagator.Extract(p.ctx, trace), p.options.RequestTimeout)
 	p.mu.Lock()
 	p.incoming[f.ID] = cancel
 	p.mu.Unlock()
@@ -529,7 +550,7 @@ func (p *Peer) startRequest(f frame) {
 		if err == nil && ctx.Err() != nil {
 			err = ctx.Err()
 		}
-		p.respond(f.ID, result, err)
+		p.respond(f.ID, trace, result, err)
 	}()
 }
 
@@ -537,8 +558,9 @@ func (p *Peer) startRequest(f frame) {
 // must never wait for outbound capacity: that could hold up a response needed by
 // an already active reverse call. A flood exhausting the rejection capacity
 // closes the overloaded connection after giving the writer a scheduling turn.
-func (p *Peer) rejectRequest(id string, public *PublicError) {
-	data, err := json.Marshal(frame{Version: 1, Kind: "response", ID: id, Error: public})
+func (p *Peer) rejectRequest(id string, trace Trace, public *PublicError) {
+	data, err := json.Marshal(frame{Version: 1, Kind: "response", ID: id, Error: public,
+		Traceparent: trace.Parent, Tracestate: trace.State})
 	if err != nil || int64(len(data)) > p.options.MaxFrameBytes {
 		p.fail(errors.New("duplex rejection exceeds frame limit"))
 		return
@@ -568,8 +590,8 @@ func invokeHandler(ctx context.Context, p *Peer, h Handler, data json.RawMessage
 	return h(ctx, p, data)
 }
 
-func (p *Peer) respond(id string, result any, err error) {
-	f := frame{Version: 1, Kind: "response", ID: id}
+func (p *Peer) respond(id string, trace Trace, result any, err error) {
+	f := frame{Version: 1, Kind: "response", ID: id, Traceparent: trace.Parent, Tracestate: trace.State}
 	if err != nil {
 		var public *PublicError
 		switch {
@@ -589,7 +611,8 @@ func (p *Peer) respond(id string, result any, err error) {
 	}
 	if err := p.enqueue(p.ctx, f); err != nil && p.ctx.Err() == nil {
 		// An oversized/unencodable result cannot leave the remote call hanging.
-		fallback := frame{Version: 1, Kind: "response", ID: id, Error: &PublicError{Code: "internal", Message: "Response could not be encoded"}}
+		fallback := frame{Version: 1, Kind: "response", ID: id, Error: &PublicError{Code: "internal", Message: "Response could not be encoded"},
+			Traceparent: trace.Parent, Tracestate: trace.State}
 		if retryErr := p.enqueue(p.ctx, fallback); retryErr != nil {
 			p.fail(retryErr)
 		}
@@ -601,7 +624,9 @@ func (p *Peer) eventLoop() {
 		select {
 		case <-p.done:
 			return
-		case event := <-p.events:
+		case queued := <-p.events:
+			event := queued.event
+			ctx := p.options.Propagator.Extract(p.ctx, queued.trace)
 			p.mu.Lock()
 			handler := p.eventHandlers[event.Name]
 			listeners := make([]func(context.Context, Event), 0, len(p.listeners))
@@ -616,10 +641,10 @@ func (p *Peer) eventLoop() {
 					}
 				}()
 				if handler != nil {
-					handler(p.ctx, p, event.Data)
+					handler(ctx, p, event.Data)
 				}
 				for _, listener := range listeners {
-					listener(p.ctx, event)
+					listener(ctx, event)
 				}
 			}()
 		}
