@@ -6,6 +6,17 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Fixed
+
+- An observer that gives up gives up alone in Go, as it already did in
+  TypeScript: `Observe` is called on whichever goroutine the traffic ran on —
+  the reader, a handler, a caller — and a panic there ended the connection and
+  the process with it, where the TypeScript peer had always caught a throw and
+  carried on. The Go peer now calls its observer from one place and recovers
+  there: that event is lost and nothing else is. The rule is written down for
+  both languages, in the `Observer` of each runtime and in
+  [docs/observability.md](docs/observability.md).
+
 ## 0.2.0
 
 The first published version. Everything below is in it.

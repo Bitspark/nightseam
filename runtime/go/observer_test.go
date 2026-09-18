@@ -521,3 +521,57 @@ func TestAPeerWithNoObserverRunsEveryHookPoint(t *testing.T) {
 	receive(t, peer.Done())
 	receive(t, remote.Done())
 }
+
+// panicking is the observer a consumer wrote badly: it gives up on every event
+// it is told, on whichever goroutine told it.
+type panicking struct{}
+
+func (panicking) Observe(ws.ObserverEvent) { panic("the observer gave up") }
+
+// A panicking observer panics alone. Observe runs on the goroutine the traffic
+// did — the reader, a handler, a caller, none of them the consumer's — so the
+// peer recovers it where it happened, loses that event and carries on: a call
+// answers, a handler that gave up answers with an error rather than twice, an
+// event reaches its listener, a layer reaches the same guard through the
+// peer's own Observe, and the connection ends when this side says so and not
+// when a diagnostic did. It is the twin of the TypeScript suite's "an observer
+// that throws interrupts no routing".
+func TestAPanickingObserverInterruptsNoRouting(t *testing.T) {
+	delivered := make(chan struct{})
+	client, remote := newPair(t, ws.Options{
+		Observer: panicking{},
+		Handlers: map[string]ws.Handler{
+			"ping": func(context.Context, *ws.Peer, json.RawMessage) (any, error) { return "pong", nil },
+			"boom": func(context.Context, *ws.Peer, json.RawMessage) (any, error) { panic("the handler gave up") },
+		},
+		Events: map[string]ws.EventHandler{
+			"tick": func(context.Context, *ws.Peer, json.RawMessage) { close(delivered) },
+		},
+	}, ws.Options{Observer: panicking{}})
+
+	var answer string
+	if err := client.Call(context.Background(), "ping", nil, &answer); err != nil || answer != "pong" {
+		t.Fatalf("ping = %q, error=%v", answer, err)
+	}
+	if err := client.Call(context.Background(), "boom", nil, nil); err == nil {
+		t.Fatal("a panicking handler answered without an error")
+	}
+	if err := client.Emit(context.Background(), "tick", 1); err != nil {
+		t.Fatal(err)
+	}
+	receive(t, delivered)
+
+	// What a layer emits takes the same path a tunnel and a session take.
+	client.Observe(ws.Backpressure{At: time.Now(), Queued: 1})
+	remote.Observe(ws.Backpressure{At: time.Now(), Queued: 1})
+
+	if err := client.Call(context.Background(), "ping", nil, &answer); err != nil || answer != "pong" {
+		t.Fatalf("a call after a panicking observer = %q, error=%v", answer, err)
+	}
+	if client.Err() != nil || remote.Err() != nil {
+		t.Fatalf("a panicking observer ended a connection: client=%v remote=%v", client.Err(), remote.Err())
+	}
+	_ = client.Close()
+	receive(t, client.Done())
+	receive(t, remote.Done())
+}

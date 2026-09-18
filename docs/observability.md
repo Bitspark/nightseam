@@ -17,6 +17,12 @@ What holds of every event, at every layer:
   putting a sentinel in every payload a peer carries and finding it in
   nothing any event renders.
 - **An absent observer is guarded at every call site and costs nothing.**
+- **An observer that gives up gives up alone.** It is called on whichever
+  goroutine or task the traffic ran on — the reader, a handler, a caller —
+  none of them the consumer's to catch on, so a panic in Go and a throw in
+  TypeScript are contained where they happen: that event is lost and nothing
+  else is, the connection carries on, and the peer reports the failure
+  nowhere, having no logger of its own to report it to.
 - **An event that concerns a frame carries that frame's trace and the family
   of the name it concerns**; a connection, a channel or a backpressure event
   concerns no frame and carries neither, stated rather than left null.

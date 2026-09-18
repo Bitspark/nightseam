@@ -41,7 +41,11 @@ export interface ObserverEvents {
  */
 export type ObserverEvent = ObserverEvents[keyof ObserverEvents];
 
-/** One interface, one method; whatever runs over a peer inherits the one it was given. */
+/**
+ * One interface, one method; whatever runs over a peer inherits the one it was
+ * given. An observer that throws throws alone: the peer catches it, loses that
+ * event and carries on, a diagnostic being no reason for a connection to end.
+ */
 export interface Observer { observe(event: ObserverEvent): void }
 
 /** The default. A peer given none observes nothing and pays for nothing. */

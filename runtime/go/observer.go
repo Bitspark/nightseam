@@ -18,7 +18,9 @@ import (
 // Observe is called on whichever goroutine the event happened on — the
 // reader, a handler, a caller — and so from several at once: an observer that
 // keeps anything keeps it under a lock of its own, and one that blocks holds
-// up the connection it is watching.
+// up the connection it is watching. One that panics panics alone: the peer
+// recovers it, loses that event and carries on, a diagnostic being no reason
+// for a connection to end on a goroutine the consumer does not own.
 type Observer interface{ Observe(event ObserverEvent) }
 
 // ObserverEvent is one thing a peer did, or one thing a layer running over a
@@ -208,6 +210,22 @@ func (p *Peer) Observe(event ObserverEvent) {
 	if p.options.Observer == nil {
 		return
 	}
+	p.emit(event)
+}
+
+// emit is the one place an observer is called from, and the panic it may
+// raise ends here rather than where the event happened: Observe runs on
+// whichever goroutine the traffic did — the reader, a handler, a caller —
+// none of which the consumer owns, and an observer that gave up there would
+// take the connection with it, which is a diagnostic deciding whether a peer
+// carries traffic. The event is lost and nothing else is: an observer emits
+// and never aggregates, so a peer has no state of its own to repair on one's
+// behalf and nothing to tell it about the loss that would not go the same
+// way. A panicking observer is a bug in the observer, and nothing here reports
+// it: a peer that logged one would be choosing the backend it says it chooses
+// none of.
+func (p *Peer) emit(event ObserverEvent) {
+	defer func() { _ = recover() }()
 	p.options.Observer.Observe(event)
 }
 
@@ -233,7 +251,7 @@ func (p *Peer) observeOpened(role Role) {
 	if p.options.Observer == nil {
 		return
 	}
-	p.options.Observer.Observe(ConnectionOpened{At: time.Now(), Role: role})
+	p.emit(ConnectionOpened{At: time.Now(), Role: role})
 }
 
 // observeClosed says what ended the connection. The peer aborts rather than
@@ -251,7 +269,7 @@ func (p *Peer) observeClosed(err error) {
 	case errors.Is(err, ErrClosed):
 		closed.Code, closed.Reason = int(duplex.CodeNormal), ""
 	}
-	p.options.Observer.Observe(closed)
+	p.emit(closed)
 }
 
 func (p *Peer) observeSent(f frame, bytes int) {
@@ -259,7 +277,7 @@ func (p *Peer) observeSent(f frame, bytes int) {
 		return
 	}
 	name := f.named()
-	p.options.Observer.Observe(FrameSent{At: time.Now(), Kind: f.Kind, Name: name, Bytes: bytes,
+	p.emit(FrameSent{At: time.Now(), Kind: f.Kind, Name: name, Bytes: bytes,
 		ID: f.ID, Trace: f.traced(), Family: p.family(name)})
 }
 
@@ -268,7 +286,7 @@ func (p *Peer) observeReceived(f frame, bytes int) {
 		return
 	}
 	name := f.named()
-	p.options.Observer.Observe(FrameReceived{At: time.Now(), Kind: f.Kind, Name: name, Bytes: bytes,
+	p.emit(FrameReceived{At: time.Now(), Kind: f.Kind, Name: name, Bytes: bytes,
 		ID: f.ID, Trace: f.traced(), Family: p.family(name)})
 }
 
@@ -279,7 +297,7 @@ func (p *Peer) requestStarted(id, method string, incoming bool, trace Trace) tim
 		return time.Time{}
 	}
 	at := time.Now()
-	p.options.Observer.Observe(RequestStarted{At: at, ID: id, Method: method, Incoming: incoming,
+	p.emit(RequestStarted{At: at, ID: id, Method: method, Incoming: incoming,
 		Trace: trace, Family: p.family(method)})
 	return at
 }
@@ -290,7 +308,7 @@ func (p *Peer) requestEnded(started time.Time, id, method string, incoming bool,
 	}
 	at := time.Now()
 	outcome, code := outcomeOf(err)
-	p.options.Observer.Observe(RequestEnded{At: at, ID: id, Method: method, Incoming: incoming,
+	p.emit(RequestEnded{At: at, ID: id, Method: method, Incoming: incoming,
 		Duration: at.Sub(started), Outcome: outcome, ErrorCode: code, Trace: trace, Family: p.family(method)})
 }
 
@@ -298,7 +316,7 @@ func (p *Peer) observeEmitted(f frame) {
 	if p.options.Observer == nil {
 		return
 	}
-	p.options.Observer.Observe(EventEmitted{At: time.Now(), Name: f.Event, Bytes: len(f.Data),
+	p.emit(EventEmitted{At: time.Now(), Name: f.Event, Bytes: len(f.Data),
 		Trace: f.traced(), Family: p.family(f.Event)})
 }
 
@@ -306,7 +324,7 @@ func (p *Peer) observeDelivered(queued queuedEvent) {
 	if p.options.Observer == nil {
 		return
 	}
-	p.options.Observer.Observe(EventDelivered{At: time.Now(), Name: queued.event.Name, Bytes: len(queued.event.Data),
+	p.emit(EventDelivered{At: time.Now(), Name: queued.event.Name, Bytes: len(queued.event.Data),
 		Trace: queued.trace, Family: p.family(queued.event.Name)})
 }
 
@@ -314,13 +332,13 @@ func (p *Peer) observeBackpressure(queued int, stalled bool, deadline time.Durat
 	if p.options.Observer == nil {
 		return
 	}
-	p.options.Observer.Observe(Backpressure{At: time.Now(), Queued: queued, Stalled: stalled, Deadline: deadline})
+	p.emit(Backpressure{At: time.Now(), Queued: queued, Stalled: stalled, Deadline: deadline})
 }
 
 func (p *Peer) observePanic(f frame, value any) {
 	if p.options.Observer == nil {
 		return
 	}
-	p.options.Observer.Observe(HandlerPanic{At: time.Now(), Method: f.Method, Value: fmt.Sprint(value),
+	p.emit(HandlerPanic{At: time.Now(), Method: f.Method, Value: fmt.Sprint(value),
 		Trace: f.traced(), Family: p.family(f.Method)})
 }
