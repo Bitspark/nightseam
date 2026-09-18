@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -257,5 +258,33 @@ func TestExpressions(t *testing.T) {
 	}
 	if !reflect.DeepEqual(sites, want) {
 		t.Fatalf("visited:\n%s", strings.Join(sites, "\n"))
+	}
+}
+
+// TestInjectedTypes: the types every family with a protocol carries are the
+// two it may not declare, the envelope spelling one nightseam.duplex/1
+// message field for field — the trace context it carries among them,
+// optional strings like any other — and the handle a channel reference.
+func TestInjectedTypes(t *testing.T) {
+	injected := Injected()
+	if len(injected) != 2 || !IsInjected(EnvelopeType) || !IsInjected(HandleType) || IsInjected("Payload") {
+		t.Fatalf("the injected types are %v", injected)
+	}
+	var names []string
+	for _, field := range injected[EnvelopeType].Fields {
+		names = append(names, field.Name)
+	}
+	want := []string{"version", "kind", "id", "method", "params", "result", "error", "event", "data", "traceparent", "tracestate"}
+	if !reflect.DeepEqual(names, want) {
+		t.Fatalf("the envelope's fields are %v", names)
+	}
+	for _, name := range []string{"traceparent", "tracestate"} {
+		field := injected[EnvelopeType].Fields[slices.Index(names, name)]
+		if field.Required || !Equal(field.Type, Primitive("string")) {
+			t.Errorf("%s is %+v, not an optional string", name, field)
+		}
+	}
+	if fields := injected[HandleType].Fields; len(fields) != 1 || fields[0].Name != "channel" {
+		t.Fatalf("the handle's fields are %v", fields)
 	}
 }

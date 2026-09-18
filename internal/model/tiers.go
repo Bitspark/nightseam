@@ -77,8 +77,10 @@ const SessionRole = "session"
 // the protocol tier. An envelope is one nightseam.duplex/1 message: version
 // and kind, the id that correlates a response or a cancel with its request,
 // the method a request names and its params, a response's result or error,
-// the event an event frame names and its data. A handle is a reference to a
-// channel on the carrying connection.
+// the event an event frame names and its data, and the W3C Trace Context
+// the frame carries — traceparent and tracestate, verbatim, so that a slot
+// of a family's envelope accepts what the runtimes now propagate. A handle
+// is a reference to a channel on the carrying connection.
 func Injected() map[string]*Type {
 	at := func(string) diag.Location { return diag.Location{File: ProtocolFile} }
 	field := func(name, primitive string, required bool) Field {
@@ -89,6 +91,7 @@ func Injected() map[string]*Type {
 			field("version", "integer", true), field("kind", "string", true), field("id", "string", false),
 			field("method", "string", false), field("params", "json", false), field("result", "json", false),
 			field("error", "json", false), field("event", "string", false), field("data", "json", false),
+			field("traceparent", "string", false), field("tracestate", "string", false),
 		}},
 		HandleType: {Name: HandleType, Kind: KindRecord, At: at(HandleType), Fields: []Field{field("channel", "integer", true)}},
 	}
