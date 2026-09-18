@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -311,10 +312,10 @@ func Run(t *testing.T, connect Connect) {
 		}
 	})
 
-	t.Run("every domain change of a session reaches OnChange, in order", func(t *testing.T) {
-		// One session from bound to unbound, every change it makes read in
+	t.Run("every domain change of a session reaches OnChange, in the order the registry made them", func(t *testing.T) {
+		// One session from bound to unbound, every change it made read in
 		// the order it made them: the scenarios above, in one run, with the
-		// hook the consumer's own events are computed from watching.
+		// hook a consumer's own events are computed from watching.
 		registry := session.New(session.Options{})
 		changes := watching(t, registry, "s")
 		near, far := connect(t)
@@ -324,7 +325,7 @@ func Run(t *testing.T, connect Connect) {
 		machine := &speaker{name: "machine", channel: far}
 		changes.expect(t, expected{kind: session.ChangeBound})
 
-		// Two consumers, each attached from the beginning of a log that has
+		// Two consumers, each resuming from the beginning of a log that has
 		// nothing in it yet.
 		holder, one := attach(t, registry, "s", "one", session.Participant, 0)
 		changes.expect(t, expected{kind: session.ChangeAttached, origin: "one"})
@@ -348,12 +349,12 @@ func Run(t *testing.T, connect Connect) {
 		// never saw it, so the log did not either.
 		two.send(t, `{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":"t","count":1}}`)
 		two.take(t)
-		changes.expect(t, expected{kind: session.ChangeRefused, origin: "two", method: "echo", sequence: 3})
+		changes.expect(t, expected{kind: session.ChangeRefused, origin: "two", method: "echo"})
 
 		if err := registry.Control("s", holder); err != nil {
 			t.Fatal(err)
 		}
-		changes.expect(t, expected{kind: session.ChangeControlChanged, origin: "one", sequence: 3})
+		changes.expect(t, expected{kind: session.ChangeControlChanged, origin: "one"})
 
 		// A deciding frame of the holder's, with a trace the relay knows
 		// nothing of and tells whoever is watching about.
@@ -364,50 +365,67 @@ func Run(t *testing.T, connect Connect) {
 		one.take(t)
 		changes.expect(t, expected{kind: session.ChangeFrameAppended, sequence: 5})
 
-		// An ask: the frame, the ask it raises, and the holder it reaches.
-		one.send(t, `{"version":1,"kind":"request","id":"c:2","method":"unasked","params":{}}`)
+		// A request the machine opens that the family does not ask is raised
+		// and routed like any other: what Asks selects is what Attention
+		// names, and the holder is left standing with this one all the same.
+		machine.send(t, `{"version":1,"kind":"request","id":"s:0","method":"unasked","params":{}}`)
+		one.take(t)
+		changes.expect(t, expected{kind: session.ChangeFrameAppended, method: "unasked", sequence: 6})
+		changes.expect(t, expected{kind: session.ChangeAskRaised, method: "unasked"})
+		changes.expect(t, expected{kind: session.ChangeAskRouted, origin: "one", method: "unasked"})
+		one.send(t, `{"version":1,"kind":"response","id":"s:0","result":"done"}`)
 		machine.take(t)
-		changes.expect(t, expected{kind: session.ChangeFrameAppended, origin: "one", method: "unasked", sequence: 6})
+		changes.expect(t, expected{kind: session.ChangeAskAnswered, origin: "one", method: "unasked"})
+		changes.expect(t, expected{kind: session.ChangeFrameAppended, origin: "one", sequence: 7})
+
+		// And one the family does ask, which the transfer below carries.
 		machine.send(t, fmt.Sprintf(`{"version":1,"kind":"request","id":"s:1","method":"reverse","traceparent":%q,"params":{"text":"t","count":1}}`, askTrace))
 		one.take(t)
-		changes.expect(t, expected{kind: session.ChangeFrameAppended, method: "reverse", sequence: 7, trace: askTrace})
-		changes.expect(t, expected{kind: session.ChangeAskRaised, method: "reverse", sequence: 7, trace: askTrace})
-		changes.expect(t, expected{kind: session.ChangeAskRouted, origin: "one", method: "reverse", sequence: 7, trace: askTrace})
+		changes.expect(t, expected{kind: session.ChangeFrameAppended, method: "reverse", sequence: 8, trace: askTrace})
+		changes.expect(t, expected{kind: session.ChangeAskRaised, method: "reverse", trace: askTrace})
+		changes.expect(t, expected{kind: session.ChangeAskRouted, origin: "one", method: "reverse", trace: askTrace})
 
-		// A consumer resuming from nothing takes the seven frames from the
-		// log, which is no change of the session's: a replay is what a
-		// consumer is told, not what happened.
+		// A consumer resuming from nothing takes the eight frames from the
+		// log, which is no change of the session's: a replay is what one
+		// consumer is told, not something that happened to the session.
 		next, three := attach(t, registry, "s", "three", session.Participant, 0)
-		changes.expect(t, expected{kind: session.ChangeAttached, origin: "three", sequence: 7})
-		for i := 0; i < 7; i++ {
+		changes.expect(t, expected{kind: session.ChangeAttached, origin: "three"})
+		for i := 0; i < 8; i++ {
 			three.take(t)
 		}
 
-		// Control moving carries the open ask with it, and both are changes.
+		// Control moving asks the open request afresh of whoever holds it
+		// now, and both are changes.
 		if err := registry.Control("s", next); err != nil {
 			t.Fatal(err)
 		}
-		changes.expect(t, expected{kind: session.ChangeControlChanged, origin: "three", sequence: 7})
+		changes.expect(t, expected{kind: session.ChangeControlChanged, origin: "three"})
 		three.take(t)
-		changes.expect(t, expected{kind: session.ChangeAskRouted, origin: "three", method: "reverse", sequence: 7, trace: askTrace})
+		changes.expect(t, expected{kind: session.ChangeAskRouted, origin: "three", method: "reverse", trace: askTrace})
 
-		// The answer is a frame and the end of the ask, under the method the
-		// ask named and the trace the answer carried.
+		// The answer closes the request under the method it was opened with,
+		// carrying the trace the answer itself came with, before the frame
+		// it answers with reaches the log.
 		three.send(t, fmt.Sprintf(`{"version":1,"kind":"response","id":"s:1","traceparent":%q,"result":{"text":"t","count":1}}`, answerTrace))
 		machine.take(t)
-		changes.expect(t, expected{kind: session.ChangeFrameAppended, origin: "three", sequence: 8, trace: answerTrace})
-		changes.expect(t, expected{kind: session.ChangeAskAnswered, origin: "three", method: "reverse", sequence: 8, trace: answerTrace})
+		changes.expect(t, expected{kind: session.ChangeAskAnswered, origin: "three", method: "reverse", trace: answerTrace})
+		changes.expect(t, expected{kind: session.ChangeFrameAppended, origin: "three", sequence: 9, trace: answerTrace})
 
-		// A consumer leaving, and then the machine's channel taking the rest
-		// of them with it.
+		// A consumer that leaves holding nothing leaves one change behind,
+		// and one that leaves holding control leaves the change releasing it
+		// by hand would have made first.
 		holder.Detach()
-		changes.expect(t, expected{kind: session.ChangeDetached, origin: "one", sequence: 8})
+		changes.expect(t, expected{kind: session.ChangeDetached, origin: "one"})
+		next.Detach()
+		changes.expect(t, expected{kind: session.ChangeControlChanged})
+		changes.expect(t, expected{kind: session.ChangeDetached, origin: "three"})
+
+		// The machine's channel ending is the whole of what it says: the
+		// consumer still attached goes with the session rather than
+		// detaching from it first.
 		machine.close(t, duplex.CodePolicyViolation, "the machine went away")
 		two.ended(t)
-		three.ended(t)
-		changes.expect(t, expected{kind: session.ChangeDetached, origin: "two", sequence: 8})
-		changes.expect(t, expected{kind: session.ChangeDetached, origin: "three", sequence: 8})
-		changes.expect(t, expected{kind: session.ChangeUnbound, sequence: 8})
+		changes.expect(t, expected{kind: session.ChangeUnbound})
 		changes.quiet(t)
 	})
 
@@ -443,12 +461,25 @@ func Run(t *testing.T, connect Connect) {
 		watcher.send(t, fmt.Sprintf(`{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":%q,"count":1}}`, sentinel))
 		watcher.take(t)
 
+		// What a change says is the members it declares, so a message
+		// cannot arrive under a name the sentinel was not looked for under.
+		members := []string{"At", "Session", "Kind", "Attachment", "Sequence", "Method", "Trace"}
+		declared := reflect.TypeOf(session.Change{})
+		if declared.NumField() != len(members) {
+			t.Fatalf("a change declares %d members, not the %d the sentinel is looked for under", declared.NumField(), len(members))
+		}
+		for i, name := range members {
+			if declared.Field(i).Name != name {
+				t.Fatalf("a change's member %d is %s, not %s", i, declared.Field(i).Name, name)
+			}
+		}
 		told := changes.all(t)
 		if len(told) < 10 {
 			t.Fatalf("the session told %d changes, which is not the scenario", len(told))
 		}
 		for _, change := range told {
-			rendered := fmt.Sprintf("%+v %s %s %s %s", change, change.Kind, change.Session, change.Method, change.Trace.Parent)
+			rendered := fmt.Sprintf("%+v %s %s %s %s %s", change, change.Kind, change.Session, change.Method,
+				change.Trace.Parent, change.Trace.State)
 			if change.Attachment != nil {
 				rendered += " " + change.Attachment.Origin + " " + change.Attachment.Role.String()
 			}
@@ -456,6 +487,38 @@ func Run(t *testing.T, connect Connect) {
 				t.Fatalf("a %s change carried what was in the frame: %s", change.Kind, rendered)
 			}
 		}
+	})
+
+	t.Run("a request beyond what a session may have open is refused, and the refusal is a change like any other", func(t *testing.T) {
+		registry := session.New(session.Options{MaxInflight: 1})
+		changes := watching(t, registry, "s")
+		near, far := connect(t)
+		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
+			t.Fatal(err)
+		}
+		machine := &speaker{name: "machine", channel: far}
+		holder, one := attach(t, registry, "s", "one", session.Participant, 0)
+		if err := registry.Control("s", holder); err != nil {
+			t.Fatal(err)
+		}
+		one.send(t, `{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":"t","count":1}}`)
+		machine.take(t)
+		one.send(t, `{"version":1,"kind":"request","id":"c:2","method":"echo","params":{"text":"t","count":1}}`)
+		refused := one.take(t)
+		var public struct{ Code string }
+		if err := json.Unmarshal(refused.member["error"], &public); err != nil {
+			t.Fatal(err)
+		}
+		if public.Code != session.ErrorBusy {
+			t.Fatalf("a request beyond the session's own was refused with %q", public.Code)
+		}
+		machine.quiet(t)
+		changes.expect(t, expected{kind: session.ChangeBound})
+		changes.expect(t, expected{kind: session.ChangeAttached, origin: "one"})
+		changes.expect(t, expected{kind: session.ChangeControlChanged, origin: "one"})
+		changes.expect(t, expected{kind: session.ChangeFrameAppended, origin: "one", method: "echo", sequence: 1})
+		changes.expect(t, expected{kind: session.ChangeRefused, origin: "one", method: "echo"})
+		changes.quiet(t)
 	})
 
 	t.Run("stopping a registration stops it and no other", func(t *testing.T) {

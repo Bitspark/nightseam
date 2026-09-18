@@ -81,9 +81,10 @@ type Change struct {
 	// control or was refused — and nil where the change is the machine's or
 	// the session's own.
 	Attachment *Attachment
-	// Sequence is where the session's log stood: the frame's own sequence
-	// for ChangeFrameAppended, and the last sequence appended for every
-	// other kind.
+	// Sequence is the sequence the log gave the frame, for
+	// ChangeFrameAppended; the sequence the consumer resumed from, for
+	// ChangeAttached; and zero for every other kind, which concerns no
+	// place in the log.
 	Sequence int64
 	// Method is what the frame the change concerns names — a request's
 	// method, an event's name — and "" where it names nothing or where no
@@ -171,14 +172,6 @@ func (r *relay) changed(change Change) {
 // watched reports whether anything is listening at all.
 func (r *relay) watched() bool { return r.registry.watching() }
 
-// at is the last sequence the session's log gave out, which every change
-// that is not a frame's own stands at.
-func (r *relay) at() int64 {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.sequence
-}
-
 func (r *relay) sessionBound() {
 	if !r.watched() {
 		return
@@ -186,27 +179,29 @@ func (r *relay) sessionBound() {
 	r.changed(Change{At: time.Now().UTC(), Kind: ChangeBound})
 }
 
+// sessionUnbound is the whole of what a session ending says: the consumers
+// it carried go with it rather than detaching one by one.
 func (r *relay) sessionUnbound() {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeUnbound, Sequence: r.at()})
+	r.changed(Change{At: time.Now().UTC(), Kind: ChangeUnbound})
 }
 
-// sessionAttached says where the consumer resumed from and where the session
-// stood when it was added — the two ends of the replay it was given.
-func (r *relay) sessionAttached(a *Attachment, ceiling int64) {
+// sessionAttached says where the consumer resumed from, which is the one
+// fact about it the attachment itself does not carry.
+func (r *relay) sessionAttached(a *Attachment, after int64) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeAttached, Attachment: a, Sequence: ceiling})
+	r.changed(Change{At: time.Now().UTC(), Kind: ChangeAttached, Attachment: a, Sequence: after})
 }
 
 func (r *relay) sessionDetached(a *Attachment) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeDetached, Attachment: a, Sequence: r.at()})
+	r.changed(Change{At: time.Now().UTC(), Kind: ChangeDetached, Attachment: a})
 }
 
 // frameAppended is one frame of the session's conversation taking its place
@@ -220,41 +215,43 @@ func (r *relay) frameAppended(sequence int64, from *Attachment, m *message) {
 		Sequence: sequence, Method: m.named(), Trace: m.trace()})
 }
 
-func (r *relay) askRaised(sequence int64, m *message) {
+// askRaised is every request the machine opens, whether or not the family's
+// Asks counts it: what Asks selects is what Attention names, and a request
+// the holder is left standing with is raised either way.
+func (r *relay) askRaised(m *message) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeAskRaised, Sequence: sequence,
-		Method: m.method(), Trace: m.trace()})
+	r.changed(Change{At: time.Now().UTC(), Kind: ChangeAskRaised, Method: m.method(), Trace: m.trace()})
 }
 
-func (r *relay) askRouted(sequence int64, a *Attachment, method string, trace runtime.Trace) {
+func (r *relay) askRouted(a *Attachment, method string, trace runtime.Trace) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeAskRouted, Attachment: a, Sequence: sequence,
-		Method: method, Trace: trace})
+	r.changed(Change{At: time.Now().UTC(), Kind: ChangeAskRouted, Attachment: a, Method: method, Trace: trace})
 }
 
-func (r *relay) askAnswered(sequence int64, a *Attachment, method string, trace runtime.Trace) {
+// askAnswered names the method the request it closes was opened under, and
+// carries the trace of the answer that closed it.
+func (r *relay) askAnswered(a *Attachment, method string, trace runtime.Trace) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeAskAnswered, Attachment: a, Sequence: sequence,
-		Method: method, Trace: trace})
+	r.changed(Change{At: time.Now().UTC(), Kind: ChangeAskAnswered, Attachment: a, Method: method, Trace: trace})
 }
 
 func (r *relay) controlChanged(holder *Attachment) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeControlChanged, Attachment: holder, Sequence: r.at()})
+	r.changed(Change{At: time.Now().UTC(), Kind: ChangeControlChanged, Attachment: holder})
 }
 
 func (r *relay) refused(a *Attachment, code string, m *message) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeRefused, Attachment: a, Sequence: r.at(),
+	r.changed(Change{At: time.Now().UTC(), Kind: ChangeRefused, Attachment: a,
 		Method: m.method(), Trace: m.trace()})
 }
