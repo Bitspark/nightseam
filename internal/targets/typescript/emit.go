@@ -349,9 +349,9 @@ func emitClient(f *file) {
 			}
 		})
 		f.line("/** Connects to a WebSocket endpoint and speaks the family over it. */")
-		f.linef("static async dial%s(url: string, %soptions: PeerOptions = {}, handler?: %s%s): Promise<%s%s> { const peer = new DuplexPeer(options); const client = new %s%s(peer, %shandler); await peer.connect(url); return client; }", decl, binding, identHandler, args, identClient, args, identClient, args, pass)
+		f.linef("static async dial%s(url: string, %soptions: PeerOptions = {}, handler?: %s%s): Promise<%s%s> { const peer = new DuplexPeer(%s); const client = new %s%s(peer, %shandler); await peer.connect(url); return client; }", decl, binding, identHandler, args, identClient, args, labelled(fam), identClient, args, pass)
 		f.line("/** Speaks the family over a connection of the seam — a tunnel channel, a pipe, an open socket — as the client side of it. */")
-		f.linef("static async attach%s(connection: FrameConnection, %soptions: PeerOptions = {}, handler?: %s%s): Promise<%s%s> { const peer = new DuplexPeer(options); const client = new %s%s(peer, %shandler); await peer.attach(connection); return client; }", decl, binding, identHandler, args, identClient, args, identClient, args, pass)
+		f.linef("static async attach%s(connection: FrameConnection, %soptions: PeerOptions = {}, handler?: %s%s): Promise<%s%s> { const peer = new DuplexPeer(%s); const client = new %s%s(peer, %shandler); await peer.attach(connection); return client; }", decl, binding, identHandler, args, identClient, args, labelled(fam), identClient, args, pass)
 		f.line("/** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */")
 		f.linef("static async open%s(tunnel: Tunnel, handle: %sHandle, %soptions: PeerOptions = {}, handler?: %s%s): Promise<%s%s> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return %s.attach%s(channel, %soptions, handler); }", decl, f.prefix, binding, identHandler, args, identClient, args, identClient, args, pass)
 		f.linef("%s(): void { this.%s.close(); }", identClose, identPeer)
@@ -373,6 +373,40 @@ func emitClient(f *file) {
 			f.linef("%s%s(handler: (data: %s) => void | Promise<void>): () => void { return this.%s.onEvent(%s, (data) => { try { %s(%s, data%s); } catch(error) { this.%s.close(); throw error; } return handler(data as %s); }); }", identOn, upperFirst(p.operations[e.Name]), data, identPeer, quote(e.Name), identValidateWire, expression(e.Type), slots, identPeer, data)
 		}
 	})
+}
+
+// labelled is the options a peer of the family is made with: the caller's,
+// carrying the family label of every method and event of the family — both
+// sides, whichever side this peer is — beside whatever the caller labelled.
+// An observer then says which family a name belongs to without parsing it.
+// It is spelled where the peer is made, so that nothing of it is declared
+// at the module and a family may name what it likes. open makes no peer of
+// its own; it resolves the handle and attaches.
+func labelled(fam *render.Family) string {
+	labels := []string{"...options.families"}
+	for _, name := range operations(fam) {
+		labels = append(labels, quote(name)+": "+quote(fam.Name))
+	}
+	return "{ ...options, families: { " + strings.Join(labels, ", ") + " } }"
+}
+
+// operations is every method and event name a family declares, each side's
+// methods before each side's events, in the order the sides hold them.
+func operations(fam *render.Family) []string {
+	names := make([]string, 0, len(fam.Server.Methods)+len(fam.Client.Methods)+len(fam.Server.Events)+len(fam.Client.Events))
+	for _, m := range fam.Server.Methods {
+		names = append(names, m.Name)
+	}
+	for _, m := range fam.Client.Methods {
+		names = append(names, m.Name)
+	}
+	for _, e := range fam.Server.Events {
+		names = append(names, e.Name)
+	}
+	for _, e := range fam.Client.Events {
+		names = append(names, e.Name)
+	}
+	return names
 }
 
 // parameters is a method's signature: its params, when it takes any, and

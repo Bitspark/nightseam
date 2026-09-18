@@ -32,9 +32,9 @@ func emitBinding(f *file) {
 		f.caller(m, identRemote+args)
 	}
 	// install registers the family's methods on the options a peer is made
-	// with, beside whatever the caller registered; NewHandler and Serve
-	// share it.
-	f.linef("// %s registers the family's methods on the options a peer is made with.", identInstall)
+	// with, beside whatever the caller registered, and labels every name of
+	// the family with it; NewHandler and Serve share it.
+	f.linef("// %s registers the family's methods on the options a peer is made with and labels its names with the family.", identInstall)
 	f.w.Block(fmt.Sprintf("func %s%s(handler %s%s, options *%s.Options) error {", identInstall, decl, identHandler, args, runtime), "}", func() {
 		f.linef("if handler == nil { return %s.Errorf(\"handler is required\") }", f.std("fmt"))
 		f.linef("handlers := map[string]%s.Handler{}", runtime)
@@ -43,6 +43,7 @@ func emitBinding(f *file) {
 			f.registration(m, "handler", "&"+identRemote+args+"{"+identPeer+": peer}")
 		}
 		f.line("options.Handlers = handlers")
+		f.labels()
 		f.line("return nil")
 	})
 	f.linef("// %s serves the family at a WebSocket endpoint; it requires explicit authentication and origin policy through options.", identNewHandler)
@@ -94,8 +95,9 @@ func emitClient(f *file) {
 		}
 	}
 	// install registers the reverse-call handlers on the options a peer is
-	// made with; Dial and Attach share it.
-	f.linef("// %s registers the reverse-call handlers on the options a peer is made with.", identInstall)
+	// made with and labels every name of the family with it; Dial and Attach
+	// share it.
+	f.linef("// %s registers the reverse-call handlers on the options a peer is made with and labels its names with the family.", identInstall)
 	f.w.Block(fmt.Sprintf("func %s%s(handler %s%s, options *%s.Options) error {", identInstall, decl, identHandler, args, runtime), "}", func() {
 		if len(fam.Client.Methods) > 0 {
 			f.linef("if handler == nil { return %s.Errorf(\"reverse-call handler is required\") }", f.std("fmt"))
@@ -106,6 +108,7 @@ func emitClient(f *file) {
 			f.registration(m, "handler", "&"+identClient+args+"{"+identPeer+": peer}")
 		}
 		f.line("options.Handlers = handlers")
+		f.labels()
 		f.line("return nil")
 	})
 	f.linef("// %s connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.", identDial)
@@ -168,6 +171,39 @@ func (f *file) registration(m render.Method, handler, remote string) {
 		f.linef("if err = %s%s(%s%s(%s), result); err != nil { return nil, err }", f.proto(), identValidateValue, f.proto(), identTypeExpression, expression(m.Result))
 		f.line("return result, nil")
 	})
+}
+
+// labels renders, into install, the family label of every method and event
+// of the family — both sides, whichever side this peer is — merged onto the
+// options beside whatever the caller labelled, as the handlers above it are
+// merged. An observer then says which family a name belongs to without
+// parsing it.
+func (f *file) labels() {
+	f.linef("%s := map[string]string{}", identFamilies)
+	f.linef("for name, existing := range options.Families { %s[name] = existing }", identFamilies)
+	for _, name := range operations(f.family) {
+		f.linef("%s[%q] = %q", identFamilies, name, f.family.Name)
+	}
+	f.linef("options.Families = %s", identFamilies)
+}
+
+// operations is every method and event name a family declares, each side's
+// methods before each side's events, in the order the sides hold them.
+func operations(fam *render.Family) []string {
+	names := make([]string, 0, len(fam.Server.Methods)+len(fam.Client.Methods)+len(fam.Server.Events)+len(fam.Client.Events))
+	for _, m := range fam.Server.Methods {
+		names = append(names, m.Name)
+	}
+	for _, m := range fam.Client.Methods {
+		names = append(names, m.Name)
+	}
+	for _, e := range fam.Server.Events {
+		names = append(names, e.Name)
+	}
+	for _, e := range fam.Client.Events {
+		names = append(names, e.Name)
+	}
+	return names
 }
 
 // caller renders the typed call of one method a peer sends: validate the

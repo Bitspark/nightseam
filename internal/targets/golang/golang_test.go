@@ -160,6 +160,43 @@ func TestRenderPlacesAndFormats(t *testing.T) {
 	}
 }
 
+// bothSides is a family with a method and an event on each side, which is
+// what a label map must cover: a peer observes the names it sends as well
+// as the names it receives.
+func bothSides() *render.Family {
+	return family(map[string]string{
+		"model.json":    fixtureModel,
+		"protocol.json": modeltest.Protocol(`"server": {"methods": {"run": {"request": "Input", "result": "Result"}}, "events": {"changed": {"type": "Result"}}}, "client": {"methods": {"back": {"result": "Result"}}, "events": {"noticed": {"type": "Result"}}}`),
+	})
+}
+
+// TestInstallLabelsEveryNameWithItsFamily: each install — the binding's and
+// the client's — labels every method and event of the family, both sides,
+// with the family's name, merged onto the options beside whatever the
+// caller labelled, as the handlers above it are merged.
+func TestInstallLabelsEveryNameWithItsFamily(t *testing.T) {
+	files, err := New(Config{Module: "example.test/m"}).Render(bothSides())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range files[2:] {
+		source := string(file.Data)
+		for _, want := range []string{
+			"families := map[string]string{}",
+			"for name, existing := range options.Families {",
+			`families["run"] = "x"`,
+			`families["back"] = "x"`,
+			`families["changed"] = "x"`,
+			`families["noticed"] = "x"`,
+			"options.Families = families",
+		} {
+			if !strings.Contains(source, want) {
+				t.Errorf("%s does not label: %s", file.Path, want)
+			}
+		}
+	}
+}
+
 // TestReservedNamesAreWhatTheTargetEmits: every identifier the generated
 // packages declare of themselves is reserved, and nothing else is.
 func TestReservedNamesAreWhatTheTargetEmits(t *testing.T) {

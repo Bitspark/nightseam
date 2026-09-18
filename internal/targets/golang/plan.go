@@ -11,7 +11,10 @@ import (
 
 // The identifiers the generated packages declare of themselves, which a
 // family may not: the emitters write these constants and nothing else of
-// their own, so that what is reserved is what is emitted.
+// their own, so that what is reserved is what is emitted. The ones a
+// generated body declares of itself — the label map install merges — are
+// named here too and reserve nothing, since nothing outside that body can
+// see them.
 const (
 	identTag                   = "Tag"
 	identOf                    = "Of"
@@ -27,6 +30,7 @@ const (
 	identRemote                = "Remote"
 	identHandler               = "Handler"
 	identInstall               = "install"
+	identFamilies              = "families"
 	identNewHandler            = "NewHandler"
 	identServe                 = "Serve"
 	identClient                = "Client"

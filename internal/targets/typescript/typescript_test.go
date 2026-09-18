@@ -138,3 +138,27 @@ func TestRenderPlacesTheClient(t *testing.T) {
 		t.Fatalf("placement is not honoured: %v", err)
 	}
 }
+
+// TestClientLabelsEveryNameWithItsFamily: where the client makes the peer —
+// dial and attach; open resolves the handle and attaches — it labels every
+// method and event of the family, both sides, with the family's name,
+// beside whatever the caller labelled, and declares nothing at the module
+// to do it.
+func TestClientLabelsEveryNameWithItsFamily(t *testing.T) {
+	f := family(map[string]string{
+		"model.json":    fixtureModel,
+		"protocol.json": modeltest.Protocol(`"server": {"methods": {"run": {"request": "Input", "result": "Result"}}, "events": {"changed": {"type": "Result"}}}, "client": {"methods": {"back": {"result": "Result"}}, "events": {"noticed": {"type": "Result"}}}`),
+	})
+	files, err := New(Config{Scope: "@example"}).Render(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := string(files[1].Data)
+	const labels = `{ ...options, families: { ...options.families, "run": "x", "back": "x", "changed": "x", "noticed": "x" } }`
+	if got := strings.Count(index, "new DuplexPeer("+labels+")"); got != 2 {
+		t.Errorf("the labels are passed to %d of the two peers the client makes:\n%s", got, index)
+	}
+	if strings.Contains(index, "new DuplexPeer(options)") {
+		t.Error("a peer is made with options carrying no labels")
+	}
+}
