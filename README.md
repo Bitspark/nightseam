@@ -128,6 +128,7 @@ go tool nightseam check               # in CI: fail if the checked-in output is 
 | [docs/tunnel.md](docs/tunnel.md) | channels over one peer: the four operations, ids by parity, credit |
 | [docs/session.md](docs/session.md) | a session over a tunnel's channels: the relay's rules, the log, what a consumer builds on it |
 | [docs/observability.md](docs/observability.md) | one observer across the three layers: the rule, every event in both languages, and how a layer of your own joins it |
+| [docs/tiers.md](docs/tiers.md) | languages, profiles and tiers: what a language of each tier promises, and how the conformance suite holds it |
 
 ## Working on Nightseam
 

@@ -22,7 +22,8 @@ to one suite: the seam to `duplex/go/duplextest`, the wire validator to
 tunnel and the session to a cross-language gate over a real socket. A change
 to one language is not done until its twin has it and the shared suite says
 so. A third language joins by implementing the suite, in its own directory
-under each component.
+under each component — at the tier it can hold: what each tier promises and
+how the suite enforces it is [docs/tiers.md](docs/tiers.md).
 
 ## The two tiers of tests
 

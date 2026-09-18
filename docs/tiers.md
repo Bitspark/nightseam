@@ -1,0 +1,121 @@
+# Languages, profiles and tiers
+
+Nightseam exists in more than one language, and a consumer choosing one
+needs to know what it is promised there. This page says what: the
+**profiles** a language can hold, the **tiers** that say which profiles a
+language guarantees and when, and how the conformance suite under
+`conformance/` enforces both. `conformance/profiles.json` is the data the
+suite reads; this page is what it means.
+
+## Four promises
+
+A language runtime can make a consumer four distinct promises, and every
+tier is a bundle of them:
+
+| | promise | a consumer can rely on |
+|---|---|---|
+| **P1 wire** | a peer of this language speaks `nightseam.duplex/1` with a peer of any other | interoperation |
+| **P2 generated** | the generator has a target for it; the packages it renders build against the language's runtime and hold the round trip and the generic-versus-bound equivalence | `nightseam generate` for this language |
+| **P3 complete** | every component exists — tunnel, session, observability — and every scenario of the suite passes | never asking "does X exist here" |
+| **P4 simultaneous** | a feature lands in this language before it is released, not within a release after | this language is never behind |
+
+The promises nest: P2 assumes P1, P3 assumes P2, P4 assumes P3. There is no
+fifth: anything finer than these is progress within a language, which the
+matrix shows and no tier needs to name.
+
+## Profiles
+
+A profile is a named set of scenarios, and a scenario belongs to exactly
+one. The profiles follow the components, because that is how a language is
+built and how a consumer adopts it:
+
+| profile | scenarios | promise |
+|---|---|---|
+| `core` | the seam (`seam/*`) and the peer (`peer/*`): frames, correlation, cancellation, close codes, backpressure, the wire validator held to `tables/validator.json`, the malformed frames of `tables/frames.json` | P1 |
+| `generator` | `generated/*`: the target renders the corpus, the output builds against the language's runtime, the round trip and the diagram hold; names follow `tables/naming.json` | P2 |
+| `tunnel` | `tunnel/*`: channels over one peer, credit, `after`, the tunnel's observer events | P3 |
+| `session` | `session/*`: the relay's rules, the log, the changes, the cross-language gate | P3 |
+| `observability` | the scenarios that `needs` `observer` or `propagator`, in any layer: trace propagation, the observer and its no-payload rule, the shipped adapter | P3 |
+
+A scenario's `layer` places it in a profile; `core` is the two lowest
+layers, `observability` cuts across them by feature. The runner refuses a
+scenario it cannot place, so nothing is ever unclassified.
+
+The testee protocol is tiered the same way: a testee answers `hello` with
+the `layers` and `features` it implements, and a scenario a testee lacks a
+need of is skipped, not failed. A language holding `core` alone implements
+`conn.*`, `peer.*` and `call.*` and nothing else.
+
+## Tiers
+
+A tier says which profiles a language **guarantees** and **when**. The
+difference between tiers is not which scenarios run for a language — every
+language runs the whole suite, and the matrix shows every cell — but which
+red cells stop a release.
+
+| tier | guarantees | lag | a red cell |
+|---|---|---|---|
+| **1** | every profile | none: a feature is not released until every tier-1 language has it | stops the release |
+| **2** | `core` and `generator` always; every other profile within one minor release of tier 1 | one minor release | in `core` or `generator`, stops the release; elsewhere, stops the *next* one |
+| **3** | `core` and `generator` | — | in `core` or `generator`, marks the language *provisional* in the matrix; the release ships; elsewhere, informational |
+| **4** | `core` | — | in `core`, marks the language provisional; elsewhere, informational |
+
+Tier 1 defines the profiles: a scenario is born as a pair of tier-1 twins,
+and the Go testee is the reference every other language is held to on both
+sides of the wire. Tiers 3 and 4 differ in one yes-or-no fact — whether the
+generator has a target for the language — and are presented to a consumer as
+one band, *reference-held*, with that fact as a column of the matrix; the
+data keeps them apart because the suite gates on the difference.
+
+### The assignment
+
+| tier | languages |
+|---|---|
+| 1 | Go, TypeScript |
+| 2 | Python, Rust |
+| 3–4 | C#, Java, C++, Haskell |
+
+A language is promoted by passing the next tier's gate for one release, and
+the promotion is a change to `profiles.json` with the release that makes it.
+The assignment is a policy about promises, not a ranking of languages: a
+language whose toolchain is quick to onboard may pass through tier 3 in a
+release and one whose is not may hold tier 4 for several, and neither
+changes what the tier means.
+
+## How the suite enforces it
+
+`conformance/profiles.json` names the profiles as scenario globs and the
+tiers as language lists with what each requires and the lag it allows. The
+runner reads it on every run and reports a **matrix**: one row per language,
+one column per profile, each cell passed / skipped / failed with the count,
+and the language's tier beside it. The gate is a star: every language
+against the Go reference on both sides, which is what CI runs; the full
+matrix of every language against every other runs nightly, and a failure
+there — two non-reference languages disagreeing on something the reference
+tolerates — is an issue against the scenario, since the reference decides.
+
+The release workflow refuses a tag whose matrix has a cell that the tier
+table says stops the release, and marks the languages that the table says
+are provisional in the release notes. The matrix of the last run on `main`
+is rendered into the README.
+
+## Onboarding a language
+
+The tiers are the order a language is built in, and each step is a lane of
+its own that lands alone:
+
+1. `duplex/<lang>` and `runtime/<lang>` with a testee holding `core` — the
+   language enters the matrix at tier 4.
+2. `internal/targets/<lang>` with the generated testee holding `generator`
+   — tier 3.
+3. `tunnel/<lang>`, then `session/<lang>`, then the observer and the shipped
+   adapter, then `otel/<lang>` — the profiles of P3, one lane each, holding
+   their scenarios; when all hold for a release the language may be
+   promoted to tier 2.
+4. Tier 1 is not a step but a decision: a language whose lanes have shipped
+   simultaneously with Go's and TypeScript's for a sustained period may join
+   the reference, and thereafter a feature lane is written as three twins.
+
+A language's lanes serialize among themselves; across languages they run in
+parallel, and nothing of one language waits on another's beyond the
+reference.
