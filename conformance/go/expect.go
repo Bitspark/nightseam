@@ -18,6 +18,7 @@ import (
 //
 //	$any            anything, present
 //	$string $int $number $bool  a value of that kind
+//	$odd $even      an integer of that parity
 //	$absent         the member must not be present at all
 //	$bind:name      anything; bound to name for later steps
 //	$name           whatever name was bound to
@@ -137,6 +138,15 @@ func matchPlaceholder(path, placeholder string, actual any, b Bindings) error {
 	case "number":
 		if _, ok := actual.(json.Number); !ok {
 			return fmt.Errorf("%s: expected a number, got %s", at(path), render(actual))
+		}
+	case "odd", "even":
+		n, ok := actual.(json.Number)
+		i, err := n.Int64()
+		if !ok || err != nil {
+			return fmt.Errorf("%s: expected an integer, got %s", at(path), render(actual))
+		}
+		if (i%2 != 0) != (name == "odd") {
+			return fmt.Errorf("%s: expected an %s integer, got %d", at(path), name, i)
 		}
 	case "bool":
 		if _, ok := actual.(bool); !ok {

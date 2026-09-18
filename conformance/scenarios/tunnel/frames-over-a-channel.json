@@ -1,0 +1,200 @@
+{
+  "name": "a channel is a connection: frames arrive in order and whole, text and binary alike, and a close carries its code and reason to the other side",
+  "layer": "tunnel",
+  "needs": [
+    "tunnel",
+    "peer",
+    "listen"
+  ],
+  "steps": [
+    {
+      "on": "a",
+      "op": "peer.listen",
+      "args": {
+        "options": {
+          "observe": true
+        }
+      },
+      "bind": {
+        "handle": "l",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.dial",
+      "args": {
+        "url": "$url",
+        "options": {
+          "observe": true
+        }
+      },
+      "bind": "pb"
+    },
+    {
+      "on": "a",
+      "op": "peer.accept",
+      "args": {
+        "on": "$l"
+      },
+      "bind": "pa"
+    },
+    {
+      "on": "a",
+      "op": "tunnel.over",
+      "args": {
+        "on": "$pa"
+      },
+      "bind": "ta"
+    },
+    {
+      "on": "b",
+      "op": "tunnel.over",
+      "args": {
+        "on": "$pb"
+      },
+      "bind": "tb"
+    },
+    {
+      "on": "b",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$tb",
+        "family": "probe",
+        "consume": "eager"
+      },
+      "bind": {
+        "handle": "cb",
+        "id": "id"
+      }
+    },
+    {
+      "on": "a",
+      "op": "tunnel.accept",
+      "args": {
+        "on": "$ta",
+        "consume": "eager"
+      },
+      "bind": {
+        "handle": "ca"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "text",
+        "text": "one"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "binary",
+        "base64": "AAEC"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "one"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "kind": "binary",
+        "base64": "AAEC"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.send",
+      "args": {
+        "on": "$ca",
+        "kind": "text",
+        "text": "two"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$cb"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "two"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.close",
+      "args": {
+        "on": "$cb",
+        "code": 4001,
+        "reason": "the opener is done"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect_error": {
+        "code": "closed",
+        "close_code": 4001,
+        "reason": "the opener is done"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pa"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "channel.closed",
+            "family": "probe",
+            "id": "$id",
+            "code": 4001,
+            "reason": "the opener is done"
+          }
+        ]
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pb"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "channel.closed",
+            "family": "probe",
+            "id": "$id",
+            "code": 4001,
+            "reason": "the opener is done"
+          }
+        ]
+      }
+    }
+  ]
+}

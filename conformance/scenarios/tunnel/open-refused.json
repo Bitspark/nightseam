@@ -1,0 +1,123 @@
+{
+  "name": "an open the other side has no room for is refused with channel_refused, and the observer sees the refusal",
+  "layer": "tunnel",
+  "needs": [
+    "tunnel",
+    "peer",
+    "listen"
+  ],
+  "steps": [
+    {
+      "on": "a",
+      "op": "peer.listen",
+      "args": {
+        "options": {
+          "observe": true
+        }
+      },
+      "bind": {
+        "handle": "l",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.dial",
+      "args": {
+        "url": "$url",
+        "options": {
+          "observe": true
+        }
+      },
+      "bind": "pb"
+    },
+    {
+      "on": "a",
+      "op": "peer.accept",
+      "args": {
+        "on": "$l"
+      },
+      "bind": "pa"
+    },
+    {
+      "on": "a",
+      "op": "tunnel.over",
+      "args": {
+        "on": "$pa",
+        "options": {
+          "accept_capacity": 1
+        }
+      },
+      "bind": "ta"
+    },
+    {
+      "on": "b",
+      "op": "tunnel.over",
+      "args": {
+        "on": "$pb"
+      },
+      "bind": "tb"
+    },
+    {
+      "on": "b",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$tb",
+        "family": "probe"
+      },
+      "bind": {
+        "handle": "c1"
+      }
+    },
+    {
+      "on": "b",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$tb",
+        "family": "probe"
+      },
+      "expect_error": {
+        "code": "channel_refused"
+      },
+      "note": "one opened and not yet accepted is all the other side holds"
+    },
+    {
+      "on": "a",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pa"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "open.refused",
+            "family": "probe"
+          }
+        ]
+      }
+    },
+    {
+      "on": "a",
+      "op": "tunnel.accept",
+      "args": {
+        "on": "$ta"
+      },
+      "expect": {
+        "family": "probe"
+      },
+      "note": "the first stands"
+    },
+    {
+      "on": "b",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$tb",
+        "family": "probe"
+      },
+      "bind": {
+        "handle": "c2"
+      },
+      "note": "and with room again, an open is taken"
+    }
+  ]
+}

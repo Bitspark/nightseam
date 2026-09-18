@@ -29,7 +29,8 @@ for its answer before sending the next; a testee never writes unasked.
 ```
 
 A request is an object with `id` (an integer the answer repeats), `op`, and
-the op's arguments as further members. An answer is `{"id", "ok": …}` with
+the op's arguments as further members — so no op names an argument `id` or
+`op`; a session is named by `session`. An answer is `{"id", "ok": …}` with
 the op's result, or `{"id", "error": {"code", "message"}}`. The codes the
 protocol itself defines:
 
@@ -253,9 +254,9 @@ The session component: `session/go`, `@nightseam/session`.
 | op | arguments | answer |
 |---|---|---|
 | `session.new` | `options` (`max_attachments`, `max_inflight`) | `{"handle"}` a registry |
-| `session.bind` | **`on`**, **`id`**, **`channel`**, **`governance`** `{"decides": […], "asks": […]}`, `log` `{"max_frame_bytes"}`, `within_ms` | `{}` |
-| `session.attach` | **`on`**, **`id`**, **`channel`**, **`role`** `"participant"`\|`"observer"`, **`origin`**, `after`, `within_ms` | `{"handle"}` an attachment; the replay has been delivered when it answers |
-| `session.control` | **`on`**, **`id`**, `attachment` (a handle, or `null` to release) | `{}` |
+| `session.bind` | **`on`**, **`session`**, **`channel`**, **`governance`** `{"decides": […], "asks": […]}`, `log` `{"max_frame_bytes"}`, `within_ms` | `{}` |
+| `session.attach` | **`on`**, **`session`**, **`channel`**, **`role`** `"participant"`\|`"observer"`, **`origin`**, `after`, `within_ms` | `{"handle"}` an attachment; the replay has been delivered when it answers |
+| `session.control` | **`on`**, **`session`**, `attachment` (a handle, or `null` to release) | `{}` |
 | `session.attention` | **`on`** | `["id", …]` |
 | `session.changes` | **`on`**, `trace`, `drain` | `[change, …]` normalized: `kind` (`bound`, `unbound`, `attached`, `detached`, `ask_raised`, `ask_routed`, `ask_answered`, `control_changed`, `frame_appended`, `refused`), `session`, and of `origin`, `role`, `sequence`, `method`, `trace` what the change carries |
 | `session.await_change` | **`on`**, **`kind`**, `within_ms` | the first such change, removed |
