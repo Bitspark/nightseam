@@ -31,12 +31,13 @@ elsewhere.
 ## Reporting and enforcement
 
 Report a concern privately to the maintainers, through **[a private report on
-the repository's Security tab][private-report]** — today that form is the
-repository's private channel, and it reaches the maintainers and nobody
-else. Say what happened and where; you do not have to
-have a remedy in mind. A report is not shared beyond the people needed to act
-on it, and the person who reports is not identified to the person reported
-without their agreement.
+the repository's Security tab][private-report]**. That form is meant for
+vulnerabilities and is used here for conduct as well, deliberately: it is the
+private channel this repository has, it reaches the maintainers and nobody
+else, and naming no address was preferred to inventing one. Say what happened
+and where; you do not have to have a remedy in mind. A report is not shared
+beyond the people needed to act on it, and the person who reports is not
+identified to the person reported without their agreement.
 
 The maintainers answer within five working days. They may edit or remove a
 contribution, ask for a change in behavior, or bar someone from the project's
