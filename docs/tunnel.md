@@ -119,3 +119,15 @@ const channel = await tunnel.open('chat');
 const client = await Client.attach(channel, chat.family, …);
 const resolved = await Client.open(tunnel, handle, chat.family, …);
 ```
+
+## Observing it
+
+A tunnel takes no observer of its own: it emits through the observer of the
+peer it runs over, as `ChannelOpened`, `ChannelAccepted`, `ChannelClosed`,
+`CreditStall` and `OpenRefused` — in TypeScript `channel.opened`,
+`channel.accepted`, `channel.closed`, `credit.stall` and `open.refused`,
+declared into the runtime's `ObserverEvents`. A layer built over a channel
+reaches that observer the same way, through `Channel.Peer()` in Go and
+`channel.observe(event)` in TypeScript.
+[observability.md](observability.md) has the rule and every event of every
+layer.

@@ -34,5 +34,13 @@ it; a close carries its code and reason across; the outer connection closing
 ends every channel with 1001. What arrives before anyone listens is held and
 delivered, in order, to the first listener.
 
+A tunnel takes no observer of its own: it emits through the observer of the
+peer it runs over, declaring `channel.opened`, `channel.accepted`,
+`channel.closed`, `credit.stall` and `open.refused` into the runtime's
+`ObserverEvents` so that a consumer's `switch (event.type)` covers them
+beside the runtime's. A layer built over a channel reaches the same observer
+with `channel.observe(event)`.
+
 The Go tunnel and this one are held to each other over a real socket. The
-full description is `docs/tunnel.md` in the repository.
+full description is `docs/tunnel.md` in the repository, and
+`docs/observability.md` has every event of every layer.

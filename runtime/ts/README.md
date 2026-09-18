@@ -82,6 +82,24 @@ to one conformance table. It validates calls, replies, reverse calls and
 events alike, and what fills a slot of a bound family by that family's
 binding.
 
+## Observing it
+
+`PeerOptions.observer` takes one `Observer`, an interface of one method, and
+is told ten things about the traffic the peer carries: a connection opened
+and closed, a frame sent and received, a request started and ended with its
+duration and outcome, an event emitted and delivered, backpressure, and a
+handler that threw. Each carries names, ids, sizes, durations, outcomes and
+the frame's trace — and never a payload. The peer emits and never aggregates,
+chooses no backend, and an observer that throws interrupts no routing.
+`consoleObserver()` writes each event as one line, and takes the four console
+methods and a clock so that a test captures it with four functions.
+
+A layer running over the peer — `@nightseam/tunnel`, `@nightseam/session`, or
+one of your own — declares its events into `ObserverEvents` and emits them
+through the same observer, so a `switch (event.type)` stays exhaustive over
+every layer imported. `docs/observability.md` in the repository has the rule
+and every event.
+
 ## The connection beneath
 
 The peer never touches a WebSocket directly: `webSocketConnection(socket)`

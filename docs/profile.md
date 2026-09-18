@@ -149,3 +149,14 @@ profile's.
  "traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-9f4c5a2e1b3d7c60-01"}
 {"version":1,"kind":"cancel","id":"c:8"}
 ```
+
+## Observing it
+
+A peer takes one `Observer` and tells it ten things about the traffic it
+carries — a connection opened and closed, a frame sent and received, a
+request started and ended, an event emitted and delivered, backpressure, and
+a handler that threw — each carrying names, ids, sizes, durations, outcomes
+and the frame's trace, and none of them a payload. The tunnel and the session
+running over the peer emit their own events through the same observer, so a
+consumer chooses one. [observability.md](observability.md) has the rule and
+every event of every layer.

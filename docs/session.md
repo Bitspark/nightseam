@@ -123,3 +123,18 @@ and a lease, if it wants one — calls `Control`; its frame log is a durable
 `Log`; its attention list is `Attention()`; its machine side opens a channel
 per running session and names the handle in a report, which the server
 passes to `Bind`. Nothing of that is in this package, by the boundary rule.
+
+## Observing it
+
+Beside the changes its registry reports — `Registry.OnChange(fn)` in Go,
+`registry.onChange(fn)` in TypeScript, each handing back the stop that ends
+that registration alone — a session tells the observer of the peer its
+machine speaks over the same ten facts: a session bound and unbound, a
+consumer attached and detached, an ask raised, routed and answered, control
+moved, a frame appended to the log, and a consumer's frame refused. Neither
+says a payload. [observability.md](observability.md) has the rule and every
+event of every layer.
+
+The `Observer` role above — a consumer that never decides — is a different
+thing from an observer of events, which watches traffic rather than taking
+part in a session at all.

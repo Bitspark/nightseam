@@ -95,7 +95,7 @@ and on nothing else.
 | [`@nightseam/duplex`](duplex/ts) | [`duplex/go`](duplex/go) | the seam: ordered frames both ways, an explicit close with a code and a reason, a WebSocket adapter and an in-memory pipe |
 | [`@nightseam/runtime`](runtime/ts) | [`runtime/go`](runtime/go) | the peer of the profile: correlation, cancellation, backpressure, presence, trace context, the wire validator, the observer and its console and slog adapters |
 | [`@nightseam/tunnel`](tunnel/ts) | [`tunnel/go`](tunnel/go) | channels multiplexed over one peer, each one a connection of the seam, with per-channel credit |
-| [`@nightseam/session`](session/ts) | [`session/go`](session/go) | a session over a tunnel's channels: the relay, the registry, the holder of control, the log |
+| [`@nightseam/session`](session/ts) | [`session/go`](session/go) | a session over a tunnel's channels: the relay, the registry, the holder of control, the log, and the changes it reports |
 | — | [`cmd/nightseam`](cmd/nightseam) | the generator |
 
 Every component exists in both languages and both are held to one suite. A
@@ -126,6 +126,7 @@ go tool nightseam check               # in CI: fail if the checked-in output is 
 | [docs/profile.md](docs/profile.md) | `nightseam.duplex/1`: the envelope, ids and correlation, limits and backpressure, trace context, close codes |
 | [docs/tunnel.md](docs/tunnel.md) | channels over one peer: the four operations, ids by parity, credit |
 | [docs/session.md](docs/session.md) | a session over a tunnel's channels: the relay's rules, the log, what a consumer builds on it |
+| [docs/observability.md](docs/observability.md) | one observer across the three layers: the rule, every event in both languages, and how a layer of your own joins it |
 
 ## Working on Nightseam
 
