@@ -173,7 +173,7 @@ type closePayload struct {
 // accepted it.
 func (t *Tunnel) Open(ctx context.Context, family string, after int64) (*Channel, error) {
 	if family == "" {
-		return nil, errors.New("a channel is opened for a family")
+		return nil, t.refused(family, errors.New("a channel is opened for a family"))
 	}
 	t.mu.Lock()
 	id := t.next
@@ -184,15 +184,16 @@ func (t *Tunnel) Open(ctx context.Context, family string, after int64) (*Channel
 	var result openResult
 	if err := t.peer.Call(ctx, OpenMethod, openParams{Channel: id, Family: family, After: after, Window: t.options.Window}, &result); err != nil {
 		t.remove(id)
-		c.endLocal()
-		return nil, err
+		c.endLocal(duplex.CodeNormal, "")
+		return nil, t.refused(family, err)
 	}
 	if result.Window <= 0 {
 		t.remove(id)
-		c.endLocal()
-		return nil, errors.New("the other side declared no window")
+		c.endLocal(duplex.CodeNormal, "")
+		return nil, t.refused(family, errors.New("the other side declared no window"))
 	}
 	c.grant(result.Window)
+	t.observeOpened(c, true)
 	return c, nil
 }
 
@@ -205,6 +206,8 @@ func (t *Tunnel) Accept(ctx context.Context) (*Channel, error) {
 			c := t.pending[0]
 			t.pending = t.pending[1:]
 			t.mu.Unlock()
+			t.observeOpened(c, false)
+			t.observeAccepted(c)
 			return c, nil
 		}
 		t.mu.Unlock()
@@ -222,16 +225,22 @@ func (t *Tunnel) Accept(ctx context.Context) (*Channel, error) {
 // a channel the other side opened counts as taken.
 func (t *Tunnel) Channel(id int64) (*Channel, bool) {
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	c, ok := t.table[id]
+	taken := false
+	for i, p := range t.pending {
+		if ok && p == c {
+			t.pending = append(t.pending[:i], t.pending[i+1:]...)
+			taken = true
+			break
+		}
+	}
+	t.mu.Unlock()
 	if !ok {
 		return nil, false
 	}
-	for i, p := range t.pending {
-		if p == c {
-			t.pending = append(t.pending[:i], t.pending[i+1:]...)
-			break
-		}
+	if taken {
+		t.observeOpened(c, false)
+		t.observeAccepted(c)
 	}
 	return c, true
 }
@@ -264,18 +273,31 @@ func (t *Tunnel) lookup(id int64) *Channel {
 func (t *Tunnel) onOpen(_ context.Context, _ *runtime.Peer, raw json.RawMessage) (any, error) {
 	var params openParams
 	if err := json.Unmarshal(raw, &params); err != nil || params.Channel <= 0 || params.Family == "" || params.After < 0 || params.Window <= 0 {
-		return nil, &runtime.PublicError{Code: ErrorInvalid, Message: "channel.open needs a positive channel id of the opener's parity, a family, a sequence and a window"}
+		return nil, t.refuse(params.Family, ErrorInvalid, "channel.open needs a positive channel id of the opener's parity, a family, a sequence and a window")
 	}
+	c, code, message := t.admit(params)
+	if c == nil {
+		return nil, t.refuse(params.Family, code, message)
+	}
+	t.observeOpened(c, false)
+	return openResult{Window: t.options.Window}, nil
+}
+
+// admit takes the channel an open names, or says with what code and message
+// the open is refused. The table is the tunnel's own and nobody is told while
+// it is held: an observer runs where the event happened, and this one would
+// otherwise run under the lock every channel of the tunnel waits on.
+func (t *Tunnel) admit(params openParams) (*Channel, string, string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if params.Channel%2 == t.parity {
-		return nil, &runtime.PublicError{Code: ErrorInvalid, Message: "the channel id is of this side's parity"}
+		return nil, ErrorInvalid, "the channel id is of this side's parity"
 	}
 	if _, exists := t.table[params.Channel]; exists {
-		return nil, &runtime.PublicError{Code: ErrorExists, Message: fmt.Sprintf("channel %d is open", params.Channel)}
+		return nil, ErrorExists, fmt.Sprintf("channel %d is open", params.Channel)
 	}
 	if len(t.pending) >= t.options.AcceptCapacity {
-		return nil, &runtime.PublicError{Code: ErrorRefused, Message: "no room for a channel nobody has accepted"}
+		return nil, ErrorRefused, "no room for a channel nobody has accepted"
 	}
 	c := t.newChannel(params.Channel, params.Family, params.After, params.Window)
 	t.table[params.Channel] = c
@@ -284,7 +306,14 @@ func (t *Tunnel) onOpen(_ context.Context, _ *runtime.Peer, raw json.RawMessage)
 	case t.wake <- struct{}{}:
 	default:
 	}
-	return openResult{Window: t.options.Window}, nil
+	return c, "", ""
+}
+
+// refuse tells of an open this side refuses and returns the refusal the other
+// side sees, which is the reason told here.
+func (t *Tunnel) refuse(family, code, message string) error {
+	t.observeRefused(family, message)
+	return &runtime.PublicError{Code: code, Message: message}
 }
 
 func (t *Tunnel) onFrame(_ context.Context, _ *runtime.Peer, raw json.RawMessage) {
@@ -353,17 +382,20 @@ type Channel struct {
 	Family string
 	After  int64
 
-	t      *Tunnel
-	inbox  chan duplex.Frame
-	mu     sync.Mutex
-	credit int
-	wake   chan struct{}
-	taken  int
-	closed bool
-	remote *duplex.CloseError
-	dead   error
-	done   chan struct{}
-	once   sync.Once
+	t        *Tunnel
+	inbox    chan duplex.Frame
+	mu       sync.Mutex
+	credit   int
+	waiting  int
+	wake     chan struct{}
+	taken    int
+	closed   bool
+	remote   *duplex.CloseError
+	dead     error
+	done     chan struct{}
+	once     sync.Once
+	announce sync.Once
+	opened   bool
 }
 
 func (t *Tunnel) newChannel(id int64, family string, after int64, credit int) *Channel {
@@ -396,21 +428,34 @@ func (c *Channel) state() error {
 	return nil
 }
 
-func (c *Channel) end(set func()) {
+// end ends the channel once, with the code and the reason the other side sees
+// for it, and tells of the close. A channel nobody was told of closes to
+// nobody: taking the announcement here leaves an open that never got that far
+// with nothing to say, and opened is what the announcement set.
+func (c *Channel) end(code duplex.Code, reason string, set func()) {
 	c.once.Do(func() {
 		c.mu.Lock()
 		set()
 		c.mu.Unlock()
 		close(c.done)
+		c.announce.Do(func() {})
+		if c.opened {
+			c.t.observeClosed(c, code, reason)
+		}
 	})
 }
 
-func (c *Channel) endLocal()                           { c.end(func() { c.closed = true }) }
-func (c *Channel) endRemote(closed *duplex.CloseError) { c.end(func() { c.remote = closed }) }
+func (c *Channel) endLocal(code duplex.Code, reason string) {
+	c.end(code, reason, func() { c.closed = true })
+}
+
+func (c *Channel) endRemote(closed *duplex.CloseError) {
+	c.end(closed.Code, closed.Reason, func() { c.remote = closed })
+}
 
 // fail ends the channel on a frame it refuses, telling the other side why.
 func (c *Channel) fail(code duplex.Code, reason string) {
-	c.end(func() { c.dead = fmt.Errorf("channel %d refused a frame: %s", c.ID, reason) })
+	c.end(code, reason, func() { c.dead = fmt.Errorf("channel %d refused a frame: %s", c.ID, reason) })
 	c.t.remove(c.ID)
 	c.tell(code, reason)
 }
@@ -428,24 +473,8 @@ func (c *Channel) Send(ctx context.Context, frame duplex.Frame) error {
 	if frame.Kind != duplex.Text && frame.Kind != duplex.Binary {
 		return errors.New("duplex frame of no kind")
 	}
-	for {
-		c.mu.Lock()
-		if err := c.state(); err != nil {
-			c.mu.Unlock()
-			return err
-		}
-		if c.credit > 0 {
-			c.credit--
-			c.mu.Unlock()
-			break
-		}
-		c.mu.Unlock()
-		select {
-		case <-c.wake:
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-c.done:
-		}
+	if err := c.take(ctx); err != nil {
+		return err
 	}
 	payload := framePayload{Channel: c.ID}
 	if frame.Kind == duplex.Text {
@@ -456,6 +485,49 @@ func (c *Channel) Send(ctx context.Context, frame duplex.Frame) error {
 		payload.Binary = &encoded
 	}
 	return c.t.peer.Emit(ctx, FrameEvent, payload)
+}
+
+// take spends one frame's credit, waiting while the other side's window is
+// full until ctx ends or the channel does. A send that waits at all stalls,
+// and says so once however often it wakes; what it says is how many senders
+// are then waiting on the channel, this one among them.
+func (c *Channel) take(ctx context.Context) error {
+	stalled := false
+	defer func() {
+		if !stalled {
+			return
+		}
+		c.mu.Lock()
+		c.waiting--
+		c.mu.Unlock()
+	}()
+	for {
+		c.mu.Lock()
+		if err := c.state(); err != nil {
+			c.mu.Unlock()
+			return err
+		}
+		if c.credit > 0 {
+			c.credit--
+			c.mu.Unlock()
+			return nil
+		}
+		waiting := 0
+		if !stalled {
+			c.waiting++
+			waiting, stalled = c.waiting, true
+		}
+		c.mu.Unlock()
+		if stalled && waiting > 0 {
+			c.t.observeStall(c, waiting)
+		}
+		select {
+		case <-c.wake:
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-c.done:
+		}
+	}
 }
 
 // Receive returns the next frame in the order it was sent; what arrived
@@ -515,7 +587,7 @@ func (c *Channel) Close(ctx context.Context, code duplex.Code, reason string) er
 	c.mu.Lock()
 	ended := c.state() != nil
 	c.mu.Unlock()
-	c.endLocal()
+	c.endLocal(code, reason)
 	c.t.remove(c.ID)
 	if !ended {
 		_ = c.t.peer.Emit(ctx, CloseEvent, closePayload{Channel: c.ID, Code: int(code), Reason: reason})
@@ -529,7 +601,7 @@ func (c *Channel) Abort() error {
 	c.mu.Lock()
 	ended := c.state() != nil
 	c.mu.Unlock()
-	c.endLocal()
+	c.endLocal(duplex.CodeAbnormalClosure, "")
 	c.t.remove(c.ID)
 	if !ended {
 		c.tell(duplex.CodeAbnormalClosure, "")
