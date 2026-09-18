@@ -1,0 +1,18 @@
+{
+  "name": "a malformed frame ends the connection",
+  "layer": "peer",
+  "replaces": "runtime/go/peer_test.go TestMalformedWireFramesDisconnect, runtime/ts/src/peer.test.ts's malformed and traceparent tables, runtime/go/presence_test.go's shape table",
+  "needs": ["peer", "seam", "listen"],
+  "foreach": {"table": "tables/frames.json", "as": "row", "where": {"valid": false}},
+  "steps": [
+    {"on": "b", "op": "peer.listen", "bind": {"handle": "l", "url": "url"}},
+    {"on": "a", "op": "conn.dial", "args": {"url": "$url"}, "bind": "ca"},
+    {"on": "b", "op": "peer.accept", "args": {"on": "$l"}, "bind": "pb"},
+    {"on": "b", "op": "peer.handle", "args": {"on": "$pb", "method": "echo", "behavior": {"kind": "echo"}}},
+    {"on": "b", "op": "peer.handle", "args": {"on": "$pb", "method": "wait", "behavior": {"kind": "wait"}}},
+    {"on": "b", "op": "peer.handle", "args": {"on": "$pb", "method": "read", "behavior": {"kind": "echo"}}},
+    {"on": "a", "op": "conn.send", "args": {"on": "$ca", "kind": "text", "text": "$row.frame"}},
+    {"on": "b", "op": "peer.await_close", "args": {"on": "$pb"}, "expect": {"clean": false}},
+    {"on": "a", "op": "conn.receive", "args": {"on": "$ca"}, "expect_error": {"code": "$regex:^(closed|failed)$"}, "note": "and the raw side sees it end"}
+  ]
+}

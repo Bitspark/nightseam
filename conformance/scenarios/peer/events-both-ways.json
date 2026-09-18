@@ -1,0 +1,18 @@
+{
+  "name": "an event reaches the other side in either direction, with its data",
+  "layer": "peer",
+  "replaces": "runtime/go/interop_test.go: notify and client_notice",
+  "needs": ["peer", "listen"],
+  "steps": [
+    {"on": "a", "op": "peer.listen", "bind": {"handle": "l", "url": "url"}},
+    {"on": "b", "op": "peer.dial", "args": {"url": "$url"}, "bind": "pb"},
+    {"on": "a", "op": "peer.accept", "args": {"on": "$l"}, "bind": "pa"},
+    {"on": "a", "op": "peer.emit", "args": {"on": "$pa", "event": "notice", "data": {"value": 42}}},
+    {"on": "b", "op": "peer.await_event", "args": {"on": "$pb", "name": "notice"}, "expect": {"data": {"value": 42}}},
+    {"on": "b", "op": "peer.emit", "args": {"on": "$pb", "event": "client_notice", "data": {"value": 99}}},
+    {"on": "a", "op": "peer.await_event", "args": {"on": "$pa", "name": "client_notice"}, "expect": {"data": {"value": 99}}},
+    {"on": "a", "op": "peer.emit", "args": {"on": "$pa", "event": "empty"}},
+    {"on": "b", "op": "peer.await_event", "args": {"on": "$pb", "name": "empty"}, "expect": {"data": null}, "note": "an event without data carries null"},
+    {"on": "b", "op": "peer.await_event", "args": {"on": "$pb", "name": "never", "within_ms": 200}, "expect_error": {"code": "timeout"}}
+  ]
+}
