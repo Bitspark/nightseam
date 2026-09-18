@@ -13,8 +13,30 @@
  * the client of the outer connection and even for its server, and is what a
  * handle names: {"channel": 12} in a family's message.
  */
-import { DuplexError, type DuplexPeer } from '@nightseam/runtime';
+import { DuplexError, type DuplexPeer, type ObserverEvent } from '@nightseam/runtime';
 import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from '@nightseam/duplex';
+
+/**
+ * What a tunnel tells the observer of the peer it runs over. They are members
+ * of the runtime's registry, so a consumer that imports this package switches
+ * over them beside the runtime's own events; a tunnel takes no observer of its
+ * own and observes through its peer or not at all. They say which channel of
+ * which family, and never what it carried.
+ */
+declare module '@nightseam/runtime' {
+  interface ObserverEvents {
+    /** A channel exists, on the side that opened it and on the side it was opened to; opener says which of the two this one is. */
+    'channel.opened': { type: 'channel.opened'; at: Date; family: string; id: number; after: number; opener: boolean };
+    /** A channel the other side opened was taken here, by accept or by the handle that names it. */
+    'channel.accepted': { type: 'channel.accepted'; at: Date; family: string; id: number; after: number };
+    /** A channel ended, under the code and reason it ended with, whichever side ended it. */
+    'channel.closed': { type: 'channel.closed'; at: Date; family: string; id: number; code: number; reason: string };
+    /** A frame found the other side's window exhausted and waits in the channel; waiting is how many do. */
+    'credit.stall': { type: 'credit.stall'; at: Date; family: string; id: number; waiting: number };
+    /** An open did not become a channel: refused here before it left, or refused by the side it reached. */
+    'open.refused': { type: 'open.refused'; at: Date; family: string; reason: string };
+  }
+}
 
 export const OPEN_METHOD = 'channel.open';
 export const FRAME_EVENT = 'channel.frame';
@@ -69,8 +91,14 @@ export class Tunnel {
 
   /** Opens a channel to the other side, saying what family it speaks and the last sequence this side holds; resolves once the other side accepted it. */
   async open(family: string, after = 0): Promise<Channel> {
-    if (typeof family !== 'string' || family === '') throw new DuplexError('channel_invalid', 'A channel is opened for a family.');
-    if (!Number.isInteger(after) || after < 0) throw new DuplexError('channel_invalid', 'after must be a sequence.');
+    if (typeof family !== 'string' || family === '') {
+      this.refused('', 'a channel is opened for a family');
+      throw new DuplexError('channel_invalid', 'A channel is opened for a family.');
+    }
+    if (!Number.isInteger(after) || after < 0) {
+      this.refused(family, 'after must be a sequence');
+      throw new DuplexError('channel_invalid', 'after must be a sequence.');
+    }
     const id = this.next;
     this.next += 2;
     const channel = new Channel(this, id, family, after, 0);
@@ -81,22 +109,30 @@ export class Tunnel {
     } catch (error) {
       this.table.delete(id);
       channel.endLocal();
+      // What the side it reached refused it with, as that side said it; the
+      // opener hears of its open becoming no channel exactly where the caller does.
+      this.refused(family, error instanceof Error ? error.message : String(error));
       throw error;
     }
     const window = (result as { window?: unknown } | null)?.window;
     if (typeof window !== 'number' || !Number.isInteger(window) || window <= 0) {
       this.table.delete(id);
       channel.endLocal();
+      this.refused(family, 'the other side declared no window');
       throw new DuplexError('channel_invalid', 'The other side declared no window.');
     }
     channel.grant(window);
+    this.observe({ type: 'channel.opened', at: new Date(), family, id, after, opener: true });
     return channel;
   }
 
   /** The next channel the other side opened that nobody here has taken yet, by accept or by channel. */
   accept(): Promise<Channel> {
     const next = this.pending.shift();
-    if (next) return Promise.resolve(next);
+    if (next) {
+      this.accepted(next);
+      return Promise.resolve(next);
+    }
     if (this.closed) return Promise.reject(new DuplexError('disconnected', 'The connection carrying the channels closed.'));
     return new Promise((resolve, reject) => { this.acceptors.push({ resolve, reject }); });
   }
@@ -106,7 +142,10 @@ export class Tunnel {
     const channel = this.table.get(id);
     if (channel) {
       const at = this.pending.indexOf(channel);
-      if (at >= 0) this.pending.splice(at, 1);
+      if (at >= 0) {
+        this.pending.splice(at, 1);
+        this.accepted(channel);
+      }
     }
     return channel;
   }
@@ -123,21 +162,45 @@ export class Tunnel {
   /** @internal */
   emit(event: string, data: unknown): Promise<void> { return this.peer.emit(event, data); }
 
+  /** @internal What a tunnel observes through: the observer of the peer it runs over, or none. */
+  observe(event: ObserverEvent): void { this.peer.observe(event); }
+
+  /** An open that became no channel, wherever it was refused. */
+  private refused(family: string, reason: string): void {
+    this.observe({ type: 'open.refused', at: new Date(), family, reason });
+  }
+
+  /** A channel the other side opened, taken here rather than left pending. */
+  private accepted(channel: Channel): void {
+    this.observe({ type: 'channel.accepted', at: new Date(), family: channel.family, id: channel.id, after: channel.after });
+  }
+
   private onOpen(params: unknown): { window: number } {
     const p = params as Partial<Record<'channel' | 'family' | 'after' | 'window', unknown>> | null;
     if (!p || typeof p !== 'object' || typeof p.channel !== 'number' || !Number.isInteger(p.channel) || p.channel <= 0 || typeof p.family !== 'string' || p.family === '' || typeof p.after !== 'number' || !Number.isInteger(p.after) || p.after < 0 || typeof p.window !== 'number' || !Number.isInteger(p.window) || p.window <= 0) {
+      this.refused(typeof p?.family === 'string' ? p.family : '', 'an open naming no channel, family, sequence and window');
       throw new DuplexError('channel_invalid', 'channel.open needs a positive channel id of the opener\'s parity, a family, a sequence and a window.');
     }
-    if (p.channel % 2 === this.parity) throw new DuplexError('channel_invalid', 'The channel id is of this side\'s parity.');
-    if (this.table.has(p.channel)) throw new DuplexError('channel_exists', `Channel ${p.channel} is open.`);
+    if (p.channel % 2 === this.parity) {
+      this.refused(p.family, 'the channel id is of this side\'s parity');
+      throw new DuplexError('channel_invalid', 'The channel id is of this side\'s parity.');
+    }
+    if (this.table.has(p.channel)) {
+      this.refused(p.family, `channel ${p.channel} is open`);
+      throw new DuplexError('channel_exists', `Channel ${p.channel} is open.`);
+    }
     if (this.acceptors.length === 0 && this.pending.length >= this.options.acceptCapacity) {
+      this.refused(p.family, 'no room for a channel nobody has accepted');
       throw new DuplexError('channel_refused', 'No room for a channel nobody has accepted.');
     }
     const channel = new Channel(this, p.channel, p.family, p.after, p.window);
     this.table.set(p.channel, channel);
+    this.observe({ type: 'channel.opened', at: new Date(), family: p.family, id: p.channel, after: p.after, opener: false });
     const acceptor = this.acceptors.shift();
-    if (acceptor) acceptor.resolve(channel);
-    else this.pending.push(channel);
+    if (acceptor) {
+      this.accepted(channel);
+      acceptor.resolve(channel);
+    } else this.pending.push(channel);
     return { window: this.options.window };
   }
 
@@ -234,13 +297,17 @@ export class Channel implements FrameConnection {
       this.credit--;
       this.transmit(frame);
     } else {
+      // The other side's window is exhausted; the frame waits in the channel
+      // rather than on the outer connection, and the observer is told how much does.
       this.queued.push(frame);
+      this.tunnel.observe({ type: 'credit.stall', at: new Date(), family: this.family, id: this.id, waiting: this.queued.length });
     }
   }
 
   close(code = 1000, reason = ''): void {
     if (this.current === 'closed') return;
     this.current = 'closed';
+    this.closing(code, reason);
     this.queued.length = 0;
     this.tunnel.remove(this.id);
     void this.tunnel.emit(CLOSE_EVENT, { channel: this.id, code, reason }).catch(() => { /* The outer peer reports its own failure. */ });
@@ -306,6 +373,7 @@ export class Channel implements FrameConnection {
   endRemote(code: number, reason: string): void {
     if (this.current === 'closed') return;
     this.current = 'closed';
+    this.closing(code, reason);
     this.queued.length = 0;
     if (this.listeners.size === 0 && this.held.length > 0) {
       this.heldClose = { code, reason };
@@ -318,10 +386,16 @@ export class Channel implements FrameConnection {
   fail(code: number, reason: string): void {
     if (this.current === 'closed') return;
     this.current = 'closed';
+    this.closing(code, reason);
     this.queued.length = 0;
     this.tunnel.remove(this.id);
     void this.tunnel.emit(CLOSE_EVENT, { channel: this.id, code, reason }).catch(() => { /* The outer peer reports its own failure. */ });
     this.ended(code, reason);
+  }
+
+  /** The channel is over, observed where it ends rather than where the close reaches its listeners, which a held frame delays. */
+  private closing(code: number, reason: string): void {
+    this.tunnel.observe({ type: 'channel.closed', at: new Date(), family: this.family, id: this.id, code, reason });
   }
 
   private ended(code: number, reason: string): void {
