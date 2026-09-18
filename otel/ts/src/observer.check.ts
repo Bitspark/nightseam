@@ -51,7 +51,7 @@ export const EVENTS: ObserverEvent[] = [
   { type: 'ask.raised', at, session: 's', id: 's:1', method: 'reverse', asking: true, trace },
   { type: 'ask.routed', at, session: 's', id: 's:1', method: 'reverse', origin: 'one', trace },
   { type: 'ask.answered', at, session: 's', id: 's:1', method: 'reverse', origin: 'one', trace },
-  { type: 'control.changed', at, session: 's', origin: 'one' },
+  { type: 'control.changed', at, session: 's', origin: 'one', held: true },
   { type: 'frame.appended', at, session: 's', sequence: 1, direction: 'up', origin: 'one', bytes: 96, method: 'echo', trace },
   { type: 'session.refused', at, session: 's', code: 'not_controlling', method: 'echo', role: 'participant', origin: 'two', trace },
 ];

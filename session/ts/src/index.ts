@@ -49,7 +49,7 @@ declare module '@nightseam/runtime' {
     /** The holder answered it, and the answer went to the machine. */
     'ask.answered': { type: 'ask.answered'; at: Date; session: string; id: string; method: string; origin: string; trace?: Trace };
     /** Control of a session moved; an origin absent is control released, left with nobody. */
-    'control.changed': { type: 'control.changed'; at: Date; session: string; origin?: string };
+    'control.changed': { type: 'control.changed'; at: Date; session: string; origin?: string; held: boolean };
     /** A frame was appended to the session's log: its sequence, its direction, the origin of the consumer whose frame it was — none for the machine's own — and its size, never its message. */
     'frame.appended': { type: 'frame.appended'; at: Date; session: string; sequence: number; direction: Direction; origin: string; bytes: number; method?: string; trace?: Trace };
     /** A consumer's frame the relay answered in the machine's place rather than forwarding: not_controlling where control is not held, busy where the session has too many requests open. */
@@ -265,8 +265,11 @@ export class Attachment {
     this.origin = origin;
   }
 
-  /** Detaches the consumer: the relay stops carrying its channel, releases control if it held it, and the session stands. The channel is the caller's to close. */
-  detach(): void { this.relay.detach(this); }
+  /** Detaches the consumer: the relay stops carrying its channel, releases control if it held it, and the session stands; the channel is closed with 1000 "detached", as the Go twin closes it, so a consumer learns it was let go. */
+  detach(): void {
+    this.relay.detach(this);
+    if (this.channel.state === 'open') this.channel.close(1000, 'detached');
+  }
 
   /** @internal */
   attachTo(unlisten: () => void): void { this.unlisten = unlisten; }
@@ -366,7 +369,7 @@ class Relay {
     }
     this.holder = holder;
     this.change('control_changed', holder ? { attachment: holder } : {});
-    this.observe({ type: 'control.changed', at: new Date(), session: this.id, ...(holder ? { origin: holder.origin } : {}) });
+    this.observe({ type: 'control.changed', at: new Date(), session: this.id, ...(holder ? { origin: holder.origin } : {}), held: holder !== null });
     // Every request the machine is waiting on follows control: the consumer
     // it stood with no longer answers it, and whoever holds control now is
     // asked it afresh.
@@ -566,7 +569,7 @@ class Relay {
     if (this.holder === attachment) {
       this.holder = null;
       this.change('control_changed');
-      this.observe({ type: 'control.changed', at: new Date(), session: this.id });
+      this.observe({ type: 'control.changed', at: new Date(), session: this.id, held: false });
     }
     for (const [minted, held] of this.inflight) if (held.at === attachment) this.inflight.delete(minted);
     for (const open of this.open.values()) if (open.at === attachment) open.at = null;
