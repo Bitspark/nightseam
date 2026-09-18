@@ -85,7 +85,7 @@ func TestGeneratedGoFamilyCompilesAndCommunicates(t *testing.T) {
 			copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
 			copyFixtureTree(t, filepath.Join(root, "duplex/ts"), filepath.Join(directory, "duplex/ts"))
 			copyFixtureTree(t, filepath.Join(root, "tunnel/ts"), filepath.Join(directory, "tunnel/ts"))
-			writeFixture(t, directory, "runtime-loader.mjs", []byte(`export async function resolve(specifier,context,next){const map={'@nightseam/runtime':'./runtime/ts/src/index.ts','@nightseam/duplex':'./duplex/ts/src/index.ts','@nightseam/tunnel':'./tunnel/ts/src/index.ts'};if(map[specifier])return {url:new URL(map[specifier],import.meta.url).href,shortCircuit:true};return next(specifier,context);}`))
+			writeFixture(t, directory, "runtime-loader.mjs", []byte(runtimeLoader))
 			writeFixture(t, directory, "roundtrip.mjs", []byte(`import assert from 'node:assert/strict';import {Client} from './api/ts/probe-client/src/index.ts';const client=await Client.dial(process.argv[2],{}, {reverse(params){return {...params,text:'typescript:'+params.text};}});let observed;client.onChanged(data=>{observed=data;});const result=await client.echo({text:'value',count:7,note:null});assert.equal(result.text,'typescript:value');assert.equal(result.note,null);assert.equal(observed.count,7);await assert.rejects(client.echo({text:'bad',count:9007199254740992}));client.close();`))
 			writeFixture(t, directory, "integration_test.go", []byte(goIntegrationFixture))
 			writeFixture(t, directory, "tunnel_test.go", []byte(goTunnelFixture))
@@ -234,10 +234,17 @@ func TestGeneratedTypeScriptChecksAndValidates(t *testing.T) {
 		assert.throws(()=>validateWire('Payload',{text:'hello',count:9007199254740992}));assert.throws(()=>validateWire('Payload',{text:'hello'}));assert.throws(()=>validateWire('Payload',{text:'hello',count:4,unknown:1}));assert.throws(()=>validateWire('Payload',{text:'hello',count:4,note:undefined}));assert.throws(()=>validateWire({array:'integer'},new Array(1)));assert.throws(()=>validateWire({map:'integer'},new Date()));
 		validateWire('OpenRecord',{id:'open',extra:{supported:true}});assert.throws(()=>validateWire('Status','unknown'));assert.throws(()=>validateWire('timestamp','2024-02-30T00:00:00Z'));validateWire('timestamp','2024-02-29T00:00:00Z');
 		`))
-			runFixture(t, directory, "node", "validation.mjs")
+			// The validator is the runtime's, which Node finds through the
+			// same loader the round trip uses.
+			writeFixture(t, directory, "runtime-loader.mjs", []byte(runtimeLoader))
+			runFixture(t, directory, "node", "--loader", "./runtime-loader.mjs", "validation.mjs")
 		})
 	}
 }
+
+// runtimeLoader resolves the runtime packages to their sources for Node,
+// which does not strip types inside node_modules.
+const runtimeLoader = `export async function resolve(specifier,context,next){const map={'@nightseam/runtime':'./runtime/ts/src/index.ts','@nightseam/duplex':'./duplex/ts/src/index.ts','@nightseam/tunnel':'./tunnel/ts/src/index.ts'};if(map[specifier])return {url:new URL(map[specifier],import.meta.url).href,shortCircuit:true};return next(specifier,context);}`
 
 func TestWorkbenchContractRenders(t *testing.T) {
 	data, err := os.ReadFile("testdata/workbench-api.json")
@@ -358,6 +365,7 @@ func TestImportDirection(t *testing.T) {
 		"emit":                        {"diag": true},
 		"spi":                         {"diag": true, "render": true},
 		"targets/golang":              {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
+		"targets/typescript":          {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
 		"kernel":                      {"diag": true, "model": true, "load": true, "analysis": true, "check": true, "render": true, "spi": true},
 		"oracle":                      {"model": true},
 		"upgrade":                     {"naming": true},

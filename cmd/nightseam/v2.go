@@ -4,6 +4,7 @@ import (
 	"github.com/Bitspark/nightseam/internal/kernel"
 	"github.com/Bitspark/nightseam/internal/spi"
 	"github.com/Bitspark/nightseam/internal/targets/golang"
+	"github.com/Bitspark/nightseam/internal/targets/typescript"
 )
 
 // targets is the v2 composition root: the only place a target is named.
@@ -13,6 +14,7 @@ import (
 func targets(module, scope string) []spi.Target {
 	return []spi.Target{
 		golang.New(golang.Config{Module: module}),
+		typescript.New(typescript.Config{Scope: scope}),
 	}
 }
 

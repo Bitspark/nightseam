@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -152,6 +153,68 @@ func TestUpgradeIsSurfaceEquivalent(t *testing.T) {
 		got := strings.Join(goSurface(t, p, string(rendered)), "\n")
 		if want != got {
 			t.Errorf("the surface of %s differs:\n%s", p, diff(want, got))
+		}
+	}
+}
+
+// tsExports lists what a TypeScript module exports, by name, sorted: the
+// surface a consumer sees, apart from the types' shapes, which the diagram
+// fixture holds under tsc.
+func tsExports(source string) []string {
+	seen := map[string]bool{}
+	for _, m := range regexp.MustCompile(`(?m)^export (?:interface|type|class|const|function|async function) ([A-Za-z_$][A-Za-z0-9_$]*)`).FindAllStringSubmatch(source, -1) {
+		seen[m[1]] = true
+	}
+	for _, m := range regexp.MustCompile(`(?m)^export (?:type )?\{ ([^}]*) \}`).FindAllStringSubmatch(source, -1) {
+		for _, name := range strings.Split(m[1], ",") {
+			seen[strings.TrimSpace(name)] = true
+		}
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// TestUpgradeIsExportEquivalent: every TypeScript module v2 renders for the
+// converted corpus exports what v1's does, name for name, so that a
+// consumer of the one is a consumer of the other; what v2 exports beyond
+// that is reported. (The types' shapes are held equal by the diagram
+// fixture under tsc.)
+func TestUpgradeIsExportEquivalent(t *testing.T) {
+	a := &app{root: corpusRoot, module: module, scope: scope}
+	names, err := a.chosen(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v1, err := a.render(names)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2 := renderV2(t, filepath.Join(v2Root, "corpus"))
+	for p, data := range v1 {
+		if !strings.HasSuffix(p, ".ts") {
+			continue
+		}
+		rendered, ok := v2[p]
+		if !ok {
+			t.Errorf("v2 does not render %s", p)
+			continue
+		}
+		exported := map[string]bool{}
+		for _, name := range tsExports(string(rendered)) {
+			exported[name] = true
+		}
+		for _, name := range tsExports(string(data)) {
+			if !exported[name] {
+				t.Errorf("%s no longer exports %s", p, name)
+			}
+			delete(exported, name)
+		}
+		for name := range exported {
+			t.Logf("%s also exports %s", p, name)
 		}
 	}
 }

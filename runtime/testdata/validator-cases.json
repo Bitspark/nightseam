@@ -1,5 +1,5 @@
 {
-  "description": "The conformance table of the wire validator every runtime carries: one family's wire description, one imported family's, and cases of a type expression, a JSON value, and whether the value is valid. Both runtimes read this file.",
+  "description": "The conformance table of the wire validator every runtime carries: one family's wire description, one imported family's, and cases of a type expression, a JSON value, and whether the value is valid. Both runtimes read this file. A type drawn from a parameter is not among the cases: the TypeScript validator holds it to the binding of the parameter and the Go validator passes it through, since a generated Go codec validates it where the generic type is instantiated; each runtime tests its own way.",
   "wire": {
     "Base": {"kind": "record", "fields": [{"name": "text", "type": "string", "required": true}]},
     "Payload": {"kind": "record", "extends": ["Base"], "fields": [
@@ -13,11 +13,12 @@
     "Payloads": {"kind": "alias", "type": {"array": "Payload"}},
     "Counts": {"kind": "alias", "type": {"map": "integer"}},
     "User": {"kind": "entity", "key": "id", "fields": [{"name": "id", "type": "string", "required": true}, {"name": "name", "type": "string", "required": true}]},
-    "Held": {"kind": "record", "fields": [{"name": "message", "type": "S.Envelope", "required": true}, {"name": "who", "type": {"ref": "User"}, "required": true}, {"name": "other", "type": "peer.Thing", "required": true}]},
+    "Held": {"kind": "record", "fields": [{"name": "who", "type": {"ref": "User"}, "required": true}, {"name": "other", "type": "peer.Thing", "required": true}]},
     "Frame": {"kind": "record", "fields": [{"name": "inner", "type": {"apply": "peer.Box", "with": {"S": "peer"}}, "required": true}]}
   },
   "imported": {
     "peer": {
+      "Envelope": {"kind": "record", "fields": [{"name": "version", "type": "integer", "required": true}]},
       "Thing": {"kind": "record", "fields": [{"name": "n", "type": "integer", "required": true}]},
       "Box": {"kind": "record", "fields": [{"name": "item", "type": "S.Envelope", "required": true}]}
     }
@@ -56,12 +57,16 @@
     {"expression": {"map": "Status"}, "value": {"k": "off"}, "valid": true},
     {"expression": {"empty": true}, "value": {}, "valid": true},
     {"expression": {"empty": true}, "value": {"x": 1}, "valid": false},
-    {"expression": "Held", "value": {"message": {"anything": 1}, "who": "user-1", "other": {"n": 2}}, "valid": true},
-    {"expression": "Held", "value": {"message": {"anything": 1}, "who": 5, "other": {"n": 2}}, "valid": false},
-    {"expression": "Held", "value": {"message": {"anything": 1}, "who": "u", "other": {"n": "two"}}, "valid": false},
+    {"expression": "Held", "value": {"who": "user-1", "other": {"n": 2}}, "valid": true},
+    {"expression": "Held", "value": {"who": 5, "other": {"n": 2}}, "valid": false},
+    {"expression": "Held", "value": {"who": "u", "other": {"n": "two"}}, "valid": false},
     {"expression": "peer.Thing", "value": {"n": 1}, "valid": true},
     {"expression": "nobody.Thing", "value": {"n": 1}, "valid": false},
-    {"expression": "Frame", "value": {"inner": {"item": {"free": "json"}}}, "valid": true},
+    {"expression": "Frame", "value": {"inner": {"item": {"version": 1}}}, "valid": true},
+    {"expression": "peer.Envelope", "value": {"version": 1}, "valid": true},
+    {"expression": "peer.Envelope", "value": {"nope": 1}, "valid": false},
+    {"expression": {"envelope": "peer"}, "value": {"version": 1}, "valid": true},
+    {"expression": {"connection": "nobody"}, "value": {"channel": 1}, "valid": false},
     {"expression": "Frame", "value": {"inner": {"nope": 1}}, "valid": false},
     {"expression": "Nope", "value": 1, "valid": false}
   ]

@@ -3,16 +3,16 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
+	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/kernel"
-	"github.com/Bitspark/nightseam/internal/legacy/contract"
 	legacy "github.com/Bitspark/nightseam/internal/legacy/kernel"
 	legacyspi "github.com/Bitspark/nightseam/internal/legacy/spi"
 	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/oracle"
 	"github.com/Bitspark/nightseam/internal/targets/golang"
+	"github.com/Bitspark/nightseam/internal/targets/typescript"
 )
 
 // A generation is one generator the slow fixtures run against: v1, the
@@ -20,9 +20,7 @@ import (
 // the same families under testdata/v2/families. The fixture bodies — the
 // hand-written Go tests and Node scripts that compile and run against the
 // generated packages — are the same for both, which is what makes the two
-// generators render the same API. Until v2 renders TypeScript, v2 renders
-// the Go packages and v1 the TypeScript ones: a v2 Go peer speaks with a
-// v1 TypeScript peer over the wire, as the profile promises.
+// generators render the same API.
 type generation struct {
 	name string
 	// probe renders the probe family into the fixture directory.
@@ -68,21 +66,8 @@ func v1Slots(t *testing.T, directory string) {
 	render(world["carrier"], rightLanguages(module, scope))
 }
 
-// v2 renders the Go packages; the TypeScript ones come from v1 until v2
-// renders them too.
 func v2Probe(t *testing.T, directory string) {
 	t.Helper()
-	v1 := map[string][]byte{}
-	result, err := legacy.Generate(exampleAPI(t), languages(module, scope)...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for p, data := range result.Files {
-		if !strings.HasSuffix(p, ".go") {
-			v1[p] = data
-		}
-	}
-	writeAll(t, directory, v1)
 	k := v2Kernel(module, scope)
 	world := k.Load(os.DirFS(filepath.Join(v2Root, "families")), "api/contracts")
 	rendered, err := k.Render(world, "probe")
@@ -94,26 +79,13 @@ func v2Probe(t *testing.T, directory string) {
 
 func v2Slots(t *testing.T, directory string) {
 	t.Helper()
-	// The TypeScript packages of every path, from v1.
-	world, probe, substituted := slotWorld(t)
-	for _, r := range []struct {
-		input     map[string]any
-		languages []legacyspi.Language
-	}{{probe, languages(module, scope)}, {substituted, languages(module, scope)}, {world["carrier"], rightLanguages(module, scope)}} {
-		result, err := legacy.GenerateIn(world, r.input, r.languages...)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for p, data := range result.Files {
-			if !strings.HasSuffix(p, ".go") {
-				writeFixture(t, directory, p, data)
-			}
-		}
-	}
-	// The Go packages: probe and the substituted carrier at the default
-	// layout, the carrier as written at gen/.
-	families := kernel.Load(os.DirFS(filepath.Join(v2Root, "families")), "api/contracts", []string{"go", "typescript"})
-	left := kernel.New(golang.New(golang.Config{Module: module}))
+	// The world is probe and the carrier alone, as v1's is: with another
+	// session family in it the carrier's client would refer to that one too.
+	loaded := kernel.Load(os.DirFS(filepath.Join(v2Root, "families")), "api/contracts", []string{"go", "typescript"})
+	families := &kernel.World{Families: map[string]*model.Family{"probe": loaded.Families["probe"], "carrier": loaded.Families["carrier"]}, Names: []string{"carrier", "probe"}, Problems: map[string][]diag.Diagnostic{}}
+	// The left path: probe and the carrier with S bound to probe, at the
+	// default layout.
+	left := v2Kernel(module, scope)
 	bound := *families
 	bound.Families = map[string]*model.Family{}
 	for name, f := range families.Families {
@@ -127,14 +99,15 @@ func v2Slots(t *testing.T, directory string) {
 		}
 		writeAll(t, directory, result.Files)
 	}
-	// The carrier as written is placed at gen/, and refers to probe where
-	// the layout puts it, beside the left path's.
-	right := kernel.New(golang.New(golang.Config{Module: module, Place: map[string]golang.Layout{"carrier": {Protocol: "gen/go/{family}-protocol", Binding: "gen/go/{family}-binding", Client: "gen/go/{family}-client"}}}))
+	// The right path: the carrier as written, placed at gen/, referring to
+	// probe where the layout puts it, beside the left path's.
+	right := kernel.New(
+		golang.New(golang.Config{Module: module, Place: map[string]golang.Layout{"carrier": {Protocol: "gen/go/{family}-protocol", Binding: "gen/go/{family}-binding", Client: "gen/go/{family}-client"}}}),
+		typescript.New(typescript.Config{Scope: scope, Place: map[string]string{"carrier": "gen/ts/{family}-client"}}),
+	)
 	result, err := right.Render(families, "carrier")
 	if err != nil {
 		t.Fatalf("right path: %v", err)
 	}
 	writeAll(t, directory, result.Files)
 }
-
-var _ = contract.SessionRole
