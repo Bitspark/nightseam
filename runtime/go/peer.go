@@ -176,8 +176,20 @@ func NewPeer(ctx context.Context, conn duplex.Conn, role Role, options Options) 
 
 func (p *Peer) Done() <-chan struct{}    { return p.done }
 func (p *Peer) Context() context.Context { return p.ctx }
-func (p *Peer) Err() error               { p.mu.Lock(); defer p.mu.Unlock(); return p.err }
-func (p *Peer) Close() error             { p.fail(ErrClosed); return nil }
+
+// Role is the side of the connection this peer is: it prefixes the request
+// ids it mints, and a tunnel over it chooses channel ids by it.
+func (p *Peer) Role() Role {
+	if p.prefix == "s:" {
+		return ServerRole
+	}
+	return ClientRole
+}
+
+// MaxFrameBytes is the largest frame this peer sends or receives.
+func (p *Peer) MaxFrameBytes() int64 { return p.options.MaxFrameBytes }
+func (p *Peer) Err() error           { p.mu.Lock(); defer p.mu.Unlock(); return p.err }
+func (p *Peer) Close() error         { p.fail(ErrClosed); return nil }
 
 func (p *Peer) fail(err error) {
 	p.once.Do(func() {

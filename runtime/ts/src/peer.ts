@@ -122,6 +122,9 @@ export class DuplexPeer {
 
   get status(): PeerStatus { return this.state; }
 
+  /** The side of the connection this peer is; a tunnel over it chooses channel ids by it. */
+  get role(): 'client' | 'server' { return this.options.role ?? 'client'; }
+
   /** Absolute ws/wss URLs are required. Factories may supply platform-specific auth. */
   connect(url: string): Promise<void> {
     if (this.connection) return Promise.reject(new DuplexError('already_connected', 'Peer already has a connection.'));

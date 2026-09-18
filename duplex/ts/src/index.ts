@@ -113,6 +113,44 @@ export function webSocketConnection(socket: WebSocketLike): FrameConnection {
   };
 }
 
+/**
+ * Two connected ends in memory: what one sends, the other receives, in order,
+ * in a later microtask; a close on one end is the close on the other, with its
+ * code and reason. It carries the profile in tests without a socket, as the
+ * Go pipe does.
+ */
+export function pipe(): [FrameConnection, FrameConnection] {
+  class End implements FrameConnection {
+    state: ConnectionState = 'open';
+    readonly buffered = 0;
+    partner!: End;
+    private readonly listeners = new Set<ConnectionHandlers>();
+    send(frame: Frame): void {
+      if (this.state !== 'open') throw new Error('Connection is not open.');
+      const partner = this.partner;
+      queueMicrotask(() => {
+        if (partner.state === 'open') for (const handlers of [...partner.listeners]) handlers.frame?.(frame);
+      });
+    }
+    close(code = 1000, reason = ''): void {
+      if (this.state === 'closed') return;
+      this.state = 'closed';
+      for (const handlers of [...this.listeners]) handlers.close?.(code, reason);
+      this.listeners.clear();
+      this.partner.close(code, reason);
+    }
+    listen(handlers: ConnectionHandlers): () => void {
+      this.listeners.add(handlers);
+      return () => { this.listeners.delete(handlers); };
+    }
+  }
+  const left = new End();
+  const right = new End();
+  left.partner = right;
+  right.partner = left;
+  return [left, right];
+}
+
 function isBlob(value: unknown): value is Blob {
   return typeof Blob !== 'undefined' && value instanceof Blob;
 }

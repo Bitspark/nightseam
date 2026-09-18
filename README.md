@@ -15,6 +15,8 @@ duplex/go/              the seam in Go: Conn, Pipe, the close codes; duplex/go/w
 duplex/ts/              @nightseam/duplex: FrameConnection and the WebSocket adapter
 runtime/go/             the Go peer of the profile: envelope, request correlation, cancellation, backpressure, presence, HTTP upgrade
 runtime/ts/             @nightseam/runtime, the TypeScript peer for the browser and Node, no third-party dependency
+tunnel/go/              channels multiplexed over one peer, each a Conn: the third transport, with per-channel credit
+tunnel/ts/              @nightseam/tunnel, the same over a DuplexPeer, each channel a FrameConnection
 cmd/nightseam/          the generator: generate, check, validate
 internal/contract/      the contract model and its schema, urn:nightseam:contract:1; layers, imports, slots, generics
 internal/kernel/        parses, validates and renders a family within the world of the families it imports
@@ -65,6 +67,22 @@ renders both for a carrier of a probe family into one module and holds them
 equal: by reflection in Go, field for field and method for method; by
 `Equals<>` under `tsc` in TypeScript; and on the wire, a plain client against
 a generic server and the reverse.
+
+## The tunnel
+
+A tunnel multiplexes channels over one peer of the profile. Either side opens
+a channel, saying the family it speaks and the last sequence it holds; each
+channel is a connection of the seam — `duplex.Conn` in Go, `FrameConnection`
+in TypeScript — held to the same conformance suite as the WebSocket and the
+pipe, so a peer of any family runs over it unchanged, and a handle in a
+family's message, `{"channel": 12}`, names one. The outer peer sees four
+operations of the profile's own — `channel.open`, a request; `channel.frame`,
+`channel.credit` and `channel.close`, events — and never what a channel
+carries. Flow control is per channel by credit, a window each side declares
+at open and returns as it takes frames, so a channel whose consumer stalls
+stalls its own sender and nothing else; ids are the opener's, odd for the
+client and even for the server, so both sides open without a collision. The
+Go and TypeScript tunnels are held to each other over a real WebSocket.
 
 ## Using it
 
