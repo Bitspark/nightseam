@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -310,6 +311,175 @@ func Run(t *testing.T, connect Connect) {
 		}
 	})
 
+	t.Run("every domain change of a session reaches OnChange, in order", func(t *testing.T) {
+		// One session from bound to unbound, every change it makes read in
+		// the order it made them: the scenarios above, in one run, with the
+		// hook the consumer's own events are computed from watching.
+		registry := session.New(session.Options{})
+		changes := watching(t, registry, "s")
+		near, far := connect(t)
+		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
+			t.Fatal(err)
+		}
+		machine := &speaker{name: "machine", channel: far}
+		changes.expect(t, expected{kind: session.ChangeBound})
+
+		// Two consumers, each attached from the beginning of a log that has
+		// nothing in it yet.
+		holder, one := attach(t, registry, "s", "one", session.Participant, 0)
+		changes.expect(t, expected{kind: session.ChangeAttached, origin: "one"})
+		_, two := attach(t, registry, "s", "two", session.Observer, 0)
+		changes.expect(t, expected{kind: session.ChangeAttached, origin: "two"})
+
+		// A request neither side governs, and its answer: two frames, and
+		// the consumer that sent the first is the change's own.
+		one.send(t, `{"version":1,"kind":"request","id":"c:7","method":"no_args","params":{}}`)
+		asked := machine.take(t)
+		changes.expect(t, expected{kind: session.ChangeFrameAppended, origin: "one", method: "no_args", sequence: 1})
+		machine.send(t, fmt.Sprintf(`{"version":1,"kind":"response","id":%q,"result":"ok"}`, asked.text("id")))
+		one.take(t)
+		changes.expect(t, expected{kind: session.ChangeFrameAppended, sequence: 2})
+		machine.send(t, `{"version":1,"kind":"event","event":"changed","data":{"text":"t","count":1}}`)
+		one.take(t)
+		two.take(t)
+		changes.expect(t, expected{kind: session.ChangeFrameAppended, method: "changed", sequence: 3})
+
+		// What the relay refuses is a change and never a frame: the machine
+		// never saw it, so the log did not either.
+		two.send(t, `{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":"t","count":1}}`)
+		two.take(t)
+		changes.expect(t, expected{kind: session.ChangeRefused, origin: "two", method: "echo", sequence: 3})
+
+		if err := registry.Control("s", holder); err != nil {
+			t.Fatal(err)
+		}
+		changes.expect(t, expected{kind: session.ChangeControlChanged, origin: "one", sequence: 3})
+
+		// A deciding frame of the holder's, with a trace the relay knows
+		// nothing of and tells whoever is watching about.
+		one.send(t, fmt.Sprintf(`{"version":1,"kind":"request","id":"c:1","method":"echo","traceparent":%q,"params":{"text":"t","count":1}}`, firstTrace))
+		echoed := machine.take(t)
+		changes.expect(t, expected{kind: session.ChangeFrameAppended, origin: "one", method: "echo", sequence: 4, trace: firstTrace})
+		machine.send(t, fmt.Sprintf(`{"version":1,"kind":"response","id":%q,"result":{"text":"t","count":1}}`, echoed.text("id")))
+		one.take(t)
+		changes.expect(t, expected{kind: session.ChangeFrameAppended, sequence: 5})
+
+		// An ask: the frame, the ask it raises, and the holder it reaches.
+		one.send(t, `{"version":1,"kind":"request","id":"c:2","method":"unasked","params":{}}`)
+		machine.take(t)
+		changes.expect(t, expected{kind: session.ChangeFrameAppended, origin: "one", method: "unasked", sequence: 6})
+		machine.send(t, fmt.Sprintf(`{"version":1,"kind":"request","id":"s:1","method":"reverse","traceparent":%q,"params":{"text":"t","count":1}}`, askTrace))
+		one.take(t)
+		changes.expect(t, expected{kind: session.ChangeFrameAppended, method: "reverse", sequence: 7, trace: askTrace})
+		changes.expect(t, expected{kind: session.ChangeAskRaised, method: "reverse", sequence: 7, trace: askTrace})
+		changes.expect(t, expected{kind: session.ChangeAskRouted, origin: "one", method: "reverse", sequence: 7, trace: askTrace})
+
+		// A consumer resuming from nothing takes the seven frames from the
+		// log, which is no change of the session's: a replay is what a
+		// consumer is told, not what happened.
+		next, three := attach(t, registry, "s", "three", session.Participant, 0)
+		changes.expect(t, expected{kind: session.ChangeAttached, origin: "three", sequence: 7})
+		for i := 0; i < 7; i++ {
+			three.take(t)
+		}
+
+		// Control moving carries the open ask with it, and both are changes.
+		if err := registry.Control("s", next); err != nil {
+			t.Fatal(err)
+		}
+		changes.expect(t, expected{kind: session.ChangeControlChanged, origin: "three", sequence: 7})
+		three.take(t)
+		changes.expect(t, expected{kind: session.ChangeAskRouted, origin: "three", method: "reverse", sequence: 7, trace: askTrace})
+
+		// The answer is a frame and the end of the ask, under the method the
+		// ask named and the trace the answer carried.
+		three.send(t, fmt.Sprintf(`{"version":1,"kind":"response","id":"s:1","traceparent":%q,"result":{"text":"t","count":1}}`, answerTrace))
+		machine.take(t)
+		changes.expect(t, expected{kind: session.ChangeFrameAppended, origin: "three", sequence: 8, trace: answerTrace})
+		changes.expect(t, expected{kind: session.ChangeAskAnswered, origin: "three", method: "reverse", sequence: 8, trace: answerTrace})
+
+		// A consumer leaving, and then the machine's channel taking the rest
+		// of them with it.
+		holder.Detach()
+		changes.expect(t, expected{kind: session.ChangeDetached, origin: "one", sequence: 8})
+		machine.close(t, duplex.CodePolicyViolation, "the machine went away")
+		two.ended(t)
+		three.ended(t)
+		changes.expect(t, expected{kind: session.ChangeDetached, origin: "two", sequence: 8})
+		changes.expect(t, expected{kind: session.ChangeDetached, origin: "three", sequence: 8})
+		changes.expect(t, expected{kind: session.ChangeUnbound, sequence: 8})
+		changes.quiet(t)
+	})
+
+	t.Run("no change carries what was in a frame", func(t *testing.T) {
+		// The sentinel is in every payload a session carries — a consumer's
+		// params, the machine's result, an event's data, an ask's params, the
+		// answer's result and a refused request's params — and in nothing any
+		// change says.
+		const sentinel = "sentinel-6f9c2a"
+		registry := session.New(session.Options{})
+		changes := watching(t, registry, "s")
+		near, far := connect(t)
+		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
+			t.Fatal(err)
+		}
+		machine := &speaker{name: "machine", channel: far}
+		holder, one := attach(t, registry, "s", "one", session.Participant, 0)
+		_, watcher := attach(t, registry, "s", "watcher", session.Observer, 0)
+		if err := registry.Control("s", holder); err != nil {
+			t.Fatal(err)
+		}
+		one.send(t, fmt.Sprintf(`{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":%q,"count":1}}`, sentinel))
+		asked := machine.take(t)
+		machine.send(t, fmt.Sprintf(`{"version":1,"kind":"response","id":%q,"result":{"text":%q,"count":1}}`, asked.text("id"), sentinel))
+		one.take(t)
+		machine.send(t, fmt.Sprintf(`{"version":1,"kind":"event","event":"changed","data":{"text":%q,"count":1}}`, sentinel))
+		one.take(t)
+		watcher.take(t)
+		machine.send(t, fmt.Sprintf(`{"version":1,"kind":"request","id":"s:1","method":"reverse","params":{"text":%q,"count":1}}`, sentinel))
+		one.take(t)
+		one.send(t, fmt.Sprintf(`{"version":1,"kind":"response","id":"s:1","result":{"text":%q,"count":1}}`, sentinel))
+		machine.take(t)
+		watcher.send(t, fmt.Sprintf(`{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":%q,"count":1}}`, sentinel))
+		watcher.take(t)
+
+		told := changes.all(t)
+		if len(told) < 10 {
+			t.Fatalf("the session told %d changes, which is not the scenario", len(told))
+		}
+		for _, change := range told {
+			rendered := fmt.Sprintf("%+v %s %s %s %s", change, change.Kind, change.Session, change.Method, change.Trace.Parent)
+			if change.Attachment != nil {
+				rendered += " " + change.Attachment.Origin + " " + change.Attachment.Role.String()
+			}
+			if strings.Contains(rendered, sentinel) {
+				t.Fatalf("a %s change carried what was in the frame: %s", change.Kind, rendered)
+			}
+		}
+	})
+
+	t.Run("stopping a registration stops it and no other", func(t *testing.T) {
+		registry := session.New(session.Options{})
+		kept := watching(t, registry, "s")
+		stopped := watching(t, registry, "s")
+		stopped.stop()
+		near, _ := connect(t)
+		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
+			t.Fatal(err)
+		}
+		kept.expect(t, expected{kind: session.ChangeBound})
+		stopped.quiet(t)
+		// And one stopped twice is one registration, not a second one gone.
+		kept.stop()
+		kept.stop()
+		elsewhere, _ := connect(t)
+		if err := registry.Bind("t", elsewhere, governance, session.NewMemoryLog(0)); err != nil {
+			t.Fatal(err)
+		}
+		kept.quiet(t)
+		stopped.quiet(t)
+	})
+
 	t.Run("a message over the log's bound is replayed truncated", func(t *testing.T) {
 		log := session.NewMemoryLog(16)
 		ctx := context.Background()
@@ -345,6 +515,97 @@ func Run(t *testing.T, connect Connect) {
 			t.Fatal(err)
 		}
 	})
+}
+
+// The trace contexts the change run sends, each on a frame of its own, so
+// that a change saying which frame it concerns says which of them it was.
+// The relay reads none of them and neither does the suite: they are three
+// W3C strings carried through and read back.
+const (
+	firstTrace  = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	askTrace    = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+	answerTrace = "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b8-01"
+)
+
+// watch is one OnChange registration the suite reads as a stream of what
+// the registry told it, in the order it was told.
+type watch struct {
+	session string
+	changes chan session.Change
+	stop    func()
+}
+
+// watching registers before anything is bound, so that a session's first
+// change is one of the ones the suite reads.
+func watching(t *testing.T, registry *session.Registry, id string) *watch {
+	t.Helper()
+	w := &watch{session: id, changes: make(chan session.Change, 256)}
+	w.stop = registry.OnChange(func(change session.Change) { w.changes <- change })
+	t.Cleanup(w.stop)
+	return w
+}
+
+// expected is one change as the suite expects it: what happened, to which
+// consumer where there is one, what the frame it concerns named, where the
+// session's log stood, and the trace that frame carried.
+type expected struct {
+	kind     session.ChangeKind
+	origin   string
+	method   string
+	sequence int64
+	trace    string
+}
+
+func (w *watch) expect(t *testing.T, want expected) session.Change {
+	t.Helper()
+	select {
+	case got := <-w.changes:
+		origin := ""
+		if got.Attachment != nil {
+			origin = got.Attachment.Origin
+		}
+		if got.Kind != want.kind || origin != want.origin || got.Method != want.method ||
+			got.Sequence != want.sequence || got.Trace.Parent != want.trace {
+			t.Fatalf("the session changed %s(consumer %q, method %q, sequence %d, trace %q), not %s(consumer %q, method %q, sequence %d, trace %q)",
+				got.Kind, origin, got.Method, got.Sequence, got.Trace.Parent,
+				want.kind, want.origin, want.method, want.sequence, want.trace)
+		}
+		if got.Session != w.session {
+			t.Fatalf("a %s change of session %q reached a watcher of %q", got.Kind, got.Session, w.session)
+		}
+		if got.At.IsZero() {
+			t.Fatalf("a %s change happened at no time", got.Kind)
+		}
+		return got
+	case <-time.After(5 * time.Second):
+		t.Fatalf("nothing changed where %s was expected", want.kind)
+	}
+	return session.Change{}
+}
+
+// quiet holds that the session changed no further: what is refused, routed
+// elsewhere or told to another registration reaches this one nowhere.
+func (w *watch) quiet(t *testing.T) {
+	t.Helper()
+	select {
+	case got := <-w.changes:
+		t.Fatalf("the session also changed %s", got.Kind)
+	case <-time.After(250 * time.Millisecond):
+	}
+}
+
+// all is every change told so far, once nothing more is coming.
+func (w *watch) all(t *testing.T) []session.Change {
+	t.Helper()
+	var told []session.Change
+	for {
+		select {
+		case got := <-w.changes:
+			told = append(told, got)
+		case <-time.After(250 * time.Millisecond):
+			return told
+		}
+	}
 }
 
 // intact holds every member of a frame but its id to what was sent, in the

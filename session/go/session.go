@@ -112,6 +112,12 @@ type Registry struct {
 	options  Options
 	mu       sync.Mutex
 	sessions map[string]*relay
+
+	// watch guards the OnChange registrations alone, so that telling one
+	// about a change takes no lock a registration calling back in would
+	// wait for.
+	watch    sync.RWMutex
+	watchers []*watcher
 }
 
 // New makes a registry with the limits its sessions run under.
@@ -142,6 +148,7 @@ func (r *Registry) Bind(id string, up *tunnel.Channel, g Governance, log Log) er
 	}
 	r.sessions[id] = relay
 	r.mu.Unlock()
+	relay.sessionBound()
 	go relay.pump()
 	return nil
 }

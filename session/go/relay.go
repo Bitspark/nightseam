@@ -57,9 +57,13 @@ type pending struct {
 }
 
 // routed is one request the machine sent down, kept verbatim because
-// control moving re-routes it to whoever holds it then.
+// control moving re-routes it to whoever holds it then, and with what it
+// named and carried because whoever is told about that move is told what
+// followed control.
 type routed struct {
 	message []byte
+	method  string
+	trace   runtime.Trace
 	asks    bool
 	at      *Attachment
 }
@@ -95,7 +99,7 @@ func (r *relay) fromMachine(data []byte) {
 		r.end(&duplex.CloseError{Code: duplex.CodeProtocolError, Reason: err.Error()})
 		return
 	}
-	attached := r.record(Down, "", data)
+	sequence, attached := r.record(Down, nil, m, data)
 	switch m.kind() {
 	case "event":
 		for _, a := range attached {
@@ -106,8 +110,16 @@ func (r *relay) fromMachine(data []byte) {
 			at.deliver(m.withID(id))
 		}
 	case "request":
-		if at, ok := r.route(m.id(), data, r.governance.Asks(m.method())); ok {
+		asks := r.governance.Asks(m.method())
+		at, ok := r.route(m, data, asks)
+		if asks {
+			r.askRaised(sequence, m)
+		}
+		if ok {
 			at.deliver(data)
+			if asks {
+				r.askRouted(sequence, at, m.method(), m.trace())
+			}
 		}
 	case "cancel":
 		if at, ok := r.withdraw(m.id()); ok {
@@ -131,15 +143,15 @@ func (r *relay) fromConsumer(a *Attachment, data []byte) {
 			return
 		}
 		if r.governance.Decides(m.method()) && !r.controls(a) {
-			r.refuse(a, m.id(), ErrorNotControlling, "The consumer does not hold control of the session.")
+			r.refuse(a, m, ErrorNotControlling, "The consumer does not hold control of the session.")
 			return
 		}
 		minted, ok := r.mint(a, m.id())
 		if !ok {
-			r.refuse(a, m.id(), ErrorBusy, "The session has too many requests open.")
+			r.refuse(a, m, ErrorBusy, "The session has too many requests open.")
 			return
 		}
-		r.sendUp(a, m.withID(minted))
+		r.sendUp(a, m, m.withID(minted))
 	case "cancel":
 		// A cancel decides: it withdraws what the machine is working on.
 		// Nothing answers a cancel, so a refused one is dropped.
@@ -150,56 +162,69 @@ func (r *relay) fromConsumer(a *Attachment, data []byte) {
 		if !ok {
 			return
 		}
-		r.sendUp(a, m.withID(minted))
+		r.sendUp(a, m, m.withID(minted))
 	case "response":
 		// An answer to what the machine asked decides, so only the consumer
 		// the request was routed to answers it.
-		if !r.answered(a, m.id()) {
+		answered, ok := r.answered(a, m.id())
+		if !ok {
 			return
 		}
-		r.sendUp(a, data)
+		sequence := r.sendUp(a, m, data)
+		if answered.asks {
+			r.askAnswered(sequence, a, answered.method, m.trace())
+		}
 	case "event":
-		r.sendUp(a, data)
+		r.sendUp(a, m, data)
 	}
 }
 
-// record appends a frame to the session's log and returns the consumers
-// there were when its sequence was assigned; one attaching between the two
-// is not among them and takes the frame from the log's replay instead.
-func (r *relay) record(direction Direction, origin string, data []byte) []*Attachment {
+// record appends a frame to the session's log and returns its sequence and
+// the consumers there were when that sequence was assigned; one attaching
+// between the two is not among them and takes the frame from the log's
+// replay instead. from is the consumer whose frame it is, and nil for the
+// machine's, which is what the frame's origin is read from.
+func (r *relay) record(direction Direction, from *Attachment, m *message, data []byte) (int64, []*Attachment) {
+	origin := ""
+	if from != nil {
+		origin = from.Origin
+	}
 	r.mu.Lock()
 	if r.closed {
 		r.mu.Unlock()
-		return nil
+		return 0, nil
 	}
 	sequence, err := r.log.Append(r.ctx, Frame{Direction: direction, Origin: origin, At: time.Now().UTC(), Message: data})
 	if err != nil {
 		r.mu.Unlock()
 		// A session whose frames cannot be recorded is not a session.
 		r.end(fmt.Errorf("the session's log refused a frame: %w", err))
-		return nil
+		return 0, nil
 	}
 	r.sequence = sequence
 	attached := make([]*Attachment, len(r.attached))
 	copy(attached, r.attached)
 	r.mu.Unlock()
-	return attached
+	r.frameAppended(sequence, from, m)
+	return sequence, attached
 }
 
 // sendUp records a consumer's frame and sends it to the machine, one
-// goroutine at a time and in the order it recorded them.
-func (r *relay) sendUp(a *Attachment, data []byte) {
+// goroutine at a time and in the order it recorded them, and gives back the
+// sequence the log gave it.
+func (r *relay) sendUp(a *Attachment, m *message, data []byte) int64 {
 	if data == nil {
-		return
+		return 0
 	}
 	r.upSend.Lock()
 	defer r.upSend.Unlock()
-	r.record(Up, a.Origin, data)
+	sequence, _ := r.record(Up, a, m, data)
 	ctx, cancel := context.WithTimeout(r.ctx, r.options.SendTimeout)
 	defer cancel()
 	if err := r.up.Send(ctx, duplex.Frame{Kind: duplex.Text, Data: data}); err != nil {
 		r.end(err)
 	}
+	return sequence
 }
 
 // refusal is the one frame a relay writes of itself: a response to a
@@ -212,11 +237,12 @@ type refusal struct {
 	Error   *runtime.PublicError `json:"error"`
 }
 
-func (r *relay) refuse(a *Attachment, id, code, message string) {
-	data, err := json.Marshal(refusal{Version: 1, Kind: "response", ID: id, Error: &runtime.PublicError{Code: code, Message: message}})
+func (r *relay) refuse(a *Attachment, m *message, code, reason string) {
+	data, err := json.Marshal(refusal{Version: 1, Kind: "response", ID: m.id(), Error: &runtime.PublicError{Code: code, Message: reason}})
 	if err != nil {
 		return
 	}
+	r.refused(a, code, m)
 	a.deliver(data)
 }
 
@@ -266,8 +292,8 @@ func (r *relay) resolve(id string) (*Attachment, string, bool) {
 
 // route sends a request of the machine's to the holder of control and keeps
 // it while nobody answers, so that control moving carries it along.
-func (r *relay) route(id string, data []byte, asks bool) (*Attachment, bool) {
-	if id == "" {
+func (r *relay) route(m *message, data []byte, asks bool) (*Attachment, bool) {
+	if m.id() == "" {
 		return nil, false
 	}
 	r.mu.Lock()
@@ -277,21 +303,21 @@ func (r *relay) route(id string, data []byte, asks bool) (*Attachment, bool) {
 	}
 	kept := make([]byte, len(data))
 	copy(kept, data)
-	r.routed[id] = &routed{message: kept, asks: asks, at: r.holder}
+	r.routed[m.id()] = &routed{message: kept, method: m.method(), trace: m.trace(), asks: asks, at: r.holder}
 	return r.holder, r.holder != nil
 }
 
 // answered closes a request of the machine's that the consumer it was
-// routed to has answered.
-func (r *relay) answered(a *Attachment, id string) bool {
+// routed to has answered, and gives back what it was.
+func (r *relay) answered(a *Attachment, id string) (*routed, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	open, ok := r.routed[id]
 	if !ok || open.at != a {
-		return false
+		return nil, false
 	}
 	delete(r.routed, id)
-	return true
+	return open, true
 }
 
 // withdraw closes a request of the machine's that the machine cancelled.
@@ -337,17 +363,22 @@ func (r *relay) control(holder *Attachment) error {
 		}
 	}
 	r.holder = holder
-	open := make([][]byte, 0, len(r.routed))
+	open := make([]routed, 0, len(r.routed))
 	for _, request := range r.routed {
 		request.at = holder
-		open = append(open, request.message)
+		open = append(open, *request)
 	}
 	r.mu.Unlock()
+	r.controlChanged(holder)
 	if holder == nil {
 		return nil
 	}
-	for _, message := range open {
-		holder.deliver(message)
+	sequence := r.at()
+	for _, request := range open {
+		holder.deliver(request.message)
+		if request.asks {
+			r.askRouted(sequence, holder, request.method, request.trace)
+		}
 	}
 	return nil
 }
@@ -398,6 +429,10 @@ func (r *relay) attach(down *tunnel.Channel, role Role, origin string, after int
 	r.attached = append(r.attached, a)
 	ceiling := r.sequence
 	r.mu.Unlock()
+	// Told before the replay runs, because the consumer is one of the
+	// session's from here: a frame recorded meanwhile is already its own and
+	// waits behind the replay rather than before the attachment.
+	r.sessionAttached(a, ceiling)
 	err := r.replay(a, after, ceiling)
 	a.send.Unlock()
 	if err != nil {
@@ -482,6 +517,9 @@ func (r *relay) end(err error) {
 		for _, a := range attached {
 			a.end(code, reason)
 		}
+		// Last, and after every consumer it carried is gone: a session is
+		// unbound once there is nothing left of it to be told about.
+		r.sessionUnbound()
 		ctx, cancel := context.WithTimeout(context.Background(), r.options.SendTimeout)
 		_ = r.up.Close(ctx, code, reason)
 		cancel()
@@ -531,6 +569,9 @@ func (a *Attachment) sendHeld(data []byte) error {
 func (a *Attachment) end(code duplex.Code, reason string) {
 	a.once.Do(func() {
 		a.relay.detach(a)
+		// Told before the channel is closed, so that a consumer watching the
+		// far end of it never sees the close before the change.
+		a.relay.sessionDetached(a)
 		a.cancel()
 		ctx, cancel := context.WithTimeout(context.Background(), a.relay.options.SendTimeout)
 		_ = a.Channel.Close(ctx, code, reason)

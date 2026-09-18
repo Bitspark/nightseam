@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/Bitspark/nightseam/runtime/go"
 )
 
 // message is one frame of the profile as a relay sees it: a JSON object it
@@ -72,6 +74,22 @@ func (m *message) text(name string) string {
 func (m *message) kind() string   { return m.text("kind") }
 func (m *message) id() string     { return m.text("id") }
 func (m *message) method() string { return m.text("method") }
+
+// named is what the frame names: a request's method, an event's name. A
+// response and a cancel name nothing, a response's method being no member
+// of the wire.
+func (m *message) named() string {
+	if event := m.text("event"); event != "" {
+		return event
+	}
+	return m.method()
+}
+
+// trace is the W3C members the frame carries, verbatim and unread: the
+// relay forwards them and an observer is told what they were.
+func (m *message) trace() runtime.Trace {
+	return runtime.Trace{Parent: m.text("traceparent"), State: m.text("tracestate")}
+}
 
 // withID writes the frame again with its id replaced and every other member
 // verbatim, in its place; a frame that carried none gains it at the end.
