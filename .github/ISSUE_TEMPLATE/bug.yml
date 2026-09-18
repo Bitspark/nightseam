@@ -1,6 +1,5 @@
 name: Something is wrong
 description: A defect in a runtime, the generator or the generated code
-labels: ["defect"]
 body:
   - type: markdown
     attributes:

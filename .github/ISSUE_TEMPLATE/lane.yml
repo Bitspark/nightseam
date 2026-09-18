@@ -1,6 +1,5 @@
 name: Lane
 description: A unit of work of a size one session lands by itself
-labels: ["lane"]
 body:
   - type: markdown
     attributes:
