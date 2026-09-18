@@ -1,6 +1,6 @@
 module github.com/Bitspark/nightseam/otel/go
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/Bitspark/nightseam v0.2.0
