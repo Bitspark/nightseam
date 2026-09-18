@@ -65,6 +65,16 @@ func TestCheckRejectsWhatGoCannotGenerate(t *testing.T) {
 		{"enum constant reserved", "reserved_name", "/types/Validate/values/0", func(v map[string]any) {
 			v["types"].(map[string]any)["Validate"] = map[string]any{"kind": "enum", "values": []any{"raw"}}
 		}},
+		{"error constant collision", "generated_name_collision", "/errors/1/code", func(v map[string]any) {
+			v["errors"] = []any{map[string]any{"code": "not-found", "description": ""}, map[string]any{"code": "not_found", "description": ""}}
+		}},
+		{"error constant is a type", "generated_name_collision", "/errors/0/code", func(v map[string]any) {
+			v["types"].(map[string]any)["ErrorDenied"] = map[string]any{"kind": "record", "fields": []any{}}
+			v["errors"] = []any{map[string]any{"code": "denied", "description": ""}}
+		}},
+		{"error code with no identifier", "invalid_name", "/errors/0/code", func(v map[string]any) {
+			v["errors"] = []any{map[string]any{"code": "---", "description": ""}}
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

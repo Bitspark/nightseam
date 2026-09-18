@@ -34,6 +34,14 @@ raise a request the holder of control answers, and where the conversation id
 arrives. A layer refers to itself or a lower one and never a higher one; the
 tool refuses a declaration that does.
 
+The `errors` of the `rpc` layer are the public errors a family declares, by
+code, and reach both languages by name: the Go protocol package declares a
+constant per error, `ErrorNotFound = "not_found"`, the list `Errors`, and
+`IsError(err, code)`; the TypeScript client exports `errors`, an object with
+a member per error, `errors.notFound`, and the `ErrorCode` union of them. A
+handler returns one as a `*runtime.PublicError` with the code, and a caller
+tells them apart without spelling it.
+
 A family may `import` others and refer to their types as `other.Type`. Every
 family carries an `Envelope`, one message of its own profile, and a `Handle`,
 a channel reference; a type may hold a slot, `{"envelope": "f"}` or

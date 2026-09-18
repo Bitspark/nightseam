@@ -93,7 +93,7 @@ func (l *language) Render(api contract.API) ([]spi.File, error) {
 // family's own descriptor, Family, the bound and the binding of a generic
 // family's parameter, and the parameter, F; a contract type of that name is
 // refused.
-var reservedTypes = strings.Fields("Client Caller Handler TypeExpression WireType WireField Family AnyFamily SessionFamily FamilyBinding Slots Array Record Promise AbortSignal Date Number Object Set Error")
+var reservedTypes = strings.Fields("Client Caller Handler TypeExpression WireType WireField Family AnyFamily SessionFamily FamilyBinding Slots ErrorCode Array Record Promise AbortSignal Date Number Object Set Error")
 
 // A method named then would also make the client a Promise-like value, breaking
 // the async dial factory through JavaScript's thenable assimilation.
@@ -141,6 +141,18 @@ func (*language) Check(api contract.API) []contract.Diagnostic {
 	client := map[string]string{"peer": "generated client field", "slots": "generated client field", "close": "generated client method", "constructor": "generated client constructor"}
 	for _, parameter := range api.Parameters {
 		client[bindingName(parameter.Name)] = "the binding of parameter " + parameter.Name
+	}
+	// A public error becomes a member of the errors object; two codes that
+	// spell the same member are refused.
+	keys := map[string]string{}
+	for i, e := range api.Errors {
+		p := fmt.Sprintf("/errors/%d/code", i)
+		key := errorKey(e.Code)
+		if previous, exists := keys[key]; exists {
+			add("generated_name_collision", p, "Generated error member "+key+" collides with "+previous+".")
+		} else {
+			keys[key] = p
+		}
 	}
 	// A parameter becomes a type parameter of the generated declarations and
 	// shadows anything of that name in the module.
@@ -487,6 +499,19 @@ func generateTS(api contract.API, g contract.Generics, s settings) []spi.File {
 			fmt.Fprintf(&client, "/** Where the agent's own conversation id arrives: the event, and the path to the id in its data. */\nexport const conversation = { event: %s, path: %s } as const;\n", quote(s.Conversation.Event), quote(s.Conversation.Path))
 		}
 	}
+	// The public errors the family declares: what a DuplexError's code may
+	// be, by name.
+	if len(api.Errors) > 0 {
+		var members []string
+		for _, e := range api.Errors {
+			member := ""
+			if e.Description != "" {
+				member = "/** " + strings.ReplaceAll(e.Description, "*/", "* /") + " */ "
+			}
+			members = append(members, member+errorKey(e.Code)+": "+quote(e.Code))
+		}
+		fmt.Fprintf(&client, "/** The public errors of the family: what the code of a DuplexError a call rejects with may be. */\nexport const errors = { %s } as const;\n/** One of the family's public error codes. */\nexport type ErrorCode = (typeof errors)[keyof typeof errors];\n", strings.Join(members, ", "))
+	}
 	fmt.Fprintf(&client, "export class Client%s implements Caller%s {\n  readonly peer: DuplexPeer;\n", decl, args)
 	var made strings.Builder
 	if g.Generic() {
@@ -552,6 +577,28 @@ func orEmpty(list []string) []string {
 	}
 	return list
 }
+
+// errorKey is the member of errors one public error becomes: the code's
+// alphanumeric words in lower camel case, notFound for not_found, quoted
+// when that is not an identifier.
+func errorKey(code string) string {
+	var out strings.Builder
+	for i, part := range wordPattern.FindAllString(code, -1) {
+		if i == 0 {
+			out.WriteString(strings.ToLower(part))
+		} else {
+			out.WriteString(upperFirst(strings.ToLower(part)))
+		}
+	}
+	key := out.String()
+	if key == "" || !identifierPattern.MatchString(key) {
+		return quote(code)
+	}
+	return key
+}
+
+var wordPattern = regexp.MustCompile(`[A-Za-z0-9]+`)
+var identifierPattern = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
 
 func upperFirst(value string) string {
 	if value == "" {

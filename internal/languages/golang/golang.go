@@ -133,7 +133,7 @@ func (l *language) Render(api contract.API) ([]spi.File, error) {
 
 // reservedTypes are the identifiers the generated Go packages and the
 // runtime declare or would shadow; a contract type of that name is refused.
-var reservedTypes = strings.Fields("API Client Caller Server Binding Handler Handlers ClientHandlers ServerHandlers Peer PublicError Optional Remote NewHandler Dial Decides Asks Conversation ValidateRaw ValidateExpressionRaw ValidateValue TypeExpression Attach Serve Open Tag Of")
+var reservedTypes = strings.Fields("API Client Caller Server Binding Handler Handlers ClientHandlers ServerHandlers Peer PublicError Optional Remote NewHandler Dial Decides Asks Conversation ValidateRaw ValidateExpressionRaw ValidateValue TypeExpression Attach Serve Open Tag Of Errors IsError")
 var reservedMethods = strings.Fields("Close Call Notify Handle Connect")
 
 // Check reports the names the contract would make Go generate that it
@@ -225,6 +225,21 @@ func (*language) Check(api contract.API) []contract.Diagnostic {
 				add("generated_name_collision", pointer, "Generated Go type parameter "+name+" is also generated for parameter "+previous+".")
 			}
 			generated[name] = use.Parameter
+		}
+	}
+	// A public error becomes a constant of the protocol package, beside the
+	// types and the enum constants.
+	for i, e := range api.Errors {
+		p := fmt.Sprintf("/errors/%d/code", i)
+		name := errorName(e.Code)
+		if name == "Error" {
+			add("invalid_name", p, "Public error code yields no Go identifier.")
+			continue
+		}
+		if previous, exists := declarations[name]; exists {
+			add("generated_name_collision", p, "Generated error constant "+name+" collides with "+previous+".")
+		} else {
+			declarations[name] = p
 		}
 	}
 	// The Go namespace is shared across methods and events in each direction.

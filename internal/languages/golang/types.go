@@ -68,5 +68,25 @@ func generateTypes(api contract.API, g contract.Generics, p paths) string {
 			fmt.Fprintf(&b, "type %s%s = %s\n", name, declare(kinds), goType(g, t.Type, ""))
 		}
 	}
+	// The public errors the family declares: a handler returns one as a
+	// *runtime.PublicError, a caller tells them apart by code.
+	if len(api.Errors) > 0 {
+		b.WriteString("// The public errors of the family: what a handler returns, as the Code of a *runtime.PublicError, and a caller tells apart with IsError.\nconst (\n")
+		var codes []string
+		for _, e := range api.Errors {
+			if e.Description != "" {
+				fmt.Fprintf(&b, "// %s: %s\n", errorName(e.Code), e.Description)
+			}
+			fmt.Fprintf(&b, "%s = %q\n", errorName(e.Code), e.Code)
+			codes = append(codes, errorName(e.Code))
+		}
+		fmt.Fprintf(&b, ")\n// Errors is every public error code the family declares.\nvar Errors = []string{%s}\n", strings.Join(codes, ", "))
+		b.WriteString("// IsError reports whether an error is, or wraps, the family's public error of the code.\nfunc IsError(err error, code string) bool { var public *runtime.PublicError; return errors.As(err, &public) && public.Code == code }\n")
+	}
 	return goFile(api, "protocol", b.String(), p)
 }
+
+// errorName is the constant the protocol package declares for one public
+// error: Error and the code in upper camel case, ErrorNotFound for
+// not_found.
+func errorName(code string) string { return "Error" + goName(code) }

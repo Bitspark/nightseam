@@ -49,6 +49,9 @@ func TestCheckRejectsWhatTypeScriptCannotGenerate(t *testing.T) {
 		{"global type", "reserved_name", "/types/Date", func(v map[string]any) {
 			v["types"].(map[string]any)["Date"] = map[string]any{"kind": "alias", "type": "timestamp"}
 		}},
+		{"error member collision", "generated_name_collision", "/errors/1/code", func(v map[string]any) {
+			v["errors"] = []any{map[string]any{"code": "not-found", "description": ""}, map[string]any{"code": "not_found", "description": ""}}
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

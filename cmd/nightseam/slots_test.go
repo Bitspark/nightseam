@@ -871,3 +871,47 @@ var _ = func() { _, _ = rightclient.Dial[runtime.Raw, runtime.Raw](context.Backg
 		t.Fatalf("the opaque instantiation did not compile:\n%s", out)
 	}
 }
+
+// TestPublicErrorsAreRendered: the errors a family declares reach both
+// languages by name — a constant and IsError in the Go protocol package, an
+// errors object and an ErrorCode type in the TypeScript client — so that a
+// handler returns one and a caller tells it apart without spelling the code.
+func TestPublicErrorsAreRendered(t *testing.T) {
+	probe := exampleAPI(t)
+	probe["errors"] = []any{
+		map[string]any{"code": "denied", "description": "The caller is denied"},
+		map[string]any{"code": "not_found", "description": "Nothing of that name"},
+		map[string]any{"code": "429-too-many", "description": ""},
+	}
+	result, err := kernel.Generate(probe, languages(module, scope)...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{}
+	for p, data := range result.Files {
+		files[p] = string(data)
+	}
+	for path, wants := range map[string][]string{
+		// gofmt aligns a constant block, so the constants are matched without
+		// regard to the spaces before their equals signs.
+		"api/go/probe-protocol/types_generated.go": {
+			"// ErrorDenied: The caller is denied",
+			`ErrorDenied = "denied"`,
+			`ErrorNotFound = "not_found"`,
+			`Error429TooMany = "429-too-many"`,
+			"var Errors = []string{ErrorDenied, ErrorNotFound, Error429TooMany}",
+			"func IsError(err error, code string) bool",
+		},
+		"api/ts/probe-client/src/index.ts": {
+			`export const errors = { /** The caller is denied */ denied: "denied", /** Nothing of that name */ notFound: "not_found", "429-too-many": "429-too-many" } as const;`,
+			"export type ErrorCode = (typeof errors)[keyof typeof errors];",
+		},
+	} {
+		got := regexp.MustCompile(`[ 	]+= `).ReplaceAllString(files[path], " = ")
+		for _, want := range wants {
+			if !strings.Contains(got, want) {
+				t.Errorf("%s lacks %s", path, want)
+			}
+		}
+	}
+}
