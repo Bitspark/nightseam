@@ -143,14 +143,19 @@ func TestNoContracts(t *testing.T) {
 // TestTiersAreATable: the tiers rank lowest first and each file names its
 // tier; a file no tier owns ranks below all.
 func TestTiersAreATable(t *testing.T) {
-	if Rank("model.json") != 0 || Rank("protocol.json") != 1 || Rank("session.json") != 2 || Rank("go.json") != -1 {
+	if model.Rank("model.json") != 0 || model.Rank("protocol.json") != 1 || model.Rank("session.json") != 2 || model.Rank("go.json") != -1 {
 		t.Fatal("ranks are wrong")
 	}
-	if tier, ok := TierOf("session.json"); !ok || tier.Name != "session" || !strings.Contains(strings.Join(tier.Sections, ","), "decides") {
+	if tier, ok := model.TierOf("session.json"); !ok || tier.Name != "session" || !strings.Contains(strings.Join(tier.Sections, ","), "decides") {
 		t.Fatal("session.json is not the session tier")
 	}
-	if OverrideFile("go") != "go.json" {
+	if model.OverrideFile("go") != "go.json" {
 		t.Fatal("override files are <target>.json")
+	}
+	for _, tier := range model.Tiers {
+		if schemas[tier.Name] == "" {
+			t.Errorf("tier %s has no schema", tier.Name)
+		}
 	}
 	var _ diag.Location
 }

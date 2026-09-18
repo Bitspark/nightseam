@@ -162,7 +162,7 @@ func TestV2CorporaLoad(t *testing.T) {
 	if probe.Session == nil || probe.Session.Decides[0] != "echo" || probe.Types["Payload"].At.File != "model.json" || !world.Families["carrier"].Has("protocol.json") {
 		t.Fatal("the v2 corpus did not load as the v1 corpus declares")
 	}
-	if strings.Join(world.Families["album"].Imports, ",") != "carrier" {
+	if strings.Join(world.Families["album"].Imports, ",") != "carrier,probe" {
 		t.Fatal("album does not import carrier")
 	}
 }

@@ -1,0 +1,3 @@
+x/go.json#/names/Other: Other names nothing this family declares: a type, Type.field, Enum.value, a method or event, or errors.code. [unknown_override]
+x/go.json#/names/Thing.nope: Thing.nope names nothing this family declares: a type, Type.field, Enum.value, a method or event, or errors.code. [unknown_override]
+error: 2 problems

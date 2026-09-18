@@ -9,12 +9,6 @@
           "type": "string"
         }
       ]
-    },
-    "Frames": {
-      "kind": "alias",
-      "type": {
-        "array": "Frame"
-      }
     }
   }
 }

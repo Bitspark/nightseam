@@ -7,6 +7,9 @@
       "description": "The family whose messages are carried."
     }
   ],
+  "imports": [
+    "probe"
+  ],
   "types": {
     "AttachParams": {
       "kind": "record",

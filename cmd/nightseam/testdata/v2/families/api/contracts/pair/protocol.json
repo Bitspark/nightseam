@@ -10,7 +10,25 @@
       "of": "session"
     }
   ],
+  "imports": [
+    "probe"
+  ],
   "types": {
+    "Both": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "frame",
+          "type": "Frame"
+        },
+        {
+          "name": "echoes",
+          "type": {
+            "array": "Echo"
+          }
+        }
+      ]
+    },
     "Echo": {
       "kind": "record",
       "fields": [

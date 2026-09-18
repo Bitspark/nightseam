@@ -104,8 +104,38 @@ func convertLayer(layer string, raw map[string]json.RawMessage, files map[string
 		}
 		return files[file]
 	}
+	// Every family a declaration names is imported in the new language: the
+	// ones the layer imported, and the ones its slots and applications name.
+	named := map[string]bool{}
 	if imports, ok := raw["imports"]; ok {
-		tier(tierFile).set("imports", json.RawMessage(imports))
+		var names []string
+		if err := json.Unmarshal(imports, &names); err != nil {
+			return fmt.Errorf("imports: %w", err)
+		}
+		for _, name := range names {
+			named[name] = true
+		}
+	}
+	for _, key := range []string{"types", "methods", "events"} {
+		if raw, ok := raw[key]; ok {
+			collectNamed(raw, named)
+		}
+	}
+	if len(named) > 0 {
+		names := sortedKeys(named)
+		importsInto := tierFile
+		if single {
+			// One file holds everything: what a slot or an application names
+			// is of the protocol, where the types that hold them go.
+			importsInto = "protocol.json"
+			if raw, ok := raw["imports"]; ok {
+				var declared []string
+				if json.Unmarshal(raw, &declared) == nil && len(declared) > 0 {
+					importsInto = "model.json"
+				}
+			}
+		}
+		tier(importsInto).set("imports", names)
 	}
 	if rawTypes, ok := raw["types"]; ok {
 		var types map[string]map[string]json.RawMessage
@@ -113,20 +143,43 @@ func convertLayer(layer string, raw map[string]json.RawMessage, files map[string
 			return fmt.Errorf("types: %w", err)
 		}
 		names := sortedKeys(types)
+		converted := map[string]*object{}
+		protocolTier := map[string]bool{}
 		for _, name := range names {
-			t := types[name]
-			converted, holdsSlot, err := convertType(name, t, overrides["go"])
+			out, holdsSlot, err := convertType(name, types[name], overrides["go"])
 			if err != nil {
 				return err
 			}
+			converted[name] = out
+			protocolTier[name] = holdsSlot
+		}
+		if single {
+			// One file holds everything: a type that draws on a parameter
+			// or another family's messages is of the protocol, and so is a
+			// type that refers to one, since a declaration refers to its
+			// own tier or a lower one.
+			for changed := true; changed; {
+				changed = false
+				for _, name := range names {
+					if protocolTier[name] {
+						continue
+					}
+					for _, referred := range referredTypes(types[name], types) {
+						if protocolTier[referred] {
+							protocolTier[name] = true
+							changed = true
+							break
+						}
+					}
+				}
+			}
+		}
+		for _, name := range names {
 			file := tierFile
-			if single && holdsSlot {
-				// One file holds everything: a type that draws on a
-				// parameter or another family's messages is of the protocol.
+			if single && protocolTier[name] {
 				file = "protocol.json"
 			}
-			types := tier(file).object("types")
-			types.set(name, converted)
+			tier(file).object("types").set(name, converted[name])
 		}
 	}
 	if single || layer == "rpc" || layer == "sess" {
@@ -192,6 +245,83 @@ func convertLayer(layer string, raw map[string]json.RawMessage, files map[string
 	}
 	return nil
 }
+
+// referredTypes names the declared types one type's raw JSON refers to, in
+// its fields, its alias target and its parents.
+func referredTypes(t map[string]json.RawMessage, declared map[string]map[string]json.RawMessage) []string {
+	var out []string
+	var walk func(any)
+	walk = func(v any) {
+		switch x := v.(type) {
+		case string:
+			if _, ok := declared[x]; ok {
+				out = append(out, x)
+			}
+		case map[string]any:
+			for key, child := range x {
+				if key == "apply" || key == "with" || key == "name" || key == "description" {
+					continue
+				}
+				walk(child)
+			}
+		case []any:
+			for _, child := range x {
+				walk(child)
+			}
+		}
+	}
+	for _, key := range []string{"fields", "type", "extends"} {
+		if raw, ok := t[key]; ok {
+			var value any
+			if json.Unmarshal(raw, &value) == nil {
+				walk(value)
+			}
+		}
+	}
+	return out
+}
+
+// collectNamed finds every family the raw JSON names as a slot's family or
+// an application's filler, anywhere beneath it.
+func collectNamed(raw json.RawMessage, named map[string]bool) {
+	var value any
+	if json.Unmarshal(raw, &value) != nil {
+		return
+	}
+	var walk func(any)
+	walk = func(v any) {
+		switch x := v.(type) {
+		case map[string]any:
+			for _, slot := range []string{"envelope", "connection"} {
+				if target, ok := x[slot].(string); ok && !isParameter(target) {
+					named[target] = true
+				}
+			}
+			if reference, ok := x["apply"].(string); ok {
+				if family, _, ok := strings.Cut(reference, "."); ok {
+					named[family] = true
+				}
+				if with, ok := x["with"].(map[string]any); ok {
+					for _, filler := range with {
+						if target, ok := filler.(string); ok && !isParameter(target) {
+							named[target] = true
+						}
+					}
+				}
+			}
+			for _, child := range x {
+				walk(child)
+			}
+		case []any:
+			for _, child := range x {
+				walk(child)
+			}
+		}
+	}
+	walk(value)
+}
+
+func isParameter(name string) bool { return name != "" && name[0] >= 'A' && name[0] <= 'Z' }
 
 // convertType rewrites one type: its expressions to the one reference
 // form, a field's go_name to an override where the convention differs.

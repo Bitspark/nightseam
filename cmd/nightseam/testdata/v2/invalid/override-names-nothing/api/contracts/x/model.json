@@ -1,0 +1,1 @@
+{"nightseam": 2, "types": {"Thing": {"kind": "record", "fields": [{"name": "id", "type": "string"}]}}}

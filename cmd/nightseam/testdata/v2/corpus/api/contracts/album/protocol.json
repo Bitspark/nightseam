@@ -11,7 +11,8 @@
     }
   ],
   "imports": [
-    "carrier"
+    "carrier",
+    "probe"
   ],
   "types": {
     "Borrowed": {

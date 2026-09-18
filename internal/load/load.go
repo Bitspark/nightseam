@@ -26,50 +26,8 @@ import (
 	"github.com/Bitspark/nightseam/internal/model"
 )
 
-// Tier is one tier of declaration: the file it is declared in, its rank
-// among the tiers — a declaration refers to its own tier or a lower one —
-// the sections its file may carry beyond the types and imports every tier
-// carries, and the schema that holds the file's shape.
-type Tier struct {
-	Name     string
-	Rank     int
-	File     string
-	Sections []string
-	schema   string
-}
-
-// The tiers, lowest first. A concern is added here, with its checker in
-// check and its field on the model.
-var Tiers = []Tier{
-	{Name: "model", Rank: 0, File: "model.json", Sections: []string{"nightseam"}, schema: "urn:nightseam:v2:model"},
-	{Name: "protocol", Rank: 1, File: "protocol.json", Sections: []string{"profile", "parameters", "server", "client", "errors"}, schema: "urn:nightseam:v2:protocol"},
-	{Name: "session", Rank: 2, File: "session.json", Sections: []string{"decides", "asks", "conversation", "extensions"}, schema: "urn:nightseam:v2:session"},
-}
-
-// Common are the sections every tier file may carry.
-var Common = []string{"imports", "types"}
-
-// TierOf finds a tier by its file name.
-func TierOf(file string) (Tier, bool) {
-	for _, tier := range Tiers {
-		if tier.File == file {
-			return tier, true
-		}
-	}
-	return Tier{}, false
-}
-
-// Rank is the rank of the tier a file belongs to; a file no tier owns
-// ranks below every tier.
-func Rank(file string) int {
-	if tier, ok := TierOf(file); ok {
-		return tier.Rank
-	}
-	return -1
-}
-
-// OverrideFile is the override file of a target: <target>.json.
-func OverrideFile(target string) string { return target + ".json" }
+// schemas maps each tier to the schema that holds its file's shape.
+var schemas = map[string]string{"model": "urn:nightseam:v2:model", "protocol": "urn:nightseam:v2:protocol", "session": "urn:nightseam:v2:session"}
 
 //go:embed schemas/common.schema.json
 var commonSchema []byte
@@ -206,7 +164,7 @@ func Family(fsys fs.FS, dir, name string, targets []string) (*model.Family, []di
 			problems.Add(diag.Location{File: file}, "unknown_file", fmt.Sprintf("A family directory holds tier files and override files, not a directory: %s.", file))
 			continue
 		}
-		if _, isTier := TierOf(file); isTier {
+		if _, isTier := model.TierOf(file); isTier {
 			present[file] = true
 			continue
 		}
@@ -218,7 +176,7 @@ func Family(fsys fs.FS, dir, name string, targets []string) (*model.Family, []di
 		problems.Add(diag.Location{File: file}, "unknown_file", fmt.Sprintf("A family directory holds tier files — %s — and a target's override file — %s — not %s.", tierFiles(), overrideFiles(targets), file))
 	}
 	imports := map[string]bool{}
-	for _, tier := range Tiers {
+	for _, tier := range model.Tiers {
 		if !present[tier.File] {
 			if tier.Rank == 0 {
 				problems.Add(diag.Location{File: tier.File}, "missing_tier", fmt.Sprintf("Every family declares its model in %s.", tier.File))
@@ -226,8 +184,8 @@ func Family(fsys fs.FS, dir, name string, targets []string) (*model.Family, []di
 			}
 			continue
 		}
-		if tier.Rank > 0 && !present[Tiers[tier.Rank-1].File] {
-			problems.Add(diag.Location{File: tier.File}, "missing_tier", fmt.Sprintf("The %s tier builds on the %s tier: %s needs %s beside it.", tier.Name, Tiers[tier.Rank-1].Name, tier.File, Tiers[tier.Rank-1].File))
+		if tier.Rank > 0 && !present[model.Tiers[tier.Rank-1].File] {
+			problems.Add(diag.Location{File: tier.File}, "missing_tier", fmt.Sprintf("The %s tier builds on the %s tier: %s needs %s beside it.", tier.Name, model.Tiers[tier.Rank-1].Name, tier.File, model.Tiers[tier.Rank-1].File))
 			continue
 		}
 		family.Files = append(family.Files, tier.File)
@@ -239,7 +197,7 @@ func Family(fsys fs.FS, dir, name string, targets []string) (*model.Family, []di
 		readTier(tier, data, family, imports, &problems)
 	}
 	for target := range family.Overrides {
-		file := OverrideFile(target)
+		file := model.OverrideFile(target)
 		data, err := fs.ReadFile(fsys, path.Join(dir, file))
 		if err != nil {
 			problems.Add(diag.Location{File: file}, "unreadable", err.Error())
@@ -260,8 +218,8 @@ func Family(fsys fs.FS, dir, name string, targets []string) (*model.Family, []di
 
 // readTier shape-checks one tier file and decodes its sections into the
 // family: the imports and types every tier carries, then the tier's own.
-func readTier(tier Tier, data []byte, family *model.Family, imports map[string]bool, problems *diag.List) {
-	sections := shape(tier.File, tier.schema, data, problems)
+func readTier(tier model.Tier, data []byte, family *model.Family, imports map[string]bool, problems *diag.List) {
+	sections := shape(tier.File, schemas[tier.Name], data, problems)
 	if sections == nil {
 		return
 	}
@@ -348,7 +306,7 @@ func reportShape(file string, err *jsonschema.ValidationError, problems *diag.Li
 
 func overrideOf(file string, targets []string) (string, bool) {
 	for _, target := range targets {
-		if OverrideFile(target) == file {
+		if model.OverrideFile(target) == file {
 			return target, true
 		}
 	}
@@ -356,8 +314,8 @@ func overrideOf(file string, targets []string) (string, bool) {
 }
 
 func tierFiles() string {
-	names := make([]string, len(Tiers))
-	for i, tier := range Tiers {
+	names := make([]string, len(model.Tiers))
+	for i, tier := range model.Tiers {
 		names[i] = tier.File
 	}
 	return strings.Join(names, ", ")
@@ -366,7 +324,7 @@ func tierFiles() string {
 func overrideFiles(targets []string) string {
 	names := make([]string, len(targets))
 	for i, target := range targets {
-		names[i] = OverrideFile(target)
+		names[i] = model.OverrideFile(target)
 	}
 	return strings.Join(names, ", ")
 }

@@ -1,20 +1,3 @@
 {
-  "nightseam": 2,
-  "types": {
-    "Both": {
-      "kind": "record",
-      "fields": [
-        {
-          "name": "frame",
-          "type": "Frame"
-        },
-        {
-          "name": "echoes",
-          "type": {
-            "array": "Echo"
-          }
-        }
-      ]
-    }
-  }
+  "nightseam": 2
 }

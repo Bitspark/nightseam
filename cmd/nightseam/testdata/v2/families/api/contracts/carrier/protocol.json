@@ -6,6 +6,9 @@
       "of": "session"
     }
   ],
+  "imports": [
+    "probe"
+  ],
   "types": {
     "Attachment": {
       "kind": "record",
@@ -32,6 +35,12 @@
           "type": "S.Envelope"
         }
       ]
+    },
+    "Frames": {
+      "kind": "alias",
+      "type": {
+        "array": "Frame"
+      }
     }
   },
   "server": {

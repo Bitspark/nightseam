@@ -25,6 +25,23 @@
         }
       ]
     },
+    "Both": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "mine",
+          "type": "Mine"
+        },
+        {
+          "name": "borrowed",
+          "type": "Borrowed"
+        },
+        {
+          "name": "fixed",
+          "type": "Fixed"
+        }
+      ]
+    },
     "Fixed": {
       "kind": "record",
       "fields": [

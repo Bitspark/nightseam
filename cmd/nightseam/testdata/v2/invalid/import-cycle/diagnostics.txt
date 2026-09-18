@@ -1,0 +1,3 @@
+a/model.json#/imports/0: Family b imports this one, directly or through what it imports; the generated packages would import each other. [import_cycle]
+b/model.json#/imports/0: Family a imports this one, directly or through what it imports; the generated packages would import each other. [import_cycle]
+error: 2 problems

@@ -1,0 +1,2 @@
+x/model.json#/types/Low/fields/0/type: A model declaration refers to High, declared in protocol.json; a declaration refers to its own tier or a lower one. [tier_violation]
+error: 1 problems

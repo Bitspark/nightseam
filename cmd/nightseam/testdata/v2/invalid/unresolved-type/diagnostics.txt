@@ -1,0 +1,3 @@
+x/model.json#/types/Holder/fields/0/type: Unknown type Nothing. [unresolved_type]
+x/model.json#/types/Holder/fields/1/type: Unknown type Nothing. [unresolved_type]
+error: 2 problems
