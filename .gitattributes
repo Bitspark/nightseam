@@ -1,0 +1,12 @@
+# Source stays LF in every checkout so gofmt -l, diffs and the generator's
+# byte comparison mean the same thing on Windows and Linux.
+* text=auto eol=lf
+*.go text eol=lf
+*.ts text eol=lf
+*.svelte text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.png binary
+*.jpg binary
+*.woff2 binary
