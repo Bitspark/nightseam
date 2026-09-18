@@ -1,0 +1,12 @@
+time=2026-09-18T12:00:00.000Z level=INFO msg="connection opened" role=client
+time=2026-09-18T12:00:00.000Z level=DEBUG msg="request started" id=c:1 method=echo incoming=false traceparent=00-00000000000000000000000000000000-0000000000000000-01 family=probe
+time=2026-09-18T12:00:00.000Z level=DEBUG msg="frame sent" kind=request name=echo bytes=143 id=c:1 traceparent=00-00000000000000000000000000000000-0000000000000000-01 family=probe
+time=2026-09-18T12:00:00.000Z level=DEBUG msg="frame received" kind=response name="" bytes=134 id=c:1 traceparent=00-00000000000000000000000000000000-0000000000000000-01
+time=2026-09-18T12:00:00.000Z level=DEBUG msg="request ended" id=c:1 method=echo incoming=false duration=1ms outcome=ok error_code="" traceparent=00-00000000000000000000000000000000-0000000000000000-01 family=probe
+time=2026-09-18T12:00:00.000Z level=DEBUG msg="frame received" kind=request name=back bytes=143 id=s:1 traceparent=00-00000000000000000000000000000000-0000000000000000-01
+time=2026-09-18T12:00:00.000Z level=DEBUG msg="request started" id=s:1 method=back incoming=true traceparent=00-00000000000000000000000000000000-0000000000000000-01
+time=2026-09-18T12:00:00.000Z level=DEBUG msg="request ended" id=s:1 method=back incoming=true duration=1ms outcome=ok error_code="" traceparent=00-00000000000000000000000000000000-0000000000000000-01
+time=2026-09-18T12:00:00.000Z level=DEBUG msg="frame sent" kind=response name="" bytes=134 id=s:1 traceparent=00-00000000000000000000000000000000-0000000000000000-01
+time=2026-09-18T12:00:00.000Z level=DEBUG msg="event emitted" name=tick bytes=1 traceparent=00-00000000000000000000000000000000-0000000000000000-01 family=probe
+time=2026-09-18T12:00:00.000Z level=DEBUG msg="frame sent" kind=event name=tick bytes=124 id="" traceparent=00-00000000000000000000000000000000-0000000000000000-01 family=probe
+time=2026-09-18T12:00:00.000Z level=INFO msg="connection closed" code=1000 reason="" local=true

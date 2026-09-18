@@ -1,0 +1,14 @@
+time=2026-09-18T12:00:00.000Z level=INFO msg="connection opened" role=client
+time=2026-09-18T12:00:00.001Z level=DEBUG msg="request started" id=c:1 method=turn.start incoming=false traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="nightseam=1" family=turns
+time=2026-09-18T12:00:00.002Z level=DEBUG msg="frame sent" kind=request name=turn.start bytes=148 id=c:1 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="nightseam=1" family=turns
+time=2026-09-18T12:00:00.003Z level=DEBUG msg="frame received" kind=response name="" bytes=96 id=c:1 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+time=2026-09-18T12:00:00.004Z level=DEBUG msg="request ended" id=c:1 method=turn.start incoming=false duration=2ms outcome=ok error_code="" traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="nightseam=1" family=turns
+time=2026-09-18T12:00:00.005Z level=WARN msg="request ended" id=c:2 method=turn.stop incoming=true duration=1.5ms outcome=error error_code=denied traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="nightseam=1" family=turns
+time=2026-09-18T12:00:00.006Z level=DEBUG msg="request ended" id=c:3 method=turn.wait incoming=false duration=3ms outcome=cancelled error_code="" traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="nightseam=1" family=turns
+time=2026-09-18T12:00:00.007Z level=DEBUG msg="request ended" id=c:4 method=turn.wait incoming=false duration=200ms outcome=timeout error_code="" traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="nightseam=1" family=turns
+time=2026-09-18T12:00:00.008Z level=DEBUG msg="event emitted" name=grants.deliver bytes=42 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="nightseam=1" family=grants
+time=2026-09-18T12:00:00.009Z level=DEBUG msg="event delivered" name=grants.deliver bytes=42 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+time=2026-09-18T12:00:00.010Z level=DEBUG msg=backpressure queued=64 stalled=false deadline=5s
+time=2026-09-18T12:00:00.011Z level=DEBUG msg=backpressure queued=64 stalled=true deadline=5s
+time=2026-09-18T12:00:00.012Z level=ERROR msg="handler panic" method=turn.start value="the handler gave up" traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="nightseam=1" family=turns
+time=2026-09-18T12:00:00.013Z level=INFO msg="connection closed" code=1000 reason="" local=true

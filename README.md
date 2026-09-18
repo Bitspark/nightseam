@@ -25,7 +25,8 @@ language's runtime is `runtime/<lang>` and nothing else moves.
 duplex/go/              the seam in Go: Conn, Pipe, the close codes; duplex/go/ws, a WebSocket as a Conn; duplex/go/duplextest, the conformance suite
 duplex/ts/              @nightseam/duplex: FrameConnection and the WebSocket adapter
 runtime/go/             the Go peer of the profile: envelope, request correlation, cancellation, backpressure, presence, HTTP upgrade, the wire validator
-runtime/ts/             @nightseam/runtime, the TypeScript peer for the browser and Node, no third-party dependency, the wire validator
+runtime/go/slogobserver/ the Go peer's Observer as slog: one record per event, a level per kind, names, ids, outcomes and close codes, never a payload
+runtime/ts/             @nightseam/runtime, the TypeScript peer for the browser and Node, no third-party dependency, the wire validator, the console observer
 runtime/testdata/       the conformance table both validators are held to
 tunnel/go/              channels multiplexed over one peer, each a Conn: the third transport, with per-channel credit
 tunnel/ts/              @nightseam/tunnel, the same over a DuplexPeer, each channel a FrameConnection
