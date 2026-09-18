@@ -62,5 +62,29 @@ potentially unknown. No request retry or reconnect is automatic. `onClose`
 observes disconnections; the caller may explicitly connect again. Application
 code owns durable acceptance, replay, subscriptions, and deduplication.
 
+## The connection beneath the peer
+
+The peer never touches a WebSocket directly. It holds a frames duplex
+connection: ordered, message-framed, bidirectional, with an explicit close that
+carries a code and a reason. The connection knows nothing about JSON, requests,
+correlation or events; those stay in the peer. `webSocketConnection(socket)` is
+the adapter from a `WebSocketLike` to that connection: `readyState` becomes
+`state`, `bufferedAmount` becomes `buffered`, a string message becomes a text
+frame, an `ArrayBuffer`, `Uint8Array` or `Blob` becomes a binary frame, and the
+close event's code and reason reach the close handler. `connect(url)` and
+`attach(socket)` go through it.
+
+To run the peer over another transport, implement `FrameConnection` and pass it
+to `attach(connection)`. `state` is `connecting`, `open`, `closing` or `closed`.
+`buffered` counts the bytes accepted by `send` and not yet handed to the
+transport; the peer sends the next frame only once it reads zero. `send` throws
+when the connection is not open. `listen` registers `open`, `frame`, `close` and
+`error` handlers and returns a function that detaches them. Close codes are the
+WebSocket registry's numbers on every transport (1000 normal, 1008 policy, 1009
+too big, 1011 internal, 4000–4999 application), so close semantics travel with
+the peer. The peer sends only text frames and refuses an incoming binary frame
+with `invalid_message`. A closing or closed connection cannot be attached. The
+connection does not retry, reconnect, or acknowledge delivery.
+
 Run `pnpm --filter @nighthall/ws-runtime check` and
 `pnpm --filter @nighthall/ws-runtime test` from the repository root.

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DuplexPeer, DuplexError } from './peer.ts';
 import type { PeerOptions, WebSocketLike } from './peer.ts';
+import { webSocketConnection } from './connection.ts';
+import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from './connection.ts';
 
 class Socket extends EventTarget implements WebSocketLike {
   readyState = 1;
@@ -24,6 +26,40 @@ class Socket extends EventTarget implements WebSocketLike {
     this.readyState = 3;
     this.dispatchEvent(new Event('close'));
     this.partner?.close();
+  }
+}
+
+/** An in-memory frames duplex connection; no WebSocket is involved anywhere. */
+class Pipe implements FrameConnection {
+  state: ConnectionState = 'open';
+  readonly buffered = 0;
+  partner!: Pipe;
+  readonly frames: Frame[] = [];
+  private readonly listeners = new Set<ConnectionHandlers>();
+  static pair(): [Pipe, Pipe] {
+    const left = new Pipe();
+    const right = new Pipe();
+    left.partner = right;
+    right.partner = left;
+    return [left, right];
+  }
+  send(frame: Frame): void {
+    if (this.state !== 'open') throw new Error('Not open');
+    this.frames.push(frame);
+    const partner = this.partner;
+    queueMicrotask(() => {
+      if (partner.state === 'open') for (const handlers of [...partner.listeners]) handlers.frame?.(frame);
+    });
+  }
+  close(code = 1000, reason = ''): void {
+    if (this.state === 'closed') return;
+    this.state = 'closed';
+    for (const handlers of [...this.listeners]) handlers.close?.(code, reason);
+    this.partner.close(code, reason);
+  }
+  listen(handlers: ConnectionHandlers): () => void {
+    this.listeners.add(handlers);
+    return () => { this.listeners.delete(handlers); };
   }
 }
 
@@ -349,4 +385,112 @@ test('handler registration is explicit, removable, and rejects duplicates', asyn
   assert.equal(await client.call('x'), 1);
   remove();
   await assert.rejects(client.call('x'), { code: 'method_not_found' });
+});
+
+test('two peers complete a call, an event and a cancel over an in-memory frame pipe', async t => {
+  const [left, right] = Pipe.pair();
+  const client = new DuplexPeer();
+  const server = new DuplexPeer({ role: 'server' });
+  await Promise.all([client.attach(left), server.attach(right)]);
+  t.after(() => client.close());
+  const notice = deferred<unknown>();
+  const started = deferred();
+  const aborted = deferred();
+  server.handle('add', params => { const { a, b } = params as { a: number; b: number }; return a + b; });
+  server.handle('wait', (_params, context) => new Promise(resolve => {
+    context.signal.addEventListener('abort', () => { aborted.resolve(); resolve(null); }, { once: true });
+    started.resolve();
+  }));
+  client.onEvent('notice', data => { notice.resolve(data); });
+  assert.equal(await client.call('add', { a: 2, b: 3 }), 5);
+  await server.emit('notice', { value: 1 });
+  assert.deepEqual(await notice.promise, { value: 1 });
+  const controller = new AbortController();
+  const cancelled = assert.rejects(client.call('wait', {}, { signal: controller.signal }), { code: 'cancelled' });
+  await started.promise;
+  controller.abort();
+  await Promise.all([cancelled, aborted.promise]);
+  assert.equal(client.status, 'connected');
+  assert.equal(server.status, 'connected');
+  assert.deepEqual(left.frames.map(frame => frame.kind), ['text', 'text', 'text']);
+  assert.deepEqual(left.frames.map(frame => JSON.parse(frame.data as string).kind), ['request', 'request', 'cancel']);
+  assert.deepEqual(right.frames.map(frame => JSON.parse(frame.data as string).kind), ['response', 'event', 'response']);
+});
+
+test('the WebSocket adapter maps state, buffered bytes, frames, and the close code and reason', async () => {
+  const socket = new Socket();
+  socket.readyState = 0;
+  const connection = webSocketConnection(socket);
+  assert.equal(connection.state, 'connecting');
+  assert.throws(() => connection.send({ kind: 'text', data: 'early' }));
+  socket.readyState = 1;
+  assert.equal(connection.state, 'open');
+  socket.bufferedAmount = 7;
+  assert.equal(connection.buffered, 7);
+  connection.send({ kind: 'text', data: '{"a":1}' });
+  assert.deepEqual(socket.sent, [{ a: 1 }]);
+  const frames: Frame[] = [];
+  let closed: [number, string] | undefined;
+  const off = connection.listen({ frame: frame => { frames.push(frame); }, close: (code, reason) => { closed = [code, reason]; } });
+  socket.receive('"text"');
+  socket.dispatchEvent(new MessageEvent('message', { data: new Uint8Array([1, 2]) }));
+  socket.dispatchEvent(new MessageEvent('message', { data: new ArrayBuffer(3) }));
+  assert.deepEqual(frames, [
+    { kind: 'text', data: '"text"' }, { kind: 'binary', data: new Uint8Array([1, 2]) }, { kind: 'binary', data: new ArrayBuffer(3) },
+  ]);
+  // A Blob is read asynchronously; a text frame behind it keeps its place.
+  socket.dispatchEvent(new MessageEvent('message', { data: new Blob([new Uint8Array([9])]) }));
+  socket.receive('"after"');
+  assert.equal(frames.length, 3);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(frames.slice(3), [{ kind: 'binary', data: new Uint8Array([9]).buffer }, { kind: 'text', data: '"after"' }]);
+  socket.readyState = 2;
+  assert.equal(connection.state, 'closing');
+  assert.throws(() => connection.send({ kind: 'text', data: 'late' }));
+  socket.readyState = 3;
+  socket.dispatchEvent(new CloseEvent('close', { code: 4001, reason: 'gone' }));
+  assert.equal(connection.state, 'closed');
+  assert.deepEqual(closed, [4001, 'gone']);
+  off();
+  // The peer refuses a binary frame delivered through the adapter.
+  const binary = new Socket();
+  const peer = new DuplexPeer();
+  const failure = deferred<DuplexError>();
+  peer.onClose(failure.resolve);
+  await peer.attach(binary);
+  binary.dispatchEvent(new MessageEvent('message', { data: new ArrayBuffer(1) }));
+  const error = await failure.promise;
+  assert.equal(error.code, 'invalid_message');
+  assert.equal(error.message, 'Only JSON text frames are supported.');
+  assert.equal(peer.status, 'disconnected');
+  assert.equal(binary.readyState, 3);
+});
+
+test('a close from the far side surfaces its code and reason to the close handler', async () => {
+  const [left, right] = Pipe.pair();
+  const client = new DuplexPeer();
+  const server = new DuplexPeer({ role: 'server' });
+  await Promise.all([client.attach(left), server.attach(right)]);
+  let observed: [number, string] | undefined;
+  left.listen({ close: (code, reason) => { observed = [code, reason]; } });
+  const closed = deferred<DuplexError>();
+  client.onClose(closed.resolve);
+  server.close();
+  assert.deepEqual(observed, [1000, 'Duplex connection closed']);
+  assert.equal((await closed.promise).code, 'disconnected');
+  assert.equal(client.status, 'disconnected');
+  // The same through the adapter: the socket's close event carries the far side's code.
+  const socket = new Socket();
+  const connection = webSocketConnection(socket);
+  const peer = new DuplexPeer();
+  await peer.attach(connection);
+  let seen: [number, string] | undefined;
+  connection.listen({ close: (code, reason) => { seen = [code, reason]; } });
+  const failure = deferred<DuplexError>();
+  peer.onClose(failure.resolve);
+  socket.readyState = 3;
+  socket.dispatchEvent(new CloseEvent('close', { code: 1008, reason: 'policy violation' }));
+  assert.deepEqual(seen, [1008, 'policy violation']);
+  assert.equal((await failure.promise).code, 'disconnected');
+  assert.equal(socket.closeCount, 0);
 });

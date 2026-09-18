@@ -1,3 +1,8 @@
+import { webSocketConnection } from './connection.ts';
+import type { Frame, FrameConnection, WebSocketLike } from './connection.ts';
+
+export type { WebSocketLike } from './connection.ts';
+
 /** The endpoint selects this profile; it is not a WebSocket subprotocol token. */
 export const DUPLEX_PROFILE = 'nighthall.duplex/1';
 export const DUPLEX_DEFAULTS = Object.freeze({
@@ -21,16 +26,6 @@ export class DuplexError extends Error {
     this.code = code;
     this.data = data;
   }
-}
-
-/** The browser WebSocket surface, also implemented by Node's native WebSocket. */
-export interface WebSocketLike {
-  readonly readyState: number;
-  readonly bufferedAmount: number;
-  send(data: string): void;
-  close(code?: number, reason?: string): void;
-  addEventListener(type: string, listener: globalThis.EventListener): void;
-  removeEventListener(type: string, listener: globalThis.EventListener): void;
 }
 
 export type PeerStatus = 'disconnected' | 'connecting' | 'connected';
@@ -58,7 +53,8 @@ export interface PeerOptions {
 }
 
 type Timer = ReturnType<typeof setTimeout>;
-type Frame = Record<string, unknown>;
+/** A decoded JSON envelope; the connection beneath carries it as a text frame. */
+type Envelope = Record<string, unknown>;
 interface Pending {
   resolve: (value: unknown) => void;
   reject: (error: DuplexError) => void;
@@ -89,11 +85,11 @@ export class DuplexPeer {
   private readonly limits: typeof DUPLEX_DEFAULTS;
   private readonly localPrefix: string;
   private readonly remotePrefix: string;
-  private socket?: WebSocketLike;
-  private detachSocket?: () => void;
+  private connection?: FrameConnection;
+  private detach?: () => void;
   private state: PeerStatus = 'disconnected';
   private nextID = 0;
-  private connection?: { resolve: () => void; reject: (error: DuplexError) => void; timer: Timer };
+  private opening?: { resolve: () => void; reject: (error: DuplexError) => void; timer: Timer };
   private readonly pending = new Map<string, Pending>();
   private readonly incoming = new Map<string, Incoming>();
   private readonly handlers = new Map<string, RequestHandler>();
@@ -128,7 +124,7 @@ export class DuplexPeer {
 
   /** Absolute ws/wss URLs are required. Factories may supply platform-specific auth. */
   connect(url: string): Promise<void> {
-    if (this.socket) return Promise.reject(new DuplexError('already_connected', 'Peer already has a connection.'));
+    if (this.connection) return Promise.reject(new DuplexError('already_connected', 'Peer already has a connection.'));
     let endpoint: URL;
     try { endpoint = new URL(url); } catch {
       return Promise.reject(new DuplexError('invalid_url', 'An absolute WebSocket URL is required.'));
@@ -145,48 +141,42 @@ export class DuplexPeer {
     return this.attach(socket);
   }
 
-  /** Attach an externally authenticated, connecting or open WebSocket. */
-  attach(socket: WebSocketLike): Promise<void> {
-    if (this.socket) return Promise.reject(new DuplexError('already_connected', 'Peer already has a connection.'));
-    if (socket.readyState !== 0 && socket.readyState !== 1) {
+  /**
+   * Attach an externally authenticated, connecting or open connection. A
+   * WebSocket is wrapped by the adapter; the peer itself never touches one.
+   */
+  attach(connection: FrameConnection | WebSocketLike): Promise<void> {
+    if (this.connection) return Promise.reject(new DuplexError('already_connected', 'Peer already has a connection.'));
+    const frames = isWebSocketLike(connection) ? webSocketConnection(connection) : connection;
+    if (frames.state !== 'connecting' && frames.state !== 'open') {
       return Promise.reject(new DuplexError('disconnected', 'Cannot attach a closing or closed WebSocket.'));
     }
-    this.socket = socket;
+    this.connection = frames;
     this.generation++;
-    this.state = socket.readyState === 1 ? 'connected' : 'connecting';
-    const current = () => this.socket === socket;
-    const open = () => {
-      if (!current()) return;
-      this.state = 'connected';
-      if (this.connection) {
-        clearTimeout(this.connection.timer);
-        this.connection.resolve();
-        this.connection = undefined;
-      }
-    };
-    const message = (event: globalThis.Event) => {
-      if (current()) this.receive((event as MessageEvent).data);
-    };
-    const close = () => {
-      if (current()) this.fail(new DuplexError('disconnected', 'Connection closed; outstanding call outcomes may be unknown.'), false);
-    };
-    const error = () => {
-      if (current()) this.fail(new DuplexError('connection_failed', 'WebSocket connection failed.'));
-    };
-    socket.addEventListener('open', open);
-    socket.addEventListener('message', message);
-    socket.addEventListener('close', close);
-    socket.addEventListener('error', error);
-    this.detachSocket = () => {
-      socket.removeEventListener('open', open);
-      socket.removeEventListener('message', message);
-      socket.removeEventListener('close', close);
-      socket.removeEventListener('error', error);
-    };
+    this.state = frames.state === 'open' ? 'connected' : 'connecting';
+    const current = () => this.connection === frames;
+    this.detach = frames.listen({
+      open: () => {
+        if (!current()) return;
+        this.state = 'connected';
+        if (this.opening) {
+          clearTimeout(this.opening.timer);
+          this.opening.resolve();
+          this.opening = undefined;
+        }
+      },
+      frame: frame => { if (current()) this.receive(frame); },
+      close: () => {
+        if (current()) this.fail(new DuplexError('disconnected', 'Connection closed; outstanding call outcomes may be unknown.'), false);
+      },
+      error: () => {
+        if (current()) this.fail(new DuplexError('connection_failed', 'WebSocket connection failed.'));
+      },
+    });
     if (this.state === 'connected') return Promise.resolve();
     return new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => this.fail(new DuplexError('connect_timeout', 'Connection timed out.')), this.limits.connectTimeoutMs);
-      this.connection = { resolve, reject, timer };
+      this.opening = { resolve, reject, timer };
     });
   }
 
@@ -259,7 +249,7 @@ export class DuplexPeer {
     return this.send({ version: 1, kind: 'event', event, data });
   }
 
-  private isOpen(): boolean { return this.state === 'connected' && this.socket?.readyState === 1; }
+  private isOpen(): boolean { return this.state === 'connected' && this.connection?.state === 'open'; }
 
   private takePending(id: string): Pending | undefined {
     const pending = this.pending.get(id);
@@ -270,11 +260,11 @@ export class DuplexPeer {
     return pending;
   }
 
-  private send(frame: Frame): Promise<void> {
+  private send(envelope: Envelope): Promise<void> {
     if (!this.isOpen()) return Promise.reject(new DuplexError('not_connected', 'Peer is not connected.'));
     let text: string;
     try {
-      text = JSON.stringify(frame, (_key, value: unknown) => {
+      text = JSON.stringify(envelope, (_key, value: unknown) => {
         if (typeof value === 'function' || typeof value === 'symbol' || (typeof value === 'number' && !Number.isFinite(value))) {
           throw new Error('Not a JSON value.');
         }
@@ -299,20 +289,20 @@ export class DuplexPeer {
 
   private flush(): void {
     if (this.writeTimer || !this.isOpen()) return;
-    const socket = this.socket!;
+    const connection = this.connection!;
     while (this.outgoing.length) {
       const item = this.outgoing[0];
       if (Date.now() - item.started >= this.limits.writeTimeoutMs) {
         this.fail(new DuplexError('write_timeout', 'Socket output did not drain before the write deadline.'));
         return;
       }
-      if (!item.sent && socket.bufferedAmount === 0) {
-        try { socket.send(item.text); item.sent = true; } catch {
+      if (!item.sent && connection.buffered === 0) {
+        try { connection.send({ kind: 'text', data: item.text }); item.sent = true; } catch {
           this.fail(new DuplexError('send_failed', 'WebSocket send failed.'));
           return;
         }
       }
-      if (item.sent && socket.bufferedAmount === 0) {
+      if (item.sent && connection.buffered === 0) {
         this.outgoing.shift();
         item.resolve();
       } else {
@@ -322,17 +312,18 @@ export class DuplexPeer {
     }
   }
 
-  private receive(data: unknown): void {
+  private receive(incoming: Frame): void {
     if (!this.isOpen()) return;
-    if (typeof data !== 'string') {
+    if (incoming.kind !== 'text') {
       this.fail(new DuplexError('invalid_message', 'Only JSON text frames are supported.'));
       return;
     }
+    const data = incoming.data;
     if (new TextEncoder().encode(data).byteLength > this.limits.maxFrameBytes) {
       this.fail(new DuplexError('frame_too_large', 'Incoming frame exceeds the size limit.'));
       return;
     }
-    let frame: Frame;
+    let frame: Envelope;
     try {
       const value: unknown = JSON.parse(data);
       if (!isObject(value) || value.version !== 1) throw new Error();
@@ -431,7 +422,7 @@ export class DuplexPeer {
     if (incoming.responded || this.incoming.get(id) !== incoming || !this.isOpen()) return;
     incoming.responded = true;
     clearTimeout(incoming.timer);
-    const frame: Frame = { version: 1, kind: 'response', id };
+    const frame: Envelope = { version: 1, kind: 'response', id };
     if (error) frame.error = { code: error.code, message: error.message, ...(error.data === undefined ? {} : { data: error.data }) };
     else frame.result = result;
     void this.send(frame).catch(error => this.fail(asError(error)));
@@ -485,24 +476,24 @@ export class DuplexPeer {
     next();
   }
 
-  private fail(error: DuplexError, closeSocket = true, code = 4011): void {
-    const socket = this.socket;
-    if (!socket) return;
-    this.socket = undefined;
+  private fail(error: DuplexError, closeConnection = true, code = 4011): void {
+    const connection = this.connection;
+    if (!connection) return;
+    this.connection = undefined;
     this.state = 'disconnected';
     this.generation++;
-    this.detachSocket?.();
-    this.detachSocket = undefined;
+    this.detach?.();
+    this.detach = undefined;
     clearTimeout(this.writeTimer);
     this.writeTimer = undefined;
     clearTimeout(this.eventTimer);
     this.eventTimer = undefined;
     this.eventActive = false;
     this.events.length = 0;
-    if (this.connection) {
-      clearTimeout(this.connection.timer);
-      this.connection.reject(error);
-      this.connection = undefined;
+    if (this.opening) {
+      clearTimeout(this.opening.timer);
+      this.opening.reject(error);
+      this.opening = undefined;
     }
     for (const id of this.pending.keys()) this.takePending(id)?.reject(error);
     for (const request of this.incoming.values()) {
@@ -511,9 +502,9 @@ export class DuplexPeer {
     }
     this.incoming.clear();
     for (const item of this.outgoing.splice(0)) item.reject(error);
-    if (closeSocket) {
+    if (closeConnection) {
       // Browser close() restricts application codes to 3000–4999 (or 1000).
-      try { socket.close(code, 'Duplex connection closed'); } catch { /* Already closed. */ }
+      try { connection.close(code, 'Duplex connection closed'); } catch { /* Already closed. */ }
     }
     this.notifyError(error);
     for (const listener of this.closedListeners) {
@@ -529,7 +520,10 @@ export class DuplexPeer {
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
-function keys(frame: Frame, allowed: string[]): void {
+function isWebSocketLike(value: FrameConnection | WebSocketLike): value is WebSocketLike {
+  return typeof (value as WebSocketLike).readyState === 'number';
+}
+function keys(frame: Envelope, allowed: string[]): void {
   if (Object.keys(frame).some(key => !allowed.includes(key))) throw new Error('Unknown frame property.');
 }
 function requireName(value: unknown, field: string): asserts value is string {
