@@ -342,6 +342,8 @@ func TestImportDirection(t *testing.T) {
 	// lives under legacy/ while v2 is built beside it; its rows go when it
 	// does.
 	allowed := map[string]map[string]bool{
+		"diag":                        {},
+		"model":                       {"diag": true},
 		"legacy/contract":             {},
 		"legacy/spi":                  {"legacy/contract": true},
 		"legacy/kernel":               {"legacy/contract": true, "legacy/spi": true},
