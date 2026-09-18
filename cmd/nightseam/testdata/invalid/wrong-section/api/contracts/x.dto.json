@@ -1,0 +1,2 @@
+{"schema_version": 1, "profile": "nightseam.duplex/1", "name": "x", "layer": "dto", "types": {},
+ "methods": [{"name": "m", "go_name": "M", "ts_name": "m", "direction": "client_to_server", "result": "string"}]}

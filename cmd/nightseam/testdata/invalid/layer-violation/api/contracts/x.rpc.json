@@ -1,0 +1,3 @@
+{"schema_version": 1, "profile": "nightseam.duplex/1", "name": "x", "layer": "rpc",
+ "types": {"High": {"kind": "record", "fields": [{"name": "n", "type": "integer"}]}},
+ "methods": [], "events": [], "errors": []}

@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "profile": "nightseam.duplex/1",
+  "name": "carrier",
+  "layer": "rpc",
+  "parameters": [
+    {"name": "S", "of": "session", "description": "The family whose messages are carried."}
+  ],
+  "types": {
+    "Frame": {
+      "kind": "record",
+      "description": "One message of S with its place in the sequence.",
+      "fields": [
+        {"name": "sequence", "type": "integer"},
+        {"name": "message", "type": {"envelope": "S"}}
+      ]
+    },
+    "Attachment": {
+      "kind": "record",
+      "description": "A channel that speaks S, and the last sequence it saw.",
+      "fields": [
+        {"name": "connection", "type": {"connection": "S"}},
+        {"name": "last", "type": "integer"}
+      ]
+    },
+    "AttachParams": {
+      "kind": "record",
+      "fields": [
+        {"name": "id", "type": "string", "go_name": "ID"}
+      ]
+    },
+    "Frames": {
+      "kind": "alias",
+      "type": {"array": "Frame"}
+    }
+  },
+  "methods": [
+    {
+      "name": "attach",
+      "description": "Opens a channel that speaks S.",
+      "go_name": "Attach",
+      "ts_name": "attach",
+      "direction": "client_to_server",
+      "request": "AttachParams",
+      "result": "Attachment"
+    },
+    {
+      "name": "relay",
+      "description": "Relays a frame and answers with one message of probe.",
+      "go_name": "Relay",
+      "ts_name": "relay",
+      "direction": "client_to_server",
+      "request": "Frame",
+      "result": {"envelope": "probe"}
+    }
+  ],
+  "events": [
+    {
+      "name": "frame.relayed",
+      "go_name": "FrameRelayed",
+      "ts_name": "frameRelayed",
+      "direction": "server_to_client",
+      "type": "Frame"
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,1 @@
+error: x contract: /dto/methods: The dto layer does not carry methods.

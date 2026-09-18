@@ -1,0 +1,3 @@
+{"schema_version": 1, "profile": "nightseam.duplex/1", "name": "x", "layer": "rpc", "types": {},
+ "methods": [{"name": "then", "go_name": "Then", "ts_name": "then", "direction": "client_to_server", "result": "string"}],
+ "events": [], "errors": []}

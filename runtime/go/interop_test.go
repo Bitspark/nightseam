@@ -17,9 +17,12 @@ import (
 // This test exercises the actual TypeScript runtime over a network socket; it
 // does not replace either transport with mocks or depend on emitted JS files.
 func TestTypeScriptClientInteroperability(t *testing.T) {
+	if testing.Short() {
+		t.Skip("the TypeScript interoperability gate; skipped under -short")
+	}
 	node, err := exec.LookPath("node")
 	if err != nil {
-		t.Skip("Node is required for the TypeScript interoperability acceptance gate")
+		t.Fatal("Node is required for the TypeScript interoperability gate; it is a gate, not a skip")
 	}
 	_, source, _, _ := runtime.Caller(0)
 	driver := filepath.Join(filepath.Dir(source), "..", "ts", "src", "interop.ts")

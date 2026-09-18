@@ -236,6 +236,7 @@ func exprString(expr ast.Expr) string {
 // slot's validation to probe.
 func TestDiagramCommutesInGo(t *testing.T) {
 	root := repositoryRoot(t)
+	fixture(t, root, "go", "node")
 	directory := t.TempDir()
 	renderSlotFixture(t, directory, root)
 	copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
@@ -468,14 +469,8 @@ func TestGenericTypeScriptClientSpeaksWithPlainServer(t *testing.T) {
 // rendering, which tsc holds through Equals; and the generic validator bound
 // to probe validates as the plain one delegates.
 func TestDiagramCommutesInTypeScript(t *testing.T) {
-	if _, err := exec.LookPath("node"); err != nil {
-		t.Skip("Node is not installed")
-	}
 	root := repositoryRoot(t)
-	tsc := filepath.Join(root, "node_modules/typescript/bin/tsc")
-	if _, err := os.Stat(tsc); err != nil {
-		t.Skip("TypeScript parser is not installed")
-	}
+	tsc := fixture(t, root, "node", "tsc")
 	directory := t.TempDir()
 	renderSlotFixture(t, directory, root)
 	copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
@@ -818,6 +813,7 @@ func TestASlotDrawsAnyTypeOfTheBoundFamily(t *testing.T) {
 // point, whether the type arguments are spelled or inferred.
 func TestMixedInstantiationDoesNotCompile(t *testing.T) {
 	root := repositoryRoot(t)
+	fixture(t, root, "go")
 	directory := t.TempDir()
 	renderSlotFixture(t, directory, root)
 	writeFixture(t, directory, "mixed_test.go", []byte(`//go:build mixed

@@ -1,0 +1,3 @@
+x /parameters/0/name: Parameter S is declared and nothing names it: no slot, and no application of an imported type. [unused_parameter]
+x /parameters/0/of: No family declares the session role, so a parameter of session has nothing to bind. [unresolved_type]
+error: 2 problems

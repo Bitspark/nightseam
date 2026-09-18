@@ -1,0 +1,2 @@
+{"schema_version": 1, "profile": "nightseam.duplex/1", "name": "x", "layer": "dto",
+ "types": {"Held": {"kind": "record", "fields": [{"name": "message", "type": {"envelope": "y"}}]}}}

@@ -164,9 +164,22 @@ go test ./...
 pnpm install && pnpm -r check && pnpm -r test
 ```
 
-The generator's fixture tests compile and run the generated packages in both
-languages, so they need Go, Node 22.12 or later, and the TypeScript compiler
-pnpm installs. The Go fixture resolves this module to the checkout, so the
+The tests are in two tiers. `go test -short ./...` is the fast one and needs
+Go alone: the contract model, every language's `Check`, and the corpus under
+`cmd/nightseam/testdata` — families written in layer files as a consumer
+writes them, what every language renders for them held file for file under
+`testdata/golden`, and under `testdata/invalid` one checkout per rule the
+tool refuses, with what `validate` says held in its `diagnostics.txt`. A
+change to a renderer or a diagnostic shows up as a diff of those files,
+which is what a review reads; when the change is meant,
+`go test ./cmd/nightseam -update` rewrites them from the current output.
+A new family in the corpus, or a new case under `invalid`, needs only its
+files and one `-update`.
+
+The full tier, `go test ./...`, is the fixtures: they compile and run the
+generated packages in both languages, so they need Go, Node 22.12 or later,
+and the TypeScript compiler pnpm installs — and fail, rather than skip, when
+one is missing. The Go fixture resolves this module to the checkout, so the
 runtime under test is the real one.
 
 ## Lineage

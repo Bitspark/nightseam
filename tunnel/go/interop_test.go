@@ -24,9 +24,12 @@ import (
 // TypeScript side serves over it; both resume from the sequence the opener
 // said.
 func TestTypeScriptTunnelInteroperability(t *testing.T) {
+	if testing.Short() {
+		t.Skip("the TypeScript interoperability gate; skipped under -short")
+	}
 	node, err := exec.LookPath("node")
 	if err != nil {
-		t.Skip("Node is required for the TypeScript interoperability gate")
+		t.Fatal("Node is required for the TypeScript interoperability gate; it is a gate, not a skip")
 	}
 	_, source, _, _ := runtime.Caller(0)
 	driver := filepath.Join(filepath.Dir(source), "..", "ts", "src", "interop.ts")

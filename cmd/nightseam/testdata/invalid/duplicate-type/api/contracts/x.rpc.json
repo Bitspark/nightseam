@@ -1,0 +1,3 @@
+{"schema_version": 1, "profile": "nightseam.duplex/1", "name": "x", "layer": "rpc",
+ "types": {"Twice": {"kind": "enum", "values": ["a"]}},
+ "methods": [], "events": [], "errors": []}

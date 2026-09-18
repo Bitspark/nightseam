@@ -1,0 +1,4 @@
+{"schema_version": 1, "profile": "nightseam.duplex/1", "name": "carrier", "layer": "rpc",
+ "parameters": [{"name": "S", "of": "session"}],
+ "types": {"Frame": {"kind": "record", "fields": [{"name": "message", "type": {"envelope": "S"}}]}},
+ "methods": [], "events": [], "errors": []}

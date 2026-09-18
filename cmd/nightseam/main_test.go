@@ -76,6 +76,7 @@ func TestDeterministicGeneration(t *testing.T) {
 
 func TestGeneratedGoFamilyCompilesAndCommunicates(t *testing.T) {
 	root := repositoryRoot(t)
+	fixture(t, root, "go", "node")
 	directory := t.TempDir()
 	renderFixture(t, directory, root)
 	copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
@@ -87,6 +88,33 @@ func TestGeneratedGoFamilyCompilesAndCommunicates(t *testing.T) {
 	writeFixture(t, directory, "tunnel_test.go", []byte(goTunnelFixture))
 	writeFixture(t, directory, "tunnel-roundtrip.mjs", []byte(tsTunnelRoundtrip))
 	runFixture(t, directory, "go", "test", "-count=1", "./...")
+}
+
+// fixture marks a test that hands generated code to a toolchain — go, node,
+// tsc — and returns the path of tsc. The tests that do are the slow tier:
+// under -short they are skipped, and the fast tier — the model, every
+// target's Check, the golden output — runs alone. Without -short they run,
+// and a toolchain that is missing fails the test rather than skipping it,
+// since a skip nobody reads is a gate nobody passes: the README names what
+// the fixtures need.
+func fixture(t *testing.T, root string, programs ...string) (tsc string) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("a fixture test; skipped under -short")
+	}
+	for _, program := range programs {
+		if program == "tsc" {
+			tsc = filepath.Join(root, "node_modules/typescript/bin/tsc")
+			if _, err := os.Stat(tsc); err != nil {
+				t.Fatalf("the fixture needs the TypeScript compiler at %s; run pnpm install", tsc)
+			}
+			continue
+		}
+		if _, err := exec.LookPath(program); err != nil {
+			t.Fatalf("the fixture needs %s on the path: %v", program, err)
+		}
+	}
+	return tsc
 }
 
 // repositoryRoot is the nearest ancestor of the test's directory that holds
@@ -184,14 +212,8 @@ func runFixture(t *testing.T, directory, program string, args ...string) {
 }
 
 func TestGeneratedTypeScriptChecksAndValidates(t *testing.T) {
-	if _, err := exec.LookPath("node"); err != nil {
-		t.Skip("Node is not installed")
-	}
 	root := repositoryRoot(t)
-	tsc := filepath.Join(root, "node_modules/typescript/bin/tsc")
-	if _, err := os.Stat(tsc); err != nil {
-		t.Skip("TypeScript parser is not installed")
-	}
+	tsc := fixture(t, root, "node", "tsc")
 	directory := t.TempDir()
 	renderFixture(t, directory, root)
 	copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))

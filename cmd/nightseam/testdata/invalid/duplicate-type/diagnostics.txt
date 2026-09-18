@@ -1,0 +1,1 @@
+error: x contract: /rpc/types/Twice: Type Twice is declared in the rpc layer as well as in dto.

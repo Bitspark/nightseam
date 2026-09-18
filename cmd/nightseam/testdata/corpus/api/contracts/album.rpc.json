@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "profile": "nightseam.duplex/1",
+  "name": "album",
+  "layer": "rpc",
+  "parameters": [
+    {"name": "A", "of": "session"},
+    {"name": "B", "of": "session"}
+  ],
+  "imports": ["carrier"],
+  "types": {
+    "Mine": {
+      "kind": "record",
+      "description": "One message of A.",
+      "fields": [
+        {"name": "held", "type": {"envelope": "A"}}
+      ]
+    },
+    "Borrowed": {
+      "kind": "record",
+      "description": "A carrier frame, its S filled by B.",
+      "fields": [
+        {"name": "frame", "type": {"apply": "carrier.Frame", "with": {"S": "B"}}}
+      ]
+    },
+    "Fixed": {
+      "kind": "record",
+      "description": "A carrier frame, its S filled by probe.",
+      "fields": [
+        {"name": "frame", "type": {"apply": "carrier.Frame", "with": {"S": "probe"}}}
+      ]
+    },
+    "Both": {
+      "kind": "record",
+      "fields": [
+        {"name": "mine", "type": "Mine"},
+        {"name": "borrowed", "type": "Borrowed"},
+        {"name": "fixed", "type": "Fixed"},
+        {"name": "params", "type": "carrier.AttachParams"}
+      ]
+    }
+  },
+  "methods": [
+    {
+      "name": "look",
+      "go_name": "Look",
+      "ts_name": "look",
+      "direction": "client_to_server",
+      "request": "Mine",
+      "result": "Both"
+    }
+  ],
+  "events": [],
+  "errors": []
+}

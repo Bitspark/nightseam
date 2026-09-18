@@ -1,0 +1,39 @@
+# Two tiers. The fast one is the model, every target's Check and the golden
+# output under cmd/nightseam/testdata: it needs Go alone and runs in seconds.
+# The full one hands the generated packages to their toolchains — go test,
+# tsc, node — and runs the TypeScript packages' own checks and tests; a
+# toolchain it needs and does not find fails it rather than skipping.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test -short ./...
+
+  full:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r check
+      - run: pnpm -r test
+      - run: go test ./...
