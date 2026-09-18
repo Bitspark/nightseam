@@ -55,8 +55,10 @@ type ChannelClosed struct {
 
 // CreditStall is a send that found the other side's window full and waited
 // for credit. Waiting is how many senders are then waiting on the channel,
-// this one among them; a send that waits says so once, however long it waits
-// and however often it wakes.
+// this one among them — which is how many frames wait, a waiting sender
+// holding exactly one, and so the same number the TypeScript tunnel counts
+// where a send queues rather than blocks. A send that waits says so once,
+// however long it waits and however often it wakes.
 type CreditStall struct {
 	At      time.Time
 	Family  string
