@@ -21,11 +21,14 @@ import (
 // up the connection it is watching.
 type Observer interface{ Observe(event ObserverEvent) }
 
-// ObserverEvent is one thing a peer did, sealed over the types below: a type
-// switch is the consumer's dispatch, and a later profile may add a case to it.
-// It is not named Event because an Event of this package is one event of the
-// profile, which an observer only ever hears about.
-type ObserverEvent interface{ isObserverEvent() }
+// ObserverEvent is one thing a peer did, or one thing a layer running over a
+// peer did: it is implemented by the events of this package, by those of the
+// tunnel and of the session, which reach an observer through the peer they
+// run over, and by nothing else. A type switch is the consumer's dispatch,
+// and a later profile or a later layer may add a case to it. It is not named
+// Event because an Event of this package is one event of the profile, which
+// an observer only ever hears about.
+type ObserverEvent interface{ ObserverEvent() }
 
 // ConnectionOpened is the peer taking the connection over, before it has read
 // or written anything on it.
@@ -139,16 +142,16 @@ type HandlerPanic struct {
 	Family string
 }
 
-func (ConnectionOpened) isObserverEvent() {}
-func (ConnectionClosed) isObserverEvent() {}
-func (FrameSent) isObserverEvent()        {}
-func (FrameReceived) isObserverEvent()    {}
-func (RequestStarted) isObserverEvent()   {}
-func (RequestEnded) isObserverEvent()     {}
-func (EventEmitted) isObserverEvent()     {}
-func (EventDelivered) isObserverEvent()   {}
-func (Backpressure) isObserverEvent()     {}
-func (HandlerPanic) isObserverEvent()     {}
+func (ConnectionOpened) ObserverEvent() {}
+func (ConnectionClosed) ObserverEvent() {}
+func (FrameSent) ObserverEvent()        {}
+func (FrameReceived) ObserverEvent()    {}
+func (RequestStarted) ObserverEvent()   {}
+func (RequestEnded) ObserverEvent()     {}
+func (EventEmitted) ObserverEvent()     {}
+func (EventDelivered) ObserverEvent()   {}
+func (Backpressure) ObserverEvent()     {}
+func (HandlerPanic) ObserverEvent()     {}
 
 // Outcome is how a request ended.
 type Outcome int
@@ -196,6 +199,17 @@ func outcomeOf(err error) (Outcome, string) {
 // Observer is what this peer was given, or nil. Whatever runs over a peer — a
 // tunnel, a session — observes through this one rather than taking its own.
 func (p *Peer) Observer() Observer { return p.options.Observer }
+
+// Observe tells this peer's observer one event, the runtime's own or one of a
+// layer running over the peer; a peer given no observer does nothing. It is
+// how a tunnel and a session observe — through the peer they run over, which
+// is the observer they were never given a second way to choose.
+func (p *Peer) Observe(event ObserverEvent) {
+	if p.options.Observer == nil {
+		return
+	}
+	p.options.Observer.Observe(event)
+}
 
 // family is the family a method or event name belongs to, as the generated
 // install labelled it. An unlabelled name has no family rather than a guessed
