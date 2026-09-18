@@ -294,7 +294,7 @@ class Relay {
         }
         const minted = 'c:' + ++this.upNext;
         this.inflight.set(minted, { at: attachment, id });
-        await this.send('up', attachment.origin, { ...envelope, id: minted });
+        await this.sendUp(attachment.origin, { ...envelope, id: minted });
         return;
       }
       case 'cancel': {
@@ -303,7 +303,7 @@ class Relay {
         for (const [minted, held] of this.inflight) {
           if (held.at !== attachment || held.id !== id) continue;
           this.inflight.delete(minted);
-          await this.send('up', attachment.origin, { ...envelope, id: minted });
+          await this.sendUp(attachment.origin, { ...envelope, id: minted });
           return;
         }
         return;
@@ -315,22 +315,26 @@ class Relay {
         const open = this.open.get(id);
         if (!open || open.at !== attachment) return;
         this.open.delete(id);
-        await this.send('up', attachment.origin, { ...envelope });
+        await this.sendUp(attachment.origin, { ...envelope });
         return;
       }
       default:
         // An event names no method, so nothing about it decides.
-        await this.send('up', attachment.origin, { ...envelope });
+        await this.sendUp(attachment.origin, { ...envelope });
     }
   }
 
-  /** A frame from the machine: a response to the one consumer that asked, an event to all of them, a request to the holder. */
+  /** A frame from the machine: recorded as the machine sent it, then a response to the one consumer that asked, an event to all of them, a request to the holder. */
   private async fromUp(frame: Wire): Promise<void> {
     const envelope = read(frame);
     if (!envelope) {
       this.up.close(1008, 'a frame that is not a message of the profile');
       return;
     }
+    // The log is the session's conversation with its machine: every frame
+    // the machine sent is recorded once, as it sent it — under the id the
+    // session asked with, whether or not there is a consumer to hand it to.
+    const attached = await this.record('down', '', envelope);
     const id = typeof envelope.id === 'string' ? envelope.id : undefined;
     switch (envelope.kind) {
       case 'response': {
@@ -338,7 +342,7 @@ class Relay {
         const held = this.inflight.get(id);
         if (!held) return;
         this.inflight.delete(id);
-        await this.send('down', '', { ...envelope, id: held.id }, held.at);
+        this.write(held.at.channel, { ...envelope, id: held.id });
         return;
       }
       case 'request': {
@@ -348,7 +352,7 @@ class Relay {
         if (!id) return;
         const method = typeof envelope.method === 'string' ? envelope.method : '';
         this.open.set(id, { message: envelope, asking: this.governance.asks(method), at: this.holder });
-        if (this.holder) await this.send('down', '', { ...envelope }, this.holder);
+        if (this.holder) this.write(this.holder.channel, envelope);
         return;
       }
       case 'cancel': {
@@ -356,32 +360,35 @@ class Relay {
         const open = this.open.get(id);
         if (!open) return;
         this.open.delete(id);
-        if (open.at) await this.send('down', '', { ...envelope }, open.at);
+        if (open.at) this.write(open.at.channel, envelope);
         return;
       }
       default:
         // An event reaches every attached consumer, and the log once.
-        await this.send('down', '', { ...envelope });
+        for (const attachment of attached) this.write(attachment.channel, envelope);
     }
   }
 
   /** reroute hands every request the machine is waiting on to whoever holds control now; released, it stands with nobody until control is given again. */
-  private async reroute(): Promise<void> {
+  private reroute(): void {
     const holder = this.holder;
     for (const open of this.open.values()) open.at = holder;
     if (!holder) return;
-    for (const open of this.open.values()) await this.send('down', '', { ...open.message }, holder);
+    // The frame the new holder is asked is the one the machine sent, which
+    // the log already holds: routing a frame again is no second frame.
+    for (const open of this.open.values()) this.write(holder.channel, open.message);
   }
 
-  /** send records a frame in the log and writes it to one consumer, to every consumer, or to the machine. */
-  private async send(direction: Direction, origin: string, envelope: Envelope, to?: Attachment): Promise<void> {
+  /** sendUp records a consumer's frame and writes it to the machine, in the order it recorded them. */
+  private async sendUp(origin: string, envelope: Envelope): Promise<void> {
+    await this.record('up', origin, envelope);
+    this.write(this.up, envelope);
+  }
+
+  /** record appends a frame to the session's log and returns the consumers there were when its sequence was assigned; one attaching between the two is not among them and takes the frame from the log's replay instead. */
+  private async record(direction: Direction, origin: string, envelope: Envelope): Promise<Attachment[]> {
     this.sequence = await this.log.append({ sequence: 0, direction, origin, at: new Date(), message: envelope, truncated: false });
-    // The consumers are taken with the sequence: one attaching meanwhile is
-    // not among them and takes this frame from the log's replay instead.
-    const attached = [...this.attachments];
-    if (direction === 'up') this.write(this.up, envelope);
-    else if (to) this.write(to.channel, envelope);
-    else for (const attachment of attached) this.write(attachment.channel, envelope);
+    return [...this.attachments];
   }
 
   /** write hands a message to a channel; a channel that refuses it has closed, and its own close detaches it. */
