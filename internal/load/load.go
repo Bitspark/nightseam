@@ -94,9 +94,10 @@ type World struct {
 
 // Checkout reads every family under the contracts directory of a
 // filesystem: each directory is a family, read by Family. A JSON file at
-// the top of the directory is a layer file of the previous declaration
-// language and is reported, since the tool no longer reads it. The targets
-// name the override files a family may carry.
+// the top of the directory is reported rather than passed over, since a
+// family is a directory of tier files and a file there is one somebody
+// meant to be a family. The targets name the override files a family may
+// carry.
 func Checkout(fsys fs.FS, contracts string, targets []string) (*World, []diag.Diagnostic) {
 	world := &World{Families: map[string]*model.Family{}}
 	entries, err := fs.ReadDir(fsys, contracts)
@@ -110,8 +111,8 @@ func Checkout(fsys fs.FS, contracts string, targets []string) (*World, []diag.Di
 	for _, entry := range entries {
 		name := entry.Name()
 		if !entry.IsDir() {
-			if family, layer, ok := layerFile(name); ok {
-				diagnostics = append(diagnostics, diag.Diagnostic{Family: family, File: name, Code: "layer_file", Message: fmt.Sprintf("%s is declared in the %s layer file of the previous declaration language; run nightseam upgrade.", family, layer)})
+			if family, ok := strayFile(name); ok {
+				diagnostics = append(diagnostics, diag.Diagnostic{Family: family, File: name, Code: "stray_file", Message: fmt.Sprintf("%s is a file; a family is a directory of tier files, %s/%s/.", name, contracts, family)})
 			}
 			continue
 		}
@@ -128,20 +129,21 @@ func Checkout(fsys fs.FS, contracts string, targets []string) (*World, []diag.Di
 }
 
 // layerFile recognises <family>.<dto|rpc|sess>.json.
-func layerFile(name string) (family, layer string, ok bool) {
+func strayFile(name string) (family string, ok bool) {
 	stem, isJSON := strings.CutSuffix(name, ".json")
 	if !isJSON {
-		return "", "", false
+		return "", false
 	}
-	family, layer, ok = strings.Cut(stem, ".")
-	if !ok || strings.Contains(layer, ".") {
-		return "", "", false
+	// A stem of its own is the family; one carrying a suffix names the family
+	// before the first dot, so that the diagnostic points at the directory the
+	// file was meant to be.
+	if base, _, cut := strings.Cut(stem, "."); cut {
+		stem = base
 	}
-	switch layer {
-	case "dto", "rpc", "sess":
-		return family, layer, true
+	if stem == "" {
+		return "", false
 	}
-	return "", "", false
+	return stem, true
 }
 
 // Family reads one family from its directory: each tier file present,

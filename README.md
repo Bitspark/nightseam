@@ -122,7 +122,7 @@ go tool nightseam check               # in CI: fail if the checked-in output is 
 | page | what |
 | --- | --- |
 | [docs/language.md](docs/language.md) | the declaration language: the tiers, the types, the two sides, a session's governance, per-target names, and a family generic in others |
-| [docs/generator.md](docs/generator.md) | the commands and their flags, the pipeline, what the generated packages own, the upgrade from the previous language |
+| [docs/generator.md](docs/generator.md) | the commands and their flags, the pipeline, and what the generated packages own |
 | [docs/profile.md](docs/profile.md) | `nightseam.duplex/1`: the envelope, ids and correlation, limits and backpressure, trace context, close codes |
 | [docs/tunnel.md](docs/tunnel.md) | channels over one peer: the four operations, ids by parity, credit |
 | [docs/session.md](docs/session.md) | a session over a tunnel's channels: the relay's rules, the log, what a consumer builds on it |

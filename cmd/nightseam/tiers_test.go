@@ -7,25 +7,6 @@ import (
 	"testing"
 )
 
-// writeLayers copies the probe family's layer files of the previous
-// language from testdata/corpus-v1 into a checkout under another name —
-// dto and rpc, and, when asked, sess — for the tests of upgrade and of what
-// the tool says to a checkout that still has them.
-func writeLayers(t *testing.T, root, family string, sess bool) {
-	t.Helper()
-	layers := []string{"dto", "rpc"}
-	if sess {
-		layers = append(layers, "sess")
-	}
-	for _, layer := range layers {
-		data, err := os.ReadFile(filepath.Join(legacyCorpusRoot, "api/contracts", "probe."+layer+".json"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		writeFixture(t, root, "api/contracts/"+family+"."+layer+".json", []byte(strings.Replace(string(data), `"name": "probe"`, `"name": "`+family+`"`, 1)))
-	}
-}
-
 // writeFamily copies a family of testdata/families into a checkout.
 func writeFamily(t *testing.T, root, family string) {
 	t.Helper()
@@ -84,12 +65,11 @@ func TestTierFilesAreLoadedAndRendered(t *testing.T) {
 // the tier rule, each refusal naming the file and what to do.
 func TestLoaderHoldsTheTiers(t *testing.T) {
 	root := t.TempDir()
-	writeLayers(t, root, "probe", false)
+	writeFixture(t, root, "api/contracts/probe.rpc.json", []byte(`{}`))
 	_, errs, err := run(t, root, "validate")
-	if err == nil || !strings.Contains(errs, "probe/probe.dto.json#: probe is declared in the dto layer file of the previous declaration language; run nightseam upgrade. [layer_file]") {
-		t.Fatalf("a layer file was not named: %v\n%s", err, errs)
+	if err == nil || !strings.Contains(errs, "probe/probe.rpc.json#: probe.rpc.json is a file; a family is a directory of tier files, api/contracts/probe/. [stray_file]") {
+		t.Fatalf("a file where a family should be was not named: %v\n%s", err, errs)
 	}
-	os.Remove(filepath.Join(root, "api/contracts/probe.dto.json"))
 	os.Remove(filepath.Join(root, "api/contracts/probe.rpc.json"))
 	writeFamily(t, root, "probe")
 	writeFixture(t, root, "api/contracts/probe/rust.json", []byte(`{}`))
@@ -213,29 +193,5 @@ func TestInitWritesTheHandlersOnce(t *testing.T) {
 	generic, _ := os.ReadFile(filepath.Join(root, "impl/carrier/handler.go"))
 	if !strings.Contains(string(generic), "type Handler[SEnvelope, SHandle any] struct{}") || !strings.Contains(string(generic), "func (Handler[SEnvelope, SHandle]) Relay(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle], params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)") {
 		t.Errorf("the generic handler is wrong:\n%s", generic)
-	}
-}
-
-// TestUpgradeConvertsASingleFile: a contract of the previous language in
-// one file converts into the directory form under its own name, the file
-// left where it is.
-func TestUpgradeConvertsASingleFile(t *testing.T) {
-	root := t.TempDir()
-	writeFixture(t, root, "contracts/thing.json", []byte(`{"schema_version": 1, "profile": "nightseam.duplex/1", "name": "thing", "role": "session",
-		"types": {"Item": {"kind": "record", "fields": [{"name": "id", "type": "string", "go_name": "ID"}]}, "Held": {"kind": "record", "fields": [{"name": "message", "type": {"envelope": "thing"}}]}},
-		"methods": [{"name": "get", "go_name": "Fetch", "ts_name": "get", "direction": "client_to_server", "request": "Item", "result": "Item"}],
-		"events": [], "errors": []}`))
-	out, _, err := run(t, root, "upgrade", "--file", filepath.Join(root, "contracts/thing.json"))
-	if err != nil || strings.Count(out, "wrote api/contracts/thing/") != 4 {
-		t.Fatalf("upgrade --file: %v\n%s", err, out)
-	}
-	if _, err := os.Stat(filepath.Join(root, "contracts/thing.json")); err != nil {
-		t.Fatal("the source file was removed")
-	}
-	if _, _, err := run(t, root, "validate"); err == nil {
-		t.Fatal("a family holding its own envelope validated")
-	}
-	if _, _, err := run(t, root, "upgrade", "--file", filepath.Join(root, "contracts/thing.json")); err == nil || !strings.Contains(err.Error(), "already in the directory form") {
-		t.Fatalf("a family in the directory form was upgraded again: %v", err)
 	}
 }

@@ -78,9 +78,9 @@ func TestCheckoutRefuses(t *testing.T) {
 		at    string
 		says  string
 	}{
-		"a layer file": {
+		"a file where a family should be": {
 			files: map[string]string{"probe.rpc.json": `{}`},
-			code:  "layer_file", at: "probe.rpc.json#", says: "run nightseam upgrade",
+			code:  "stray_file", at: "probe.rpc.json#", says: "a family is a directory of tier files",
 		},
 		"no model tier": {
 			files: map[string]string{"probe/protocol.json": probeProtocol},
@@ -102,7 +102,7 @@ func TestCheckoutRefuses(t *testing.T) {
 			files: map[string]string{"probe/model.json": `{"nightseam": 1}`},
 			code:  "invalid_shape", at: "model.json#/nightseam", says: "2",
 		},
-		"a slot object of the previous language": {
+		"a slot object where a reference belongs": {
 			files: map[string]string{"probe/model.json": `{"nightseam": 2, "types": {"Frame": {"kind": "record", "fields": [{"name": "m", "type": {"envelope": "S"}}]}}}`},
 			code:  "invalid_shape", at: "model.json#/types/Frame/fields/0/type",
 		},

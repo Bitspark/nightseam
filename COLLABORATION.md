@@ -44,7 +44,7 @@ missing, since a skip nobody reads is a gate nobody passes.
 
 A renderer or a diagnostic changes as a diff of the golden files, which is
 what a review reads. When the change is meant, `go test ./cmd/nightseam
--short -run 'Golden|Invalid|Surface|Reserved|Upgrade' -update` rewrites them
+-short -run 'Golden|Invalid|Surface|Reserved' -update` rewrites them
 from the current output. An output-changing change is two commits: the logic,
 then `goldens: regenerate — feature: <what changed>`, so that the review of
 the logic is not buried under the diff of its output. `testdata/surface`

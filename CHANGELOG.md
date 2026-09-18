@@ -24,7 +24,7 @@ The first published version. Everything below is in it.
   The two ways to a concrete package — binding into the declaration, or
   rendering generically and instantiating — are held to agree by the
   fixtures, in Go by reflection and in TypeScript under `tsc`.
-- `nightseam generate`, `check`, `validate`, `upgrade` and `init`; the
+- `nightseam generate`, `check`, `validate` and `init`; the
   generated Go packages `-protocol`, `-binding` and `-client` and the
   TypeScript client; a `spec` target rendering each family's specification
   as Markdown; the public errors a family declares reaching both languages

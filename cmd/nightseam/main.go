@@ -10,7 +10,6 @@
 //	nightseam generate [family...]   render every family, or the named ones, writing what changed
 //	nightseam check [family...]      fail if the checked-in output is stale
 //	nightseam validate [family...]   report every diagnostic; exit 1 if any
-//	nightseam upgrade [family...]    rewrite layer files of the previous language into the directory form
 //	nightseam init <family>          write the handlers a consumer implements, once, into a directory of its own
 //
 // The generated Go packages are rooted at the checkout's module, read from
@@ -232,7 +231,6 @@ already up to date.`,
 	}
 
 	root.AddCommand(
-		upgradeCommand(a),
 		initCommand(a, family),
 		&cobra.Command{
 			Use:               "generate [family...]",

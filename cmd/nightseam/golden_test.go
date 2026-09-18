@@ -23,7 +23,7 @@ import (
 // of them, which is what a reviewer reads. When the change is meant, rewrite
 // them from the current output and commit the diff:
 //
-//	go test ./cmd/nightseam -run 'Golden|Invalid|Surface|Reserved|Upgrade' -update
+//	go test ./cmd/nightseam -run 'Golden|Invalid|Surface|Reserved' -update
 var update = flag.Bool("update", false, "rewrite testdata/golden and every diagnostics.txt from the current output")
 
 const corpusRoot = "testdata/corpus"

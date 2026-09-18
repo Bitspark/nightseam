@@ -12,7 +12,6 @@ go tool nightseam validate            # every diagnostic of every family
 go tool nightseam generate [family]   # render what is stale
 go tool nightseam check               # fail if the checked-in output is stale
 go tool nightseam init <family>       # write the handlers a consumer implements, once
-go tool nightseam upgrade             # rewrite layer files of the previous language into the directory form
 ```
 
 `validate` prints each diagnostic as `family/file#pointer: message [code]`,
@@ -30,15 +29,6 @@ server's `Handler`, a type implementing the binding package's interface with
 every method returning an `unimplemented` error, and the TypeScript client's
 handler of what the server sends — as stubs under `api/impl/<family>`, or
 `--dir`. It writes once and never rewrites: the directory is the consumer's.
-
-A checkout declared in the previous language's layer files — `<f>.dto.json`,
-`<f>.rpc.json`, `<f>.sess.json` — is refused with the command that converts
-it: `upgrade` rewrites them into the directory form, sides in place of
-directions, one reference form in place of the slot objects, and a
-hand-spelled name into an override only where the convention would spell it
-otherwise. `upgrade --file <contract.json>` converts a contract declared in
-one file, under the name it carries, and `--dry-run` prints what would be
-written and writes nothing.
 
 ## How it renders
 
@@ -89,7 +79,7 @@ Each package owns one level, and the package graph is held to the seam
 between them:
 
 ```
-cmd/nightseam/          the generator: generate, check, validate, upgrade; the corpus and its goldens under testdata
+cmd/nightseam/          the generator: generate, check, validate, init; the corpus and its goldens under testdata
 internal/model/         the typed declaration of a family: the tiers, the sealed type-expression AST, the decoders
 internal/load/          files to families: the tier table, the shape schemas, the world of a checkout
 internal/analysis/      a family within its world: imports resolved, inheritance flattened, what is generic in it
@@ -102,5 +92,4 @@ internal/emit/          a writer, an import set, a namespace: what every target 
 internal/naming/        the convention every target derives names by
 internal/diag/          where a problem is: family, tier file, pointer, code
 internal/oracle/        test support: the left path of the diagram a generic rendering commutes with
-internal/upgrade/       layer files of the previous language into the directory form
 ```
