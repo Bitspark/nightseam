@@ -1,0 +1,60 @@
+#1 "turn.start" kind=client parent=00f067aa0ba902b7 +1ms..+4ms status=Ok
+	nightseam.request.id=c:1
+	nightseam.method=turn.start
+	nightseam.family=turns
+	event "frame sent" +2ms
+		nightseam.frame.kind=request
+		nightseam.name=turn.start
+		nightseam.bytes=148
+		nightseam.request.id=c:1
+		nightseam.family=turns
+	event "frame received" +3ms
+		nightseam.frame.kind=response
+		nightseam.name=
+		nightseam.bytes=96
+		nightseam.request.id=c:1
+#2 "turn.stop" kind=server parent=00f067aa0ba902b7 +5ms..+6ms status=Error error
+	nightseam.request.id=s:1
+	nightseam.method=turn.stop
+	nightseam.family=turns
+	nightseam.error.code=denied
+#3 "turn.wait" kind=client parent=00f067aa0ba902b7 +7ms..+8ms status=Error cancelled
+	nightseam.request.id=c:2
+	nightseam.method=turn.wait
+	nightseam.family=turns
+#4 "turn.wait" kind=client parent=00f067aa0ba902b7 +9ms..+10ms status=Error timeout
+	nightseam.request.id=c:3
+	nightseam.method=turn.wait
+	nightseam.family=turns
+#5 "grants.deliver" kind=producer parent=00f067aa0ba902b7 +11ms..+11ms status=Unset
+	nightseam.name=grants.deliver
+	nightseam.bytes=42
+	nightseam.family=grants
+#6 "grants.deliver" kind=consumer parent=00f067aa0ba902b7 +12ms..+12ms status=Unset
+	nightseam.name=grants.deliver
+	nightseam.bytes=42
+#7 "connection" kind=internal parent=none +0ms..+17ms status=Unset
+	nightseam.role=client
+	nightseam.close.code=1000
+	nightseam.close.reason=
+	nightseam.close.local=true
+	event "backpressure" +13ms
+		nightseam.queued=64
+		nightseam.stalled=false
+		nightseam.deadline=5s
+	event "backpressure" +14ms
+		nightseam.queued=64
+		nightseam.stalled=true
+		nightseam.deadline=5s
+	event "handler panic" +15ms
+		nightseam.method=turn.start
+		nightseam.panic=the handler gave up
+		nightseam.family=turns
+	event "otel_test.channelOpened" +16ms
+		nightseam.family=probe
+		nightseam.id=7
+		nightseam.opener=true
+		nightseam.role=server
+		nightseam.traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+		nightseam.tracestate=nightseam=1
+		nightseam.waiting=2s

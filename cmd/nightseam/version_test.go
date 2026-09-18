@@ -4,18 +4,20 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Bitspark/nightseam/internal/targets/typescript"
 )
 
 // TestVersionsMoveInLockstep holds every spelling of the version to one
-// number: every published TypeScript package and the version the generator
-// writes into a generated client's manifest. The Go module's version is its
-// tag, which the release workflow holds to the same number (RELEASING.md).
-// The packages are found rather than listed, the way scripts/packages.mjs
-// finds them, so that a component added beside the others is held to the one
-// version without anyone remembering to name it here.
+// number: every published TypeScript package, the version the generator
+// writes into a generated client's manifest, and the version every nested Go
+// module requires the root module at. The Go module's version is its tag,
+// which the release workflow holds to the same number (RELEASING.md). Both
+// are found rather than listed, the way scripts/packages.mjs and
+// scripts/version.mjs find them, so that a component added beside the others
+// is held to the one version without anyone remembering to name it here.
 func TestVersionsMoveInLockstep(t *testing.T) {
 	root := repositoryRoot(t)
 	manifests, err := filepath.Glob(filepath.Join(root, "*", "ts", "package.json"))
@@ -26,6 +28,7 @@ func TestVersionsMoveInLockstep(t *testing.T) {
 	if len(manifests) < 4 {
 		t.Fatalf("found %d manifests under */ts; the workspace has more than that", len(manifests))
 	}
+	published := ""
 	for _, file := range manifests {
 		data, err := os.ReadFile(file)
 		if err != nil {
@@ -44,6 +47,35 @@ func TestVersionsMoveInLockstep(t *testing.T) {
 		}
 		if manifest.Private {
 			t.Errorf("%s is private; it is published", manifest.Name)
+		}
+		published = manifest.Version
+	}
+
+	// A component that depends on what the core module may not — otel/go, the
+	// OpenTelemetry adapter — is a Go module of its own, released by a second
+	// tag beside the root module's and requiring the root module at the same
+	// number. Nothing in Go spells that number, a tag being a module's whole
+	// release, so it is read off a manifest above. The replace beside the
+	// requirement is what makes the repository build against itself; a
+	// consumer ignores a dependency's replace and gets what is required.
+	modules, err := filepath.Glob(filepath.Join(root, "*", "go", "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(modules) == 0 {
+		t.Fatal("found no nested Go module under */go; otel/go is one")
+	}
+	for _, file := range modules {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		module := string(data)
+		if required := "github.com/Bitspark/nightseam v" + published; !strings.Contains(module, required) {
+			t.Errorf("%s does not require %q; scripts/version.mjs writes it there", file, required)
+		}
+		if !strings.Contains(module, "replace github.com/Bitspark/nightseam => ../..") {
+			t.Errorf("%s does not replace the root module with this checkout", file)
 		}
 	}
 }

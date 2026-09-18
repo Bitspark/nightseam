@@ -26,6 +26,15 @@ jobs:
           go-version-file: go.mod
       - run: go vet ./...
       - run: go test -short ./...
+      # The root module's ./... does not enter a nested module, so the
+      # OpenTelemetry adapter is vetted and tested where it lives. It is in
+      # both tiers because it is held to the runtime it binds to, and a
+      # runtime change that breaks it should fail the pull request that made
+      # it and not the release that carries it.
+      - run: go vet ./...
+        working-directory: otel/go
+      - run: go test ./...
+        working-directory: otel/go
 
   full:
     runs-on: ubuntu-latest
@@ -47,3 +56,7 @@ jobs:
       - run: pnpm -r build
       - run: pnpm -r test
       - run: go test ./...
+      - run: go vet ./...
+        working-directory: otel/go
+      - run: go test ./...
+        working-directory: otel/go
