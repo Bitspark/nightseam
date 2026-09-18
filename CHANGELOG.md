@@ -30,6 +30,20 @@ are one number. Entries are in the words of the commits that landed them.
   and never a module nested in it.
 
 
+- `nightseam version` prints the module version of the running tool — what a
+  consumer's `go get -tool` resolved, or `(devel)` from a checkout, a build of
+  a tree being exactly what that answer should say — and `nightseam --version`
+  prints the same line. A tool built inside a consumer's own module is not
+  that module's main package, so what is reported is the version the
+  consumer's requirement resolved to rather than the consumer's own, and a
+  `replace` pointing at a checkout reports `(devel)`. The generated files name
+  no version and keep the header they have: one in it would rewrite every
+  generated file of every consumer on every release, which the golden
+  discipline would feel immediately, and would fail a `check` over output that
+  is otherwise byte-identical — the failure this command exists to explain
+  rather than one to add. [docs/generator.md](docs/generator.md) states the
+  split.
+
 ### Changed
 
 - The npm publish attaches provenance: the release workflow mints a

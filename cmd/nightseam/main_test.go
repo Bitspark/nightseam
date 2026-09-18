@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime/debug"
 	"strings"
 	"testing"
 	"time"
@@ -465,3 +466,100 @@ func TestInstallLabelsEveryNameWithItsFamily(t *testing.T) {
  machine.hold(t, "the machine", map[string]string{"started echo": "probe", "ended echo": "probe", "emitted changed": "probe", "started reverse": "probe", "ended reverse": "probe", "started relay": "carrier", "ended relay": "carrier"})
 }
 `
+
+// TestVersionIsReportedByTheTool holds what #31 asked for: the tool says
+// which version of itself is running, in one spelling from both the
+// command and the flag, and needs no checkout to say it — the question is
+// asked by someone whose check disagreed across two machines, who is not
+// necessarily standing in a repository when they ask.
+func TestVersionIsReportedByTheTool(t *testing.T) {
+	// A test binary is built from this module's own tree, so the answer here
+	// is the one a checkout gives, which is the useful one: rendered by a
+	// tree rather than by a release.
+	const want = "nightseam (devel)\n"
+	for _, args := range [][]string{{"version"}, {"--version"}} {
+		command := newCommand()
+		var out, errs bytes.Buffer
+		command.SetOut(&out)
+		command.SetErr(&errs)
+		// No --root: the command reads no checkout and settles no module.
+		command.SetArgs(args)
+		if err := command.Execute(); err != nil {
+			t.Fatalf("%v: %v\n%s", args, err, errs.String())
+		}
+		if out.String() != want {
+			t.Errorf("%v printed %q, want %q", args, out.String(), want)
+		}
+	}
+	// It reads no go.mod either: an empty directory is a checkout the other
+	// commands refuse and this one answers in.
+	if out, _, err := run(t, t.TempDir(), "version"); err != nil || out != want {
+		t.Fatalf("version in an empty directory: %v %q", err, out)
+	}
+}
+
+// TestVersionOfBuildInfo holds the shapes of build information the tool is
+// run under to the version each should report. Only the first two are
+// reachable from a test; the one a consumer sees — the tool built inside
+// the consumer's own module by go get -tool, where this module is a
+// requirement rather than the main one — is the case the command exists
+// for, and is held here because nothing else can reach it.
+func TestVersionOfBuildInfo(t *testing.T) {
+	tool := func(version string, replace *debug.Module) *debug.Module {
+		return &debug.Module{Path: modulePath, Version: version, Replace: replace}
+	}
+	consumer := debug.Module{Path: "example.test/consumer", Version: "(devel)"}
+	for _, c := range []struct {
+		name string
+		info *debug.BuildInfo
+		ok   bool
+		want string
+	}{
+		{"a checkout of this module", &debug.BuildInfo{Main: debug.Module{Path: modulePath}}, true, "(devel)"},
+		{"a released binary of this module", &debug.BuildInfo{Main: debug.Module{Path: modulePath, Version: "v0.2.0"}}, true, "v0.2.0"},
+		{"go get -tool in a consumer's module", &debug.BuildInfo{
+			Main: consumer,
+			Deps: []*debug.Module{{Path: "github.com/spf13/cobra", Version: "v1.10.1"}, tool("v0.2.0", nil)},
+		}, true, "v0.2.0"},
+		{"a consumer replacing the tool with a checkout", &debug.BuildInfo{
+			Main: consumer,
+			Deps: []*debug.Module{tool("v0.2.0", &debug.Module{Path: modulePath})},
+		}, true, "(devel)"},
+		{"a consumer replacing the tool with another release", &debug.BuildInfo{
+			Main: consumer,
+			Deps: []*debug.Module{tool("v0.2.0", tool("v0.1.9", nil))},
+		}, true, "v0.1.9"},
+		{"a binary carrying no build information", nil, false, "(devel)"},
+		{"a binary naming this module nowhere", &debug.BuildInfo{Main: consumer}, true, "(unknown)"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := versionOf(c.info, c.ok); got != c.want {
+				t.Errorf("versionOf = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// TestGeneratedFilesNameNoVersion holds the other half of #31's decision:
+// the tool reports the version and its output does not carry it. A version
+// in the header would rewrite every generated file of every consumer on
+// every release, and would fail a check over bytes that are otherwise
+// identical — the failure the command explains rather than one to add.
+// docs/generator.md states the split, and this holds it.
+func TestGeneratedFilesNameNoVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFamily(t, root, "probe")
+	files, err := (&app{root: root, module: module, scope: scope}).render([]string{"probe"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) == 0 {
+		t.Fatal("nothing rendered")
+	}
+	for path, data := range files {
+		header, _, _ := strings.Cut(string(data), "\n")
+		if strings.Contains(header, "nightseam v") || strings.Contains(header, "(devel)") {
+			t.Errorf("%s names a version in its header: %s", path, header)
+		}
+	}
+}

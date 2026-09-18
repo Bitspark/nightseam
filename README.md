@@ -116,6 +116,7 @@ go tool nightseam validate            # every diagnostic of every family
 go tool nightseam generate            # render what is stale
 go tool nightseam init probe          # the handlers you implement, written once
 go tool nightseam check               # in CI: fail if the checked-in output is stale
+go tool nightseam version             # which version of the tool is running
 ```
 
 ## Documentation

@@ -11,6 +11,7 @@
 //	nightseam check [family...]      fail if the checked-in output is stale
 //	nightseam validate [family...]   report every diagnostic; exit 1 if any
 //	nightseam init <family>          write the handlers a consumer implements, once, into a directory of its own
+//	nightseam version                print the version of the tool that is running
 //
 // The generated Go packages are rooted at the checkout's module, read from
 // its go.mod or given as --module; the TypeScript packages at an npm
@@ -31,6 +32,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"sort"
 	"strings"
@@ -216,7 +218,10 @@ npm scope; both bind to Nightseam's runtime. Nothing is written that is
 already up to date.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		// --version and the version command are one answer in one spelling.
+		Version: version(),
 	}
+	root.SetVersionTemplate("nightseam {{.Version}}\n")
 	root.PersistentFlags().StringVar(&a.root, "root", ".", "repository root")
 	root.PersistentFlags().StringVar(&a.module, "module", "", "Go module the generated packages are rooted at (default: the module of <root>/go.mod)")
 	root.PersistentFlags().StringVar(&a.scope, "scope", "", "npm scope of the generated TypeScript packages (default: @ and the module's last element)")
@@ -232,6 +237,7 @@ already up to date.`,
 
 	root.AddCommand(
 		initCommand(a, family),
+		versionCommand(),
 		&cobra.Command{
 			Use:               "generate [family...]",
 			Short:             "Render every family, or the named ones, writing what changed",
@@ -382,4 +388,74 @@ func initCommand(a *app, family func(*cobra.Command, []string, string) ([]string
 	}
 	cmd.Flags().StringVar(&dir, "dir", "api/impl/{family}", "where to write the stubs, a pattern over the family's name")
 	return cmd
+}
+
+// modulePath is the tool's own module, and the one whose version answers
+// "what rendered this?". A consumer adds the tool with go get -tool and
+// builds it inside its own module, so the build info's main module is that
+// consumer's rather than this one, and the version to report is then the
+// one the consumer's requirement resolved to.
+const modulePath = "github.com/Bitspark/nightseam"
+
+// versionCommand reports the version of the tool that is running, which is
+// the question a reviewer looking at a golden diff asks and the one a check
+// that disagrees across two machines raises. The generated files do not
+// carry it: a version in their header would rewrite every file of every
+// consumer on every release, and would make check fail on a version that
+// renders the same bytes, which is the failure this command exists to
+// explain rather than one to add. docs/generator.md states that split.
+func versionCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the version of the tool that is running",
+		Long:  "version prints the module version of the running tool — what go get -tool resolved, or (devel) from a checkout, a build of a tree being exactly what that answer should say. The generated files name no version; this command is where it is asked for.",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintln(cmd.OutOrStdout(), "nightseam "+version())
+			return nil
+		},
+	}
+}
+
+// version reads the tool's own version out of the running binary.
+func version() string { return versionOf(debug.ReadBuildInfo()) }
+
+// versionOf takes what debug.ReadBuildInfo returns and finds the tool's
+// module in it: the main module where the binary is the tool itself, and
+// the required one where a consumer built it inside its own module. A
+// checkout, a replace directive pointing at one and a binary built without
+// module information all report (devel), which is the useful answer —
+// rendered by a tree rather than by a release — and is what the empty
+// version means in each of the three.
+func versionOf(info *debug.BuildInfo, ok bool) string {
+	const devel = "(devel)"
+	if !ok {
+		return devel
+	}
+	if info.Main.Path == modulePath {
+		return settled(info.Main.Version, devel)
+	}
+	for _, dependency := range info.Deps {
+		if dependency.Path != modulePath {
+			continue
+		}
+		// A replace is what a consumer points at a checkout of the tool
+		// with, and what it points at is what rendered: the requirement it
+		// replaced never ran.
+		if dependency.Replace != nil {
+			return settled(dependency.Replace.Version, devel)
+		}
+		return settled(dependency.Version, devel)
+	}
+	// A binary that carries build information naming this module nowhere was
+	// not built from it by the go command — vendored into another tree, or
+	// stripped — and has no version of its own to report.
+	return "(unknown)"
+}
+
+func settled(version, devel string) string {
+	if version == "" {
+		return devel
+	}
+	return version
 }
