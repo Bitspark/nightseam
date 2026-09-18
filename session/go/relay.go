@@ -62,6 +62,7 @@ type pending struct {
 // followed control.
 type routed struct {
 	message []byte
+	id      string
 	method  string
 	trace   runtime.Trace
 	asks    bool
@@ -110,14 +111,15 @@ func (r *relay) fromMachine(data []byte) {
 			at.deliver(m.withID(id))
 		}
 	case "request":
-		at, ok := r.route(m, data, r.governance.Asks(m.method()))
+		asking := r.governance.Asks(m.method())
+		at, ok := r.route(m, data, asking)
 		if m.id() == "" {
 			return
 		}
-		r.askRaised(m)
+		r.askRaised(m, asking)
 		if ok {
 			at.deliver(data)
-			r.askRouted(at, m.method(), m.trace())
+			r.askRouted(at, m.id(), m.method(), m.trace())
 		}
 	case "cancel":
 		if at, ok := r.withdraw(m.id()); ok {
@@ -168,7 +170,7 @@ func (r *relay) fromConsumer(a *Attachment, data []byte) {
 		if !ok {
 			return
 		}
-		r.askAnswered(a, answered.method, m.trace())
+		r.askAnswered(a, m.id(), answered.method, m.trace())
 		r.sendUp(a, m, data)
 	case "event":
 		r.sendUp(a, m, data)
@@ -201,7 +203,7 @@ func (r *relay) record(direction Direction, from *Attachment, m *message, data [
 	attached := make([]*Attachment, len(r.attached))
 	copy(attached, r.attached)
 	r.mu.Unlock()
-	r.frameAppended(sequence, from, m)
+	r.frameAppended(sequence, direction, from, m, len(data))
 	return attached
 }
 
@@ -297,7 +299,7 @@ func (r *relay) route(m *message, data []byte, asks bool) (*Attachment, bool) {
 	}
 	kept := make([]byte, len(data))
 	copy(kept, data)
-	r.routed[m.id()] = &routed{message: kept, method: m.method(), trace: m.trace(), asks: asks, at: r.holder}
+	r.routed[m.id()] = &routed{message: kept, id: m.id(), method: m.method(), trace: m.trace(), asks: asks, at: r.holder}
 	return r.holder, r.holder != nil
 }
 
@@ -369,7 +371,7 @@ func (r *relay) control(holder *Attachment) error {
 	}
 	for _, request := range open {
 		holder.deliver(request.message)
-		r.askRouted(holder, request.method, request.trace)
+		r.askRouted(holder, request.id, request.method, request.trace)
 	}
 	return nil
 }
@@ -512,7 +514,7 @@ func (r *relay) end(err error) {
 		}
 		// Last, and after every consumer it carried is gone: a session is
 		// unbound once there is nothing left of it to be told about.
-		r.sessionUnbound()
+		r.sessionUnbound(code, reason)
 		ctx, cancel := context.WithTimeout(context.Background(), r.options.SendTimeout)
 		_ = r.up.Close(ctx, code, reason)
 		cancel()

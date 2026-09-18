@@ -13,14 +13,23 @@ import (
 	"github.com/Bitspark/nightseam/tunnel/go"
 )
 
-// channels is one connected pair of channels, each of a tunnel of its own
-// over a pipe: the transport beneath a session, as the suite asks for it.
+// channels is one connected pair of channels over peers nobody observes,
+// which is what every test here but the suite's own asks for.
 func channels(t *testing.T) (near, far *tunnel.Channel) {
+	t.Helper()
+	return observed(t, nil)
+}
+
+// observed is one connected pair of channels, each of a tunnel of its own
+// over a pipe: the transport beneath a session, as the suite asks for it.
+// The near end's peer takes the observer, because that is the end a registry
+// binds and so the peer a session of it emits its events through.
+func observed(t *testing.T, observer runtime.Observer) (near, far *tunnel.Channel) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	a, b := duplex.Pipe(1 << 20)
-	client, err := runtime.NewPeer(ctx, a, runtime.ClientRole, runtime.Options{})
+	client, err := runtime.NewPeer(ctx, a, runtime.ClientRole, runtime.Options{Observer: observer})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +67,7 @@ func channels(t *testing.T) (near, far *tunnel.Channel) {
 
 // TestSessionOverPipes holds this package to the relay's contract.
 func TestSessionOverPipes(t *testing.T) {
-	sessiontest.Run(t, channels)
+	sessiontest.Run(t, observed)
 }
 
 // TestBindTakesASessionOnce: a session is bound under an id, over a

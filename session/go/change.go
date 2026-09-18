@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Bitspark/nightseam/duplex/go"
+
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -169,23 +171,29 @@ func (r *relay) changed(change Change) {
 	r.registry.notify(change)
 }
 
-// watched reports whether anything is listening at all.
-func (r *relay) watched() bool { return r.registry.watching() }
+// watched reports whether anything is listening at all: a session no hook
+// was registered on and whose peer was given no observer computes nothing,
+// reading no clock and allocating no event for nobody.
+func (r *relay) watched() bool { return r.registry.watching() || r.observed() }
 
 func (r *relay) sessionBound() {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeBound})
+	at := time.Now().UTC()
+	r.changed(Change{At: at, Kind: ChangeBound})
+	r.observe(SessionBound{At: at, Session: r.id})
 }
 
 // sessionUnbound is the whole of what a session ending says: the consumers
 // it carried go with it rather than detaching one by one.
-func (r *relay) sessionUnbound() {
+func (r *relay) sessionUnbound(code duplex.Code, reason string) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeUnbound})
+	at := time.Now().UTC()
+	r.changed(Change{At: at, Kind: ChangeUnbound})
+	r.observe(SessionUnbound{At: at, Session: r.id, Code: int(code), Reason: reason})
 }
 
 // sessionAttached says where the consumer resumed from, which is the one
@@ -194,64 +202,82 @@ func (r *relay) sessionAttached(a *Attachment, after int64) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeAttached, Attachment: a, Sequence: after})
+	at := time.Now().UTC()
+	r.changed(Change{At: at, Kind: ChangeAttached, Attachment: a, Sequence: after})
+	r.observe(SessionAttached{At: at, Session: r.id, Role: a.Role, Origin: a.Origin, After: after})
 }
 
 func (r *relay) sessionDetached(a *Attachment) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeDetached, Attachment: a})
+	at := time.Now().UTC()
+	r.changed(Change{At: at, Kind: ChangeDetached, Attachment: a})
+	r.observe(SessionDetached{At: at, Session: r.id, Role: a.Role, Origin: a.Origin})
 }
 
 // frameAppended is one frame of the session's conversation taking its place
 // in the log, under the consumer that sent it where a consumer did — which
 // is the frame's direction and its origin both — and never what was in it.
-func (r *relay) frameAppended(sequence int64, from *Attachment, m *message) {
+func (r *relay) frameAppended(sequence int64, direction Direction, from *Attachment, m *message, bytes int) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeFrameAppended, Attachment: from,
+	at := time.Now().UTC()
+	r.changed(Change{At: at, Kind: ChangeFrameAppended, Attachment: from,
 		Sequence: sequence, Method: m.named(), Trace: m.trace()})
+	r.observe(FrameAppended{At: at, Session: r.id, Sequence: sequence, Direction: direction,
+		Origin: origin(from), Bytes: bytes, Method: m.named(), Trace: m.trace()})
 }
 
 // askRaised is every request the machine opens, whether or not the family's
 // Asks counts it: what Asks selects is what Attention names, and a request
 // the holder is left standing with is raised either way.
-func (r *relay) askRaised(m *message) {
+func (r *relay) askRaised(m *message, asking bool) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeAskRaised, Method: m.method(), Trace: m.trace()})
+	at := time.Now().UTC()
+	r.changed(Change{At: at, Kind: ChangeAskRaised, Method: m.method(), Trace: m.trace()})
+	r.observe(AskRaised{At: at, Session: r.id, ID: m.id(), Method: m.method(), Asking: asking, Trace: m.trace()})
 }
 
-func (r *relay) askRouted(a *Attachment, method string, trace runtime.Trace) {
+func (r *relay) askRouted(a *Attachment, id, method string, trace runtime.Trace) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeAskRouted, Attachment: a, Method: method, Trace: trace})
+	at := time.Now().UTC()
+	r.changed(Change{At: at, Kind: ChangeAskRouted, Attachment: a, Method: method, Trace: trace})
+	r.observe(AskRouted{At: at, Session: r.id, ID: id, Method: method, Origin: origin(a), Trace: trace})
 }
 
 // askAnswered names the method the request it closes was opened under, and
 // carries the trace of the answer that closed it.
-func (r *relay) askAnswered(a *Attachment, method string, trace runtime.Trace) {
+func (r *relay) askAnswered(a *Attachment, id, method string, trace runtime.Trace) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeAskAnswered, Attachment: a, Method: method, Trace: trace})
+	at := time.Now().UTC()
+	r.changed(Change{At: at, Kind: ChangeAskAnswered, Attachment: a, Method: method, Trace: trace})
+	r.observe(AskAnswered{At: at, Session: r.id, ID: id, Method: method, Origin: origin(a), Trace: trace})
 }
 
 func (r *relay) controlChanged(holder *Attachment) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeControlChanged, Attachment: holder})
+	at := time.Now().UTC()
+	r.changed(Change{At: at, Kind: ChangeControlChanged, Attachment: holder})
+	r.observe(ControlChanged{At: at, Session: r.id, Origin: origin(holder), Held: holder != nil})
 }
 
 func (r *relay) refused(a *Attachment, code string, m *message) {
 	if !r.watched() {
 		return
 	}
-	r.changed(Change{At: time.Now().UTC(), Kind: ChangeRefused, Attachment: a,
+	at := time.Now().UTC()
+	r.changed(Change{At: at, Kind: ChangeRefused, Attachment: a,
 		Method: m.method(), Trace: m.trace()})
+	r.observe(Refused{At: at, Session: r.id, Code: code, Method: m.method(), Role: a.Role,
+		Origin: a.Origin, Trace: m.trace()})
 }
