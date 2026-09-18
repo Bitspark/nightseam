@@ -1,0 +1,5 @@
+time=2026-09-18T09:00:00.000Z level=DEBUG msg=backpressure queued=1 stalled=false deadlineMs=10000
+time=2026-09-18T09:00:00.001Z level=DEBUG msg=backpressure queued=1 stalled=true deadlineMs=10000
+time=2026-09-18T09:00:00.002Z level=DEBUG msg=request.ended id=c:3 method=work.wait incoming=false durationMs=10000 outcome=timeout errorCode=request_timeout traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
+time=2026-09-18T09:00:00.003Z level=INFO msg=connection.closed code=1011 reason="Queue full" local=true
+time=2026-09-18T09:00:00.004Z level=INFO msg=connection.closed code=1006 reason="" local=false

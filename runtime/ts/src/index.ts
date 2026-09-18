@@ -5,6 +5,7 @@ export type {
 } from './peer.ts';
 export { NO_OBSERVER } from './observer.ts';
 export type { Observer, ObserverEvent, ObserverEvents } from './observer.ts';
+export { consoleObserver } from './console.ts';
 export { defaultPropagator } from './trace.ts';
 export type { Trace, Propagator } from './trace.ts';
 export { webSocketConnection } from '@nightseam/duplex';

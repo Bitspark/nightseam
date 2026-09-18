@@ -48,6 +48,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "check": "tsc --noEmit --strict --target ES2022 --module nodenext --allowImportingTsExtensions --skipLibCheck src/index.ts",
-    "test": "node --experimental-strip-types --test src/peer.test.ts src/trace.test.ts src/validate.test.ts"
+    "test": "node --experimental-strip-types --test src/console.test.ts src/peer.test.ts src/trace.test.ts src/validate.test.ts"
   }
 }

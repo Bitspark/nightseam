@@ -1,0 +1,9 @@
+time=2026-09-18T09:00:00.000Z level=INFO msg=connection.opened role=client
+time=2026-09-18T09:00:00.001Z level=DEBUG msg=request.started id=c:1 method=work.read incoming=false traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
+time=2026-09-18T09:00:00.002Z level=DEBUG msg=frame.sent kind=request name=work.read bytes=96 id=c:1 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
+time=2026-09-18T09:00:00.003Z level=DEBUG msg=frame.received kind=response name=work.read bytes=48 id=c:1 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
+time=2026-09-18T09:00:00.004Z level=DEBUG msg=request.ended id=c:1 method=work.read incoming=false durationMs=7 outcome=ok traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
+time=2026-09-18T09:00:00.005Z level=DEBUG msg=request.started id=c:2 method=work.write incoming=false traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-b7ad6b7169203331-01 family=work
+time=2026-09-18T09:00:00.006Z level=DEBUG msg=frame.sent kind=request name=work.write bytes=104 id=c:2 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-b7ad6b7169203331-01 family=work
+time=2026-09-18T09:00:00.007Z level=DEBUG msg=frame.received kind=response name=work.write bytes=72 id=c:2 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-b7ad6b7169203331-01 family=work
+time=2026-09-18T09:00:00.008Z level=WARN msg=request.ended id=c:2 method=work.write incoming=false durationMs=12 outcome=error errorCode=denied traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-b7ad6b7169203331-01 family=work

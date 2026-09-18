@@ -1,0 +1,13 @@
+time=2026-09-18T09:00:00.000Z level=DEBUG msg=frame.received kind=request name=work.read bytes=96 id=c:1 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
+time=2026-09-18T09:00:00.001Z level=DEBUG msg=request.started id=c:1 method=work.read incoming=true traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
+time=2026-09-18T09:00:00.002Z level=DEBUG msg=request.started id=s:1 method=ui.confirm incoming=false traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-b7ad6b7169203331-01
+time=2026-09-18T09:00:00.003Z level=DEBUG msg=frame.sent kind=request name=ui.confirm bytes=64 id=s:1 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-b7ad6b7169203331-01
+time=2026-09-18T09:00:00.004Z level=DEBUG msg=frame.received kind=response name=ui.confirm bytes=40 id=s:1 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-b7ad6b7169203331-01
+time=2026-09-18T09:00:00.005Z level=DEBUG msg=request.ended id=s:1 method=ui.confirm incoming=false durationMs=21 outcome=ok traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-b7ad6b7169203331-01
+time=2026-09-18T09:00:00.006Z level=DEBUG msg=frame.sent kind=response name=work.read bytes=48 id=c:1 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
+time=2026-09-18T09:00:00.007Z level=DEBUG msg=request.ended id=c:1 method=work.read incoming=true durationMs=34 outcome=ok traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
+time=2026-09-18T09:00:00.008Z level=DEBUG msg=frame.received kind=request name=work.boom bytes=88 id=c:2 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
+time=2026-09-18T09:00:00.009Z level=DEBUG msg=request.started id=c:2 method=work.boom incoming=true traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
+time=2026-09-18T09:00:00.010Z level=ERROR msg=handler.panic method=work.boom value="Error: handler failed" traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
+time=2026-09-18T09:00:00.011Z level=DEBUG msg=frame.sent kind=response name=work.boom bytes=64 id=c:2 traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
+time=2026-09-18T09:00:00.012Z level=WARN msg=request.ended id=c:2 method=work.boom incoming=true durationMs=3 outcome=error errorCode=internal traceparent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 tracestate="bitspark=1" family=work
