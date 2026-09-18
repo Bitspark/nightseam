@@ -582,8 +582,13 @@ export class DuplexPeer {
     }
   }
 
-  /** An observer that is absent costs nothing, and one that throws interrupts nothing. */
-  private observe(event: ObserverEvent): void {
+  /**
+   * Tells this peer's observer one event, the runtime's own or one of a layer
+   * running over the peer, which is how a tunnel and a session observe — through
+   * the peer they run over, rather than through an observer of their own. An
+   * observer that is absent costs nothing, and one that throws interrupts nothing.
+   */
+  observe(event: ObserverEvent): void {
     try { this.observer?.observe(event); } catch { /* Observers cannot interrupt routing. */ }
   }
 
