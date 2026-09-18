@@ -425,6 +425,29 @@ func goType(g contract.Generics, expr any, prefix string) string {
 			return prefix + t + apply(g.Types[t])
 		}
 	case map[string]any:
+		if reference, with, ok := contract.Apply(t); ok {
+			family, name, isReference := contract.Reference(reference)
+			if !isReference {
+				return "any"
+			}
+			var args []string
+			for _, use := range g.Imported[family][name] {
+				target, bound := with[use.Parameter]
+				if !bound {
+					target = use.Parameter
+				}
+				if contract.Parameterized(target) {
+					args = append(args, parameterName(contract.Use{Parameter: target, Kind: use.Kind}))
+					continue
+				}
+				args = append(args, importAlias(target)+"."+contract.SlotType(use.Kind))
+			}
+			rendered := importAlias(family) + "." + name
+			if len(args) > 0 {
+				rendered += "[" + strings.Join(args, ", ") + "]"
+			}
+			return rendered
+		}
 		if kind, target, ok := contract.Slot(t); ok {
 			if contract.Parameterized(target) {
 				return parameterName(contract.Use{Parameter: target, Kind: kind})

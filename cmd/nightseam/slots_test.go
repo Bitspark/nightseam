@@ -628,3 +628,89 @@ func TestTwoParametersRenderApart(t *testing.T) {
 		t.Error("the session union is not both session families")
 	}
 }
+
+// applyContract refers to the carrier's generic Frame twice, filling the
+// carrier's parameter S once with its own parameter B and once with a named
+// family: an application says which, where a plain reference could not.
+const applyContract = `{
+ "schema_version":1,"profile":"nightseam.duplex/1","name":"album",
+ "parameters":[{"name":"A","of":"session"},{"name":"B","of":"session"}],
+ "imports":["carrier"],
+ "types":{
+  "Mine":{"kind":"record","fields":[{"name":"held","type":{"envelope":"A"}}]},
+  "Borrowed":{"kind":"record","fields":[{"name":"frame","type":{"apply":"carrier.Frame","with":{"S":"B"}}}]},
+  "Fixed":{"kind":"record","fields":[{"name":"frame","type":{"apply":"carrier.Frame","with":{"S":"probe"}}}]},
+  "Both":{"kind":"record","fields":[{"name":"mine","type":"Mine"},{"name":"borrowed","type":"Borrowed"},{"name":"fixed","type":"Fixed"}]}
+ },
+ "methods":[{"name":"look","go_name":"Look","ts_name":"look","direction":"client_to_server","request":"Mine","result":"Both"}],
+ "events":[],"errors":[]
+}`
+
+// TestApplicationFillsAnImportedFamilysParameters: a family may refer to a
+// generic type of a family it imports by saying what fills each of that
+// type's parameters — one of its own, which keeps it generic there, or a
+// named family, which does not. Where a plain reference would be ambiguous
+// it is refused instead, and the message says what to write.
+func TestApplicationFillsAnImportedFamilysParameters(t *testing.T) {
+	probe := exampleAPI(t)
+	probe["role"] = contract.SessionRole
+	var carrier, album map[string]any
+	if err := json.Unmarshal([]byte(carrierContract), &carrier); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(applyContract), &album); err != nil {
+		t.Fatal(err)
+	}
+	world := kernel.World{"probe": probe, "carrier": carrier, "album": album}
+	if diagnostics := kernel.ValidateIn(world, album, languages(module, scope)...); len(diagnostics) != 0 {
+		t.Fatalf("an application was refused: %+v", diagnostics)
+	}
+	result, err := kernel.GenerateIn(world, album, languages(module, scope)...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{}
+	for p, data := range result.Files {
+		files[p] = string(data)
+	}
+	for path, wants := range map[string][]string{
+		"api/go/album-protocol/types_generated.go": {
+			"type Mine[AE any] struct {",
+			// B fills the carrier's S, so Borrowed is generic in B alone.
+			"type Borrowed[BE any] struct {",
+			"Frame carrierprotocol.Frame[BE]",
+			// probe fills it, so Fixed is generic in nothing.
+			"type Fixed struct {",
+			"Frame carrierprotocol.Frame[probeprotocol.Envelope]",
+			"type Both[AE, BE any] struct {",
+		},
+		"api/ts/album-client/src/types.ts": {
+			"export interface Borrowed<B extends AnyFamily = SessionFamily> {",
+			`"frame": carrier.Frame<B>;`,
+			"export interface Fixed {",
+			`"frame": carrier.Frame<probe.Family>;`,
+		},
+	} {
+		for _, want := range wants {
+			if !strings.Contains(files[path], want) {
+				t.Errorf("%s lacks %s", path, want)
+			}
+		}
+	}
+	// A plain reference to the same generic type says nothing about which
+	// parameter fills it, and is refused with the application to write.
+	plain := map[string]any{}
+	if err := json.Unmarshal([]byte(applyContract), &plain); err != nil {
+		t.Fatal(err)
+	}
+	plain["types"].(map[string]any)["Borrowed"].(map[string]any)["fields"].([]any)[0].(map[string]any)["type"] = "carrier.Frame"
+	found := ""
+	for _, d := range kernel.ValidateIn(kernel.World{"probe": probe, "carrier": carrier, "album": plain}, plain, languages(module, scope)...) {
+		if d.Code == "ambiguous_application" {
+			found = d.Message
+		}
+	}
+	if !strings.Contains(found, `{"apply": "carrier.Frame", "with": {…}}`) {
+		t.Fatalf("a plain reference to a generic imported type was not refused with the application to write: %q", found)
+	}
+}

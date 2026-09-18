@@ -431,6 +431,31 @@ func Slot(expr TypeExpr) (kind, family string, ok bool) {
 	return "", "", false
 }
 
+// Apply reports an application expression, {"apply": "b.Thing", "with":
+// {...}}: a generic type of an imported family with what fills each of its
+// parameters, each a parameter of this family or a named family. A family
+// that refers to a generic imported type says so this way; a plain
+// reference to one is refused.
+func Apply(expr TypeExpr) (reference string, with map[string]string, ok bool) {
+	object, isObject := expr.(map[string]any)
+	if !isObject {
+		return "", nil, false
+	}
+	name, named := object["apply"].(string)
+	if !named {
+		return "", nil, false
+	}
+	with = map[string]string{}
+	if bindings, isObject := object["with"].(map[string]any); isObject {
+		for parameter, value := range bindings {
+			if target, isString := value.(string); isString {
+				with[parameter] = target
+			}
+		}
+	}
+	return name, with, true
+}
+
 // Substitute binds parameters to families and returns the contract that
 // results: a slot of a bound parameter becomes family.Handle or
 // family.Envelope and the family joins the imports; a slot of a named family
@@ -452,6 +477,26 @@ func Substitute(input map[string]any, bindings map[string]string) map[string]any
 	}
 	var fill func(expr any) any
 	fill = func(expr any) any {
+		if _, _, ok := Apply(expr); ok {
+			object := expr.(map[string]any)
+			if with, isObject := object["with"].(map[string]any); isObject {
+				for parameter, value := range with {
+					target, isString := value.(string)
+					if !isString {
+						continue
+					}
+					if bound, isParameter := bindings[target]; isParameter {
+						with[parameter] = bound
+						imports[bound] = true
+						continue
+					}
+					if !Parameterized(target) {
+						imports[target] = true
+					}
+				}
+			}
+			return expr
+		}
 		if kind, of, ok := Slot(expr); ok {
 			if bound, isParameter := bindings[of]; isParameter {
 				of = bound
@@ -734,11 +779,58 @@ func Check(api API) []Diagnostic {
 			}
 			// A generic type of an imported family has parameters of its own,
 			// which this family must fill. A family with one parameter fills
-			// them all with it; with any other number there is nothing to read
-			// the application from, so the reference is refused rather than
-			// silently filled.
+			// them all with it; with any other number the plain reference says
+			// nothing about which fills which, so an application is required
+			// rather than a filling silently guessed.
 			if len(other.Generics().Types[name]) > 0 && len(api.Parameters) != 1 {
-				add("ambiguous_application", pointer, "Type "+family+"."+name+" is generic, and this family declares "+fmt.Sprint(len(api.Parameters))+" parameters; a family referring to a generic imported type declares exactly one, which fills it.")
+				add("ambiguous_application", pointer, "Type "+family+"."+name+" is generic and this family declares "+fmt.Sprint(len(api.Parameters))+" parameters; say what fills each with {\"apply\": \""+family+"."+name+"\", \"with\": {…}}.")
+			}
+			return
+		}
+		if reference, with, ok := Apply(expr); ok {
+			family, name, isReference := Reference(reference)
+			switch {
+			case !isReference:
+				add("unresolved_type", pointer+"/apply", "An application names a type of another family, family.Type.")
+			case !imported[family]:
+				add("unresolved_type", pointer+"/apply", "Type "+reference+" names a family this contract does not import.")
+			default:
+				other := api.Imported[family]
+				if _, declared := other.Types[name]; !declared {
+					add("unresolved_type", pointer+"/apply", "Unknown type "+name+" in family "+family+".")
+					return
+				}
+				wanted := map[string]bool{}
+				for _, use := range other.Generics().Types[name] {
+					wanted[use.Parameter] = true
+				}
+				if len(wanted) == 0 {
+					add("needless_application", pointer+"/apply", "Type "+reference+" is not generic; refer to it by name.")
+				}
+				for parameter := range wanted {
+					if _, bound := with[parameter]; !bound {
+						add("unbound_parameter", pointer+"/with", "The application leaves "+family+"'s parameter "+parameter+" unbound.")
+					}
+				}
+				for parameter, target := range with {
+					at := pointer + "/with/" + EscapePointer(parameter)
+					if !wanted[parameter] {
+						add("unresolved_parameter", at, "Type "+reference+" has no parameter "+parameter+".")
+					}
+					switch {
+					case Parameterized(target):
+						if !parameters[target] {
+							add("unresolved_parameter", at, "Unknown parameter "+target+": this family declares no parameter of that name.")
+						}
+					case target == api.Name:
+						add("self_slot", at, "A parameter cannot be filled with the family that declares it.")
+					case !families[target]:
+						add("unresolved_type", at, "Unknown family "+target+": it is not among the contracts rendered together.")
+					}
+				}
+				if layered && other.Layers != nil && layerOf(name, other.Layers) > context {
+					add("layer_violation", pointer, fmt.Sprintf("A %s declaration refers to %s, declared in %s; a declaration refers to its own layer or a lower one.", Layers[context], reference, other.Layers[name]))
+				}
 			}
 			return
 		}
@@ -900,10 +992,17 @@ func Check(api API) []Diagnostic {
 		if _, target, ok := Slot(expr); ok && Parameterized(target) {
 			used[target] = true
 		}
+		if _, with, ok := Apply(expr); ok {
+			for _, target := range with {
+				if Parameterized(target) {
+					used[target] = true
+				}
+			}
+		}
 	})
 	for i, parameter := range api.Parameters {
 		if !used[parameter.Name] {
-			add("unused_parameter", fmt.Sprintf("/parameters/%d/name", i), "Parameter "+parameter.Name+" is declared and no slot names it.")
+			add("unused_parameter", fmt.Sprintf("/parameters/%d/name", i), "Parameter "+parameter.Name+" is declared and nothing names it: no slot, and no application of an imported type.")
 		}
 	}
 	errorsSeen := map[string]bool{}
@@ -990,13 +1089,24 @@ func (api API) Expressions(visit func(expr TypeExpr)) {
 
 // SlotFamilies names the families the contract's slots name, sorted: each
 // fills its slot with its own Envelope or Handle, whether or not the family
-// is imported. A parameter is not a family and is not among them: what fills
-// it is chosen where the generated code is instantiated.
+// is imported, together with the families an application binds a parameter
+// of an imported type to. A parameter is not a family and is not among them:
+// what fills it is chosen where the generated code is instantiated.
 func (api API) SlotFamilies() []string {
 	seen := map[string]bool{}
 	api.Expressions(func(expr TypeExpr) {
 		if _, target, ok := Slot(expr); ok && !Parameterized(target) {
 			seen[target] = true
+		}
+		if reference, with, ok := Apply(expr); ok {
+			if family, _, isReference := Reference(reference); isReference {
+				seen[family] = true
+			}
+			for _, target := range with {
+				if !Parameterized(target) {
+					seen[target] = true
+				}
+			}
 		}
 	})
 	return sortedNames(seen)
@@ -1060,20 +1170,31 @@ func (api API) Generics() Generics {
 	for i, parameter := range api.Parameters {
 		order[parameter.Name] = i
 	}
-	// An imported family's parameters are not this family's. A family with
-	// one parameter fills every parameter of what it imports with it, which
-	// is the only reading that is unambiguous; Check refuses a reference to a
-	// generic imported type from a family that has any other number.
-	rename := func(uses []Use) []Use {
-		if len(api.Parameters) != 1 || len(uses) == 0 {
-			return nil
-		}
+	// An imported family's parameters are not this family's, so an
+	// application says what fills each: through a parameter of this family,
+	// which is a use of it, or through a named family, which is not. A family
+	// with one parameter may refer to a generic imported type plainly and
+	// fill every parameter of it with that one; Check refuses the plain
+	// reference from a family with any other number.
+	rename := func(uses []Use, with map[string]string) []Use {
 		out := make([]Use, 0, len(uses))
 		for _, use := range uses {
-			renamed := Use{api.Parameters[0].Name, use.Kind}
-			if !slices.Contains(out, renamed) {
+			target, bound := with[use.Parameter]
+			if !bound {
+				if len(api.Parameters) != 1 {
+					continue
+				}
+				target = api.Parameters[0].Name
+			}
+			if !Parameterized(target) {
+				continue
+			}
+			if renamed := (Use{target, use.Kind}); !slices.Contains(out, renamed) {
 				out = append(out, renamed)
 			}
+		}
+		if len(out) == 0 {
+			return nil
 		}
 		return out
 	}
@@ -1106,10 +1227,16 @@ func (api API) Generics() Generics {
 			}
 			return nil
 		}
+		if reference, with, ok := Apply(expr); ok {
+			if family, name, isReference := Reference(reference); isReference {
+				return rename(g.Imported[family][name], with)
+			}
+			return nil
+		}
 		switch x := expr.(type) {
 		case string:
 			if family, name, ok := Reference(x); ok {
-				return rename(g.Imported[family][name])
+				return rename(g.Imported[family][name], nil)
 			}
 			return g.Types[x]
 		case map[string]any:

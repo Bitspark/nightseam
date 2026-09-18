@@ -288,6 +288,29 @@ func slotType(kind, target string) string {
 }
 
 func tsType(g contract.Generics, expression any) string {
+	if reference, with, ok := contract.Apply(expression); ok {
+		family, name, isReference := contract.Reference(reference)
+		if !isReference {
+			return "unknown"
+		}
+		var args []string
+		for _, parameter := range tsParameters(g.Imported[family][name]) {
+			target, bound := with[parameter]
+			if !bound {
+				target = parameter
+			}
+			if contract.Parameterized(target) {
+				args = append(args, target)
+				continue
+			}
+			args = append(args, tsAlias(target)+".Family")
+		}
+		rendered := tsAlias(family) + "." + name
+		if len(args) > 0 {
+			rendered += "<" + strings.Join(args, ", ") + ">"
+		}
+		return rendered
+	}
 	switch t := expression.(type) {
 	case string:
 		switch t {

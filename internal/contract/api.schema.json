@@ -44,7 +44,11 @@
       {"type": "object", "additionalProperties": false, "required": ["array"], "properties": {"array": {"$ref": "#/$defs/expr"}}},
       {"type": "object", "additionalProperties": false, "required": ["map"], "properties": {"map": {"$ref": "#/$defs/expr"}}},
       {"type": "object", "additionalProperties": false, "required": ["connection"], "properties": {"connection": {"$ref": "#/$defs/slotTarget"}}},
-      {"type": "object", "additionalProperties": false, "required": ["envelope"], "properties": {"envelope": {"$ref": "#/$defs/slotTarget"}}}
+      {"type": "object", "additionalProperties": false, "required": ["envelope"], "properties": {"envelope": {"$ref": "#/$defs/slotTarget"}}},
+      {"type": "object", "additionalProperties": false, "required": ["apply", "with"], "properties": {
+        "apply": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\.[A-Z][A-Za-z0-9_]*$", "description": "A generic type of an imported family."},
+        "with": {"type": "object", "propertyNames": {"$ref": "#/$defs/parameterName"}, "additionalProperties": {"$ref": "#/$defs/slotTarget"}, "description": "What fills each parameter of that type: a parameter of this family, or a named family."}
+      }}
     ]},
     "field": {
       "type": "object", "additionalProperties": false, "required": ["name", "type"],

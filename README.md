@@ -62,8 +62,21 @@ parameters a family declares, and two parameters never collapse into one: a
 consumer may bind `S` to one session family and `T` to another.
 
 A method's `request` is a type expression like any other, so it may hold a
-slot; a declared parameter no slot names is reported, as is a slot naming a
+slot; a declared parameter nothing names is reported, as is a slot naming a
 parameter the family does not declare.
+
+A family that imports another and refers to a **generic** type of it says
+what fills each of that type's parameters, since they are not its own:
+
+```json
+{"apply": "carrier.Frame", "with": {"S": "B"}}
+```
+
+`with` maps the imported type's parameters to this family's — which keeps
+the result generic there — or to named families, which does not. A family
+with exactly one parameter may refer to such a type plainly and fill it with
+that one; with any other number the plain reference is refused rather than
+guessed, and the diagnostic names the application to write.
 
 Nightseam renders such a family once, generically, and a consumer
 instantiates it:
