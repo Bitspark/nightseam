@@ -94,7 +94,7 @@ func (l *language) Render(api contract.API) ([]spi.File, error) {
 	if err := put(p.protocol, "types_generated.go", generateTypes(api, p)); err != nil {
 		return nil, err
 	}
-	if err := put(p.protocol, "validation_generated.go", generateValidation(api)); err != nil {
+	if err := put(p.protocol, "validation_generated.go", generateValidation(api, p)); err != nil {
 		return nil, err
 	}
 	if err := put(p.binding, "binding_generated.go", generateBinding(api, p)); err != nil {
@@ -306,6 +306,9 @@ func goType(expr any, prefix string) string {
 		case "json":
 			return "any"
 		default:
+			if family, name, ok := contract.Reference(t); ok {
+				return importAlias(family) + "." + name
+			}
 			return prefix + t
 		}
 	case map[string]any:
@@ -361,8 +364,22 @@ func importsFor(source string, fixed map[string]string) string {
 	b.WriteString(")\n")
 	return b.String()
 }
+
+// importAlias is the identifier a generated file refers to an imported
+// family's protocol package by: the family's name without its dashes, as
+// the family's own protocol package is named.
+func importAlias(family string) string { return strings.ReplaceAll(family, "-", "") + "protocol" }
+
+// importPath is where an imported family's protocol package lives: the
+// place the generator renders every family's, by convention.
+func importPath(module, family string) string { return module + "/api/go/" + family + "-protocol" }
+
 func goFile(api contract.API, suffix, source string, p paths) string {
-	return spi.Header + "package " + pkg(api, suffix) + "\n" + importsFor(source, map[string]string{"context": "context", "json": "encoding/json", "time": "time", "fmt": "fmt", "errors": "errors", "http": "net/http", "protocol": p.module + "/" + p.protocol, "wsruntime": p.module + "/api/go/ws-runtime"}) + source
+	fixed := map[string]string{"bytes": "bytes", "context": "context", "json": "encoding/json", "io": "io", "math": "math", "strconv": "strconv", "strings": "strings", "time": "time", "fmt": "fmt", "errors": "errors", "http": "net/http", "protocol": p.module + "/" + p.protocol, "wsruntime": p.module + "/api/go/ws-runtime"}
+	for _, family := range api.Imports {
+		fixed[importAlias(family)] = importPath(p.module, family)
+	}
+	return spi.Header + "package " + pkg(api, suffix) + "\n" + importsFor(source, fixed) + source
 }
 func paramSignature(method contract.Method) string {
 	if method.Request == "" {

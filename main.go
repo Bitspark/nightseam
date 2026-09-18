@@ -118,16 +118,35 @@ func (a *app) load(name string) (map[string]any, error) {
 	return contract, nil
 }
 
-// render generates every named family and merges their files; two
-// families may not render one path.
-func (a *app) render(names []string) (map[string][]byte, error) {
-	files := map[string][]byte{}
+// world loads every contract in the checkout, by family: what a family may
+// import from, and what a slot may name.
+func (a *app) world() (kernel.World, error) {
+	names, err := a.families()
+	if err != nil {
+		return nil, err
+	}
+	world := kernel.World{}
 	for _, name := range names {
 		contract, err := a.load(name)
 		if err != nil {
 			return nil, err
 		}
-		result, err := kernel.Generate(contract, languages(module)...)
+		world[name] = contract
+	}
+	return world, nil
+}
+
+// render generates every named family within the world of all of them and
+// merges their files; two families may not render one path.
+func (a *app) render(names []string) (map[string][]byte, error) {
+	world, err := a.world()
+	if err != nil {
+		return nil, err
+	}
+	files := map[string][]byte{}
+	for _, name := range names {
+		contract := world[name]
+		result, err := kernel.GenerateIn(world, contract, languages(module)...)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}
@@ -249,13 +268,13 @@ and TypeScript. Nothing is written that is already up to date.`,
 				if err != nil {
 					return err
 				}
+				world, err := a.world()
+				if err != nil {
+					return err
+				}
 				problems := 0
 				for _, name := range names {
-					contract, err := a.load(name)
-					if err != nil {
-						return err
-					}
-					for _, d := range kernel.Validate(contract, languages(module)...) {
+					for _, d := range kernel.ValidateIn(world, world[name], languages(module)...) {
 						fmt.Fprintf(cmd.ErrOrStderr(), "%s %s: %s [%s]\n", name, d.Pointer, d.Message, d.Code)
 						problems++
 					}

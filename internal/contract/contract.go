@@ -24,14 +24,67 @@ import (
 type TypeExpr = any
 
 // API is a versioned, language-independent wire contract.
+//
+// Imports names the families whose types this one refers to as family.Type;
+// Imported is those families as parsed, which the kernel supplies from the
+// world it renders; Families is every family in that world, which a slot may
+// name, and Sessions those of them that declare the session role. None of
+// the three is part of the contract's bytes.
 type API struct {
 	SchemaVersion int             `json:"schema_version"`
 	Profile       string          `json:"profile"`
 	Name          string          `json:"name"`
+	Role          string          `json:"role,omitempty"`
+	Imports       []string        `json:"imports,omitempty"`
 	Types         map[string]Type `json:"types"`
 	Methods       []Method        `json:"methods"`
 	Events        []Event         `json:"events"`
 	Errors        []PublicError   `json:"errors,omitempty"`
+	Imported      map[string]API  `json:"-"`
+	Families      []string        `json:"-"`
+	Sessions      []string        `json:"-"`
+}
+
+// The types every family carries so that another family may hold one of its
+// messages, or a handle to a channel that speaks it: an envelope is one
+// nighthall.duplex/1 message, a handle is a channel reference on the carrying
+// connection. A contract may not declare either itself.
+const (
+	EnvelopeType = "Envelope"
+	HandleType   = "Handle"
+)
+
+// SessionRole is the role a family declares when a session can speak it; a
+// slot naming "session" is of whichever such family applies.
+const SessionRole = "session"
+
+// envelopeType is one nighthall.duplex/1 message of a family: version and
+// kind (request, response, event or cancel); the id that correlates a
+// response or a cancel with its request; the method a request names and its
+// params; a response's result or error; the event an event frame names and
+// its data. Neither injected type carries a description: parsing invents no
+// content, and the generated code emits none.
+func envelopeType() Type {
+	return Type{
+		Kind: "record",
+		Fields: []Field{
+			{Name: "version", Type: "integer", Required: true},
+			{Name: "kind", Type: "string", Required: true},
+			{Name: "id", Type: "string", Required: false},
+			{Name: "method", Type: "string", Required: false},
+			{Name: "params", Type: "json", Required: false},
+			{Name: "result", Type: "json", Required: false},
+			{Name: "error", Type: "json", Required: false},
+			{Name: "event", Type: "string", Required: false},
+			{Name: "data", Type: "json", Required: false},
+		},
+	}
+}
+
+// handleType is a reference to a channel on the carrying connection that
+// speaks a family.
+func handleType() Type {
+	return Type{Kind: "record", Fields: []Field{{Name: "channel", Type: "integer", Required: true}}}
 }
 
 // Type, Field and their tags are also the bytes each language embeds in its
@@ -162,7 +215,137 @@ func Parse(input map[string]any) (API, []Diagnostic) {
 	if err := json.Unmarshal(data, &api); err != nil {
 		return API{}, []Diagnostic{{"invalid_json", "", err.Error()}}
 	}
+	diagnostics := []Diagnostic{}
+	for name, implicit := range map[string]Type{EnvelopeType: envelopeType(), HandleType: handleType()} {
+		if _, declared := api.Types[name]; declared {
+			diagnostics = append(diagnostics, Diagnostic{"reserved_name", "/types/" + EscapePointer(name), "Type name is carried by every family and may not be declared: " + name + "."})
+			continue
+		}
+		api.Types[name] = implicit
+	}
+	if len(diagnostics) != 0 {
+		Sort(diagnostics)
+		return api, diagnostics
+	}
 	return api, nil
+}
+
+// Reference splits a type expression that names another family's type,
+// family.Type, and reports whether it was one.
+func Reference(expr TypeExpr) (family, name string, ok bool) {
+	text, isString := expr.(string)
+	if !isString {
+		return "", "", false
+	}
+	at := strings.IndexByte(text, '.')
+	if at <= 0 {
+		return "", "", false
+	}
+	return text[:at], text[at+1:], true
+}
+
+// Slot reports a slot expression: {"connection": F} or {"envelope": F},
+// with its kind and the family it is of, which may be "session".
+func Slot(expr TypeExpr) (kind, family string, ok bool) {
+	object, isObject := expr.(map[string]any)
+	if !isObject {
+		return "", "", false
+	}
+	for _, kind := range []string{"connection", "envelope"} {
+		if value, present := object[kind]; present {
+			family, _ := value.(string)
+			return kind, family, true
+		}
+	}
+	return "", "", false
+}
+
+// Substitute fills every slot of a raw contract with one family and returns
+// the plain contract that results: a connection slot becomes family.Handle,
+// an envelope slot family.Envelope, and the family joins the imports. A slot
+// of a named family other than the one substituted keeps its own; a slot of
+// "session" takes the family given. This is the left path of the diagram a
+// generic rendering must commute with: rendering the result as a plain
+// family is what an instantiation of the generic rendering must equal.
+func Substitute(input map[string]any, family string) map[string]any {
+	data, _ := json.Marshal(input)
+	var out map[string]any
+	_ = json.Unmarshal(data, &out)
+	imports := map[string]bool{}
+	if declared, ok := out["imports"].([]any); ok {
+		for _, name := range declared {
+			if text, ok := name.(string); ok {
+				imports[text] = true
+			}
+		}
+	}
+	var fill func(expr any) any
+	fill = func(expr any) any {
+		if kind, of, ok := Slot(expr); ok {
+			if of == SessionRole {
+				of = family
+			}
+			imports[of] = true
+			if kind == "connection" {
+				return of + "." + HandleType
+			}
+			return of + "." + EnvelopeType
+		}
+		if object, ok := expr.(map[string]any); ok {
+			for _, key := range []string{"array", "map"} {
+				if child, ok := object[key]; ok {
+					object[key] = fill(child)
+				}
+			}
+		}
+		return expr
+	}
+	if types, ok := out["types"].(map[string]any); ok {
+		for _, raw := range types {
+			t, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			if expr, ok := t["type"]; ok {
+				t["type"] = fill(expr)
+			}
+			if fields, ok := t["fields"].([]any); ok {
+				for _, raw := range fields {
+					if field, ok := raw.(map[string]any); ok {
+						field["type"] = fill(field["type"])
+					}
+				}
+			}
+		}
+	}
+	if methods, ok := out["methods"].([]any); ok {
+		for _, raw := range methods {
+			if method, ok := raw.(map[string]any); ok {
+				method["result"] = fill(method["result"])
+			}
+		}
+	}
+	if events, ok := out["events"].([]any); ok {
+		for _, raw := range events {
+			if event, ok := raw.(map[string]any); ok {
+				event["type"] = fill(event["type"])
+			}
+		}
+	}
+	delete(imports, out["name"].(string))
+	if len(imports) > 0 {
+		names := make([]string, 0, len(imports))
+		for name := range imports {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		list := make([]any, len(names))
+		for i, name := range names {
+			list[i] = name
+		}
+		out["imports"] = list
+	}
+	return out
 }
 
 // Validate returns the schema's diagnostics, or else the contract's own, sorted.
@@ -282,8 +465,54 @@ func Check(api API) []Diagnostic {
 	}
 	names := api.TypeNames()
 	edges := map[string][]string{}
+	imported := map[string]bool{}
+	for i, name := range api.Imports {
+		p := fmt.Sprintf("/imports/%d", i)
+		if name == api.Name {
+			add("self_import", p, "A family cannot import itself.")
+			continue
+		}
+		other, ok := api.Imported[name]
+		if !ok {
+			add("unresolved_import", p, "Unknown family "+name+": it is not among the contracts rendered together.")
+			continue
+		}
+		if len(other.Imports) > 0 {
+			add("nested_import", p, "Imported family "+name+" imports families itself; an imported family imports nothing.")
+		}
+		imported[name] = true
+	}
+	families := map[string]bool{}
+	for _, name := range api.Families {
+		families[name] = true
+	}
+	sessions := len(api.Sessions)
 	var expression func(TypeExpr, string, string)
 	expression = func(expr TypeExpr, pointer, owner string) {
+		if family, name, ok := Reference(expr); ok {
+			if !imported[family] {
+				add("unresolved_type", pointer, "Type "+family+"."+name+" names a family this contract does not import.")
+				return
+			}
+			if _, ok := api.Imported[family].Types[name]; !ok {
+				add("unresolved_type", pointer, "Unknown type "+name+" in family "+family+".")
+			}
+			return
+		}
+		if kind, family, ok := Slot(expr); ok {
+			switch {
+			case family == api.Name:
+				add("self_slot", pointer, "A "+kind+" slot cannot be of the family that declares it.")
+			case family == SessionRole:
+				if len(api.Families) > 0 && sessions == 0 {
+					add("unresolved_type", pointer, "No family declares the session role, so a slot of session has no member.")
+				}
+			case !families[family]:
+				add("unresolved_type", pointer, "Unknown family "+family+": it is not among the contracts rendered together.")
+			}
+			add("unsupported_slot", pointer, "A "+kind+" slot has no generic rendering yet; substitute a family into it first.")
+			return
+		}
 		switch x := expr.(type) {
 		case string:
 			if Primitive(x) {

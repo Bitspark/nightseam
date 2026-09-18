@@ -8,7 +8,9 @@
   "properties": {
     "schema_version": {"const": 1},
     "profile": {"const": "nighthall.duplex/1"},
-    "name": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"},
+    "name": {"$ref": "#/$defs/familyName"},
+    "role": {"enum": ["session"], "description": "A session family: one a session can speak, and so a member of the union a slot names as session."},
+    "imports": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/familyName"}, "description": "Families whose types this contract refers to as family.Type. An imported family imports nothing itself."},
     "types": {"type": "object", "propertyNames": {"$ref": "#/$defs/typeName"}, "additionalProperties": {"$ref": "#/$defs/type"}},
     "methods": {"type": "array", "items": {"$ref": "#/$defs/method"}},
     "events": {"type": "array", "items": {"$ref": "#/$defs/event"}},
@@ -16,12 +18,16 @@
   },
   "$defs": {
     "typeName": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9_]*$"},
+    "familyName": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"},
+    "slotFamily": {"type": "string", "pattern": "^(?:session|[a-z][a-z0-9]*(?:-[a-z0-9]+)*)$", "description": "The family a slot is of, or session for whichever session family applies."},
     "identifier": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
     "direction": {"enum": ["client_to_server", "server_to_client"]},
     "expr": {"oneOf": [
-      {"type": "string", "pattern": "^(?:string|boolean|number|integer|timestamp|json|[A-Z][A-Za-z0-9_]*)$"},
+      {"type": "string", "pattern": "^(?:string|boolean|number|integer|timestamp|json|[A-Z][A-Za-z0-9_]*|[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\.[A-Z][A-Za-z0-9_]*)$"},
       {"type": "object", "additionalProperties": false, "required": ["array"], "properties": {"array": {"$ref": "#/$defs/expr"}}},
-      {"type": "object", "additionalProperties": false, "required": ["map"], "properties": {"map": {"$ref": "#/$defs/expr"}}}
+      {"type": "object", "additionalProperties": false, "required": ["map"], "properties": {"map": {"$ref": "#/$defs/expr"}}},
+      {"type": "object", "additionalProperties": false, "required": ["connection"], "properties": {"connection": {"$ref": "#/$defs/slotFamily"}}},
+      {"type": "object", "additionalProperties": false, "required": ["envelope"], "properties": {"envelope": {"$ref": "#/$defs/slotFamily"}}}
     ]},
     "field": {
       "type": "object", "additionalProperties": false, "required": ["name", "type"],

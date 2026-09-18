@@ -123,6 +123,27 @@ func (*language) Check(api contract.API) []contract.Diagnostic {
 	return diagnostics
 }
 
+// tsAlias is the namespace a generated file refers to an imported family's
+// types by: the family's name without its dashes.
+func tsAlias(family string) string { return strings.ReplaceAll(family, "-", "") }
+
+// tsPackage is the package an imported family's client is published as.
+func tsPackage(family string) string { return "@nighthall/" + family + "-client" }
+
+// tsImports is the import lines a generated file needs for the families the
+// contract imports: their types as a namespace and, where asked, their
+// validator under a name no type can collide with.
+func tsImports(api contract.API, validators bool) string {
+	var b strings.Builder
+	for _, family := range api.Imports {
+		fmt.Fprintf(&b, "import type * as %s from %s;\n", tsAlias(family), quote(tsPackage(family)))
+		if validators {
+			fmt.Fprintf(&b, "import { validateWire as validate_%s } from %s;\n", tsAlias(family), quote(tsPackage(family)))
+		}
+	}
+	return b.String()
+}
+
 func quote(value string) string      { encoded, _ := json.Marshal(value); return string(encoded) }
 func expression(value any) string    { encoded, _ := json.Marshal(value); return string(encoded) }
 func canonicalJSON(value any) []byte { data, _ := json.Marshal(value); return data }
@@ -140,6 +161,9 @@ func tsType(expression any) string {
 		case "json":
 			return "unknown"
 		default:
+			if family, name, ok := contract.Reference(t); ok {
+				return tsAlias(family) + "." + name
+			}
 			return t
 		}
 	case map[string]any:
@@ -158,6 +182,7 @@ func generateTS(api contract.API, dir string) []spi.File {
 	var files []spi.File
 	var types strings.Builder
 	types.WriteString(spi.Header)
+	types.WriteString(tsImports(api, true))
 	for _, name := range api.TypeNames() {
 		t := api.Types[name]
 		switch t.Kind {
@@ -193,11 +218,19 @@ func generateTS(api contract.API, dir string) []spi.File {
 	types.WriteString("\nconst contractTypes = ")
 	types.Write(canonicalJSON(api.Types))
 	types.WriteString(" as unknown as Record<string, WireType>;\n")
+	types.WriteString("const importedValidators: Record<string, (type: TypeExpression, value: unknown, location?: string) => void> = {")
+	for i, family := range api.Imports {
+		if i > 0 {
+			types.WriteString(", ")
+		}
+		fmt.Fprintf(&types, "%s: validate_%s", quote(family), tsAlias(family))
+	}
+	types.WriteString("};\n")
 	types.WriteString(tsValidationTemplate)
 	files = append(files, spi.File{Path: path.Join(dir, "src/types.ts"), Data: []byte(types.String())})
 	var client strings.Builder
 	client.WriteString(spi.Header)
-	client.WriteString("import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type RequestContext } from '@nighthall/ws-runtime';\nimport { validateWire } from './types.ts';\nimport type * as Protocol from './types.ts';\nexport * from './types.ts';\nexport { DuplexError };\nexport interface Handler {\n")
+	client.WriteString("import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type RequestContext } from '@nighthall/ws-runtime';\nimport { validateWire } from './types.ts';\nimport type * as Protocol from './types.ts';\n" + tsImports(api, false) + "export * from './types.ts';\nexport { DuplexError };\nexport interface Handler {\n")
 	for _, m := range api.Methods {
 		if m.Direction == "server_to_client" {
 			fmt.Fprintf(&client, "  %s(params: %s, context: RequestContext): %s | Promise<%s>;\n", m.TSName, tsRequest(m), tsQualified(m.Result), tsQualified(m.Result))
@@ -231,7 +264,11 @@ func generateTS(api contract.API, dir string) []spi.File {
 	}
 	client.WriteString("}\n")
 	files = append(files, spi.File{Path: path.Join(dir, "src/index.ts"), Data: []byte(client.String())})
-	manifest := map[string]any{"name": "@nighthall/" + api.Name + "-client", "version": "0.0.0", "private": true, "type": "module", "exports": "./src/index.ts", "scripts": map[string]any{"check": "tsc --noEmit"}, "dependencies": map[string]any{"@nighthall/ws-runtime": "0.1.0"}}
+	dependencies := map[string]any{"@nighthall/ws-runtime": "0.1.0"}
+	for _, family := range api.Imports {
+		dependencies[tsPackage(family)] = "0.0.0"
+	}
+	manifest := map[string]any{"name": "@nighthall/" + api.Name + "-client", "version": "0.0.0", "private": true, "type": "module", "exports": "./src/index.ts", "scripts": map[string]any{"check": "tsc --noEmit"}, "dependencies": dependencies}
 	files = append(files, spi.File{Path: path.Join(dir, "package.json"), Data: append(canonicalJSON(manifest), '\n')})
 	files = append(files, spi.File{Path: path.Join(dir, "tsconfig.json"), Data: []byte("{\"compilerOptions\":{\"target\":\"ES2022\",\"module\":\"NodeNext\",\"moduleResolution\":\"NodeNext\",\"strict\":true,\"skipLibCheck\":true,\"noEmit\":true,\"allowImportingTsExtensions\":true,\"lib\":[\"ES2022\",\"DOM\"]},\"include\":[\"src/**/*.ts\"]}\n")})
 	return files
@@ -261,6 +298,9 @@ func tsQualified(expr any) string {
 		case "string", "boolean", "number", "integer", "timestamp", "json":
 			return tsType(t)
 		default:
+			if family, name, ok := contract.Reference(t); ok {
+				return tsAlias(family) + "." + name
+			}
 			return "Protocol." + t
 		}
 	case map[string]any:
@@ -290,6 +330,7 @@ export function validateWire(type: TypeExpression, value: unknown, location = '$
   if('map' in type){for(const [key,item]of Object.entries(value as Record<string,unknown>))validateWire(type.map,item,location+'.'+key);return;}
   if(Object.keys(value as object).length!==0)bad('empty object');return;
  }
+ if(typeof type==='string'&&type.includes('.')){const at=type.indexOf('.');const validate=importedValidators[type.slice(0,at)];if(!validate)bad('known family');validate!(type.slice(at+1),value,location);return;}
  switch(type){
  case 'json':jsonValue(value);return;
  case 'string':if(typeof value!=='string')bad('string');return;

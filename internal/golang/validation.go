@@ -1,33 +1,30 @@
 package golang
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/contract"
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/spi"
 )
 
 // generateValidation renders the protocol package's runtime validator, an
-// interpreter over the contract's own types.
-func generateValidation(api contract.API) string {
+// interpreter over the contract's own types. A type of an imported family is
+// validated by that family's own validator, which the file imports.
+func generateValidation(api contract.API, p paths) string {
 	// Contract data is embedded in each generated protocol package so no developer
 	// library becomes an application runtime dependency.
 	schema := string(canonicalJSON(api.Types))
-	return spi.Header + "package " + pkg(api, "protocol") + "\n" + strings.ReplaceAll(goValidationTemplate, "CONTRACT_JSON", quote(schema))
+	var validators strings.Builder
+	validators.WriteString("var importedValidators = map[string]func(string,[]byte)error{")
+	for _, family := range api.Imports {
+		fmt.Fprintf(&validators, "%q: %s.ValidateRaw,", family, importAlias(family))
+	}
+	validators.WriteString("}\n")
+	source := strings.ReplaceAll(goValidationTemplate, "CONTRACT_JSON", quote(schema)) + validators.String()
+	return goFile(api, "protocol", source, p)
 }
 
 const goValidationTemplate = `
-import (
- "bytes"
- "encoding/json"
- "fmt"
- "io"
- "math"
- "strconv"
- "strings"
- "time"
-)
-
 type wireField struct {Name string; Type any; Required *bool; Nullable bool}
 type wireType struct {Kind string; Fields []wireField; Extends []string; Open bool; Values []string; Type any}
 var wireTypes = func() map[string]wireType {var result map[string]wireType; if err:=json.Unmarshal([]byte(CONTRACT_JSON),&result);err!=nil{panic(err)};return result}()
@@ -63,6 +60,7 @@ func validateWire(expression any,value any,location string) error {
  case "number","integer":n,ok:=value.(json.Number);if !ok{return bad(name)};v,err:=n.Float64();if err!=nil||math.IsInf(v,0)||math.IsNaN(v){return bad("finite number")};if name=="integer"&&!safeInteger(string(n)){return bad("JavaScript-safe integer")};return nil
  case "timestamp":text,ok:=value.(string);if !ok{return bad("timestamp")};if _,err:=time.Parse(time.RFC3339Nano,text);err!=nil{return bad("RFC3339 timestamp")};return nil
  }
+ if at:=strings.IndexByte(name,'.');at>=0{validate,ok:=importedValidators[name[:at]];if !ok{return bad("known family")};data,err:=json.Marshal(value);if err!=nil{return err};if err:=validate(name[at+1:],data);err!=nil{return fmt.Errorf("%s: %w",location,err)};return nil}
  t,ok:=wireTypes[name];if !ok{return bad("known type")}
  switch t.Kind {
  case "alias":return validateWire(t.Type,value,location)
