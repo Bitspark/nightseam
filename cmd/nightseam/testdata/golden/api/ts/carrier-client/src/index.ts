@@ -30,7 +30,9 @@ export class Client<S extends AnyFamily = SessionFamily> implements Caller<S> {
   /** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */
   static async open<S extends AnyFamily = SessionFamily>(tunnel: Tunnel, handle: Protocol.Handle, s: FamilyBinding<S>, options: PeerOptions = {}, handler?: Handler<S>): Promise<Client<S>> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach<S>(channel, s, options, handler); }
   close(): void { this.peer.close(); }
+  /** Opens a channel that speaks S. */
   async attach(params: Protocol.AttachParams, options?: CallOptions): Promise<Protocol.Attachment<S>> { validateWire("AttachParams", params, '$', this.slots); const result = await this.peer.call<Protocol.Attachment<S>>("attach", params, options); validateWire("Attachment", result, '$', this.slots); return result; }
-  async relay(params: Protocol.Frame<S>, options?: CallOptions): Promise<probe.Envelope> { validateWire("Frame", params, '$', this.slots); const result = await this.peer.call<probe.Envelope>("relay", params, options); validateWire({"envelope":"probe"}, result, '$', this.slots); return result; }
+  /** Relays a frame and answers with one message of probe. */
+  async relay(params: Protocol.Frame<S>, options?: CallOptions): Promise<probe.Envelope> { validateWire("Frame", params, '$', this.slots); const result = await this.peer.call<probe.Envelope>("relay", params, options); validateWire("probe.Envelope", result, '$', this.slots); return result; }
   onFrameRelayed(handler: (data: Protocol.Frame<S>) => void | Promise<void>): () => void { return this.peer.onEvent("frame.relayed", (data) => { try { validateWire("Frame", data, '$', this.slots); } catch(error) { this.peer.close(); throw error; } return handler(data as Protocol.Frame<S>); }); }
 }

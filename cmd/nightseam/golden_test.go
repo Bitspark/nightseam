@@ -11,35 +11,40 @@ import (
 )
 
 // The corpus is a checkout of families written as a consumer writes them,
-// in layer files under testdata/corpus, and what every target renders for
+// in tier files under testdata/corpus, and what every target renders for
 // it is held under testdata/golden, file for file. The invalid cases under
 // testdata/invalid are each a checkout the tool must refuse, holding what
-// validate says about it, word for word.
+// validate says about it, word for word. The families under
+// testdata/families are what the slow fixtures and the in-memory tests
+// render.
 //
 // The golden files are the oracle a target has whether or not there is a
 // compiler to hand its output to: a change to a renderer shows up as a diff
 // of them, which is what a reviewer reads. When the change is meant, rewrite
 // them from the current output and commit the diff:
 //
-//	go test ./cmd/nightseam -run 'Golden|Invalid' -update
+//	go test ./cmd/nightseam -run 'Golden|Invalid|Surface|Reserved|Upgrade' -update
 var update = flag.Bool("update", false, "rewrite testdata/golden and every diagnostics.txt from the current output")
 
 const corpusRoot = "testdata/corpus"
 const goldenRoot = "testdata/golden"
 const invalidRoot = "testdata/invalid"
+const familiesRoot = "testdata/families"
 
 // TestCorpusIsValid: every family of the corpus validates as one world.
 func TestCorpusIsValid(t *testing.T) {
-	out, errs, err := run(t, corpusRoot, "validate")
-	if err != nil || errs != "" {
-		t.Fatalf("the corpus does not validate: %v\n%s%s", err, errs, out)
-	}
-	names, err := (&app{root: corpusRoot}).families()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := fmt.Sprintf("%d contracts; valid\n", len(names)); out != want {
-		t.Fatalf("validate reported %q, not %q", out, want)
+	for _, root := range []string{corpusRoot, familiesRoot} {
+		out, errs, err := run(t, root, "validate")
+		if err != nil || errs != "" {
+			t.Fatalf("%s does not validate: %v\n%s%s", root, err, errs, out)
+		}
+		names, err := (&app{root: root}).families()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := fmt.Sprintf("%d families; valid\n", len(names)); out != want {
+			t.Fatalf("validate reported %q, not %q", out, want)
+		}
 	}
 }
 
@@ -56,39 +61,46 @@ func TestCorpusRendersGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	holdGolden(t, goldenRoot, files)
+}
+
+// holdGolden compares rendered files against a golden tree, or rewrites the
+// tree under -update.
+func holdGolden(t *testing.T, root string, files map[string][]byte) {
+	t.Helper()
 	if *update {
-		if err := os.RemoveAll(goldenRoot); err != nil {
+		if err := os.RemoveAll(root); err != nil {
 			t.Fatal(err)
 		}
 		for p, data := range files {
-			writeFixture(t, goldenRoot, p, data)
+			writeFixture(t, root, p, data)
 		}
-		t.Logf("rewrote %d golden files under %s", len(files), goldenRoot)
+		t.Logf("rewrote %d files under %s", len(files), root)
 		return
 	}
 	for p, data := range files {
-		want, err := os.ReadFile(filepath.Join(goldenRoot, filepath.FromSlash(p)))
+		want, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(p)))
 		if os.IsNotExist(err) {
-			t.Errorf("%s is rendered but has no golden file; run with -update", p)
+			t.Errorf("%s has no file under %s; run with -update", p, root)
 			continue
 		}
 		if err != nil {
 			t.Fatal(err)
 		}
 		if string(want) != string(data) {
-			t.Errorf("%s differs from its golden file:\n%s", p, diff(string(want), string(data)))
+			t.Errorf("%s differs:\n%s", p, diff(string(want), string(data)))
 		}
 	}
-	err = filepath.WalkDir(goldenRoot, func(path string, entry fs.DirEntry, err error) error {
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
 			return err
 		}
-		rel, err := filepath.Rel(goldenRoot, path)
+		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
-		if _, rendered := files[filepath.ToSlash(rel)]; !rendered {
-			t.Errorf("%s is a golden file nothing renders; run with -update", rel)
+		if _, produced := files[filepath.ToSlash(rel)]; !produced {
+			t.Errorf("%s under %s is produced by nothing; run with -update", rel, root)
 		}
 		return nil
 	})
@@ -98,8 +110,8 @@ func TestCorpusRendersGolden(t *testing.T) {
 }
 
 // TestInvalidCorpusIsRefused: each case under testdata/invalid is a checkout
-// validate refuses, and what it says — every diagnostic with its pointer
-// and code, or the error that stopped it — is held in the case's
+// validate refuses, and what it says — every diagnostic with its file,
+// pointer and code, then the error that stopped it — is held in the case's
 // diagnostics.txt.
 func TestInvalidCorpusIsRefused(t *testing.T) {
 	entries, err := os.ReadDir(invalidRoot)

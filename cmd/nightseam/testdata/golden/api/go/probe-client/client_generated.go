@@ -13,10 +13,11 @@ import (
 
 type Client struct{ Peer *runtime.Peer }
 type Handler interface {
+	// Reverse: Asks the client to reverse a payload.
 	Reverse(ctx context.Context, client *Client, params protocol.Payload) (protocol.Payload, error)
 }
 
-// Caller is the RPC layer's caller side: every operation a client sends. Client implements it.
+// Caller is the protocol's caller side: every operation a client sends. Client implements it.
 type Caller interface {
 	Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
 	NoArgs(ctx context.Context) (string, error)
@@ -34,7 +35,7 @@ func Decides(method string) bool {
 	return false
 }
 
-// Asks reports whether a server-to-client method raises a request the holder of control must answer.
+// Asks reports whether a method the server sends raises a request the holder of control must answer.
 func Asks(method string) bool {
 	switch method {
 	case "reverse":
@@ -115,6 +116,8 @@ func Open(ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options
 	return Attach(ctx, channel, options, handler)
 }
 func (c *Client) Close() error { return c.Peer.Close() }
+
+// Echo: Returns the payload, its text reversed.
 func (c *Client) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error) {
 	var result protocol.Payload
 	if err := protocol.ValidateValue(protocol.TypeExpression("\"Payload\""), params); err != nil {
@@ -132,6 +135,8 @@ func (c *Client) Echo(ctx context.Context, params protocol.Payload) (protocol.Pa
 	}
 	return result, nil
 }
+
+// NoArgs: Takes nothing and returns a string.
 func (c *Client) NoArgs(ctx context.Context) (string, error) {
 	var result string
 	var raw json.RawMessage
@@ -163,6 +168,12 @@ func (c *Client) Seen(ctx context.Context, params protocol.Seen) (protocol.Paylo
 	}
 	return result, nil
 }
+func (c *Client) EmitNoticed(ctx context.Context, data protocol.Seen) error {
+	if err := protocol.ValidateValue(protocol.TypeExpression("\"Seen\""), data); err != nil {
+		return err
+	}
+	return c.Peer.Emit(ctx, "noticed", data)
+}
 func (c *Client) OnChanged(handler func(context.Context, protocol.Payload)) error {
 	return c.Peer.HandleEvent("changed", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
 		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"Payload\""), raw); err != nil {
@@ -176,10 +187,4 @@ func (c *Client) OnChanged(handler func(context.Context, protocol.Payload)) erro
 		}
 		handler(ctx, data)
 	})
-}
-func (c *Client) EmitNoticed(ctx context.Context, data protocol.Seen) error {
-	if err := protocol.ValidateValue(protocol.TypeExpression("\"Seen\""), data); err != nil {
-		return err
-	}
-	return c.Peer.Emit(ctx, "noticed", data)
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/Bitspark/nightseam/internal/diag"
@@ -69,7 +68,7 @@ func v1Slots(t *testing.T, directory string) {
 func v2Probe(t *testing.T, directory string) {
 	t.Helper()
 	k := v2Kernel(module, scope)
-	world := k.Load(os.DirFS(filepath.Join(v2Root, "families")), "api/contracts")
+	world := k.Load(os.DirFS(familiesRoot), "api/contracts")
 	rendered, err := k.Render(world, "probe")
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +80,7 @@ func v2Slots(t *testing.T, directory string) {
 	t.Helper()
 	// The world is probe and the carrier alone, as v1's is: with another
 	// session family in it the carrier's client would refer to that one too.
-	loaded := kernel.Load(os.DirFS(filepath.Join(v2Root, "families")), "api/contracts", []string{"go", "typescript"})
+	loaded := kernel.Load(os.DirFS(familiesRoot), "api/contracts", []string{"go", "typescript"})
 	families := &kernel.World{Families: map[string]*model.Family{"probe": loaded.Families["probe"], "carrier": loaded.Families["carrier"]}, Names: []string{"carrier", "probe"}, Problems: map[string][]diag.Diagnostic{}}
 	// The left path: probe and the carrier with S bound to probe, at the
 	// default layout.

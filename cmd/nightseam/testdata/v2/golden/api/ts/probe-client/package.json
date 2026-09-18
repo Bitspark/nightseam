@@ -1,1 +1,0 @@
-{"dependencies":{"@nightseam/runtime":"0.2.0","@nightseam/tunnel":"0.2.0"},"exports":"./src/index.ts","name":"@example/probe-client","private":true,"scripts":{"check":"tsc --noEmit"},"type":"module","version":"0.0.0"}

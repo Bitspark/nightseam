@@ -6,6 +6,7 @@ import type * as Protocol from './types.ts';
 export * from './types.ts';
 export { DuplexError };
 export interface Handler {
+  /** Asks the client to reverse a payload. */
   reverse(params: Protocol.Payload, context: RequestContext): Protocol.Payload | Promise<Protocol.Payload>;
 }
 export interface Caller {
@@ -15,7 +16,7 @@ export interface Caller {
 }
 /** The methods that need control to send. */
 export const decides: ReadonlySet<string> = new Set(["echo"]);
-/** The server-to-client methods that raise a request the holder of control must answer. */
+/** The methods the server sends that raise a request the holder of control must answer. */
 export const asks: ReadonlySet<string> = new Set(["reverse"]);
 /** Where the agent's own conversation id arrives: the event, and the path to the id in its data. */
 export const conversation = { event: "changed", path: "text" } as const;
@@ -37,9 +38,11 @@ export class Client implements Caller {
   /** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */
   static async open(tunnel: Tunnel, handle: Protocol.Handle, options: PeerOptions = {}, handler?: Handler): Promise<Client> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach(channel, options, handler); }
   close(): void { this.peer.close(); }
+  /** Returns the payload, its text reversed. */
   async echo(params: Protocol.Payload, options?: CallOptions): Promise<Protocol.Payload> { validateWire("Payload", params); const result = await this.peer.call<Protocol.Payload>("echo", params, options); validateWire("Payload", result); return result; }
+  /** Takes nothing and returns a string. */
   async noArgs(options?: CallOptions): Promise<string> { const params = {}; validateWire({ empty: true }, params); const result = await this.peer.call<string>("no_args", params, options); validateWire("string", result); return result; }
   async seen(params: Protocol.Seen, options?: CallOptions): Promise<Protocol.Payloads> { validateWire("Seen", params); const result = await this.peer.call<Protocol.Payloads>("seen", params, options); validateWire("Payloads", result); return result; }
-  onChanged(handler: (data: Protocol.Payload) => void | Promise<void>): () => void { return this.peer.onEvent("changed", (data) => { try { validateWire("Payload", data); } catch(error) { this.peer.close(); throw error; } return handler(data as Protocol.Payload); }); }
   async emitNoticed(data: Protocol.Seen): Promise<void> { validateWire("Seen", data); await this.peer.emit("noticed", data); }
+  onChanged(handler: (data: Protocol.Payload) => void | Promise<void>): () => void { return this.peer.onEvent("changed", (data) => { try { validateWire("Payload", data); } catch(error) { this.peer.close(); throw error; } return handler(data as Protocol.Payload); }); }
 }

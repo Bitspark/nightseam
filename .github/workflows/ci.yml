@@ -12,7 +12,13 @@ on:
 
 jobs:
   fast:
-    runs-on: ubuntu-latest
+    # The fast tier runs on Windows too: the fixtures are byte comparisons
+    # and the diagnostics carry slash paths, which is where a platform
+    # difference would show.
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

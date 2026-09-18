@@ -15,7 +15,7 @@ type Client[AEnvelope, BEnvelope any] struct{ Peer *runtime.Peer }
 type Handler[AEnvelope, BEnvelope any] interface {
 }
 
-// Caller is the RPC layer's caller side: every operation a client sends. Client implements it.
+// Caller is the protocol's caller side: every operation a client sends. Client implements it.
 type Caller[AEnvelope, BEnvelope any] interface {
 	Look(ctx context.Context, params protocol.Mine[AEnvelope]) (protocol.Both[AEnvelope, BEnvelope], error)
 }

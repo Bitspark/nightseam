@@ -18,5 +18,8 @@ func targets(module, scope string) []spi.Target {
 	}
 }
 
+// targetNames names the targets, for the override files a family may carry.
+var targetNames = []string{golang.Name, typescript.Name}
+
 // v2Kernel is the v2 pipeline composed with the targets.
 func v2Kernel(module, scope string) *kernel.Kernel { return kernel.New(targets(module, scope)...) }

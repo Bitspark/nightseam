@@ -1,3 +1,0 @@
-x /types/Client: Type name is reserved by the generated Go packages: Client. [reserved_name]
-x /types/Client: Type name is reserved by the generated TypeScript client: Client. [reserved_name]
-error: 2 problems

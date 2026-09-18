@@ -14,11 +14,14 @@ import (
 // Remote provides typed calls back to the connected client.
 type Remote struct{ Peer *runtime.Peer }
 type Handler interface {
+	// Echo: Returns the payload, its text reversed.
 	Echo(ctx context.Context, remote *Remote, params protocol.Payload) (protocol.Payload, error)
+	// NoArgs: Takes nothing and returns a string.
 	NoArgs(ctx context.Context, remote *Remote) (string, error)
 	Seen(ctx context.Context, remote *Remote, params protocol.Seen) (protocol.Payloads, error)
 }
 
+// Reverse: Asks the client to reverse a payload.
 func (c *Remote) Reverse(ctx context.Context, params protocol.Payload) (protocol.Payload, error) {
 	var result protocol.Payload
 	if err := protocol.ValidateValue(protocol.TypeExpression("\"Payload\""), params); err != nil {

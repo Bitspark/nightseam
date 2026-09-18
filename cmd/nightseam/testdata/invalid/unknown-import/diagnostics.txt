@@ -1,3 +1,3 @@
-x /imports/0: Unknown family nowhere: it is not among the contracts rendered together. [unresolved_import]
-x /types/Uses/fields/0/type: Type nowhere.Thing names a family this contract does not import. [unresolved_type]
+x/model.json#/imports/0: Unknown family nowhere: it is not among the families of this checkout. [unresolved_import]
+x/model.json#/types/Uses/fields/0/type: Type nowhere.Thing names a family this family does not import. [unresolved_type]
 error: 2 problems

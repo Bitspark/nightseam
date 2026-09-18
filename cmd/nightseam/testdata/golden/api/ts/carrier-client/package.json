@@ -1,1 +1,1 @@
-{"dependencies":{"@example/probe-client":"0.0.0","@nightseam/runtime":"0.1.0","@nightseam/tunnel":"0.1.0"},"exports":"./src/index.ts","name":"@example/carrier-client","private":true,"scripts":{"check":"tsc --noEmit"},"type":"module","version":"0.0.0"}
+{"dependencies":{"@example/probe-client":"0.0.0","@nightseam/runtime":"0.2.0","@nightseam/tunnel":"0.2.0"},"exports":"./src/index.ts","name":"@example/carrier-client","private":true,"scripts":{"check":"tsc --noEmit"},"type":"module","version":"0.0.0"}

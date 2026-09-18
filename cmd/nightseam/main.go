@@ -1,31 +1,32 @@
-// nightseam renders a checkout's API contracts into generated packages. A
-// family is declared in layer files under api/contracts —
-// <family>.dto.json for its data, <family>.rpc.json for its operations,
-// <family>.sess.json for how a session of it is governed — merged into one
-// contract and rendered by every language the tool is composed with, today
-// Go and TypeScript. A declaration refers to its own layer or a lower one,
-// never a higher one, and the tool refuses one that does.
+// nightseam renders a checkout's families into generated packages. A
+// family is declared in tier files under api/contracts/<family>/ —
+// model.json for its types, protocol.json for its two sides, session.json
+// for how a session of it is governed, and an override file per target
+// where a name differs from the convention — and rendered by every target
+// the tool is composed with, today Go and TypeScript. A declaration refers
+// to its own tier or a lower one, never a higher one, and the tool refuses
+// one that does.
 //
-//	nightseam generate [family...]   render every contract in api/contracts, or the named ones
+//	nightseam generate [family...]   render every family, or the named ones, writing what changed
 //	nightseam check [family...]      fail if the checked-in output is stale
 //	nightseam validate [family...]   report every diagnostic; exit 1 if any
+//	nightseam upgrade [family...]    rewrite layer files of the previous language into the directory form
 //
 // The generated Go packages are rooted at the checkout's module, read from
-// its go.mod or given as --module; the TypeScript packages at an npm scope,
-// --scope, the module's last element unless given. Both bind to Nightseam's
-// runtime, github.com/Bitspark/nightseam/runtime and @nightseam/runtime, the
-// peer of the nightseam.duplex/1 profile.
+// its go.mod or given as --module; the TypeScript packages at an npm
+// scope, --scope, the module's last element unless given. Both bind to
+// Nightseam's runtime, github.com/Bitspark/nightseam/runtime and
+// @nightseam/runtime, the peer of the nightseam.duplex/1 profile.
 //
-// The generator is a kernel and one package per language, composed here and
-// nowhere else: languages names them, the kernel renders through the seam
-// in internal/legacy/spi. It is developer tooling, never a runtime dependency; a
+// The generator is a kernel and one package per target, composed here and
+// nowhere else: targets names them, the kernel renders through the seam in
+// internal/spi. It is developer tooling, never a runtime dependency; a
 // consumer runs it as a Go tool, go tool nightseam check. Family names
 // complete in the shell: nightseam completion --help.
 package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -36,11 +37,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Bitspark/nightseam/internal/legacy/contract"
-	"github.com/Bitspark/nightseam/internal/legacy/kernel"
-	"github.com/Bitspark/nightseam/internal/legacy/languages/golang"
-	"github.com/Bitspark/nightseam/internal/legacy/languages/typescript"
-	"github.com/Bitspark/nightseam/internal/legacy/spi"
+	"github.com/Bitspark/nightseam/internal/kernel"
 )
 
 func main() {
@@ -50,25 +47,14 @@ func main() {
 	}
 }
 
-// languages is the composition root: the only place a language is named.
-// The order is the order families are rendered in. module roots the Go
-// packages and scope the TypeScript ones; the runtime both bind to is each
-// language's default, Nightseam's own.
-func languages(module, scope string) []spi.Language {
-	return []spi.Language{
-		golang.New(golang.Options{Module: module}),
-		typescript.New(typescript.Options{Scope: scope}),
-	}
-}
-
 // app is the checkout every command works on, and where its generated
 // packages are rooted: the Go module and the npm scope.
 type app struct{ root, module, scope string }
 
-// languages composes the languages for this checkout, settling the module
-// and the scope a command left to their defaults: the module is read from
-// the checkout's go.mod, the scope is the module's last element behind an @.
-func (a *app) languages() ([]spi.Language, error) {
+// kernel composes the targets for this checkout, settling the module and
+// the scope a command left to their defaults: the module is read from the
+// checkout's go.mod, the scope is the module's last element behind an @.
+func (a *app) kernel() (*kernel.Kernel, error) {
 	if a.module == "" {
 		module, err := moduleOf(filepath.Join(a.root, "go.mod"))
 		if err != nil {
@@ -79,7 +65,7 @@ func (a *app) languages() ([]spi.Language, error) {
 	if a.scope == "" {
 		a.scope = "@" + path.Base(a.module)
 	}
-	return languages(a.module, a.scope), nil
+	return v2Kernel(a.module, a.scope), nil
 }
 
 // moduleOf reads the module path a go.mod declares.
@@ -99,53 +85,49 @@ func moduleOf(file string) (string, error) {
 	return "", fmt.Errorf("%s declares no module; pass --module", file)
 }
 
-func (a *app) contracts() string { return filepath.Join(a.root, "api", "contracts") }
+// contracts is where the families are declared, relative to the checkout.
+const contracts = "api/contracts"
 
-// families names the contracts in api/contracts, in order: a family is
-// declared in layer files, <family>.dto.json, <family>.rpc.json and
-// <family>.sess.json, and is named once whatever layers it has. A checkout
-// with no contracts directory has none.
-func (a *app) families() ([]string, error) {
-	entries, err := os.ReadDir(a.contracts())
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
+func (a *app) contracts() string { return filepath.Join(a.root, filepath.FromSlash(contracts)) }
+
+// load reads every family of the checkout; the targets' names say which
+// override files a family may carry, and nothing of the checkout's module
+// is needed for that.
+func (a *app) load() *kernel.World { return kernel.Load(os.DirFS(a.root), contracts, targetNames) }
+
+// world composes the kernel and loads the checkout for it.
+func (a *app) world() (*kernel.Kernel, *kernel.World, error) {
+	k, err := a.kernel()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	return k, a.load(), nil
+}
+
+// families names the families of the checkout, in order: each directory
+// under api/contracts, and each family the loader had something to say
+// about, so that one it could not read is still named and refused.
+func (a *app) families() ([]string, error) {
+	return familiesOf(a.load()), nil
+}
+
+func familiesOf(world *kernel.World) []string {
 	seen := map[string]bool{}
 	var names []string
-	for _, entry := range entries {
-		family, _, ok := layerFile(entry.Name())
-		if entry.IsDir() || !ok || seen[family] {
-			continue
+	for _, name := range world.Names {
+		seen[name] = true
+		names = append(names, name)
+	}
+	for name := range world.Problems {
+		if name != "" && !seen[name] {
+			names = append(names, name)
 		}
-		seen[family] = true
-		names = append(names, family)
 	}
 	sort.Strings(names)
-	return names, nil
+	return names
 }
 
-// layerFile splits a layer file's name, <family>.<layer>.json, into its
-// family and its layer.
-func layerFile(name string) (family, layer string, ok bool) {
-	if !strings.HasSuffix(name, ".json") {
-		return "", "", false
-	}
-	stem := strings.TrimSuffix(name, ".json")
-	at := strings.LastIndexByte(stem, '.')
-	if at <= 0 {
-		return "", "", false
-	}
-	family, layer = stem[:at], stem[at+1:]
-	if !slices.Contains(contract.Layers, layer) {
-		return "", "", false
-	}
-	return family, layer, true
-}
-
-// chosen resolves a command's arguments to families: every contract when
+// chosen resolves a command's arguments to families: every family when
 // none is named, otherwise the named ones, each of which must exist.
 func (a *app) chosen(args []string) ([]string, error) {
 	known, err := a.families()
@@ -154,88 +136,31 @@ func (a *app) chosen(args []string) ([]string, error) {
 	}
 	if len(args) == 0 {
 		if len(known) == 0 {
-			return nil, fmt.Errorf("no contracts in %s", a.contracts())
+			return nil, fmt.Errorf("no families in %s", a.contracts())
 		}
 		return known, nil
 	}
 	for _, name := range args {
 		if !slices.Contains(known, name) {
 			if len(known) == 0 {
-				return nil, fmt.Errorf("no contract named %q: there are no contracts in %s", name, a.contracts())
+				return nil, fmt.Errorf("no family named %q: there are no families in %s", name, a.contracts())
 			}
-			return nil, fmt.Errorf("no contract named %q in %s; there are: %s", name, a.contracts(), strings.Join(known, ", "))
+			return nil, fmt.Errorf("no family named %q in %s; there are: %s", name, a.contracts(), strings.Join(known, ", "))
 		}
 	}
 	return args, nil
 }
 
-// load reads a family's layer files and merges them into the one contract
-// the kernel renders. Each file must name the family it is filed under and
-// the layer its name says; what the merge refuses is reported by file.
-func (a *app) load(name string) (map[string]any, error) {
-	files := map[string]map[string]any{}
-	for _, layer := range contract.Layers {
-		data, err := os.ReadFile(filepath.Join(a.contracts(), name+"."+layer+".json"))
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		var file map[string]any
-		decoder := json.NewDecoder(bytes.NewReader(data))
-		decoder.UseNumber()
-		if err := decoder.Decode(&file); err != nil {
-			return nil, fmt.Errorf("%s.%s contract: %w", name, layer, err)
-		}
-		if file["name"] != name {
-			return nil, fmt.Errorf("%s.%s contract names API %v", name, layer, file["name"])
-		}
-		files[layer] = file
-	}
-	if len(files) == 0 {
-		return nil, fmt.Errorf("no layer files for family %q in %s", name, a.contracts())
-	}
-	merged, diagnostics := contract.Merge(files)
-	if len(diagnostics) != 0 {
-		return nil, fmt.Errorf("%s contract: %s: %s", name, diagnostics[0].Pointer, diagnostics[0].Message)
-	}
-	return merged, nil
-}
-
-// world loads every contract in the checkout, by family: what a family may
-// import from, and what a slot may name.
-func (a *app) world() (kernel.World, error) {
-	names, err := a.families()
-	if err != nil {
-		return nil, err
-	}
-	world := kernel.World{}
-	for _, name := range names {
-		contract, err := a.load(name)
-		if err != nil {
-			return nil, err
-		}
-		world[name] = contract
-	}
-	return world, nil
-}
-
 // render generates every named family within the world of all of them and
 // merges their files; two families may not render one path.
 func (a *app) render(names []string) (map[string][]byte, error) {
-	world, err := a.world()
-	if err != nil {
-		return nil, err
-	}
-	languages, err := a.languages()
+	k, world, err := a.world()
 	if err != nil {
 		return nil, err
 	}
 	files := map[string][]byte{}
 	for _, name := range names {
-		contract := world[name]
-		result, err := kernel.GenerateIn(world, contract, languages...)
+		result, err := k.Render(world, name)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}
@@ -270,13 +195,13 @@ func newCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "nightseam",
 		Short: "Render api/contracts into generated Go and TypeScript packages",
-		Long: `nightseam renders a checkout's API contracts into generated packages. A
-family is declared in layer files under api/contracts, <family>.dto.json,
-<family>.rpc.json and <family>.sess.json, merged into one contract and
-rendered by every language the tool is composed with, today Go and
-TypeScript. The Go packages are rooted at the checkout's module, the
-TypeScript packages at an npm scope; both bind to Nightseam's runtime.
-Nothing is written that is already up to date.`,
+		Long: `nightseam renders a checkout's families into generated packages. A
+family is declared in tier files under api/contracts/<family>/ — model.json,
+protocol.json, session.json, and an override file per target — and rendered
+by every target the tool is composed with, today Go and TypeScript. The Go
+packages are rooted at the checkout's module, the TypeScript packages at an
+npm scope; both bind to Nightseam's runtime. Nothing is written that is
+already up to date.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -284,7 +209,7 @@ Nothing is written that is already up to date.`,
 	root.PersistentFlags().StringVar(&a.module, "module", "", "Go module the generated packages are rooted at (default: the module of <root>/go.mod)")
 	root.PersistentFlags().StringVar(&a.scope, "scope", "", "npm scope of the generated TypeScript packages (default: @ and the module's last element)")
 
-	// family completes an argument with the contracts' names.
+	// family completes an argument with the families' names.
 	family := func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		names, err := a.families()
 		if err != nil {
@@ -294,10 +219,10 @@ Nothing is written that is already up to date.`,
 	}
 
 	root.AddCommand(
-		upgradeCommand(a, family),
+		upgradeCommand(a),
 		&cobra.Command{
 			Use:               "generate [family...]",
-			Short:             "Render every contract, or the named ones, writing what changed",
+			Short:             "Render every family, or the named ones, writing what changed",
 			Args:              cobra.ArbitraryArgs,
 			ValidArgsFunction: family,
 			RunE: func(cmd *cobra.Command, args []string) error {
@@ -328,7 +253,7 @@ Nothing is written that is already up to date.`,
 		},
 		&cobra.Command{
 			Use:               "check [family...]",
-			Short:             "Fail if the checked-in output of every contract, or the named ones, is stale",
+			Short:             "Fail if the checked-in output of every family, or the named ones, is stale",
 			Args:              cobra.ArbitraryArgs,
 			ValidArgsFunction: family,
 			RunE: func(cmd *cobra.Command, args []string) error {
@@ -355,7 +280,7 @@ Nothing is written that is already up to date.`,
 		},
 		&cobra.Command{
 			Use:               "validate [family...]",
-			Short:             "Report every diagnostic of every contract, or the named ones; exit 1 if any",
+			Short:             "Report every diagnostic of every family, or the named ones; exit 1 if any",
 			Args:              cobra.ArbitraryArgs,
 			ValidArgsFunction: family,
 			RunE: func(cmd *cobra.Command, args []string) error {
@@ -363,25 +288,21 @@ Nothing is written that is already up to date.`,
 				if err != nil {
 					return err
 				}
-				world, err := a.world()
-				if err != nil {
-					return err
-				}
-				languages, err := a.languages()
+				k, world, err := a.world()
 				if err != nil {
 					return err
 				}
 				problems := 0
 				for _, name := range names {
-					for _, d := range kernel.ValidateIn(world, world[name], languages...) {
-						fmt.Fprintf(cmd.ErrOrStderr(), "%s %s: %s [%s]\n", name, d.Pointer, d.Message, d.Code)
+					for _, d := range k.Validate(world, name) {
+						fmt.Fprintln(cmd.ErrOrStderr(), d)
 						problems++
 					}
 				}
 				if problems > 0 {
 					return fmt.Errorf("%d problems", problems)
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%d contracts; valid\n", len(names))
+				fmt.Fprintf(cmd.OutOrStdout(), "%d families; valid\n", len(names))
 				return nil
 			},
 		},

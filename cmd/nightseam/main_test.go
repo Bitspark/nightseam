@@ -13,8 +13,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/Bitspark/nightseam/internal/legacy/kernel"
 )
 
 // module and scope root the fixtures' generated packages.
@@ -52,22 +50,14 @@ func exampleAPI(t *testing.T) map[string]any {
 }
 
 func TestDeterministicGeneration(t *testing.T) {
-	api := exampleAPI(t)
-	first, err := kernel.Generate(api, languages(module, scope)...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := kernel.Generate(api, languages(module, scope)...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	first, second := renderV2(t, familiesRoot), renderV2(t, familiesRoot)
 	if !reflect.DeepEqual(first, second) {
 		t.Fatal("generation is not deterministic")
 	}
-	if len(first.Files) != 8 {
-		t.Fatalf("got %d files", len(first.Files))
+	if len(first) == 0 {
+		t.Fatal("nothing rendered")
 	}
-	for name, data := range first.Files {
+	for name, data := range first {
 		if len(data) == 0 {
 			t.Errorf("empty output %s", name)
 		}
@@ -247,23 +237,20 @@ func TestGeneratedTypeScriptChecksAndValidates(t *testing.T) {
 const runtimeLoader = `export async function resolve(specifier,context,next){const map={'@nightseam/runtime':'./runtime/ts/src/index.ts','@nightseam/duplex':'./duplex/ts/src/index.ts','@nightseam/tunnel':'./tunnel/ts/src/index.ts'};if(map[specifier])return {url:new URL(map[specifier],import.meta.url).href,shortCircuit:true};return next(specifier,context);}`
 
 func TestWorkbenchContractRenders(t *testing.T) {
-	data, err := os.ReadFile("testdata/workbench-api.json")
-	if err != nil {
-		t.Fatal(err)
+	files := renderV2(t, familiesRoot)
+	index, ok := files["api/ts/workbench-client/src/index.ts"]
+	if !ok {
+		t.Fatal("the workbench client is not rendered")
 	}
-	var api map[string]any
-	if err = json.Unmarshal(data, &api); err != nil {
-		t.Fatal(err)
+	// The workbench's wire names differ from its language names, which its
+	// override files hold.
+	for _, want := range []string{"async subscribe(", "async createProject(", `"projects.create"`} {
+		if !strings.Contains(string(index), want) {
+			t.Errorf("the workbench client lacks %s", want)
+		}
 	}
-	result, err := kernel.Generate(api, languages(module, scope)...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(result.Files) != 8 {
-		t.Fatalf("API writes %d files", len(result.Files))
-	}
-	if !strings.Contains(string(result.Files["api/ts/workbench-client/src/index.ts"]), "async subscribe(") {
-		t.Fatal("missing typed subscription acknowledgement")
+	if !strings.Contains(string(files["api/go/workbench-client/client_generated.go"]), "func (c *Client) CreateProject(") {
+		t.Error("the Go client does not spell the override")
 	}
 }
 
@@ -283,12 +270,12 @@ func run(t *testing.T, root string, args ...string) (stdout, stderr string, err 
 // holds one contract: what is stale is written once, then holds.
 func TestCommands(t *testing.T) {
 	root := t.TempDir()
-	if _, _, err := run(t, root, "generate"); err == nil || !strings.Contains(err.Error(), "no contracts in") {
+	if _, _, err := run(t, root, "generate"); err == nil || !strings.Contains(err.Error(), "no families in") {
 		t.Fatalf("an empty checkout generated: %v", err)
 	}
-	writeLayers(t, root, "probe", false)
+	writeFamily(t, root, "probe")
 	out, _, err := run(t, root, "validate")
-	if err != nil || !strings.Contains(out, "1 contracts; valid") {
+	if err != nil || !strings.Contains(out, "1 families; valid") {
 		t.Fatalf("validate: %v\n%s", err, out)
 	}
 	_, errs, err := run(t, root, "check")
@@ -308,27 +295,17 @@ func TestCommands(t *testing.T) {
 	if out, _, err := run(t, root, "generate"); err != nil || out != "" {
 		t.Fatalf("generate rewrote what was current: %v\n%s", err, out)
 	}
-	if _, _, err := run(t, root, "generate", "nope"); err == nil || !strings.Contains(err.Error(), `no contract named "nope"`) || !strings.Contains(err.Error(), "probe") {
+	if _, _, err := run(t, root, "generate", "nope"); err == nil || !strings.Contains(err.Error(), `no family named "nope"`) || !strings.Contains(err.Error(), "probe") {
 		t.Fatalf("unknown family: %v", err)
 	}
-	writeFixture(t, root, "api/contracts/other.rpc.json", []byte(`{"schema_version":1,"profile":"nightseam.duplex/1","name":"probe","layer":"rpc","methods":[],"events":[]}`))
-	if _, _, err := run(t, root, "validate", "other"); err == nil || !strings.Contains(err.Error(), "names API") {
-		t.Fatalf("a contract named for another family passed: %v", err)
-	}
-	os.Remove(filepath.Join(root, "api", "contracts", "other.rpc.json"))
-	writeLayers(t, root, "other", false)
-	rpc := filepath.Join(root, "api", "contracts", "other.rpc.json")
-	data, err := os.ReadFile(rpc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeFixture(t, root, "api/contracts/other.rpc.json", []byte(strings.Replace(string(data), `"go_name":"Echo"`, `"go_name":"Close"`, 1)))
-	_, errs, err = run(t, root, "validate", "other")
-	if err == nil || !strings.Contains(err.Error(), "problems") || !strings.Contains(errs, "other /methods/0/go_name:") || !strings.Contains(errs, "[reserved_name]") {
+	writeFamily(t, root, "codex")
+	writeFixture(t, root, "api/contracts/codex/go.json", []byte(`{"names": {"echo": "Close"}}`))
+	_, errs, err = run(t, root, "validate", "codex")
+	if err == nil || !strings.Contains(err.Error(), "problems") || !strings.Contains(errs, "codex/go.json#/names/echo:") || !strings.Contains(errs, "[reserved_name]") {
 		t.Fatalf("validate did not report the diagnostic: %v\n%s", err, errs)
 	}
-	if _, _, err := run(t, root, "generate"); err == nil || !strings.Contains(err.Error(), "other: invalid API contract") {
-		t.Fatalf("generate rendered a refused contract: %v", err)
+	if _, _, err := run(t, root, "generate"); err == nil || !strings.Contains(err.Error(), "codex: invalid family") {
+		t.Fatalf("generate rendered a refused family: %v", err)
 	}
 }
 

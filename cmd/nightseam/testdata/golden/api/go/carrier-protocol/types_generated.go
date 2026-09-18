@@ -8,6 +8,7 @@ import (
 
 // Tag is this family, as a type: what every record and enum of the package returns from Of, and what an entry point of a package generic in a family holds its type arguments to.
 type Tag struct{}
+
 type AttachParams struct {
 	ID string `json:"id"`
 }
@@ -37,6 +38,7 @@ func (v *AttachParams) UnmarshalJSON(data []byte) error {
 }
 func (AttachParams) Of() Tag { return Tag{} }
 
+// Attachment: A channel that speaks S, and the last sequence it saw.
 type Attachment[SHandle any] struct {
 	Connection SHandle `json:"connection"`
 	Last       int64   `json:"last"`
@@ -108,6 +110,7 @@ func (v *Envelope) UnmarshalJSON(data []byte) error {
 }
 func (Envelope) Of() Tag { return Tag{} }
 
+// Frame: One message of S with its place in the sequence.
 type Frame[SEnvelope any] struct {
 	Sequence int64     `json:"sequence"`
 	Message  SEnvelope `json:"message"`
@@ -143,6 +146,7 @@ func (v *Frame[SEnvelope]) UnmarshalJSON(data []byte) error {
 func (Frame[SEnvelope]) Of() Tag { return Tag{} }
 
 type Frames[SEnvelope any] = []Frame[SEnvelope]
+
 type Handle struct {
 	Channel int64 `json:"channel"`
 }

@@ -1,5 +1,0 @@
-{"schema_version": 1, "profile": "nightseam.duplex/1", "name": "album", "layer": "rpc",
- "parameters": [{"name": "A", "of": "session"}, {"name": "B", "of": "session"}],
- "imports": ["carrier"],
- "types": {"Mine": {"kind": "record", "fields": [{"name": "a", "type": {"envelope": "A"}}, {"name": "b", "type": {"envelope": "B"}}, {"name": "frame", "type": "carrier.Frame"}]}},
- "methods": [], "events": [], "errors": []}

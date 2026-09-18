@@ -1,2 +1,0 @@
-x/model.json#: additional properties 'methods' not allowed [invalid_shape]
-error: 1 problems

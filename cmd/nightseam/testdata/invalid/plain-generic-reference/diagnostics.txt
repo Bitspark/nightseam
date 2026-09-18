@@ -1,2 +1,2 @@
-album /types/Mine/fields/2/type: Type carrier.Frame is generic and this family declares 2 parameters; say what fills each with {"apply": "carrier.Frame", "with": {…}}. [ambiguous_application]
+album/protocol.json#/types/Mine/fields/2/type: Type carrier.Frame is generic and this family declares 2 parameters; say what fills each with {"apply": "carrier.Frame", "with": {…}}. [ambiguous_application]
 error: 1 problems

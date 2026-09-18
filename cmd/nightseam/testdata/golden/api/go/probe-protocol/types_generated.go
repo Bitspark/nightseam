@@ -11,6 +11,8 @@ import (
 
 // Tag is this family, as a type: what every record and enum of the package returns from Of, and what an entry point of a package generic in a family holds its type arguments to.
 type Tag struct{}
+
+// Base: What every payload carries.
 type Base struct {
 	Text string `json:"text"`
 }
@@ -41,6 +43,7 @@ func (v *Base) UnmarshalJSON(data []byte) error {
 func (Base) Of() Tag { return Tag{} }
 
 type Counts = map[string]int64
+
 type Envelope struct {
 	Version int64                    `json:"version"`
 	Kind    string                   `json:"kind"`
@@ -107,6 +110,7 @@ func (v *Handle) UnmarshalJSON(data []byte) error {
 }
 func (Handle) Of() Tag { return Tag{} }
 
+// OpenRecord: A record that keeps the fields it does not declare.
 type OpenRecord struct {
 	ID               string                     `json:"id"`
 	Note             runtime.Optional[string]   `json:"note,omitzero"`
@@ -124,7 +128,7 @@ func (v OpenRecord) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	declared := map[string]bool{}
-	for _, key := range recordFields("OpenRecord") {
+	for _, key := range schema.Fields("OpenRecord") {
 		declared[key] = true
 	}
 	for key, value := range v.AdditionalFields {
@@ -133,8 +137,7 @@ func (v OpenRecord) MarshalJSON() ([]byte, error) {
 		}
 		obj[key] = value
 	}
-	data, err = json.Marshal(obj)
-	if err != nil {
+	if data, err = json.Marshal(obj); err != nil {
 		return nil, err
 	}
 	if err = ValidateRaw("OpenRecord", data); err != nil {
@@ -156,7 +159,7 @@ func (v *OpenRecord) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
-	for _, key := range recordFields("OpenRecord") {
+	for _, key := range schema.Fields("OpenRecord") {
 		delete(fields, key)
 	}
 	v.AdditionalFields = fields
@@ -164,6 +167,7 @@ func (v *OpenRecord) UnmarshalJSON(data []byte) error {
 }
 func (OpenRecord) Of() Tag { return Tag{} }
 
+// Payload: A payload: a base with a count and a note that may be absent or null.
 type Payload struct {
 	Text  string                                     `json:"text"`
 	Count int64                                      `json:"count"`
@@ -195,7 +199,9 @@ func (v *Payload) UnmarshalJSON(data []byte) error {
 }
 func (Payload) Of() Tag { return Tag{} }
 
+// Payloads: Payloads, in order.
 type Payloads = []Payload
+
 type Seen struct {
 	At     time.Time             `json:"at"`
 	Status Status                `json:"status"`
@@ -229,6 +235,7 @@ func (v *Seen) UnmarshalJSON(data []byte) error {
 }
 func (Seen) Of() Tag { return Tag{} }
 
+// Status: Where a probe stands.
 type Status string
 
 const (

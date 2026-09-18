@@ -1,2 +1,0 @@
-x /methods/0/ts_name: Operation name is reserved by the generated TypeScript client. [reserved_name]
-error: 1 problems

@@ -1,3 +1,0 @@
-{"schema_version": 1, "profile": "nightseam.duplex/1", "name": "x", "layer": "rpc", "imports": ["nowhere"],
- "types": {"Uses": {"kind": "record", "fields": [{"name": "it", "type": "nowhere.Thing"}]}},
- "methods": [], "events": [], "errors": []}

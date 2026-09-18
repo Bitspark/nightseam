@@ -15,7 +15,9 @@ import (
 // Remote provides typed calls back to the connected client.
 type Remote[SEnvelope, SHandle any] struct{ Peer *runtime.Peer }
 type Handler[SEnvelope, SHandle any] interface {
+	// Attach: Opens a channel that speaks S.
 	Attach(ctx context.Context, remote *Remote[SEnvelope, SHandle], params protocol.AttachParams) (protocol.Attachment[SHandle], error)
+	// Relay: Relays a frame and answers with one message of probe.
 	Relay(ctx context.Context, remote *Remote[SEnvelope, SHandle], params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)
 }
 
@@ -63,7 +65,7 @@ func install[SEnvelope, SHandle any](handler Handler[SEnvelope, SHandle], option
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("{\"envelope\":\"probe\"}"), result); err != nil {
+		if err = protocol.ValidateValue(protocol.TypeExpression("\"probe.Envelope\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil

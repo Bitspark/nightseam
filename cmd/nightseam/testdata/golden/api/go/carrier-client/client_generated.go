@@ -16,7 +16,7 @@ type Client[SEnvelope, SHandle any] struct{ Peer *runtime.Peer }
 type Handler[SEnvelope, SHandle any] interface {
 }
 
-// Caller is the RPC layer's caller side: every operation a client sends. Client implements it.
+// Caller is the protocol's caller side: every operation a client sends. Client implements it.
 type Caller[SEnvelope, SHandle any] interface {
 	Attach(ctx context.Context, params protocol.AttachParams) (protocol.Attachment[SHandle], error)
 	Relay(ctx context.Context, params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)
@@ -72,6 +72,8 @@ func Open[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx co
 	return Attach[SEnvelope, SHandle](ctx, channel, options, handler)
 }
 func (c *Client[SEnvelope, SHandle]) Close() error { return c.Peer.Close() }
+
+// Attach: Opens a channel that speaks S.
 func (c *Client[SEnvelope, SHandle]) Attach(ctx context.Context, params protocol.AttachParams) (protocol.Attachment[SHandle], error) {
 	var result protocol.Attachment[SHandle]
 	if err := protocol.ValidateValue(protocol.TypeExpression("\"AttachParams\""), params); err != nil {
@@ -89,6 +91,8 @@ func (c *Client[SEnvelope, SHandle]) Attach(ctx context.Context, params protocol
 	}
 	return result, nil
 }
+
+// Relay: Relays a frame and answers with one message of probe.
 func (c *Client[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error) {
 	var result probeprotocol.Envelope
 	if err := protocol.ValidateValue(protocol.TypeExpression("\"Frame\""), params); err != nil {
@@ -98,7 +102,7 @@ func (c *Client[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.
 	if err := c.Peer.Call(ctx, "relay", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("{\"envelope\":\"probe\"}"), raw); err != nil {
+	if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"probe.Envelope\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {

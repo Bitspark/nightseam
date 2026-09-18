@@ -10,6 +10,8 @@ import (
 
 // Tag is this family, as a type: what every record and enum of the package returns from Of, and what an entry point of a package generic in a family holds its type arguments to.
 type Tag struct{}
+
+// Borrowed: A carrier frame, its S filled by B.
 type Borrowed[BEnvelope any] struct {
 	Frame carrierprotocol.Frame[BEnvelope] `json:"frame"`
 }
@@ -118,6 +120,7 @@ func (v *Envelope) UnmarshalJSON(data []byte) error {
 }
 func (Envelope) Of() Tag { return Tag{} }
 
+// Fixed: A carrier frame, its S filled by probe.
 type Fixed struct {
 	Frame carrierprotocol.Frame[probeprotocol.Envelope] `json:"frame"`
 }
@@ -176,6 +179,7 @@ func (v *Handle) UnmarshalJSON(data []byte) error {
 }
 func (Handle) Of() Tag { return Tag{} }
 
+// Mine: One message of A.
 type Mine[AEnvelope any] struct {
 	Held AEnvelope `json:"held"`
 }

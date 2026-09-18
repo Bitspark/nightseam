@@ -1,1 +1,2 @@
-error: x contract: /rpc/types/Twice: Type Twice is declared in the rpc layer as well as in dto.
+x/protocol.json#/types/Twice: Type Twice is declared in protocol.json as well as in model.json. [duplicate_type]
+error: 1 problems
