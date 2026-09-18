@@ -9,13 +9,16 @@ import (
 
 // generateTypes renders the protocol package's wire types: a struct per
 // record with codecs that validate on both directions, a string type with
-// constants per enum, an alias per alias. A type that holds a slot of the
-// session role takes the slot as a type parameter, E for an envelope and H
-// for a handle, and so does every type that refers to it; a consumer
-// instantiates them with the family that fills the slot, and the codec of
-// that family's type validates what fills it.
+// constants per enum, an alias per alias, and the package's Tag, which every
+// record and enum returns from Of: what an entry point of a generic package
+// holds its type arguments to, so that every type drawn from one parameter
+// comes from one family. A type that holds a slot of a parameter takes the
+// slot as a type parameter, and so does every type that refers to it; a
+// consumer instantiates them with the family that fills the slot, and the
+// codec of that family's type validates what fills it.
 func generateTypes(api contract.API, g contract.Generics, p paths) string {
 	var b strings.Builder
+	b.WriteString("// Tag is this family, as a type: what every record and enum of the package returns from Of, and what an entry point of a package generic in a family holds its type arguments to.\ntype Tag struct{}\n")
 	for _, name := range api.TypeNames() {
 		t := api.Types[name]
 		kinds := g.Types[name]
@@ -53,18 +56,17 @@ func generateTypes(api contract.API, g contract.Generics, p paths) string {
 				fmt.Fprintf(&b, "var fields map[string]json.RawMessage;if err:=json.Unmarshal(data,&fields);err!=nil{return err};for _,key:=range recordFields(%q){delete(fields,key)};v.AdditionalFields=fields;", name)
 			}
 			b.WriteString("return nil}\n")
+			fmt.Fprintf(&b, "func (%s) Of() Tag { return Tag{} }\n", self)
 		case "enum":
 			fmt.Fprintf(&b, "type %s string\nconst(\n", name)
 			for _, value := range t.Values {
 				fmt.Fprintf(&b, "%s %s = %q\n", enumConstantName(name, value), name, value)
 			}
 			b.WriteString(")\n")
+			fmt.Fprintf(&b, "func (%s) Of() Tag { return Tag{} }\n", name)
 		case "alias":
 			fmt.Fprintf(&b, "type %s%s = %s\n", name, declare(kinds), goType(g, t.Type, ""))
 		}
 	}
-	// The family bound, for a generic package instantiated with it: one
-	// argument that carries both of a parameter's type parameters.
-	fmt.Fprintf(&b, "// Family binds this family where a generic package is instantiated with it.\nvar Family = runtime.Family[%s, %s]{Name: %q, Validate: ValidateRaw}\n", contract.EnvelopeType, contract.HandleType, api.Name)
 	return goFile(api, "protocol", b.String(), p)
 }

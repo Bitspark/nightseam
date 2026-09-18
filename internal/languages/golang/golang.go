@@ -133,7 +133,7 @@ func (l *language) Render(api contract.API) ([]spi.File, error) {
 
 // reservedTypes are the identifiers the generated Go packages and the
 // runtime declare or would shadow; a contract type of that name is refused.
-var reservedTypes = strings.Fields("API Client Caller Server Binding Handler Handlers ClientHandlers ServerHandlers Peer PublicError Optional Remote NewHandler Dial Decides Asks Conversation ValidateRaw ValidateExpressionRaw ValidateValue TypeExpression Binding Attach Serve Open Family")
+var reservedTypes = strings.Fields("API Client Caller Server Binding Handler Handlers ClientHandlers ServerHandlers Peer PublicError Optional Remote NewHandler Dial Decides Asks Conversation ValidateRaw ValidateExpressionRaw ValidateValue TypeExpression Attach Serve Open Tag Of")
 var reservedMethods = strings.Fields("Close Call Notify Handle Connect")
 
 // Check reports the names the contract would make Go generate that it
@@ -167,8 +167,8 @@ func (*language) Check(api contract.API) []contract.Diagnostic {
 				if goName == "" || !token.IsExported(goName) || !token.IsIdentifier(goName) {
 					add("invalid_name", p+"/go_name", "Generated field name must be an exported Go identifier.")
 				}
-				if goName == "MarshalJSON" || goName == "UnmarshalJSON" {
-					add("reserved_name", p+"/go_name", "Field name collides with a generated codec method.")
+				if goName == "MarshalJSON" || goName == "UnmarshalJSON" || goName == "Of" {
+					add("reserved_name", p+"/go_name", "Field name collides with a generated method.")
 				}
 				if t.Open && goName == "AdditionalFields" {
 					add("reserved_name", p+"/go_name", "Field name collides with the open-record extension storage.")
@@ -209,13 +209,22 @@ func (*language) Check(api contract.API) []contract.Diagnostic {
 		})
 	}
 	// A generic type takes its parameters as Go type parameters, which shadow
-	// any type of the same name in the generated package.
+	// any type of the same name in the generated package; so does the tag an
+	// entry point takes for each.
+	index := map[string]int{}
 	for i, parameter := range api.Parameters {
-		for _, kind := range contract.SlotKinds {
-			generated := parameterName(contract.Use{Parameter: parameter.Name, Kind: kind})
-			if previous, exists := declarations[generated]; exists {
-				add("generated_name_collision", fmt.Sprintf("/parameters/%d/name", i), "Generated Go type parameter "+generated+" collides with "+previous+".")
+		index[parameter.Name] = i
+	}
+	generated := map[string]string{}
+	for _, use := range api.Generics().Family {
+		for _, name := range []string{parameterName(use), tagName(use.Parameter)} {
+			pointer := fmt.Sprintf("/parameters/%d/name", index[use.Parameter])
+			if previous, exists := declarations[name]; exists {
+				add("generated_name_collision", pointer, "Generated Go type parameter "+name+" collides with "+previous+".")
+			} else if previous, exists := generated[name]; exists && previous != use.Parameter {
+				add("generated_name_collision", pointer, "Generated Go type parameter "+name+" is also generated for parameter "+previous+".")
 			}
+			generated[name] = use.Parameter
 		}
 	}
 	// The Go namespace is shared across methods and events in each direction.
@@ -324,56 +333,36 @@ func fieldName(field contract.Field) string {
 // enum value; the checker and the emitter share it by construction.
 func enumConstantName(typeName, value string) string { return typeName + goName(value) }
 
-// kindSuffix spells a slot kind as the letter a type parameter ends in: E
-// for an envelope, H for a handle.
-var kindSuffix = map[string]string{contract.EnvelopeSlot: "E", contract.ConnectionSlot: "H"}
-
 // parameterName is the Go type parameter one use becomes: the contract's
-// parameter followed by the kind's letter, SE and SH for a parameter S. Go
-// has no associated types, so a parameter used at both kinds becomes two Go
-// parameters; a family's Binding pairs them again at every entry point, so
-// that one argument fills both and they cannot be bound to different
-// families by accident.
-func parameterName(use contract.Use) string { return use.Parameter + kindSuffix[use.Kind] }
+// parameter followed by the type drawn from it, SEnvelope and SHandle for a
+// parameter S drawn at its Envelope and its Handle. Go has no associated
+// types, so a parameter drawn at two types becomes two Go parameters; the
+// tag pairs them again, see tagName.
+func parameterName(use contract.Use) string { return use.Parameter + use.Type }
 
-// familyUses is every parameter of the family at every slot kind, in
-// declaration order: what the family's own declarations take. A parameter
-// used at one kind only still takes both, the unused one a phantom, so that
-// one binding argument of runtime.Family fills exactly a parameter's pair
-// and the two cannot be bound to different families.
-func familyUses(api contract.API) []contract.Use {
-	var uses []contract.Use
-	for _, parameter := range api.Parameters {
-		for _, kind := range contract.SlotKinds {
-			uses = append(uses, contract.Use{Parameter: parameter.Name, Kind: kind})
+// tagName is the type parameter an entry point takes for a parameter's
+// family itself: STag for a parameter S. Every type a family's protocol
+// package declares carries an Of method returning the package's Tag, and an
+// entry point constrains every type parameter drawn from S to runtime.Of of
+// STag, so that all of them come from one family or the call does not
+// compile. STag is inferred from any of them and is never spelled.
+func tagName(parameter string) string { return parameter + "Tag" }
+
+// entry renders the type parameters of an entry point that makes the uses:
+// each drawn type constrained to its parameter's tag, then the tags, which
+// come last so that a caller spelling the drawn types may stop there.
+func entry(uses []contract.Use) string {
+	if len(uses) == 0 {
+		return ""
+	}
+	var constrained, tags []string
+	for _, use := range uses {
+		constrained = append(constrained, parameterName(use)+" runtime.Of["+tagName(use.Parameter)+"]")
+		if tag := tagName(use.Parameter); !slices.Contains(tags, tag) {
+			tags = append(tags, tag)
 		}
 	}
-	return uses
-}
-
-// bindingName is what a parameter's binding is called as an argument: the
-// parameter in lower camel case, so that a parameter S is bound by s.
-func bindingName(parameter string) string {
-	return strings.ToLower(parameter[:1]) + parameter[1:]
-}
-
-// bindings renders the binding arguments of an entry point, one per
-// parameter, each pairing that parameter's two type parameters; args renders
-// the same as arguments passed on. Both end in a comma when not empty.
-func bindings(api contract.API) string {
-	var b strings.Builder
-	for _, parameter := range api.Parameters {
-		fmt.Fprintf(&b, "%s runtime.Family[%sE, %sH],", bindingName(parameter.Name), parameter.Name, parameter.Name)
-	}
-	return b.String()
-}
-
-func bindingValues(api contract.API) string {
-	var b strings.Builder
-	for _, parameter := range api.Parameters {
-		fmt.Fprintf(&b, "%s,", bindingName(parameter.Name))
-	}
-	return b.String()
+	return "[" + strings.Join(constrained, ", ") + ", " + strings.Join(tags, ", ") + " any]"
 }
 
 func parameters(uses []contract.Use) []string {
@@ -385,7 +374,7 @@ func parameters(uses []contract.Use) []string {
 }
 
 // declare renders the type parameters of a declaration that makes the uses,
-// [SE, SH any], or nothing for a plain one.
+// [SEnvelope, SHandle any], or nothing for a plain one.
 func declare(uses []contract.Use) string {
 	if len(uses) == 0 {
 		return ""
@@ -393,8 +382,8 @@ func declare(uses []contract.Use) string {
 	return "[" + strings.Join(parameters(uses), ", ") + " any]"
 }
 
-// apply renders the type arguments a reference passes on, [SE, SH], or
-// nothing.
+// apply renders the type arguments a reference passes on, [SEnvelope,
+// SHandle], or nothing.
 func apply(uses []contract.Use) string {
 	if len(uses) == 0 {
 		return ""
@@ -419,6 +408,9 @@ func goType(g contract.Generics, expr any, prefix string) string {
 		case "json":
 			return "any"
 		default:
+			if target, typeName, ok := contract.Slot(t); ok {
+				return parameterName(contract.Use{Parameter: target, Type: typeName})
+			}
 			if family, name, ok := contract.Reference(t); ok {
 				return importAlias(family) + "." + name + apply(g.Imported[family][name])
 			}
@@ -437,10 +429,10 @@ func goType(g contract.Generics, expr any, prefix string) string {
 					target = use.Parameter
 				}
 				if contract.Parameterized(target) {
-					args = append(args, parameterName(contract.Use{Parameter: target, Kind: use.Kind}))
+					args = append(args, parameterName(contract.Use{Parameter: target, Type: use.Type}))
 					continue
 				}
-				args = append(args, importAlias(target)+"."+contract.SlotType(use.Kind))
+				args = append(args, importAlias(target)+"."+use.Type)
 			}
 			rendered := importAlias(family) + "." + name
 			if len(args) > 0 {
@@ -448,11 +440,11 @@ func goType(g contract.Generics, expr any, prefix string) string {
 			}
 			return rendered
 		}
-		if kind, target, ok := contract.Slot(t); ok {
+		if target, typeName, ok := contract.Slot(t); ok {
 			if contract.Parameterized(target) {
-				return parameterName(contract.Use{Parameter: target, Kind: kind})
+				return parameterName(contract.Use{Parameter: target, Type: typeName})
 			}
-			return importAlias(target) + "." + contract.SlotType(kind)
+			return importAlias(target) + "." + typeName
 		}
 		if a, ok := t["array"]; ok {
 			return "[]" + goType(g, a, prefix)

@@ -193,7 +193,8 @@ func tsParameters(uses []contract.Use) []string {
 }
 
 // declare renders the type parameters of a declaration that makes the uses,
-// each bound to any family and defaulting to the session role's union, or
+// each bound to any family that has the types drawn from it beyond the two
+// every family carries, and defaulting to the session role's union, or
 // nothing for a plain one.
 func declare(uses []contract.Use) string {
 	names := tsParameters(uses)
@@ -202,7 +203,17 @@ func declare(uses []contract.Use) string {
 	}
 	bound := make([]string, len(names))
 	for i, name := range names {
-		bound[i] = name + " extends AnyFamily = SessionFamily"
+		var drawn []string
+		for _, use := range uses {
+			if use.Parameter == name && use.Type != contract.EnvelopeType && use.Type != contract.HandleType {
+				drawn = append(drawn, quote(use.Type)+": unknown")
+			}
+		}
+		constraint := "AnyFamily"
+		if len(drawn) > 0 {
+			constraint += " & { " + strings.Join(drawn, "; ") + " }"
+		}
+		bound[i] = name + " extends " + constraint + " = SessionFamily"
 	}
 	return "<" + strings.Join(bound, ", ") + ">"
 }
@@ -280,11 +291,11 @@ func canonicalJSON(value any) []byte { data, _ := json.Marshal(value); return da
 
 // slotType is what fills a slot: an associated type of the parameter it
 // names, the named family's own type otherwise.
-func slotType(kind, target string) string {
+func slotType(typeName, target string) string {
 	if contract.Parameterized(target) {
-		return target + "[" + quote(contract.SlotType(kind)) + "]"
+		return target + "[" + quote(typeName) + "]"
 	}
-	return tsAlias(target) + "." + contract.SlotType(kind)
+	return tsAlias(target) + "." + typeName
 }
 
 func tsType(g contract.Generics, expression any) string {
@@ -323,14 +334,17 @@ func tsType(g contract.Generics, expression any) string {
 		case "json":
 			return "unknown"
 		default:
+			if target, typeName, ok := contract.Slot(t); ok {
+				return slotType(typeName, target)
+			}
 			if family, name, ok := contract.Reference(t); ok {
 				return tsAlias(family) + "." + name + apply(g.Imported[family][name])
 			}
 			return t + apply(g.Types[t])
 		}
 	case map[string]any:
-		if kind, family, ok := contract.Slot(t); ok {
-			return slotType(kind, family)
+		if target, typeName, ok := contract.Slot(t); ok {
+			return slotType(typeName, target)
 		}
 		if item, ok := t["array"]; ok {
 			return "Array<" + tsType(g, item) + ">"
@@ -384,7 +398,13 @@ func generateTS(api contract.API, g contract.Generics, s settings) []spi.File {
 	// The family as a slot of another family sees it: its descriptor, the
 	// bound and the binding of a parameter, and, for a generic family, the
 	// session role's union, which the parameter defaults to.
-	fmt.Fprintf(&types, "/** The family: its name and the wire types a slot of it draws on. */\nexport interface Family { readonly name: %s; Envelope: Envelope; Handle: Handle }\n", quote(api.Name))
+	var drawn []string
+	for _, name := range api.TypeNames() {
+		if len(g.Types[name]) == 0 {
+			drawn = append(drawn, name+": "+name)
+		}
+	}
+	fmt.Fprintf(&types, "/** The family: its name and the wire types a slot of it draws on. */\nexport interface Family { readonly name: %s; %s }\n", quote(api.Name), strings.Join(drawn, "; "))
 	types.WriteString("/** What a slot of the session role is filled with: any family. */\nexport interface AnyFamily { readonly name: string; Envelope: unknown; Handle: unknown }\n")
 	types.WriteString("/** A family bound at runtime: its name and its validator, which validates what fills a slot of it. */\nexport interface FamilyBinding<F extends AnyFamily> { readonly name: F[\"name\"]; validate(type: TypeExpression, value: unknown, location?: string): void }\n")
 	types.WriteString("/** The families bound to the roles a value's slots name. */\nexport type Slots = { readonly [role: string]: FamilyBinding<AnyFamily> };\n")
@@ -558,14 +578,17 @@ func tsQualified(g contract.Generics, expr any) string {
 		case "string", "boolean", "number", "integer", "timestamp", "json":
 			return tsType(g, t)
 		default:
+			if target, typeName, ok := contract.Slot(t); ok {
+				return slotType(typeName, target)
+			}
 			if family, name, ok := contract.Reference(t); ok {
 				return tsAlias(family) + "." + name + apply(g.Imported[family][name])
 			}
 			return "Protocol." + t + apply(g.Types[t])
 		}
 	case map[string]any:
-		if kind, family, ok := contract.Slot(t); ok {
-			return slotType(kind, family)
+		if target, typeName, ok := contract.Slot(t); ok {
+			return slotType(typeName, target)
 		}
 		if item, ok := t["array"]; ok {
 			return "Array<" + tsQualified(g, item) + ">"
@@ -600,7 +623,7 @@ export function validateWire(type: TypeExpression, value: unknown, location = '$
   if('map' in type){for(const [key,item]of Object.entries(value as Record<string,unknown>))validateWire(type.map,item,location+'.'+key,slots);return;}
   if(Object.keys(value as object).length!==0)bad('empty object');return;
  }
- if(typeof type==='string'&&type.includes('.')){const at=type.indexOf('.');const validate=importedValidators[type.slice(0,at)];if(!validate)bad('known family');validate!(type.slice(at+1),value,location,slots);return;}
+ if(typeof type==='string'&&type.includes('.')){const at=type.indexOf('.');if(/^[A-Z]/.test(type)){slot(type.slice(at+1),type.slice(0,at),value,location,slots);return;}const validate=importedValidators[type.slice(0,at)];if(!validate)bad('known family');validate!(type.slice(at+1),value,location,slots);return;}
  switch(type){
  case 'json':jsonValue(value);return;
  case 'string':if(typeof value!=='string')bad('string');return;

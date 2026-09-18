@@ -40,7 +40,7 @@
     "identifier": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
     "direction": {"enum": ["client_to_server", "server_to_client"]},
     "expr": {"oneOf": [
-      {"type": "string", "pattern": "^(?:string|boolean|number|integer|timestamp|json|[A-Z][A-Za-z0-9_]*|[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\.[A-Z][A-Za-z0-9_]*)$"},
+      {"type": "string", "pattern": "^(?:string|boolean|number|integer|timestamp|json|[A-Z][A-Za-z0-9_]*|[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\.[A-Z][A-Za-z0-9_]*|[A-Z][A-Za-z0-9]*\\.[A-Z][A-Za-z0-9_]*)$", "description": "A primitive; a type of this family; f.T, a type of an imported family; or S.T, a type drawn from a parameter S where it is bound."},
       {"type": "object", "additionalProperties": false, "required": ["array"], "properties": {"array": {"$ref": "#/$defs/expr"}}},
       {"type": "object", "additionalProperties": false, "required": ["map"], "properties": {"map": {"$ref": "#/$defs/expr"}}},
       {"type": "object", "additionalProperties": false, "required": ["connection"], "properties": {"connection": {"$ref": "#/$defs/slotTarget"}}},

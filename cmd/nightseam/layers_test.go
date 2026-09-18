@@ -114,7 +114,7 @@ func TestParametersAreLoadedFromTheRPCLayer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(types), "type Frame[SE any] struct") {
+	if !strings.Contains(string(types), "type Frame[SEnvelope any] struct") {
 		t.Fatalf("the carrier did not render generically in its declared parameter:\n%s", types)
 	}
 }

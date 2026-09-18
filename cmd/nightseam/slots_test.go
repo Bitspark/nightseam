@@ -107,16 +107,16 @@ func TestSlottedContractRendersGenerically(t *testing.T) {
 	for p, data := range result.Files {
 		files[p] = string(data)
 	}
-	for pattern, path := range map[string]string{"Message\\s+SE\\s": "api/go/carrier-protocol/types_generated.go", "Connection\\s+SH\\s": "api/go/carrier-protocol/types_generated.go"} {
+	for pattern, path := range map[string]string{"Message\\s+SEnvelope\\s": "api/go/carrier-protocol/types_generated.go", "Connection\\s+SHandle\\s": "api/go/carrier-protocol/types_generated.go"} {
 		if !regexp.MustCompile(pattern).MatchString(files[path]) {
 			t.Errorf("%s lacks %s", path, pattern)
 		}
 	}
 	for path, wants := range map[string][]string{
-		"api/go/carrier-protocol/types_generated.go":      {"type Frame[SE any] struct {", "type Attachment[SH any] struct {", "Connection", "type Frames[SE any] = []Frame[SE]", "type AttachParams struct {", "func (v Frame[SE]) MarshalJSON()", "func (v *Frame[SE]) UnmarshalJSON("},
+		"api/go/carrier-protocol/types_generated.go":      {"type Frame[SEnvelope any] struct {", "type Attachment[SHandle any] struct {", "Connection", "type Frames[SEnvelope any] = []Frame[SEnvelope]", "type AttachParams struct {", "func (v Frame[SEnvelope]) MarshalJSON()", "func (v *Frame[SEnvelope]) UnmarshalJSON("},
 		"api/go/carrier-protocol/validation_generated.go": {`"probe": probeprotocol.ValidateRaw`},
-		"api/go/carrier-binding/binding_generated.go":     {"type Remote[SE, SH any] struct", "type Handler[SE, SH any] interface", "remote *Remote[SE, SH], params protocol.AttachParams) (protocol.Attachment[SH], error)", "remote *Remote[SE, SH], params protocol.Frame[SE]) (probeprotocol.Envelope, error)", "func NewHandler[SE, SH any](s runtime.Family[SE, SH], handler Handler[SE, SH], options runtime.ServerOptions)", "EmitFrameRelayed(ctx context.Context, data protocol.Frame[SE]) error"},
-		"api/go/carrier-client/client_generated.go":       {"type Client[SE, SH any] struct", "type Caller[SE, SH any] interface", "func Dial[SE, SH any](ctx context.Context, url string, s runtime.Family[SE, SH], options runtime.DialOptions, handler Handler[SE, SH]) (*Client[SE, SH], error)", "OnFrameRelayed(handler func(context.Context, protocol.Frame[SE])) error"},
+		"api/go/carrier-binding/binding_generated.go":     {"type Remote[SEnvelope, SHandle any] struct", "type Handler[SEnvelope, SHandle any] interface", "remote *Remote[SEnvelope, SHandle], params protocol.AttachParams) (protocol.Attachment[SHandle], error)", "remote *Remote[SEnvelope, SHandle], params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)", "func NewHandler[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](handler Handler[SEnvelope, SHandle], options runtime.ServerOptions)", "EmitFrameRelayed(ctx context.Context, data protocol.Frame[SEnvelope]) error"},
+		"api/go/carrier-client/client_generated.go":       {"type Client[SEnvelope, SHandle any] struct", "type Caller[SEnvelope, SHandle any] interface", "func Dial[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[SEnvelope, SHandle]) (*Client[SEnvelope, SHandle], error)", "OnFrameRelayed(handler func(context.Context, protocol.Frame[SEnvelope])) error"},
 		"api/ts/carrier-client/src/types.ts":              {"export interface Frame<S extends AnyFamily = SessionFamily> {", `"message": S["Envelope"];`, "export interface Attachment<S extends AnyFamily = SessionFamily> {", `"connection": S["Handle"];`, "export type Frames<S extends AnyFamily = SessionFamily> = Array<Frame<S>>;", "export interface AttachParams {", "export type SessionFamily = probe.Family;", `export const family = { name: "carrier", validate: validateWire } as const;`},
 		"api/ts/carrier-client/src/index.ts":              {"export interface Handler<S extends AnyFamily = SessionFamily> {", "export interface Caller<S extends AnyFamily = SessionFamily> {", "attach(params: Protocol.AttachParams, options?: CallOptions): Promise<Protocol.Attachment<S>>;", "relay(params: Protocol.Frame<S>, options?: CallOptions): Promise<probe.Envelope>;", "export class Client<S extends AnyFamily = SessionFamily> implements Caller<S> {", "static async dial<S extends AnyFamily = SessionFamily>(url: string, s: FamilyBinding<S>, options: PeerOptions = {}, handler?: Handler<S>): Promise<Client<S>>", "onFrameRelayed(handler: (data: Protocol.Frame<S>) => void | Promise<void>): () => void"},
 		"api/ts/carrier-client/package.json":              {`"@example/probe-client":"0.0.0"`},
@@ -165,6 +165,7 @@ func TestSubstitutedCarrierRendersReferencingProbe(t *testing.T) {
 		"Frames = []Frame",
 		"Frame{Sequence int64, Message probeprotocol.Envelope}",
 		"Handle{Channel int64}",
+		"Tag{}",
 	}
 	if got := surface(t, files["api/go/carrier-protocol/types_generated.go"]); strings.Join(got, "\n") != strings.Join(golden, "\n") {
 		t.Fatalf("the carrier's Go surface is not the golden one:\n%s", strings.Join(got, "\n"))
@@ -383,7 +384,7 @@ func serve(t *testing.T, h http.Handler) (*httptest.Server, string) {
  return server, "ws" + strings.TrimPrefix(server.URL, "http")
 }
 func TestPlainClientSpeaksWithGenericServer(t *testing.T) {
- h, err := rightbinding.NewHandler(probe.Family, rightServer{}, options)
+ h, err := rightbinding.NewHandler(rightServer{}, options)
  if err != nil { t.Fatal(err) }
  server, url := serve(t, h)
  defer server.Close()
@@ -414,7 +415,7 @@ func TestGenericClientSpeaksWithPlainServer(t *testing.T) {
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
  defer cancel()
- c, err := rightclient.Dial(ctx, url, probe.Family, runtime.DialOptions{}, nil)
+ c, err := rightclient.Dial[E, H](ctx, url, runtime.DialOptions{}, nil)
  if err != nil { t.Fatal(err) }
  defer c.Close()
  relayed := make(chan right.Frame[E], 1)
@@ -439,7 +440,7 @@ func TestInstantiationValidatesThroughTheFamily(t *testing.T) {
  if err := json.Unmarshal([]byte("{\"sequence\":1,\"message\":{\"version\":1}}"), &frame); err == nil { t.Fatal("an envelope without a kind passed probe's codec") }
  if err := json.Unmarshal([]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"extra\":true}}"), &frame); err == nil { t.Fatal("an unknown envelope field passed probe's codec") }
  if err := json.Unmarshal([]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{}}}"), &frame); err != nil { t.Fatal(err) }
- var opaque right.Frame[json.RawMessage]
+ var opaque right.Frame[runtime.Raw]
  if err := json.Unmarshal([]byte("{\"sequence\":1,\"message\":{\"version\":1}}"), &opaque); err != nil { t.Fatalf("the opaque instantiation did not pass a message through: %v", err) }
  if string(opaque.Message) != "{\"version\":1}" { t.Fatalf("passed through %s", opaque.Message) }
  if err := right.ValidateRaw("Frame", []byte("{\"sequence\":1,\"message\":{\"version\":1}}")); err != nil { t.Fatalf("the raw validator did not see the role's slot as JSON: %v", err) }
@@ -538,7 +539,7 @@ const pairContract = `{
   "Frame":{"kind":"record","fields":[{"name":"message","type":{"envelope":"S"}},{"name":"back","type":{"connection":"S"}}]},
   "Echo":{"kind":"record","fields":[{"name":"heard","type":{"envelope":"T"}}]},
   "Both":{"kind":"record","fields":[{"name":"frame","type":"Frame"},{"name":"echoes","type":{"array":"Echo"}}]},
-  "Named":{"kind":"record","fields":[{"name":"of","type":{"envelope":"probe"}}]}
+  "Named":{"kind":"record","fields":[{"name":"held","type":{"envelope":"probe"}}]}
  },
  "methods":[
   {"name":"relay","go_name":"Relay","ts_name":"relay","direction":"client_to_server","request":{"envelope":"T"},"result":"Both"},
@@ -565,7 +566,7 @@ func pairWorld(t *testing.T) kernel.World {
 }
 
 // TestTwoParametersRenderApart: a family generic in two parameters renders
-// with a Go type parameter per parameter and kind — SE, SH, TE — each type
+// with a Go type parameter per parameter and drawn type — SEnvelope, SHandle, TEnvelope — each type
 // taking only the ones it uses, and with one TypeScript type parameter per
 // contract parameter, each defaulting to the session union and each bound
 // by its own argument. A slot of a named family is still a plain reference.
@@ -584,21 +585,21 @@ func TestTwoParametersRenderApart(t *testing.T) {
 	}
 	for path, wants := range map[string][]string{
 		"api/go/pair-protocol/types_generated.go": {
-			"type Frame[SE, SH any] struct {",
-			"type Echo[TE any] struct {",
-			"type Both[SE, SH, TE any] struct {",
+			"type Frame[SEnvelope, SHandle any] struct {",
+			"type Echo[TEnvelope any] struct {",
+			"type Both[SEnvelope, SHandle, TEnvelope any] struct {",
 			"type Named struct {",
-			"Of probeprotocol.Envelope",
+			"Held probeprotocol.Envelope",
 		},
 		"api/go/pair-binding/binding_generated.go": {
-			"type Handler[SE, SH, TE, TH any] interface",
-			"params TE) (protocol.Both[SE, SH, TE], error)",
+			"type Handler[SEnvelope, SHandle, TEnvelope any] interface",
+			"params TEnvelope) (protocol.Both[SEnvelope, SHandle, TEnvelope], error)",
 			"params protocol.Named) (protocol.Named, error)",
-			"EmitEchoed(ctx context.Context, data protocol.Echo[TE]) error",
+			"EmitEchoed(ctx context.Context, data protocol.Echo[TEnvelope]) error",
 		},
 		"api/go/pair-client/client_generated.go": {
-			"type Client[SE, SH, TE, TH any] struct",
-			"func Dial[SE, SH, TE, TH any](ctx context.Context, url string, s runtime.Family[SE, SH], t runtime.Family[TE, TH],",
+			"type Client[SEnvelope, SHandle, TEnvelope any] struct",
+			"func Dial[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, url string, options runtime.DialOptions,",
 		},
 		"api/ts/pair-client/src/types.ts": {
 			"export interface Frame<S extends AnyFamily = SessionFamily> {",
@@ -675,14 +676,14 @@ func TestApplicationFillsAnImportedFamilysParameters(t *testing.T) {
 	}
 	for path, wants := range map[string][]string{
 		"api/go/album-protocol/types_generated.go": {
-			"type Mine[AE any] struct {",
+			"type Mine[AEnvelope any] struct {",
 			// B fills the carrier's S, so Borrowed is generic in B alone.
-			"type Borrowed[BE any] struct {",
-			"Frame carrierprotocol.Frame[BE]",
+			"type Borrowed[BEnvelope any] struct {",
+			"Frame carrierprotocol.Frame[BEnvelope]",
 			// probe fills it, so Fixed is generic in nothing.
 			"type Fixed struct {",
 			"Frame carrierprotocol.Frame[probeprotocol.Envelope]",
-			"type Both[AE, BE any] struct {",
+			"type Both[AEnvelope, BEnvelope any] struct {",
 		},
 		"api/ts/album-client/src/types.ts": {
 			"export interface Borrowed<B extends AnyFamily = SessionFamily> {",
@@ -712,5 +713,161 @@ func TestApplicationFillsAnImportedFamilysParameters(t *testing.T) {
 	}
 	if !strings.Contains(found, `{"apply": "carrier.Frame", "with": {…}}`) {
 		t.Fatalf("a plain reference to a generic imported type was not refused with the application to write: %q", found)
+	}
+}
+
+// drawnContract draws a type of its parameter beyond the two every family
+// carries: S.Payload, a record probe declares. Where the two kinds of slot
+// draw a family's Envelope and Handle, "S.T" draws any record or enum T of
+// whichever family binds S.
+const drawnContract = `{
+ "schema_version":1,"profile":"nightseam.duplex/1","name":"holder",
+ "parameters":[{"name":"S","of":"session"}],
+ "types":{
+  "Held":{"kind":"record","fields":[{"name":"payload","type":"S.Payload"},{"name":"message","type":{"envelope":"S"}}]}
+ },
+ "methods":[{"name":"hold","go_name":"Hold","ts_name":"hold","direction":"client_to_server","request":"Held","result":"S.Payload"}],
+ "events":[],"errors":[]
+}`
+
+// TestASlotDrawsAnyTypeOfTheBoundFamily: "S.Payload" is a slot of S at
+// Payload. Go takes a type parameter for it, SPayload, held to S's tag at
+// every entry point like the others; TypeScript draws S["Payload"] and
+// bounds S to a family that has it; each family's descriptor lists every
+// plain type for this. A world with a session family that does not declare
+// the type refuses the contract, naming the family.
+func TestASlotDrawsAnyTypeOfTheBoundFamily(t *testing.T) {
+	probe := exampleAPI(t)
+	probe["role"] = contract.SessionRole
+	var holder map[string]any
+	if err := json.Unmarshal([]byte(drawnContract), &holder); err != nil {
+		t.Fatal(err)
+	}
+	world := kernel.World{"probe": probe, "holder": holder}
+	if diagnostics := kernel.ValidateIn(world, holder, languages(module, scope)...); len(diagnostics) != 0 {
+		t.Fatalf("a slot of a drawn type was refused: %+v", diagnostics)
+	}
+	files := map[string]string{}
+	for _, family := range []map[string]any{holder, probe} {
+		result, err := kernel.GenerateIn(world, family, languages(module, scope)...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for p, data := range result.Files {
+			files[p] = string(data)
+		}
+	}
+	for path, wants := range map[string][]string{
+		"api/go/holder-protocol/types_generated.go": {
+			"type Held[SEnvelope, SPayload any] struct {",
+			"Payload SPayload",
+			"Message SEnvelope",
+		},
+		"api/go/holder-client/client_generated.go": {
+			"func Dial[SEnvelope runtime.Of[STag], SPayload runtime.Of[STag], STag any](",
+			"Hold(ctx context.Context, params protocol.Held[SEnvelope, SPayload]) (SPayload, error)",
+		},
+		"api/go/probe-protocol/types_generated.go": {
+			"type Tag struct{}",
+			"func (Payload) Of() Tag { return Tag{} }",
+			"func (Envelope) Of() Tag { return Tag{} }",
+		},
+		"api/ts/holder-client/src/types.ts": {
+			`export interface Held<S extends AnyFamily & { "Payload": unknown } = SessionFamily> {`,
+			`"payload": S["Payload"];`,
+		},
+		"api/ts/probe-client/src/types.ts": {
+			"export interface Family { readonly name: \"probe\"; ",
+			"Payload: Payload",
+		},
+	} {
+		for _, want := range wants {
+			if !strings.Contains(files[path], want) {
+				t.Errorf("%s lacks %s", path, want)
+			}
+		}
+	}
+	// A session family without the type may not bind S, so the world refuses
+	// the contract and says which family falls short.
+	bare := exampleAPI(t)
+	bare["name"] = "bare"
+	bare["role"] = contract.SessionRole
+	delete(bare["types"].(map[string]any), "Payload")
+	for _, method := range bare["methods"].([]any) {
+		m := method.(map[string]any)
+		delete(m, "request")
+		m["result"] = "string"
+	}
+	for _, event := range bare["events"].([]any) {
+		event.(map[string]any)["type"] = "string"
+	}
+	found := ""
+	for _, d := range kernel.ValidateIn(kernel.World{"probe": probe, "bare": bare, "holder": holder}, holder, languages(module, scope)...) {
+		if d.Code == "unresolved_type" && strings.Contains(d.Message, "bare") {
+			found = d.Message
+		}
+	}
+	if found == "" {
+		t.Fatal("a session family lacking the drawn type did not refuse the contract")
+	}
+}
+
+// TestMixedInstantiationDoesNotCompile: the tag holds. A generic package
+// instantiated with an Envelope of one family and a Handle of another, or
+// with a type of no family, is refused by the compiler at every entry
+// point, whether the type arguments are spelled or inferred.
+func TestMixedInstantiationDoesNotCompile(t *testing.T) {
+	root := repositoryRoot(t)
+	directory := t.TempDir()
+	renderSlotFixture(t, directory, root)
+	writeFixture(t, directory, "mixed_test.go", []byte(`//go:build mixed
+
+package generated
+import (
+ "context"
+ rightclient "example.test/generated/gen/go/carrier-client"
+ probe "example.test/generated/api/go/probe-protocol"
+ "github.com/Bitspark/nightseam/runtime/go"
+)
+var _, _ = rightclient.Dial[probe.Envelope, string](context.Background(), "", runtime.DialOptions{}, nil)
+`))
+	writeFixture(t, directory, "mixed_families_test.go", []byte(`//go:build families
+
+package generated
+import (
+ "context"
+ rightclient "example.test/generated/gen/go/carrier-client"
+ probe "example.test/generated/api/go/probe-protocol"
+ "github.com/Bitspark/nightseam/runtime/go"
+)
+var _, _ = rightclient.Dial[probe.Envelope, runtime.Raw](context.Background(), "", runtime.DialOptions{}, nil)
+`))
+	// The compiler reports one inference failure per package, so each case
+	// is its own build.
+	for tag, want := range map[string]string{"mixed": "string) does not satisfy runtime.Of[STag] (missing method Of)", "families": "Raw) does not satisfy runtime.Of[STag] (wrong type for method Of)"} {
+		command := exec.Command("go", "vet", "-tags", tag, ".")
+		command.Dir = directory
+		out, err := command.CombinedOutput()
+		if err == nil {
+			t.Fatalf("a mixed instantiation compiled under -tags %s", tag)
+		}
+		if !strings.Contains(string(out), want) {
+			t.Errorf("the compiler did not refuse as expected, wanting %q:\n%s", want, out)
+		}
+	}
+	// The same package, instantiated coherently, compiles: the fixture's own
+	// tests are the proof, and so is the relay's opaque instantiation.
+	writeFixture(t, directory, "opaque_test.go", []byte(`package generated
+import (
+ "context"
+ rightclient "example.test/generated/gen/go/carrier-client"
+ "github.com/Bitspark/nightseam/runtime/go"
+)
+var _ = func() { _, _ = rightclient.Dial[runtime.Raw, runtime.Raw](context.Background(), "", runtime.DialOptions{}, nil) }
+`))
+	command := exec.Command("go", "vet", ".")
+	command.Dir = directory
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("the opaque instantiation did not compile:\n%s", out)
 	}
 }

@@ -29,8 +29,9 @@ type TypeExpr = any
 // Imports names the families whose types this one refers to as family.Type;
 // Imported is those families as parsed, which the kernel supplies from the
 // world it renders; Families is every family in that world, which a slot may
-// name, and Sessions those of them that declare the session role. None of
-// the three is part of the contract's bytes.
+// name, Sessions those of them that declare the session role, and Members
+// those parsed, which a slot of a parameter's type is checked against. None
+// of the four is part of the contract's bytes.
 type API struct {
 	SchemaVersion int               `json:"schema_version"`
 	Profile       string            `json:"profile"`
@@ -48,6 +49,7 @@ type API struct {
 	Imported      map[string]API    `json:"-"`
 	Families      []string          `json:"-"`
 	Sessions      []string          `json:"-"`
+	Members       map[string]API    `json:"-"`
 }
 
 // Parameter is a hole in a family: a slot names it, and a consumer binds it
@@ -409,23 +411,34 @@ func Reference(expr TypeExpr) (family, name string, ok bool) {
 		return "", "", false
 	}
 	at := strings.IndexByte(text, '.')
-	if at <= 0 {
+	if at <= 0 || Parameterized(text[:at]) {
 		return "", "", false
 	}
 	return text[:at], text[at+1:], true
 }
 
-// Slot reports a slot expression: {"connection": F} or {"envelope": F},
-// with its kind and the family it is of, which may be "session".
-func Slot(expr TypeExpr) (kind, family string, ok bool) {
-	object, isObject := expr.(map[string]any)
-	if !isObject {
-		return "", "", false
-	}
-	for _, kind := range []string{"connection", "envelope"} {
-		if value, present := object[kind]; present {
-			family, _ := value.(string)
-			return kind, family, true
+// Slot reports a slot: a type drawn from another family, named where the
+// generated code is instantiated when the family is a parameter. It is
+// spelled three ways — {"envelope": X} for X's Envelope, {"connection": X}
+// for X's Handle, and "X.T" for any type T of X where X is a parameter — and
+// reported one way: the target, a parameter or a named family, and the type
+// drawn from it. "f.T" with f a named family is a Reference, not a slot.
+func Slot(expr TypeExpr) (target, typeName string, ok bool) {
+	switch x := expr.(type) {
+	case string:
+		at := strings.IndexByte(x, '.')
+		if at <= 0 || !Parameterized(x[:at]) {
+			return "", "", false
+		}
+		return x[:at], x[at+1:], true
+	case map[string]any:
+		if value, present := x[EnvelopeSlot]; present {
+			target, _ := value.(string)
+			return target, EnvelopeType, true
+		}
+		if value, present := x[ConnectionSlot]; present {
+			target, _ := value.(string)
+			return target, HandleType, true
 		}
 	}
 	return "", "", false
@@ -497,7 +510,7 @@ func Substitute(input map[string]any, bindings map[string]string) map[string]any
 			}
 			return expr
 		}
-		if kind, of, ok := Slot(expr); ok {
+		if of, typeName, ok := Slot(expr); ok {
 			if bound, isParameter := bindings[of]; isParameter {
 				of = bound
 			} else if Parameterized(of) {
@@ -506,10 +519,7 @@ func Substitute(input map[string]any, bindings map[string]string) map[string]any
 				return expr
 			}
 			imports[of] = true
-			if kind == ConnectionSlot {
-				return of + "." + HandleType
-			}
-			return of + "." + EnvelopeType
+			return of + "." + typeName
 		}
 		if object, ok := expr.(map[string]any); ok {
 			for _, key := range []string{"array", "map"} {
@@ -764,6 +774,47 @@ func Check(api API) []Diagnostic {
 	// declaring type's layer, or rpc for a method or an event.
 	var expression func(TypeExpr, string, string, int)
 	expression = func(expr TypeExpr, pointer, owner string, context int) {
+		if target, typeName, ok := Slot(expr); ok {
+			switch {
+			case Parameterized(target):
+				if !parameters[target] {
+					add("unresolved_parameter", pointer, "Unknown parameter "+target+": this family declares no parameter of that name.")
+				} else if typeName != EnvelopeType && typeName != HandleType {
+					// A type beyond the two every family carries must be one
+					// every family that may bind the parameter declares, as a
+					// record or an enum of its own — an alias has no identity
+					// for a language to hold it to — and plainly.
+					for _, member := range api.Sessions {
+						other, parsed := api.Members[member]
+						if !parsed {
+							continue
+						}
+						t, declared := other.Types[typeName]
+						switch {
+						case !declared:
+							add("unresolved_type", pointer, "Type "+typeName+" of "+target+": the session family "+member+" declares no type of that name, and every family that may bind "+target+" must.")
+						case t.Kind == "alias":
+							add("unresolved_type", pointer, "Type "+typeName+" of "+target+": in the session family "+member+" it is an alias, and a slot draws a record or an enum.")
+						case len(other.Generics().Types[typeName]) > 0:
+							add("unresolved_type", pointer, "Type "+typeName+" of "+target+": in the session family "+member+" it is generic, and a slot draws a plain type.")
+						}
+					}
+				}
+			case target == api.Name:
+				add("self_slot", pointer, "A slot cannot be of the family that declares it.")
+			case !families[target]:
+				add("unresolved_type", pointer, "Unknown family "+target+": it is not among the contracts rendered together.")
+			case typeName != EnvelopeType && typeName != HandleType:
+				add("unresolved_type", pointer, "A slot of a named family draws its Envelope or its Handle; for another of its types, import the family and refer to "+target+"."+typeName+".")
+			}
+			// A slot is an operation's datum — one message of another family,
+			// or a handle to a channel that speaks it — and sits in the rpc
+			// layer or above: data holds no other family's operations.
+			if layered && context < layerRank(LayerRPC) {
+				add("layer_violation", pointer, fmt.Sprintf("A slot holds another family's operations and may sit in the %s layer or above, not in %s.", LayerRPC, Layers[context]))
+			}
+			return
+		}
 		if family, name, ok := Reference(expr); ok {
 			if !imported[family] {
 				add("unresolved_type", pointer, "Type "+family+"."+name+" names a family this contract does not import.")
@@ -831,25 +882,6 @@ func Check(api API) []Diagnostic {
 				if layered && other.Layers != nil && layerOf(name, other.Layers) > context {
 					add("layer_violation", pointer, fmt.Sprintf("A %s declaration refers to %s, declared in %s; a declaration refers to its own layer or a lower one.", Layers[context], reference, other.Layers[name]))
 				}
-			}
-			return
-		}
-		if kind, target, ok := Slot(expr); ok {
-			switch {
-			case Parameterized(target):
-				if !parameters[target] {
-					add("unresolved_parameter", pointer, "Unknown parameter "+target+": this family declares no parameter of that name.")
-				}
-			case target == api.Name:
-				add("self_slot", pointer, "A "+kind+" slot cannot be of the family that declares it.")
-			case !families[target]:
-				add("unresolved_type", pointer, "Unknown family "+target+": it is not among the contracts rendered together.")
-			}
-			// A slot is an operation's datum — one message of another family,
-			// or a handle to a channel that speaks it — and sits in the rpc
-			// layer or above: data holds no other family's operations.
-			if layered && context < layerRank(LayerRPC) {
-				add("layer_violation", pointer, fmt.Sprintf("A %s slot holds another family's operations and may sit in the %s layer or above, not in %s.", kind, LayerRPC, Layers[context]))
 			}
 			return
 		}
@@ -989,7 +1021,7 @@ func Check(api API) []Diagnostic {
 	}
 	used := map[string]bool{}
 	api.Expressions(func(expr TypeExpr) {
-		if _, target, ok := Slot(expr); ok && Parameterized(target) {
+		if target, _, ok := Slot(expr); ok && Parameterized(target) {
 			used[target] = true
 		}
 		if _, with, ok := Apply(expr); ok {
@@ -1019,7 +1051,18 @@ func Check(api API) []Diagnostic {
 // method's params must be: a record of this family or of an imported one, or
 // a slot, since both an Envelope and a Handle are records.
 func (api API) object(expr TypeExpr) bool {
-	if _, _, ok := Slot(expr); ok {
+	if target, typeName, ok := Slot(expr); ok {
+		if typeName == EnvelopeType || typeName == HandleType {
+			return true
+		}
+		if !Parameterized(target) {
+			return false
+		}
+		for _, member := range api.Sessions {
+			if other, parsed := api.Members[member]; parsed && other.Types[typeName].Kind != "record" {
+				return false
+			}
+		}
 		return true
 	}
 	name, isName := expr.(string)
@@ -1039,17 +1082,23 @@ const (
 	ConnectionSlot = "connection"
 )
 
-// SlotKinds is every slot kind, in the order a language declares the type
-// parameters they become.
-var SlotKinds = []string{EnvelopeSlot, ConnectionSlot}
-
-// SlotType is the type a slot of a kind draws from the family that fills
-// it: an envelope slot the family's Envelope, a connection slot its Handle.
-func SlotType(kind string) string {
-	if kind == ConnectionSlot {
-		return HandleType
+// DrawnBefore orders the types a parameter is drawn at, which is the order a
+// language declares the type parameters they become: Envelope, Handle, then
+// the rest by name.
+func DrawnBefore(a, b string) bool {
+	rank := func(name string) int {
+		switch name {
+		case EnvelopeType:
+			return 0
+		case HandleType:
+			return 1
+		}
+		return 2
 	}
-	return EnvelopeType
+	if rank(a) != rank(b) {
+		return rank(a) < rank(b)
+	}
+	return a < b
 }
 
 // Expressions visits every type expression the contract holds — each
@@ -1095,7 +1144,7 @@ func (api API) Expressions(visit func(expr TypeExpr)) {
 func (api API) SlotFamilies() []string {
 	seen := map[string]bool{}
 	api.Expressions(func(expr TypeExpr) {
-		if _, target, ok := Slot(expr); ok && !Parameterized(target) {
+		if target, _, ok := Slot(expr); ok && !Parameterized(target) {
 			seen[target] = true
 		}
 		if reference, with, ok := Apply(expr); ok {
@@ -1134,14 +1183,14 @@ func sortedNames(set map[string]bool) []string {
 	return names
 }
 
-// Use is one parameter used at one slot kind: the pair a language turns into
-// a type parameter. A family generic in S and T, where S is used as both an
-// envelope and a connection and T only as an envelope, has the uses
-// {S,envelope}, {S,connection}, {T,envelope} — in that order, by the
-// parameter's declaration and then by SlotKinds.
+// Use is one parameter drawn at one type: the pair a language turns into a
+// type parameter. A family generic in S and T, where S is drawn at its
+// Envelope and its Handle and T at its Envelope, has the uses {S,Envelope},
+// {S,Handle}, {T,Envelope} — in that order, by the parameter's declaration
+// and then by DrawnBefore.
 type Use struct {
 	Parameter string
-	Kind      string
+	Type      string
 }
 
 // Generics is what makes a family generic. A slot of a parameter is filled
@@ -1189,7 +1238,7 @@ func (api API) Generics() Generics {
 			if !Parameterized(target) {
 				continue
 			}
-			if renamed := (Use{target, use.Kind}); !slices.Contains(out, renamed) {
+			if renamed := (Use{target, use.Type}); !slices.Contains(out, renamed) {
 				out = append(out, renamed)
 			}
 		}
@@ -1203,26 +1252,29 @@ func (api API) Generics() Generics {
 	}
 	union := func(sets ...[]Use) []Use {
 		var out []Use
-		for _, parameter := range api.ParameterNames() {
-			for _, kind := range SlotKinds {
-				want := Use{parameter, kind}
-				for _, set := range sets {
-					if slices.Contains(set, want) && !slices.Contains(out, want) {
-						out = append(out, want)
-					}
+		for _, set := range sets {
+			for _, use := range set {
+				if !slices.Contains(out, use) {
+					out = append(out, use)
 				}
 			}
 		}
+		sort.SliceStable(out, func(i, j int) bool {
+			if out[i].Parameter != out[j].Parameter {
+				return order[out[i].Parameter] < order[out[j].Parameter]
+			}
+			return DrawnBefore(out[i].Type, out[j].Type)
+		})
 		return out
 	}
 	// usesOf is the uses an expression makes, given the uses known of every
 	// type so far; the fixpoint below reaches the types through references.
 	var usesOf func(expr TypeExpr) []Use
 	usesOf = func(expr TypeExpr) []Use {
-		if kind, target, ok := Slot(expr); ok {
+		if target, typeName, ok := Slot(expr); ok {
 			if Parameterized(target) {
 				if _, declared := order[target]; declared {
-					return []Use{{target, kind}}
+					return []Use{{target, typeName}}
 				}
 			}
 			return nil

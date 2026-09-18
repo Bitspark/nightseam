@@ -71,7 +71,7 @@ func validateWire(expression any,value any,location string) error {
  case "number","integer":n,ok:=value.(json.Number);if !ok{return bad(name)};v,err:=n.Float64();if err!=nil||math.IsInf(v,0)||math.IsNaN(v){return bad("finite number")};if name=="integer"&&!safeInteger(string(n)){return bad("JavaScript-safe integer")};return nil
  case "timestamp":text,ok:=value.(string);if !ok{return bad("timestamp")};if _,err:=time.Parse(time.RFC3339Nano,text);err!=nil{return bad("RFC3339 timestamp")};return nil
  }
- if at:=strings.IndexByte(name,'.');at>=0{validate,ok:=importedValidators[name[:at]];if !ok{return bad("known family")};data,err:=json.Marshal(value);if err!=nil{return err};if err:=validate(name[at+1:],data);err!=nil{return fmt.Errorf("%s: %w",location,err)};return nil}
+ if at:=strings.IndexByte(name,'.');at>=0{if name[0]>='A'&&name[0]<='Z'{return validateJSON(value,location)};validate,ok:=importedValidators[name[:at]];if !ok{return bad("known family")};data,err:=json.Marshal(value);if err!=nil{return err};if err:=validate(name[at+1:],data);err!=nil{return fmt.Errorf("%s: %w",location,err)};return nil}
  t,ok:=wireTypes[name];if !ok{return bad("known type")}
  switch t.Kind {
  case "alias":return validateWire(t.Type,value,location)

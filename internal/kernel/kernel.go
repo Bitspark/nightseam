@@ -70,6 +70,18 @@ func resolve(api *contract.API, world World) []contract.Diagnostic {
 	}
 	sort.Strings(api.Families)
 	sort.Strings(api.Sessions)
+	// A slot of a parameter's type is held to every family that may bind the
+	// parameter; a member that does not parse is left out here and reported
+	// by whoever renders it.
+	api.Members = map[string]contract.API{}
+	for _, name := range api.Sessions {
+		if name == api.Name {
+			continue
+		}
+		if member, problems := contract.Parse(world[name]); len(problems) == 0 {
+			api.Members[name] = member
+		}
+	}
 	for i, name := range api.Imports {
 		raw, ok := world[name]
 		if !ok || name == api.Name {

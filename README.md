@@ -50,16 +50,22 @@ A family declares the parameters it is generic in, and a slot names one:
   "Frame": {"kind": "record", "fields": [
     {"name": "message", "type": {"envelope": "S"}},
     {"name": "back",    "type": {"connection": "S"}},
-    {"name": "heard",   "type": {"envelope": "T"}}]}}
+    {"name": "heard",   "type": {"envelope": "T"}},
+    {"name": "last",    "type": "S.Payload"}]}}
 ```
 
-A slot target in upper camel case is a parameter, in lower case a family:
+A slot draws a type from another family: `{"envelope": "S"}` is S's
+`Envelope`, one message of it, `{"connection": "S"}` is S's `Handle`, a
+channel that speaks it, and `"S.Payload"` is any record or enum `Payload` of
+S. A slot target in upper camel case is a parameter, in lower case a family:
 `{"envelope": "codex"}` is one message of codex and the generated code refers
 to codex's own `Envelope`. A parameter is bound where the generated code is
 instantiated, to any family that declares its role — today `session`, the
-role a family with a `sess` layer carries. There is no limit on how many
-parameters a family declares, and two parameters never collapse into one: a
-consumer may bind `S` to one session family and `T` to another.
+role a family with a `sess` layer carries — and a slot of `S.Payload` holds
+every such family to declaring `Payload`, plainly, which the tool checks
+across the world. There is no limit on how many parameters a family declares,
+and two parameters never collapse into one: a consumer may bind `S` to one
+session family and `T` to another.
 
 A method's `request` is a type expression like any other, so it may hold a
 slot; a declared parameter nothing names is reported, as is a slot naming a
@@ -82,30 +88,33 @@ Nightseam renders such a family once, generically, and a consumer
 instantiates it:
 
 - TypeScript has associated types, so one parameter is one type parameter
-  whatever kinds it is used at: `Frame<S extends AnyFamily = SessionFamily>`
-  with `message: S["Envelope"]`, `SessionFamily` the union of the session
-  families of the world, and one binding argument per parameter,
+  whatever it is drawn at: `Frame<S extends AnyFamily = SessionFamily>` with
+  `message: S["Envelope"]` and `last: S["Payload"]`, the bound narrowed to
+  `AnyFamily & { "Payload": unknown }` where a type beyond the two every
+  family carries is drawn, `SessionFamily` the union of the session families
+  of the world, and one binding argument per parameter,
   `Client.dial(url, probe.family, codex.family, …)`, whose validators then
-  validate what fills each slot. Every family exports its `Family` descriptor
-  and its `family` binding for this.
-- Go has none, so a parameter becomes one type parameter per kind, named for
-  the parameter and the kind: `S` gives `SE` and `SH`, and a type takes only
-  the ones it uses — `Frame[SE any]`, `Attachment[SH any]`,
-  `Both[SE, SH, TE any]`. `Frame[codexprotocol.Envelope]` validates what
-  fills the slot through codex's codec; `Frame[json.RawMessage]` passes it
-  through, which is what a relay wants.
+  validate what fills each slot. Every family exports its `Family` descriptor,
+  listing every plain type it declares, and its `family` binding for this.
+- Go has none, so a parameter becomes one type parameter per type drawn from
+  it, named for both: `S` drawn at its `Envelope`, `Handle` and `Payload`
+  gives `SEnvelope`, `SHandle` and `SPayload`, and a type takes only the ones
+  it uses — `Frame[SEnvelope any]`, `Attachment[SHandle any]`,
+  `Both[SEnvelope, SHandle, TEnvelope any]`.
+  `Frame[codexprotocol.Envelope]` validates what fills the slot through
+  codex's codec; `Frame[runtime.Raw]` passes it through, which is what a
+  relay wants.
 
-  Nothing in Go relates `SE` to `SH`, so on their own they could be bound to
-  one family's `Envelope` and another's `Handle` — a pairing no binding of
-  the contract produces and no TypeScript peer can express. The entry points
-  therefore take the binding as one argument per parameter, and every
-  protocol package exports its own: `Dial(ctx, url, probeprotocol.Family, …)`
-  infers `SE` and `SH` together from it, and asking for a pair it does not
-  have is a compile error. A family's own declarations take both type
-  parameters of every parameter for this, so a parameter used at one kind
-  carries the other as a phantom; `runtime.Opaque()` binds a parameter to no
-  family, for a relay. A consumer who builds a mismatched `runtime.Family`
-  literal by hand can still mix them: Go offers no way to forbid that.
+  Nothing in a type declaration relates `SEnvelope` to `SHandle`, so the
+  entry points do: every record and enum of a protocol package returns the
+  package's `Tag` from `Of`, and `Dial`, `Attach`, `Serve`, `NewHandler` and
+  `Open` hold every type parameter drawn from `S` to `runtime.Of[STag]`. The
+  compiler infers them all from the handler, or from the ones a caller
+  spells — `Dial[probe.Envelope, probe.Handle](…)`, the tag never written —
+  and an `Envelope` of one family beside a `Handle` of another, or a type of
+  no family at all, does not compile. `runtime.Raw` carries a tag of its own
+  for the relay. What remains is a `Client` literal built by hand, which
+  bypasses the entry points and is a deliberate act.
 
 The two ways to a concrete package — binding the parameters into the contract
 and rendering it plain, or rendering generically and instantiating — must

@@ -1,30 +1,32 @@
 package runtime
 
-import "encoding/json"
+// Of is what an entry point of a package generic in a family holds its type
+// arguments to. Every record and enum a family's protocol package declares
+// returns the package's Tag from Of, and an entry point that takes a
+// parameter S drawn at several types constrains each to Of[STag]: they are
+// then types of one family, or the call does not compile, whether the
+// caller spells them or the compiler infers them from the handler. Go has
+// no associated types; this is the pairing they would have given.
+type Of[T any] interface{ Of() T }
 
-// Family binds a family where a generic package is instantiated: its name
-// and the validator of its wire types.
-//
-// Go has no associated types, so a contract parameter becomes one type
-// parameter per slot kind — SE and SH for a parameter S. Nothing in the
-// generated code relates the two, so on their own they could be bound to one
-// family's Envelope and another's Handle, which is a pairing no binding of
-// the contract produces and no TypeScript peer can express. Taking the
-// binding as one argument pairs them again: an entry point that takes
-// Family[SE, SH] infers both from it, so the two come from one family or the
-// call does not compile.
-//
-// What fills a slot is validated by the bound family's own codec, which the
-// instantiated types carry: Frame[probeprotocol.Envelope] marshals its
-// message through probe's MarshalJSON. Validate is the same check over raw
-// bytes, for a consumer that holds the binding and not the type.
-type Family[E, H any] struct {
-	Name     string
-	Validate func(typeName string, data []byte) error
+// Opaque is the tag of Raw: no family at all.
+type Opaque struct{}
+
+// Raw fills a slot with JSON passed through unexamined, which is what a
+// relay wants: it carries the bytes and satisfies Of, so a generic package
+// instantiated with it compiles, and validates nothing of what it carries.
+type Raw []byte
+
+func (Raw) Of() Opaque { return Opaque{} }
+
+func (r Raw) MarshalJSON() ([]byte, error) {
+	if len(r) == 0 {
+		return []byte("null"), nil
+	}
+	return r, nil
 }
 
-// Opaque binds a parameter to no family: what fills its slots passes through
-// as raw JSON and is not validated here, which is what a relay wants.
-func Opaque() Family[json.RawMessage, json.RawMessage] {
-	return Family[json.RawMessage, json.RawMessage]{Validate: func(string, []byte) error { return nil }}
+func (r *Raw) UnmarshalJSON(data []byte) error {
+	*r = append((*r)[:0], data...)
+	return nil
 }

@@ -187,7 +187,7 @@ func TestSubstituteFillsEverySlot(t *testing.T) {
 func spell(uses []Use) string {
 	out := make([]string, len(uses))
 	for i, use := range uses {
-		out[i] = use.Parameter + ":" + use.Kind
+		out[i] = use.Parameter + ":" + use.Type
 	}
 	return strings.Join(out, ",")
 }
@@ -202,7 +202,7 @@ func TestGenericsFollowTheParameterSlots(t *testing.T) {
 		t.Fatal(diagnostics)
 	}
 	g := api.Generics()
-	for name, want := range map[string]string{"Frame": "S:envelope", "Frames": "S:envelope", "Attachment": "S:connection"} {
+	for name, want := range map[string]string{"Frame": "S:Envelope", "Frames": "S:Envelope", "Attachment": "S:Handle"} {
 		if got := spell(g.Types[name]); got != want {
 			t.Errorf("%s is generic in %q, want %q", name, got, want)
 		}
@@ -212,7 +212,7 @@ func TestGenericsFollowTheParameterSlots(t *testing.T) {
 			t.Errorf("%s is generic", plain)
 		}
 	}
-	if got := spell(g.Family); got != "S:envelope,S:connection" || !g.Generic() {
+	if got := spell(g.Family); got != "S:Envelope,S:Handle" || !g.Generic() {
 		t.Errorf("the family is generic in %q", got)
 	}
 	if got := strings.Join(api.SlotFamilies(), ","); got != "probe" {
@@ -231,10 +231,10 @@ func TestGenericsFollowTheParameterSlots(t *testing.T) {
 	}
 	other.Imported = map[string]API{"carrier": api}
 	og := other.Generics()
-	if spell(og.Types["Input"]) != "T:envelope" || spell(og.Family) != "T:envelope" {
+	if spell(og.Types["Input"]) != "T:Envelope" || spell(og.Family) != "T:Envelope" {
 		t.Errorf("a family referring to a generic type of another is generic in %v, %v", og.Types, og.Family)
 	}
-	if spell(og.Imported["carrier"]["Frames"]) != "S:envelope" {
+	if spell(og.Imported["carrier"]["Frames"]) != "S:Envelope" {
 		t.Error("the imported family's generics are not carried")
 	}
 	substituted, diagnostics := Parse(Substitute(carrierFixture(t), map[string]string{"S": "probe"}))
@@ -287,21 +287,21 @@ func TestTwoParametersStayApart(t *testing.T) {
 	}
 	g := api.Generics()
 	for name, want := range map[string]string{
-		"Frame": "S:envelope,S:connection",
-		"Echo":  "T:envelope",
-		"Both":  "S:envelope,S:connection,T:envelope",
+		"Frame": "S:Envelope,S:Handle",
+		"Echo":  "T:Envelope",
+		"Both":  "S:Envelope,S:Handle,T:Envelope",
 		"Plain": "",
 	} {
 		if got := spell(g.Types[name]); got != want {
 			t.Errorf("%s is generic in %q, want %q", name, got, want)
 		}
 	}
-	if got := spell(g.Family); got != "S:envelope,S:connection,T:envelope" {
+	if got := spell(g.Family); got != "S:Envelope,S:Handle,T:Envelope" {
 		t.Errorf("the family is generic in %q", got)
 	}
 	// The request holds a slot of T, which is why the family is generic in it
 	// even though no type of the family names T at an envelope but Echo.
-	if got := spell(api.Generics().Family); !strings.Contains(got, "T:envelope") {
+	if got := spell(api.Generics().Family); !strings.Contains(got, "T:Envelope") {
 		t.Errorf("a slot in a request did not reach the family: %q", got)
 	}
 }
@@ -374,7 +374,7 @@ func TestParametersAreCheckedAndBoundOneByOne(t *testing.T) {
 	if len(diagnostics) != 0 {
 		t.Fatal(diagnostics)
 	}
-	if got := spell(api.Generics().Family); got != "T:envelope" {
+	if got := spell(api.Generics().Family); got != "T:Envelope" {
 		t.Fatalf("a partial binding left the contract generic in %q", got)
 	}
 	if names := api.ParameterNames(); len(names) != 1 || names[0] != "T" {
