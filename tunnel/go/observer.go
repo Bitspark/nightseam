@@ -91,6 +91,15 @@ var (
 	_ runtime.ObserverEvent = OpenRefused{}
 )
 
+// Peer is what a layer carried on a channel observes through: the outer peer
+// the channel's tunnel runs over, whose observer is the only one there is. A
+// session of a family speaks over a channel and is given nothing else of the
+// tunnel, so this is how it emits its events without an observer option of its
+// own — the same way the tunnel emits its own, one step further down. It is
+// Tunnel.Peer of the tunnel this channel belongs to, and the twin of the
+// Channel.observe tunnel/ts gained for session/ts in d9d0c6a.
+func (c *Channel) Peer() *runtime.Peer { return c.t.Peer() }
+
 // Every hook point below asks the peer for an observer before it builds
 // anything: a tunnel over a peer given none reads no clock and allocates no
 // event for nobody, as the runtime's own hook points do.
