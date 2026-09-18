@@ -18,7 +18,7 @@ import { pipe } from '@nightseam/duplex';
 import { DuplexError, DuplexPeer } from '@nightseam/runtime';
 import { Tunnel, type Channel } from '@nightseam/tunnel';
 import { asks, Client, decides, type Handler, type Payload } from '../../../cmd/nightseam/testdata/golden/api/ts/probe-client/src/index.ts';
-import { memoryLog, Registry, type Attachment, type Governance, type Log, type Role } from './index.ts';
+import { memoryLog, Registry, type Attachment, type Change, type Governance, type Log, type Role } from './index.ts';
 
 /** The channels a run of the suite is given: each open is one channel, the end a peer speaks on and the end the registry is given. */
 export interface Wire {
@@ -87,12 +87,40 @@ const payload = (text: string, count = 1): Payload => ({ text, count });
 /** A consumer of the family that answers what the machine asks. */
 const answering: Handler = { reverse: params => ({ ...params, text: [...params.text].reverse().join('') }) };
 
+/** The members a change carries and no others: what it says, beside what it never does. */
+const MEMBERS = ['at', 'session', 'kind', 'attachment', 'sequence', 'method', 'trace'];
+
+/** One change as a line: its kind, whom it concerns, the method it names and the sequence it carries — what a consumer's own events are built from. */
+function spell(change: Change): string {
+  const parts: (string | undefined)[] = [change.kind, change.attachment?.origin, change.method];
+  if (change.sequence !== undefined) parts.push('#' + change.sequence);
+  return parts.filter((part): part is string => part !== undefined).join(' ');
+}
+
+/** What a change says, as text: every member of it, an attachment read as the two facts it is rather than as the channel it speaks on. */
+function words(change: Change): string {
+  return JSON.stringify({ ...change, attachment: change.attachment && { role: change.attachment.role, origin: change.attachment.origin } });
+}
+
+/** Every change a registry makes, in the order it made them: the lines, and the changes themselves for what a line does not say. */
+function watching(registry: Registry) {
+  const lines: string[] = [];
+  const changes: Change[] = [];
+  const stop = registry.onChange(change => { lines.push(spell(change)); changes.push(change); });
+  return { lines, changes, stop, of: (kind: string) => changes.filter(change => change.kind === kind) };
+}
+
+/** The traces of the suite's two traced frames: a change that concerns one of them carries the trace that frame carried. */
+const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+const asked = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b8-01';
+
 /** run registers the suite over the channels connect supplies. */
 export function run(connect: Connect): void {
   /** A bound session: the wire its channels come from, the registry, the log, and the end the machine speaks on. */
-  async function bound(maxFrameBytes = 1 << 20) {
+  async function bound(maxFrameBytes = 1 << 20, before: (registry: Registry) => void = () => { /* A run that watches the session from before it is bound says so. */ }) {
     const wire = await connect();
     const registry = new Registry();
+    before(registry);
     const log = memoryLog(maxFrameBytes);
     const { near: machine, far: up } = await wire.open();
     registry.bind('s', up, governance, log);
@@ -312,6 +340,139 @@ export function run(connect: Connect): void {
     assert.equal(two.near.state, 'closed');
     assert.throws(() => registry.attach('s', two.attachment.channel, 'participant', 'again', 0), (error: unknown) => error instanceof DuplexError && error.code === 'no_session');
     assert.deepEqual(registry.attention(), []);
+    wire.close();
+  });
+
+  test('every domain change of a session reaches onChange, in the order the registry made them', async () => {
+    let seen!: ReturnType<typeof watching>;
+    const { wire, registry, machine } = await bound(1 << 20, registry => { seen = watching(registry); });
+    const atMachine = listen(machine);
+    const one = await consumer(wire, registry, 'participant', 'one');
+    const two = await consumer(wire, registry, 'participant', 'two');
+    registry.control('s', one.attachment);
+    // The holder's deciding request, and the machine's answer to it.
+    say(one.near, { version: 1, kind: 'request', id: 'c:1', method: 'echo', params: payload('by the holder'), traceparent });
+    const request = await atMachine.next();
+    say(machine, { version: 1, kind: 'response', id: request.id, result: payload('answered') });
+    await tick();
+    // A request from a consumer that does not hold control, which the relay
+    // answers in the machine's place: a refusal reaches neither the machine
+    // nor the log, and is a change all the same.
+    say(two.near, { version: 1, kind: 'request', id: 'c:1', method: 'echo', params: payload('by the other') });
+    await tick();
+    // What the machine asks: appended, raised, and routed to the holder.
+    say(machine, { version: 1, kind: 'request', id: 's:1', method: 'reverse', params: payload('ask'), traceparent: asked });
+    await tick();
+    // Control moves while the ask is open, so it is routed afresh, and the
+    // consumer it moved to is the one whose answer the machine reads.
+    registry.control('s', two.attachment);
+    await tick();
+    say(two.near, { version: 1, kind: 'response', id: 's:1', result: payload('reveiled') });
+    await tick();
+    one.attachment.detach();
+    await tick();
+    machine.close(4002, 'the machine went away');
+    await tick();
+    assert.deepEqual(seen.lines, [
+      'bound',
+      'attached one #0',
+      'attached two #0',
+      'control_changed one',
+      'frame_appended one echo #1',
+      'frame_appended #2',
+      'refused two echo',
+      'frame_appended reverse #3',
+      'ask_raised reverse',
+      'ask_routed one reverse',
+      'control_changed two',
+      'ask_routed two reverse',
+      'ask_answered two reverse',
+      'frame_appended two #4',
+      'detached one',
+      'unbound',
+    ]);
+    // Every change is of the session it was made on, at the time it was made.
+    for (const change of seen.changes) {
+      assert.equal(change.session, 's');
+      assert.equal(change.at instanceof Date, true);
+    }
+    // A change that concerns a frame carries that frame's trace, and one that
+    // concerns none carries no trace at all.
+    assert.deepEqual(seen.of('ask_raised')[0]!.trace, { traceparent: asked });
+    assert.deepEqual(seen.of('ask_routed').map(change => change.trace?.traceparent), [asked, asked]);
+    assert.deepEqual(seen.of('frame_appended')[0]!.trace, { traceparent });
+    assert.equal(seen.of('frame_appended')[1]!.trace, undefined);
+    for (const kind of ['bound', 'attached', 'control_changed', 'detached', 'unbound']) {
+      for (const change of seen.of(kind)) assert.equal(change.trace, undefined);
+    }
+    wire.close();
+  });
+
+  test('a change says what a frame was and never what it carried', async () => {
+    const sentinel = 'squeamish-ossifrage';
+    let seen!: ReturnType<typeof watching>;
+    const { wire, registry, machine } = await bound(1 << 20, registry => { seen = watching(registry); });
+    const atMachine = listen(machine);
+    const one = await consumer(wire, registry, 'participant', 'one');
+    const two = await consumer(wire, registry, 'observer', 'two');
+    registry.control('s', one.attachment);
+    say(one.near, { version: 1, kind: 'request', id: 'c:1', method: 'echo', params: payload(sentinel) });
+    const request = await atMachine.next();
+    say(machine, { version: 1, kind: 'response', id: request.id, result: payload(sentinel) });
+    say(machine, { version: 1, kind: 'event', event: 'changed', data: payload(sentinel) });
+    say(machine, { version: 1, kind: 'request', id: 's:1', method: 'reverse', params: payload(sentinel) });
+    await tick();
+    say(one.near, { version: 1, kind: 'response', id: 's:1', result: payload(sentinel) });
+    say(two.near, { version: 1, kind: 'request', id: 'c:1', method: 'echo', params: payload(sentinel) });
+    await tick();
+    assert.equal(seen.changes.length > 0, true);
+    for (const change of seen.changes) {
+      assert.equal(words(change).includes(sentinel), false, `a change of kind ${change.kind} carried what a frame carried`);
+      // What it says is the members it declares, so a message cannot arrive
+      // under a name the sentinel was not looked for under.
+      for (const member of Object.keys(change)) assert.equal(MEMBERS.includes(member), true, `a change carried ${member}`);
+    }
+    wire.close();
+  });
+
+  test('the function onChange returns stops that registration and no other', async () => {
+    const heard: string[] = [];
+    const hook = (change: Change) => { heard.push(spell(change)); };
+    let stop!: () => void;
+    const { wire, registry, machine } = await bound(1 << 20, registry => {
+      // The same hook registered twice is two registrations, and stopping one
+      // leaves the other standing; stopping one twice stops nothing else.
+      stop = registry.onChange(hook);
+      registry.onChange(hook);
+      const stopped = registry.onChange(() => { heard.push('gone'); });
+      stopped();
+      stopped();
+    });
+    const one = await consumer(wire, registry, 'participant', 'one');
+    stop();
+    registry.control('s', one.attachment);
+    await tick();
+    assert.deepEqual(heard, ['bound', 'bound', 'attached one #0', 'attached one #0', 'control_changed one']);
+    machine.close(4002, 'the machine went away');
+    await tick();
+    assert.equal(heard.at(-1), 'unbound');
+    wire.close();
+  });
+
+  test('a request beyond what a session may have open is refused, and the refusal is a change like the other', async () => {
+    const wire = await connect();
+    const registry = new Registry({ maxInflight: 1 });
+    const seen = watching(registry);
+    const { near: machine, far: up } = await wire.open();
+    registry.bind('s', up, governance, memoryLog(1 << 20));
+    const atMachine = listen(machine);
+    const one = await consumer(wire, registry, 'participant', 'one');
+    registry.control('s', one.attachment);
+    say(one.near, { version: 1, kind: 'request', id: 'c:1', method: 'echo', params: payload('first') });
+    await atMachine.next();
+    say(one.near, { version: 1, kind: 'request', id: 'c:2', method: 'echo', params: payload('second') });
+    await tick();
+    assert.deepEqual(seen.lines, ['bound', 'attached one #0', 'control_changed one', 'frame_appended one echo #1', 'refused one echo']);
     wire.close();
   });
 }

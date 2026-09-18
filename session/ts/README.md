@@ -16,7 +16,19 @@ registry.bind('s-1', up, { decides, asks }, memoryLog(1 << 20));
 const attachment = registry.attach('s-1', down, 'participant', 'consumer:7', 0);
 registry.control('s-1', attachment);
 registry.attention();     // every session with an unanswered ask
+
+const stop = registry.onChange(change => {
+  change.kind;            // bound, attached, ask_routed, frame_appended, …
+});
+stop();                   // that registration, and no other
 ```
+
+Every domain change of the registry goes one way through `onChange` — one
+`Change` per change, carrying the session, whom it concerns, the method it
+names, the sequence the log reached and the trace of the frame it concerns.
+It is the hook a consumer builds its own events from, and the one place such
+events are computed. It says names, ids and sequences and never a payload:
+what a frame carried is the log's.
 
 The rules it holds, one test each in both languages: a response reaches
 the one consumer that asked and an event every attached one; a deciding

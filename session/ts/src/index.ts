@@ -17,6 +17,7 @@
  * it forwards verbatim, by construction rather than by enumeration.
  */
 import { DuplexError } from '@nightseam/runtime';
+import type { Trace } from '@nightseam/runtime';
 import type { Channel } from '@nightseam/tunnel';
 
 /** One frame of the seam, as the channel it travels on declares it. */
@@ -81,6 +82,47 @@ export function memoryLog(maxFrameBytes: number): Log {
   };
 }
 
+/**
+ * What a registry did to a session: one member per domain change it makes,
+ * the same set in both languages. A consumer builds its own events from
+ * these — an attention list, a change feed — and this is the one place they
+ * are computed.
+ */
+export type ChangeKind =
+  | 'bound'
+  | 'unbound'
+  | 'attached'
+  | 'detached'
+  | 'ask_raised'
+  | 'ask_routed'
+  | 'ask_answered'
+  | 'control_changed'
+  | 'frame_appended'
+  | 'refused';
+
+/**
+ * One domain change, as the registry computed it. It says which session, who
+ * it concerns, which method and which frame — names, ids and sequences, and
+ * never a payload: what a frame carried is the log's, not a hook's.
+ */
+export interface Change {
+  at: Date;
+  /** The session it is a change of. */
+  session: string;
+  kind: ChangeKind;
+  /** The consumer it concerns: the one attached or detached, given control, asked, answering, or refused. A change of the session itself names none. */
+  attachment?: Attachment;
+  /** The sequence the log reached, for a frame appended; the sequence a consumer resumed from, for one attached. */
+  sequence?: number;
+  /** The method of the frame it concerns, where that frame names one. */
+  method?: string;
+  /** The trace of the frame it concerns, as that frame carried it. */
+  trace?: Trace;
+}
+
+/** What a change carries beyond its kind, which the relay knows and the registry stamps the rest onto. */
+type Of = Omit<Change, 'at' | 'session' | 'kind'>;
+
 export interface RegistryOptions {
   /** How many consumers may be attached to one session at once; an attach beyond it is refused. Default: 64. */
   maxAttachments?: number;
@@ -92,6 +134,8 @@ export interface RegistryOptions {
 export class Registry {
   private readonly limits: Required<RegistryOptions>;
   private readonly relays = new Map<string, Relay>();
+  /** One entry per registration rather than one per function, so that the same hook registered twice is stopped once per registration. */
+  private readonly hooks = new Set<{ fn: (change: Change) => void }>();
 
   constructor(options: RegistryOptions = {}) {
     this.limits = {
@@ -125,6 +169,33 @@ export class Registry {
   /** The sessions with an open ask: a request the machine sent that the holder of control has not answered. */
   attention(): string[] {
     return [...this.relays.values()].filter(relay => relay.asking()).map(relay => relay.id);
+  }
+
+  /**
+   * Every domain change of every session bound here, as the registry makes
+   * it, in the order it makes them. The returned function stops exactly this
+   * registration and no other, and a hook that throws interrupts nothing: a
+   * session goes on whatever a consumer's hook does with what it hears.
+   */
+  onChange(fn: (change: Change) => void): () => void {
+    const hook = { fn };
+    this.hooks.add(hook);
+    return () => { this.hooks.delete(hook); };
+  }
+
+  /** @internal */
+  changed(session: string, kind: ChangeKind, of: Of = {}): void {
+    if (this.hooks.size === 0) return;
+    // A member a change does not concern is absent rather than undefined: a
+    // change says what it is about and nothing more.
+    const change: Change = { at: new Date(), session, kind };
+    if (of.attachment) change.attachment = of.attachment;
+    if (of.sequence !== undefined) change.sequence = of.sequence;
+    if (of.method !== undefined) change.method = of.method;
+    if (of.trace) change.trace = of.trace;
+    for (const hook of [...this.hooks]) {
+      try { hook.fn(change); } catch { /* A hook cannot interrupt the session it hears about. */ }
+    }
   }
 
   private relay(id: string): Relay {
@@ -220,6 +291,7 @@ class Relay {
       frame: frame => this.run(() => this.fromUp(frame)),
       close: (code, reason) => this.run(() => this.end(code, reason)),
     });
+    this.change('bound');
   }
 
   attach(down: Channel, role: Role, origin: string, after: number): Attachment {
@@ -242,6 +314,9 @@ class Relay {
       frame: frame => this.run(() => this.fromDown(attachment, frame)),
       close: () => this.run(() => this.drop(attachment)),
     }));
+    // The sequence a consumer attached from is the one fact about it the
+    // attachment does not carry, so the change says what it resumed from.
+    this.change('attached', { attachment, sequence: after });
     return attachment;
   }
 
@@ -251,6 +326,7 @@ class Relay {
       if (holder.role !== 'participant') throw new DuplexError('not_controlling', 'An observer never holds control.');
     }
     this.holder = holder;
+    this.change('control_changed', holder ? { attachment: holder } : {});
     // Every request the machine is waiting on follows control: the consumer
     // it stood with no longer answers it, and whoever holds control now is
     // asked it afresh.
@@ -263,6 +339,9 @@ class Relay {
   }
 
   detach(attachment: Attachment): void { this.run(() => this.drop(attachment)); }
+
+  /** change tells the registry's hooks one domain change of this session, which the registry stamps with the session and the time. */
+  private change(kind: ChangeKind, of: Of = {}): void { this.registry.changed(this.id, kind, of); }
 
   /** run puts one step on the relay's queue; a step that throws leaves the session standing. */
   private run(step: () => void | Promise<void>): void {
@@ -285,16 +364,18 @@ class Relay {
           // The consumer may not decide, so the relay answers in the machine's
           // place; nothing of the request reaches it or the log.
           if (id) this.write(attachment.channel, { version: 1, kind: 'response', id, error: { code: 'not_controlling', message: 'Only the holder of control decides on this session.' } });
+          this.change('refused', { attachment, method, trace: traceOf(envelope) });
           return;
         }
         if (!id) return;
         if (this.inflight.size >= this.registry.limit.maxInflight) {
           this.write(attachment.channel, { version: 1, kind: 'response', id, error: { code: 'busy', message: 'The session has too many requests open.' } });
+          this.change('refused', { attachment, method, trace: traceOf(envelope) });
           return;
         }
         const minted = 'c:' + ++this.upNext;
         this.inflight.set(minted, { at: attachment, id });
-        await this.sendUp(attachment.origin, { ...envelope, id: minted });
+        await this.sendUp(attachment, { ...envelope, id: minted });
         return;
       }
       case 'cancel': {
@@ -303,7 +384,7 @@ class Relay {
         for (const [minted, held] of this.inflight) {
           if (held.at !== attachment || held.id !== id) continue;
           this.inflight.delete(minted);
-          await this.sendUp(attachment.origin, { ...envelope, id: minted });
+          await this.sendUp(attachment, { ...envelope, id: minted });
           return;
         }
         return;
@@ -315,12 +396,13 @@ class Relay {
         const open = this.open.get(id);
         if (!open || open.at !== attachment) return;
         this.open.delete(id);
-        await this.sendUp(attachment.origin, { ...envelope });
+        this.change('ask_answered', { attachment, method: named(open.message), trace: traceOf(envelope) });
+        await this.sendUp(attachment, { ...envelope });
         return;
       }
       default:
         // An event names no method, so nothing about it decides.
-        await this.sendUp(attachment.origin, { ...envelope });
+        await this.sendUp(attachment, { ...envelope });
     }
   }
 
@@ -334,7 +416,7 @@ class Relay {
     // The log is the session's conversation with its machine: every frame
     // the machine sent is recorded once, as it sent it — under the id the
     // session asked with, whether or not there is a consumer to hand it to.
-    const attached = await this.record('down', '', envelope);
+    const attached = await this.record('down', null, envelope);
     const id = typeof envelope.id === 'string' ? envelope.id : undefined;
     switch (envelope.kind) {
       case 'response': {
@@ -351,8 +433,13 @@ class Relay {
         // is what attention counts.
         if (!id) return;
         const method = typeof envelope.method === 'string' ? envelope.method : '';
+        const trace = traceOf(envelope);
         this.open.set(id, { message: envelope, asking: this.governance.asks(method), at: this.holder });
-        if (this.holder) this.write(this.holder.channel, envelope);
+        this.change('ask_raised', { method, trace });
+        if (this.holder) {
+          this.write(this.holder.channel, envelope);
+          this.change('ask_routed', { attachment: this.holder, method, trace });
+        }
         return;
       }
       case 'cancel': {
@@ -375,19 +462,26 @@ class Relay {
     for (const open of this.open.values()) open.at = holder;
     if (!holder) return;
     // The frame the new holder is asked is the one the machine sent, which
-    // the log already holds: routing a frame again is no second frame.
-    for (const open of this.open.values()) this.write(holder.channel, open.message);
+    // the log already holds: routing a frame again is no second frame — but
+    // it is a change of who stands with it, which is what an attention list
+    // is about.
+    for (const open of this.open.values()) {
+      this.write(holder.channel, open.message);
+      this.change('ask_routed', { attachment: holder, method: named(open.message), trace: traceOf(open.message) });
+    }
   }
 
   /** sendUp records a consumer's frame and writes it to the machine, in the order it recorded them. */
-  private async sendUp(origin: string, envelope: Envelope): Promise<void> {
-    await this.record('up', origin, envelope);
+  private async sendUp(from: Attachment, envelope: Envelope): Promise<void> {
+    await this.record('up', from, envelope);
     this.write(this.up, envelope);
   }
 
-  /** record appends a frame to the session's log and returns the consumers there were when its sequence was assigned; one attaching between the two is not among them and takes the frame from the log's replay instead. */
-  private async record(direction: Direction, origin: string, envelope: Envelope): Promise<Attachment[]> {
-    this.sequence = await this.log.append({ sequence: 0, direction, origin, at: new Date(), message: envelope, truncated: false });
+  /** record appends a frame to the session's log and returns the consumers there were when its sequence was assigned; one attaching between the two is not among them and takes the frame from the log's replay instead. A frame from the machine is nobody's, and carries no origin. */
+  private async record(direction: Direction, from: Attachment | null, envelope: Envelope): Promise<Attachment[]> {
+    const sequence = await this.log.append({ sequence: 0, direction, origin: from?.origin ?? '', at: new Date(), message: envelope, truncated: false });
+    this.sequence = sequence;
+    this.change('frame_appended', { sequence, attachment: from ?? undefined, method: named(envelope), trace: traceOf(envelope) });
     return [...this.attachments];
   }
 
@@ -400,9 +494,16 @@ class Relay {
   private drop(attachment: Attachment): void {
     if (!this.attachments.delete(attachment)) return;
     attachment.release();
-    if (this.holder === attachment) this.holder = null;
+    // A consumer that left holding control leaves the session with nobody
+    // holding it, which is the same change Control releasing it makes: a
+    // hook cannot tell the two apart from a detachment alone.
+    if (this.holder === attachment) {
+      this.holder = null;
+      this.change('control_changed');
+    }
     for (const [minted, held] of this.inflight) if (held.at === attachment) this.inflight.delete(minted);
     for (const open of this.open.values()) if (open.at === attachment) open.at = null;
+    this.change('detached', { attachment });
   }
 
   /** end ends the session: the machine's channel closed, so every consumer's ends with the same close. */
@@ -418,6 +519,7 @@ class Relay {
     this.holder = null;
     this.inflight.clear();
     this.open.clear();
+    this.change('unbound');
   }
 }
 
@@ -431,6 +533,19 @@ function read(frame: Wire): Envelope | undefined {
   try { value = JSON.parse(frame.data); } catch { return undefined; }
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined;
   return value as Envelope;
+}
+
+/** The method an envelope names, where it names one: a request does, and a response or an event does not. */
+function named(envelope: Envelope): string | undefined {
+  return typeof envelope.method === 'string' ? envelope.method : undefined;
+}
+
+/** The trace a frame carries, as it carries it: the two members of the profile verbatim, an absent one being none. */
+function traceOf(envelope: Envelope): Trace | undefined {
+  const traceparent = typeof envelope.traceparent === 'string' ? envelope.traceparent : '';
+  const tracestate = typeof envelope.tracestate === 'string' ? envelope.tracestate : '';
+  if (!traceparent && !tracestate) return undefined;
+  return tracestate ? { traceparent, tracestate } : { traceparent };
 }
 
 function positive(value: unknown, what: string): number {
