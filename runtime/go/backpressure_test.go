@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	ws "github.com/Bitspark/nightseam/runtime"
+	ws "github.com/Bitspark/nightseam/runtime/go"
 )
 
 // Delaying actual TCP writes makes producer/transport imbalance reproducible

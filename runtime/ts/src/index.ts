@@ -3,5 +3,5 @@ export type {
   PeerOptions, CallOptions, RequestContext, RequestHandler, Dispatcher,
   EventListener, PeerStatus,
 } from './peer.ts';
-export { webSocketConnection } from './connection.ts';
-export type { Frame, ConnectionState, ConnectionHandlers, FrameConnection, WebSocketLike } from './connection.ts';
+export { webSocketConnection } from '@nightseam/duplex';
+export type { Frame, ConnectionState, ConnectionHandlers, FrameConnection, WebSocketLike } from '@nightseam/duplex';

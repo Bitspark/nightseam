@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	ws "github.com/Bitspark/nightseam/runtime"
+	ws "github.com/Bitspark/nightseam/runtime/go"
 	"github.com/coder/websocket"
 )
 

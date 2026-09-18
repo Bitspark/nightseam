@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Bitspark/nightseam/duplex"
+	"github.com/Bitspark/nightseam/duplex/go"
 )
 
 // TestPeerSpeaksTheProfileOverAnyConnection: two peers over an in-memory

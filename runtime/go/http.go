@@ -7,7 +7,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/Bitspark/nightseam/duplex/ws"
+	"github.com/Bitspark/nightseam/duplex/go/ws"
 )
 
 // ServerOptions requires an explicit authentication and origin policy. The

@@ -78,8 +78,9 @@ func TestGeneratedGoFamilyCompilesAndCommunicates(t *testing.T) {
 	root := repositoryRoot(t)
 	directory := t.TempDir()
 	renderFixture(t, directory, root)
-	copyFixtureTree(t, filepath.Join(root, "ts/runtime"), filepath.Join(directory, "ts/runtime"))
-	writeFixture(t, directory, "runtime-loader.mjs", []byte(`export async function resolve(specifier,context,next){if(specifier==='@nightseam/runtime')return {url:new URL('./ts/runtime/src/index.ts',import.meta.url).href,shortCircuit:true};return next(specifier,context);}`))
+	copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
+	copyFixtureTree(t, filepath.Join(root, "duplex/ts"), filepath.Join(directory, "duplex/ts"))
+	writeFixture(t, directory, "runtime-loader.mjs", []byte(`export async function resolve(specifier,context,next){const map={'@nightseam/runtime':'./runtime/ts/src/index.ts','@nightseam/duplex':'./duplex/ts/src/index.ts'};if(map[specifier])return {url:new URL(map[specifier],import.meta.url).href,shortCircuit:true};return next(specifier,context);}`))
 	writeFixture(t, directory, "roundtrip.mjs", []byte(`import assert from 'node:assert/strict';import {Client} from './api/ts/probe-client/src/index.ts';const client=await Client.dial(process.argv[2],{}, {reverse(params){return {...params,text:'typescript:'+params.text};}});let observed;client.onChanged(data=>{observed=data;});const result=await client.echo({text:'value',count:7,note:null});assert.equal(result.text,'typescript:value');assert.equal(result.note,null);assert.equal(observed.count,7);await assert.rejects(client.echo({text:'bad',count:9007199254740992}));client.close();`))
 	writeFixture(t, directory, "integration_test.go", []byte(goIntegrationFixture))
 	runFixture(t, directory, "go", "test", "-count=1", "./...")
@@ -121,6 +122,11 @@ func copyFixtureTree(t *testing.T, source, destination string) {
 			return err
 		}
 		if d.IsDir() {
+			// A package's installed dependencies are the workspace's links,
+			// not its sources; the fixture maps the packages it needs itself.
+			if d.Name() == "node_modules" {
+				return fs.SkipDir
+			}
 			return nil
 		}
 		if strings.HasSuffix(p, "_test.go") || strings.HasSuffix(p, ".test.ts") || filepath.Base(p) == "interop.ts" {
@@ -185,10 +191,11 @@ func TestGeneratedTypeScriptChecksAndValidates(t *testing.T) {
 	}
 	directory := t.TempDir()
 	renderFixture(t, directory, root)
-	copyFixtureTree(t, filepath.Join(root, "ts/runtime"), filepath.Join(directory, "ts/runtime"))
+	copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
+	copyFixtureTree(t, filepath.Join(root, "duplex/ts"), filepath.Join(directory, "duplex/ts"))
 	// Node refuses to strip source TypeScript inside node_modules. A paths entry
 	// gives the compiler the runtime; executable validation imports protocol types.
-	config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@nightseam/runtime": []string{"./ts/runtime/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts", "ts/**/*.ts"}}
+	config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@nightseam/runtime": []string{"./runtime/ts/src/index.ts"}, "@nightseam/duplex": []string{"./duplex/ts/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts"}}
 	data, _ := json.Marshal(config)
 	writeFixture(t, directory, "tsconfig.json", data)
 	writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))
@@ -360,7 +367,7 @@ import (
  binding "example.test/generated/api/go/probe-binding"
  client "example.test/generated/api/go/probe-client"
  protocol "example.test/generated/api/go/probe-protocol"
- runtime "github.com/Bitspark/nightseam/runtime"
+ runtime "github.com/Bitspark/nightseam/runtime/go"
 )
 type serverHandler struct{}
 func(serverHandler)Echo(ctx context.Context,remote *binding.Remote,p protocol.Payload)(protocol.Payload,error){if err:=remote.EmitChanged(ctx,p);err!=nil{return p,err};return remote.Reverse(ctx,p)}

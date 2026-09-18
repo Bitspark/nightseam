@@ -1,8 +1,8 @@
 # Duplex WebSocket runtime
 
 `@nightseam/runtime` is the handwritten browser/Node peer for generated
-`nightseam.duplex/1` APIs. It has no third-party runtime dependencies and exports
-TypeScript source. Every client Nightseam generates depends on it. It
+`nightseam.duplex/1` APIs, over the seam `@nightseam/duplex`. It has no
+third-party runtime dependencies and exports TypeScript source. Every client Nightseam generates depends on it. It
 descends from Nightshift's runtime by way of Nighthall.
 
 ```ts

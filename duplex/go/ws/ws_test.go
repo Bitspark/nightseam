@@ -10,9 +10,9 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/Bitspark/nightseam/duplex"
-	"github.com/Bitspark/nightseam/duplex/duplextest"
-	"github.com/Bitspark/nightseam/duplex/ws"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/duplex/go/duplextest"
+	"github.com/Bitspark/nightseam/duplex/go/ws"
 )
 
 // connect opens a WebSocket pair over a test server and wraps both ends.

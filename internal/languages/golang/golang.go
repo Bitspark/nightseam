@@ -40,7 +40,7 @@ type Options struct {
 // DefaultRuntime is the runtime the generated packages bind to unless
 // Options.Runtime names another: the Go peer of the nightseam.duplex/1
 // profile.
-const DefaultRuntime = "github.com/Bitspark/nightseam/runtime"
+const DefaultRuntime = "github.com/Bitspark/nightseam/runtime/go"
 
 // New returns the Go language with its options.
 func New(options Options) spi.Language { return &language{options} }

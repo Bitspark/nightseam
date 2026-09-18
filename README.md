@@ -7,10 +7,14 @@ TypeScript packages that bind to one runtime: the `nightseam.duplex/1` profile,
 JSON frames carrying requests, responses, events and cancellations over a
 frames duplex connection, a WebSocket today.
 
+One directory per component, one subdirectory per language: a third
+language's runtime is `runtime/<lang>` and nothing else moves.
+
 ```
-duplex/                 the seam: Conn, Pipe, the close codes; duplex/ws, a WebSocket as a Conn; duplex/duplextest
-runtime/                the Go peer of the profile: envelope, request correlation, cancellation, backpressure, presence, HTTP upgrade
-ts/runtime/             @nightseam/runtime, the TypeScript peer for the browser and Node, no third-party dependency
+duplex/go/              the seam in Go: Conn, Pipe, the close codes; duplex/go/ws, a WebSocket as a Conn; duplex/go/duplextest, the conformance suite
+duplex/ts/              @nightseam/duplex: FrameConnection and the WebSocket adapter
+runtime/go/             the Go peer of the profile: envelope, request correlation, cancellation, backpressure, presence, HTTP upgrade
+runtime/ts/             @nightseam/runtime, the TypeScript peer for the browser and Node, no third-party dependency
 cmd/nightseam/          the generator: generate, check, validate
 internal/contract/      the contract model and its schema, urn:nightseam:contract:1; layers, imports, slots, generics
 internal/kernel/        parses, validates and renders a family within the world of the families it imports
@@ -80,7 +84,7 @@ or given as `--module`, and land at `api/go/<f>-protocol`, `-binding` and
 `-client`; the TypeScript package, `api/ts/<f>-client`, is named under an npm
 scope, `--scope`, the module's last element unless given, and depends on
 `@nightseam/runtime`. The runtime the Go packages bind to is
-`github.com/Bitspark/nightseam/runtime`; in Go, a consumer requires this
+`github.com/Bitspark/nightseam/runtime/go`; in Go, a consumer requires this
 module.
 
 ## Development

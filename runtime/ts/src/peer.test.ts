@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DuplexPeer, DuplexError } from './peer.ts';
 import type { PeerOptions, WebSocketLike } from './peer.ts';
-import { webSocketConnection } from './connection.ts';
-import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from './connection.ts';
+import { webSocketConnection } from '@nightseam/duplex';
+import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from '@nightseam/duplex';
 
 class Socket extends EventTarget implements WebSocketLike {
   readyState = 1;

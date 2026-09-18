@@ -1,7 +1,7 @@
-import { webSocketConnection } from './connection.ts';
-import type { Frame, FrameConnection, WebSocketLike } from './connection.ts';
+import { webSocketConnection } from '@nightseam/duplex';
+import type { Frame, FrameConnection, WebSocketLike } from '@nightseam/duplex';
 
-export type { WebSocketLike } from './connection.ts';
+export type { WebSocketLike } from '@nightseam/duplex';
 
 /** The endpoint selects this profile; it is not a WebSocket subprotocol token. */
 export const DUPLEX_PROFILE = 'nightseam.duplex/1';

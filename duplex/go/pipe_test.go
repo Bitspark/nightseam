@@ -3,8 +3,8 @@ package duplex_test
 import (
 	"testing"
 
-	"github.com/Bitspark/nightseam/duplex"
-	"github.com/Bitspark/nightseam/duplex/duplextest"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/duplex/go/duplextest"
 )
 
 // TestPipeIsAConformingTransport: the in-memory pipe keeps every promise of
