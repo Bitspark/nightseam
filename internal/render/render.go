@@ -60,12 +60,16 @@ type Type struct {
 	At                      diag.Location
 }
 
-// Field is one wire field.
+// Field is one wire field, with its constraints.
 type Field struct {
 	Name, Description string
 	Type              model.TypeExpr
 	Required          bool
 	Nullable          bool
+	Unique            bool
+	Min, Max          *json.Number
+	Length            *model.Length
+	Pattern           string
 	Owner             string // the type that declares it
 	At                diag.Location
 }
@@ -160,7 +164,7 @@ func Build(f *analysis.Family) *Family {
 }
 
 func field(owner string, m model.Field) Field {
-	return Field{Name: m.Name, Description: m.Description, Type: m.Type, Required: m.Required, Nullable: m.Nullable, Owner: owner, At: m.At}
+	return Field{Name: m.Name, Description: m.Description, Type: m.Type, Required: m.Required, Nullable: m.Nullable, Unique: m.Unique, Min: m.Min, Max: m.Max, Length: m.Length, Pattern: m.Pattern, Owner: owner, At: m.At}
 }
 
 func side(f *analysis.Family, s model.Side) Side {

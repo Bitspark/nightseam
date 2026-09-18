@@ -27,7 +27,7 @@ internal/analysis/      a family within its world: imports resolved, inheritance
 internal/check/         the rules, one function per tier and one for the override files
 internal/render/        a family as a target sees it, computed once
 internal/spi/           the seam between the kernel and a target
-internal/targets/       golang and typescript: each renders a family, names the other never
+internal/targets/       golang, typescript and spec: each renders a family, names the others never
 internal/kernel/        load, analyse, check, render
 internal/emit/          a writer, an import set, a namespace: what every target writes with
 internal/naming/        the convention every target derives names by
@@ -240,6 +240,15 @@ wire description the protocol package embeds; both are held to
 `runtime/testdata/validator-cases.json`. A type drawn from a parameter is
 validated by the binding of the family that fills it in TypeScript, and by
 that family's codec where the generic type is instantiated in Go.
+
+### The specification
+
+A third target, `spec`, renders each family's specification as Markdown at
+`api/spec/<family>/README.md` — its types with their fields and
+constraints, the two sides with their operations and errors, the parameters
+it is generic in, the governance of a session of it — from the declaration
+alone, so that the document is never behind it. It reserves nothing and
+refuses nothing.
 
 ## Using it
 
