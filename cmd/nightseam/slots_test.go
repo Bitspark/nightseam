@@ -20,14 +20,16 @@ import (
 	"github.com/Bitspark/nightseam/internal/spi"
 )
 
-// carrierContract carries the probe family: a frame holding one of its
-// envelopes, an attachment holding a handle to a channel that speaks it, a
-// method that returns one of its envelopes by name, and an event of frames.
+// carrierContract carries a family it is generic in, S: a frame holding one
+// of S's envelopes, an attachment holding a handle to a channel that speaks
+// S, a method that returns one of the probe family's envelopes by name, and
+// an event of frames.
 const carrierContract = `{
  "schema_version":1,"profile":"nightseam.duplex/1","name":"carrier",
+ "parameters":[{"name":"S","of":"session"}],
  "types":{
-  "Frame":{"kind":"record","fields":[{"name":"sequence","type":"integer"},{"name":"message","type":{"envelope":"session"}}]},
-  "Attachment":{"kind":"record","fields":[{"name":"connection","type":{"connection":"session"}},{"name":"last","type":"integer"}]},
+  "Frame":{"kind":"record","fields":[{"name":"sequence","type":"integer"},{"name":"message","type":{"envelope":"S"}}]},
+  "Attachment":{"kind":"record","fields":[{"name":"connection","type":{"connection":"S"}},{"name":"last","type":"integer"}]},
   "AttachParams":{"kind":"record","fields":[{"name":"id","type":"string","go_name":"ID"}]},
   "Frames":{"kind":"alias","type":{"array":"Frame"}}
  },
@@ -40,7 +42,7 @@ const carrierContract = `{
 }`
 
 // slotWorld is the probe family, declared a session family, and the
-// carrier, with the carrier substituted with probe: the left path.
+// carrier, with the carrier's parameter S bound to probe: the left path.
 func slotWorld(t *testing.T) (world kernel.World, probe, substituted map[string]any) {
 	t.Helper()
 	probe = exampleAPI(t)
@@ -50,7 +52,7 @@ func slotWorld(t *testing.T) (world kernel.World, probe, substituted map[string]
 		t.Fatal(err)
 	}
 	world = kernel.World{"probe": probe, "carrier": carrier}
-	return world, probe, contract.Substitute(carrier, "probe")
+	return world, probe, contract.Substitute(carrier, map[string]string{"S": "probe"})
 }
 
 // rightLanguages render the carrier as written, generically — the right
@@ -105,18 +107,18 @@ func TestSlottedContractRendersGenerically(t *testing.T) {
 	for p, data := range result.Files {
 		files[p] = string(data)
 	}
-	for pattern, path := range map[string]string{"Message\\s+E\\s": "api/go/carrier-protocol/types_generated.go", "Connection\\s+H\\s": "api/go/carrier-protocol/types_generated.go"} {
+	for pattern, path := range map[string]string{"Message\\s+SE\\s": "api/go/carrier-protocol/types_generated.go", "Connection\\s+SH\\s": "api/go/carrier-protocol/types_generated.go"} {
 		if !regexp.MustCompile(pattern).MatchString(files[path]) {
 			t.Errorf("%s lacks %s", path, pattern)
 		}
 	}
 	for path, wants := range map[string][]string{
-		"api/go/carrier-protocol/types_generated.go":      {"type Frame[E any] struct {", "type Attachment[H any] struct {", "Connection", "type Frames[E any] = []Frame[E]", "type AttachParams struct {", "func (v Frame[E]) MarshalJSON()", "func (v *Frame[E]) UnmarshalJSON("},
+		"api/go/carrier-protocol/types_generated.go":      {"type Frame[SE any] struct {", "type Attachment[SH any] struct {", "Connection", "type Frames[SE any] = []Frame[SE]", "type AttachParams struct {", "func (v Frame[SE]) MarshalJSON()", "func (v *Frame[SE]) UnmarshalJSON("},
 		"api/go/carrier-protocol/validation_generated.go": {`"probe": probeprotocol.ValidateRaw`},
-		"api/go/carrier-binding/binding_generated.go":     {"type Remote[E, H any] struct", "type Handler[E, H any] interface", "remote *Remote[E, H], params protocol.AttachParams) (protocol.Attachment[H], error)", "remote *Remote[E, H], params protocol.Frame[E]) (probeprotocol.Envelope, error)", "func NewHandler[E, H any](handler Handler[E, H], options runtime.ServerOptions)", "EmitFrameRelayed(ctx context.Context, data protocol.Frame[E]) error"},
-		"api/go/carrier-client/client_generated.go":       {"type Client[E, H any] struct", "type Caller[E, H any] interface", "func Dial[E, H any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[E, H]) (*Client[E, H], error)", "OnFrameRelayed(handler func(context.Context, protocol.Frame[E])) error"},
-		"api/ts/carrier-client/src/types.ts":              {"export interface Frame<F extends AnyFamily = SessionFamily> {", `"message": F["Envelope"];`, "export interface Attachment<F extends AnyFamily = SessionFamily> {", `"connection": F["Handle"];`, "export type Frames<F extends AnyFamily = SessionFamily> = Array<Frame<F>>;", "export interface AttachParams {", "export type SessionFamily = probe.Family;", `export const family = { name: "carrier", validate: validateWire } as const;`},
-		"api/ts/carrier-client/src/index.ts":              {"export interface Handler<F extends AnyFamily = SessionFamily> {", "export interface Caller<F extends AnyFamily = SessionFamily> {", "attach(params: Protocol.AttachParams, options?: CallOptions): Promise<Protocol.Attachment<F>>;", "relay(params: Protocol.Frame<F>, options?: CallOptions): Promise<probe.Envelope>;", "export class Client<F extends AnyFamily = SessionFamily> implements Caller<F> {", "static async dial<F extends AnyFamily = SessionFamily>(url: string, family: FamilyBinding<F>, options: PeerOptions = {}, handler?: Handler<F>): Promise<Client<F>>", "onFrameRelayed(handler: (data: Protocol.Frame<F>) => void | Promise<void>): () => void"},
+		"api/go/carrier-binding/binding_generated.go":     {"type Remote[SE, SH any] struct", "type Handler[SE, SH any] interface", "remote *Remote[SE, SH], params protocol.AttachParams) (protocol.Attachment[SH], error)", "remote *Remote[SE, SH], params protocol.Frame[SE]) (probeprotocol.Envelope, error)", "func NewHandler[SE, SH any](handler Handler[SE, SH], options runtime.ServerOptions)", "EmitFrameRelayed(ctx context.Context, data protocol.Frame[SE]) error"},
+		"api/go/carrier-client/client_generated.go":       {"type Client[SE, SH any] struct", "type Caller[SE, SH any] interface", "func Dial[SE, SH any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[SE, SH]) (*Client[SE, SH], error)", "OnFrameRelayed(handler func(context.Context, protocol.Frame[SE])) error"},
+		"api/ts/carrier-client/src/types.ts":              {"export interface Frame<S extends AnyFamily = SessionFamily> {", `"message": S["Envelope"];`, "export interface Attachment<S extends AnyFamily = SessionFamily> {", `"connection": S["Handle"];`, "export type Frames<S extends AnyFamily = SessionFamily> = Array<Frame<S>>;", "export interface AttachParams {", "export type SessionFamily = probe.Family;", `export const family = { name: "carrier", validate: validateWire } as const;`},
+		"api/ts/carrier-client/src/index.ts":              {"export interface Handler<S extends AnyFamily = SessionFamily> {", "export interface Caller<S extends AnyFamily = SessionFamily> {", "attach(params: Protocol.AttachParams, options?: CallOptions): Promise<Protocol.Attachment<S>>;", "relay(params: Protocol.Frame<S>, options?: CallOptions): Promise<probe.Envelope>;", "export class Client<S extends AnyFamily = SessionFamily> implements Caller<S> {", "static async dial<S extends AnyFamily = SessionFamily>(url: string, s: FamilyBinding<S>, options: PeerOptions = {}, handler?: Handler<S>): Promise<Client<S>>", "onFrameRelayed(handler: (data: Protocol.Frame<S>) => void | Promise<void>): () => void"},
 		"api/ts/carrier-client/package.json":              {`"@example/probe-client":"0.0.0"`},
 	} {
 		for _, want := range wants {
@@ -496,11 +498,11 @@ assert.throws(()=>validateWire('probe.Nope',{}));assert.throws(()=>validateWire(
 import {validateWire, family as carrier} from './gen/ts/carrier-client/src/types.ts';
 import {family as probe} from './api/ts/probe-client/src/index.ts';
 const good = {sequence: 1, message: {version: 1, kind: 'event', event: 'changed', data: {}}};
-validateWire('Frame', good, '$', {session: probe});
-validateWire('Frames', [good], '$', {session: probe});
-assert.throws(() => validateWire('Frame', {sequence: 1, message: {version: 1}}, '$', {session: probe}));
-assert.throws(() => validateWire('Frame', {sequence: 1, message: {version: 1, kind: 'event', extra: true}}, '$', {session: probe}));
-assert.throws(() => validateWire('Frame', good), /binding of the session role/);
+validateWire('Frame', good, '$', {S: probe});
+validateWire('Frames', [good], '$', {S: probe});
+assert.throws(() => validateWire('Frame', {sequence: 1, message: {version: 1}}, '$', {S: probe}));
+assert.throws(() => validateWire('Frame', {sequence: 1, message: {version: 1, kind: 'event', extra: true}}, '$', {S: probe}));
+assert.throws(() => validateWire('Frame', good), /binding of the parameter S/);
 assert.throws(() => validateWire({envelope: 'probe'}, {version: 1}));
 validateWire({envelope: 'probe'}, good.message);
 assert.throws(() => validateWire({connection: 'nobody'}, {channel: 1}));
@@ -525,3 +527,104 @@ export const handler: Equals<right.Handler<probe.Family>, left.Handler> = true;
 export const role: Equals<right.SessionFamily, probe.Family> = true;
 export const bound: Equals<right.FamilyBinding<probe.Family>["name"], "probe"> = true;
 `
+
+// pairContract is generic in two parameters at once: S at both kinds, T at
+// an envelope, and a named family at a third slot. It is what proves the
+// parameters do not collapse into one another in either language.
+const pairContract = `{
+ "schema_version":1,"profile":"nightseam.duplex/1","name":"pair",
+ "parameters":[{"name":"S","of":"session"},{"name":"T","of":"session"}],
+ "types":{
+  "Frame":{"kind":"record","fields":[{"name":"message","type":{"envelope":"S"}},{"name":"back","type":{"connection":"S"}}]},
+  "Echo":{"kind":"record","fields":[{"name":"heard","type":{"envelope":"T"}}]},
+  "Both":{"kind":"record","fields":[{"name":"frame","type":"Frame"},{"name":"echoes","type":{"array":"Echo"}}]},
+  "Named":{"kind":"record","fields":[{"name":"of","type":{"envelope":"probe"}}]}
+ },
+ "methods":[
+  {"name":"relay","go_name":"Relay","ts_name":"relay","direction":"client_to_server","request":{"envelope":"T"},"result":"Both"},
+  {"name":"named","go_name":"Named","ts_name":"named","direction":"client_to_server","request":"Named","result":"Named"}
+ ],
+ "events":[{"name":"echoed","go_name":"Echoed","ts_name":"echoed","direction":"server_to_client","type":"Echo"}],
+ "errors":[]
+}`
+
+// pairWorld is two session families, probe and codex, and the pair family
+// generic in both.
+func pairWorld(t *testing.T) kernel.World {
+	t.Helper()
+	probe := exampleAPI(t)
+	probe["role"] = contract.SessionRole
+	codex := exampleAPI(t)
+	codex["name"] = "codex"
+	codex["role"] = contract.SessionRole
+	var pair map[string]any
+	if err := json.Unmarshal([]byte(pairContract), &pair); err != nil {
+		t.Fatal(err)
+	}
+	return kernel.World{"probe": probe, "codex": codex, "pair": pair}
+}
+
+// TestTwoParametersRenderApart: a family generic in two parameters renders
+// with a Go type parameter per parameter and kind — SE, SH, TE — each type
+// taking only the ones it uses, and with one TypeScript type parameter per
+// contract parameter, each defaulting to the session union and each bound
+// by its own argument. A slot of a named family is still a plain reference.
+func TestTwoParametersRenderApart(t *testing.T) {
+	world := pairWorld(t)
+	if diagnostics := kernel.ValidateIn(world, world["pair"], languages(module, scope)...); len(diagnostics) != 0 {
+		t.Fatal(diagnostics)
+	}
+	result, err := kernel.GenerateIn(world, world["pair"], languages(module, scope)...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{}
+	for p, data := range result.Files {
+		files[p] = string(data)
+	}
+	for path, wants := range map[string][]string{
+		"api/go/pair-protocol/types_generated.go": {
+			"type Frame[SE, SH any] struct {",
+			"type Echo[TE any] struct {",
+			"type Both[SE, SH, TE any] struct {",
+			"type Named struct {",
+			"Of probeprotocol.Envelope",
+		},
+		"api/go/pair-binding/binding_generated.go": {
+			"type Handler[SE, SH, TE any] interface",
+			"params TE) (protocol.Both[SE, SH, TE], error)",
+			"params protocol.Named) (protocol.Named, error)",
+			"EmitEchoed(ctx context.Context, data protocol.Echo[TE]) error",
+		},
+		"api/go/pair-client/client_generated.go": {
+			"type Client[SE, SH, TE any] struct",
+			"func Dial[SE, SH, TE any](",
+		},
+		"api/ts/pair-client/src/types.ts": {
+			"export interface Frame<S extends AnyFamily = SessionFamily> {",
+			"export interface Echo<T extends AnyFamily = SessionFamily> {",
+			"export interface Both<S extends AnyFamily = SessionFamily, T extends AnyFamily = SessionFamily> {",
+			`"message": S["Envelope"];`,
+			`"back": S["Handle"];`,
+			`"heard": T["Envelope"];`,
+			"export interface Named {",
+		},
+		"api/ts/pair-client/src/index.ts": {
+			"export class Client<S extends AnyFamily = SessionFamily, T extends AnyFamily = SessionFamily>",
+			"readonly s: FamilyBinding<S>;",
+			"readonly t: FamilyBinding<T>;",
+			`this.slots = { "S": s, "T": t };`,
+			"s: FamilyBinding<S>, t: FamilyBinding<T>,",
+		},
+	} {
+		for _, want := range wants {
+			if !strings.Contains(files[path], want) {
+				t.Errorf("%s lacks %s", path, want)
+			}
+		}
+	}
+	// The session union is both families, and neither parameter is tied to one.
+	if got := files["api/ts/pair-client/src/types.ts"]; !strings.Contains(got, "export type SessionFamily = codex.Family | probe.Family;") {
+		t.Error("the session union is not both session families")
+	}
+}

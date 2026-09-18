@@ -93,7 +93,7 @@ func (l *language) Render(api contract.API) ([]spi.File, error) {
 // family's own descriptor, Family, the bound and the binding of a generic
 // family's parameter, and the parameter, F; a contract type of that name is
 // refused.
-var reservedTypes = strings.Fields("Client Caller Handler TypeExpression WireType WireField Family AnyFamily SessionFamily FamilyBinding Slots F Array Record Promise AbortSignal Date Number Object Set Error")
+var reservedTypes = strings.Fields("Client Caller Handler TypeExpression WireType WireField Family AnyFamily SessionFamily FamilyBinding Slots Array Record Promise AbortSignal Date Number Object Set Error")
 
 // A method named then would also make the client a Promise-like value, breaking
 // the async dial factory through JavaScript's thenable assimilation.
@@ -138,7 +138,20 @@ func (*language) Check(api contract.API) []contract.Diagnostic {
 	}
 	// Events add receive helpers as well as emit helpers, so their receiver
 	// namespace crosses the protocol's direction boundary.
-	client := map[string]string{"peer": "generated client field", "family": "generated client field", "slots": "generated client field", "close": "generated client method", "constructor": "generated client constructor"}
+	client := map[string]string{"peer": "generated client field", "slots": "generated client field", "close": "generated client method", "constructor": "generated client constructor"}
+	for _, parameter := range api.Parameters {
+		client[bindingName(parameter.Name)] = "the binding of parameter " + parameter.Name
+	}
+	// A parameter becomes a type parameter of the generated declarations and
+	// shadows anything of that name in the module.
+	for i, parameter := range api.Parameters {
+		if slices.Contains(reservedTypes, parameter.Name) {
+			add("reserved_name", fmt.Sprintf("/parameters/%d/name", i), "Parameter name is reserved by the generated TypeScript client: "+parameter.Name+".")
+		}
+		if _, collides := api.Types[parameter.Name]; collides {
+			add("generated_name_collision", fmt.Sprintf("/parameters/%d/name", i), "Generated type parameter "+parameter.Name+" collides with the type of that name.")
+		}
+	}
 	register := func(name, pointer string) {
 		if previous, exists := client[name]; exists {
 			add("generated_name_collision", pointer, "Generated member "+name+" collides with "+previous+".")
@@ -162,28 +175,52 @@ func (*language) Check(api contract.API) []contract.Diagnostic {
 	return diagnostics
 }
 
-// parameter is the one type parameter a generic family has: the family that
-// fills its slots of the session role. TypeScript has associated types, so a
-// slot is one of the parameter's, F["Envelope"] or F["Handle"], and a family
-// is one parameter whatever slots it holds.
-const parameter = "F"
-
-// declare renders the type parameter of a declaration that uses the kinds,
-// bound to any family and defaulting to the session role's union, or
-// nothing for a plain one.
-func declare(kinds []string) string {
-	if len(kinds) == 0 {
-		return ""
+// TypeScript has associated types, so one contract parameter is one type
+// parameter whatever slot kinds it is used at: a slot is one of its
+// associated types, S["Envelope"] or S["Handle"]. Go, which has none, takes
+// one type parameter per kind instead.
+//
+// tsParameters is the contract parameters a set of uses names, in the order
+// the uses are in, each named once.
+func tsParameters(uses []contract.Use) []string {
+	var names []string
+	for _, use := range uses {
+		if !slices.Contains(names, use.Parameter) {
+			names = append(names, use.Parameter)
+		}
 	}
-	return "<" + parameter + " extends AnyFamily = SessionFamily>"
+	return names
 }
 
-// apply renders the type argument a reference passes on, or nothing.
-func apply(kinds []string) string {
-	if len(kinds) == 0 {
+// declare renders the type parameters of a declaration that makes the uses,
+// each bound to any family and defaulting to the session role's union, or
+// nothing for a plain one.
+func declare(uses []contract.Use) string {
+	names := tsParameters(uses)
+	if len(names) == 0 {
 		return ""
 	}
-	return "<" + parameter + ">"
+	bound := make([]string, len(names))
+	for i, name := range names {
+		bound[i] = name + " extends AnyFamily = SessionFamily"
+	}
+	return "<" + strings.Join(bound, ", ") + ">"
+}
+
+// apply renders the type arguments a reference passes on, or nothing.
+func apply(uses []contract.Use) string {
+	names := tsParameters(uses)
+	if len(names) == 0 {
+		return ""
+	}
+	return "<" + strings.Join(names, ", ") + ">"
+}
+
+// bindingName is what a parameter's binding is called as an argument of the
+// client and a field on it: the parameter in lower camel case, so that a
+// parameter S is bound by an argument s.
+func bindingName(parameter string) string {
+	return strings.ToLower(parameter[:1]) + parameter[1:]
 }
 
 // tsAlias is the namespace a generated file refers to an imported family's
@@ -241,13 +278,13 @@ func quote(value string) string      { encoded, _ := json.Marshal(value); return
 func expression(value any) string    { encoded, _ := json.Marshal(value); return string(encoded) }
 func canonicalJSON(value any) []byte { data, _ := json.Marshal(value); return data }
 
-// slotType is what fills a slot: an associated type of the parameter for
-// the session role, the named family's own type otherwise.
-func slotType(kind, family string) string {
-	if family == contract.SessionRole {
-		return parameter + "[" + quote(contract.SlotType(kind)) + "]"
+// slotType is what fills a slot: an associated type of the parameter it
+// names, the named family's own type otherwise.
+func slotType(kind, target string) string {
+	if contract.Parameterized(target) {
+		return target + "[" + quote(contract.SlotType(kind)) + "]"
 	}
-	return tsAlias(family) + "." + contract.SlotType(kind)
+	return tsAlias(target) + "." + contract.SlotType(kind)
 }
 
 func tsType(g contract.Generics, expression any) string {
@@ -351,7 +388,6 @@ func generateTS(api contract.API, g contract.Generics, s settings) []spi.File {
 	}
 	types.WriteString("};\n")
 	types.WriteString(strings.NewReplacer(
-		"SESSION_ROLE", quote(contract.SessionRole),
 		"ENVELOPE_TYPE", quote(contract.EnvelopeType),
 		"HANDLE_TYPE", quote(contract.HandleType),
 	).Replace(tsValidationTemplate))
@@ -362,8 +398,16 @@ func generateTS(api contract.API, g contract.Generics, s settings) []spi.File {
 	// slots is the argument every validation of a generic client passes: the
 	// family bound to the session role, which validates what fills a slot.
 	slots, binding, pass := "", "", ""
+	names := tsParameters(g.Family)
 	if g.Generic() {
-		slots, binding, pass = ", '$', this.slots", "family: FamilyBinding<F>, ", "family, "
+		bind, give := make([]string, len(names)), make([]string, len(names))
+		for i, name := range names {
+			bind[i] = bindingName(name) + ": FamilyBinding<" + name + ">"
+			give[i] = bindingName(name)
+		}
+		slots = ", '$', this.slots"
+		binding = strings.Join(bind, ", ") + ", "
+		pass = strings.Join(give, ", ") + ", "
 	}
 	var client strings.Builder
 	client.WriteString(spi.Header)
@@ -385,7 +429,7 @@ func generateTS(api contract.API, g contract.Generics, s settings) []spi.File {
 	for _, m := range api.Methods {
 		if m.Direction == "client_to_server" {
 			parameters := "params: " + tsRequest(g, m) + ", options?: CallOptions"
-			if m.Request == "" {
+			if m.Request == nil {
 				parameters = "options?: CallOptions"
 			}
 			fmt.Fprintf(&client, "  %s(%s): Promise<%s>;\n", m.TSName, parameters, tsQualified(g, m.Result))
@@ -401,12 +445,23 @@ func generateTS(api contract.API, g contract.Generics, s settings) []spi.File {
 		}
 	}
 	fmt.Fprintf(&client, "export class Client%s implements Caller%s {\n  readonly peer: DuplexPeer;\n", decl, args)
+	var made strings.Builder
 	if g.Generic() {
-		client.WriteString("  /** The family bound to the session role: what fills a slot of it is validated by it. */\n  readonly family: FamilyBinding<F>;\n  readonly slots: Slots;\n")
+		for i, name := range names {
+			fmt.Fprintf(&client, "  /** The family bound to %s: what fills a slot of it is validated by it. */\n  readonly %s: FamilyBinding<%s>;\n", name, bindingName(name), name)
+			if i > 0 {
+				made.WriteString(", ")
+			}
+			fmt.Fprintf(&made, "%s: %s", quote(name), bindingName(name))
+		}
+		client.WriteString("  readonly slots: Slots;\n")
 	}
 	fmt.Fprintf(&client, "  constructor(peer: DuplexPeer, %shandler?: Handler%s) {\n    this.peer = peer;\n", binding, args)
 	if g.Generic() {
-		fmt.Fprintf(&client, "    this.family = family;\n    this.slots = { %s: family };\n", quote(contract.SessionRole))
+		for _, name := range names {
+			fmt.Fprintf(&client, "    this.%s = %s;\n", bindingName(name), bindingName(name))
+		}
+		fmt.Fprintf(&client, "    this.slots = { %s };\n", made.String())
 	}
 	for _, m := range api.Methods {
 		if m.Direction == "server_to_client" {
@@ -420,7 +475,7 @@ func generateTS(api contract.API, g contract.Generics, s settings) []spi.File {
 		if m.Direction == "client_to_server" {
 			parameters := "params: " + tsRequest(g, m) + ", options?: CallOptions"
 			initial := ""
-			if m.Request == "" {
+			if m.Request == nil {
 				parameters = "options?: CallOptions"
 				initial = "const params = {}; "
 			}
@@ -462,16 +517,16 @@ func upperFirst(value string) string {
 	return strings.ToUpper(value[:1]) + value[1:]
 }
 func tsRequest(g contract.Generics, m contract.Method) string {
-	if m.Request == "" {
+	if m.Request == nil {
 		return "Record<string, never>"
 	}
-	return "Protocol." + m.Request + apply(g.Types[m.Request])
+	return tsQualified(g, m.Request)
 }
 func tsRequestExpr(m contract.Method) string {
-	if m.Request == "" {
+	if m.Request == nil {
 		return "{ empty: true }"
 	}
-	return quote(m.Request)
+	return expression(m.Request)
 }
 func tsQualified(g contract.Generics, expr any) string {
 	switch t := expr.(type) {
@@ -507,9 +562,9 @@ function fields(name: string): WireField[] {const type = contractTypes[name]!; r
 function timestamp(value: unknown): boolean {if(typeof value!=='string')return false;const m=/^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)(?:\.\d+)?(?:Z|([+-])(\d\d):(\d\d))$/.exec(value);if(!m)return false;const year=Number(m[1]),month=Number(m[2]),day=Number(m[3]);const leap=year%4===0&&(year%100!==0||year%400===0);const days=[31,leap?29:28,31,30,31,30,31,31,30,31,30,31];return month>=1&&month<=12&&day>=1&&day<=days[month-1]!&&Number(m[4])<=23&&Number(m[5])<=59&&Number(m[6])<=59&&(!m[7]||(Number(m[8])<=23&&Number(m[9])<=59))&&!Number.isNaN(Date.parse(value));}
 function jsonValue(value: unknown, seen = new Set<object>()): void {if (value === null || typeof value === 'string' || typeof value === 'boolean') return; if (typeof value === 'number' && Number.isFinite(value)) return; if (typeof value !== 'object' || seen.has(value)) throw new Error('expected finite acyclic JSON'); seen.add(value); if (Array.isArray(value)) for (const child of value) jsonValue(child,seen); else {if(Object.getPrototypeOf(value)!==Object.prototype && Object.getPrototypeOf(value)!==null)throw new Error('expected plain JSON object'); for(const child of Object.values(value))jsonValue(child,seen);} seen.delete(value);}
 /** What fills a slot is validated by the family that fills it: a named family's validator, or the binding of the session role passed in, since the family that fills a slot of the role is chosen where the client is instantiated. */
-function slot(type: string, family: string, value: unknown, location: string, slots?: Slots): void {
- if(family===SESSION_ROLE){const binding=slots?.[family];if(!binding)throw new Error(location+': expected a binding of the '+family+' role');binding.validate(type,value,location);return;}
- const validate=importedValidators[family];if(!validate)throw new Error(location+': expected known family');validate(type,value,location,slots);
+function slot(type: string, target: string, value: unknown, location: string, slots?: Slots): void {
+ if(/^[A-Z]/.test(target)){const binding=slots?.[target];if(!binding)throw new Error(location+': expected a binding of the parameter '+target);binding.validate(type,value,location);return;}
+ const validate=importedValidators[target];if(!validate)throw new Error(location+': expected known family');validate(type,value,location,slots);
 }
 /** Runtime validation applies equally to calls, replies, reverse calls and events. */
 export function validateWire(type: TypeExpression, value: unknown, location = '$', slots?: Slots): void {

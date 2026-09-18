@@ -25,7 +25,6 @@ func generateValidation(api contract.API, p paths) string {
 	validators.WriteString("}\n")
 	source := strings.NewReplacer(
 		"CONTRACT_JSON", quote(schema),
-		"SESSION_ROLE", quote(contract.SessionRole),
 		"ENVELOPE_SLOT", quote(contract.EnvelopeSlot),
 		"CONNECTION_SLOT", quote(contract.ConnectionSlot),
 		"ENVELOPE_TYPE", quote(contract.EnvelopeType),
@@ -81,9 +80,9 @@ func validateWire(expression any,value any,location string) error {
  }
  return bad("supported type")
 }
-// validateSlot validates what fills a slot: a value of a named family by that family's validator; one of the session role as JSON, since the family that fills it is chosen where the generic type is instantiated, and its codec validates there.
-func validateSlot(typeName string,family any,value any,location string) error {
- name,_:=family.(string);if name==SESSION_ROLE{return validateJSON(value,location)}
+// validateSlot validates what fills a slot: a value of a named family by that family's validator; one of a parameter as JSON, since the family that fills it is chosen where the generic type is instantiated, and its codec validates there.
+func validateSlot(typeName string,target any,value any,location string) error {
+ name,_:=target.(string);if name!=""&&name[0]>='A'&&name[0]<='Z'{return validateJSON(value,location)}
  validate,ok:=importedValidators[name];if !ok{return fmt.Errorf("%s: expected known family",location)}
  data,err:=json.Marshal(value);if err!=nil{return err};if err:=validate(typeName,data);err!=nil{return fmt.Errorf("%s: %w",location,err)};return nil
 }

@@ -9,9 +9,10 @@
     "schema_version": {"const": 1},
     "profile": {"const": "nightseam.duplex/1"},
     "name": {"$ref": "#/$defs/familyName"},
-    "role": {"enum": ["session"], "description": "A session family: one a session can speak, and so a member of the union a slot names as session. Set by the loader for a family with a sess layer; a merged contract may set it by hand."},
+    "role": {"enum": ["session"], "description": "A session family: one a session can speak, and so a family that may bind a parameter of the session role. Set by the loader for a family with a sess layer; a merged contract may set it by hand."},
     "layer": {"$ref": "#/$defs/layer", "description": "In a layer file, which layer it declares. Absent in a merged contract."},
     "layers": {"type": "object", "propertyNames": {"$ref": "#/$defs/typeName"}, "additionalProperties": {"$ref": "#/$defs/layer"}, "description": "In a merged contract, the layer each type was declared in, as the loader recorded it; what the direction rule is checked against. Absent, no direction is checked."},
+    "parameters": {"type": "array", "items": {"$ref": "#/$defs/parameter"}, "description": "The parameters this family is generic in. A slot names one, and a consumer binds each to a family that declares the parameter's role. Declared in the rpc or sess layer."},
     "imports": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/familyName"}, "description": "Families whose types this contract refers to as family.Type. An imported family imports nothing itself."},
     "types": {"type": "object", "propertyNames": {"$ref": "#/$defs/typeName"}, "additionalProperties": {"$ref": "#/$defs/type"}},
     "methods": {"type": "array", "items": {"$ref": "#/$defs/method"}},
@@ -33,15 +34,17 @@
         "platforms": {"type": "array", "items": {"type": "object"}, "description": "On which platforms each mode exists and which option values do not."}
       }
     },
-    "slotFamily": {"type": "string", "pattern": "^(?:session|[a-z][a-z0-9]*(?:-[a-z0-9]+)*)$", "description": "The family a slot is of, or session for whichever session family applies."},
+    "parameterName": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$"},
+    "parameter": {"type": "object", "additionalProperties": false, "required": ["name", "of"], "properties": {"name": {"$ref": "#/$defs/parameterName"}, "of": {"enum": ["session"], "description": "The role a family must declare to bind this parameter."}, "description": {"type": "string"}}},
+    "slotTarget": {"type": "string", "pattern": "^(?:[A-Z][A-Za-z0-9]*|[a-z][a-z0-9]*(?:-[a-z0-9]+)*)$", "description": "What a slot is of: a parameter of this family, spelled in upper camel case, or a named family in lower case."},
     "identifier": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
     "direction": {"enum": ["client_to_server", "server_to_client"]},
     "expr": {"oneOf": [
       {"type": "string", "pattern": "^(?:string|boolean|number|integer|timestamp|json|[A-Z][A-Za-z0-9_]*|[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\.[A-Z][A-Za-z0-9_]*)$"},
       {"type": "object", "additionalProperties": false, "required": ["array"], "properties": {"array": {"$ref": "#/$defs/expr"}}},
       {"type": "object", "additionalProperties": false, "required": ["map"], "properties": {"map": {"$ref": "#/$defs/expr"}}},
-      {"type": "object", "additionalProperties": false, "required": ["connection"], "properties": {"connection": {"$ref": "#/$defs/slotFamily"}}},
-      {"type": "object", "additionalProperties": false, "required": ["envelope"], "properties": {"envelope": {"$ref": "#/$defs/slotFamily"}}}
+      {"type": "object", "additionalProperties": false, "required": ["connection"], "properties": {"connection": {"$ref": "#/$defs/slotTarget"}}},
+      {"type": "object", "additionalProperties": false, "required": ["envelope"], "properties": {"envelope": {"$ref": "#/$defs/slotTarget"}}}
     ]},
     "field": {
       "type": "object", "additionalProperties": false, "required": ["name", "type"],
@@ -67,7 +70,7 @@
       "properties": {
         "description": {"type": "string"},
         "name": {"type": "string", "minLength": 1}, "go_name": {"$ref": "#/$defs/typeName"}, "ts_name": {"$ref": "#/$defs/identifier"},
-        "direction": {"$ref": "#/$defs/direction"}, "request": {"$ref": "#/$defs/typeName"}, "result": {"$ref": "#/$defs/expr"}
+        "direction": {"$ref": "#/$defs/direction"}, "request": {"$ref": "#/$defs/expr"}, "result": {"$ref": "#/$defs/expr"}
       }
     },
     "event": {

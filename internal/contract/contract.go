@@ -38,6 +38,7 @@ type API struct {
 	Role          string            `json:"role,omitempty"`
 	Layer         string            `json:"layer,omitempty"`
 	Layers        map[string]string `json:"layers,omitempty"`
+	Parameters    []Parameter       `json:"parameters,omitempty"`
 	Imports       []string          `json:"imports,omitempty"`
 	Types         map[string]Type   `json:"types"`
 	Methods       []Method          `json:"methods"`
@@ -47,6 +48,34 @@ type API struct {
 	Imported      map[string]API    `json:"-"`
 	Families      []string          `json:"-"`
 	Sessions      []string          `json:"-"`
+}
+
+// Parameter is a hole in a family: a slot names it, and a consumer binds it
+// to a family that declares its role. A family with parameters is generic in
+// them, and Nightseam renders it once, generically, rather than once per
+// binding. Of is the role a family must declare to bind the parameter; today
+// the only role is the session role.
+type Parameter struct {
+	Name        string `json:"name"`
+	Of          string `json:"of"`
+	Description string `json:"description,omitempty"`
+}
+
+// ParameterNames is the parameters' names, in declaration order: the order
+// every language declares its type parameters in.
+func (api API) ParameterNames() []string {
+	names := make([]string, len(api.Parameters))
+	for i, parameter := range api.Parameters {
+		names[i] = parameter.Name
+	}
+	return names
+}
+
+// Parameterized reports whether a slot target names a parameter rather than
+// a family. The two are told apart by case, as the schema spells them: a
+// parameter is upper camel case, a family lower.
+func Parameterized(target string) bool {
+	return target != "" && target[0] >= 'A' && target[0] <= 'Z'
 }
 
 // Session is the sess layer of a family: how a connection of its RPC is
@@ -71,9 +100,9 @@ type Conversation struct {
 
 // The layers a family is declared in, lowest first. A declaration refers to
 // its own layer or a lower one, never a higher one: data refers to data;
-// operations to operations and data, and may hold an envelope of another
-// family's operations; a session to sessions, operations and data, and may
-// hold a handle to a connection of another family's session.
+// operations to operations and data, and may hold a slot — an envelope of
+// another family's operations, or a handle to a channel that speaks them;
+// a session to sessions, operations and data.
 const (
 	LayerDTO  = "dto"
 	LayerRPC  = "rpc"
@@ -174,7 +203,7 @@ type Method struct {
 	GoName      string   `json:"go_name"`
 	TSName      string   `json:"ts_name"`
 	Direction   string   `json:"direction"`
-	Request     string   `json:"request,omitempty"`
+	Request     TypeExpr `json:"request,omitempty"`
 	Result      TypeExpr `json:"result"`
 }
 
@@ -281,8 +310,8 @@ func Parse(input map[string]any) (API, []Diagnostic) {
 // sections is what a layer file may carry, beyond what every file carries.
 var sections = map[string][]string{
 	LayerDTO:  {"imports", "types"},
-	LayerRPC:  {"imports", "types", "methods", "events", "errors"},
-	LayerSess: {"imports", "types", "session"},
+	LayerRPC:  {"imports", "parameters", "types", "methods", "events", "errors"},
+	LayerSess: {"imports", "parameters", "types", "session"},
 }
 
 // Merge joins a family's layer files, by layer, into the one contract the
@@ -402,14 +431,14 @@ func Slot(expr TypeExpr) (kind, family string, ok bool) {
 	return "", "", false
 }
 
-// Substitute fills every slot of a raw contract with one family and returns
-// the plain contract that results: a connection slot becomes family.Handle,
-// an envelope slot family.Envelope, and the family joins the imports. A slot
-// of a named family other than the one substituted keeps its own; a slot of
-// "session" takes the family given. This is the left path of the diagram a
-// generic rendering must commute with: rendering the result as a plain
-// family is what an instantiation of the generic rendering must equal.
-func Substitute(input map[string]any, family string) map[string]any {
+// Substitute binds parameters to families and returns the contract that
+// results: a slot of a bound parameter becomes family.Handle or
+// family.Envelope and the family joins the imports; a slot of a named family
+// keeps its own; a slot of a parameter no binding names stays a slot, so a
+// partial substitution stays generic in what it did not bind. This is the
+// left path of the diagram a generic rendering must commute with: rendering
+// the result is what an instantiation of the generic rendering must equal.
+func Substitute(input map[string]any, bindings map[string]string) map[string]any {
 	data, _ := json.Marshal(input)
 	var out map[string]any
 	_ = json.Unmarshal(data, &out)
@@ -424,11 +453,15 @@ func Substitute(input map[string]any, family string) map[string]any {
 	var fill func(expr any) any
 	fill = func(expr any) any {
 		if kind, of, ok := Slot(expr); ok {
-			if of == SessionRole {
-				of = family
+			if bound, isParameter := bindings[of]; isParameter {
+				of = bound
+			} else if Parameterized(of) {
+				// A parameter no binding names keeps its slot: the result is
+				// still generic in it, which a partial substitution intends.
+				return expr
 			}
 			imports[of] = true
-			if kind == "connection" {
+			if kind == ConnectionSlot {
 				return of + "." + HandleType
 			}
 			return of + "." + EnvelopeType
@@ -463,6 +496,9 @@ func Substitute(input map[string]any, family string) map[string]any {
 	if methods, ok := out["methods"].([]any); ok {
 		for _, raw := range methods {
 			if method, ok := raw.(map[string]any); ok {
+				if request, ok := method["request"]; ok {
+					method["request"] = fill(request)
+				}
 				method["result"] = fill(method["result"])
 			}
 		}
@@ -472,6 +508,28 @@ func Substitute(input map[string]any, family string) map[string]any {
 			if event, ok := raw.(map[string]any); ok {
 				event["type"] = fill(event["type"])
 			}
+		}
+	}
+	// A parameter every binding named is gone; one left unbound stays, and so
+	// does its declaration.
+	if declared, ok := out["parameters"].([]any); ok {
+		var kept []any
+		for _, raw := range declared {
+			parameter, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			if name, ok := parameter["name"].(string); ok {
+				if _, bound := bindings[name]; bound {
+					continue
+				}
+			}
+			kept = append(kept, parameter)
+		}
+		if len(kept) == 0 {
+			delete(out, "parameters")
+		} else {
+			out["parameters"] = kept
 		}
 	}
 	delete(imports, out["name"].(string))
@@ -629,6 +687,23 @@ func Check(api API) []Diagnostic {
 		families[name] = true
 	}
 	sessions := len(api.Sessions)
+	parameters := map[string]bool{}
+	for i, parameter := range api.Parameters {
+		p := fmt.Sprintf("/parameters/%d", i)
+		if parameters[parameter.Name] {
+			add("duplicate_parameter", p+"/name", "Parameter "+parameter.Name+" is declared twice.")
+		}
+		parameters[parameter.Name] = true
+		if _, collides := api.Types[parameter.Name]; collides {
+			add("reserved_name", p+"/name", "Parameter "+parameter.Name+" shares its name with a type of this family.")
+		}
+		switch {
+		case parameter.Of != SessionRole:
+			add("unknown_role", p+"/of", "Unknown role "+parameter.Of+": a parameter is of the session role.")
+		case len(api.Families) > 0 && sessions == 0:
+			add("unresolved_type", p+"/of", "No family declares the session role, so a parameter of session has nothing to bind.")
+		}
+	}
 	// The layer a declaration is in, and the layer a type is declared in. A
 	// type the loader did not record — one every family carries, or one of
 	// a contract merged by hand — is data. Without a record of layers, no
@@ -657,18 +732,26 @@ func Check(api API) []Diagnostic {
 			if layered && other.Layers != nil && layerOf(name, other.Layers) > context {
 				add("layer_violation", pointer, fmt.Sprintf("A %s declaration refers to %s.%s, declared in %s; a declaration refers to its own layer or a lower one.", Layers[context], family, name, other.Layers[name]))
 			}
+			// A generic type of an imported family has parameters of its own,
+			// which this family must fill. A family with one parameter fills
+			// them all with it; with any other number there is nothing to read
+			// the application from, so the reference is refused rather than
+			// silently filled.
+			if len(other.Generics().Types[name]) > 0 && len(api.Parameters) != 1 {
+				add("ambiguous_application", pointer, "Type "+family+"."+name+" is generic, and this family declares "+fmt.Sprint(len(api.Parameters))+" parameters; a family referring to a generic imported type declares exactly one, which fills it.")
+			}
 			return
 		}
-		if kind, family, ok := Slot(expr); ok {
+		if kind, target, ok := Slot(expr); ok {
 			switch {
-			case family == api.Name:
-				add("self_slot", pointer, "A "+kind+" slot cannot be of the family that declares it.")
-			case family == SessionRole:
-				if len(api.Families) > 0 && sessions == 0 {
-					add("unresolved_type", pointer, "No family declares the session role, so a slot of session has no member.")
+			case Parameterized(target):
+				if !parameters[target] {
+					add("unresolved_parameter", pointer, "Unknown parameter "+target+": this family declares no parameter of that name.")
 				}
-			case !families[family]:
-				add("unresolved_type", pointer, "Unknown family "+family+": it is not among the contracts rendered together.")
+			case target == api.Name:
+				add("self_slot", pointer, "A "+kind+" slot cannot be of the family that declares it.")
+			case !families[target]:
+				add("unresolved_type", pointer, "Unknown family "+target+": it is not among the contracts rendered together.")
 			}
 			if layered {
 				needs := layerRank(LayerRPC)
@@ -803,13 +886,10 @@ func Check(api API) []Diagnostic {
 	for i, method := range api.Methods {
 		p := fmt.Sprintf("/methods/%d", i)
 		operation("methods", i, method.Name, method.Direction)
-		if method.Request != "" {
-			if t, ok := api.Types[method.Request]; !ok {
-				add("unresolved_type", p+"/request", "Unknown request type "+method.Request+".")
-			} else if t.Kind != "record" {
-				add("invalid_request", p+"/request", "Method request must name a record.")
-			} else if layered && layerOf(method.Request, api.Layers) > layerRank(LayerRPC) {
-				add("layer_violation", p+"/request", "A method's request "+method.Request+" is declared in "+api.Layers[method.Request]+"; an operation refers to its own layer or a lower one.")
+		if method.Request != nil {
+			expression(method.Request, p+"/request", "", layerRank(LayerRPC))
+			if !api.object(method.Request) {
+				add("invalid_request", p+"/request", "Method request must be a record, a record of an imported family, or a slot: params is an object on the wire.")
 			}
 		}
 		expression(method.Result, p+"/result", "", layerRank(LayerRPC))
@@ -817,6 +897,17 @@ func Check(api API) []Diagnostic {
 	for i, event := range api.Events {
 		operation("events", i, event.Name, event.Direction)
 		expression(event.Type, fmt.Sprintf("/events/%d/type", i), "", layerRank(LayerRPC))
+	}
+	used := map[string]bool{}
+	api.Expressions(func(expr TypeExpr) {
+		if _, target, ok := Slot(expr); ok && Parameterized(target) {
+			used[target] = true
+		}
+	})
+	for i, parameter := range api.Parameters {
+		if !used[parameter.Name] {
+			add("unused_parameter", fmt.Sprintf("/parameters/%d/name", i), "Parameter "+parameter.Name+" is declared and no slot names it.")
+		}
 	}
 	errorsSeen := map[string]bool{}
 	for i, publicError := range api.Errors {
@@ -826,6 +917,23 @@ func Check(api API) []Diagnostic {
 		errorsSeen[publicError.Code] = true
 	}
 	return diagnostics
+}
+
+// object reports whether an expression is an object on the wire, which a
+// method's params must be: a record of this family or of an imported one, or
+// a slot, since both an Envelope and a Handle are records.
+func (api API) object(expr TypeExpr) bool {
+	if _, _, ok := Slot(expr); ok {
+		return true
+	}
+	name, isName := expr.(string)
+	if !isName {
+		return false
+	}
+	if family, typeName, ok := Reference(name); ok {
+		return api.Imported[family].Types[typeName].Kind == "record"
+	}
+	return api.Types[name].Kind == "record"
 }
 
 // The two kinds of slot: an envelope is one message of a family, a
@@ -873,6 +981,9 @@ func (api API) Expressions(visit func(expr TypeExpr)) {
 		}
 	}
 	for _, method := range api.Methods {
+		if method.Request != nil {
+			walk(method.Request)
+		}
 		walk(method.Result)
 	}
 	for _, event := range api.Events {
@@ -882,12 +993,13 @@ func (api API) Expressions(visit func(expr TypeExpr)) {
 
 // SlotFamilies names the families the contract's slots name, sorted: each
 // fills its slot with its own Envelope or Handle, whether or not the family
-// is imported. The session role is not a family and is not among them.
+// is imported. A parameter is not a family and is not among them: what fills
+// it is chosen where the generated code is instantiated.
 func (api API) SlotFamilies() []string {
 	seen := map[string]bool{}
 	api.Expressions(func(expr TypeExpr) {
-		if _, family, ok := Slot(expr); ok && family != SessionRole {
-			seen[family] = true
+		if _, target, ok := Slot(expr); ok && !Parameterized(target) {
+			seen[target] = true
 		}
 	})
 	return sortedNames(seen)
@@ -915,19 +1027,30 @@ func sortedNames(set map[string]bool) []string {
 	return names
 }
 
-// Generics is what makes a family generic. A slot of the session role is
-// filled where the generated code is instantiated, so a type that holds one
-// — directly, or through the types it refers to, its own family's or an
-// imported one's — is generic in the role's family, and so is a family with
-// such a type. Types maps each generic type to the slot kinds it uses, in
-// SlotKinds order; Family is the union over every type and operation;
-// Imported is Types of each imported family. A plain type or family has no
-// kinds. A slot of a named family is not generic: it is that family's
-// Envelope or Handle.
+// Use is one parameter used at one slot kind: the pair a language turns into
+// a type parameter. A family generic in S and T, where S is used as both an
+// envelope and a connection and T only as an envelope, has the uses
+// {S,envelope}, {S,connection}, {T,envelope} — in that order, by the
+// parameter's declaration and then by SlotKinds.
+type Use struct {
+	Parameter string
+	Kind      string
+}
+
+// Generics is what makes a family generic. A slot of a parameter is filled
+// where the generated code is instantiated, so a type that holds one —
+// directly, or through the types it refers to, its own family's or an
+// imported one's — is generic in that parameter, and so is a family with
+// such a type. Types maps each generic type to the uses it makes, in
+// parameter order; Family is the union over every type and operation;
+// Imported is Types of each imported family, with the imported family's
+// parameters renamed to the parameter of this one that fills them. A plain
+// type or family makes no uses. A slot of a named family is not generic: it
+// is that family's Envelope or Handle.
 type Generics struct {
-	Types    map[string][]string
-	Family   []string
-	Imported map[string]map[string][]string
+	Types    map[string][]Use
+	Family   []Use
+	Imported map[string]map[string][]Use
 }
 
 // Generic reports whether the family is generic at all.
@@ -935,41 +1058,67 @@ func (g Generics) Generic() bool { return len(g.Family) > 0 }
 
 // Generics computes what is generic in the family.
 func (api API) Generics() Generics {
-	g := Generics{Types: map[string][]string{}, Imported: map[string]map[string][]string{}}
+	g := Generics{Types: map[string][]Use{}, Imported: map[string]map[string][]Use{}}
+	order := map[string]int{}
+	for i, parameter := range api.Parameters {
+		order[parameter.Name] = i
+	}
+	// An imported family's parameters are not this family's. A family with
+	// one parameter fills every parameter of what it imports with it, which
+	// is the only reading that is unambiguous; Check refuses a reference to a
+	// generic imported type from a family that has any other number.
+	rename := func(uses []Use) []Use {
+		if len(api.Parameters) != 1 || len(uses) == 0 {
+			return nil
+		}
+		out := make([]Use, 0, len(uses))
+		for _, use := range uses {
+			renamed := Use{api.Parameters[0].Name, use.Kind}
+			if !slices.Contains(out, renamed) {
+				out = append(out, renamed)
+			}
+		}
+		return out
+	}
 	for name, other := range api.Imported {
 		g.Imported[name] = other.Generics().Types
 	}
-	union := func(sets ...[]string) []string {
-		var out []string
-		for _, kind := range SlotKinds {
-			for _, set := range sets {
-				if slices.Contains(set, kind) && !slices.Contains(out, kind) {
-					out = append(out, kind)
+	union := func(sets ...[]Use) []Use {
+		var out []Use
+		for _, parameter := range api.ParameterNames() {
+			for _, kind := range SlotKinds {
+				want := Use{parameter, kind}
+				for _, set := range sets {
+					if slices.Contains(set, want) && !slices.Contains(out, want) {
+						out = append(out, want)
+					}
 				}
 			}
 		}
 		return out
 	}
-	// kindsOf is the kinds an expression uses, given the kinds known of every
+	// usesOf is the uses an expression makes, given the uses known of every
 	// type so far; the fixpoint below reaches the types through references.
-	var kindsOf func(expr TypeExpr) []string
-	kindsOf = func(expr TypeExpr) []string {
-		if kind, family, ok := Slot(expr); ok {
-			if family == SessionRole {
-				return []string{kind}
+	var usesOf func(expr TypeExpr) []Use
+	usesOf = func(expr TypeExpr) []Use {
+		if kind, target, ok := Slot(expr); ok {
+			if Parameterized(target) {
+				if _, declared := order[target]; declared {
+					return []Use{{target, kind}}
+				}
 			}
 			return nil
 		}
 		switch x := expr.(type) {
 		case string:
 			if family, name, ok := Reference(x); ok {
-				return g.Imported[family][name]
+				return rename(g.Imported[family][name])
 			}
 			return g.Types[x]
 		case map[string]any:
 			for _, key := range []string{"array", "map"} {
 				if child, ok := x[key]; ok {
-					return kindsOf(child)
+					return usesOf(child)
 				}
 			}
 		}
@@ -979,30 +1128,33 @@ func (api API) Generics() Generics {
 		changed = false
 		for _, name := range api.TypeNames() {
 			t := api.Types[name]
-			var sets [][]string
+			var sets [][]Use
 			switch t.Kind {
 			case "record":
 				for _, field := range api.FlattenedFields(name) {
-					sets = append(sets, kindsOf(field.Type))
+					sets = append(sets, usesOf(field.Type))
 				}
 			case "alias":
-				sets = append(sets, kindsOf(t.Type))
+				sets = append(sets, usesOf(t.Type))
 			}
-			if kinds := union(sets...); len(kinds) > len(g.Types[name]) {
-				g.Types[name] = kinds
+			if uses := union(sets...); len(uses) > len(g.Types[name]) {
+				g.Types[name] = uses
 				changed = true
 			}
 		}
 	}
-	var sets [][]string
-	for _, kinds := range g.Types {
-		sets = append(sets, kinds)
+	var sets [][]Use
+	for _, uses := range g.Types {
+		sets = append(sets, uses)
 	}
 	for _, method := range api.Methods {
-		sets = append(sets, kindsOf(method.Result))
+		if method.Request != nil {
+			sets = append(sets, usesOf(method.Request))
+		}
+		sets = append(sets, usesOf(method.Result))
 	}
 	for _, event := range api.Events {
-		sets = append(sets, kindsOf(event.Type))
+		sets = append(sets, usesOf(event.Type))
 	}
 	g.Family = union(sets...)
 	return g

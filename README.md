@@ -37,52 +37,64 @@ tool refuses a declaration that does.
 A family may `import` others and refer to their types as `other.Type`. Every
 family carries an `Envelope`, one message of its own profile, and a `Handle`,
 a channel reference; a type may hold a slot, `{"envelope": "f"}` or
-`{"connection": "f"}`, of a named family or of the session role.
+`{"connection": "f"}`, of a named family or of a parameter the family
+declares.
 
-## A family generic in another
+## A family generic in others
 
-A slot names what another family contributes: `{"envelope": "codex"}` is one
-message of codex, `{"connection": "codex"}` a handle to a channel that speaks
-it, and the generated code refers to codex's `Envelope` or `Handle`. A slot of
-the **session role** — `{"envelope": "session"}` — is of whichever session
-family applies, and makes the family generic in it. Nightseam renders such a
-family generically, once, and a consumer instantiates it:
+A family declares the parameters it is generic in, and a slot names one:
 
-- TypeScript has associated types, so a generic family has one parameter:
-  `Frame<F extends AnyFamily = SessionFamily>` with `message: F["Envelope"]`,
-  `SessionFamily` the union of the session families of the world, and
-  `Client.dial(url, codex.family, …)` binding the family, whose validator then
-  validates what fills the slot. Every family exports its `Family` descriptor
+```json
+"parameters": [{"name": "S", "of": "session"}, {"name": "T", "of": "session"}],
+"types": {
+  "Frame": {"kind": "record", "fields": [
+    {"name": "message", "type": {"envelope": "S"}},
+    {"name": "back",    "type": {"connection": "S"}},
+    {"name": "heard",   "type": {"envelope": "T"}}]}}
+```
+
+A slot target in upper camel case is a parameter, in lower case a family:
+`{"envelope": "codex"}` is one message of codex and the generated code refers
+to codex's own `Envelope`. A parameter is bound where the generated code is
+instantiated, to any family that declares its role — today `session`, the
+role a family with a `sess` layer carries. There is no limit on how many
+parameters a family declares, and two parameters never collapse into one: a
+consumer may bind `S` to one session family and `T` to another.
+
+A method's `request` is a type expression like any other, so it may hold a
+slot; a declared parameter no slot names is reported, as is a slot naming a
+parameter the family does not declare.
+
+Nightseam renders such a family once, generically, and a consumer
+instantiates it:
+
+- TypeScript has associated types, so one parameter is one type parameter
+  whatever kinds it is used at: `Frame<S extends AnyFamily = SessionFamily>`
+  with `message: S["Envelope"]`, `SessionFamily` the union of the session
+  families of the world, and one binding argument per parameter,
+  `Client.dial(url, probe.family, codex.family, …)`, whose validators then
+  validate what fills each slot. Every family exports its `Family` descriptor
   and its `family` binding for this.
-- Go has none, so a type takes a parameter per slot kind it uses, `E` for an
-  envelope and `H` for a handle, and the family's `Handler`, `Client` and
-  `Dial` take the union: `Frame[codexprotocol.Envelope]` validates what fills
-  the slot through codex's codec; `Frame[json.RawMessage]` passes it through,
-  which is what a relay wants.
+- Go has none, so a parameter becomes one type parameter per kind it is used
+  at, named for the parameter and the kind: `S` used at both kinds gives `SE`
+  and `SH`, and a type takes only the ones it uses —
+  `Frame[SE any]`, `Attachment[SH any]`, `Both[SE, SH, TE any]` — while the
+  family's `Handler`, `Client` and `Dial` take the union.
+  `Frame[codexprotocol.Envelope]` validates what fills the slot through
+  codex's codec; `Frame[json.RawMessage]` passes it through, which is what a
+  relay wants.
 
-The two ways to a concrete package — substituting the family into the
-contract and rendering it plain, or rendering generically and instantiating —
-must agree: `gen(substitute(C, F)) ≅ gen(C)[F]`. The generator's fixture
-renders both for a carrier of a probe family into one module and holds them
-equal: by reflection in Go, field for field and method for method; by
-`Equals<>` under `tsc` in TypeScript; and on the wire, a plain client against
-a generic server and the reverse.
+The two ways to a concrete package — binding the parameters into the contract
+and rendering it plain, or rendering generically and instantiating — must
+agree: `gen(bind(C, F)) ≅ gen(C)[F]`. The generator's fixture renders both
+for a carrier of a probe family into one module and holds them equal: by
+reflection in Go, field for field and method for method; by `Equals<>` under
+`tsc` in TypeScript; and on the wire, a plain client against a generic server
+and the reverse.
 
-## The tunnel
-
-A tunnel multiplexes channels over one peer of the profile. Either side opens
-a channel, saying the family it speaks and the last sequence it holds; each
-channel is a connection of the seam — `duplex.Conn` in Go, `FrameConnection`
-in TypeScript — held to the same conformance suite as the WebSocket and the
-pipe, so a peer of any family runs over it unchanged, and a handle in a
-family's message, `{"channel": 12}`, names one. The outer peer sees four
-operations of the profile's own — `channel.open`, a request; `channel.frame`,
-`channel.credit` and `channel.close`, events — and never what a channel
-carries. Flow control is per channel by credit, a window each side declares
-at open and returns as it takes frames, so a channel whose consumer stalls
-stalls its own sender and nothing else; ids are the opener's, odd for the
-client and even for the server, so both sides open without a collision. The
-Go and TypeScript tunnels are held to each other over a real WebSocket.
+A binding need not be total: binding some parameters leaves the contract
+generic in the rest, which is what lets a family be specialized a step at a
+time.
 
 ## Using it
 

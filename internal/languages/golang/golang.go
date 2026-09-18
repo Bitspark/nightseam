@@ -133,7 +133,7 @@ func (l *language) Render(api contract.API) ([]spi.File, error) {
 
 // reservedTypes are the identifiers the generated Go packages and the
 // runtime declare or would shadow; a contract type of that name is refused.
-var reservedTypes = strings.Fields("API Client Caller Server Binding Handler Handlers ClientHandlers ServerHandlers Peer PublicError Optional Remote NewHandler Dial Decides Asks Conversation ValidateRaw ValidateExpressionRaw ValidateValue TypeExpression E H")
+var reservedTypes = strings.Fields("API Client Caller Server Binding Handler Handlers ClientHandlers ServerHandlers Peer PublicError Optional Remote NewHandler Dial Decides Asks Conversation ValidateRaw ValidateExpressionRaw ValidateValue TypeExpression Binding Attach Serve Open Family")
 var reservedMethods = strings.Fields("Close Call Notify Handle Connect")
 
 // Check reports the names the contract would make Go generate that it
@@ -207,6 +207,16 @@ func (*language) Check(api contract.API) []contract.Diagnostic {
 				goNames[goName] = at.Pointer
 			}
 		})
+	}
+	// A generic type takes its parameters as Go type parameters, which shadow
+	// any type of the same name in the generated package.
+	for i, parameter := range api.Parameters {
+		for _, kind := range contract.SlotKinds {
+			generated := parameterName(contract.Use{Parameter: parameter.Name, Kind: kind})
+			if previous, exists := declarations[generated]; exists {
+				add("generated_name_collision", fmt.Sprintf("/parameters/%d/name", i), "Generated Go type parameter "+generated+" collides with "+previous+".")
+			}
+		}
 	}
 	// The Go namespace is shared across methods and events in each direction.
 	operations := map[string]string{}
@@ -314,38 +324,42 @@ func fieldName(field contract.Field) string {
 // enum value; the checker and the emitter share it by construction.
 func enumConstantName(typeName, value string) string { return typeName + goName(value) }
 
-// parameterNames spells a slot kind of the session role as the type
-// parameter it becomes: E for an envelope, H for a handle. Go has no
-// associated types, so a type takes a parameter for each kind it uses and
-// the family's operations take the union; a consumer instantiates them with
-// the family's own types, and the codecs of those validate what fills the
-// slots.
-var parameterNames = map[string]string{contract.EnvelopeSlot: "E", contract.ConnectionSlot: "H"}
+// kindSuffix spells a slot kind as the letter a type parameter ends in: E
+// for an envelope, H for a handle.
+var kindSuffix = map[string]string{contract.EnvelopeSlot: "E", contract.ConnectionSlot: "H"}
 
-func parameters(kinds []string) []string {
-	names := make([]string, len(kinds))
-	for i, kind := range kinds {
-		names[i] = parameterNames[kind]
+// parameterName is the Go type parameter one use becomes: the contract's
+// parameter followed by the kind's letter, SE and SH for a parameter S. Go
+// has no associated types, so a parameter used at both kinds becomes two Go
+// parameters; a family's Binding pairs them again at every entry point, so
+// that one argument fills both and they cannot be bound to different
+// families by accident.
+func parameterName(use contract.Use) string { return use.Parameter + kindSuffix[use.Kind] }
+
+func parameters(uses []contract.Use) []string {
+	names := make([]string, len(uses))
+	for i, use := range uses {
+		names[i] = parameterName(use)
 	}
 	return names
 }
 
-// declare renders the type parameters of a declaration that uses the kinds,
-// [E, H any], or nothing for a plain one.
-func declare(kinds []string) string {
-	if len(kinds) == 0 {
+// declare renders the type parameters of a declaration that makes the uses,
+// [SE, SH any], or nothing for a plain one.
+func declare(uses []contract.Use) string {
+	if len(uses) == 0 {
 		return ""
 	}
-	return "[" + strings.Join(parameters(kinds), ", ") + " any]"
+	return "[" + strings.Join(parameters(uses), ", ") + " any]"
 }
 
-// apply renders the type arguments a reference passes on, [E, H], or
+// apply renders the type arguments a reference passes on, [SE, SH], or
 // nothing.
-func apply(kinds []string) string {
-	if len(kinds) == 0 {
+func apply(uses []contract.Use) string {
+	if len(uses) == 0 {
 		return ""
 	}
-	return "[" + strings.Join(parameters(kinds), ", ") + "]"
+	return "[" + strings.Join(parameters(uses), ", ") + "]"
 }
 
 func goType(g contract.Generics, expr any, prefix string) string {
@@ -371,11 +385,11 @@ func goType(g contract.Generics, expr any, prefix string) string {
 			return prefix + t + apply(g.Types[t])
 		}
 	case map[string]any:
-		if kind, family, ok := contract.Slot(t); ok {
-			if family == contract.SessionRole {
-				return parameterNames[kind]
+		if kind, target, ok := contract.Slot(t); ok {
+			if contract.Parameterized(target) {
+				return parameterName(contract.Use{Parameter: target, Kind: kind})
 			}
-			return importAlias(family) + "." + contract.SlotType(kind)
+			return importAlias(target) + "." + contract.SlotType(kind)
 		}
 		if a, ok := t["array"]; ok {
 			return "[]" + goType(g, a, prefix)
@@ -447,13 +461,13 @@ func goFile(api contract.API, suffix, source string, p paths) string {
 	return spi.Header + "package " + pkg(api, suffix) + "\n" + importsFor(source, fixed) + source
 }
 func paramSignature(g contract.Generics, method contract.Method) string {
-	if method.Request == "" {
+	if method.Request == nil {
 		return ""
 	}
 	return ", params " + goType(g, method.Request, "protocol.")
 }
 func paramValue(method contract.Method) string {
-	if method.Request == "" {
+	if method.Request == nil {
 		return "struct{}{}"
 	}
 	return "params"

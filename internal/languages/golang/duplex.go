@@ -11,8 +11,7 @@ import (
 // implements, the Remote it calls back through, NewHandler for a WebSocket
 // endpoint and Serve for any connection of the seam — a tunnel channel, a
 // pipe. Those of a generic family are generic in the parameters its types
-// use, E and H, and a server instantiates them with the family that fills
-// the slots.
+// use, and a server instantiates them with the families that fill the slots.
 func generateBinding(api contract.API, g contract.Generics, p paths) string {
 	decl, args := declare(g.Family), apply(g.Family)
 	var b strings.Builder
@@ -125,8 +124,8 @@ func writeRegistration(b *strings.Builder, g contract.Generics, m contract.Metho
 	fmt.Fprintf(b, "if _,exists:=handlers[%q];exists{return fmt.Errorf(\"duplicate handler %%s\",%q)}\n", m.Name, m.Name)
 	fmt.Fprintf(b, "handlers[%q]=func(ctx context.Context,peer *runtime.Peer,raw json.RawMessage)(any,error){\n", m.Name)
 	params := ""
-	if m.Request != "" {
-		fmt.Fprintf(b, "var params %s;if err:=protocol.ValidateRaw(%q,raw);err!=nil{return nil,&runtime.PublicError{Code:\"invalid_params\",Message:err.Error()}};if err:=json.Unmarshal(raw,&params);err!=nil{return nil,&runtime.PublicError{Code:\"invalid_params\",Message:err.Error()}};\n", goType(g, m.Request, "protocol."), m.Request)
+	if m.Request != nil {
+		fmt.Fprintf(b, "var params %s;if err:=protocol.ValidateExpressionRaw(protocol.TypeExpression(%q),raw);err!=nil{return nil,&runtime.PublicError{Code:\"invalid_params\",Message:err.Error()}};if err:=json.Unmarshal(raw,&params);err!=nil{return nil,&runtime.PublicError{Code:\"invalid_params\",Message:err.Error()}};\n", goType(g, m.Request, "protocol."), expression(m.Request))
 		params = ",params"
 	} else {
 		b.WriteString("if err:=protocol.ValidateExpressionRaw(map[string]any{\"empty\":true},raw);err!=nil{return nil,&runtime.PublicError{Code:\"invalid_params\",Message:err.Error()}};")
@@ -136,8 +135,8 @@ func writeRegistration(b *strings.Builder, g contract.Generics, m contract.Metho
 func writeCaller(b *strings.Builder, g contract.Generics, m contract.Method, receiver string) {
 	result := goType(g, m.Result, "protocol.")
 	fmt.Fprintf(b, "func(c *%s)%s(ctx context.Context%s)(%s,error){var result %s;", receiver, m.GoName, paramSignature(g, m), result, result)
-	if m.Request != "" {
-		fmt.Fprintf(b, "if err:=protocol.ValidateValue(%q,params);err!=nil{return result,err};", m.Request)
+	if m.Request != nil {
+		fmt.Fprintf(b, "if err:=protocol.ValidateValue(protocol.TypeExpression(%q),params);err!=nil{return result,err};", expression(m.Request))
 	}
 	fmt.Fprintf(b, "var raw json.RawMessage;if err:=c.Peer.Call(ctx,%q,%s,&raw);err!=nil{return result,err};if err:=protocol.ValidateExpressionRaw(protocol.TypeExpression(%q),raw);err!=nil{return result,err};if err:=json.Unmarshal(raw,&result);err!=nil{return result,err};return result,nil}\n", m.Name, paramValue(m), expression(m.Result))
 }
