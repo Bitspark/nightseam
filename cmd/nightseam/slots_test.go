@@ -13,11 +13,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Bitspark/nightseam/internal/contract"
-	"github.com/Bitspark/nightseam/internal/kernel"
-	"github.com/Bitspark/nightseam/internal/languages/golang"
-	"github.com/Bitspark/nightseam/internal/languages/typescript"
-	"github.com/Bitspark/nightseam/internal/spi"
+	"github.com/Bitspark/nightseam/internal/legacy/contract"
+	"github.com/Bitspark/nightseam/internal/legacy/kernel"
+	"github.com/Bitspark/nightseam/internal/legacy/languages/golang"
+	"github.com/Bitspark/nightseam/internal/legacy/languages/typescript"
+	"github.com/Bitspark/nightseam/internal/legacy/spi"
 )
 
 // carrierContract carries a family it is generic in, S: a frame holding one

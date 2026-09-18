@@ -1,0 +1,4 @@
+func TypeExpression(encoded string) any
+func ValidateExpressionRaw(expression any, data []byte) error
+func ValidateRaw(name string, data []byte) error
+func ValidateValue(expression any, value any) error

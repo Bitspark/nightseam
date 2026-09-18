@@ -4,7 +4,7 @@ A cross-repository comparison of type models, generators, wire profiles,
 conformance and layering in [aifunc3](repos/aifunc3-models.md),
 [bitmachine](repos/bitmachine-models.md) and
 [plexis](repos/plexis-models.md), against Nightseam's own contract model
-in [internal/contract/api.schema.json](../internal/contract/api.schema.json).
+in [internal/legacy/contract/api.schema.json](../internal/legacy/contract/api.schema.json).
 The per-repo pages carry the paths, snippets and line references; this
 page carries the shape of the whole and the list of what is worth taking.
 Surveyed 2026-09-18 against aifunc3 `e6edab7f9`, bitmachine `f64b23c992`,

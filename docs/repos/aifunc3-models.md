@@ -7,7 +7,7 @@ declaration, and carry them over a duplex wire. Paths are relative to
 `e6edab7f9` (2026-04-13).
 
 The yardstick is Nightseam's own model in
-[internal/contract/api.schema.json](../../internal/contract/api.schema.json):
+[internal/legacy/contract/api.schema.json](../../internal/legacy/contract/api.schema.json):
 primitives `string | boolean | number | integer | timestamp | json`;
 `record` (with `extends`, `open`), `enum`, `alias`; `array`, `map`;
 imports of named families; parameters of role `session` with `connection`

@@ -4,7 +4,7 @@
 // kernel or another language. They meet only where the tool is composed.
 package spi
 
-import "github.com/Bitspark/nightseam/internal/contract"
+import "github.com/Bitspark/nightseam/internal/legacy/contract"
 
 // Recipe names the generation recipe every language renders; RuntimeVersion
 // the runtime the rendered sources bind to.

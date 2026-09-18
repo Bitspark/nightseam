@@ -21,8 +21,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/Bitspark/nightseam/internal/contract"
-	"github.com/Bitspark/nightseam/internal/spi"
+	"github.com/Bitspark/nightseam/internal/legacy/contract"
+	"github.com/Bitspark/nightseam/internal/legacy/spi"
 )
 
 // Options places the generated packages. Module is the import path they are

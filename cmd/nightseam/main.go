@@ -18,7 +18,7 @@
 //
 // The generator is a kernel and one package per language, composed here and
 // nowhere else: languages names them, the kernel renders through the seam
-// in internal/spi. It is developer tooling, never a runtime dependency; a
+// in internal/legacy/spi. It is developer tooling, never a runtime dependency; a
 // consumer runs it as a Go tool, go tool nightseam check. Family names
 // complete in the shell: nightseam completion --help.
 package main
@@ -36,11 +36,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Bitspark/nightseam/internal/contract"
-	"github.com/Bitspark/nightseam/internal/kernel"
-	"github.com/Bitspark/nightseam/internal/languages/golang"
-	"github.com/Bitspark/nightseam/internal/languages/typescript"
-	"github.com/Bitspark/nightseam/internal/spi"
+	"github.com/Bitspark/nightseam/internal/legacy/contract"
+	"github.com/Bitspark/nightseam/internal/legacy/kernel"
+	"github.com/Bitspark/nightseam/internal/legacy/languages/golang"
+	"github.com/Bitspark/nightseam/internal/legacy/languages/typescript"
+	"github.com/Bitspark/nightseam/internal/legacy/spi"
 )
 
 func main() {

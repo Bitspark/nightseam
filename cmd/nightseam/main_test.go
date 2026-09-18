@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Bitspark/nightseam/internal/kernel"
+	"github.com/Bitspark/nightseam/internal/legacy/kernel"
 )
 
 // module and scope root the fixtures' generated packages.
@@ -338,13 +338,15 @@ func TestImportDirection(t *testing.T) {
 	const tool = nightseam + "/cmd/nightseam"
 	internal := nightseam + "/internal/"
 	// What each package of the seam may import of the others; the tool
-	// itself may import any. No entry names a language.
+	// itself may import any. No entry names a language. The v1 generator
+	// lives under legacy/ while v2 is built beside it; its rows go when it
+	// does.
 	allowed := map[string]map[string]bool{
-		"contract":             {},
-		"spi":                  {"contract": true},
-		"kernel":               {"contract": true, "spi": true},
-		"languages/golang":     {"contract": true, "spi": true},
-		"languages/typescript": {"contract": true, "spi": true},
+		"legacy/contract":             {},
+		"legacy/spi":                  {"legacy/contract": true},
+		"legacy/kernel":               {"legacy/contract": true, "legacy/spi": true},
+		"legacy/languages/golang":     {"legacy/contract": true, "legacy/spi": true},
+		"legacy/languages/typescript": {"legacy/contract": true, "legacy/spi": true},
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	seen := 0

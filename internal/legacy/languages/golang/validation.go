@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Bitspark/nightseam/internal/contract"
+	"github.com/Bitspark/nightseam/internal/legacy/contract"
 )
 
 // generateValidation renders the protocol package's runtime validator, an

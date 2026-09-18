@@ -16,8 +16,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Bitspark/nightseam/internal/contract"
-	"github.com/Bitspark/nightseam/internal/spi"
+	"github.com/Bitspark/nightseam/internal/legacy/contract"
+	"github.com/Bitspark/nightseam/internal/legacy/spi"
 )
 
 // Options places the generated package. Scope is the npm scope the package

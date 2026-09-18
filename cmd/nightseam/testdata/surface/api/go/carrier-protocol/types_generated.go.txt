@@ -1,0 +1,22 @@
+func (*AttachParams) UnmarshalJSON(data []byte) error
+func (*Attachment[SHandle]) UnmarshalJSON(data []byte) error
+func (*Envelope) UnmarshalJSON(data []byte) error
+func (*Frame[SEnvelope]) UnmarshalJSON(data []byte) error
+func (*Handle) UnmarshalJSON(data []byte) error
+func (AttachParams) MarshalJSON() ([]byte, error)
+func (AttachParams) Of() Tag
+func (Attachment[SHandle]) MarshalJSON() ([]byte, error)
+func (Attachment[SHandle]) Of() Tag
+func (Envelope) MarshalJSON() ([]byte, error)
+func (Envelope) Of() Tag
+func (Frame[SEnvelope]) MarshalJSON() ([]byte, error)
+func (Frame[SEnvelope]) Of() Tag
+func (Handle) MarshalJSON() ([]byte, error)
+func (Handle) Of() Tag
+type AttachParams struct{ID string `json:"id"`}
+type Attachment[SHandle any] struct{Connection SHandle `json:"connection"`; Last int64 `json:"last"`}
+type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`}
+type Frame[SEnvelope any] struct{Sequence int64 `json:"sequence"`; Message SEnvelope `json:"message"`}
+type Frames[SEnvelope any] []Frame[SEnvelope]
+type Handle struct{Channel int64 `json:"channel"`}
+type Tag struct{}

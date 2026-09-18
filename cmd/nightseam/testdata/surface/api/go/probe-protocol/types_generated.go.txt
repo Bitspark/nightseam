@@ -1,0 +1,36 @@
+const ErrorDenied = "denied"
+const ErrorNotFound = "not_found"
+const StatusContextExample Status = "context.example"
+const StatusDone Status = "done"
+const StatusReady Status = "ready"
+func (*Base) UnmarshalJSON(data []byte) error
+func (*Envelope) UnmarshalJSON(data []byte) error
+func (*Handle) UnmarshalJSON(data []byte) error
+func (*OpenRecord) UnmarshalJSON(data []byte) error
+func (*Payload) UnmarshalJSON(data []byte) error
+func (*Seen) UnmarshalJSON(data []byte) error
+func (Base) MarshalJSON() ([]byte, error)
+func (Base) Of() Tag
+func (Envelope) MarshalJSON() ([]byte, error)
+func (Envelope) Of() Tag
+func (Handle) MarshalJSON() ([]byte, error)
+func (Handle) Of() Tag
+func (OpenRecord) MarshalJSON() ([]byte, error)
+func (OpenRecord) Of() Tag
+func (Payload) MarshalJSON() ([]byte, error)
+func (Payload) Of() Tag
+func (Seen) MarshalJSON() ([]byte, error)
+func (Seen) Of() Tag
+func (Status) Of() Tag
+func IsError(err error, code string) bool
+type Base struct{Text string `json:"text"`}
+type Counts map[string]int64
+type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`}
+type Handle struct{Channel int64 `json:"channel"`}
+type OpenRecord struct{ID string `json:"id"`; Note runtime.Optional[string] `json:"note,omitzero"`; AdditionalFields map[string]json.RawMessage `json:"-"`}
+type Payload struct{Text string `json:"text"`; Count int64 `json:"count"`; Note runtime.Optional[runtime.Nullable[string]] `json:"note,omitzero"`}
+type Payloads []Payload
+type Seen struct{At time.Time `json:"at"`; Status Status `json:"status"`; Extra runtime.Optional[any] `json:"extra,omitzero"`; Ratio float64 `json:"ratio"`; Ok bool `json:"ok"`}
+type Status string
+type Tag struct{}
+var Errors = []string{…}

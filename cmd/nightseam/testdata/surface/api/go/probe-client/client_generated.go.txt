@@ -1,0 +1,15 @@
+func (*Client) Close() error
+func (*Client) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
+func (*Client) EmitNoticed(ctx context.Context, data protocol.Seen) error
+func (*Client) NoArgs(ctx context.Context) (string, error)
+func (*Client) OnChanged(handler func(context.Context, protocol.Payload)) error
+func (*Client) Seen(ctx context.Context, params protocol.Seen) (protocol.Payloads, error)
+func Asks(method string) bool
+func Attach(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler) (*Client, error)
+func Decides(method string) bool
+func Dial(ctx context.Context, url string, options runtime.DialOptions, handler Handler) (*Client, error)
+func Open(ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler) (*Client, error)
+type Caller interface{Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error); NoArgs(ctx context.Context) (string, error); Seen(ctx context.Context, params protocol.Seen) (protocol.Payloads, error)}
+type Client struct{Peer *runtime.Peer}
+type Handler interface{Reverse(ctx context.Context, client *Client, params protocol.Payload) (protocol.Payload, error)}
+var Conversation = struct{Event, Path string}{…}

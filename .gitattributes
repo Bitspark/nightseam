@@ -10,3 +10,6 @@
 *.png binary
 *.jpg binary
 *.woff2 binary
+*.txt text eol=lf
+# Every fixture the generator's tests compare byte for byte.
+cmd/nightseam/testdata/** text eol=lf

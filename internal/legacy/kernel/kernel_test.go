@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Bitspark/nightseam/internal/contract"
-	"github.com/Bitspark/nightseam/internal/spi"
+	"github.com/Bitspark/nightseam/internal/legacy/contract"
+	"github.com/Bitspark/nightseam/internal/legacy/spi"
 )
 
 func contractFixture(t *testing.T) map[string]any {

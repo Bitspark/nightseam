@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Bitspark/nightseam/internal/contract"
+	"github.com/Bitspark/nightseam/internal/legacy/contract"
 )
 
 // writeLayers splits the probe contract into its layer files under a

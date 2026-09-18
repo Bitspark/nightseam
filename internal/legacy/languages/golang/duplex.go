@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Bitspark/nightseam/internal/contract"
+	"github.com/Bitspark/nightseam/internal/legacy/contract"
 )
 
 // generateBinding renders the server side: the Handler interface a server
