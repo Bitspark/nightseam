@@ -63,5 +63,8 @@ func generateTypes(api contract.API, g contract.Generics, p paths) string {
 			fmt.Fprintf(&b, "type %s%s = %s\n", name, declare(kinds), goType(g, t.Type, ""))
 		}
 	}
+	// The family bound, for a generic package instantiated with it: one
+	// argument that carries both of a parameter's type parameters.
+	fmt.Fprintf(&b, "// Family binds this family where a generic package is instantiated with it.\nvar Family = runtime.Family[%s, %s]{Name: %q, Validate: ValidateRaw}\n", contract.EnvelopeType, contract.HandleType, api.Name)
 	return goFile(api, "protocol", b.String(), p)
 }

@@ -75,14 +75,24 @@ instantiates it:
   `Client.dial(url, probe.family, codex.family, …)`, whose validators then
   validate what fills each slot. Every family exports its `Family` descriptor
   and its `family` binding for this.
-- Go has none, so a parameter becomes one type parameter per kind it is used
-  at, named for the parameter and the kind: `S` used at both kinds gives `SE`
-  and `SH`, and a type takes only the ones it uses —
-  `Frame[SE any]`, `Attachment[SH any]`, `Both[SE, SH, TE any]` — while the
-  family's `Handler`, `Client` and `Dial` take the union.
-  `Frame[codexprotocol.Envelope]` validates what fills the slot through
-  codex's codec; `Frame[json.RawMessage]` passes it through, which is what a
-  relay wants.
+- Go has none, so a parameter becomes one type parameter per kind, named for
+  the parameter and the kind: `S` gives `SE` and `SH`, and a type takes only
+  the ones it uses — `Frame[SE any]`, `Attachment[SH any]`,
+  `Both[SE, SH, TE any]`. `Frame[codexprotocol.Envelope]` validates what
+  fills the slot through codex's codec; `Frame[json.RawMessage]` passes it
+  through, which is what a relay wants.
+
+  Nothing in Go relates `SE` to `SH`, so on their own they could be bound to
+  one family's `Envelope` and another's `Handle` — a pairing no binding of
+  the contract produces and no TypeScript peer can express. The entry points
+  therefore take the binding as one argument per parameter, and every
+  protocol package exports its own: `Dial(ctx, url, probeprotocol.Family, …)`
+  infers `SE` and `SH` together from it, and asking for a pair it does not
+  have is a compile error. A family's own declarations take both type
+  parameters of every parameter for this, so a parameter used at one kind
+  carries the other as a phantom; `runtime.Opaque()` binds a parameter to no
+  family, for a relay. A consumer who builds a mismatched `runtime.Family`
+  literal by hand can still mix them: Go offers no way to forbid that.
 
 The two ways to a concrete package — binding the parameters into the contract
 and rendering it plain, or rendering generically and instantiating — must

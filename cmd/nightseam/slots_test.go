@@ -115,8 +115,8 @@ func TestSlottedContractRendersGenerically(t *testing.T) {
 	for path, wants := range map[string][]string{
 		"api/go/carrier-protocol/types_generated.go":      {"type Frame[SE any] struct {", "type Attachment[SH any] struct {", "Connection", "type Frames[SE any] = []Frame[SE]", "type AttachParams struct {", "func (v Frame[SE]) MarshalJSON()", "func (v *Frame[SE]) UnmarshalJSON("},
 		"api/go/carrier-protocol/validation_generated.go": {`"probe": probeprotocol.ValidateRaw`},
-		"api/go/carrier-binding/binding_generated.go":     {"type Remote[SE, SH any] struct", "type Handler[SE, SH any] interface", "remote *Remote[SE, SH], params protocol.AttachParams) (protocol.Attachment[SH], error)", "remote *Remote[SE, SH], params protocol.Frame[SE]) (probeprotocol.Envelope, error)", "func NewHandler[SE, SH any](handler Handler[SE, SH], options runtime.ServerOptions)", "EmitFrameRelayed(ctx context.Context, data protocol.Frame[SE]) error"},
-		"api/go/carrier-client/client_generated.go":       {"type Client[SE, SH any] struct", "type Caller[SE, SH any] interface", "func Dial[SE, SH any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[SE, SH]) (*Client[SE, SH], error)", "OnFrameRelayed(handler func(context.Context, protocol.Frame[SE])) error"},
+		"api/go/carrier-binding/binding_generated.go":     {"type Remote[SE, SH any] struct", "type Handler[SE, SH any] interface", "remote *Remote[SE, SH], params protocol.AttachParams) (protocol.Attachment[SH], error)", "remote *Remote[SE, SH], params protocol.Frame[SE]) (probeprotocol.Envelope, error)", "func NewHandler[SE, SH any](s runtime.Family[SE, SH], handler Handler[SE, SH], options runtime.ServerOptions)", "EmitFrameRelayed(ctx context.Context, data protocol.Frame[SE]) error"},
+		"api/go/carrier-client/client_generated.go":       {"type Client[SE, SH any] struct", "type Caller[SE, SH any] interface", "func Dial[SE, SH any](ctx context.Context, url string, s runtime.Family[SE, SH], options runtime.DialOptions, handler Handler[SE, SH]) (*Client[SE, SH], error)", "OnFrameRelayed(handler func(context.Context, protocol.Frame[SE])) error"},
 		"api/ts/carrier-client/src/types.ts":              {"export interface Frame<S extends AnyFamily = SessionFamily> {", `"message": S["Envelope"];`, "export interface Attachment<S extends AnyFamily = SessionFamily> {", `"connection": S["Handle"];`, "export type Frames<S extends AnyFamily = SessionFamily> = Array<Frame<S>>;", "export interface AttachParams {", "export type SessionFamily = probe.Family;", `export const family = { name: "carrier", validate: validateWire } as const;`},
 		"api/ts/carrier-client/src/index.ts":              {"export interface Handler<S extends AnyFamily = SessionFamily> {", "export interface Caller<S extends AnyFamily = SessionFamily> {", "attach(params: Protocol.AttachParams, options?: CallOptions): Promise<Protocol.Attachment<S>>;", "relay(params: Protocol.Frame<S>, options?: CallOptions): Promise<probe.Envelope>;", "export class Client<S extends AnyFamily = SessionFamily> implements Caller<S> {", "static async dial<S extends AnyFamily = SessionFamily>(url: string, s: FamilyBinding<S>, options: PeerOptions = {}, handler?: Handler<S>): Promise<Client<S>>", "onFrameRelayed(handler: (data: Protocol.Frame<S>) => void | Promise<void>): () => void"},
 		"api/ts/carrier-client/package.json":              {`"@example/probe-client":"0.0.0"`},
@@ -383,7 +383,7 @@ func serve(t *testing.T, h http.Handler) (*httptest.Server, string) {
  return server, "ws" + strings.TrimPrefix(server.URL, "http")
 }
 func TestPlainClientSpeaksWithGenericServer(t *testing.T) {
- h, err := rightbinding.NewHandler[E, H](rightServer{}, options)
+ h, err := rightbinding.NewHandler(probe.Family, rightServer{}, options)
  if err != nil { t.Fatal(err) }
  server, url := serve(t, h)
  defer server.Close()
@@ -414,7 +414,7 @@ func TestGenericClientSpeaksWithPlainServer(t *testing.T) {
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
  defer cancel()
- c, err := rightclient.Dial[E, H](ctx, url, runtime.DialOptions{}, nil)
+ c, err := rightclient.Dial(ctx, url, probe.Family, runtime.DialOptions{}, nil)
  if err != nil { t.Fatal(err) }
  defer c.Close()
  relayed := make(chan right.Frame[E], 1)
@@ -591,14 +591,14 @@ func TestTwoParametersRenderApart(t *testing.T) {
 			"Of probeprotocol.Envelope",
 		},
 		"api/go/pair-binding/binding_generated.go": {
-			"type Handler[SE, SH, TE any] interface",
+			"type Handler[SE, SH, TE, TH any] interface",
 			"params TE) (protocol.Both[SE, SH, TE], error)",
 			"params protocol.Named) (protocol.Named, error)",
 			"EmitEchoed(ctx context.Context, data protocol.Echo[TE]) error",
 		},
 		"api/go/pair-client/client_generated.go": {
-			"type Client[SE, SH, TE any] struct",
-			"func Dial[SE, SH, TE any](",
+			"type Client[SE, SH, TE, TH any] struct",
+			"func Dial[SE, SH, TE, TH any](ctx context.Context, url string, s runtime.Family[SE, SH], t runtime.Family[TE, TH],",
 		},
 		"api/ts/pair-client/src/types.ts": {
 			"export interface Frame<S extends AnyFamily = SessionFamily> {",

@@ -336,6 +336,46 @@ var kindSuffix = map[string]string{contract.EnvelopeSlot: "E", contract.Connecti
 // families by accident.
 func parameterName(use contract.Use) string { return use.Parameter + kindSuffix[use.Kind] }
 
+// familyUses is every parameter of the family at every slot kind, in
+// declaration order: what the family's own declarations take. A parameter
+// used at one kind only still takes both, the unused one a phantom, so that
+// one binding argument of runtime.Family fills exactly a parameter's pair
+// and the two cannot be bound to different families.
+func familyUses(api contract.API) []contract.Use {
+	var uses []contract.Use
+	for _, parameter := range api.Parameters {
+		for _, kind := range contract.SlotKinds {
+			uses = append(uses, contract.Use{Parameter: parameter.Name, Kind: kind})
+		}
+	}
+	return uses
+}
+
+// bindingName is what a parameter's binding is called as an argument: the
+// parameter in lower camel case, so that a parameter S is bound by s.
+func bindingName(parameter string) string {
+	return strings.ToLower(parameter[:1]) + parameter[1:]
+}
+
+// bindings renders the binding arguments of an entry point, one per
+// parameter, each pairing that parameter's two type parameters; args renders
+// the same as arguments passed on. Both end in a comma when not empty.
+func bindings(api contract.API) string {
+	var b strings.Builder
+	for _, parameter := range api.Parameters {
+		fmt.Fprintf(&b, "%s runtime.Family[%sE, %sH],", bindingName(parameter.Name), parameter.Name, parameter.Name)
+	}
+	return b.String()
+}
+
+func bindingValues(api contract.API) string {
+	var b strings.Builder
+	for _, parameter := range api.Parameters {
+		fmt.Fprintf(&b, "%s,", bindingName(parameter.Name))
+	}
+	return b.String()
+}
+
 func parameters(uses []contract.Use) []string {
 	names := make([]string, len(uses))
 	for i, use := range uses {

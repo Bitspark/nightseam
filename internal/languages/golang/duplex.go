@@ -13,7 +13,8 @@ import (
 // pipe. Those of a generic family are generic in the parameters its types
 // use, and a server instantiates them with the families that fill the slots.
 func generateBinding(api contract.API, g contract.Generics, p paths) string {
-	decl, args := declare(g.Family), apply(g.Family)
+	decl, args := declare(familyUses(api)), apply(familyUses(api))
+	bind := bindings(api)
 	var b strings.Builder
 	fmt.Fprintf(&b, "// Remote provides typed calls back to the connected client.\ntype Remote%s struct{Peer *runtime.Peer}\n", decl)
 	fmt.Fprintf(&b, "type Handler%s interface {\n", decl)
@@ -37,8 +38,8 @@ func generateBinding(api contract.API, g contract.Generics, p paths) string {
 		}
 	}
 	b.WriteString("options.Handlers=handlers;return nil}\n")
-	fmt.Fprintf(&b, "// NewHandler serves the family at a WebSocket endpoint; it requires explicit authentication and origin policy through options.\nfunc NewHandler%s(handler Handler%s,options runtime.ServerOptions)(http.Handler,error){if err:=install%s(handler,&options.Options);err!=nil{return nil,err};return runtime.NewHandler(options)}\n", decl, args, args)
-	fmt.Fprintf(&b, "// Serve serves the family over a connection of the seam — a tunnel channel, a pipe, an accepted socket — as the server side of it; the peer is the caller's to close.\nfunc Serve%s(ctx context.Context,conn duplex.Conn,options runtime.Options,handler Handler%s)(*runtime.Peer,error){if err:=install%s(handler,&options);err!=nil{return nil,err};return runtime.NewPeer(ctx,conn,runtime.ServerRole,options)}\n", decl, args, args)
+	fmt.Fprintf(&b, "// NewHandler serves the family at a WebSocket endpoint; it requires explicit authentication and origin policy through options.\nfunc NewHandler%s(%shandler Handler%s,options runtime.ServerOptions)(http.Handler,error){if err:=install%s(handler,&options.Options);err!=nil{return nil,err};return runtime.NewHandler(options)}\n", decl, bind, args, args)
+	fmt.Fprintf(&b, "// Serve serves the family over a connection of the seam — a tunnel channel, a pipe, an accepted socket — as the server side of it; the peer is the caller's to close.\nfunc Serve%s(ctx context.Context,conn duplex.Conn,%soptions runtime.Options,handler Handler%s)(*runtime.Peer,error){if err:=install%s(handler,&options);err!=nil{return nil,err};return runtime.NewPeer(ctx,conn,runtime.ServerRole,options)}\n", decl, bind, args, args)
 	writeEvents(&b, g, api, "Remote"+args, "server_to_client")
 	return goFile(api, "binding", b.String(), p)
 }
@@ -48,7 +49,8 @@ func generateBinding(api contract.API, g contract.Generics, p paths) string {
 // a tunnel, the typed calls, and the Handler interface for calls the server
 // makes back. Those of a generic family are generic as the binding's are.
 func generateClient(api contract.API, g contract.Generics, p paths) string {
-	decl, args := declare(g.Family), apply(g.Family)
+	decl, args := declare(familyUses(api)), apply(familyUses(api))
+	bind, give := bindings(api), bindingValues(api)
 	var b strings.Builder
 	fmt.Fprintf(&b, "type Client%s struct{Peer *runtime.Peer}\n", decl)
 	fmt.Fprintf(&b, "type Handler%s interface{\n", decl)
@@ -94,9 +96,9 @@ func generateClient(api contract.API, g contract.Generics, p paths) string {
 		}
 	}
 	b.WriteString("options.Handlers=handlers;return nil}\n")
-	fmt.Fprintf(&b, "// Dial connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.\nfunc Dial%s(ctx context.Context,url string,options runtime.DialOptions,handler Handler%s)(*Client%s,error){if err:=install%s(handler,&options.Options);err!=nil{return nil,err};peer,response,err:=runtime.Dial(ctx,url,options);if err!=nil{if response!=nil&&response.Body!=nil{_ = response.Body.Close()};return nil,err};return &Client%s{Peer:peer},nil}\n", decl, args, args, args, args)
-	fmt.Fprintf(&b, "// Attach speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.\nfunc Attach%s(ctx context.Context,conn duplex.Conn,options runtime.Options,handler Handler%s)(*Client%s,error){if err:=install%s(handler,&options);err!=nil{return nil,err};peer,err:=runtime.NewPeer(ctx,conn,runtime.ClientRole,options);if err!=nil{return nil,err};return &Client%s{Peer:peer},nil}\n", decl, args, args, args, args)
-	fmt.Fprintf(&b, "// Open resolves a handle to the channel it names on a tunnel and speaks the family over it.\nfunc Open%s(ctx context.Context,t *tunnel.Tunnel,handle protocol.Handle,options runtime.Options,handler Handler%s)(*Client%s,error){channel,ok:=t.Channel(handle.Channel);if !ok{return nil,fmt.Errorf(\"no channel %%d on the connection\",handle.Channel)};return Attach%s(ctx,channel,options,handler)}\n", decl, args, args, args)
+	fmt.Fprintf(&b, "// Dial connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.\nfunc Dial%s(ctx context.Context,url string,%soptions runtime.DialOptions,handler Handler%s)(*Client%s,error){if err:=install%s(handler,&options.Options);err!=nil{return nil,err};peer,response,err:=runtime.Dial(ctx,url,options);if err!=nil{if response!=nil&&response.Body!=nil{_ = response.Body.Close()};return nil,err};return &Client%s{Peer:peer},nil}\n", decl, bind, args, args, args, args)
+	fmt.Fprintf(&b, "// Attach speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.\nfunc Attach%s(ctx context.Context,conn duplex.Conn,%soptions runtime.Options,handler Handler%s)(*Client%s,error){if err:=install%s(handler,&options);err!=nil{return nil,err};peer,err:=runtime.NewPeer(ctx,conn,runtime.ClientRole,options);if err!=nil{return nil,err};return &Client%s{Peer:peer},nil}\n", decl, bind, args, args, args, args)
+	fmt.Fprintf(&b, "// Open resolves a handle to the channel it names on a tunnel and speaks the family over it.\nfunc Open%s(ctx context.Context,t *tunnel.Tunnel,handle protocol.Handle,%soptions runtime.Options,handler Handler%s)(*Client%s,error){channel,ok:=t.Channel(handle.Channel);if !ok{return nil,fmt.Errorf(\"no channel %%d on the connection\",handle.Channel)};return Attach%s(ctx,channel,%soptions,handler)}\n", decl, bind, args, args, args, give)
 	fmt.Fprintf(&b, "func(c *Client%s)Close()error{return c.Peer.Close()}\n", args)
 	for _, m := range api.Methods {
 		if m.Direction == "client_to_server" {
