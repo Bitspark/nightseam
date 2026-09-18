@@ -3,9 +3,9 @@
 // requires the root module at. The Go modules' versions are their tags, cut
 // afterwards; the goldens that embed the constant are rewritten by
 // `go test ./cmd/nightseam -short -run Golden -update`. See RELEASING.md.
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { packages, root } from "./packages.mjs";
+import { modules, packages, requirement, root } from "./packages.mjs";
 const version = process.argv[2];
 if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version ?? "")) {
   console.error("usage: node scripts/version.mjs <major.minor.patch>");
@@ -25,19 +25,9 @@ if (!constant.test(source)) {
   process.exit(1);
 }
 writeFileSync(target, source.replace(constant, `DefaultRuntimeVersion = "${version}"`));
-// A component that may depend on what the core module may not — the
-// OpenTelemetry adapter is the first — is a Go module of its own, released by
-// a second tag beside the root module's and requiring the root module at that
-// same number. They are found rather than listed, as the packages are, and
-// TestVersionsMoveInLockstep globs the same paths. The `replace` beside the
-// requirement is this checkout's and stays as it is: a consumer ignores a
-// dependency's replace and gets what is required.
-const requirement = /^(\s*)github\.com\/Bitspark\/nightseam v\S+$/m;
-const modules = readdirSync(root, { withFileTypes: true })
-  .filter(entry => entry.isDirectory() && entry.name !== "node_modules")
-  .map(entry => `${entry.name}/go/go.mod`)
-  .filter(file => existsSync(join(root, file)))
-  .sort();
+// Every nested Go module requires the root module at the release's number;
+// scripts/release-prepare.mjs holds it to the tag, as it holds the manifests,
+// and TestVersionsMoveInLockstep holds it in the fast tier.
 for (const file of modules) {
   const path = join(root, file);
   const module = readFileSync(path, "utf8");

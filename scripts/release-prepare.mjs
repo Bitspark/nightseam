@@ -5,7 +5,7 @@
 // run it by hand to rehearse. See RELEASING.md.
 import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { packages, root } from "./packages.mjs";
+import { modules, packages, requirement, root } from "./packages.mjs";
 const tag = process.argv[2];
 if (!/^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(tag ?? "")) {
   console.error("usage: node scripts/release-prepare.mjs v<major.minor.patch>");
@@ -23,6 +23,14 @@ for (const directory of packages) {
 const target = readFileSync(join(root, "internal/targets/typescript/target.go"), "utf8");
 const constant = target.match(/DefaultRuntimeVersion = "([^"]+)"/)?.[1];
 if (constant !== version) problems.push(`DefaultRuntimeVersion is ${constant}, the tag is ${version}`);
+// A nested Go module is released by a second tag beside this one and requires
+// the root module at the same version, which is one more spelling of it to
+// hold to the tag. Nothing is copied into one: a Go module's release is the
+// tag, and the licence the repository carries is the licence it is under.
+for (const file of modules) {
+  const required = readFileSync(join(root, file), "utf8").match(requirement)?.[2];
+  if (required !== tag) problems.push(`${file} requires the root module at ${required ?? "nothing"}, the tag is ${tag}`);
+}
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
 const section = changelog.split(/^## /m).find(part => part.startsWith(version + "\n") || part.startsWith(version + " "));
 if (!section) problems.push(`CHANGELOG.md has no section "## ${version}"`);
@@ -31,4 +39,4 @@ if (problems.length) {
   process.exit(1);
 }
 writeFileSync(join(root, "release-notes.md"), section.slice(section.indexOf("\n") + 1).trim() + "\n");
-console.log(`ready: ${tag} — ${packages.join(", ")}, DefaultRuntimeVersion, CHANGELOG section; release-notes.md written`);
+console.log(`ready: ${tag} — ${packages.join(", ")}, DefaultRuntimeVersion, ${modules.join(", ")}, CHANGELOG section; release-notes.md written`);
