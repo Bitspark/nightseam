@@ -1,0 +1,266 @@
+{
+  "name": "a request beyond what a session may have open is refused with busy, and the refusal is a change like any other",
+  "layer": "session",
+  "needs": [
+    "session",
+    "tunnel",
+    "peer",
+    "seam",
+    "listen",
+    "pipe",
+    "lazy"
+  ],
+  "steps": [
+    {
+      "on": "a",
+      "op": "peer.listen",
+      "args": {
+        "options": {
+          "observe": true
+        }
+      },
+      "bind": {
+        "handle": "l",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.dial",
+      "args": {
+        "url": "$url"
+      },
+      "bind": "pb"
+    },
+    {
+      "on": "a",
+      "op": "peer.accept",
+      "args": {
+        "on": "$l"
+      },
+      "bind": "pa"
+    },
+    {
+      "on": "a",
+      "op": "tunnel.over",
+      "args": {
+        "on": "$pa"
+      },
+      "bind": "carrier_a"
+    },
+    {
+      "on": "b",
+      "op": "tunnel.over",
+      "args": {
+        "on": "$pb"
+      },
+      "bind": "carrier_b"
+    },
+    {
+      "on": "a",
+      "op": "conn.pipe",
+      "args": {
+        "consume": "lazy"
+      },
+      "bind": {
+        "a": "pipe_near",
+        "b": "pipe_far"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.over",
+      "args": {
+        "on": "$pipe_near",
+        "role": "client",
+        "options": {
+          "observe": true
+        }
+      },
+      "bind": "near"
+    },
+    {
+      "on": "a",
+      "op": "peer.over",
+      "args": {
+        "on": "$pipe_far",
+        "role": "server"
+      },
+      "bind": "far"
+    },
+    {
+      "on": "a",
+      "op": "tunnel.over",
+      "args": {
+        "on": "$near"
+      },
+      "bind": "tunnel_near"
+    },
+    {
+      "on": "a",
+      "op": "tunnel.over",
+      "args": {
+        "on": "$far"
+      },
+      "bind": "tunnel_far"
+    },
+    {
+      "on": "a",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$tunnel_far",
+        "family": "probe",
+        "consume": "eager"
+      },
+      "bind": "machine"
+    },
+    {
+      "on": "a",
+      "op": "tunnel.accept",
+      "args": {
+        "on": "$tunnel_near",
+        "consume": "lazy"
+      },
+      "bind": "up"
+    },
+    {
+      "on": "a",
+      "op": "session.new",
+      "bind": "reg",
+      "args": {
+        "options": {
+          "max_inflight": 1
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "session.bind",
+      "args": {
+        "on": "$reg",
+        "session": "s",
+        "channel": "$up",
+        "governance": {
+          "decides": [
+            "echo"
+          ],
+          "asks": [
+            "reverse"
+          ]
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$carrier_b",
+        "family": "probe",
+        "after": 0,
+        "consume": "eager"
+      },
+      "bind": "one"
+    },
+    {
+      "on": "a",
+      "op": "tunnel.accept",
+      "args": {
+        "on": "$carrier_a",
+        "consume": "lazy"
+      },
+      "bind": {
+        "handle": "ch_one"
+      }
+    },
+    {
+      "on": "a",
+      "op": "session.attach",
+      "args": {
+        "on": "$reg",
+        "session": "s",
+        "channel": "$ch_one",
+        "role": "participant",
+        "origin": "one",
+        "after": 0
+      },
+      "bind": "att_one"
+    },
+    {
+      "on": "a",
+      "op": "session.control",
+      "args": {
+        "on": "$reg",
+        "session": "s",
+        "attachment": "$att_one"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$one",
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"echo\",\"params\":{\"text\":\"t\",\"count\":1}}"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$machine"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "$regex:\"method\":\"echo\""
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$one",
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:2\",\"method\":\"echo\",\"params\":{\"text\":\"t\",\"count\":1}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "$regex:^\\{\"version\":1,\"kind\":\"response\",\"id\":\"c:2\",\"error\":\\{\"code\":\"busy\""
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$machine",
+        "within_ms": 250
+      },
+      "expect_error": {
+        "code": "timeout"
+      }
+    },
+    {
+      "on": "a",
+      "op": "session.changes",
+      "args": {
+        "on": "$reg"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "kind": "refused",
+            "session": "s",
+            "origin": "one",
+            "method": "echo"
+          }
+        ]
+      }
+    }
+  ]
+}
