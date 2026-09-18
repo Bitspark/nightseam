@@ -1,0 +1,402 @@
+{
+  "name": "an observer on either side sees a call, a call back, an event each way and the close, in order, with the family each name belongs to",
+  "layer": "peer",
+  "replaces": "runtime/go/observer_test.go TestAnObserverSeesACallAnEventAndACloseInOrder and its TypeScript twin",
+  "needs": [
+    "peer",
+    "listen",
+    "observer"
+  ],
+  "steps": [
+    {
+      "on": "a",
+      "op": "peer.listen",
+      "args": {
+        "options": {
+          "observe": true,
+          "families": {
+            "echo": "probe",
+            "back": "probe",
+            "tick": "probe",
+            "tock": "probe"
+          }
+        }
+      },
+      "bind": {
+        "handle": "l",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.dial",
+      "args": {
+        "url": "$url",
+        "options": {
+          "observe": true,
+          "families": {
+            "echo": "probe",
+            "back": "probe",
+            "tick": "probe",
+            "tock": "probe"
+          }
+        }
+      },
+      "bind": "pb"
+    },
+    {
+      "on": "a",
+      "op": "peer.accept",
+      "args": {
+        "on": "$l"
+      },
+      "bind": "pa"
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "echo",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pb",
+        "method": "back",
+        "behavior": {
+          "kind": "return",
+          "value": "returned"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "params": {
+          "n": 1
+        }
+      },
+      "bind": "c1"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c1"
+      },
+      "expect": {
+        "result": {
+          "n": 1
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.call",
+      "args": {
+        "on": "$pa",
+        "method": "back",
+        "params": {}
+      },
+      "bind": "c2"
+    },
+    {
+      "on": "a",
+      "op": "call.await",
+      "args": {
+        "on": "$c2"
+      },
+      "expect": {
+        "result": "returned"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "tick",
+        "data": 1
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_event",
+      "args": {
+        "on": "$pa",
+        "name": "tick"
+      },
+      "expect": {
+        "data": 1
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pa",
+        "event": "tock",
+        "data": 1
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.await_event",
+      "args": {
+        "on": "$pb",
+        "name": "tock"
+      },
+      "expect": {
+        "data": 1
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.close",
+      "args": {
+        "on": "$pb"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.await_close",
+      "args": {
+        "on": "$pb"
+      },
+      "expect": {
+        "clean": true
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_close",
+      "args": {
+        "on": "$pa"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pb"
+      },
+      "expect": [
+        {
+          "type": "connection.opened",
+          "role": "client"
+        },
+        {
+          "type": "request.started",
+          "id": "$bind:echo_id",
+          "method": "echo",
+          "incoming": false,
+          "family": "probe"
+        },
+        {
+          "type": "frame.sent",
+          "kind": "request",
+          "name": "echo",
+          "bytes": true,
+          "id": "$echo_id",
+          "family": "probe"
+        },
+        {
+          "type": "frame.received",
+          "kind": "response",
+          "bytes": true,
+          "id": "$echo_id",
+          "name": "$absent",
+          "family": "$absent"
+        },
+        {
+          "type": "request.ended",
+          "id": "$echo_id",
+          "method": "echo",
+          "incoming": false,
+          "duration": true,
+          "outcome": "ok",
+          "error_code": "$absent",
+          "family": "probe"
+        },
+        {
+          "type": "frame.received",
+          "kind": "request",
+          "name": "back",
+          "bytes": true,
+          "id": "$bind:back_id",
+          "family": "probe"
+        },
+        {
+          "type": "request.started",
+          "id": "$back_id",
+          "method": "back",
+          "incoming": true,
+          "family": "probe"
+        },
+        {
+          "type": "request.ended",
+          "id": "$back_id",
+          "method": "back",
+          "incoming": true,
+          "duration": true,
+          "outcome": "ok",
+          "family": "probe"
+        },
+        {
+          "type": "frame.sent",
+          "kind": "response",
+          "bytes": true,
+          "id": "$back_id",
+          "name": "$absent"
+        },
+        {
+          "type": "event.emitted",
+          "name": "tick",
+          "bytes": true,
+          "family": "probe"
+        },
+        {
+          "type": "frame.sent",
+          "kind": "event",
+          "name": "tick",
+          "bytes": true,
+          "id": "$absent",
+          "family": "probe"
+        },
+        {
+          "type": "frame.received",
+          "kind": "event",
+          "name": "tock",
+          "bytes": true,
+          "id": "$absent",
+          "family": "probe"
+        },
+        {
+          "type": "event.delivered",
+          "name": "tock",
+          "bytes": true,
+          "family": "probe"
+        },
+        {
+          "type": "connection.closed",
+          "code": 1000,
+          "local": true
+        }
+      ]
+    },
+    {
+      "on": "a",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pa"
+      },
+      "expect": [
+        {
+          "type": "connection.opened",
+          "role": "server"
+        },
+        {
+          "type": "frame.received",
+          "kind": "request",
+          "name": "echo",
+          "bytes": true,
+          "id": "$echo_id",
+          "family": "probe"
+        },
+        {
+          "type": "request.started",
+          "id": "$echo_id",
+          "method": "echo",
+          "incoming": true,
+          "family": "probe"
+        },
+        {
+          "type": "request.ended",
+          "id": "$echo_id",
+          "method": "echo",
+          "incoming": true,
+          "duration": true,
+          "outcome": "ok",
+          "family": "probe"
+        },
+        {
+          "type": "frame.sent",
+          "kind": "response",
+          "bytes": true,
+          "id": "$echo_id"
+        },
+        {
+          "type": "request.started",
+          "id": "$back_id",
+          "method": "back",
+          "incoming": false,
+          "family": "probe"
+        },
+        {
+          "type": "frame.sent",
+          "kind": "request",
+          "name": "back",
+          "bytes": true,
+          "id": "$back_id",
+          "family": "probe"
+        },
+        {
+          "type": "frame.received",
+          "kind": "response",
+          "bytes": true,
+          "id": "$back_id"
+        },
+        {
+          "type": "request.ended",
+          "id": "$back_id",
+          "method": "back",
+          "incoming": false,
+          "duration": true,
+          "outcome": "ok",
+          "family": "probe"
+        },
+        {
+          "type": "frame.received",
+          "kind": "event",
+          "name": "tick",
+          "bytes": true,
+          "family": "probe"
+        },
+        {
+          "type": "event.delivered",
+          "name": "tick",
+          "bytes": true,
+          "family": "probe"
+        },
+        {
+          "type": "event.emitted",
+          "name": "tock",
+          "bytes": true,
+          "family": "probe"
+        },
+        {
+          "type": "frame.sent",
+          "kind": "event",
+          "name": "tock",
+          "bytes": true,
+          "family": "probe"
+        },
+        {
+          "type": "connection.closed",
+          "code": "$int",
+          "local": "$bool"
+        }
+      ],
+      "note": "the close the other side sees is the transport's to describe; every event before it is the same exchange read from that end"
+    }
+  ]
+}

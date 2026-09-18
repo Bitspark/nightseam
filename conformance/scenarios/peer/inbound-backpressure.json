@@ -1,0 +1,126 @@
+{
+  "name": "events beyond what a peer holds while its handler blocks are backpressure, told to the observer, and end the stalled peer",
+  "layer": "peer",
+  "replaces": "runtime/go/backpressure_test.go's inbound queue case and runtime/ts/src/peer.test.ts's",
+  "needs": [
+    "peer",
+    "listen",
+    "observer"
+  ],
+  "steps": [
+    {
+      "on": "a",
+      "op": "peer.listen",
+      "args": {
+        "options": {
+          "observe": true,
+          "queue_capacity": 1,
+          "write_timeout_ms": 500
+        }
+      },
+      "bind": {
+        "handle": "l",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.dial",
+      "args": {
+        "url": "$url"
+      },
+      "bind": "pb"
+    },
+    {
+      "on": "a",
+      "op": "peer.accept",
+      "args": {
+        "on": "$l"
+      },
+      "bind": "pa"
+    },
+    {
+      "on": "a",
+      "op": "peer.on_event",
+      "args": {
+        "on": "$pa",
+        "name": "flood",
+        "behavior": {
+          "kind": "block"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "flood",
+        "data": 1
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "flood",
+        "data": 2
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "flood",
+        "data": 3
+      },
+      "expect": "$any"
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "flood",
+        "data": 4
+      },
+      "repeat": {
+        "max": 8,
+        "until": "error"
+      },
+      "expect_error": {
+        "code": "$any"
+      },
+      "note": "a sender past the stall sees its sends fail once the receiver ended; the receiver's end is the fact"
+    },
+    {
+      "on": "a",
+      "op": "peer.await_close",
+      "args": {
+        "on": "$pa"
+      },
+      "expect": {
+        "clean": false
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pa"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "backpressure",
+            "queued": "$int",
+            "stalled": true,
+            "deadline": true
+          }
+        ]
+      }
+    }
+  ]
+}

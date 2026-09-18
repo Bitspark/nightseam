@@ -1,0 +1,138 @@
+{
+  "name": "a handler that gives up is an internal error to the caller, a panic to the observer, and the connection serves on",
+  "layer": "peer",
+  "needs": [
+    "peer",
+    "listen",
+    "observer"
+  ],
+  "steps": [
+    {
+      "on": "a",
+      "op": "peer.listen",
+      "args": {
+        "options": {
+          "observe": true
+        }
+      },
+      "bind": {
+        "handle": "l",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.dial",
+      "args": {
+        "url": "$url"
+      },
+      "bind": "pb"
+    },
+    {
+      "on": "a",
+      "op": "peer.accept",
+      "args": {
+        "on": "$l"
+      },
+      "bind": "pa"
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "give-up",
+        "behavior": {
+          "kind": "panic",
+          "value": "the handler gave up"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "echo",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "give-up",
+        "params": {}
+      },
+      "bind": "c"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c"
+      },
+      "expect": {
+        "error": {
+          "code": "internal"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_request",
+      "args": {
+        "on": "$pa",
+        "method": "give-up",
+        "phase": "ended"
+      },
+      "expect": {
+        "outcome": "panic"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pa"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "handler.panic",
+            "method": "give-up",
+            "value": "$regex:the handler gave up"
+          },
+          {
+            "type": "request.ended",
+            "method": "give-up",
+            "outcome": "error"
+          }
+        ]
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "params": "still"
+      },
+      "bind": "c2"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c2"
+      },
+      "expect": {
+        "result": "still"
+      }
+    }
+  ]
+}

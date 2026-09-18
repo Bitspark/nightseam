@@ -1,0 +1,73 @@
+{
+  "name": "a traced frame from a raw connection is served and answered under its own trace, tracestate verbatim",
+  "layer": "peer",
+  "needs": [
+    "peer",
+    "seam",
+    "listen",
+    "propagator"
+  ],
+  "steps": [
+    {
+      "on": "b",
+      "op": "peer.listen",
+      "args": {
+        "options": {
+          "propagate": true
+        }
+      },
+      "bind": {
+        "handle": "l",
+        "url": "url"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.dial",
+      "args": {
+        "url": "$url"
+      },
+      "bind": "ca"
+    },
+    {
+      "on": "b",
+      "op": "peer.accept",
+      "args": {
+        "on": "$l"
+      },
+      "bind": "pb"
+    },
+    {
+      "on": "b",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.send",
+      "args": {
+        "on": "$ca",
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"echo\",\"params\":{},\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\",\"tracestate\":\"congo=t61rcWkgMzE,rojo=00f067aa0ba902b7\"}"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "$regex:^\\{.*\"id\":\"c:1\".*\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\".*\"tracestate\":\"congo=t61rcWkgMzE,rojo=00f067aa0ba902b7\""
+      },
+      "note": "the response carries the request's traceparent and its tracestate byte for byte"
+    }
+  ]
+}

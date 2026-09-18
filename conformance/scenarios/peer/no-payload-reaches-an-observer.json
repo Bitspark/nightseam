@@ -1,0 +1,227 @@
+{
+  "name": "no observer is told what a frame carried, by any path",
+  "layer": "peer",
+  "replaces": "runtime/go/observer_test.go TestAnObserverIsToldNoPayload and its TypeScript twin",
+  "needs": [
+    "peer",
+    "listen",
+    "observer"
+  ],
+  "steps": [
+    {
+      "on": "a",
+      "op": "peer.listen",
+      "args": {
+        "options": {
+          "observe": true
+        }
+      },
+      "bind": {
+        "handle": "l",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.dial",
+      "args": {
+        "url": "$url",
+        "options": {
+          "observe": true
+        }
+      },
+      "bind": "pb"
+    },
+    {
+      "on": "a",
+      "op": "peer.accept",
+      "args": {
+        "on": "$l"
+      },
+      "bind": "pa"
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "echo",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "deny",
+        "behavior": {
+          "kind": "fail",
+          "code": "denied",
+          "message": "no: sentinel-4bf92f35-payload",
+          "data": {
+            "why": "sentinel-4bf92f35-payload"
+          }
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "give-up",
+        "behavior": {
+          "kind": "panic",
+          "value": "the handler gave up"
+        }
+      },
+      "note": "a panic's value is the handler's own words and is reported; what the frame carried, in params, is not"
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "params": {
+          "text": "sentinel-4bf92f35-payload"
+        }
+      },
+      "bind": "c1"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c1"
+      },
+      "expect": {
+        "result": {
+          "text": "sentinel-4bf92f35-payload"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "deny",
+        "params": {}
+      },
+      "bind": "c2"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c2"
+      },
+      "expect": {
+        "error": {
+          "code": "denied"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "give-up",
+        "params": {
+          "text": "sentinel-4bf92f35-payload"
+        }
+      },
+      "bind": "c3"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c3"
+      },
+      "expect": {
+        "error": {
+          "code": "internal"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "told",
+        "data": {
+          "text": "sentinel-4bf92f35-payload"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_event",
+      "args": {
+        "on": "$pa",
+        "name": "told"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pa"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "request.ended",
+            "method": "deny",
+            "outcome": "error",
+            "error_code": "denied"
+          },
+          {
+            "type": "handler.panic",
+            "method": "give-up"
+          },
+          {
+            "type": "event.delivered",
+            "name": "told"
+          }
+        ]
+      },
+      "assert": {
+        "absent": "sentinel-4bf92f35"
+      },
+      "note": "the paths were exercised — an error with data, a panic with a value, an event with data — and none of it reached the observer"
+    },
+    {
+      "on": "b",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pb"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "request.ended",
+            "method": "echo",
+            "outcome": "ok"
+          },
+          {
+            "type": "request.ended",
+            "method": "deny",
+            "outcome": "error",
+            "error_code": "denied"
+          }
+        ]
+      },
+      "assert": {
+        "absent": "sentinel-4bf92f35"
+      }
+    }
+  ]
+}
