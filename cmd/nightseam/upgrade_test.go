@@ -13,6 +13,7 @@ import (
 // The corpus under testdata/corpus is what upgrade makes of the v1 corpus
 // under testdata/corpus-v1, held byte for byte, so that the converter is
 // its own golden and the two corpora are provably the same families.
+const legacyCorpusRoot = "testdata/corpus-v1"
 
 // TestUpgradeMatchesTheCorpus: converting every family of the v1 corpus
 // gives exactly the corpus.

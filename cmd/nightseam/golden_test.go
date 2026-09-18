@@ -30,6 +30,7 @@ const corpusRoot = "testdata/corpus"
 const goldenRoot = "testdata/golden"
 const invalidRoot = "testdata/invalid"
 const familiesRoot = "testdata/families"
+const familiesGoldenRoot = "testdata/golden-families"
 
 // TestCorpusIsValid: every family of the corpus validates as one world.
 func TestCorpusIsValid(t *testing.T) {
@@ -62,6 +63,15 @@ func TestCorpusRendersGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	holdGolden(t, goldenRoot, files)
+}
+
+// TestFamiliesRenderGolden: what every target renders for the families the
+// fixtures use — a family generic in two session families, one drawing a
+// type beyond the two every family carries, one whose wire names differ
+// from its language names — is exactly the files under
+// testdata/golden-families.
+func TestFamiliesRenderGolden(t *testing.T) {
+	holdGolden(t, familiesGoldenRoot, renderV2(t, familiesRoot))
 }
 
 // holdGolden compares rendered files against a golden tree, or rewrites the

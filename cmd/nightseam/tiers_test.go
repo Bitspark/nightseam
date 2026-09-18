@@ -1,36 +1,28 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// writeLayers splits the probe contract into layer files of the previous
-// language under a checkout — types in dto, operations in rpc, and, when
-// asked, a sess layer — for the tests of upgrade and of what the tool says
-// to a checkout that still has them.
+// writeLayers copies the probe family's layer files of the previous
+// language from testdata/corpus-v1 into a checkout under another name —
+// dto and rpc, and, when asked, sess — for the tests of upgrade and of what
+// the tool says to a checkout that still has them.
 func writeLayers(t *testing.T, root, family string, sess bool) {
 	t.Helper()
-	var probe map[string]any
-	if err := json.Unmarshal([]byte(probeContract), &probe); err != nil {
-		t.Fatal(err)
-	}
-	head := map[string]any{"schema_version": probe["schema_version"], "profile": probe["profile"], "name": family}
-	write := func(layer string, body map[string]any) {
-		for key, value := range head {
-			body[key] = value
-		}
-		body["layer"] = layer
-		data, _ := json.Marshal(body)
-		writeFixture(t, root, "api/contracts/"+family+"."+layer+".json", data)
-	}
-	write("dto", map[string]any{"types": probe["types"]})
-	write("rpc", map[string]any{"methods": probe["methods"], "events": probe["events"], "errors": probe["errors"]})
+	layers := []string{"dto", "rpc"}
 	if sess {
-		write("sess", map[string]any{"session": map[string]any{"decides": []any{"echo"}, "asks": []any{"reverse"}, "conversation": map[string]any{"event": "changed", "path": "text"}}})
+		layers = append(layers, "sess")
+	}
+	for _, layer := range layers {
+		data, err := os.ReadFile(filepath.Join(legacyCorpusRoot, "api/contracts", "probe."+layer+".json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFixture(t, root, "api/contracts/"+family+"."+layer+".json", []byte(strings.Replace(string(data), `"name": "probe"`, `"name": "`+family+`"`, 1)))
 	}
 }
 

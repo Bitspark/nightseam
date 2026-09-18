@@ -6,20 +6,18 @@ import (
 
 	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/kernel"
-	legacy "github.com/Bitspark/nightseam/internal/legacy/kernel"
-	legacyspi "github.com/Bitspark/nightseam/internal/legacy/spi"
 	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/oracle"
 	"github.com/Bitspark/nightseam/internal/targets/golang"
 	"github.com/Bitspark/nightseam/internal/targets/typescript"
 )
 
-// A generation is one generator the slow fixtures run against: v1, the
-// legacy generator on the contracts the tests declare inline, and v2 on
-// the same families under testdata/v2/families. The fixture bodies — the
-// hand-written Go tests and Node scripts that compile and run against the
-// generated packages — are the same for both, which is what makes the two
-// generators render the same API.
+// A generation is one generator the slow fixtures run against, on the
+// families under testdata/families. The fixture bodies — the hand-written
+// Go tests and Node scripts that compile and run against the generated
+// packages — were written against the previous generator and pass
+// unchanged against this one, which is what made the two render the same
+// API; a next generation is held to them the same way.
 type generation struct {
 	name string
 	// probe renders the probe family into the fixture directory.
@@ -30,7 +28,6 @@ type generation struct {
 }
 
 var generations = []generation{
-	{name: "v1", probe: v1Probe, slots: v1Slots},
 	{name: "v2", probe: v2Probe, slots: v2Slots},
 }
 
@@ -39,30 +36,6 @@ func writeAll(t *testing.T, directory string, files map[string][]byte) {
 	for p, data := range files {
 		writeFixture(t, directory, p, data)
 	}
-}
-
-func v1Probe(t *testing.T, directory string) {
-	t.Helper()
-	result, err := legacy.Generate(exampleAPI(t), languages(module, scope)...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeAll(t, directory, result.Files)
-}
-
-func v1Slots(t *testing.T, directory string) {
-	t.Helper()
-	world, probe, substituted := slotWorld(t)
-	render := func(input map[string]any, languages []legacyspi.Language) {
-		result, err := legacy.GenerateIn(world, input, languages...)
-		if err != nil {
-			t.Fatal(err)
-		}
-		writeAll(t, directory, result.Files)
-	}
-	render(probe, languages(module, scope))
-	render(substituted, languages(module, scope))
-	render(world["carrier"], rightLanguages(module, scope))
 }
 
 func v2Probe(t *testing.T, directory string) {

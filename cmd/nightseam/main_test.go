@@ -19,35 +19,8 @@ import (
 const module = "example.test/generated"
 const scope = "@example"
 
-// These tests exercise the tool as composed: every language, through the
-// kernel, from the contract to compiled and communicating packages.
-
-const probeContract = `{
- "schema_version":1,"profile":"nightseam.duplex/1","name":"probe",
- "types":{
-  "Base":{"kind":"record","fields":[{"name":"text","type":"string"}]},
-  "Payload":{"kind":"record","extends":["Base"],"fields":[{"name":"count","type":"integer"},{"name":"note","type":"string","required":false,"nullable":true}]},
-  "OpenRecord":{"kind":"record","open":true,"fields":[{"name":"id","type":"string"},{"name":"note","type":"string","required":false}]},
-  "Status":{"kind":"enum","values":["ready","done","context.example"]},
-  "Payloads":{"kind":"alias","type":{"array":"Payload"}}
- },
- "methods":[
-  {"name":"echo","go_name":"Echo","ts_name":"echo","direction":"client_to_server","request":"Payload","result":"Payload"},
-  {"name":"reverse","go_name":"Reverse","ts_name":"reverse","direction":"server_to_client","request":"Payload","result":"Payload"},
-  {"name":"no_args","go_name":"NoArgs","ts_name":"noArgs","direction":"client_to_server","result":"string"}
- ],
- "events":[{"name":"changed","go_name":"Changed","ts_name":"changed","direction":"server_to_client","type":"Payload"}],
- "errors":[{"code":"denied","description":"The caller is denied"}]
-}`
-
-func exampleAPI(t *testing.T) map[string]any {
-	t.Helper()
-	var value map[string]any
-	if err := json.Unmarshal([]byte(probeContract), &value); err != nil {
-		t.Fatal(err)
-	}
-	return value
-}
+// These tests exercise the tool as composed: every target, through the
+// kernel, from the tier files to compiled and communicating packages.
 
 func TestDeterministicGeneration(t *testing.T) {
 	first, second := renderV2(t, familiesRoot), renderV2(t, familiesRoot)
@@ -327,30 +300,23 @@ func TestImportDirection(t *testing.T) {
 	const tool = nightseam + "/cmd/nightseam"
 	internal := nightseam + "/internal/"
 	// What each package of the seam may import of the others; the tool
-	// itself may import any. No entry names a language. The v1 generator
-	// lives under legacy/ while v2 is built beside it; its rows go when it
-	// does.
+	// itself may import any. No entry names a target.
 	allowed := map[string]map[string]bool{
-		"diag":                        {},
-		"naming":                      {},
-		"model":                       {"diag": true},
-		"model/modeltest":             {"model": true},
-		"load":                        {"diag": true, "model": true},
-		"analysis":                    {"diag": true, "model": true},
-		"check":                       {"diag": true, "model": true, "analysis": true},
-		"render":                      {"diag": true, "model": true, "analysis": true},
-		"emit":                        {"diag": true},
-		"spi":                         {"diag": true, "render": true},
-		"targets/golang":              {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
-		"targets/typescript":          {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
-		"kernel":                      {"diag": true, "model": true, "load": true, "analysis": true, "check": true, "render": true, "spi": true},
-		"oracle":                      {"model": true},
-		"upgrade":                     {"naming": true},
-		"legacy/contract":             {},
-		"legacy/spi":                  {"legacy/contract": true},
-		"legacy/kernel":               {"legacy/contract": true, "legacy/spi": true},
-		"legacy/languages/golang":     {"legacy/contract": true, "legacy/spi": true},
-		"legacy/languages/typescript": {"legacy/contract": true, "legacy/spi": true},
+		"diag":               {},
+		"naming":             {},
+		"model":              {"diag": true},
+		"model/modeltest":    {"model": true},
+		"load":               {"diag": true, "model": true},
+		"analysis":           {"diag": true, "model": true},
+		"check":              {"diag": true, "model": true, "analysis": true},
+		"render":             {"diag": true, "model": true, "analysis": true},
+		"emit":               {"diag": true},
+		"spi":                {"diag": true, "render": true},
+		"targets/golang":     {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
+		"targets/typescript": {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
+		"kernel":             {"diag": true, "model": true, "load": true, "analysis": true, "check": true, "render": true, "spi": true},
+		"oracle":             {"model": true},
+		"upgrade":            {"naming": true},
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	seen := 0
@@ -381,7 +347,7 @@ func TestImportDirection(t *testing.T) {
 			}
 		}
 	}
-	if seen < 6 {
+	if seen < 12 {
 		t.Fatalf("saw %d packages of the tool", seen)
 	}
 }
