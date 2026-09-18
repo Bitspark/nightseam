@@ -1,2 +1,2 @@
-y/y.dto.json#: y is declared in the dto layer file of the previous declaration language; run nightseam upgrade. [layer_file]
+y/y.dto.json#: y.dto.json is a file; a family is a directory of tier files, api/contracts/y/. [stray_file]
 error: 1 problems
