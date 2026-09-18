@@ -339,7 +339,9 @@ declaration language was redesigned into its tiers and the generator rebuilt
 beneath it. `COLLABORATION.md` says how work is organized here — the boundary
 rule, parity between the languages, the two tiers of tests, the golden
 discipline, lanes — `RELEASING.md` how a release is cut and what a consumer
-pins, `SECURITY.md` how to report a vulnerability.
+pins, `SECURITY.md` how to report a vulnerability, `CODE_OF_CONDUCT.md`
+what is expected of everyone here; `CONTRIBUTING.md` points at the first of
+them, so that GitHub links to it.
 
 Nightseam is licensed under the Apache License, Version 2.0: `LICENSE`, and
 `NOTICE` beside it.

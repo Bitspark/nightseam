@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A vulnerability
+    url: https://github.com/Bitspark/nightseam/security/advisories/new
+    about: Report it privately, not in an issue. SECURITY.md says what counts as one.
+  - name: How work is organized here
+    url: https://github.com/Bitspark/nightseam/blob/main/COLLABORATION.md
+    about: The boundary rule, parity, the two tiers, the golden discipline, lanes.

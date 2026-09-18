@@ -1,0 +1,53 @@
+name: Lane
+description: A unit of work of a size one session lands by itself
+labels: ["lane"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The form is COLLABORATION.md's. Fill what you can; a lane that cannot
+        yet say what holds it is a design question, not a lane — open a blank
+        issue for that instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: The change, in the terms of the code.
+    validations:
+      required: true
+  - type: textarea
+    id: surface
+    attributes:
+      label: Surface
+      description: The exported names it adds or changes, spelled out. "None" if it changes no exported name.
+    validations:
+      required: true
+  - type: textarea
+    id: held-by
+    attributes:
+      label: Held by
+      description: The tests that hold it, named. The test that guards the invariant is written first.
+    validations:
+      required: true
+  - type: input
+    id: provenance
+    attributes:
+      label: Provenance
+      description: What this was decomposed from — an issue, a decision, a report.
+  - type: textarea
+    id: edges
+    attributes:
+      label: Waits on / Unblocks / Touches
+      description: The issues before and after it, and the files it edits, so that two lanes are not cut through one file at once.
+  - type: dropdown
+    id: parity
+    attributes:
+      label: Parity
+      description: Every runtime component exists in both languages and is held to one suite.
+      options:
+        - Both languages, in this lane
+        - Go here, TypeScript in the lane that follows
+        - TypeScript here, Go in the lane that follows
+        - The generator or the docs only — parity does not apply
+    validations:
+      required: true

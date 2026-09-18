@@ -1,0 +1,29 @@
+# The dependencies are few and deliberate — cobra and a JSON Schema validator
+# in Go, the TypeScript compiler in the workspace, none at all in the four
+# published packages — so updates are grouped into one pull request per
+# ecosystem per month rather than arriving one at a time.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      go:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      workspace:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

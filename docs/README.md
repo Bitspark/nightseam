@@ -17,4 +17,5 @@ Around the repository:
 | [RELEASING.md](../RELEASING.md) | what is published and how a release is cut |
 | [CHANGELOG.md](../CHANGELOG.md) | what landed, by version |
 | [SECURITY.md](../SECURITY.md) | reporting a vulnerability, and what counts as one |
+| [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) | what is expected of everyone here, and how a concern is raised |
 | [V2_MIGRATION.md](V2_MIGRATION.md) | how the declaration language was redesigned into tiers and the generator rebuilt beneath it |

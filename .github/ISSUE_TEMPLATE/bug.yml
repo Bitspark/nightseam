@@ -1,0 +1,64 @@
+name: Something is wrong
+description: A defect in a runtime, the generator or the generated code
+labels: ["defect"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A vulnerability does not go here — SECURITY.md says how to report one
+        privately.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens, and what should happen instead
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      multiple: true
+      options:
+        - duplex (the seam)
+        - runtime (the peer of the profile)
+        - tunnel (channels over one peer)
+        - session (the relay, the registry, control)
+        - the generator (nightseam generate / check / validate / init / upgrade)
+        - the generated code
+        - the documentation
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      multiple: true
+      options:
+        - Go
+        - TypeScript
+        - Both
+    validations:
+      required: true
+  - type: textarea
+    id: observe
+    attributes:
+      label: How to observe it
+      description: |
+        The smallest thing that shows it. A failing test is best; a run over
+        the in-memory pipe needs no network. For the generator, the tier
+        files of the family and the command.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The npm package version, the Go module version or tag, or the commit.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Go, Node and OS
+      placeholder: go1.25.0, node 22.12.0, Windows 11

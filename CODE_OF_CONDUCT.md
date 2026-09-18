@@ -1,0 +1,47 @@
+# Code of conduct
+
+Nightseam is a small technical project, and this page is short for the same
+reason COLLABORATION.md is: the rules are few, and each exists because its
+absence costs something.
+
+## What is expected
+
+Discuss the work, not the person. Argue from the code, the profile, the
+declaration language and the tests — a claim about what a change does should
+be one somebody else can check. Assume the other party read the same
+documentation you did and reached a different conclusion for a reason worth
+hearing. Say plainly when you are uncertain, and say plainly when you are
+wrong; neither costs anything here.
+
+Accept that a change may be declined. The boundary rule declines a good many
+of them, and declining one is not a judgement about who proposed it.
+
+## What is not
+
+Harassment of any kind, sexual attention, insults, and demeaning or
+derogatory remarks about a person or a group — including about anyone's
+experience, nationality, gender, sexuality, religion, disability or
+appearance. Publishing anyone's private information. Persisting after being
+asked to stop. Deliberately derailing the work of others.
+
+This holds in issues, pull requests, commit messages, code and every other
+space the project occupies, and it holds when representing the project
+elsewhere.
+
+## Reporting and enforcement
+
+Report a concern privately to the maintainers, through **[a private report on
+the repository's Security tab](https://github.com/Bitspark/nightseam/security/advisories/new)** —
+today that form is the repository's private channel, and it reaches the
+maintainers and nobody else. Say what happened and where; you do not have to
+have a remedy in mind. A report is not shared beyond the people needed to act
+on it, and the person who reports is not identified to the person reported
+without their agreement.
+
+The maintainers answer within five working days. They may edit or remove a
+contribution, ask for a change in behavior, or bar someone from the project's
+spaces, in proportion to what happened and to whether it is a pattern. A
+maintainer who is the subject of a report takes no part in handling it.
+
+Conduct that GitHub itself governs — spam, impersonation, threats — can also
+be reported to GitHub.
