@@ -1,5 +1,9 @@
-// Package wsruntime implements the nighthall.duplex/1 WebSocket profile.
-// It has no application authorization, replay, retries, or persistence policy.
+// Package wsruntime implements the nighthall.duplex/1 profile over a frames
+// duplex connection (api/go/duplex): JSON text frames carrying requests,
+// responses, events and cancellations. It never touches a WebSocket; Dial
+// and Accept open one and hand it over as a connection, and a Peer over any
+// other transport speaks the same profile byte for byte. It has no
+// application authorization, replay, retries, or persistence policy.
 package wsruntime
 
 import (
@@ -16,7 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/websocket"
+	"github.com/Bitspark/nighthall/api/go/duplex"
 )
 
 const Profile = "nighthall.duplex/1"
@@ -111,10 +115,12 @@ type pendingResult struct {
 	err    error
 }
 
-// Peer owns a WebSocket connection until Close or transport failure. Never read
-// or write the underlying connection after handing it to NewPeer.
+// Peer owns a frames duplex connection until Close or transport failure.
+// Never send on or receive from the connection after handing it to NewPeer.
+// The connection's receive limit is its maker's to set to MaxFrameBytes;
+// the peer refuses a larger frame it is nonetheless handed.
 type Peer struct {
-	conn          *websocket.Conn
+	conn          duplex.Conn
 	ctx           context.Context
 	cancel        context.CancelFunc
 	options       Options
@@ -136,7 +142,7 @@ type Peer struct {
 	slots         chan struct{}
 }
 
-func NewPeer(ctx context.Context, conn *websocket.Conn, role Role, options Options) (*Peer, error) {
+func NewPeer(ctx context.Context, conn duplex.Conn, role Role, options Options) (*Peer, error) {
 	if ctx == nil || conn == nil {
 		return nil, errors.New("duplex requires a context and connection")
 	}
@@ -161,7 +167,6 @@ func NewPeer(ctx context.Context, conn *websocket.Conn, role Role, options Optio
 	for k, v := range o.Events {
 		p.eventHandlers[k] = v
 	}
-	conn.SetReadLimit(o.MaxFrameBytes)
 	go p.readLoop()
 	go p.writeLoop()
 	go p.eventLoop()
@@ -184,8 +189,8 @@ func (p *Peer) fail(err error) {
 		p.mu.Unlock()
 		p.cancel()
 		close(p.done)
-		// CloseNow avoids a close-handshake wait after a stalled consumer or peer.
-		_ = p.conn.CloseNow()
+		// An abort avoids a close-handshake wait after a stalled consumer or peer.
+		_ = p.conn.Abort()
 	})
 }
 
@@ -358,7 +363,7 @@ func (p *Peer) writeLoop() {
 			return
 		case data := <-p.outputs:
 			ctx, cancel := context.WithTimeout(p.ctx, p.options.WriteTimeout)
-			err := p.conn.Write(ctx, websocket.MessageText, data)
+			err := p.conn.Send(ctx, duplex.Frame{Kind: duplex.Text, Data: data})
 			cancel()
 			if err != nil {
 				p.fail(err)
@@ -370,16 +375,20 @@ func (p *Peer) writeLoop() {
 
 func (p *Peer) readLoop() {
 	for {
-		kind, data, err := p.conn.Read(p.ctx)
+		received, err := p.conn.Receive(p.ctx)
 		if err != nil {
 			p.fail(err)
 			return
 		}
-		if kind != websocket.MessageText {
+		if received.Kind != duplex.Text {
 			p.fail(errors.New("duplex requires JSON text frames"))
 			return
 		}
-		f, err := decodeFrame(data)
+		if int64(len(received.Data)) > p.options.MaxFrameBytes {
+			p.fail(errors.New("duplex frame exceeds size limit"))
+			return
+		}
+		f, err := decodeFrame(received.Data)
 		if err != nil {
 			p.fail(err)
 			return
