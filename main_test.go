@@ -147,7 +147,11 @@ func renderFixture(t *testing.T, directory, root string) {
 		writeFixture(t, directory, p, data)
 	}
 	copyFixtureTree(t, filepath.Join(root, "api/go/ws-runtime"), filepath.Join(directory, "api/go/ws-runtime"))
-	writeFixture(t, directory, "go.mod", []byte("module example.test/generated\n\ngo 1.25.0\n\nrequire github.com/coder/websocket v1.8.15\n"))
+	// The copied runtime speaks the profile over api/go/duplex, which it
+	// imports from this module by name; the fixture module resolves that
+	// name to this checkout, so the seam is the real one and only the
+	// generated packages and the runtime above it are the copy under test.
+	writeFixture(t, directory, "go.mod", []byte("module example.test/generated\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/Bitspark/nighthall v0.0.0\n\tgithub.com/coder/websocket v1.8.15\n)\n\nreplace github.com/Bitspark/nighthall => "+filepath.ToSlash(root)+"\n"))
 	sum, err := os.ReadFile(filepath.Join(root, "go.sum"))
 	if err != nil {
 		t.Fatal(err)
