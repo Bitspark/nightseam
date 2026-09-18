@@ -1,9 +1,9 @@
-# Duplex WebSocket runtime
+# @nightseam/runtime
 
-`@nightseam/runtime` is the handwritten browser/Node peer for generated
-`nightseam.duplex/1` APIs, over the seam `@nightseam/duplex`. It has no
-third-party runtime dependencies and exports TypeScript source. Every client Nightseam generates depends on it. It
-descends from Nightshift's runtime by way of Nighthall.
+The peer of the `nightseam.duplex/1` profile for the browser and Node: JSON
+frames carrying requests, responses, events and cancellations both ways over
+a `FrameConnection` of `@nightseam/duplex`, with no third-party dependency.
+Every client Nightseam generates depends on it; it is also usable on its own.
 
 ```ts
 import { DuplexPeer, DuplexError } from '@nightseam/runtime';
@@ -20,71 +20,77 @@ await peer.emit('session.ready', { ready: true });
 peer.close();
 ```
 
-Both peers can call methods while processing an incoming method. Registered
-handlers receive `{ signal, peer, requestId }`; a `dispatch` option provides a
-fallback dispatcher. Register handlers before connecting. Application code owns
-authentication and incoming-method authorization. A `webSocketFactory` supplies
-an alternate socket without assuming browser header support. `attach(socket)`
-accepts an externally authenticated connection; `role: 'server'` selects server
-request identifiers. `DuplexError` explicitly marks errors safe to send; other
-handler exceptions become a generic `internal` error.
+Both peers can call methods while serving one. A handler receives
+`{ signal, peer, requestId, trace }`; a `dispatch` option is the fallback for
+methods with no handler. Register handlers before connecting. Application
+code owns authentication and the authorization of incoming methods. A
+`webSocketFactory` supplies a socket of the platform's own; `attach(connection)`
+takes an externally authenticated socket, or any `FrameConnection` — a
+tunnel channel, an in-memory pipe; `role: 'server'` selects server request
+ids. A `DuplexError` is safe to send and crosses the wire with its code,
+message and data; any other exception a handler throws becomes `internal`.
 
-The endpoint selects the profile; this library requires no WebSocket subprotocol
-negotiation. Text envelopes carry `version: 1` and a `kind`: `request` contains
-`id`, `method`, and `params`; `response` contains `id` and exactly one of `result`
-or `error`; `event` contains `event` and `data`; `cancel` contains `id`. Request
-IDs use the initiator's `c:` or `s:` prefix. Errors contain `code`, `message`, and
-optional `data`. Detected invalid envelopes and binary frames close the
-connection. Parsing currently uses `JSON.parse`, so duplicate object members
-keep their last value and number precision can be lost before generated schema
-validation. Go rejects duplicate top-level envelope members. Empty public-error
-messages are also accepted here but rejected by Go; see the
-[interoperability limits](../../../docs/API_GENERATION.md#known-validation-and-interoperability-limits).
+## The wire
 
-Defaults are 64 active incoming handlers, 128 pending calls, 128 queued events or
-outgoing messages, 1 MiB frames, 30-second request/connection deadlines, and
-10-second output/event-handler deadlines. Options can select positive finite
-integer limits. Cancellation aborts incoming signals but cannot forcibly interrupt
-application JavaScript; cancelled handlers retain their capacity slot until
-settled. Incoming saturation returns `busy`; stalled output/event consumers are
-disconnected. Event callbacks are ordered and do not block response routing.
+The endpoint selects the profile; no WebSocket subprotocol is negotiated.
+Text envelopes carry `version: 1` and a `kind`: `request` has `id`, `method`
+and `params`; `response` has `id` and exactly one of `result` or `error`;
+`event` has `event` and `data`; `cancel` has `id`. Request ids carry the
+initiator's `c:` or `s:` prefix. Errors carry `code`, `message` and optional
+`data`. Every kind may carry W3C `traceparent` and `tracestate`. A malformed
+envelope or a binary frame closes the connection. Parsing uses `JSON.parse`,
+so a duplicate member keeps its last value and number precision beyond
+JavaScript's safe integers is lost before the validator sees it; the Go peer
+rejects both. The profile is described in full in `docs/profile.md` of the
+repository.
 
-The event deadline applies to asynchronous listeners. A callback that blocks the
-JavaScript thread also blocks timers and routing. Listener rejections/exceptions
-are reported through `onError` and processing continues; a listener that never
-settles disconnects at its deadline. An unencodable or oversized incoming
-handler result closes the connection rather than returning a fallback error.
+## Trace context
 
-`emit()` resolves when `send()` accepts the frame and the socket's reported byte
-buffer drains. Browser APIs provide no delivery acknowledgment, so this does not
-establish remote receipt. Timeouts and cancellation leave mutation outcomes
-potentially unknown. No request retry or reconnect is automatic. `onClose`
-observes disconnections; the caller may explicitly connect again. Application
-code owns durable acceptance, replay, subscriptions, and deduplication.
+An incoming request's or event's trace is placed on the `RequestContext`
+its handler runs with; a `call` or `emit` given that context carries a child
+of it — the same trace id and flags under a span id of its own, the
+`tracestate` forwarded verbatim — while one made from no context begins a
+trace of its own; a response carries its request's members byte for byte,
+and so does a cancel. The default propagator mints W3C ids with
+`crypto.getRandomValues` and needs no tracing library; `propagator` in the
+options replaces it with an adapter for one.
 
-## The connection beneath the peer
+## Limits
 
-The peer never touches a WebSocket directly. It holds a frames duplex
-connection: ordered, message-framed, bidirectional, with an explicit close that
-carries a code and a reason. The connection knows nothing about JSON, requests,
-correlation or events; those stay in the peer. `webSocketConnection(socket)` is
-the adapter from a `WebSocketLike` to that connection: `readyState` becomes
-`state`, `bufferedAmount` becomes `buffered`, a string message becomes a text
-frame, an `ArrayBuffer`, `Uint8Array` or `Blob` becomes a binary frame, and the
-close event's code and reason reach the close handler. `connect(url)` and
-`attach(socket)` go through it.
+Defaults are 64 incoming requests being handled, 128 pending calls, 128
+queued events or outgoing frames, 1 MiB frames, 30-second request and
+connection deadlines, and 10-second output and event-handler deadlines; the
+options take positive integers. Cancellation aborts a handler's signal but
+cannot interrupt running JavaScript; a cancelled handler keeps its slot until
+it settles. Incoming saturation answers `busy`; a stalled output or event
+consumer is disconnected. Event listeners run in order and never block the
+routing of responses; a listener that throws is reported through `onError`
+and processing continues, and one that never settles disconnects at its
+deadline.
 
-To run the peer over another transport, implement `FrameConnection` and pass it
-to `attach(connection)`. `state` is `connecting`, `open`, `closing` or `closed`.
-`buffered` counts the bytes accepted by `send` and not yet handed to the
-transport; the peer sends the next frame only once it reads zero. `send` throws
-when the connection is not open. `listen` registers `open`, `frame`, `close` and
-`error` handlers and returns a function that detaches them. Close codes are the
-WebSocket registry's numbers on every transport (1000 normal, 1008 policy, 1009
-too big, 1011 internal, 4000–4999 application), so close semantics travel with
-the peer. The peer sends only text frames and refuses an incoming binary frame
-with `invalid_message`. A closing or closed connection cannot be attached. The
-connection does not retry, reconnect, or acknowledge delivery.
+`emit()` resolves when the frame was accepted and the connection's byte
+buffer drained — not on remote receipt, which the browser cannot report. No
+request is retried and no connection is reopened; `onClose` observes a
+disconnection, and the caller may connect again. Durable acceptance, replay,
+subscriptions and deduplication are the application's.
+
+## The validator
+
+`createValidator(description)` builds the wire validator a generated client
+uses from the family's wire description; both runtimes' validators are held
+to one conformance table. It validates calls, replies, reverse calls and
+events alike, and what fills a slot of a bound family by that family's
+binding.
+
+## The connection beneath
+
+The peer never touches a WebSocket directly: `webSocketConnection(socket)`
+from `@nightseam/duplex` adapts one to a `FrameConnection`, and `connect(url)`
+goes through it. To run the peer over another transport, implement
+`FrameConnection` — `state`, `buffered`, `send`, `close`, `listen` — and pass
+it to `attach`; the peer sends the next frame only once `buffered` reads
+zero, and close codes are the WebSocket registry's numbers on every
+transport.
 
 Run `pnpm --filter @nightseam/runtime check` and
 `pnpm --filter @nightseam/runtime test` from the repository root.

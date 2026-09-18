@@ -1,16 +1,52 @@
 {
   "name": "@nightseam/tunnel",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.0",
+  "description": "Channels multiplexed over one peer of the nightseam.duplex/1 profile, each a connection of the seam, with per-channel credit.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bitspark/nightseam.git",
+    "directory": "tunnel/ts"
+  },
+  "homepage": "https://github.com/Bitspark/nightseam#readme",
+  "bugs": "https://github.com/Bitspark/nightseam/issues",
+  "keywords": [
+    "duplex",
+    "multiplexing",
+    "channels",
+    "tunnel"
+  ],
   "type": "module",
   "exports": "./src/index.ts",
   "types": "./src/index.ts",
   "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      }
+    }
+  },
   "dependencies": {
     "@nightseam/duplex": "workspace:*",
     "@nightseam/runtime": "workspace:*"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "check": "tsc --noEmit --strict --target ES2022 --module nodenext --allowImportingTsExtensions --skipLibCheck src/index.ts",
     "test": "node --experimental-strip-types --test --test-timeout=10000 src/tunnel.test.ts"
   }

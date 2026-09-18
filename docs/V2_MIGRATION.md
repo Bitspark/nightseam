@@ -11,7 +11,7 @@ form, names by convention with per-target override files) and a new
 internal architecture (a typed type-expression AST, small single-purpose
 packages behind SPIs, a render model between analysis and targets, the
 validator interpreter in the runtimes). The model it implements is written
-up in `../bitlink/MODEL.md`; the profile and the runtime packages stay as
+up in a document of its own; the profile and the runtime packages stay as
 they are, and the name stays Nightseam until v2 is stable.
 
 This page was the working agreement while the two generators coexisted.

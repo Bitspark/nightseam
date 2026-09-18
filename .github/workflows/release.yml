@@ -1,0 +1,45 @@
+# A release is a tag: v<major.minor.patch>, pushed. The workflow holds every
+# spelling of the version to the tag, runs both tiers, builds the four
+# TypeScript packages, publishes them to the @nightseam organization with the
+# repository's NPM_TOKEN secret, and creates the GitHub release with the
+# tag's changelog section as its notes. The Go module needs no upload: the
+# tag is its release. Nothing here runs on a push to a branch. RELEASING.md
+# says how a release is cut.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - name: Hold the versions to the tag
+        run: node scripts/release-prepare.mjs "$GITHUB_REF_NAME"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r check
+      - run: pnpm -r test
+      - run: go test ./...
+      - run: pnpm -r build
+      - name: Publish to npm
+        run: pnpm -r publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Create the GitHub release
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}

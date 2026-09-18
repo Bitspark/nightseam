@@ -7,6 +7,17 @@ and TypeScript packages that bind to one runtime: the `nightseam.duplex/1`
 profile, JSON frames carrying requests, responses, events and cancellations
 over a frames duplex connection, a WebSocket today.
 
+It is pre-1.0 and the API moves with minor versions; `CHANGELOG.md` says
+what each version holds. The runtime is four packages on npm under
+`@nightseam` — `duplex`, `runtime`, `tunnel`, `session` — and one Go module,
+`github.com/Bitspark/nightseam`, of which `cmd/nightseam` is the generator:
+
+```
+npm install @nightseam/runtime @nightseam/tunnel        # what a generated TypeScript client depends on
+go get github.com/Bitspark/nightseam                     # runtime/go, duplex/go, tunnel/go, session/go
+go get -tool github.com/Bitspark/nightseam/cmd/nightseam
+```
+
 One directory per component, one subdirectory per language: a third
 language's runtime is `runtime/<lang>` and nothing else moves.
 
@@ -319,13 +330,16 @@ runtime under test is the real one. The fixture bodies were written against
 the previous generator and pass unchanged against this one; a next
 generation is held to them the same way.
 
-## Lineage
+## Documentation, releases, license
 
-The runtime and the generator were copied from Nightshift into Nighthall
-and grew there — the seam beneath the profile, imports and slots, the three
-layers — before they were extracted into this repository as their own tool,
-where the generic rendering was added; Nighthall's `docs/DECISIONS.md`
-records the steps: D-001, D-007, D-010, D-013, D-014 and D-015. The
-declaration language was then redesigned into its tiers and the generator
-rebuilt beneath it — `docs/V2_MIGRATION.md` records how — as the prototype
-of a general one, whose model is written up as bitlink.
+`docs/` has a page per runtime component — the profile the peers speak
+(`docs/profile.md`), the tunnel (`docs/tunnel.md`), the session
+(`docs/session.md`) — and an index; `docs/V2_MIGRATION.md` records how the
+declaration language was redesigned into its tiers and the generator rebuilt
+beneath it. `COLLABORATION.md` says how work is organized here — the boundary
+rule, parity between the languages, the two tiers of tests, the golden
+discipline, lanes — `RELEASING.md` how a release is cut and what a consumer
+pins, `SECURITY.md` how to report a vulnerability.
+
+Nightseam is licensed under the Apache License, Version 2.0: `LICENSE`, and
+`NOTICE` beside it.

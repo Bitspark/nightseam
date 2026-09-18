@@ -1,12 +1,48 @@
 {
   "name": "@nightseam/duplex",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.0",
+  "description": "The seam beneath every protocol: a frames duplex connection, with the WebSocket adapter and an in-memory pipe.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bitspark/nightseam.git",
+    "directory": "duplex/ts"
+  },
+  "homepage": "https://github.com/Bitspark/nightseam#readme",
+  "bugs": "https://github.com/Bitspark/nightseam/issues",
+  "keywords": [
+    "duplex",
+    "websocket",
+    "frames",
+    "seam"
+  ],
   "type": "module",
   "exports": "./src/index.ts",
   "types": "./src/index.ts",
   "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      }
+    }
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "check": "tsc --noEmit --strict --target ES2022 --module nodenext --allowImportingTsExtensions --skipLibCheck src/index.ts"
   }
 }

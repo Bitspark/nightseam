@@ -1,5 +1,5 @@
 // Package ws carries a frames duplex connection over a WebSocket. It is the
-// one transport Nighthall has today, and the only package that knows the
+// one transport there is today, and the only package that knows the
 // seam is a WebSocket: a message is a frame, a close frame is a close, and
 // the read limit is the receive limit.
 package ws

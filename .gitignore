@@ -3,3 +3,7 @@ node_modules/
 .agw.json
 .claude/settings.local.json
 */ts/dist/
+dist/
+*/ts/LICENSE
+*/ts/NOTICE
+release-notes.md

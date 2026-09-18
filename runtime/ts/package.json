@@ -1,15 +1,52 @@
 {
   "name": "@nightseam/runtime",
   "version": "0.2.0",
-  "private": true,
+  "description": "The peer of the nightseam.duplex/1 profile for the browser and Node: requests, responses, events, cancellation, trace context, the wire validator.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bitspark/nightseam.git",
+    "directory": "runtime/ts"
+  },
+  "homepage": "https://github.com/Bitspark/nightseam#readme",
+  "bugs": "https://github.com/Bitspark/nightseam/issues",
+  "keywords": [
+    "duplex",
+    "rpc",
+    "websocket",
+    "trace-context",
+    "validator"
+  ],
   "type": "module",
   "exports": "./src/index.ts",
   "types": "./src/index.ts",
   "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      }
+    }
+  },
   "dependencies": {
     "@nightseam/duplex": "workspace:*"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "check": "tsc --noEmit --strict --target ES2022 --module nodenext --allowImportingTsExtensions --skipLibCheck src/index.ts",
     "test": "node --experimental-strip-types --test src/peer.test.ts src/trace.test.ts src/validate.test.ts"
   }
