@@ -10,7 +10,8 @@
 | Workspace | `apps/plexis/` |
 | Agent contract | `AGENTS.md` (mirrored by `CLAUDE.md`), the bitmachine one with a "local v2 branch" note |
 
-Back to the [index](../RELATED_REPOS.md).
+Back to the [index](../RELATED_REPOS.md). Its unit model and protocols,
+compared to Nightseam: [plexis-models.md](plexis-models.md).
 
 ## What it is
 
@@ -69,9 +70,15 @@ only through BitDev (`dev/bitdev.ps1 doctor research-stack` and the like).
 
 ## Relation to Nightseam
 
-Plexis' `units/surface-*` and `units/proto/*` are exactly the layers
-Nightseam splits a contract into — data, operations, and the transport that
-governs a session of them. The control-plane ↔ management-ui seam, and the
-management-api ↔ operator tooling seam, are duplex APIs of the shape
-`nightseam.duplex/1` targets, and are the first candidates for a generated
-Go server / TypeScript client pair.
+Plexis has the most formal *conceptual* model of the three repositories —
+`docs/spec/LAYERS.md` states the `bind_P` / `stub_P` algebra with a written
+transparency law, and every transport is a `decl / bind / stub` triple —
+and no generator at all. Every contract, wire type, dispatch table and
+client stub is hand-written in Rust and again in TypeScript, parity is a
+grep lint, and the transport-neutral `ManagementService` has 116 methods
+in Rust against 99 in TypeScript. Its management / control WS seams,
+Energeia's session protocol and the Sandbox kernel contract are the first
+candidates for a generated Go server / TypeScript client pair; its
+`SyncFrame` state replication, Energeia's journal cursor and attachment
+leases, and Leukos's correlation carrier are ideas Nightseam's profile
+lacks. All of it in [plexis-models.md](plexis-models.md).

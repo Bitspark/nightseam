@@ -8,7 +8,8 @@
 | Last commit seen | `f64b23c992` · 2026-05-17 · "Tighten Graphe runtime contract parity and browser stubs" |
 | Agent contract | `AGENTS.md` (mirrored by `CLAUDE.md`) |
 
-Back to the [index](../RELATED_REPOS.md).
+Back to the [index](../RELATED_REPOS.md). Its type models, generators and
+protocols, compared to Nightseam: [bitmachine-models.md](bitmachine-models.md).
 
 ## What it is
 
@@ -55,10 +56,14 @@ From `AGENTS.md`:
 
 ## Relation to Nightseam
 
-The kernel subsystems talk to their apps and to each other over duplex seams
-of exactly the kind Nightseam describes — requests, events and cancellation
-over a WebSocket. The Graphe runtime contract work on `main` (browser stubs
-in parity with the runtime) is the closest analogue to Nightseam's Go /
-TypeScript pairing, and the kernel's per-subsystem contract files are the
-natural place for `urn:nightseam:contract:1` families should bitmachine
-adopt the generator.
+bitmachine already holds a generator of Nightseam's kind: `kernel/eidos`
+(Rune) with `kernel/glyph` (the Glyph declaration language and the Mark
+value model), ported from aifunc3, emitting TypeScript and Rust from
+`.glyph` declarations over WS / HTTP / CLI. `kernel/telos` is a
+hand-written duplex wire profile with resume, presence and task lifecycle;
+`kernel/sema/units/contracts` factors session governance as enums;
+`kernel/graphe` is a smaller JSON-declared attempt whose "runtime contract
+parity" is checked by regex. `GRID_CELL_PATTERN.md` states the bind / stub
+algebra with a transparency law that Nightseam's Go server / TS client pair
+realises without naming. All of it is laid out, with paths, in
+[bitmachine-models.md](bitmachine-models.md).

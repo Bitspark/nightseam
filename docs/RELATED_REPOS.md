@@ -9,11 +9,18 @@ this one.
 Paths are local checkouts on the machine this index was written on; the
 remote is the durable address. Add a row and a page for each new repository.
 
-| Repository | Local checkout | Remote | Page |
-|---|---|---|---|
-| aifunc3 (aifunc-mono) | `C:\Users\julia\Development\aifunc3` | https://github.com/Bitspark/aifunc-mono | [repos/aifunc3.md](repos/aifunc3.md) |
-| bitmachine | `C:\Development\bitspark\bitmachine` | https://gitlab.bitspark.com/bitmachine/bitmachine | [repos/bitmachine.md](repos/bitmachine.md) |
-| plexis | `C:\Development\bitspark\systems\plexis` | https://gitlab.bitspark.com/bitmachine/bitmachine (branch `plexis-main`) | [repos/plexis.md](repos/plexis.md) |
+| Repository | Local checkout | Remote | Page | Models survey |
+|---|---|---|---|---|
+| aifunc3 (aifunc-mono) | `C:\Users\julia\Development\aifunc3` | https://github.com/Bitspark/aifunc-mono | [repos/aifunc3.md](repos/aifunc3.md) | [repos/aifunc3-models.md](repos/aifunc3-models.md) |
+| bitmachine | `C:\Development\bitspark\bitmachine` | https://gitlab.bitspark.com/bitmachine/bitmachine | [repos/bitmachine.md](repos/bitmachine.md) | [repos/bitmachine-models.md](repos/bitmachine-models.md) |
+| plexis | `C:\Development\bitspark\systems\plexis` | https://gitlab.bitspark.com/bitmachine/bitmachine (branch `plexis-main`) | [repos/plexis.md](repos/plexis.md) | [repos/plexis-models.md](repos/plexis-models.md) |
+
+The *page* says what a repository is and how it is laid out. The *models
+survey* records everything in it that does what Nightseam does — type
+models, generators, wire profiles, conformance, layering — with paths into
+the source and a comparison against Nightseam's contract model.
+[RELATED_MODELS.md](RELATED_MODELS.md) draws the three surveys together
+by concept, with a matrix and the list of what Nightseam could take.
 
 ## Notes
 

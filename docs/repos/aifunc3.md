@@ -8,7 +8,8 @@
 | Last commit seen | `e6edab7f9` · 2026-04-13 |
 | Agent contract | `AGENTS.md` (mirrored by `CLAUDE.md`) |
 
-Back to the [index](../RELATED_REPOS.md).
+Back to the [index](../RELATED_REPOS.md). Its type models, generator and
+protocol, compared to Nightseam: [aifunc3-models.md](aifunc3-models.md).
 
 ## What it is
 
@@ -56,8 +57,14 @@ Nightseam's:
 
 ## Relation to Nightseam
 
-aifunc3 is where the vocabulary of units, protos and binds that Nightseam's
-contract layers echo was first worked out (`units/proto`, `systems/bind`,
-`metatype`). It is a candidate consumer of the `nightseam.duplex/1` profile
-for its server ↔ UI seams (phantom, the research system), and its
-`rune-codegen` pipeline is the nearest sibling to Nightseam's generator.
+aifunc3 is where the Glyph / Rune / Mark stack was built — a declaration
+DSL with a full type algebra (`units/data/glyph`), a nine-stage generator
+with per-language backends for TypeScript and Rust (`units/lib/rune`), and
+a value model whose `Arrow` and `Location` sorts carry callbacks and
+handles over a symmetric `{c, h, p}` session protocol (`units/lib/mark`).
+The elevation model derives an operation's topology from its signature;
+`rune-tester` and `units/test/rune/protocol-interop` test the generator
+end to end and across languages and transports. It is the nearest sibling
+to Nightseam's generator and the richest source of ideas for it; the
+stack was later ported into bitmachine's kernel. All of it, with paths,
+in [aifunc3-models.md](aifunc3-models.md).
