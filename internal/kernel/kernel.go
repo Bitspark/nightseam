@@ -6,9 +6,11 @@
 package kernel
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"path"
+	"sort"
 	"strings"
 
 	"github.com/Bitspark/nightseam/internal/analysis"
@@ -175,4 +177,55 @@ func owned(p string, dirs []string) bool {
 		}
 	}
 	return false
+}
+
+// Stale finds what is left over under the targets' roots of a checkout:
+// a file a target would own, by its layout, that no rendering of the
+// chosen families produced — a file of a family that was rendered and is
+// no longer, or of a family that no longer exists. A file of a family
+// that exists and was not chosen this time is not stale, only unrendered;
+// a file a target says is nobody's is left alone. Paths are sorted.
+func (k *Kernel) Stale(fsys fs.FS, world *World, chosen []string, rendered map[string][]byte) ([]string, error) {
+	chosenSet := map[string]bool{}
+	for _, name := range chosen {
+		chosenSet[name] = true
+	}
+	var stale []string
+	seen := map[string]bool{}
+	for _, target := range k.targets {
+		for _, root := range target.Roots() {
+			err := fs.WalkDir(fsys, root, func(p string, entry fs.DirEntry, err error) error {
+				if err != nil {
+					if p == root {
+						return fs.SkipDir
+					}
+					return err
+				}
+				if entry.IsDir() {
+					if entry.Name() == "node_modules" || strings.HasPrefix(entry.Name(), ".") {
+						return fs.SkipDir
+					}
+					return nil
+				}
+				family, owned := target.Family(p)
+				if !owned || seen[p] {
+					return nil
+				}
+				if _, current := rendered[p]; current {
+					return nil
+				}
+				_, exists := world.Families[family]
+				if !exists || chosenSet[family] {
+					seen[p] = true
+					stale = append(stale, p)
+				}
+				return nil
+			})
+			if err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return nil, err
+			}
+		}
+	}
+	sort.Strings(stale)
+	return stale, nil
 }

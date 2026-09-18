@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/Bitspark/nightseam/internal/diag"
@@ -113,6 +114,42 @@ func (*target) Name() string { return Name }
 func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Protocol, spi.Session} }
 
 func (t *target) Owns(family string) []string { return []string{t.config.dir(family)} }
+
+// Roots is the directory above every family's package, for the layout and
+// each placement.
+func (t *target) Roots() []string {
+	seen := map[string]bool{spi.PatternRoot(t.config.Layout): true}
+	roots := []string{spi.PatternRoot(t.config.Layout)}
+	for _, placed := range t.config.Place {
+		if root := spi.PatternRoot(placed); !seen[root] {
+			seen[root] = true
+			roots = append(roots, root)
+		}
+	}
+	sort.Strings(roots)
+	return roots
+}
+
+// Family answers a path with the family whose package holds it. What a
+// package manager installs beside the package, node_modules, is nobody's.
+func (t *target) Family(p string) (string, bool) {
+	for _, segment := range strings.Split(p, "/") {
+		if segment == "node_modules" {
+			return "", false
+		}
+	}
+	for family, placed := range t.config.Place {
+		if matched, ok := spi.MatchPattern(placed, p); ok && matched == family {
+			return family, true
+		}
+	}
+	if family, ok := spi.MatchPattern(t.config.Layout, p); ok {
+		if _, placed := t.config.Place[family]; !placed {
+			return family, true
+		}
+	}
+	return "", false
+}
 
 // Check reports the names the family would make the client declare that
 // it cannot: names the generated module declares of itself, identifiers

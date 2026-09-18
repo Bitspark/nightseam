@@ -124,3 +124,48 @@ func TestParametersAreLoadedFromTheProtocolTier(t *testing.T) {
 		t.Fatalf("the carrier's Frame is not generic:\n%s", types)
 	}
 }
+
+// TestGenerateRemovesWhatNothingRenders: a rendering a family no longer
+// produces — the family removed, or a file a target no longer writes — is
+// what check reports and generate removes, the directory it leaves empty
+// with it; what a package manager installed beside a client is nobody's
+// and stays; a family that exists and was not chosen this time is not
+// touched.
+func TestGenerateRemovesWhatNothingRenders(t *testing.T) {
+	root := t.TempDir()
+	writeFamily(t, root, "probe")
+	writeFamily(t, root, "codex")
+	if _, _, err := run(t, root, "generate"); err != nil {
+		t.Fatal(err)
+	}
+	writeFixture(t, root, "api/ts/probe-client/node_modules/@nightseam/runtime/package.json", []byte(`{}`))
+	writeFixture(t, root, "api/go/probe-protocol/stray_generated.go", []byte("package probeprotocol\n"))
+	if err := os.RemoveAll(filepath.Join(root, "api/contracts/codex")); err != nil {
+		t.Fatal(err)
+	}
+	_, errs, err := run(t, root, "check")
+	if err == nil || !strings.Contains(errs, "generated output nothing renders: api/go/codex-protocol/types_generated.go") || !strings.Contains(errs, "generated output nothing renders: api/go/probe-protocol/stray_generated.go") || strings.Contains(errs, "node_modules") {
+		t.Fatalf("check did not report what nothing renders: %v\n%s", err, errs)
+	}
+	out, _, err := run(t, root, "generate", "probe")
+	if err != nil || !strings.Contains(out, "removed api/go/probe-protocol/stray_generated.go") || !strings.Contains(out, "removed api/ts/codex-client/src/index.ts") {
+		t.Fatalf("generate did not remove: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "api/go/codex-protocol")); !os.IsNotExist(err) {
+		t.Fatal("the removed family's empty directory remains")
+	}
+	if _, err := os.Stat(filepath.Join(root, "api/ts/probe-client/node_modules/@nightseam/runtime/package.json")); err != nil {
+		t.Fatal("node_modules was touched")
+	}
+	if out, errs, err := run(t, root, "check"); err != nil || out != "" || errs != "" {
+		t.Fatalf("check after generate: %v\n%s%s", err, out, errs)
+	}
+	// A family that exists and was not chosen is left as it is.
+	writeFamily(t, root, "codex")
+	if _, _, err := run(t, root, "generate", "codex"); err != nil {
+		t.Fatal(err)
+	}
+	if out, _, err := run(t, root, "generate", "probe"); err != nil || strings.Contains(out, "removed") {
+		t.Fatalf("generating one family touched another: %v\n%s", err, out)
+	}
+}

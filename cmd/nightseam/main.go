@@ -154,24 +154,36 @@ func (a *app) chosen(args []string) ([]string, error) {
 // render generates every named family within the world of all of them and
 // merges their files; two families may not render one path.
 func (a *app) render(names []string) (map[string][]byte, error) {
+	files, _, err := a.renderAndStale(names)
+	return files, err
+}
+
+// renderAndStale renders the named families and finds what is left over
+// under the targets' roots: a file of one of them that nothing rendered,
+// or of a family that no longer exists.
+func (a *app) renderAndStale(names []string) (map[string][]byte, []string, error) {
 	k, world, err := a.world()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	files := map[string][]byte{}
 	for _, name := range names {
 		result, err := k.Render(world, name)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", name, err)
+			return nil, nil, fmt.Errorf("%s: %w", name, err)
 		}
 		for path, data := range result.Files {
 			if previous, exists := files[path]; exists && !bytes.Equal(previous, data) {
-				return nil, fmt.Errorf("conflicting generated output %s", path)
+				return nil, nil, fmt.Errorf("conflicting generated output %s", path)
 			}
 			files[path] = data
 		}
 	}
-	return files, nil
+	stale, err := k.Stale(os.DirFS(a.root), world, names, files)
+	if err != nil {
+		return nil, nil, err
+	}
+	return files, stale, nil
 }
 
 // changed returns the rendered paths whose checked-in bytes differ, in order.
@@ -230,7 +242,7 @@ already up to date.`,
 				if err != nil {
 					return err
 				}
-				files, err := a.render(names)
+				files, leftover, err := a.renderAndStale(names)
 				if err != nil {
 					return err
 				}
@@ -248,6 +260,20 @@ already up to date.`,
 					}
 					fmt.Fprintln(cmd.OutOrStdout(), "generated", path)
 				}
+				// What a target owns and nothing renders any more is removed,
+				// and a directory that is left empty with it.
+				for _, path := range leftover {
+					destination := filepath.Join(a.root, filepath.FromSlash(path))
+					if err := os.Remove(destination); err != nil {
+						return err
+					}
+					fmt.Fprintln(cmd.OutOrStdout(), "removed", path)
+					for dir := filepath.Dir(destination); dir != a.root; dir = filepath.Dir(dir) {
+						if os.Remove(dir) != nil {
+							break
+						}
+					}
+				}
 				return nil
 			},
 		},
@@ -261,7 +287,7 @@ already up to date.`,
 				if err != nil {
 					return err
 				}
-				files, err := a.render(names)
+				files, leftover, err := a.renderAndStale(names)
 				if err != nil {
 					return err
 				}
@@ -272,7 +298,10 @@ already up to date.`,
 				for _, path := range stale {
 					fmt.Fprintln(cmd.ErrOrStderr(), "stale generated output:", path)
 				}
-				if len(stale) > 0 {
+				for _, path := range leftover {
+					fmt.Fprintln(cmd.ErrOrStderr(), "generated output nothing renders:", path)
+				}
+				if len(stale)+len(leftover) > 0 {
 					return fmt.Errorf("generated APIs are stale; run nightseam generate")
 				}
 				return nil

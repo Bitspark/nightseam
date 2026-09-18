@@ -13,6 +13,7 @@ import (
 	"go/format"
 	"path"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/Bitspark/nightseam/internal/diag"
@@ -132,6 +133,52 @@ func (c Config) layout(family string) Layout {
 		return placed
 	}
 	return c.Layout
+}
+
+// Roots is the directory above every family's packages, for each layout
+// pattern and each placement.
+func (t *target) Roots() []string {
+	seen := map[string]bool{}
+	var roots []string
+	add := func(l Layout) {
+		for _, pattern := range []string{l.Protocol, l.Binding, l.Client} {
+			root := spi.PatternRoot(pattern)
+			if !seen[root] {
+				seen[root] = true
+				roots = append(roots, root)
+			}
+		}
+	}
+	add(t.config.Layout)
+	for _, placed := range t.config.Place {
+		add(placed)
+	}
+	sort.Strings(roots)
+	return roots
+}
+
+// Family answers a path with the family whose package holds it, by the
+// layout or a placement.
+func (t *target) Family(p string) (string, bool) {
+	match := func(l Layout) (string, bool) {
+		for _, pattern := range []string{l.Protocol, l.Binding, l.Client} {
+			if family, ok := spi.MatchPattern(pattern, p); ok {
+				return family, true
+			}
+		}
+		return "", false
+	}
+	for family, placed := range t.config.Place {
+		if matched, ok := match(placed); ok && matched == family {
+			return family, true
+		}
+	}
+	if family, ok := match(t.config.Layout); ok {
+		if _, placed := t.config.Place[family]; !placed {
+			return family, true
+		}
+	}
+	return "", false
 }
 
 func (t *target) Owns(family string) []string {

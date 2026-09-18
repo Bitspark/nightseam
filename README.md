@@ -229,7 +229,11 @@ package graph to that.
 The generated packages own their directories wholesale —
 `api/go/<f>-protocol`, `-binding`, `-client` and `api/ts/<f>-client` — and
 a human writes nothing there: behavior is written against the `Handler`
-interfaces they declare, in files of the consumer's own.
+interfaces they declare, in files of the consumer's own. What a target
+owns and nothing renders any more — a file of a family that was removed,
+or one a target no longer writes — `check` reports and `generate` removes,
+along with a directory it leaves empty; what a package manager installs
+beside a client, `node_modules`, is nobody's and stays.
 
 The wire validator lives in each runtime, once, and reads the family's
 wire description the protocol package embeds; both are held to

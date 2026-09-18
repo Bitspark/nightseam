@@ -6,6 +6,9 @@
 package spi
 
 import (
+	"regexp"
+	"strings"
+
 	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/render"
 )
@@ -40,6 +43,15 @@ type Target interface {
 	// in, relative to the checkout: the generator owns them wholesale and a
 	// human writes nothing there. Every rendered path lies under one.
 	Owns(family string) []string
+	// Roots names the directories under which the target places every
+	// family's rendering, relative to the checkout: where a rendering of a
+	// family that no longer exists would be found.
+	Roots() []string
+	// Family answers a path under a root with the family whose rendering
+	// it belongs to, by the target's layout, or false for a path that is
+	// nobody's — what a tool installed beside a rendering, say — which the
+	// generator leaves alone.
+	Family(path string) (string, bool)
 	// Check reports what the family would make the target render that it
 	// cannot: the names its override file gives, the identifiers it would
 	// declare, the collisions among them. It runs on a family every
@@ -56,3 +68,40 @@ type File struct {
 	Path string
 	Data []byte
 }
+
+// A target lays a family's rendering out by patterns over the family's
+// name, {family}: api/go/{family}-protocol. PatternRoot and MatchPattern
+// are the two questions the kernel asks of one.
+
+// PatternRoot is the directory a pattern places every family under: the
+// pattern up to the last separator before {family}, or "." when there is
+// none.
+func PatternRoot(pattern string) string {
+	before, _, _ := strings.Cut(pattern, "{family}")
+	if at := strings.LastIndex(before, "/"); at >= 0 {
+		return before[:at]
+	}
+	return "."
+}
+
+// MatchPattern reads the family out of a path a pattern places: the path
+// must begin with the pattern's directory, {family} filling one segment's
+// worth of a family name.
+func MatchPattern(pattern, p string) (string, bool) {
+	before, after, _ := strings.Cut(pattern, "{family}")
+	if !strings.HasPrefix(p, before) {
+		return "", false
+	}
+	rest := strings.TrimPrefix(p, before)
+	segment, _, _ := strings.Cut(rest, "/")
+	if !strings.HasSuffix(segment, after) || len(segment) <= len(after) {
+		return "", false
+	}
+	family := strings.TrimSuffix(segment, after)
+	if !familyPattern.MatchString(family) {
+		return "", false
+	}
+	return family, true
+}
+
+var familyPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
