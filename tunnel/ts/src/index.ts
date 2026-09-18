@@ -210,6 +210,9 @@ export class Channel implements FrameConnection {
   private credit: number;
   private taken = 0;
   private readonly queued: Frame[] = [];
+  /** Frames that arrived before anyone listened, delivered — and credited — when someone does; a close that arrived after them waits behind them. */
+  private readonly held: Frame[] = [];
+  private heldClose?: { code: number; reason: string };
   private readonly listeners = new Set<ConnectionHandlers>();
   private current: ConnectionState = 'open';
 
@@ -246,6 +249,14 @@ export class Channel implements FrameConnection {
 
   listen(handlers: ConnectionHandlers): () => void {
     this.listeners.add(handlers);
+    // What arrived before anyone listened is delivered now, in order, and
+    // credited now that it is consumed; a close that followed it comes last.
+    for (const frame of this.held.splice(0)) this.hand(frame);
+    if (this.heldClose) {
+      const { code, reason } = this.heldClose;
+      this.heldClose = undefined;
+      this.ended(code, reason);
+    }
     return () => { this.listeners.delete(handlers); };
   }
 
@@ -266,6 +277,15 @@ export class Channel implements FrameConnection {
   /** @internal */
   deliver(frame: Frame): void {
     if (this.current !== 'open') return;
+    if (this.listeners.size === 0) {
+      this.held.push(frame);
+      return;
+    }
+    this.hand(frame);
+  }
+
+  /** hand delivers one frame to every listener and returns its credit. */
+  private hand(frame: Frame): void {
     this.taken++;
     if (this.taken >= Math.max(Math.floor(this.tunnel.limits.window / 2), 1)) {
       const frames = this.taken;
@@ -287,6 +307,10 @@ export class Channel implements FrameConnection {
     if (this.current === 'closed') return;
     this.current = 'closed';
     this.queued.length = 0;
+    if (this.listeners.size === 0 && this.held.length > 0) {
+      this.heldClose = { code, reason };
+      return;
+    }
     this.ended(code, reason);
   }
 

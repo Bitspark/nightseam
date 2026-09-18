@@ -157,3 +157,25 @@ test('the connection carrying the channels closing ends every channel with going
   assert.equal(atClient.closed?.code, 1001);
   await rejected;
 });
+
+test('frames that arrive before anyone listens are held, and delivered in order when someone does, with a close behind them', async () => {
+  const { ct, st } = await tunnels({ window: 4 });
+  const [opened, accepted] = await pair(ct, st);
+  opened.send({ kind: 'text', data: 'early one' });
+  opened.send({ kind: 'text', data: 'early two' });
+  await tick();
+  assert.equal(accepted.state, 'open');
+  const late = collect(accepted);
+  assert.deepEqual(late.frames.map(frame => frame.data), ['early one', 'early two']);
+  opened.send({ kind: 'text', data: 'three' });
+  await late.next(); await late.next(); await late.next();
+  assert.equal(late.frames[2]!.data, 'three');
+  const [again, acceptedAgain] = await pair(ct, st);
+  again.send({ kind: 'text', data: 'last' });
+  again.close(1000, 'done');
+  await tick();
+  assert.equal(acceptedAgain.state, 'closed');
+  const afterwards = collect(acceptedAgain);
+  assert.deepEqual(afterwards.frames.map(frame => frame.data), ['last']);
+  assert.deepEqual(afterwards.closed, { code: 1000, reason: 'done' });
+});
