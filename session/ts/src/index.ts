@@ -84,6 +84,8 @@ export function memoryLog(maxFrameBytes: number): Log {
 export interface RegistryOptions {
   /** How many consumers may be attached to one session at once; an attach beyond it is refused. Default: 64. */
   maxAttachments?: number;
+  /** How many requests a session may have open towards its machine at once; one beyond it is refused with busy. Default: 256. */
+  maxInflight?: number;
 }
 
 /** The live sessions of one process: an id to the relay that carries it. */
@@ -92,7 +94,10 @@ export class Registry {
   private readonly relays = new Map<string, Relay>();
 
   constructor(options: RegistryOptions = {}) {
-    this.limits = { maxAttachments: positive(options.maxAttachments ?? 64, 'maxAttachments') };
+    this.limits = {
+      maxAttachments: positive(options.maxAttachments ?? 64, 'maxAttachments'),
+      maxInflight: positive(options.maxInflight ?? 256, 'maxInflight'),
+    };
   }
 
   /** Binds a session to the channel its machine speaks on, governed by its family's session tier and logged to `log`; the session lives until that channel closes. */
@@ -129,7 +134,7 @@ export class Registry {
   }
 
   /** @internal */
-  get maxAttachments(): number { return this.limits.maxAttachments; }
+  get limit(): Readonly<Required<RegistryOptions>> { return this.limits; }
 
   /** @internal */
   forget(id: string): void { this.relays.delete(id); }
@@ -165,8 +170,8 @@ export class Attachment {
 /** A consumer's request the machine has not answered: who sent it and the id it knows it by; the id the relay minted is what it is filed under. */
 interface Inflight { at: Attachment; id: string }
 
-/** A request the machine sent: the message as it arrived, whether its method asks, and which consumer it stands with, under which id. */
-interface Open { message: Envelope; asking: boolean; at?: Attachment; minted?: string }
+/** A request the machine sent: the message as it arrived, whether its method asks, and which consumer it stands with, if any. */
+interface Open { message: Envelope; asking: boolean; at: Attachment | null }
 
 /**
  * One bound session: the up channel, the consumers attached to it, the
@@ -188,13 +193,16 @@ class Relay {
   /** The machine's requests no consumer has answered, in the order they arrived. */
   private readonly open = new Map<string, Open>();
   /**
-   * The ids the relay mints. A machine serves its family, so it reads the
-   * client's ids, `c:N`; a consumer calls it, so it reads the server's,
-   * `s:N`. Two consumers that each mint `c:1` are distinct here by
-   * construction, and the log records the minted id, unique per session.
+   * Every peer mints `c:N` per connection, so two consumers attached over a
+   * session's life both send `c:1`. The relay is the family's client towards
+   * the machine and mints the ids it sends up itself — `c:N`, unique per
+   * session — keeping which consumer's request each stands for, and the log
+   * records the minted one. The machine's own ids, `s:N`, are one peer's and
+   * travel down as they are.
    */
   private upNext = 0;
-  private downNext = 0;
+  /** The sequence the log has reached: what a consumer attaching now is replayed up to, and no further. */
+  private sequence = 0;
   private queue: Promise<void> = Promise.resolve();
   private ended = false;
 
@@ -216,12 +224,20 @@ class Relay {
 
   attach(down: Channel, role: Role, origin: string, after: number): Attachment {
     if (this.ended) throw new DuplexError('no_session', `No session ${this.id} is bound.`);
-    if (this.attachments.size >= this.registry.maxAttachments) throw new DuplexError('too_many_attachments', 'No room for another consumer on this session.');
+    if (this.attachments.size >= this.registry.limit.maxAttachments) throw new DuplexError('too_many_attachments', 'No room for another consumer on this session.');
     const attachment = new Attachment(this, down, role, origin);
     this.attachments.add(attachment);
     // The replay is queued before the channel is listened to, so that what
-    // the consumer missed reaches it before anything live, in one order.
-    this.run(() => this.log.replay(after, async frame => { this.write(down, frame.message); }));
+    // the consumer missed reaches it before anything live, in one order, and
+    // it stops where the session stood when the consumer was added: a frame
+    // recorded since reaches it live instead, once.
+    const ceiling = this.sequence;
+    this.run(() => this.log.replay(after, async frame => {
+      // A cut message is not a message: what the log truncated is there for a
+      // consumer that reads the log, not for a channel that speaks the family.
+      if (frame.sequence > ceiling || frame.truncated) return;
+      this.write(down, frame.message);
+    }));
     attachment.attachTo(down.listen({
       frame: frame => this.run(() => this.fromDown(attachment, frame)),
       close: () => this.run(() => this.drop(attachment)),
@@ -235,9 +251,10 @@ class Relay {
       if (holder.role !== 'participant') throw new DuplexError('not_controlling', 'An observer never holds control.');
     }
     this.holder = holder;
-    // A request the machine has open follows control: the holder it was
-    // routed to no longer answers it, and the new one is asked afresh.
-    this.run(() => this.route());
+    // Every request the machine is waiting on follows control: the consumer
+    // it stood with no longer answers it, and whoever holds control now is
+    // asked it afresh.
+    this.run(() => this.reroute());
   }
 
   asking(): boolean {
@@ -271,6 +288,10 @@ class Relay {
           return;
         }
         if (!id) return;
+        if (this.inflight.size >= this.registry.limit.maxInflight) {
+          this.write(attachment.channel, { version: 1, kind: 'response', id, error: { code: 'busy', message: 'The session has too many requests open.' } });
+          return;
+        }
         const minted = 'c:' + ++this.upNext;
         this.inflight.set(minted, { at: attachment, id });
         await this.send('up', attachment.origin, { ...envelope, id: minted });
@@ -288,15 +309,13 @@ class Relay {
         return;
       }
       case 'response': {
-        // Answering what the machine asked decides, and only the consumer the
-        // ask stands with knows the id it stands under.
+        // Answering what the machine asked decides, so only the consumer the
+        // request stands with answers it, under the id the machine gave it.
         if (!id) return;
-        for (const [asked, open] of this.open) {
-          if (open.at !== attachment || open.minted !== id) continue;
-          this.open.delete(asked);
-          await this.send('up', attachment.origin, { ...envelope, id: asked });
-          return;
-        }
+        const open = this.open.get(id);
+        if (!open || open.at !== attachment) return;
+        this.open.delete(id);
+        await this.send('up', attachment.origin, { ...envelope });
         return;
       }
       default:
@@ -328,8 +347,8 @@ class Relay {
         // is what attention counts.
         if (!id) return;
         const method = typeof envelope.method === 'string' ? envelope.method : '';
-        this.open.set(id, { message: envelope, asking: this.governance.asks(method) });
-        await this.route();
+        this.open.set(id, { message: envelope, asking: this.governance.asks(method), at: this.holder });
+        if (this.holder) await this.send('down', '', { ...envelope }, this.holder);
         return;
       }
       case 'cancel': {
@@ -337,7 +356,7 @@ class Relay {
         const open = this.open.get(id);
         if (!open) return;
         this.open.delete(id);
-        if (open.at && open.minted) await this.send('down', '', { ...envelope, id: open.minted }, open.at);
+        if (open.at) await this.send('down', '', { ...envelope }, open.at);
         return;
       }
       default:
@@ -346,22 +365,23 @@ class Relay {
     }
   }
 
-  /** route hands every request the machine has open to the holder of control, and to no one while there is none. */
-  private async route(): Promise<void> {
-    for (const open of this.open.values()) {
-      if (!this.holder || open.at === this.holder) continue;
-      open.at = this.holder;
-      open.minted = 's:' + ++this.downNext;
-      await this.send('down', '', { ...open.message, id: open.minted }, this.holder);
-    }
+  /** reroute hands every request the machine is waiting on to whoever holds control now; released, it stands with nobody until control is given again. */
+  private async reroute(): Promise<void> {
+    const holder = this.holder;
+    for (const open of this.open.values()) open.at = holder;
+    if (!holder) return;
+    for (const open of this.open.values()) await this.send('down', '', { ...open.message }, holder);
   }
 
   /** send records a frame in the log and writes it to one consumer, to every consumer, or to the machine. */
   private async send(direction: Direction, origin: string, envelope: Envelope, to?: Attachment): Promise<void> {
-    await this.log.append({ sequence: 0, direction, origin, at: new Date(), message: envelope, truncated: false });
+    this.sequence = await this.log.append({ sequence: 0, direction, origin, at: new Date(), message: envelope, truncated: false });
+    // The consumers are taken with the sequence: one attaching meanwhile is
+    // not among them and takes this frame from the log's replay instead.
+    const attached = [...this.attachments];
     if (direction === 'up') this.write(this.up, envelope);
     else if (to) this.write(to.channel, envelope);
-    else for (const attachment of [...this.attachments]) this.write(attachment.channel, envelope);
+    else for (const attachment of attached) this.write(attachment.channel, envelope);
   }
 
   /** write hands a message to a channel; a channel that refuses it has closed, and its own close detaches it. */
@@ -375,11 +395,7 @@ class Relay {
     attachment.release();
     if (this.holder === attachment) this.holder = null;
     for (const [minted, held] of this.inflight) if (held.at === attachment) this.inflight.delete(minted);
-    for (const open of this.open.values()) {
-      if (open.at !== attachment) continue;
-      open.at = undefined;
-      open.minted = undefined;
-    }
+    for (const open of this.open.values()) if (open.at === attachment) open.at = null;
   }
 
   /** end ends the session: the machine's channel closed, so every consumer's ends with the same close. */

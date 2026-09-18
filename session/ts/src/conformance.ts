@@ -179,18 +179,21 @@ export function run(connect: Connect): void {
     const asked = await atOne.next();
     assert.equal(asked.method, 'reverse');
     assert.deepEqual(registry.attention(), ['s']);
-    // Control moves while the ask is open: it is asked of the new holder, and
-    // the one it was asked of no longer answers it.
+    // Control moves while the ask is open: it is asked of the new holder
+    // under the id the machine gave it, and the one it was asked of no
+    // longer answers it.
     registry.control('s', two.attachment);
     const again = await atTwo.next();
-    assert.deepEqual({ ...again, id: '' }, { ...asked, id: '' });
-    assert.notEqual(again.id, asked.id);
+    assert.deepEqual(again, asked);
     say(one.near, { version: 1, kind: 'response', id: asked.id, result: payload('too late') });
     await tick();
     assert.deepEqual(registry.attention(), ['s']);
     say(two.near, { version: 1, kind: 'response', id: again.id, result: payload('reveiled') });
     assert.deepEqual(await answer, { text: 'reveiled', count: 1 });
     assert.deepEqual(registry.attention(), []);
+    // An observer is never given control.
+    const watching = await consumer(wire, registry, 'observer', 'watching');
+    assert.throws(() => registry.control('s', watching.attachment), (error: unknown) => error instanceof DuplexError && error.code === 'not_controlling');
     wire.close();
   });
 
