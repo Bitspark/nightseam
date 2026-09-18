@@ -393,6 +393,15 @@ export class Channel implements FrameConnection {
     this.ended(code, reason);
   }
 
+  /**
+   * What a layer over a channel observes through: the observer of the peer
+   * the channel's tunnel runs over, or none. A session of a family speaks
+   * over a channel and is given nothing else of the tunnel, so this is how
+   * it emits its events without an observer option of its own — the same way
+   * the tunnel emits its own, one step further down.
+   */
+  observe(event: ObserverEvent): void { this.tunnel.observe(event); }
+
   /** The channel is over, observed where it ends rather than where the close reaches its listeners, which a held frame delays. */
   private closing(code: number, reason: string): void {
     this.tunnel.observe({ type: 'channel.closed', at: new Date(), family: this.family, id: this.id, code, reason });
