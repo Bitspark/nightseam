@@ -134,8 +134,19 @@ func goSurface(t *testing.T, name, source string) []string {
 }
 
 // shape spells a declared type: a struct as its exported fields with their
-// types and tags, anything else as the expression it is.
+// types and tags, an interface as its methods sorted — a method set has no
+// order — anything else as the expression it is.
 func shape(expr ast.Expr) string {
+	if i, ok := expr.(*ast.InterfaceType); ok {
+		var methods []string
+		for _, method := range i.Methods.List {
+			for _, ident := range method.Names {
+				methods = append(methods, ident.Name+strings.TrimPrefix(types.ExprString(method.Type), "func"))
+			}
+		}
+		sort.Strings(methods)
+		return "interface{" + strings.Join(methods, "; ") + "}"
+	}
 	s, ok := expr.(*ast.StructType)
 	if !ok {
 		return types.ExprString(expr)

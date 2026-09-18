@@ -29,6 +29,16 @@ func (f *file) linef(format string, args ...any) { f.w.Linef(format, args...) }
 // use registers an import and returns the alias to spell it with.
 func (f *file) use(alias, path string) string { return f.imports.Use(alias, path) }
 
+// proto is the prefix a type of the family's protocol package is spelled
+// with in this file — none in that package — registering the import where
+// it is first spelled.
+func (f *file) proto() string {
+	if f.prefix != "" {
+		f.use("protocol", f.config.Module+"/"+expand(f.config.layout(f.family.Name).Protocol, f.family.Name))
+	}
+	return f.prefix
+}
+
 func (f *file) runtime() string { return f.use("runtime", f.config.Runtime) }
 func (f *file) seam() string    { return f.use("duplex", f.config.Seam) }
 func (f *file) tunnel() string  { return f.use("tunnel", f.config.Tunnel) }
@@ -67,7 +77,7 @@ func (f *file) spell(e model.TypeExpr) string {
 			return "any"
 		}
 	case model.Named:
-		return f.prefix + f.plan.types[x.Name] + apply(f.family.Type(x.Name).Uses)
+		return f.proto() + f.plan.types[x.Name] + apply(f.family.Type(x.Name).Uses)
 	case model.Imported:
 		return f.peer(x.Family) + "." + x.Name + apply(f.family.ImportedUses(x.Family, x.Name))
 	case model.Drawn:

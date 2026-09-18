@@ -1,0 +1,26 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Account": {
+      "kind": "entity",
+      "key": "id",
+      "description": "An account: identified, with a unique email and a bounded balance.",
+      "fields": [
+        {"name": "id", "type": "string"},
+        {"name": "email", "type": "string", "unique": true, "pattern": "^[^@]+@[^@]+$"},
+        {"name": "balance", "type": "integer", "min": 0, "max": 1000000},
+        {"name": "tags", "type": {"array": "string"}, "length": {"max": 8}},
+        {"name": "opened_at", "type": "timestamp"}
+      ]
+    },
+    "Transfer": {
+      "kind": "record",
+      "description": "A transfer between two accounts, by their keys.",
+      "fields": [
+        {"name": "from", "type": {"ref": "Account"}},
+        {"name": "to", "type": {"ref": "Account"}},
+        {"name": "note", "type": "string", "required": false, "length": {"min": 1, "max": 140}}
+      ]
+    }
+  }
+}

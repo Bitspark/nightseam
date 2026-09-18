@@ -123,7 +123,7 @@ func emitClient(f *file) {
 		f.linef("return &%s%s{%s: peer}, nil", identClient, args, identPeer)
 	})
 	f.linef("// %s resolves a handle to the channel it names on a tunnel and speaks the family over it.", identOpen)
-	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, t *%s.Tunnel, handle %sHandle, options %s.Options, handler %s%s) (*%s%s, error) {", identOpen, open, ctx, f.tunnel(), f.prefix, runtime, identHandler, args, identClient, args), "}", func() {
+	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, t *%s.Tunnel, handle %sHandle, options %s.Options, handler %s%s) (*%s%s, error) {", identOpen, open, ctx, f.tunnel(), f.proto(), runtime, identHandler, args, identClient, args), "}", func() {
 		f.line("channel, ok := t.Channel(handle.Channel)")
 		f.linef("if !ok { return nil, %s.Errorf(\"no channel %%d on the connection\", handle.Channel) }", f.std("fmt"))
 		f.linef("return %s%s(ctx, channel, options, handler)", identAttach, args)
@@ -157,15 +157,15 @@ func (f *file) registration(m render.Method, handler, remote string) {
 		params := ""
 		if m.Request != nil {
 			f.linef("var params %s", f.spell(m.Request))
-			f.linef("if err := %s%s(%s%s(%s), raw); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", f.prefix, identValidateExpressionRaw, f.prefix, identTypeExpression, expression(m.Request), runtime)
+			f.linef("if err := %s%s(%s%s(%s), raw); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", f.proto(), identValidateExpressionRaw, f.proto(), identTypeExpression, expression(m.Request), runtime)
 			f.linef("if err := %s.Unmarshal(raw, &params); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", json, runtime)
 			params = ", params"
 		} else {
-			f.linef("if err := %s%s(map[string]any{\"empty\": true}, raw); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", f.prefix, identValidateExpressionRaw, runtime)
+			f.linef("if err := %s%s(map[string]any{\"empty\": true}, raw); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", f.proto(), identValidateExpressionRaw, runtime)
 		}
 		f.linef("result, err := %s.%s(ctx, %s%s)", handler, p.operations[m.Name], remote, params)
 		f.line("if err != nil { return nil, err }")
-		f.linef("if err = %s%s(%s%s(%s), result); err != nil { return nil, err }", f.prefix, identValidateValue, f.prefix, identTypeExpression, expression(m.Result))
+		f.linef("if err = %s%s(%s%s(%s), result); err != nil { return nil, err }", f.proto(), identValidateValue, f.proto(), identTypeExpression, expression(m.Result))
 		f.line("return result, nil")
 	})
 }
@@ -181,11 +181,11 @@ func (f *file) caller(m render.Method, receiver string) {
 	f.w.Block(fmt.Sprintf("func (c *%s) %s(ctx %s.Context%s) (%s, error) {", receiver, p.operations[m.Name], f.std("context"), f.request(m), result), "}", func() {
 		f.linef("var result %s", result)
 		if m.Request != nil {
-			f.linef("if err := %s%s(%s%s(%s), params); err != nil { return result, err }", f.prefix, identValidateValue, f.prefix, identTypeExpression, expression(m.Request))
+			f.linef("if err := %s%s(%s%s(%s), params); err != nil { return result, err }", f.proto(), identValidateValue, f.proto(), identTypeExpression, expression(m.Request))
 		}
 		f.linef("var raw %s.RawMessage", json)
 		f.linef("if err := c.%s.Call(ctx, %q, %s, &raw); err != nil { return result, err }", identPeer, m.Name, argument(m))
-		f.linef("if err := %s%s(%s%s(%s), raw); err != nil { return result, err }", f.prefix, identValidateExpressionRaw, f.prefix, identTypeExpression, expression(m.Result))
+		f.linef("if err := %s%s(%s%s(%s), raw); err != nil { return result, err }", f.proto(), identValidateExpressionRaw, f.proto(), identTypeExpression, expression(m.Result))
 		f.linef("if err := %s.Unmarshal(raw, &result); err != nil { return result, err }", json)
 		f.line("return result, nil")
 	})
@@ -194,15 +194,17 @@ func (f *file) caller(m render.Method, receiver string) {
 // events renders, on a receiver, the emitters of the events it sends and
 // the handlers of the events it receives.
 func (f *file) events(receiver string, received, sent []render.Event) {
-	p, runtime, json, ctx := f.plan, f.runtime(), f.std("json"), f.std("context")
+	p := f.plan
 	for _, e := range sent {
-		f.linef("func (c *%s) %s%s(ctx %s.Context, data %s) error { if err := %s%s(%s%s(%s), data); err != nil { return err }; return c.%s.Emit(ctx, %q, data) }", receiver, identEmit, p.operations[e.Name], ctx, f.spell(e.Type), f.prefix, identValidateValue, f.prefix, identTypeExpression, expression(e.Type), identPeer, e.Name)
+		ctx := f.std("context")
+		f.linef("func (c *%s) %s%s(ctx %s.Context, data %s) error { if err := %s%s(%s%s(%s), data); err != nil { return err }; return c.%s.Emit(ctx, %q, data) }", receiver, identEmit, p.operations[e.Name], ctx, f.spell(e.Type), f.proto(), identValidateValue, f.proto(), identTypeExpression, expression(e.Type), identPeer, e.Name)
 	}
 	for _, e := range received {
+		runtime, json, ctx := f.runtime(), f.std("json"), f.std("context")
 		data := f.spell(e.Type)
 		f.w.Block(fmt.Sprintf("func (c *%s) %s%s(handler func(%s.Context, %s)) error {", receiver, identOn, p.operations[e.Name], ctx, data), "}", func() {
 			f.w.Block(fmt.Sprintf("return c.%s.HandleEvent(%q, func(ctx %s.Context, peer *%s.Peer, raw %s.RawMessage) {", identPeer, e.Name, ctx, runtime, json), "})", func() {
-				f.linef("if err := %s%s(%s%s(%s), raw); err != nil { _ = peer.Close(); return }", f.prefix, identValidateExpressionRaw, f.prefix, identTypeExpression, expression(e.Type))
+				f.linef("if err := %s%s(%s%s(%s), raw); err != nil { _ = peer.Close(); return }", f.proto(), identValidateExpressionRaw, f.proto(), identTypeExpression, expression(e.Type))
 				f.linef("var data %s", data)
 				f.linef("if err := %s.Unmarshal(raw, &data); err != nil { _ = peer.Close(); return }", json)
 				f.line("handler(ctx, data)")

@@ -7,6 +7,7 @@
 package check
 
 import (
+	"regexp"
 	"sort"
 
 	"github.com/Bitspark/nightseam/internal/analysis"
@@ -283,14 +284,20 @@ func (c *checker) constraints(field *model.Field, owner *model.Type) {
 	if field.Pattern != "" && primitive != "string" {
 		c.Addf(field.At.Sub("pattern"), "invalid_constraint", "pattern holds a string, not %s.", model.String(field.Type))
 	}
+	if field.Pattern != "" {
+		if _, err := regexp.Compile(field.Pattern); err != nil {
+			c.Addf(field.At.Sub("pattern"), "invalid_constraint", "pattern is not a regular expression: %v.", err)
+		}
+	}
 	if field.Unique && owner.Kind != model.KindEntity {
 		c.Addf(field.At.Sub("unique"), "invalid_constraint", "unique is of an entity's field; %s is a %s.", owner.Name, owner.Kind)
 	}
 }
 
-// key: an entity's key is one of its own fields, primitive and required.
+// key: an entity's key is one of its fields, its own or inherited,
+// primitive and required.
 func (c *checker) key(t *model.Type) {
-	for _, field := range t.Fields {
+	for _, field := range c.f.FlattenedFields(t.Name) {
 		if field.Name != t.Key {
 			continue
 		}

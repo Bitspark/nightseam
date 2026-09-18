@@ -191,7 +191,6 @@ func (t *target) file(p *plan, f *render.Family, suffix string, body func(*file)
 	ctx := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("\t"), imports: &emit.Imports{}}
 	if suffix != "protocol" {
 		ctx.prefix = "protocol."
-		ctx.imports.Use("protocol", t.config.Module+"/"+expand(t.config.layout(f.Name).Protocol, f.Name))
 	}
 	body(ctx)
 	var out strings.Builder

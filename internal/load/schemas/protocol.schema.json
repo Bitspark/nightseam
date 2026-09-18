@@ -14,7 +14,7 @@
         "methods": {
           "type": "object",
           "propertyNames": {
-            "$ref": "urn:nightseam:v2:common#/$defs/memberName"
+            "$ref": "urn:nightseam:v2:common#/$defs/wireName"
           },
           "additionalProperties": {
             "type": "object",
@@ -46,7 +46,7 @@
         "events": {
           "type": "object",
           "propertyNames": {
-            "$ref": "urn:nightseam:v2:common#/$defs/memberName"
+            "$ref": "urn:nightseam:v2:common#/$defs/wireName"
           },
           "additionalProperties": {
             "type": "object",
