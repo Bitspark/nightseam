@@ -330,8 +330,10 @@ export class DuplexPeer {
         const kind = envelope.kind as string;
         const trace = traceOf(envelope);
         const family = this.family(name);
-        this.observe({ type: 'frame.sent', at: new Date(), kind, name, bytes, id: envelope.id as string | undefined, trace, family });
+        // What the peer did comes before the frame that carried it, as the Go
+        // peer tells it: an event is emitted, then its frame is sent.
         if (kind === 'event') this.observe({ type: 'event.emitted', at: new Date(), name, bytes, trace, family });
+        this.observe({ type: 'frame.sent', at: new Date(), kind, name, bytes, id: envelope.id as string | undefined, trace, family });
       }
       this.flush();
     });
@@ -357,11 +359,7 @@ export class DuplexPeer {
         this.outgoing.shift();
         item.resolve();
       } else {
-        // One event for a frame that meets a full pipe, not one for every retry.
-        if (!item.waited) {
-          item.waited = true;
-          if (this.observer) this.pressure(this.outgoing.length, false);
-        }
+        item.waited = true;
         this.writeTimer = setTimeout(() => { this.writeTimer = undefined; this.flush(); }, 5);
         return;
       }
@@ -474,11 +472,13 @@ export class DuplexPeer {
     const frame: Envelope = { version: 1, kind: 'response', id };
     if (error) frame.error = { code: error.code, message: error.message, ...(error.data === undefined ? {} : { data: error.data }) };
     else frame.result = result;
-    // A response carries its request's trace, and mints none of its own.
-    void this.send(traced(frame, incoming.trace), incoming.method).catch(error => this.fail(asError(error)));
+    // The request ends before its response is sent, as the Go peer tells it;
+    // a response carries its request's trace, mints none of its own, and is
+    // named by nothing — its id says which request it answers.
     if (this.observer) {
       this.observe({ type: 'request.ended', at: new Date(), id, method: incoming.method, incoming: true, durationMs: Date.now() - incoming.started, outcome, errorCode: error?.code, trace: incoming.trace, family: this.family(incoming.method) });
     }
+    void this.send(traced(frame, incoming.trace), '').catch(error => this.fail(asError(error)));
   }
 
   private event(name: string, data: unknown, bytes: number, trace?: Trace): void {
@@ -602,13 +602,12 @@ export class DuplexPeer {
     this.observe({ type: 'request.ended', at: new Date(), id, method: pending.method, incoming: false, durationMs: Date.now() - pending.started, outcome, errorCode, trace: pending.trace, family: this.family(pending.method) });
   }
 
-  /** What a frame is about; a response or a cancel takes its request's name. */
+  /** What a frame is named on the wire: a request its method, an event its event; a response or a cancel nothing, its id says which request it concerns. */
   private nameOf(frame: Envelope): string {
     switch (frame.kind) {
       case 'request': return frame.method as string;
       case 'event': return frame.event as string;
-      case 'response': return this.pending.get(frame.id as string)?.method ?? '';
-      default: return this.incoming.get(frame.id as string)?.method ?? '';
+      default: return '';
     }
   }
 
@@ -631,6 +630,9 @@ export class DuplexPeer {
 export function decodeEnvelope(data: string, localPrefix: string, remotePrefix: string): Envelope {
   const value: unknown = JSON.parse(data);
   if (!isObject(value) || value.version !== 1) throw new Error();
+  // JSON.parse keeps the last of two members of one name; a frame that spells
+  // a member twice is ambiguous and refused, as the Go peer refuses it.
+  if (topLevelMembers(data) !== Object.keys(value).length) throw new Error();
   const frame: Envelope = value;
   switch (frame.kind) {
     case 'request':
@@ -670,6 +672,38 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 function isWebSocketLike(value: FrameConnection | WebSocketLike): value is WebSocketLike {
   return typeof (value as WebSocketLike).readyState === 'number';
+}
+/** How many members the text spells at the top level, duplicates counted. */
+function topLevelMembers(text: string): number {
+  let depth = 0;
+  let inString = false;
+  let members = 0;
+  let expectKey = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (c === '\\') i++;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    switch (c) {
+      case '"':
+        inString = true;
+        if (depth === 1 && expectKey) { members++; expectKey = false; }
+        break;
+      case '{': case '[':
+        depth++;
+        if (depth === 1) expectKey = true;
+        break;
+      case '}': case ']':
+        depth--;
+        break;
+      case ',':
+        if (depth === 1) expectKey = true;
+        break;
+    }
+  }
+  return members;
 }
 function keys(frame: Envelope, allowed: string[]): void {
   if (Object.keys(frame).some(key => !allowed.includes(key))) throw new Error('Unknown frame property.');

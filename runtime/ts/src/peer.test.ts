@@ -291,7 +291,7 @@ test('event subscriptions preserve order, isolate failures, and unsubscribe', as
 
 test('malformed envelopes, binary messages, opposite IDs, and oversize frames close the peer', async () => {
   const invalid: unknown[] = [
-    '{}', '{bad', { version: 2, kind: 'event', event: 'notice', data: null },
+    '{}', '{bad', '{"version":1,"version":1,"kind":"cancel","id":"c:1"}', { version: 2, kind: 'event', event: 'notice', data: null },
     { version: 1, kind: 'request', id: 'c:1', method: 'x', params: {} },
     { version: 1, kind: 'response', id: 'c:1', result: 1, error: { code: 'bad', message: 'bad' } },
     { version: 1, kind: 'event', event: 'x', data: 1, extra: true },
@@ -660,7 +660,7 @@ test('for one call, one event and one close an observer sees the events in order
     { type: 'connection.opened', role: 'client' },
     { type: 'request.started', id: 'c:1', method: 'work.read', incoming: false, family: 'work' },
     { type: 'frame.sent', kind: 'request', name: 'work.read', bytes: true, id: 'c:1', family: 'work' },
-    { type: 'frame.received', kind: 'response', name: 'work.read', bytes: true, id: 'c:1', family: 'work' },
+    { type: 'frame.received', kind: 'response', name: '', bytes: true, id: 'c:1', family: '' },
     { type: 'request.ended', id: 'c:1', method: 'work.read', incoming: false, durationMs: true, outcome: 'ok', family: 'work' },
     { type: 'frame.received', kind: 'event', name: 'notice', bytes: true, family: '' },
     { type: 'event.delivered', name: 'notice', bytes: true, family: '' },
@@ -670,10 +670,10 @@ test('for one call, one event and one close an observer sees the events in order
     { type: 'connection.opened', role: 'server' },
     { type: 'frame.received', kind: 'request', name: 'work.read', bytes: true, id: 'c:1', family: 'work' },
     { type: 'request.started', id: 'c:1', method: 'work.read', incoming: true, family: 'work' },
-    { type: 'frame.sent', kind: 'response', name: 'work.read', bytes: true, id: 'c:1', family: 'work' },
     { type: 'request.ended', id: 'c:1', method: 'work.read', incoming: true, durationMs: true, outcome: 'ok', family: 'work' },
-    { type: 'frame.sent', kind: 'event', name: 'notice', bytes: true, family: '' },
+    { type: 'frame.sent', kind: 'response', name: '', bytes: true, id: 'c:1', family: '' },
     { type: 'event.emitted', name: 'notice', bytes: true, family: '' },
+    { type: 'frame.sent', kind: 'event', name: 'notice', bytes: true, family: '' },
     { type: 'connection.closed', code: 1000, reason: 'Duplex connection closed', local: false },
   ]);
   // What concerns a frame carries that frame's trace; the call's four events carry one.
@@ -729,8 +729,9 @@ test('an outcome is what ended the call: an error code, a cancellation, a deadli
   ]);
 });
 
-test('backpressure is observed where a frame waits, where the queue fills and where the deadline passes', async () => {
+test('backpressure is observed where the queue fills and where the deadline passes', async () => {
   // A socket whose buffer never drains: the first frame waits, the second meets a full queue.
+  // A frame that merely waits on the socket is not backpressure; a queue full or a deadline passed is, as the Go peer tells it.
   const socket = new Socket();
   socket.bufferedAmount = 1;
   const full = recorder();
@@ -741,7 +742,6 @@ test('backpressure is observed where a frame waits, where the queue fills and wh
   await first;
   assert.equal(peer.status, 'disconnected');
   assert.deepEqual(backpressure(full.events), [
-    { type: 'backpressure', queued: 1, stalled: false, deadlineMs: 10_000 },
     { type: 'backpressure', queued: 1, stalled: true, deadlineMs: 10_000 },
   ]);
 
@@ -752,7 +752,6 @@ test('backpressure is observed where a frame waits, where the queue fills and wh
   await blocked.attach(slow);
   await assert.rejects(blocked.emit('blocked'), { code: 'write_timeout' });
   assert.deepEqual(backpressure(missed.events), [
-    { type: 'backpressure', queued: 1, stalled: false, deadlineMs: 10 },
     { type: 'backpressure', queued: 1, stalled: true, deadlineMs: 10 },
   ]);
 
