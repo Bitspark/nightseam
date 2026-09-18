@@ -117,9 +117,9 @@ func TestDirectionRuleHoldsPerDeclaration(t *testing.T) {
 		{"envelope slot in dto", func(f map[string]map[string]any) {
 			f[LayerDTO]["types"].(map[string]any)["Input"].(map[string]any)["fields"].([]any)[0].(map[string]any)["type"] = map[string]any{"envelope": "probe"}
 		}, "/types/Input/fields/0/type"},
-		{"connection slot in rpc", func(f map[string]map[string]any) {
-			f[LayerRPC]["types"].(map[string]any)["Frame"].(map[string]any)["fields"].([]any)[0].(map[string]any)["type"] = map[string]any{"connection": "probe"}
-		}, "/types/Frame/fields/0/type"},
+		{"connection slot in dto", func(f map[string]map[string]any) {
+			f[LayerDTO]["types"].(map[string]any)["Input"].(map[string]any)["fields"].([]any)[0].(map[string]any)["type"] = map[string]any{"connection": "probe"}
+		}, "/types/Input/fields/0/type"},
 		{"imported sess type in dto", func(f map[string]map[string]any) {
 			f[LayerDTO]["types"].(map[string]any)["Input"].(map[string]any)["fields"].([]any)[0].(map[string]any)["type"] = "records.Session"
 		}, "/types/Input/fields/0/type"},
@@ -150,21 +150,28 @@ func TestDirectionRuleHoldsPerDeclaration(t *testing.T) {
 			t.Fatalf("no layer_violation at %s: %+v", tc.pointer, Check(api))
 		})
 	}
-	// Permitted: an rpc type holding an envelope slot, a sess type holding a
+	// Permitted: an rpc type holding either kind of slot — a handle is a
+	// channel reference of the carrying connection, which an operation
+	// resolves, not a session concept of its own — a sess type holding a
 	// connection slot and an rpc type, an rpc operation over dto types.
-	merged, _ := Merge(layerFiles(t))
-	api, _ := Parse(merged)
-	api.Families = []string{"example", "probe", "records"}
-	api.Sessions = []string{"probe"}
-	api.Imported = map[string]API{"records": imported}
-	for _, d := range Check(api) {
-		if d.Code == "layer_violation" {
-			t.Errorf("a permitted reference was refused: %+v", d)
+	permitted := layerFiles(t)
+	permitted[LayerRPC]["types"].(map[string]any)["Frame"].(map[string]any)["fields"].([]any)[0].(map[string]any)["type"] = map[string]any{"connection": "probe"}
+	for _, files := range []map[string]map[string]any{layerFiles(t), permitted} {
+		merged, _ := Merge(files)
+		api, _ := Parse(merged)
+		api.Families = []string{"example", "probe", "records"}
+		api.Sessions = []string{"probe"}
+		api.Imported = map[string]API{"records": imported}
+		for _, d := range Check(api) {
+			if d.Code == "layer_violation" {
+				t.Errorf("a permitted reference was refused: %+v", d)
+			}
 		}
 	}
+	merged, _ := Merge(layerFiles(t))
 	// A contract merged by hand, with no record of layers, has no direction.
 	delete(merged, "layers")
-	api, _ = Parse(merged)
+	api, _ := Parse(merged)
 	api.Families = []string{"example", "probe", "records"}
 	api.Sessions = []string{"probe"}
 	api.Imported = map[string]API{"records": imported}

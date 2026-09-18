@@ -753,14 +753,11 @@ func Check(api API) []Diagnostic {
 			case !families[target]:
 				add("unresolved_type", pointer, "Unknown family "+target+": it is not among the contracts rendered together.")
 			}
-			if layered {
-				needs := layerRank(LayerRPC)
-				if kind == "connection" {
-					needs = layerRank(LayerSess)
-				}
-				if context < needs {
-					add("layer_violation", pointer, fmt.Sprintf("A %s slot refines another family's %s and may sit in the %s layer or above, not in %s.", kind, Layers[needs], Layers[needs], Layers[context]))
-				}
+			// A slot is an operation's datum — one message of another family,
+			// or a handle to a channel that speaks it — and sits in the rpc
+			// layer or above: data holds no other family's operations.
+			if layered && context < layerRank(LayerRPC) {
+				add("layer_violation", pointer, fmt.Sprintf("A %s slot holds another family's operations and may sit in the %s layer or above, not in %s.", kind, LayerRPC, Layers[context]))
 			}
 			return
 		}
