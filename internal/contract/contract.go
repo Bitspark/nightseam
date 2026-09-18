@@ -364,7 +364,7 @@ func Merge(files map[string]map[string]any) (map[string]any, []Diagnostic) {
 					merged["types"].(map[string]any)[typeName] = t
 					layers[typeName] = layer
 				}
-			case "methods", "events", "errors", "session":
+			case "parameters", "methods", "events", "errors", "session":
 				if !slices.Contains(sections[layer], key) {
 					add("/"+layer+"/"+key, "wrong_section", fmt.Sprintf("The %s layer does not carry %s.", layer, key))
 					continue

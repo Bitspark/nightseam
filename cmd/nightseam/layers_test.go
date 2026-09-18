@@ -95,3 +95,26 @@ func TestLoaderHoldsTheLayers(t *testing.T) {
 		t.Fatalf("a dto holding an envelope slot passed: %v\n%s", err, errs)
 	}
 }
+
+// TestParametersAreLoadedFromTheRPCLayer: a family declares the parameters
+// it is generic in within its rpc layer, and the loader carries them into
+// the merged contract: the family validates and renders generically.
+func TestParametersAreLoadedFromTheRPCLayer(t *testing.T) {
+	root := t.TempDir()
+	writeLayers(t, root, "probe", true)
+	writeFixture(t, root, "api/contracts/carrier.rpc.json", []byte(`{"schema_version":1,"profile":"nightseam.duplex/1","name":"carrier","layer":"rpc","parameters":[{"name":"S","of":"session"}],"types":{"Frame":{"kind":"record","fields":[{"name":"sequence","type":"integer"},{"name":"message","type":{"envelope":"S"}}]}},"methods":[{"name":"relay","go_name":"Relay","ts_name":"relay","direction":"client_to_server","request":"Frame","result":"Frame"}],"events":[]}`))
+	out, errs, err := run(t, root, "validate")
+	if err != nil || !strings.Contains(out, "2 contracts; valid") {
+		t.Fatalf("validate: %v\n%s%s", err, out, errs)
+	}
+	if _, _, err := run(t, root, "generate", "carrier"); err != nil {
+		t.Fatal(err)
+	}
+	types, err := os.ReadFile(filepath.Join(root, "api", "go", "carrier-protocol", "types_generated.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(types), "type Frame[SE any] struct") {
+		t.Fatalf("the carrier did not render generically in its declared parameter:\n%s", types)
+	}
+}
