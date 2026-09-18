@@ -126,7 +126,6 @@ go tool nightseam check               # in CI: fail if the checked-in output is 
 | [docs/profile.md](docs/profile.md) | `nightseam.duplex/1`: the envelope, ids and correlation, limits and backpressure, trace context, close codes |
 | [docs/tunnel.md](docs/tunnel.md) | channels over one peer: the four operations, ids by parity, credit |
 | [docs/session.md](docs/session.md) | a session over a tunnel's channels: the relay's rules, the log, what a consumer builds on it |
-| [docs/V2_MIGRATION.md](docs/V2_MIGRATION.md) | how the declaration language was redesigned into its tiers |
 
 ## Working on Nightseam
 
