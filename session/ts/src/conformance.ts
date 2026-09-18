@@ -15,7 +15,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { pipe } from '@nightseam/duplex';
-import { DuplexError, DuplexPeer } from '@nightseam/runtime';
+import { DuplexError, DuplexPeer, type Observer, type ObserverEvent } from '@nightseam/runtime';
 import { Tunnel, type Channel } from '@nightseam/tunnel';
 import { asks, Client, decides, type Handler, type Payload } from '../../../cmd/nightseam/testdata/golden/api/ts/probe-client/src/index.ts';
 import { memoryLog, Registry, type Attachment, type Change, type Governance, type Log, type Role } from './index.ts';
@@ -25,16 +25,19 @@ export interface Wire {
   open(after?: number): Promise<{ near: Channel; far: Channel }>;
   close(): void;
 }
-export type Connect = () => Promise<Wire>;
+/** An observer a run is given goes to the peer the registry's channels run over, which is the one a session observes through. */
+export type Connect = (observer?: Observer) => Promise<Wire>;
 
 /** The probe family's session tier, as its generated client states it. */
 export const governance: Governance = { decides: method => decides.has(method), asks: method => asks.has(method) };
 
 /** Two peers over an in-memory pipe, with a tunnel each: what the suite runs on where there is no connection to hand. */
-export const pipes: Connect = async () => {
+export const pipes: Connect = async observer => {
   const [left, right] = pipe();
   const near = new DuplexPeer({ role: 'client' });
-  const far = new DuplexPeer({ role: 'server' });
+  // The registry is given the far ends, so the far peer is the one a session
+  // of them emits through: an observer of this run belongs to it.
+  const far = new DuplexPeer({ role: 'server', observer });
   await Promise.all([near.attach(left), far.attach(right)]);
   const nt = new Tunnel(near);
   const ft = new Tunnel(far);
@@ -102,6 +105,47 @@ function words(change: Change): string {
   return JSON.stringify({ ...change, attachment: change.attachment && { role: change.attachment.role, origin: change.attachment.origin } });
 }
 
+/** The events a session declares, which is what a run of the suite reads off the peer its registry runs over; the runtime's own and the tunnel's are that peer's traffic, not the session's. */
+const SESSION_EVENTS = new Set(['session.bound', 'session.unbound', 'session.attached', 'session.detached', 'ask.raised', 'ask.routed', 'ask.answered', 'control.changed', 'frame.appended', 'session.refused']);
+
+/** One session event as a line, the way a change is one: its type and the fields that say which session frame or consumer it is about. */
+function tell(event: ObserverEvent): string {
+  const parts: (string | undefined)[] = [event.type];
+  switch (event.type) {
+    case 'session.unbound': parts.push(String(event.code), event.reason); break;
+    case 'session.attached': parts.push(event.origin, event.role, '#' + event.after); break;
+    case 'session.detached': parts.push(event.origin, event.role); break;
+    case 'ask.raised': parts.push(event.id, event.method, event.asking ? 'asking' : undefined); break;
+    case 'ask.routed': case 'ask.answered': parts.push(event.id, event.method, event.origin); break;
+    case 'control.changed': parts.push(event.origin); break;
+    case 'frame.appended': parts.push(event.direction, event.origin || undefined, event.method, '#' + event.sequence); break;
+    case 'session.refused': parts.push(event.code, event.method, event.origin, event.role); break;
+    default: break;
+  }
+  return parts.filter((part): part is string => part !== undefined).join(' ');
+}
+
+/** Every session event of the peer a registry runs over, in the order it emitted them. */
+function observing() {
+  const lines: string[] = [];
+  const events: ObserverEvent[] = [];
+  const observer: Observer = {
+    observe(event) {
+      if (!SESSION_EVENTS.has(event.type)) return;
+      events.push(event);
+      lines.push(tell(event));
+    },
+  };
+  return {
+    observer,
+    lines,
+    events,
+    of<T extends ObserverEvent['type']>(type: T) {
+      return events.filter((event): event is Extract<ObserverEvent, { type: T }> => event.type === type);
+    },
+  };
+}
+
 /** Every change a registry makes, in the order it made them: the lines, and the changes themselves for what a line does not say. */
 function watching(registry: Registry) {
   const lines: string[] = [];
@@ -117,8 +161,8 @@ const asked = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b8-01';
 /** run registers the suite over the channels connect supplies. */
 export function run(connect: Connect): void {
   /** A bound session: the wire its channels come from, the registry, the log, and the end the machine speaks on. */
-  async function bound(maxFrameBytes = 1 << 20, before: (registry: Registry) => void = () => { /* A run that watches the session from before it is bound says so. */ }) {
-    const wire = await connect();
+  async function bound(maxFrameBytes = 1 << 20, before: (registry: Registry) => void = () => { /* A run that watches the session from before it is bound says so. */ }, observer?: Observer) {
+    const wire = await connect(observer);
     const registry = new Registry();
     before(registry);
     const log = memoryLog(maxFrameBytes);
@@ -343,9 +387,10 @@ export function run(connect: Connect): void {
     wire.close();
   });
 
-  test('every domain change of a session reaches onChange, in the order the registry made them', async () => {
+  test('every domain change of a session reaches onChange and the observer of the peer it runs over, in the order the registry made them', async () => {
     let seen!: ReturnType<typeof watching>;
-    const { wire, registry, machine } = await bound(1 << 20, registry => { seen = watching(registry); });
+    const told = observing();
+    const { wire, registry, machine } = await bound(1 << 20, registry => { seen = watching(registry); }, told.observer);
     const atMachine = listen(machine);
     const one = await consumer(wire, registry, 'participant', 'one');
     const two = await consumer(wire, registry, 'participant', 'two');
@@ -391,6 +436,39 @@ export function run(connect: Connect): void {
       'detached one',
       'unbound',
     ]);
+    // The same run, read off the observer of the peer the session runs over:
+    // the same changes, said the way the runtime says things, in one order.
+    assert.deepEqual(told.lines, [
+      'session.bound',
+      'session.attached one participant #0',
+      'session.attached two participant #0',
+      'control.changed one',
+      'frame.appended up one echo #1',
+      'frame.appended down #2',
+      'session.refused not_controlling echo two participant',
+      'frame.appended down reverse #3',
+      'ask.raised s:1 reverse asking',
+      'ask.routed s:1 reverse one',
+      'control.changed two',
+      'ask.routed s:1 reverse two',
+      'ask.answered s:1 reverse two',
+      'frame.appended up two #4',
+      'session.detached one participant',
+      'session.unbound 4002 the machine went away',
+    ]);
+    // Every event is of the session it was made on, at the time it was made,
+    // and one that concerns a frame carries that frame's trace.
+    for (const event of told.events) {
+      assert.equal((event as { session: string }).session, 's');
+      assert.equal(event.at instanceof Date, true);
+    }
+    assert.deepEqual(told.of('ask.raised')[0]!.trace, { traceparent: asked });
+    assert.deepEqual(told.of('ask.routed').map(event => event.trace?.traceparent), [asked, asked]);
+    assert.deepEqual(told.of('frame.appended')[0]!.trace, { traceparent });
+    assert.equal(told.of('frame.appended')[1]!.trace, undefined);
+    assert.equal(told.of('session.bound')[0]!.at instanceof Date, true);
+    // A frame's size is the frame the machine read, to the byte.
+    assert.equal(told.of('frame.appended')[0]!.bytes, new TextEncoder().encode(JSON.stringify(request)).byteLength);
     // Every change is of the session it was made on, at the time it was made.
     for (const change of seen.changes) {
       assert.equal(change.session, 's');
@@ -408,10 +486,11 @@ export function run(connect: Connect): void {
     wire.close();
   });
 
-  test('a change says what a frame was and never what it carried', async () => {
+  test('a change and an event say what a frame was and never what it carried', async () => {
     const sentinel = 'squeamish-ossifrage';
     let seen!: ReturnType<typeof watching>;
-    const { wire, registry, machine } = await bound(1 << 20, registry => { seen = watching(registry); });
+    const told = observing();
+    const { wire, registry, machine } = await bound(1 << 20, registry => { seen = watching(registry); }, told.observer);
     const atMachine = listen(machine);
     const one = await consumer(wire, registry, 'participant', 'one');
     const two = await consumer(wire, registry, 'observer', 'two');
@@ -431,6 +510,10 @@ export function run(connect: Connect): void {
       // What it says is the members it declares, so a message cannot arrive
       // under a name the sentinel was not looked for under.
       for (const member of Object.keys(change)) assert.equal(MEMBERS.includes(member), true, `a change carried ${member}`);
+    }
+    assert.equal(told.events.length > 0, true);
+    for (const event of told.events) {
+      assert.equal(JSON.stringify(event).includes(sentinel), false, `a ${event.type} carried what a frame carried`);
     }
     wire.close();
   });

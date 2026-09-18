@@ -23,12 +23,21 @@ const stop = registry.onChange(change => {
 stop();                   // that registration, and no other
 ```
 
-Every domain change of the registry goes one way through `onChange` — one
+Every domain change of the registry goes two ways. Through `onChange` — one
 `Change` per change, carrying the session, whom it concerns, the method it
-names, the sequence the log reached and the trace of the frame it concerns.
-It is the hook a consumer builds its own events from, and the one place such
-events are computed. It says names, ids and sequences and never a payload:
-what a frame carried is the log's.
+names, the sequence the log reached and the trace of the frame it concerns —
+which is the hook a consumer builds its own events from, and the one place
+such events are computed. And to the observer of the peer the session's up
+channel runs over, as `session.bound`, `session.unbound`, `session.attached`,
+`session.detached`, `ask.raised`, `ask.routed`, `ask.answered`,
+`control.changed`, `frame.appended` and `session.refused`, declared into the
+runtime's `ObserverEvents` so that a consumer's `switch (event.type)` covers
+them beside the runtime's and the tunnel's. The session takes no observer of
+its own.
+
+Both say names, ids, origins, sequences and sizes, and never a payload:
+`frame.appended` says which sequence, which direction, whose origin and how
+many bytes, and what the frame carried stays in the log.
 
 The rules it holds, one test each in both languages: a response reaches
 the one consumer that asked and an event every attached one; a deciding
