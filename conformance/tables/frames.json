@@ -1,0 +1,432 @@
+{
+  "description": "Every envelope a peer must accept or refuse, as raw text: what the frame is, whether it is valid, and which side it is addressed to — a server (it carries a client's ids, c:N, and answers a server's, s:N), a client, or either. A refused frame ends the connection; the harness sends each row over a raw connection to a peer of the named role and holds that the peer ended, or did not.",
+  "rows": [
+    {
+      "name": "request",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"read\",\"params\":null}",
+      "valid": true,
+      "why": ""
+    },
+    {
+      "name": "response",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"result\":null}",
+      "valid": true,
+      "why": "a response to a request the server made, so it carries the server's id"
+    },
+    {
+      "name": "response with error",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"error\":{\"code\":\"busy\",\"message\":\"Try later\"}}",
+      "valid": true,
+      "why": ""
+    },
+    {
+      "name": "event",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"updated\",\"data\":null}",
+      "valid": true,
+      "why": ""
+    },
+    {
+      "name": "cancel",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\"}",
+      "valid": true,
+      "why": ""
+    },
+    {
+      "name": "request with trace",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"read\",\"params\":{},\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\",\"tracestate\":\"congo=t61rcWkgMzE\"}",
+      "valid": true,
+      "why": ""
+    },
+    {
+      "name": "event with tracestate alone",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"updated\",\"data\":1,\"tracestate\":\"congo=t61rcWkgMzE\"}",
+      "valid": true,
+      "why": "an intermediary may strip one member and not the other"
+    },
+    {
+      "name": "not an object",
+      "to": "either",
+      "frame": "\"frame\"",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "null",
+      "to": "either",
+      "frame": "null",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "array",
+      "to": "either",
+      "frame": "[]",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "empty object",
+      "to": "either",
+      "frame": "{}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "not json",
+      "to": "either",
+      "frame": "{bad",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "trailing content",
+      "to": "either",
+      "frame": "{\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\"} {}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "duplicate member",
+      "to": "either",
+      "frame": "{\"version\":1,\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\"}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "wrong version",
+      "to": "either",
+      "frame": "{\"version\":2,\"kind\":\"event\",\"event\":\"progress\",\"data\":1}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "unknown kind",
+      "to": "either",
+      "frame": "{\"version\":1,\"kind\":\"unknown\"}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "unknown member",
+      "to": "either",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"progress\",\"data\":1,\"extra\":true}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "request without params",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"read\"}",
+      "valid": false,
+      "why": "params is required, null when there are none"
+    },
+    {
+      "name": "response with result and error",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"result\":null,\"error\":{\"code\":\"bad\",\"message\":\"bad\"}}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "response with null error",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"error\":null}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "response with result and null error",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"result\":null,\"error\":null}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "event with a foreign member",
+      "to": "either",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"updated\",\"data\":null,\"id\":\"\"}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "cancel with a foreign member",
+      "to": "either",
+      "frame": "{\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\",\"event\":\"\"}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "request with the receiver's own id",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"s:1\",\"method\":\"wait\",\"params\":null}",
+      "valid": false,
+      "why": "a server mints s:, so a request carrying one did not come from a client"
+    },
+    {
+      "name": "response to nobody",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"c:1\",\"result\":1}",
+      "valid": false,
+      "why": "a response carries the id of a request the receiver made; c:1 is the sender's own"
+    },
+    {
+      "name": "request with traceparent empty",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"echo\",\"params\":{},\"traceparent\":\"\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "request with traceparent nonsense",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"echo\",\"params\":{},\"traceparent\":\"nonsense\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "request with traceparent missing flags",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"echo\",\"params\":{},\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "request with traceparent uppercase",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"echo\",\"params\":{},\"traceparent\":\"00-4BF92F3577B34DA6A3CE929D0E0E4736-00f067aa0ba902b7-01\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "request with traceparent short trace id",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"echo\",\"params\":{},\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e473-00f067aa0ba902b7-01\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "request with traceparent leading space",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"echo\",\"params\":{},\"traceparent\":\" 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "request with traceparent extra field",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"echo\",\"params\":{},\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-99\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "request with traceparent not a string",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"echo\",\"params\":{},\"traceparent\":7}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "request with tracestate not a string",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"echo\",\"params\":{},\"tracestate\":7}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "response with traceparent empty",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"result\":1,\"traceparent\":\"\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "response with traceparent nonsense",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"result\":1,\"traceparent\":\"nonsense\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "response with traceparent missing flags",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"result\":1,\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "response with traceparent uppercase",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"result\":1,\"traceparent\":\"00-4BF92F3577B34DA6A3CE929D0E0E4736-00f067aa0ba902b7-01\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "response with traceparent short trace id",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"result\":1,\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e473-00f067aa0ba902b7-01\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "response with traceparent leading space",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"result\":1,\"traceparent\":\" 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "response with traceparent extra field",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"result\":1,\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-99\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "response with traceparent not a string",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"result\":1,\"traceparent\":7}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "response with tracestate not a string",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"result\":1,\"tracestate\":7}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "cancel with traceparent empty",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\",\"traceparent\":\"\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "cancel with traceparent nonsense",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\",\"traceparent\":\"nonsense\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "cancel with traceparent missing flags",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\",\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "cancel with traceparent uppercase",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\",\"traceparent\":\"00-4BF92F3577B34DA6A3CE929D0E0E4736-00f067aa0ba902b7-01\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "cancel with traceparent short trace id",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\",\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e473-00f067aa0ba902b7-01\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "cancel with traceparent leading space",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\",\"traceparent\":\" 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "cancel with traceparent extra field",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\",\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-99\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "cancel with traceparent not a string",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\",\"traceparent\":7}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "cancel with tracestate not a string",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\",\"tracestate\":7}",
+      "valid": false,
+      "why": ""
+    },
+    {
+      "name": "event with traceparent empty",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"notice\",\"data\":null,\"traceparent\":\"\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "event with traceparent nonsense",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"notice\",\"data\":null,\"traceparent\":\"nonsense\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "event with traceparent missing flags",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"notice\",\"data\":null,\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "event with traceparent uppercase",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"notice\",\"data\":null,\"traceparent\":\"00-4BF92F3577B34DA6A3CE929D0E0E4736-00f067aa0ba902b7-01\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "event with traceparent short trace id",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"notice\",\"data\":null,\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e473-00f067aa0ba902b7-01\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "event with traceparent leading space",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"notice\",\"data\":null,\"traceparent\":\" 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "event with traceparent extra field",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"notice\",\"data\":null,\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-99\"}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "event with traceparent not a string",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"notice\",\"data\":null,\"traceparent\":7}",
+      "valid": false,
+      "why": "traceparent is the W3C form or the frame is refused"
+    },
+    {
+      "name": "event with tracestate not a string",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"notice\",\"data\":null,\"tracestate\":7}",
+      "valid": false,
+      "why": ""
+    }
+  ]
+}

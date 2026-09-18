@@ -1,0 +1,15 @@
+{
+  "description": "How a wire name is spelled in each language, by the convention its target derives names with: a column per language, a row per shape of name. A target's tests read its column; a new language adds a column and fills every row.",
+  "rows": [
+    {"wire": "echo",              "go": "Echo",             "typescript": "echo"},
+    {"wire": "no_args",           "go": "NoArgs",           "typescript": "noArgs"},
+    {"wire": "work_item_id",      "go": "WorkItemID",       "typescript": "workItemId"},
+    {"wire": "frame.relayed",     "go": "FrameRelayed",     "typescript": "frameRelayed"},
+    {"wire": "not_found",         "go": "NotFound",         "typescript": "notFound"},
+    {"wire": "api_url",           "go": "APIURL",           "typescript": "apiUrl"},
+    {"wire": "http_json_uuid",    "go": "HTTPJSONUUID",     "typescript": "httpJsonUuid"},
+    {"wire": "context.example",   "go": "ContextExample",   "typescript": "contextExample"},
+    {"wire": "v2_frame",          "go": "V2Frame",          "typescript": "v2Frame"},
+    {"wire": "already_archived",  "go": "AlreadyArchived",  "typescript": "alreadyArchived"}
+  ]
+}

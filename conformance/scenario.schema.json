@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nightseam:conformance:scenario:1",
+  "title": "A conformance scenario: two testees, a and b, and the steps the runner drives them through.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "layer", "steps"],
+  "properties": {
+    "name": {"type": "string", "minLength": 1, "description": "Unique within its layer; the test's name."},
+    "layer": {"enum": ["seam", "peer", "tunnel", "session", "generated"]},
+    "replaces": {"type": "string", "description": "The gate this scenario took the place of, for the record."},
+    "description": {"type": "string"},
+    "needs": {
+      "type": "array", "uniqueItems": true,
+      "items": {"enum": ["listen", "pipe", "observer", "propagator", "lazy", "seam", "peer", "tunnel", "session", "generated"]},
+      "description": "Layers and features both testees must answer hello with; otherwise the scenario is skipped for that pairing."
+    },
+    "foreach": {
+      "type": "object", "additionalProperties": false, "required": ["table", "as"],
+      "properties": {
+        "table": {"type": "string", "description": "A path under conformance/, e.g. tables/frames.json; its `rows` array."},
+        "as": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$", "description": "The name a row is bound to: $<as>.<member> refers into it."},
+        "where": {"type": "object", "description": "Rows are kept whose members equal these."}
+      },
+      "description": "Expands the scenario once per row of a table, each named name[i]."
+    },
+    "steps": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/step"}}
+  },
+  "$defs": {
+    "step": {
+      "type": "object", "additionalProperties": false,
+      "required": ["on", "op"],
+      "properties": {
+        "on": {"enum": ["a", "b"], "description": "Which testee takes the op."},
+        "op": {"type": "string", "pattern": "^[a-z]+\\.[a-z_]+$"},
+        "args": {"type": "object", "description": "The op's arguments; a string value may be a placeholder."},
+        "bind": {
+          "oneOf": [
+            {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+            {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}}
+          ],
+          "description": "A string binds the answer's handle (or, when the answer is a scalar, the answer); an object binds each named member of the answer to a name."
+        },
+        "expect": {"description": "The answer's ok value must match this, with placeholders."},
+        "expect_error": {
+          "type": "object",
+          "description": "The op must answer with an error matching this: its code, and whatever members an error of that op carries."
+        },
+        "assert": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "absent": {"type": "string", "description": "This text appears nowhere in the answer's JSON."},
+            "present": {"type": "string", "description": "This text appears somewhere in the answer's JSON."}
+          }
+        },
+        "repeat": {
+          "type": "object", "additionalProperties": false, "required": ["max"],
+          "properties": {
+            "max": {"type": "integer", "minimum": 1},
+            "until": {"enum": ["error", "ok"], "description": "Stop repeating at the first answer of this kind; the step then holds its expect or expect_error against it."}
+          }
+        },
+        "note": {"type": "string"}
+      }
+    }
+  }
+}

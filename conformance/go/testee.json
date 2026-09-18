@@ -1,0 +1,15 @@
+{
+  "language": "go",
+  "toolchains": ["go"],
+  "build": [
+    {"argv": ["go", "build", "-o", "{out}/go-testee{exe}", "./testee"], "env": {"GOFLAGS": ""}}
+  ],
+  "run": {"argv": ["{out}/go-testee{exe}"]},
+  "generated": {
+    "rendered": "{out}/go-generated",
+    "build": [
+      {"argv": ["go", "build", "-o", "{out}/go-generated-testee{exe}", "."], "cwd": "{rendered}", "env": {"GOFLAGS": "", "GOWORK": "off", "GOPROXY": "off"}}
+    ],
+    "run": {"argv": ["{out}/go-generated-testee{exe}"]}
+  }
+}

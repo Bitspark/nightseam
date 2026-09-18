@@ -7,7 +7,7 @@ import { createValidator, type Validator, type WireType } from './validate.ts';
 // to, case by case, on the wire description of a family and of one it
 // refers to.
 test('validator conformance', () => {
-  const table = JSON.parse(readFileSync(new URL('../../testdata/validator-cases.json', import.meta.url), 'utf8')) as {
+  const table = JSON.parse(readFileSync(new URL('../../../conformance/tables/validator.json', import.meta.url), 'utf8')) as {
     wire: Record<string, WireType>;
     imported: Record<string, Record<string, WireType>>;
     cases: { expression: unknown; value: unknown; valid: boolean }[];

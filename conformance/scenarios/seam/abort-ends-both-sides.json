@@ -1,0 +1,15 @@
+{
+  "name": "an abort ends the connection at once on both sides",
+  "layer": "seam",
+  "replaces": "duplex/go/duplextest, its fifth scenario",
+  "needs": ["seam", "listen"],
+  "steps": [
+    {"on": "a", "op": "conn.listen", "bind": {"handle": "l", "url": "url"}},
+    {"on": "b", "op": "conn.dial", "args": {"url": "$url"}, "bind": "cb"},
+    {"on": "a", "op": "conn.accept", "args": {"on": "$l"}, "bind": "ca"},
+    {"on": "b", "op": "conn.abort", "args": {"on": "$cb"}},
+    {"on": "a", "op": "conn.receive", "args": {"on": "$ca"}, "expect_error": {"code": "$regex:^(closed|failed)$"}, "note": "the remote ends without a close frame: an abnormal close, or a failure"},
+    {"on": "b", "op": "conn.receive", "args": {"on": "$cb", "within_ms": 500}, "expect_error": {"code": "closed"}, "note": "the local side is closed at once"},
+    {"on": "b", "op": "conn.send", "args": {"on": "$cb", "kind": "text", "text": "x"}, "expect_error": {"code": "closed"}}
+  ]
+}

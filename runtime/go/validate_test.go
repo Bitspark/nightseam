@@ -10,7 +10,7 @@ import (
 // every runtime is held to, case by case, on the wire description of a
 // family and of one it refers to.
 func TestValidatorConformance(t *testing.T) {
-	data, err := os.ReadFile("../testdata/validator-cases.json")
+	data, err := os.ReadFile("../../conformance/tables/validator.json")
 	if err != nil {
 		t.Fatal(err)
 	}

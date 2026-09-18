@@ -1,0 +1,72 @@
+{
+  "name": "a frame over the limit is refused, and the connection with it",
+  "layer": "seam",
+  "replaces": "duplex/go/duplextest, its fourth scenario",
+  "needs": [
+    "seam",
+    "listen"
+  ],
+  "steps": [
+    {
+      "on": "a",
+      "op": "conn.listen",
+      "args": {
+        "limit": 1024
+      },
+      "bind": {
+        "handle": "l",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.dial",
+      "args": {
+        "url": "$url",
+        "limit": 1048576
+      },
+      "bind": "cb"
+    },
+    {
+      "on": "a",
+      "op": "conn.accept",
+      "args": {
+        "on": "$l"
+      },
+      "bind": "ca"
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "text",
+        "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "note": "1025 bytes to a side whose limit is 1024"
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect_error": {
+        "code": "$regex:^(closed|failed)$"
+      },
+      "note": "the frame is refused and the connection ends: a close the transport sent, or a failure"
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca",
+        "within_ms": 500
+      },
+      "expect_error": {
+        "code": "$regex:^(closed|failed)$"
+      },
+      "note": "and stays ended"
+    }
+  ]
+}
