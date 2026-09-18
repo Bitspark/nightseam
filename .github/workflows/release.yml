@@ -1,22 +1,45 @@
 # A release is a tag: v<major.minor.patch>, pushed. The workflow holds every
 # spelling of the version to the tag, runs both tiers, builds the TypeScript
 # packages, publishes them to the @nightseam organization with the
-# repository's NPM_TOKEN secret, and creates the GitHub release with the
-# tag's changelog section as its notes. The Go module needs no upload: the
-# tag is its release. Nothing here runs on a push to a branch. RELEASING.md
+# repository's NPM_TOKEN secret and with provenance, and creates the GitHub
+# release with the tag's changelog section as its notes. The Go module needs
+# no upload: the tag is its release, and so is the second tag that releases
+# the nested module. Nothing here runs on a push to a branch. RELEASING.md
 # says how a release is cut.
+#
+# The same steps run on demand without publishing anything, so that a release
+# is rehearsed rather than attempted: everything that can fail — the versions
+# against the tag, both tiers, the build, what provenance requires, and the
+# publish itself as a dry run — fails on a run somebody asked for, rather
+# than on the one that follows a tag that already exists and cannot be taken
+# back.
 name: release
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The version to rehearse, e.g. v0.3.0. Nothing is published and no release is created."
+        required: true
 
 permissions:
   contents: write
+  # npm provenance: the publish signs each tarball with a short-lived OIDC
+  # token naming this workflow, this run and this commit, so that the npm page
+  # says what source the package was built from and a consumer can check it
+  # rather than take it. This permission is the whole of what the workflow
+  # needs for it; the rest is the repository being public.
+  id-token: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      # The tag being released, or the one being rehearsed. Every step reads
+      # this rather than the ref, which on a rehearsal is a branch.
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -29,7 +52,7 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - name: Hold the versions to the tag
-        run: node scripts/release-prepare.mjs "$GITHUB_REF_NAME"
+        run: node scripts/release-prepare.mjs "$TAG"
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r check
       - run: pnpm -r test
@@ -39,11 +62,31 @@ jobs:
       - run: go test ./...
         working-directory: otel/go
       - run: pnpm -r build
+      # Provenance is refused for a package published from a private
+      # repository, and the registry refuses it at the upload — which is
+      # after the tag exists and after four of these steps have passed. It is
+      # one fact and it is known here, so it is checked here, before anything
+      # is published and on a rehearsal as well.
+      - name: Check what provenance needs
+        run: |
+          visibility='${{ github.event.repository.visibility }}'
+          if [ "$visibility" != public ]; then
+            echo "::error::the repository is $visibility; npm provenance requires a public one — see the going-public list in RELEASING.md" >&2
+            exit 1
+          fi
+          echo "public repository and id-token: write — provenance can be minted"
       - name: Publish to npm
-        run: pnpm -r publish --access public --no-git-checks
+        # On a rehearsal this packs each tarball, mints the provenance
+        # attestation and stops short of the upload.
+        run: pnpm -r publish --access public --no-git-checks --provenance $DRY_RUN
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && '--dry-run' || '' }}
       - name: Create the GitHub release
-        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+        if: github.event_name == 'push'
+        run: gh release create "$TAG" --title "$TAG" --notes-file release-notes.md
         env:
           GH_TOKEN: ${{ github.token }}
+      - name: What a rehearsal did not do
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "rehearsed $TAG — nothing was published and no release was created"

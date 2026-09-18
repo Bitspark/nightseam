@@ -43,13 +43,70 @@ peer, _, err := runtime.Dial(ctx, url, runtime.DialOptions{
 const peer = new DuplexPeer({ observer: consoleObserver() });
 ```
 
-An adapter ships for each language and neither is required, an observer
-being one interface with one method: `runtime/go/slogobserver` writes one
-`slog` record per event, timed at the event's own instant rather than at the
-moment the record is written, and `consoleObserver()` in `@nightseam/runtime`
-writes one line per event, taking the four console methods and a clock so
-that a test captures it with four functions. Both write an event of a type
-they do not know — one a layer above them added — rather than dropping it.
+An observer is one interface with one method, so writing one is short and
+none of the adapters is required. Two ship inside the runtime, one per
+language: `runtime/go/slogobserver` writes one `slog` record per event, timed
+at the event's own instant rather than at the moment the record is written,
+and `consoleObserver()` in `@nightseam/runtime` writes one line per event,
+taking the four console methods and a clock so that a test captures it with
+four functions. Both write an event of a type they do not know — one a layer
+above them added — rather than dropping it. A third ships beside the runtime
+rather than in it, because it carries a dependency: the OpenTelemetry
+adapter, below.
+
+## The OpenTelemetry adapter
+
+`@nightseam/otel` and `github.com/Bitspark/nightseam/otel/go` bind the two
+hooks a peer leaves open to OpenTelemetry. It is a package of its own in
+TypeScript and a Go module of its own — the only one — so that the four
+components above keep the dependency-freedom they publish and a consumer who
+chooses no backend installs nothing for one.
+
+```go
+import otelns "github.com/Bitspark/nightseam/otel/go"
+
+peer, _, err := runtime.Dial(ctx, url, runtime.DialOptions{Options: runtime.Options{
+    Propagator: otelns.Propagator(nil),
+    Observer:   otelns.Observer(tracer),
+}})
+```
+
+```ts
+import { observer, propagator } from '@nightseam/otel';
+
+const peer = new DuplexPeer({ propagator: propagator(), observer: observer(tracer) });
+```
+
+The two halves are the two hooks and they are taken together. `Propagator`
+puts an incoming frame's trace on the context its handler runs with and
+writes the span a call was made under onto every frame that call sends,
+minting a traceparent of its own wherever OpenTelemetry has nothing to say —
+a context with no span, a span that does not record, a span context that is
+invalid — because the runtime validates none of what a propagator returns and
+the peer at the other end closes the connection on a traceparent that is not
+of the profile's form. `Observer` opens a server span where a request came in
+and a client span where one went out, named for the method and parented at
+what the frame carries, and ends it where the peer says the request ended,
+with the outcome as the status and the error code as an attribute; a
+connection is a span from the peer taking it over to the close that ended it,
+an event emitted or delivered is a span of no duration, and everything else
+the three layers tell — frames, backpressure, a handler that gave up, the
+tunnel's five and the session's ten — is a span event on the span it belongs
+to.
+
+What reaches a backend is what the events carry and no more: a field that is
+a name, a count, a flag, a duration or a trace becomes an attribute and a
+field of any other kind is dropped rather than rendered, so an event of a
+layer the adapter has never heard of reaches a span without a payload
+reaching one.
+
+Because the runtime asks a propagator what an outgoing frame carries before
+it tells an observer that a request began, a call's client span and the
+server span that serves it are siblings, both children of the span that
+caused the call; what nests across hops is the work — a handler runs under
+its own server span, so what the handler calls is a child of the request that
+ran it. Nesting a call under a handler and a handler under the call that
+reached it is the whole of what one trace shows.
 
 ## The events
 

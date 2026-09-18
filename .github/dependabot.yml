@@ -2,6 +2,15 @@
 # in Go, the TypeScript compiler in the workspace, and in a published package
 # only what its own seam needs — so updates are grouped into one pull request
 # per ecosystem per month rather than arriving one at a time.
+#
+# A gomod entry covers the module in one directory and does not enter a nested
+# one, so every Go module is named here: the root module, and otel/go, the
+# OpenTelemetry adapter, which is a module of its own precisely because it
+# carries what the root module may not — the requirements that would go
+# unoffered are exactly the ones this repository does not otherwise have.
+# Dependabot runs nothing, so the list cannot be derived the way
+# scripts/packages.mjs derives the others; TestEveryGoModuleIsOfferedUpdates
+# holds it to the modules on disk instead.
 version: 2
 updates:
   - package-ecosystem: gomod
@@ -12,6 +21,16 @@ updates:
       go:
         patterns: ["*"]
 
+  - package-ecosystem: gomod
+    directory: /otel/go
+    schedule:
+      interval: monthly
+    groups:
+      otel-go:
+        patterns: ["*"]
+
+  # The npm entry is the workspace's: pnpm-workspace.yaml makes every */ts a
+  # package of it, and one entry at the root covers them all.
   - package-ecosystem: npm
     directory: /
     schedule:

@@ -6,6 +6,39 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Added
+
+- The OpenTelemetry adapter, the one component a consumer opts into:
+  `@nightseam/otel` at `otel/ts` and `github.com/Bitspark/nightseam/otel/go`
+  at `otel/go`, a package and a Go module of their own so that the four
+  components keep the dependency-freedom they publish and a consumer who
+  chooses no backend installs nothing for one. Each binds the two hooks the
+  runtime leaves open: a propagator over an OpenTelemetry text-map
+  propagator — the W3C trace context one by default — whose every injection
+  is a traceparent a peer accepts, minting one where OpenTelemetry has
+  nothing to say; and an observer that opens a server span where a request
+  came in and a client span where one went out, makes the connection a span
+  and each event emitted or delivered a span of no duration, and records
+  everything else the three layers tell as a span event, carrying only the
+  fields that are a name, a count, a flag, a duration or a trace — so that no
+  payload reaches a backend by this path either.
+  [docs/observability.md](docs/observability.md) says what a trace of one
+  call through a relay looks like.
+- The Go module at `otel/go` is released by a second tag, `otel/go/vX.Y.Z`,
+  cut after the root tag it requires; `RELEASING.md` says in what order, and
+  `.github/dependabot.yml` names it, a `gomod` entry covering one directory
+  and never a module nested in it.
+
+
+### Changed
+
+- The npm publish attaches provenance: the release workflow mints a
+  short-lived OIDC token, so each package's npm page names the workflow run,
+  the commit and the repository its tarball was built from. It refuses to
+  publish without it, and the same workflow runs on demand without publishing
+  anything — a rehearsal, so that a misconfiguration fails a run somebody
+  asked for rather than one that follows a tag which cannot be taken back.
+
 ### Fixed
 
 - An observer that gives up gives up alone in Go, as it already did in
