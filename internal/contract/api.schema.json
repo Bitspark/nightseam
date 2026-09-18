@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:nighthall:api-contract:1",
+  "$id": "urn:nightseam:contract:1",
   "title": "Nighthall API contract",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "profile", "name", "types", "methods", "events"],
   "properties": {
     "schema_version": {"const": 1},
-    "profile": {"const": "nighthall.duplex/1"},
+    "profile": {"const": "nightseam.duplex/1"},
     "name": {"$ref": "#/$defs/familyName"},
     "role": {"enum": ["session"], "description": "A session family: one a session can speak, and so a member of the union a slot names as session. Set by the loader for a family with a sess layer; a merged contract may set it by hand."},
     "layer": {"$ref": "#/$defs/layer", "description": "In a layer file, which layer it declares. Absent in a merged contract."},

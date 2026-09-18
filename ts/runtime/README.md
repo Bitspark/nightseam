@@ -1,12 +1,12 @@
 # Duplex WebSocket runtime
 
-`@nighthall/ws-runtime` is the handwritten browser/Node transport for generated
-`nighthall.duplex/1` APIs. It has no third-party runtime dependencies and exports
-TypeScript source. The generated Hall, Harness, and Session clients all use
-this runtime. It was copied from Nightshift; see docs/DECISIONS.md, D-001.
+`@nightseam/runtime` is the handwritten browser/Node peer for generated
+`nightseam.duplex/1` APIs. It has no third-party runtime dependencies and exports
+TypeScript source. Every client Nightseam generates depends on it. It
+descends from Nightshift's runtime by way of Nighthall.
 
 ```ts
-import { DuplexPeer, DuplexError } from '@nighthall/ws-runtime';
+import { DuplexPeer, DuplexError } from '@nightseam/runtime';
 
 const peer = new DuplexPeer();
 peer.handle('session.describe', (_params, context) => {
@@ -86,5 +86,5 @@ the peer. The peer sends only text frames and refuses an incoming binary frame
 with `invalid_message`. A closing or closed connection cannot be attached. The
 connection does not retry, reconnect, or acknowledge delivery.
 
-Run `pnpm --filter @nighthall/ws-runtime check` and
-`pnpm --filter @nighthall/ws-runtime test` from the repository root.
+Run `pnpm --filter @nightseam/runtime check` and
+`pnpm --filter @nightseam/runtime test` from the repository root.

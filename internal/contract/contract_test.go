@@ -9,7 +9,7 @@ import (
 func contractFixture(t *testing.T) map[string]any {
 	t.Helper()
 	var value map[string]any
-	err := json.Unmarshal([]byte(`{"schema_version":1,"profile":"nighthall.duplex/1","name":"example","types":{"Input":{"kind":"record","fields":[{"name":"message","type":"string"},{"name":"count","type":"integer","required":false,"nullable":true}]},"Result":{"kind":"record","fields":[{"name":"ok","type":"boolean"}]}},"methods":[{"name":"example.run","go_name":"Run","ts_name":"run","direction":"client_to_server","request":"Input","result":"Result"}],"events":[{"name":"example.changed","go_name":"Changed","ts_name":"changed","direction":"server_to_client","type":"Result"}]}`), &value)
+	err := json.Unmarshal([]byte(`{"schema_version":1,"profile":"nightseam.duplex/1","name":"example","types":{"Input":{"kind":"record","fields":[{"name":"message","type":"string"},{"name":"count","type":"integer","required":false,"nullable":true}]},"Result":{"kind":"record","fields":[{"name":"ok","type":"boolean"}]}},"methods":[{"name":"example.run","go_name":"Run","ts_name":"run","direction":"client_to_server","request":"Input","result":"Result"}],"events":[{"name":"example.changed","go_name":"Changed","ts_name":"changed","direction":"server_to_client","type":"Result"}]}`), &value)
 	if err != nil {
 		t.Fatal(err)
 	}

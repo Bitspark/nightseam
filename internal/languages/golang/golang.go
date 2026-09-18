@@ -21,18 +21,26 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/contract"
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/spi"
+	"github.com/Bitspark/nightseam/internal/contract"
+	"github.com/Bitspark/nightseam/internal/spi"
 )
 
-// Options places the generated packages. A path left empty is derived from
-// the family's name when a contract is rendered.
+// Options places the generated packages. Module is the import path they are
+// rooted at and is required; Runtime is the import path of the runtime they
+// bind to, Nightseam's own when left empty. A path left empty is derived
+// from the family's name when a contract is rendered.
 type Options struct {
 	Module       string
+	Runtime      string
 	ProtocolPath string
 	BindingPath  string
 	ClientPath   string
 }
+
+// DefaultRuntime is the runtime the generated packages bind to unless
+// Options.Runtime names another: the Go peer of the nightseam.duplex/1
+// profile.
+const DefaultRuntime = "github.com/Bitspark/nightseam/runtime"
 
 // New returns the Go language with its options.
 func New(options Options) spi.Language { return &language{options} }
@@ -42,14 +50,17 @@ type language struct{ options Options }
 func (*language) Name() string { return "go" }
 
 // paths are the options resolved for one family.
-type paths struct{ module, protocol, binding, client string }
+type paths struct{ module, runtime, protocol, binding, client string }
 
 var goImportPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_./~-]*$`)
 
 func (l *language) resolve(api contract.API) (paths, error) {
-	p := paths{l.options.Module, l.options.ProtocolPath, l.options.BindingPath, l.options.ClientPath}
+	p := paths{l.options.Module, l.options.Runtime, l.options.ProtocolPath, l.options.BindingPath, l.options.ClientPath}
 	if p.module == "" {
-		p.module = "github.com/Bitspark/nighthall"
+		return paths{}, fmt.Errorf("a Go module path is required to root the generated packages")
+	}
+	if p.runtime == "" {
+		p.runtime = DefaultRuntime
 	}
 	if p.protocol == "" {
 		p.protocol = "api/go/" + api.Name + "-protocol"
@@ -60,7 +71,7 @@ func (l *language) resolve(api contract.API) (paths, error) {
 	if p.client == "" {
 		p.client = "api/go/" + api.Name + "-client"
 	}
-	for _, s := range []string{p.module, p.protocol, p.binding, p.client} {
+	for _, s := range []string{p.module, p.runtime, p.protocol, p.binding, p.client} {
 		if !goImportPattern.MatchString(s) || strings.HasPrefix(s, "/") || strings.HasSuffix(s, "/") {
 			return paths{}, fmt.Errorf("invalid Go module or package path %q", s)
 		}
@@ -324,10 +335,10 @@ func goType(expr any, prefix string) string {
 func goFieldType(field contract.Field) string {
 	t := goType(field.Type, "")
 	if field.Nullable {
-		t = "wsruntime.Nullable[" + t + "]"
+		t = "runtime.Nullable[" + t + "]"
 	}
 	if !field.Required {
-		t = "wsruntime.Optional[" + t + "]"
+		t = "runtime.Optional[" + t + "]"
 	}
 	return t
 }
@@ -375,7 +386,7 @@ func importAlias(family string) string { return strings.ReplaceAll(family, "-", 
 func importPath(module, family string) string { return module + "/api/go/" + family + "-protocol" }
 
 func goFile(api contract.API, suffix, source string, p paths) string {
-	fixed := map[string]string{"bytes": "bytes", "context": "context", "json": "encoding/json", "io": "io", "math": "math", "strconv": "strconv", "strings": "strings", "time": "time", "fmt": "fmt", "errors": "errors", "http": "net/http", "protocol": p.module + "/" + p.protocol, "wsruntime": p.module + "/api/go/ws-runtime"}
+	fixed := map[string]string{"bytes": "bytes", "context": "context", "json": "encoding/json", "io": "io", "math": "math", "strconv": "strconv", "strings": "strings", "time": "time", "fmt": "fmt", "errors": "errors", "http": "net/http", "protocol": p.module + "/" + p.protocol, "runtime": p.runtime}
 	for _, family := range api.Imports {
 		fixed[importAlias(family)] = importPath(p.module, family)
 	}

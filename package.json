@@ -1,0 +1,15 @@
+{
+  "name": "nightseam",
+  "private": true,
+  "packageManager": "pnpm@12.4.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "check": "pnpm --recursive --if-present check",
+    "test": "pnpm --recursive --if-present test"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

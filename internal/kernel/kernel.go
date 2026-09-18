@@ -14,8 +14,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/contract"
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/spi"
+	"github.com/Bitspark/nightseam/internal/contract"
+	"github.com/Bitspark/nightseam/internal/spi"
 )
 
 // World is every family's raw contract, by family name.

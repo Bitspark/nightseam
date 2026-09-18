@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/contract"
+	"github.com/Bitspark/nightseam/internal/contract"
 )
 
 // writeLayers splits the probe contract into its layer files under a
@@ -81,15 +81,15 @@ func TestLoaderHoldsTheLayers(t *testing.T) {
 		t.Fatalf("a single-file contract was taken for a family: %v", err)
 	}
 	writeLayers(t, root, "probe", false)
-	writeFixture(t, root, "api/contracts/other.dto.json", []byte(strings.Replace(`{"schema_version":1,"profile":"nighthall.duplex/1","name":"probe","layer":"dto","types":{}}`, "x", "x", 1)))
+	writeFixture(t, root, "api/contracts/other.dto.json", []byte(strings.Replace(`{"schema_version":1,"profile":"nightseam.duplex/1","name":"probe","layer":"dto","types":{}}`, "x", "x", 1)))
 	if _, _, err := run(t, root, "validate", "other"); err == nil || !strings.Contains(err.Error(), "names API") {
 		t.Fatalf("a layer file naming another family passed: %v", err)
 	}
-	writeFixture(t, root, "api/contracts/other.dto.json", []byte(`{"schema_version":1,"profile":"nighthall.duplex/1","name":"other","layer":"rpc","types":{}}`))
+	writeFixture(t, root, "api/contracts/other.dto.json", []byte(`{"schema_version":1,"profile":"nightseam.duplex/1","name":"other","layer":"rpc","types":{}}`))
 	if _, _, err := run(t, root, "validate", "other"); err == nil || !strings.Contains(err.Error(), "wrong_layer") && !strings.Contains(err.Error(), "declares layer") {
 		t.Fatalf("a file of the wrong layer passed: %v", err)
 	}
-	writeFixture(t, root, "api/contracts/other.dto.json", []byte(`{"schema_version":1,"profile":"nighthall.duplex/1","name":"other","layer":"dto","types":{"Holder":{"kind":"record","fields":[{"name":"message","type":{"envelope":"probe"}}]}}}`))
+	writeFixture(t, root, "api/contracts/other.dto.json", []byte(`{"schema_version":1,"profile":"nightseam.duplex/1","name":"other","layer":"dto","types":{"Holder":{"kind":"record","fields":[{"name":"message","type":{"envelope":"probe"}}]}}}`))
 	_, errs, err := run(t, root, "validate", "other")
 	if err == nil || !strings.Contains(errs, "other /types/Holder/fields/0/type:") || !strings.Contains(errs, "[layer_violation]") {
 		t.Fatalf("a dto holding an envelope slot passed: %v\n%s", err, errs)

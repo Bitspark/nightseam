@@ -1,4 +1,4 @@
-package wsruntime
+package runtime
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Bitspark/nighthall/api/go/duplex"
+	"github.com/Bitspark/nightseam/duplex"
 )
 
 // TestPeerSpeaksTheProfileOverAnyConnection: two peers over an in-memory

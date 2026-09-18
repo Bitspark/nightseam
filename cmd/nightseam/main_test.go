@@ -14,14 +14,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/kernel"
+	"github.com/Bitspark/nightseam/internal/kernel"
 )
+
+// module and scope root the fixtures' generated packages.
+const module = "example.test/generated"
+const scope = "@example"
 
 // These tests exercise the tool as composed: every language, through the
 // kernel, from the contract to compiled and communicating packages.
 
 const probeContract = `{
- "schema_version":1,"profile":"nighthall.duplex/1","name":"probe",
+ "schema_version":1,"profile":"nightseam.duplex/1","name":"probe",
  "types":{
   "Base":{"kind":"record","fields":[{"name":"text","type":"string"}]},
   "Payload":{"kind":"record","extends":["Base"],"fields":[{"name":"count","type":"integer"},{"name":"note","type":"string","required":false,"nullable":true}]},
@@ -49,11 +53,11 @@ func exampleAPI(t *testing.T) map[string]any {
 
 func TestDeterministicGeneration(t *testing.T) {
 	api := exampleAPI(t)
-	first, err := kernel.Generate(api, languages(module)...)
+	first, err := kernel.Generate(api, languages(module, scope)...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := kernel.Generate(api, languages(module)...)
+	second, err := kernel.Generate(api, languages(module, scope)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,8 +78,8 @@ func TestGeneratedGoFamilyCompilesAndCommunicates(t *testing.T) {
 	root := repositoryRoot(t)
 	directory := t.TempDir()
 	renderFixture(t, directory, root)
-	copyFixtureTree(t, filepath.Join(root, "api/ts/ws-runtime"), filepath.Join(directory, "api/ts/ws-runtime"))
-	writeFixture(t, directory, "runtime-loader.mjs", []byte(`export async function resolve(specifier,context,next){if(specifier==='@nighthall/ws-runtime')return {url:new URL('./api/ts/ws-runtime/src/index.ts',import.meta.url).href,shortCircuit:true};return next(specifier,context);}`))
+	copyFixtureTree(t, filepath.Join(root, "ts/runtime"), filepath.Join(directory, "ts/runtime"))
+	writeFixture(t, directory, "runtime-loader.mjs", []byte(`export async function resolve(specifier,context,next){if(specifier==='@nightseam/runtime')return {url:new URL('./ts/runtime/src/index.ts',import.meta.url).href,shortCircuit:true};return next(specifier,context);}`))
 	writeFixture(t, directory, "roundtrip.mjs", []byte(`import assert from 'node:assert/strict';import {Client} from './api/ts/probe-client/src/index.ts';const client=await Client.dial(process.argv[2],{}, {reverse(params){return {...params,text:'typescript:'+params.text};}});let observed;client.onChanged(data=>{observed=data;});const result=await client.echo({text:'value',count:7,note:null});assert.equal(result.text,'typescript:value');assert.equal(result.note,null);assert.equal(observed.count,7);await assert.rejects(client.echo({text:'bad',count:9007199254740992}));client.close();`))
 	writeFixture(t, directory, "integration_test.go", []byte(goIntegrationFixture))
 	runFixture(t, directory, "go", "test", "-count=1", "./...")
@@ -139,19 +143,18 @@ func copyFixtureTree(t *testing.T, source, destination string) {
 }
 func renderFixture(t *testing.T, directory, root string) {
 	t.Helper()
-	result, err := kernel.Generate(exampleAPI(t), languages("example.test/generated")...)
+	result, err := kernel.Generate(exampleAPI(t), languages(module, scope)...)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for p, data := range result.Files {
 		writeFixture(t, directory, p, data)
 	}
-	copyFixtureTree(t, filepath.Join(root, "api/go/ws-runtime"), filepath.Join(directory, "api/go/ws-runtime"))
-	// The copied runtime speaks the profile over api/go/duplex, which it
-	// imports from this module by name; the fixture module resolves that
-	// name to this checkout, so the seam is the real one and only the
-	// generated packages and the runtime above it are the copy under test.
-	writeFixture(t, directory, "go.mod", []byte("module example.test/generated\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/Bitspark/nighthall v0.0.0\n\tgithub.com/coder/websocket v1.8.15\n)\n\nreplace github.com/Bitspark/nighthall => "+filepath.ToSlash(root)+"\n"))
+	// The generated packages bind to the runtime by its import path; the
+	// fixture module resolves Nightseam to this checkout, so the runtime and
+	// the seam beneath it are the real ones and only the generated packages
+	// are the copy under test.
+	writeFixture(t, directory, "go.mod", []byte("module example.test/generated\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/Bitspark/nightseam v0.0.0\n\tgithub.com/coder/websocket v1.8.15\n)\n\nreplace github.com/Bitspark/nightseam => "+filepath.ToSlash(root)+"\n"))
 	sum, err := os.ReadFile(filepath.Join(root, "go.sum"))
 	if err != nil {
 		t.Fatal(err)
@@ -182,10 +185,10 @@ func TestGeneratedTypeScriptChecksAndValidates(t *testing.T) {
 	}
 	directory := t.TempDir()
 	renderFixture(t, directory, root)
-	copyFixtureTree(t, filepath.Join(root, "api/ts/ws-runtime"), filepath.Join(directory, "api/ts/ws-runtime"))
+	copyFixtureTree(t, filepath.Join(root, "ts/runtime"), filepath.Join(directory, "ts/runtime"))
 	// Node refuses to strip source TypeScript inside node_modules. A paths entry
 	// gives the compiler the runtime; executable validation imports protocol types.
-	config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@nighthall/ws-runtime": []string{"./api/ts/ws-runtime/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts"}}
+	config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@nightseam/runtime": []string{"./ts/runtime/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts", "ts/**/*.ts"}}
 	data, _ := json.Marshal(config)
 	writeFixture(t, directory, "tsconfig.json", data)
 	writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))
@@ -207,7 +210,7 @@ func TestWorkbenchContractRenders(t *testing.T) {
 	if err = json.Unmarshal(data, &api); err != nil {
 		t.Fatal(err)
 	}
-	result, err := kernel.Generate(api, languages(module)...)
+	result, err := kernel.Generate(api, languages(module, scope)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +229,7 @@ func run(t *testing.T, root string, args ...string) (stdout, stderr string, err 
 	var out, errs bytes.Buffer
 	command.SetOut(&out)
 	command.SetErr(&errs)
-	command.SetArgs(append([]string{"--root", root}, args...))
+	command.SetArgs(append([]string{"--root", root, "--module", module, "--scope", scope}, args...))
 	err = command.Execute()
 	return out.String(), errs.String(), err
 }
@@ -263,7 +266,7 @@ func TestCommands(t *testing.T) {
 	if _, _, err := run(t, root, "generate", "nope"); err == nil || !strings.Contains(err.Error(), `no contract named "nope"`) || !strings.Contains(err.Error(), "probe") {
 		t.Fatalf("unknown family: %v", err)
 	}
-	writeFixture(t, root, "api/contracts/other.rpc.json", []byte(`{"schema_version":1,"profile":"nighthall.duplex/1","name":"probe","layer":"rpc","methods":[],"events":[]}`))
+	writeFixture(t, root, "api/contracts/other.rpc.json", []byte(`{"schema_version":1,"profile":"nightseam.duplex/1","name":"probe","layer":"rpc","methods":[],"events":[]}`))
 	if _, _, err := run(t, root, "validate", "other"); err == nil || !strings.Contains(err.Error(), "names API") {
 		t.Fatalf("a contract named for another family passed: %v", err)
 	}
@@ -298,16 +301,17 @@ func TestImportDirection(t *testing.T) {
 		ImportPath string
 		Imports    []string
 	}
-	const tool = "github.com/Bitspark/nighthall/tools/go/generate-api"
-	internal := tool + "/internal/"
+	const nightseam = "github.com/Bitspark/nightseam"
+	const tool = nightseam + "/cmd/nightseam"
+	internal := nightseam + "/internal/"
 	// What each package of the seam may import of the others; the tool
 	// itself may import any. No entry names a language.
 	allowed := map[string]map[string]bool{
-		"contract":   {},
-		"spi":        {"contract": true},
-		"kernel":     {"contract": true, "spi": true},
-		"golang":     {"contract": true, "spi": true},
-		"typescript": {"contract": true, "spi": true},
+		"contract":             {},
+		"spi":                  {"contract": true},
+		"kernel":               {"contract": true, "spi": true},
+		"languages/golang":     {"contract": true, "spi": true},
+		"languages/typescript": {"contract": true, "spi": true},
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	seen := 0
@@ -319,7 +323,7 @@ func TestImportDirection(t *testing.T) {
 			t.Fatal(err)
 		}
 		name := strings.Split(p.ImportPath, " [")[0]
-		if !strings.HasPrefix(name, tool) || strings.HasSuffix(name, ".test") {
+		if (name != tool && !strings.HasPrefix(name, internal)) || strings.HasSuffix(name, ".test") {
 			continue
 		}
 		seen++
@@ -356,7 +360,7 @@ import (
  binding "example.test/generated/api/go/probe-binding"
  client "example.test/generated/api/go/probe-client"
  protocol "example.test/generated/api/go/probe-protocol"
- runtime "example.test/generated/api/go/ws-runtime"
+ runtime "github.com/Bitspark/nightseam/runtime"
 )
 type serverHandler struct{}
 func(serverHandler)Echo(ctx context.Context,remote *binding.Remote,p protocol.Payload)(protocol.Payload,error){if err:=remote.EmitChanged(ctx,p);err!=nil{return p,err};return remote.Reverse(ctx,p)}

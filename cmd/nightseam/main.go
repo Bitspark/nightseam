@@ -1,21 +1,26 @@
-// generate-api renders the checked-in API contracts into the generated
-// packages. A family is declared in layer files under api/contracts —
+// nightseam renders a checkout's API contracts into generated packages. A
+// family is declared in layer files under api/contracts —
 // <family>.dto.json for its data, <family>.rpc.json for its operations,
 // <family>.sess.json for how a session of it is governed — merged into one
-// spec.api contract and rendered by every language the tool is composed
-// with, today Go and TypeScript. A declaration refers to its own layer or a
-// lower one, never a higher one, and the tool refuses one that does.
+// contract and rendered by every language the tool is composed with, today
+// Go and TypeScript. A declaration refers to its own layer or a lower one,
+// never a higher one, and the tool refuses one that does.
 //
-//	go run ./tools/go/generate-api generate [family...]   render every contract in api/contracts, or the named ones
-//	go run ./tools/go/generate-api check [family...]      fail if the checked-in output is stale
-//	go run ./tools/go/generate-api validate [family...]   report every diagnostic; exit 1 if any
+//	nightseam generate [family...]   render every contract in api/contracts, or the named ones
+//	nightseam check [family...]      fail if the checked-in output is stale
+//	nightseam validate [family...]   report every diagnostic; exit 1 if any
+//
+// The generated Go packages are rooted at the checkout's module, read from
+// its go.mod or given as --module; the TypeScript packages at an npm scope,
+// --scope, the module's last element unless given. Both bind to Nightseam's
+// runtime, github.com/Bitspark/nightseam/runtime and @nightseam/runtime, the
+// peer of the nightseam.duplex/1 profile.
 //
 // The generator is a kernel and one package per language, composed here and
-// nowhere else (docs/DECISIONS.md, D-007): languages names them, the kernel
-// renders through the seam in internal/spi. It is developer tooling, never a
-// runtime dependency: the generated packages depend only on the protocol
-// types and api/go/ws-runtime. Family names complete in the shell:
-// generate-api completion --help.
+// nowhere else: languages names them, the kernel renders through the seam
+// in internal/spi. It is developer tooling, never a runtime dependency; a
+// consumer runs it as a Go tool, go tool nightseam check. Family names
+// complete in the shell: nightseam completion --help.
 package main
 
 import (
@@ -23,6 +28,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -30,15 +36,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/contract"
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/golang"
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/kernel"
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/spi"
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/typescript"
+	"github.com/Bitspark/nightseam/internal/contract"
+	"github.com/Bitspark/nightseam/internal/kernel"
+	"github.com/Bitspark/nightseam/internal/languages/golang"
+	"github.com/Bitspark/nightseam/internal/languages/typescript"
+	"github.com/Bitspark/nightseam/internal/spi"
 )
-
-// module is the import path the generated Go packages are rooted at.
-const module = "github.com/Bitspark/nighthall"
 
 func main() {
 	if err := newCommand().Execute(); err != nil {
@@ -48,16 +51,53 @@ func main() {
 }
 
 // languages is the composition root: the only place a language is named.
-// The order is the order families are rendered in.
-func languages(module string) []spi.Language {
+// The order is the order families are rendered in. module roots the Go
+// packages and scope the TypeScript ones; the runtime both bind to is each
+// language's default, Nightseam's own.
+func languages(module, scope string) []spi.Language {
 	return []spi.Language{
 		golang.New(golang.Options{Module: module}),
-		typescript.New(typescript.Options{}),
+		typescript.New(typescript.Options{Scope: scope}),
 	}
 }
 
-// app is the checkout every command works on.
-type app struct{ root string }
+// app is the checkout every command works on, and where its generated
+// packages are rooted: the Go module and the npm scope.
+type app struct{ root, module, scope string }
+
+// languages composes the languages for this checkout, settling the module
+// and the scope a command left to their defaults: the module is read from
+// the checkout's go.mod, the scope is the module's last element behind an @.
+func (a *app) languages() ([]spi.Language, error) {
+	if a.module == "" {
+		module, err := moduleOf(filepath.Join(a.root, "go.mod"))
+		if err != nil {
+			return nil, err
+		}
+		a.module = module
+	}
+	if a.scope == "" {
+		a.scope = "@" + path.Base(a.module)
+	}
+	return languages(a.module, a.scope), nil
+}
+
+// moduleOf reads the module path a go.mod declares.
+func moduleOf(file string) (string, error) {
+	data, err := os.ReadFile(file)
+	if os.IsNotExist(err) {
+		return "", fmt.Errorf("no go.mod in %s to read the module from; pass --module", filepath.Dir(file))
+	}
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "module "); ok {
+			return strings.Trim(strings.TrimSpace(rest), `"`), nil
+		}
+	}
+	return "", fmt.Errorf("%s declares no module; pass --module", file)
+}
 
 func (a *app) contracts() string { return filepath.Join(a.root, "api", "contracts") }
 
@@ -188,10 +228,14 @@ func (a *app) render(names []string) (map[string][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	languages, err := a.languages()
+	if err != nil {
+		return nil, err
+	}
 	files := map[string][]byte{}
 	for _, name := range names {
 		contract := world[name]
-		result, err := kernel.GenerateIn(world, contract, languages(module)...)
+		result, err := kernel.GenerateIn(world, contract, languages...)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}
@@ -224,17 +268,21 @@ func (a *app) changed(files map[string][]byte) ([]string, error) {
 func newCommand() *cobra.Command {
 	a := &app{}
 	root := &cobra.Command{
-		Use:   "generate-api",
-		Short: "Render api/contracts into the generated Go and TypeScript packages",
-		Long: `generate-api renders the checked-in API contracts into the generated
-packages. A family is declared in layer files under api/contracts,
-<family>.dto.json, <family>.rpc.json and <family>.sess.json, merged into one
-contract and rendered by every language the tool is composed with, today Go
-and TypeScript. Nothing is written that is already up to date.`,
+		Use:   "nightseam",
+		Short: "Render api/contracts into generated Go and TypeScript packages",
+		Long: `nightseam renders a checkout's API contracts into generated packages. A
+family is declared in layer files under api/contracts, <family>.dto.json,
+<family>.rpc.json and <family>.sess.json, merged into one contract and
+rendered by every language the tool is composed with, today Go and
+TypeScript. The Go packages are rooted at the checkout's module, the
+TypeScript packages at an npm scope; both bind to Nightseam's runtime.
+Nothing is written that is already up to date.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&a.root, "root", ".", "repository root")
+	root.PersistentFlags().StringVar(&a.module, "module", "", "Go module the generated packages are rooted at (default: the module of <root>/go.mod)")
+	root.PersistentFlags().StringVar(&a.scope, "scope", "", "npm scope of the generated TypeScript packages (default: @ and the module's last element)")
 
 	// family completes an argument with the contracts' names.
 	family := func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -299,7 +347,7 @@ and TypeScript. Nothing is written that is already up to date.`,
 					fmt.Fprintln(cmd.ErrOrStderr(), "stale generated output:", path)
 				}
 				if len(stale) > 0 {
-					return fmt.Errorf("generated APIs are stale; run go run ./tools/go/generate-api generate")
+					return fmt.Errorf("generated APIs are stale; run nightseam generate")
 				}
 				return nil
 			},
@@ -318,9 +366,13 @@ and TypeScript. Nothing is written that is already up to date.`,
 				if err != nil {
 					return err
 				}
+				languages, err := a.languages()
+				if err != nil {
+					return err
+				}
 				problems := 0
 				for _, name := range names {
-					for _, d := range kernel.ValidateIn(world, world[name], languages(module)...) {
+					for _, d := range kernel.ValidateIn(world, world[name], languages...) {
 						fmt.Fprintf(cmd.ErrOrStderr(), "%s %s: %s [%s]\n", name, d.Pointer, d.Message, d.Code)
 						problems++
 					}

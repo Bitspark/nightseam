@@ -12,7 +12,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/Bitspark/nighthall/api/go/duplex"
+	"github.com/Bitspark/nightseam/duplex"
 )
 
 // New wraps an open WebSocket as a frames duplex connection with the given

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "profile": "nighthall.duplex/1",
+  "profile": "nightseam.duplex/1",
   "name": "workbench",
   "types": {
     "User": {

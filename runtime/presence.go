@@ -1,4 +1,4 @@
-package wsruntime
+package runtime
 
 import (
 	"bytes"

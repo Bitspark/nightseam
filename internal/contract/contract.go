@@ -95,7 +95,7 @@ func layerRank(layer string) int {
 
 // The types every family carries so that another family may hold one of its
 // messages, or a handle to a channel that speaks it: an envelope is one
-// nighthall.duplex/1 message, a handle is a channel reference on the carrying
+// nightseam.duplex/1 message, a handle is a channel reference on the carrying
 // connection. A contract may not declare either itself.
 const (
 	EnvelopeType = "Envelope"
@@ -106,7 +106,7 @@ const (
 // slot naming "session" is of whichever such family applies.
 const SessionRole = "session"
 
-// envelopeType is one nighthall.duplex/1 message of a family: version and
+// envelopeType is one nightseam.duplex/1 message of a family: version and
 // kind (request, response, event or cancel); the id that correlates a
 // response or a cancel with its request; the method a request names and its
 // params; a response's result or error; the event an event frame names and
@@ -221,7 +221,7 @@ var compiledAPISchema = sync.OnceValues(func() (*jsonschema.Schema, error) {
 	compiler := jsonschema.NewCompiler()
 	compiler.DefaultDraft(jsonschema.Draft2020)
 	compiler.UseLoader(offlineLoader{})
-	const id = "urn:nighthall:api-contract:1"
+	const id = "urn:nightseam:contract:1"
 	if err := compiler.AddResource(id, value); err != nil {
 		return nil, err
 	}

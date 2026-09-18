@@ -1,4 +1,4 @@
-package wsruntime
+package runtime
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/Bitspark/nighthall/api/go/duplex/ws"
+	"github.com/Bitspark/nightseam/duplex/ws"
 )
 
 // ServerOptions requires an explicit authentication and origin policy. The

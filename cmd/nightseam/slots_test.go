@@ -12,15 +12,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/contract"
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/kernel"
+	"github.com/Bitspark/nightseam/internal/contract"
+	"github.com/Bitspark/nightseam/internal/kernel"
 )
 
 // carrierContract carries the probe family: a frame holding one of its
 // envelopes, an attachment holding a handle to a channel that speaks it, a
 // method that returns one of its envelopes by name, and an event of frames.
 const carrierContract = `{
- "schema_version":1,"profile":"nighthall.duplex/1","name":"carrier",
+ "schema_version":1,"profile":"nightseam.duplex/1","name":"carrier",
  "types":{
   "Frame":{"kind":"record","fields":[{"name":"sequence","type":"integer"},{"name":"message","type":{"envelope":"session"}}]},
   "Attachment":{"kind":"record","fields":[{"name":"connection","type":{"connection":"session"}},{"name":"last","type":"integer"}]},
@@ -55,7 +55,7 @@ func renderSlotFixture(t *testing.T, directory, root string) {
 	t.Helper()
 	world, probe, substituted := slotWorld(t)
 	for _, input := range []map[string]any{probe, substituted} {
-		result, err := kernel.GenerateIn(world, input, languages("example.test/generated")...)
+		result, err := kernel.GenerateIn(world, input, languages(module, scope)...)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -63,8 +63,7 @@ func renderSlotFixture(t *testing.T, directory, root string) {
 			writeFixture(t, directory, p, data)
 		}
 	}
-	copyFixtureTree(t, filepath.Join(root, "api/go/ws-runtime"), filepath.Join(directory, "api/go/ws-runtime"))
-	writeFixture(t, directory, "go.mod", []byte("module example.test/generated\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/Bitspark/nighthall v0.0.0\n\tgithub.com/coder/websocket v1.8.15\n)\n\nreplace github.com/Bitspark/nighthall => "+filepath.ToSlash(root)+"\n"))
+	writeFixture(t, directory, "go.mod", []byte("module example.test/generated\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/Bitspark/nightseam v0.0.0\n\tgithub.com/coder/websocket v1.8.15\n)\n\nreplace github.com/Bitspark/nightseam => "+filepath.ToSlash(root)+"\n"))
 	sum, err := os.ReadFile(filepath.Join(root, "go.sum"))
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +75,7 @@ func renderSlotFixture(t *testing.T, directory, root string) {
 // no rendering; the kernel says so at every slot.
 func TestSlottedContractIsRefusedUntilSubstituted(t *testing.T) {
 	world, _, _ := slotWorld(t)
-	diagnostics := kernel.ValidateIn(world, world["carrier"], languages(module)...)
+	diagnostics := kernel.ValidateIn(world, world["carrier"], languages(module, scope)...)
 	unsupported := 0
 	for _, d := range diagnostics {
 		if d.Code == "unsupported_slot" {
@@ -86,7 +85,7 @@ func TestSlottedContractIsRefusedUntilSubstituted(t *testing.T) {
 	if unsupported != 3 || len(diagnostics) != 3 {
 		t.Fatalf("expected exactly three unsupported slots, got %+v", diagnostics)
 	}
-	if _, err := kernel.GenerateIn(world, world["carrier"], languages(module)...); err == nil {
+	if _, err := kernel.GenerateIn(world, world["carrier"], languages(module, scope)...); err == nil {
 		t.Fatal("a slotted contract rendered")
 	}
 }
@@ -98,7 +97,7 @@ func TestSlottedContractIsRefusedUntilSubstituted(t *testing.T) {
 // when one exists, must reproduce it exactly.
 func TestSubstitutedCarrierRendersReferencingProbe(t *testing.T) {
 	world, _, substituted := slotWorld(t)
-	result, err := kernel.GenerateIn(world, substituted, languages(module)...)
+	result, err := kernel.GenerateIn(world, substituted, languages(module, scope)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,12 +106,12 @@ func TestSubstitutedCarrierRendersReferencingProbe(t *testing.T) {
 		files[p] = string(data)
 	}
 	for path, wants := range map[string][]string{
-		"api/go/carrier-protocol/types_generated.go":      {`probeprotocol "github.com/Bitspark/nighthall/api/go/probe-protocol"`},
+		"api/go/carrier-protocol/types_generated.go":      {`probeprotocol "example.test/generated/api/go/probe-protocol"`},
 		"api/go/carrier-protocol/validation_generated.go": {`"probe": probeprotocol.ValidateRaw`},
 		"api/go/carrier-client/client_generated.go":       {"(probeprotocol.Envelope, error)"},
-		"api/ts/carrier-client/src/types.ts":              {`import type * as probe from "@nighthall/probe-client";`, `import { validateWire as validate_probe } from "@nighthall/probe-client";`, `"message": probe.Envelope;`, `"connection": probe.Handle;`, `"probe": validate_probe`},
+		"api/ts/carrier-client/src/types.ts":              {`import type * as probe from "@example/probe-client";`, `import { validateWire as validate_probe } from "@example/probe-client";`, `"message": probe.Envelope;`, `"connection": probe.Handle;`, `"probe": validate_probe`},
 		"api/ts/carrier-client/src/index.ts":              {"Promise<probe.Envelope>"},
-		"api/ts/carrier-client/package.json":              {`"@nighthall/probe-client":"0.0.0"`},
+		"api/ts/carrier-client/package.json":              {`"@example/probe-client":"0.0.0"`},
 	} {
 		for _, want := range wants {
 			if !strings.Contains(files[path], want) {
@@ -123,7 +122,7 @@ func TestSubstitutedCarrierRendersReferencingProbe(t *testing.T) {
 	golden := []string{
 		"AttachParams{ID string}",
 		"Attachment{Connection probeprotocol.Handle, Last int64}",
-		"Envelope{Version int64, Kind string, ID wsruntime.Optional[string], Method wsruntime.Optional[string], Params wsruntime.Optional[any], Result wsruntime.Optional[any], Error wsruntime.Optional[any], Event wsruntime.Optional[string], Data wsruntime.Optional[any]}",
+		"Envelope{Version int64, Kind string, ID runtime.Optional[string], Method runtime.Optional[string], Params runtime.Optional[any], Result runtime.Optional[any], Error runtime.Optional[any], Event runtime.Optional[string], Data runtime.Optional[any]}",
 		"Frames = []Frame",
 		"Frame{Sequence int64, Message probeprotocol.Envelope}",
 		"Handle{Channel int64}",
@@ -219,13 +218,13 @@ func TestSubstitutedCarrierTypeChecksInTypeScript(t *testing.T) {
 	}
 	directory := t.TempDir()
 	renderSlotFixture(t, directory, root)
-	copyFixtureTree(t, filepath.Join(root, "api/ts/ws-runtime"), filepath.Join(directory, "api/ts/ws-runtime"))
-	config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@nighthall/ws-runtime": []string{"./api/ts/ws-runtime/src/index.ts"}, "@nighthall/probe-client": []string{"./api/ts/probe-client/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts"}}
+	copyFixtureTree(t, filepath.Join(root, "ts/runtime"), filepath.Join(directory, "ts/runtime"))
+	config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@nightseam/runtime": []string{"./ts/runtime/src/index.ts"}, "@example/probe-client": []string{"./api/ts/probe-client/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts", "ts/**/*.ts"}}
 	data, _ := json.Marshal(config)
 	writeFixture(t, directory, "tsconfig.json", data)
 	writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))
 	runFixture(t, directory, "node", tsc, "--project", "tsconfig.json")
-	writeFixture(t, directory, "loader.mjs", []byte(`export async function resolve(specifier,context,next){const map={'@nighthall/ws-runtime':'./api/ts/ws-runtime/src/index.ts','@nighthall/probe-client':'./api/ts/probe-client/src/index.ts'};if(map[specifier])return {url:new URL(map[specifier],import.meta.url).href,shortCircuit:true};return next(specifier,context);}`))
+	writeFixture(t, directory, "loader.mjs", []byte(`export async function resolve(specifier,context,next){const map={'@nightseam/runtime':'./ts/runtime/src/index.ts','@example/probe-client':'./api/ts/probe-client/src/index.ts'};if(map[specifier])return {url:new URL(map[specifier],import.meta.url).href,shortCircuit:true};return next(specifier,context);}`))
 	writeFixture(t, directory, "delegation.mjs", []byte(`import assert from 'node:assert/strict';import {validateWire} from './api/ts/carrier-client/src/types.ts';
 validateWire('Frame',{sequence:1,message:{version:1,kind:'event',event:'changed',data:{}}});
 assert.throws(()=>validateWire('Frame',{sequence:1,message:{version:1}}));

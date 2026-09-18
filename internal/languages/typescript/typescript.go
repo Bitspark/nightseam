@@ -11,18 +11,34 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/contract"
-	"github.com/Bitspark/nighthall/tools/go/generate-api/internal/spi"
+	"github.com/Bitspark/nightseam/internal/contract"
+	"github.com/Bitspark/nightseam/internal/spi"
 )
 
-// Options places the generated package. A path left empty is derived from
-// the family's name when a contract is rendered.
+// Options places the generated package. Scope is the npm scope the package
+// and the packages of the families it imports are published under, and is
+// required; Runtime and RuntimeVersion name the runtime package the client
+// depends on, Nightseam's own when left empty. A path left empty is derived
+// from the family's name when a contract is rendered.
 type Options struct {
-	ClientPath string
+	Scope          string
+	Runtime        string
+	RuntimeVersion string
+	ClientPath     string
 }
+
+// DefaultRuntime is the runtime package the generated client depends on
+// unless Options.Runtime names another: the TypeScript peer of the
+// nightseam.duplex/1 profile; DefaultRuntimeVersion the version it asks for.
+const DefaultRuntime = "@nightseam/runtime"
+const DefaultRuntimeVersion = "0.1.0"
+
+// scopePattern is an npm scope: an @ and one package-name segment.
+var scopePattern = regexp.MustCompile(`^@[a-z0-9][a-z0-9._-]*$`)
 
 // New returns the TypeScript language with its options.
 func New(options Options) spi.Language { return &language{options} }
@@ -31,24 +47,36 @@ type language struct{ options Options }
 
 func (*language) Name() string { return "typescript" }
 
-func (l *language) resolve(api contract.API) (string, error) {
-	p := l.options.ClientPath
-	if p == "" {
-		p = "api/ts/" + api.Name + "-client"
+// settings are the options resolved for one family.
+type settings struct{ scope, runtime, runtimeVersion, dir string }
+
+func (l *language) resolve(api contract.API) (settings, error) {
+	s := settings{l.options.Scope, l.options.Runtime, l.options.RuntimeVersion, l.options.ClientPath}
+	if !scopePattern.MatchString(s.scope) {
+		return settings{}, fmt.Errorf("an npm scope such as @example is required to name the generated packages; got %q", s.scope)
 	}
-	if p == "." || p == ".." || strings.Contains(p, "\\") || strings.Contains(p, ":") || strings.HasPrefix(p, "/") || path.Clean(p) != p || strings.HasPrefix(p, "../") {
-		return "", fmt.Errorf("invalid output path %q", p)
+	if s.runtime == "" {
+		s.runtime = DefaultRuntime
 	}
-	return p, nil
+	if s.runtimeVersion == "" {
+		s.runtimeVersion = DefaultRuntimeVersion
+	}
+	if s.dir == "" {
+		s.dir = "api/ts/" + api.Name + "-client"
+	}
+	if p := s.dir; p == "." || p == ".." || strings.Contains(p, "\\") || strings.Contains(p, ":") || strings.HasPrefix(p, "/") || path.Clean(p) != p || strings.HasPrefix(p, "../") {
+		return settings{}, fmt.Errorf("invalid output path %q", p)
+	}
+	return s, nil
 }
 
 // Render emits the four files of the client package.
 func (l *language) Render(api contract.API) ([]spi.File, error) {
-	dir, err := l.resolve(api)
+	s, err := l.resolve(api)
 	if err != nil {
 		return nil, err
 	}
-	return generateTS(api, dir), nil
+	return generateTS(api, s), nil
 }
 
 // reservedTypes are the identifiers the generated client declares or would
@@ -127,18 +155,19 @@ func (*language) Check(api contract.API) []contract.Diagnostic {
 // types by: the family's name without its dashes.
 func tsAlias(family string) string { return strings.ReplaceAll(family, "-", "") }
 
-// tsPackage is the package an imported family's client is published as.
-func tsPackage(family string) string { return "@nighthall/" + family + "-client" }
+// tsPackage is the package a family's client is published as: its name
+// under the scope, as -client.
+func tsPackage(scope, family string) string { return scope + "/" + family + "-client" }
 
 // tsImports is the import lines a generated file needs for the families the
 // contract imports: their types as a namespace and, where asked, their
 // validator under a name no type can collide with.
-func tsImports(api contract.API, validators bool) string {
+func tsImports(api contract.API, scope string, validators bool) string {
 	var b strings.Builder
 	for _, family := range api.Imports {
-		fmt.Fprintf(&b, "import type * as %s from %s;\n", tsAlias(family), quote(tsPackage(family)))
+		fmt.Fprintf(&b, "import type * as %s from %s;\n", tsAlias(family), quote(tsPackage(scope, family)))
 		if validators {
-			fmt.Fprintf(&b, "import { validateWire as validate_%s } from %s;\n", tsAlias(family), quote(tsPackage(family)))
+			fmt.Fprintf(&b, "import { validateWire as validate_%s } from %s;\n", tsAlias(family), quote(tsPackage(scope, family)))
 		}
 	}
 	return b.String()
@@ -177,12 +206,12 @@ func tsType(expression any) string {
 	return "unknown"
 }
 
-// generateTS renders the four files of the client package into dir.
-func generateTS(api contract.API, dir string) []spi.File {
+// generateTS renders the four files of the client package into s.dir.
+func generateTS(api contract.API, s settings) []spi.File {
 	var files []spi.File
 	var types strings.Builder
 	types.WriteString(spi.Header)
-	types.WriteString(tsImports(api, true))
+	types.WriteString(tsImports(api, s.scope, true))
 	for _, name := range api.TypeNames() {
 		t := api.Types[name]
 		switch t.Kind {
@@ -227,10 +256,10 @@ func generateTS(api contract.API, dir string) []spi.File {
 	}
 	types.WriteString("};\n")
 	types.WriteString(tsValidationTemplate)
-	files = append(files, spi.File{Path: path.Join(dir, "src/types.ts"), Data: []byte(types.String())})
+	files = append(files, spi.File{Path: path.Join(s.dir, "src/types.ts"), Data: []byte(types.String())})
 	var client strings.Builder
 	client.WriteString(spi.Header)
-	client.WriteString("import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type RequestContext } from '@nighthall/ws-runtime';\nimport { validateWire } from './types.ts';\nimport type * as Protocol from './types.ts';\n" + tsImports(api, false) + "export * from './types.ts';\nexport { DuplexError };\nexport interface Handler {\n")
+	client.WriteString("import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type RequestContext } from " + quote(s.runtime) + ";\nimport { validateWire } from './types.ts';\nimport type * as Protocol from './types.ts';\n" + tsImports(api, s.scope, false) + "export * from './types.ts';\nexport { DuplexError };\nexport interface Handler {\n")
 	for _, m := range api.Methods {
 		if m.Direction == "server_to_client" {
 			fmt.Fprintf(&client, "  %s(params: %s, context: RequestContext): %s | Promise<%s>;\n", m.TSName, tsRequest(m), tsQualified(m.Result), tsQualified(m.Result))
@@ -284,14 +313,14 @@ func generateTS(api contract.API, dir string) []spi.File {
 		}
 	}
 	client.WriteString("}\n")
-	files = append(files, spi.File{Path: path.Join(dir, "src/index.ts"), Data: []byte(client.String())})
-	dependencies := map[string]any{"@nighthall/ws-runtime": "0.1.0"}
+	files = append(files, spi.File{Path: path.Join(s.dir, "src/index.ts"), Data: []byte(client.String())})
+	dependencies := map[string]any{s.runtime: s.runtimeVersion}
 	for _, family := range api.Imports {
-		dependencies[tsPackage(family)] = "0.0.0"
+		dependencies[tsPackage(s.scope, family)] = "0.0.0"
 	}
-	manifest := map[string]any{"name": "@nighthall/" + api.Name + "-client", "version": "0.0.0", "private": true, "type": "module", "exports": "./src/index.ts", "scripts": map[string]any{"check": "tsc --noEmit"}, "dependencies": dependencies}
-	files = append(files, spi.File{Path: path.Join(dir, "package.json"), Data: append(canonicalJSON(manifest), '\n')})
-	files = append(files, spi.File{Path: path.Join(dir, "tsconfig.json"), Data: []byte("{\"compilerOptions\":{\"target\":\"ES2022\",\"module\":\"NodeNext\",\"moduleResolution\":\"NodeNext\",\"strict\":true,\"skipLibCheck\":true,\"noEmit\":true,\"allowImportingTsExtensions\":true,\"lib\":[\"ES2022\",\"DOM\"]},\"include\":[\"src/**/*.ts\"]}\n")})
+	manifest := map[string]any{"name": tsPackage(s.scope, api.Name), "version": "0.0.0", "private": true, "type": "module", "exports": "./src/index.ts", "scripts": map[string]any{"check": "tsc --noEmit"}, "dependencies": dependencies}
+	files = append(files, spi.File{Path: path.Join(s.dir, "package.json"), Data: append(canonicalJSON(manifest), '\n')})
+	files = append(files, spi.File{Path: path.Join(s.dir, "tsconfig.json"), Data: []byte("{\"compilerOptions\":{\"target\":\"ES2022\",\"module\":\"NodeNext\",\"moduleResolution\":\"NodeNext\",\"strict\":true,\"skipLibCheck\":true,\"noEmit\":true,\"allowImportingTsExtensions\":true,\"lib\":[\"ES2022\",\"DOM\"]},\"include\":[\"src/**/*.ts\"]}\n")})
 	return files
 }
 

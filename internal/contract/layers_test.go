@@ -16,14 +16,14 @@ func layerFiles(t *testing.T) map[string]map[string]any {
 		return value
 	}
 	return map[string]map[string]any{
-		LayerDTO: parse(`{"schema_version":1,"profile":"nighthall.duplex/1","name":"example","layer":"dto","imports":["records"],
+		LayerDTO: parse(`{"schema_version":1,"profile":"nightseam.duplex/1","name":"example","layer":"dto","imports":["records"],
 			"types":{"Input":{"kind":"record","fields":[{"name":"message","type":"string"}]},"Result":{"kind":"record","fields":[{"name":"ok","type":"boolean"}]}}}`),
-		LayerRPC: parse(`{"schema_version":1,"profile":"nighthall.duplex/1","name":"example","layer":"rpc",
+		LayerRPC: parse(`{"schema_version":1,"profile":"nightseam.duplex/1","name":"example","layer":"rpc",
 			"types":{"Frame":{"kind":"record","fields":[{"name":"message","type":{"envelope":"probe"}}]}},
 			"methods":[{"name":"example.run","go_name":"Run","ts_name":"run","direction":"client_to_server","request":"Input","result":"Result"},
 			           {"name":"example.ask","go_name":"Ask","ts_name":"ask","direction":"server_to_client","request":"Input","result":"Result"}],
 			"events":[{"name":"example.changed","go_name":"Changed","ts_name":"changed","direction":"server_to_client","type":"Result"}],"errors":[]}`),
-		LayerSess: parse(`{"schema_version":1,"profile":"nighthall.duplex/1","name":"example","layer":"sess",
+		LayerSess: parse(`{"schema_version":1,"profile":"nightseam.duplex/1","name":"example","layer":"sess",
 			"types":{"Attachment":{"kind":"record","fields":[{"name":"connection","type":{"connection":"probe"}}]}},
 			"session":{"decides":["example.run"],"asks":["example.ask"],"conversation":{"event":"example.changed","path":"id"}}}`),
 	}

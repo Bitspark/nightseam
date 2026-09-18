@@ -11,7 +11,7 @@ import (
 func carrierFixture(t *testing.T) map[string]any {
 	t.Helper()
 	var value map[string]any
-	err := json.Unmarshal([]byte(`{"schema_version":1,"profile":"nighthall.duplex/1","name":"carrier",
+	err := json.Unmarshal([]byte(`{"schema_version":1,"profile":"nightseam.duplex/1","name":"carrier",
 "types":{
  "Frame":{"kind":"record","fields":[{"name":"sequence","type":"integer"},{"name":"message","type":{"envelope":"session"}}]},
  "Attachment":{"kind":"record","fields":[{"name":"connection","type":{"connection":"session"}}]},

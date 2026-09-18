@@ -1,4 +1,4 @@
-package wsruntime_test
+package runtime_test
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	ws "github.com/Bitspark/nighthall/api/go/ws-runtime"
+	ws "github.com/Bitspark/nightseam/runtime"
 )
 
 // Delaying actual TCP writes makes producer/transport imbalance reproducible

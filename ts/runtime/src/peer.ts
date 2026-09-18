@@ -4,7 +4,7 @@ import type { Frame, FrameConnection, WebSocketLike } from './connection.ts';
 export type { WebSocketLike } from './connection.ts';
 
 /** The endpoint selects this profile; it is not a WebSocket subprotocol token. */
-export const DUPLEX_PROFILE = 'nighthall.duplex/1';
+export const DUPLEX_PROFILE = 'nightseam.duplex/1';
 export const DUPLEX_DEFAULTS = Object.freeze({
   maxIncomingRequests: 64,
   maxPendingRequests: 128,

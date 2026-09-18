@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Bitspark/nighthall/api/go/duplex"
+	"github.com/Bitspark/nightseam/duplex"
 )
 
 // Connect makes a fresh connected pair with the given receive limit on both

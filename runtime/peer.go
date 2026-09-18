@@ -1,10 +1,10 @@
-// Package wsruntime implements the nighthall.duplex/1 profile over a frames
-// duplex connection (api/go/duplex): JSON text frames carrying requests,
+// Package runtime implements the nightseam.duplex/1 profile over a frames
+// duplex connection (duplex): JSON text frames carrying requests,
 // responses, events and cancellations. It never touches a WebSocket; Dial
 // and Accept open one and hand it over as a connection, and a Peer over any
 // other transport speaks the same profile byte for byte. It has no
 // application authorization, replay, retries, or persistence policy.
-package wsruntime
+package runtime
 
 import (
 	"bytes"
@@ -20,10 +20,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Bitspark/nighthall/api/go/duplex"
+	"github.com/Bitspark/nightseam/duplex"
 )
 
-const Profile = "nighthall.duplex/1"
+const Profile = "nightseam.duplex/1"
 
 type Role string
 

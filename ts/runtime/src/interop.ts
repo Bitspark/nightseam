@@ -27,7 +27,7 @@ try {
   await cancelled;
   // A subsequent round trip proves cancellation didn't break the duplex reader.
   assert.deepEqual(await peer.call('echo', { afterCancel: true }), { afterCancel: true });
-  process.stdout.write(JSON.stringify({ ok: true, profile: 'nighthall.duplex/1' }) + '\n');
+  process.stdout.write(JSON.stringify({ ok: true, profile: 'nightseam.duplex/1' }) + '\n');
 } finally {
   peer.close();
 }

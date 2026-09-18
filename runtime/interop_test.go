@@ -1,4 +1,4 @@
-package wsruntime
+package runtime
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func TestTypeScriptClientInteroperability(t *testing.T) {
 		t.Skip("Node is required for the TypeScript interoperability acceptance gate")
 	}
 	_, source, _, _ := runtime.Caller(0)
-	driver := filepath.Join(filepath.Dir(source), "..", "..", "ts", "ws-runtime", "src", "interop.ts")
+	driver := filepath.Join(filepath.Dir(source), "..", "ts", "runtime", "src", "interop.ts")
 	if _, err := os.Stat(driver); err != nil {
 		t.Fatal(err)
 	}
