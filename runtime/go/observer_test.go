@@ -208,6 +208,9 @@ func TestAnObserverSeesACallAnEventAndACloseInOrder(t *testing.T) {
 			"tock": func(context.Context, *ws.Peer, json.RawMessage) { close(tocked) },
 		},
 	})
+	// Every request below begins after this, so no duration measured from where
+	// one began may exceed what has elapsed since.
+	before := time.Now()
 	var answered, returned string
 	if err := peer.Call(context.Background(), "echo", nil, &answered); err != nil || answered != "answered" {
 		t.Fatalf("echo = %q, error=%v", answered, err)
@@ -295,8 +298,11 @@ func TestAnObserverSeesACallAnEventAndACloseInOrder(t *testing.T) {
 			if e.At.IsZero() || e.Outcome != ws.OutcomeOK || e.Trace.Parent == "" {
 				t.Fatalf("request ended = %+v", e)
 			}
-			if !e.Incoming && e.Duration <= 0 {
-				t.Fatalf("a call across the connection took no time: %+v", e)
+			// A clock coarser than a loopback exchange reads no time at all for
+			// one, so what a duration is held to is that it was measured from
+			// where the request began and not from some other zero.
+			if e.Duration < 0 || e.Duration > time.Since(before) {
+				t.Fatalf("a request's duration was not measured from its start: %+v", e)
 			}
 		}
 	}
