@@ -29,20 +29,38 @@ calls in.
 
 ```go
 registry := session.New(session.Options{})
-registry.Bind(id, up, session.Governance{Decides: chatclient.Decides, Asks: chatclient.Asks}, session.NewMemoryLog(0))
+registry.Bind(id, up, session.Governance{Decides: chatclient.Decides, Asks: chatclient.Asks}, session.NewMemoryLog(1<<20))
 attachment, _ := registry.Attach(id, down, session.Participant, "consumer:7", after)
 registry.Control(id, attachment)   // or nil, releasing control
 registry.Attention()               // every session with an unanswered ask
 ```
 
 `Bind` gives a session its own channel, the family's governance and its
-log; it is live from then until that channel closes. `Attach` adds a
-consumer over a channel of its own, in a role — `Participant`, which may
-decide while it holds control and may be given it, or `Observer`, which
-never decides and is never given control — saying what the consumer is,
-stamped on every frame it sends as the log's `Origin`, and the last sequence
-it holds. `Control` gives one participant control, or releases it. Who may
-attach, who may take control and for how long are checked before calling.
+log; it is live from then until that channel closes. Which log is the
+consumer's: `session.NewMemoryLog(maxFrameBytes)` in Go and
+`memoryLog(maxFrameBytes)` in TypeScript are the one the package ships, and
+*The log* below says what is passed in their place when a session's frames
+must outlive the process. `Attach` adds a consumer over a channel of its
+own, in a role — `Participant`, which may decide while it holds control and
+may be given it, or `Observer`, which never decides and is never given
+control — saying what the consumer is, stamped on every frame it sends as
+the log's `Origin`, and the last sequence it holds. `Control` gives one
+participant control, or releases it. Who may attach, who may take control
+and for how long are checked before calling.
+
+The registry itself is configured by the value passed where it is made:
+`session.Options`, to `session.New`, in Go; `RegistryOptions`, to
+`new Registry(...)`, in TypeScript. Every member of it is optional and a
+member left out takes the default — zero or less in Go, absent in
+TypeScript, and `new Registry()` with nothing at all is the default
+registry. `MaxAttachments` and `MaxInflight` — `maxAttachments` and
+`maxInflight` — are 64 and 256, the two the table below gives; Go's
+`SendTimeout` is ten seconds and has no TypeScript member, a Go send
+taking a context it can wait on where the TypeScript channel's `send`
+hands the frame over and returns, leaving nothing to bound. What a
+registry settled on is readable back in TypeScript, `registry.limit`, and
+a member that is not a positive integer is refused there with
+`invalid_options` where Go takes it for the default.
 
 ## The rules
 
@@ -99,11 +117,24 @@ type Log interface {
 }
 ```
 
-`NewMemoryLog(maxFrameBytes)` is the one the package ships. What the log
-says the consumers sent is the order the machine saw: the relay holds the
-up channel across the append and the send. A durable store — and retention,
-redaction, what `Truncated` means for a reader — is the consumer's, behind
-the interface.
+`NewMemoryLog(maxFrameBytes)` in Go and `memoryLog(maxFrameBytes)` in
+TypeScript are the one the package ships: a log in memory, bounded per
+frame, where a message whose JSON is longer than the bound is kept as the
+text it was cut to and replayed with `Truncated` set, so that one frame
+cannot grow a long-lived session without bound. Go reads zero or less as
+unbounded, which only a process that ends soon may ask for; TypeScript
+takes a positive integer and refuses anything else with `invalid_options`,
+so a bound is chosen there rather than defaulted — `memoryLog(1 << 20)` is
+the package README's.
+
+It is the log for a session that need not outlive the process: nothing of it
+is written down, and a registry that restarts replays nothing. A log that
+must outlive one is the consumer's own `Log` — the interface above, over
+whatever it stores frames in — passed to `Bind` in its place; nothing else
+changes, the relay holding the up channel across the append and the send
+either way, so that what the log says the consumers sent is the order the
+machine saw. Retention, redaction and what `Truncated` means for a reader
+are the consumer's with it, by the boundary rule.
 
 ## Errors and limits
 
@@ -111,9 +142,9 @@ the interface.
 | --- | --- |
 | `not_controlling` | a deciding frame from a consumer that does not hold control |
 | `busy` | a request beyond the ones the session may have open towards the machine |
-| `MaxAttachments` | 64 consumers on one session; an attach beyond it is refused |
-| `MaxInflight` | 256 requests open towards the machine |
-| `SendTimeout` | 10 seconds a frame may wait for a channel; a consumer that does not take its frames is detached, a machine that does not ends the session |
+| `MaxAttachments` / `maxAttachments` | 64 consumers on one session; an attach beyond it is refused |
+| `MaxInflight` / `maxInflight` | 256 requests open towards the machine |
+| `SendTimeout` | Go only: 10 seconds a frame may wait for a channel; a consumer that does not take its frames is detached, a machine that does not ends the session |
 
 ## What a consumer builds on it
 
