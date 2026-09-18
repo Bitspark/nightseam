@@ -1,7 +1,14 @@
 # Documentation
 
-The declaration language, the generator and how to use them are in the
-[README](../README.md). The runtime components each have a page:
+The [README](../README.md) is the short path: what Nightseam is, how it is
+installed and what a family looks like. The reference is here.
+
+| page | what |
+| --- | --- |
+| [language.md](language.md) | the declaration language: the tiers, the types, the two sides, a session's governance, per-target names, and a family generic in others |
+| [generator.md](generator.md) | the commands and their flags, the pipeline that renders a family, what the generated packages own, the upgrade from the previous language |
+
+The runtime components each have a page:
 
 | page | what |
 | --- | --- |

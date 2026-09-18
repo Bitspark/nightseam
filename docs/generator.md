@@ -1,0 +1,106 @@
+# The generator
+
+How a declaration becomes packages: the pipeline that renders it, what the
+rendered packages own, where the wire validator lives, and the commands that
+drive it. [The declaration language](language.md) is what they read; the
+[README](../README.md) is the short path.
+
+## The commands
+
+```
+go tool nightseam validate            # every diagnostic of every family
+go tool nightseam generate [family]   # render what is stale
+go tool nightseam check               # fail if the checked-in output is stale
+go tool nightseam init <family>       # write the handlers a consumer implements, once
+go tool nightseam upgrade             # rewrite layer files of the previous language into the directory form
+```
+
+`validate` prints each diagnostic as `family/file#pointer: message [code]`,
+and exits non-zero when there is one. `--root` is the repository root, `.`
+unless given. The Go packages are rooted at the checkout's module, read from
+its `go.mod` or given as `--module`; the TypeScript package is named under an
+npm scope, `--scope`, the module's last element unless given.
+
+`generate` writes only what changed and removes what a target owns and
+nothing renders any more, along with a directory it leaves empty. `check` is
+the same pass without the writing, for CI.
+
+`init <family>` writes the hand-written side of a family's slots — the Go
+server's `Handler`, a type implementing the binding package's interface with
+every method returning an `unimplemented` error, and the TypeScript client's
+handler of what the server sends — as stubs under `api/impl/<family>`, or
+`--dir`. It writes once and never rewrites: the directory is the consumer's.
+
+A checkout declared in the previous language's layer files — `<f>.dto.json`,
+`<f>.rpc.json`, `<f>.sess.json` — is refused with the command that converts
+it: `upgrade` rewrites them into the directory form, sides in place of
+directions, one reference form in place of the slot objects, and a
+hand-spelled name into an override only where the convention would spell it
+otherwise. `upgrade --file <contract.json>` converts a contract declared in
+one file, under the name it carries, and `--dry-run` prints what would be
+written and writes nothing.
+
+## How it renders
+
+The generator is a pipeline of small packages, each owning one level:
+`load` reads a checkout's tier files into the typed `model`, holding each
+file to its tier's shape schema; `analysis` gives a family its world —
+imports resolved transitively, the injected types, inheritance flattened,
+and what is generic in it, computed once; `check` holds it to the model's
+rules and each concern's; `render` presents it to the targets once, with
+every fact they need and nothing target-specific; each target plans every
+identifier it will declare — into the namespace it lands in, so that a
+collision is a diagnostic and what is reserved is what is emitted — and
+then emits, registering imports where it uses them; the `kernel` runs the
+pipeline and refuses a rendered path outside the directories the target
+owns. A family with any diagnostic is refused before a target renders.
+Targets are composed in `cmd/nightseam/v2.go` and nowhere else; the seam
+between them and the kernel is `internal/spi`, and a test holds the
+package graph to that.
+
+The generated packages own their directories wholesale —
+`api/go/<f>-protocol`, `-binding`, `-client` and `api/ts/<f>-client` — and
+a human writes nothing there: behavior is written against the `Handler`
+interfaces they declare, in files of the consumer's own. What a target
+owns and nothing renders any more — a file of a family that was removed,
+or one a target no longer writes — `check` reports and `generate` removes,
+along with a directory it leaves empty; what a package manager installs
+beside a client, `node_modules`, is nobody's and stays.
+
+The wire validator lives in each runtime, once, and reads the family's
+wire description the protocol package embeds; both are held to
+`runtime/testdata/validator-cases.json`. A type drawn from a parameter is
+validated by the binding of the family that fills it in TypeScript, and by
+that family's codec where the generic type is instantiated in Go.
+
+### The specification
+
+A third target, `spec`, renders each family's specification as Markdown at
+`api/spec/<family>/README.md` — its types with their fields and
+constraints, the two sides with their operations and errors, the parameters
+it is generic in, the governance of a session of it — from the declaration
+alone, so that the document is never behind it. It reserves nothing and
+refuses nothing.
+
+
+## The pipeline
+
+Each package owns one level, and the package graph is held to the seam
+between them:
+
+```
+cmd/nightseam/          the generator: generate, check, validate, upgrade; the corpus and its goldens under testdata
+internal/model/         the typed declaration of a family: the tiers, the sealed type-expression AST, the decoders
+internal/load/          files to families: the tier table, the shape schemas, the world of a checkout
+internal/analysis/      a family within its world: imports resolved, inheritance flattened, what is generic in it
+internal/check/         the rules, one function per tier and one for the override files
+internal/render/        a family as a target sees it, computed once
+internal/spi/           the seam between the kernel and a target
+internal/targets/       golang, typescript and spec: each renders a family, names the others never
+internal/kernel/        load, analyse, check, render
+internal/emit/          a writer, an import set, a namespace: what every target writes with
+internal/naming/        the convention every target derives names by
+internal/diag/          where a problem is: family, tier file, pointer, code
+internal/oracle/        test support: the left path of the diagram a generic rendering commutes with
+internal/upgrade/       layer files of the previous language into the directory form
+```

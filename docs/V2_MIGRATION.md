@@ -2,8 +2,9 @@
 
 **Done.** Every milestone below landed on `main` between `df4ad3c` and the
 commit that added this line; the v1 generator is deleted, the CLI runs v2,
-and the README describes the language as it now is. The page stays as the
-record of how the redesign was held to the old generator.
+and [language.md](language.md) describes the language as it now is. The
+page stays as the record of how the redesign was held to the old
+generator.
 
 Nightseam was redesigned: a v2 declaration language (a directory per
 family with tier files, two sides instead of a direction, one reference

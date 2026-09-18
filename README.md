@@ -1,113 +1,29 @@
 # Nightseam
 
-Nightseam is a declaration language for duplex APIs and the runtime those
-APIs run on. A family of API is declared in tiers of JSON — its model, the
-protocol over it, how a session of it is governed — and rendered into Go
-and TypeScript packages that bind to one runtime: the `nightseam.duplex/1`
-profile, JSON frames carrying requests, responses, events and cancellations
-over a frames duplex connection, a WebSocket today.
+[![ci](https://github.com/Bitspark/nightseam/actions/workflows/ci.yml/badge.svg)](https://github.com/Bitspark/nightseam/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/Bitspark/nightseam.svg)](https://pkg.go.dev/github.com/Bitspark/nightseam)
+[![npm](https://img.shields.io/npm/v/@nightseam/runtime.svg)](https://www.npmjs.com/package/@nightseam/runtime)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-It is pre-1.0 and the API moves with minor versions; `CHANGELOG.md` says
-what each version holds. The runtime is four packages on npm under
-`@nightseam` — `duplex`, `runtime`, `tunnel`, `session` — and one Go module,
-`github.com/Bitspark/nightseam`, of which `cmd/nightseam` is the generator:
+Declare a duplex API once, in tiers of JSON. Get a typed client and a typed
+server in Go and in TypeScript, both speaking one wire profile —
+`nightseam.duplex/1`, JSON frames carrying requests, responses, events and
+cancellation over a WebSocket, a tunnel channel or an in-memory pipe.
 
-```
-npm install @nightseam/runtime @nightseam/tunnel        # what a generated TypeScript client depends on
-go get github.com/Bitspark/nightseam                     # runtime/go, duplex/go, tunnel/go, session/go
-go get -tool github.com/Bitspark/nightseam/cmd/nightseam
-```
+Duplex means both ends call. The server calls the client with the machinery
+the client calls the server with, declared in the same file and typed the
+same way — which is what a browser session, an agent and a relay need, and
+what a request-and-response contract has no way to state.
 
-One directory per component, one subdirectory per language: a third
-language's runtime is `runtime/<lang>` and nothing else moves.
+### Declare it
 
-```
-duplex/go/              the seam in Go: Conn, Pipe, the close codes; duplex/go/ws, a WebSocket as a Conn; duplex/go/duplextest, the conformance suite
-duplex/ts/              @nightseam/duplex: FrameConnection and the WebSocket adapter
-runtime/go/             the Go peer of the profile: envelope, request correlation, cancellation, backpressure, presence, HTTP upgrade, the wire validator
-runtime/go/slogobserver/ the Go peer's Observer as slog: one record per event, a level per kind, names, ids, outcomes and close codes, never a payload
-runtime/ts/             @nightseam/runtime, the TypeScript peer for the browser and Node, no third-party dependency, the wire validator, the console observer
-runtime/testdata/       the conformance table both validators are held to
-tunnel/go/              channels multiplexed over one peer, each a Conn: the third transport, with per-channel credit
-tunnel/ts/              @nightseam/tunnel, the same over a DuplexPeer, each channel a FrameConnection
-session/go/             a session over a tunnel's channels: the relay, the registry, the holder of control, the in-memory log; session/go/sessiontest, the suite both languages are held to
-session/ts/             @nightseam/session: a session over a tunnel's channels — the relay, the registry, the holder of control, the in-memory log
-cmd/nightseam/          the generator: generate, check, validate, upgrade; the corpus and its goldens under testdata
-internal/model/         the typed declaration of a family: the tiers, the sealed type-expression AST, the decoders
-internal/load/          files to families: the tier table, the shape schemas, the world of a checkout
-internal/analysis/      a family within its world: imports resolved, inheritance flattened, what is generic in it
-internal/check/         the rules, one function per tier and one for the override files
-internal/render/        a family as a target sees it, computed once
-internal/spi/           the seam between the kernel and a target
-internal/targets/       golang, typescript and spec: each renders a family, names the others never
-internal/kernel/        load, analyse, check, render
-internal/emit/          a writer, an import set, a namespace: what every target writes with
-internal/naming/        the convention every target derives names by
-internal/diag/          where a problem is: family, tier file, pointer, code
-internal/oracle/        test support: the left path of the diagram a generic rendering commutes with
-internal/upgrade/       layer files of the previous language into the directory form
-```
-
-## A family in tiers
-
-A family `f` is a directory `api/contracts/f/` of the consuming checkout,
-one file per tier:
-
-```
-api/contracts/probe/model.json       tier 1: the types
-api/contracts/probe/protocol.json    tier 2: the two sides, the errors, the parameters
-api/contracts/probe/session.json     tier 2: how a session is governed
-api/contracts/probe/go.json          tier 3: what the Go rendering names otherwise than the convention does
-api/contracts/probe/typescript.json  tier 3: the same for TypeScript
-```
-
-The family and the tier come from the path; no file repeats them. Every
-tier file may carry `types` and `imports`; a type is declared in the tier it
-belongs to, and **a declaration refers to its own tier or a lower one, never
-a higher one**: the tool refuses one that does. The tiers are one table
-(`internal/model/tiers.go`), and a concern is a row in it.
-
-### model.json
-
-```json
-{
-  "nightseam": 2,
-  "imports": ["identity"],
-  "types": {
-    "Payload": {"kind": "record", "extends": ["Base"], "description": "…", "fields": [
-      {"name": "count", "type": "integer"},
-      {"name": "note", "type": "string", "required": false, "nullable": true}
-    ]},
-    "Status": {"kind": "enum", "values": ["ready", "done"]},
-    "Payloads": {"kind": "alias", "type": {"array": "Payload"}}
-  }
-}
-```
-
-A `record` has `fields`, may `extends` other records (their fields come
-first, in wire order) and may be `open` (fields beyond the declared ones are
-kept). An `enum` has `values`; an `alias` a `type`. A field is `required`
-unless it says otherwise and never null unless `nullable`: presence and
-nullness are two facts. An `entity` is a record with a `key`; `unique`,
-`min`, `max`, `length` and `pattern` constrain a field, and the validators
-enforce them.
-
-A type expression is one of: a primitive (`string`, `boolean`, `integer`,
-`number`, `timestamp`, `json`); a type of this family, `"Payload"`; a type
-of an imported family, `"identity.User"`; a type drawn from a parameter,
-`"S.Envelope"`; `{"array": T}`; `{"map": T}`; `{"ref": "User"}`, a reference
-to an entity by its key; `{"apply": "carrier.Frame", "with": {"S": "B"}}`, a
-generic type of an imported family with its parameters filled. There is one
-reference form: a qualifier in upper camel case is a parameter, in lower
-case a family, and every family a declaration names is imported.
-
-### protocol.json
+`api/contracts/probe/protocol.json`
 
 ```json
 {
   "profile": "nightseam.duplex/1",
   "server": {
-    "methods": {"echo": {"request": "Payload", "result": "Payload", "errors": ["denied"]}},
+    "methods": {"echo": {"request": "Payload", "result": "Payload"}},
     "events": {"changed": {"type": "Payload"}}
   },
   "client": {
@@ -117,232 +33,120 @@ case a family, and every family a declaration names is imported.
 }
 ```
 
-A side is an interface: the methods it implements and the events it emits.
-The server side is implemented by the server and called by the client; the
-client side is the reverse. A method's `request` is a record, or absent;
-its `result` any type; its `errors` codes the family declares. The public
-errors reach both languages by name: the Go protocol package declares a
-constant per error, `ErrorNotFound = "not_found"`, the list `Errors`, and
-`IsError(err, code)`; the TypeScript client exports `errors`, an object with
-a member per error, `errors.notFound`, and the `ErrorCode` union of them.
+### Write the behavior
 
-Every family with a protocol carries two injected types it may not declare:
-`Envelope`, one message of the profile, and `Handle`, a reference to a
-channel that speaks it.
+Go, the server side. Generated code is never edited by hand; behavior goes
+in a file of your own, which `nightseam init probe` writes once:
 
-### session.json
+```go
+type Probe struct{}
 
-```json
-{"decides": ["echo"], "asks": ["reverse"], "conversation": {"event": "changed", "path": "text"}}
+func (Probe) Echo(ctx context.Context, remote *binding.Remote, p protocol.Payload) (protocol.Payload, error) {
+	return remote.Reverse(ctx, p) // the server calls the client, typed, inside the request
+}
+
+// wherever you serve:
+handler, err := binding.NewHandler(Probe{}, runtime.ServerOptions{})
+http.Handle("/probe", handler)
 ```
 
-`decides` names the methods that need control to send; `asks` the client
-methods — the ones the server sends — that raise a request the holder of
-control must answer; `conversation` where the conversation id arrives. A
-family with a session tier carries the `session` role, which a parameter
-binds to.
+### Call it
 
-### go.json and typescript.json
+TypeScript, the client side:
 
-```json
-{"names": {"work.get": "GetWorkItem", "Item.url": "Link"}}
+```ts
+const client = await Client.dial('wss://example.test/probe', {}, {
+  reverse: ({ text, count }) => ({ text: [...text].reverse().join(''), count }),
+});
+
+const payload = await client.echo({ text: 'hello', count: 1 });
+const stop = client.onChanged(p => console.log('changed', p.text));
 ```
 
-Names are derived by convention — upper camel case with initialisms in
-capitals for Go (`work_item_id` → `WorkItemID`), lower camel for TypeScript
-members (`workItemId`) — and an override file replaces the convention where
-it must, by path: `Type`, `Type.field`, `Enum.value`, a method or event,
-`errors.code`. An override file may only override: a key that names nothing
-the family declares is refused, and so is a name the generated code
-declares of itself — what each target reserves is held under
-`cmd/nightseam/testdata/reserved`.
+What you never write: the envelope, the correlation of a response to its
+request, cancellation, backpressure, the validator that holds every frame to
+the declaration — or the second language's copy of any of it.
 
-## A family generic in others
+## Status
 
-A family declares the parameters it is generic in, and a type draws on one:
+Pre-1.0. The declaration language, the generated surface and the profile
+move with minor versions; `CHANGELOG.md` says what each version holds. What
+is already held fixed is the agreement between the two languages: both
+runtimes' wire validators are held to one conformance table, and the Go and
+TypeScript components to one suite over a real socket, so a peer of either
+language is held to its twin before either is released.
 
-```json
-"parameters": [{"name": "S", "of": "session"}, {"name": "T", "of": "session"}],
-"types": {
-  "Frame": {"kind": "record", "fields": [
-    {"name": "message", "type": "S.Envelope"},
-    {"name": "back",    "type": "S.Handle"},
-    {"name": "heard",   "type": "T.Envelope"},
-    {"name": "last",    "type": "S.Payload"}]}}
+## Install
+
+```
+npm install @nightseam/runtime @nightseam/tunnel           # what a generated TypeScript client needs
+go get github.com/Bitspark/nightseam                       # the Go runtime packages
+go get -tool github.com/Bitspark/nightseam/cmd/nightseam   # the generator, as a Go tool
 ```
 
-`S.Envelope` is one message of the family bound to S, `S.Handle` a channel
-that speaks it, `S.Payload` any record or enum `Payload` of it — which every
-family that may bind `S` is then held to declare, plainly, checked across
-the world. A parameter is bound where the generated code is instantiated,
-to any family that declares its role; today `session`, the role a family
-with a session tier carries. Two parameters never collapse into one.
+Nightseam is developer tooling and never a runtime dependency of its own
+generator: a generated package depends on the protocol types and the runtime,
+and on nothing else.
 
-A family that refers to a **generic** type of an import says what fills
-each of that type's parameters:
+## The packages
 
-```json
-{"apply": "carrier.Frame", "with": {"S": "B"}}
-```
+| npm | Go | what it is |
+| --- | --- | --- |
+| [`@nightseam/duplex`](duplex/ts) | [`duplex/go`](duplex/go) | the seam: ordered frames both ways, an explicit close with a code and a reason, a WebSocket adapter and an in-memory pipe |
+| [`@nightseam/runtime`](runtime/ts) | [`runtime/go`](runtime/go) | the peer of the profile: correlation, cancellation, backpressure, presence, trace context, the wire validator |
+| [`@nightseam/tunnel`](tunnel/ts) | [`tunnel/go`](tunnel/go) | channels multiplexed over one peer, each one a connection of the seam, with per-channel credit |
+| [`@nightseam/session`](session/ts) | [`session/go`](session/go) | a session over a tunnel's channels: the relay, the registry, the holder of control, the log |
+| — | [`cmd/nightseam`](cmd/nightseam) | the generator |
 
-`with` maps the imported type's parameters to this family's — which keeps
-the result generic there — or to named families, which does not. A family
-with exactly one parameter may refer to such a type plainly and fill it
-with that one; with any other number the plain reference is refused rather
-than guessed, and the diagnostic names the application to write.
-
-Nightseam renders such a family once, generically, and a consumer
-instantiates it:
-
-- TypeScript has associated types, so one parameter is one type parameter
-  whatever it is drawn at: `Frame<S extends AnyFamily = SessionFamily>` with
-  `message: S["Envelope"]` and `last: S["Payload"]`, the bound narrowed to
-  `AnyFamily & { "Payload": unknown }` where a type beyond the two every
-  family carries is drawn, `SessionFamily` the union of the session families
-  of the world, and one binding argument per parameter,
-  `Client.dial(url, probe.family, codex.family, …)`, whose validators then
-  validate what fills each slot.
-- Go has none, so a parameter becomes one type parameter per type drawn
-  from it, named for both: `S` drawn at its `Envelope`, `Handle` and
-  `Payload` gives `SEnvelope`, `SHandle` and `SPayload`, and a type takes
-  only the ones it uses — `Frame[SEnvelope any]`, `Attachment[SHandle any]`.
-  `Frame[codexprotocol.Envelope]` validates what fills the slot through
-  codex's codec; `Frame[runtime.Raw]` passes it through, which is what a
-  relay wants. Every record and enum of a protocol package returns the
-  package's `Tag` from `Of`, and `Dial`, `Attach`, `Serve`, `NewHandler` and
-  `Open` hold every type parameter drawn from `S` to `runtime.Of[STag]`, so
-  an `Envelope` of one family beside a `Handle` of another does not compile.
-
-The two ways to a concrete package — binding the parameters into the
-declaration and rendering it plain, or rendering generically and
-instantiating — must agree: `gen(bind(C, F)) ≅ gen(C)[F]`. The fixtures
-render both into one module and hold them equal: by reflection in Go, by
-`Equals<>` under `tsc` in TypeScript, and on the wire, a plain client
-against a generic server and the reverse.
-
-## How it renders
-
-The generator is a pipeline of small packages, each owning one level:
-`load` reads a checkout's tier files into the typed `model`, holding each
-file to its tier's shape schema; `analysis` gives a family its world —
-imports resolved transitively, the injected types, inheritance flattened,
-and what is generic in it, computed once; `check` holds it to the model's
-rules and each concern's; `render` presents it to the targets once, with
-every fact they need and nothing target-specific; each target plans every
-identifier it will declare — into the namespace it lands in, so that a
-collision is a diagnostic and what is reserved is what is emitted — and
-then emits, registering imports where it uses them; the `kernel` runs the
-pipeline and refuses a rendered path outside the directories the target
-owns. A family with any diagnostic is refused before a target renders.
-Targets are composed in `cmd/nightseam/v2.go` and nowhere else; the seam
-between them and the kernel is `internal/spi`, and a test holds the
-package graph to that.
-
-The generated packages own their directories wholesale —
-`api/go/<f>-protocol`, `-binding`, `-client` and `api/ts/<f>-client` — and
-a human writes nothing there: behavior is written against the `Handler`
-interfaces they declare, in files of the consumer's own. What a target
-owns and nothing renders any more — a file of a family that was removed,
-or one a target no longer writes — `check` reports and `generate` removes,
-along with a directory it leaves empty; what a package manager installs
-beside a client, `node_modules`, is nobody's and stays.
-
-The wire validator lives in each runtime, once, and reads the family's
-wire description the protocol package embeds; both are held to
-`runtime/testdata/validator-cases.json`. A type drawn from a parameter is
-validated by the binding of the family that fills it in TypeScript, and by
-that family's codec where the generic type is instantiated in Go.
-
-### The specification
-
-A third target, `spec`, renders each family's specification as Markdown at
-`api/spec/<family>/README.md` — its types with their fields and
-constraints, the two sides with their operations and errors, the parameters
-it is generic in, the governance of a session of it — from the declaration
-alone, so that the document is never behind it. It reserves nothing and
-refuses nothing.
+Every component exists in both languages and both are held to one suite. A
+third language is `<component>/<lang>` and nothing else moves.
 
 ## Using it
 
-Nightseam is developer tooling, never a runtime dependency of the
-generator's own: the generated packages depend only on the protocol types
-and the runtime. A consumer runs it as a Go tool:
+A family is a directory of tier files, `api/contracts/<family>/` — the
+types, the protocol over them, how a session of them is governed, and what
+each target names otherwise than the convention does. The generator renders
+it into packages it owns wholesale: `api/go/<f>-protocol`, `-binding` and
+`-client`, `api/ts/<f>-client`, and the family's specification as Markdown at
+`api/spec/<f>/README.md`.
 
 ```
-go get -tool github.com/Bitspark/nightseam/cmd/nightseam
 go tool nightseam validate            # every diagnostic of every family
-go tool nightseam generate [family]   # render what is stale
-go tool nightseam check               # fail if the checked-in output is stale
-go tool nightseam upgrade             # rewrite layer files of the previous language into the directory form
-go tool nightseam init <family>       # write the handlers a consumer implements, once, into api/impl/<family>
+go tool nightseam generate            # render what is stale
+go tool nightseam init probe          # the handlers you implement, written once
+go tool nightseam check               # in CI: fail if the checked-in output is stale
 ```
 
-`validate` prints each diagnostic as `family/file#pointer: message [code]`.
-The Go packages are rooted at the checkout's module, read from its `go.mod`
-or given as `--module`; the TypeScript package is named under an npm scope,
-`--scope`, the module's last element unless given, and depends on
-`@nightseam/runtime`. The runtime the Go packages bind to is
-`github.com/Bitspark/nightseam/runtime/go`; in Go, a consumer requires this
-module.
+## Documentation
 
-A checkout declared in the previous language's layer files —
-`<f>.dto.json`, `<f>.rpc.json`, `<f>.sess.json` — is refused with the
-command that converts it: `upgrade` rewrites them into the directory form,
-sides in place of directions, one reference form in place of the slot
-objects, and a hand-spelled name into an override only where the
-convention would spell it otherwise; `upgrade --file <contract.json>`
-converts a contract declared in one file, under the name it carries.
+| page | what |
+| --- | --- |
+| [docs/language.md](docs/language.md) | the declaration language: the tiers, the types, the two sides, a session's governance, per-target names, and a family generic in others |
+| [docs/generator.md](docs/generator.md) | the commands and their flags, the pipeline, what the generated packages own, the upgrade from the previous language |
+| [docs/profile.md](docs/profile.md) | `nightseam.duplex/1`: the envelope, ids and correlation, limits and backpressure, trace context, close codes |
+| [docs/tunnel.md](docs/tunnel.md) | channels over one peer: the four operations, ids by parity, credit |
+| [docs/session.md](docs/session.md) | a session over a tunnel's channels: the relay's rules, the log, what a consumer builds on it |
+| [docs/V2_MIGRATION.md](docs/V2_MIGRATION.md) | how the declaration language was redesigned into its tiers |
 
-Behavior is written into slots: `init <family>` writes the Go server's
-`Handler` — a type implementing the binding package's interface, every
-method returning an `unimplemented` error, generic in what the family is
-— and the TypeScript client's handler of what the server sends, as stubs
-under `api/impl/<family>` (or `--dir`), for the consumer to fill in. It
-writes once and never rewrites: the directory is the consumer's.
-
-## Development
+## Working on Nightseam
 
 ```
-go test ./...
+go test -short ./...                              # the fast tier: Go alone, seconds
+go test ./...                                     # the full tier: both languages, the cross-language gates
 pnpm install && pnpm -r check && pnpm -r test
 ```
 
-The tests are in two tiers. `go test -short ./...` is the fast one and
-needs Go alone: every package's own tests, every target's `Check`, and the
-corpus under `cmd/nightseam/testdata` — families written in tier files as a
-consumer writes them under `corpus` and `families`, what every target
-renders for them held file for file under `golden` and `golden-families`,
-the exported surface of every generated Go package under `surface`, what
-each target reserves under `reserved`, and under `invalid` one checkout per
-rule the tool refuses, with what `validate` says held in its
-`diagnostics.txt`. The corpus is also what `upgrade` makes of the previous
-language's corpus under `corpus-v1`, held byte for byte. A change to a
-renderer or a diagnostic shows up as a diff of those files, which is what a
-review reads; when the change is meant,
-`go test ./cmd/nightseam -short -run 'Golden|Invalid|Surface|Reserved|Upgrade' -update`
-rewrites them from the current output. A new family in the corpus, or a new
-case under `invalid`, needs only its files and one `-update`.
+The full tier needs Go, Node 22.12 or later and the TypeScript compiler
+`pnpm install` brings, and fails rather than skips when one is missing.
 
-The full tier, `go test ./...`, is the fixtures: they compile and run the
-generated packages in both languages, so they need Go, Node 22.12 or later,
-and the TypeScript compiler pnpm installs — and fail, rather than skip, when
-one is missing. The Go fixture resolves this module to the checkout, so the
-runtime under test is the real one. The fixture bodies were written against
-the previous generator and pass unchanged against this one; a next
-generation is held to them the same way.
+[COLLABORATION.md](COLLABORATION.md) says how work is organized here — the
+boundary rule, parity between the languages, the two tiers, the golden
+discipline, lanes, and working in one tree. [SECURITY.md](SECURITY.md) says
+how to report a vulnerability, [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) what
+is expected of everyone here, and [RELEASING.md](RELEASING.md) what is
+published and how a release is cut.
 
-## Documentation, releases, license
+## License
 
-`docs/` has a page per runtime component — the profile the peers speak
-(`docs/profile.md`), the tunnel (`docs/tunnel.md`), the session
-(`docs/session.md`) — and an index; `docs/V2_MIGRATION.md` records how the
-declaration language was redesigned into its tiers and the generator rebuilt
-beneath it. `COLLABORATION.md` says how work is organized here — the boundary
-rule, parity between the languages, the two tiers of tests, the golden
-discipline, lanes — `RELEASING.md` how a release is cut and what a consumer
-pins, `SECURITY.md` how to report a vulnerability, `CODE_OF_CONDUCT.md`
-what is expected of everyone here; `CONTRIBUTING.md` points at the first of
-them, so that GitHub links to it.
-
-Nightseam is licensed under the Apache License, Version 2.0: `LICENSE`, and
-`NOTICE` beside it.
+Apache License, Version 2.0: [LICENSE](LICENSE), with [NOTICE](NOTICE)
+beside it.
