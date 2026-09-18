@@ -1,0 +1,270 @@
+package wsruntime_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	ws "github.com/Bitspark/nighthall/api/go/ws-runtime"
+)
+
+// Delaying actual TCP writes makes producer/transport imbalance reproducible
+// without depending on the OS socket-buffer size or a stopped remote reader.
+type delayedWriteControl struct {
+	enabled atomic.Bool
+	delay   time.Duration
+	started chan struct{}
+	gate    <-chan struct{}
+	once    sync.Once
+}
+
+type delayedWriteListener struct {
+	net.Listener
+	control *delayedWriteControl
+}
+
+func (l delayedWriteListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return &delayedWriteConn{Conn: conn, control: l.control}, nil
+}
+
+type delayedWriteConn struct {
+	net.Conn
+	control *delayedWriteControl
+}
+
+func (c *delayedWriteConn) Write(data []byte) (int, error) {
+	if c.control.enabled.Load() {
+		c.control.once.Do(func() { close(c.control.started) })
+		if c.control.gate != nil {
+			<-c.control.gate
+		}
+		time.Sleep(c.control.delay)
+	}
+	return c.Conn.Write(data)
+}
+
+func delayedWritePair(t *testing.T, control *delayedWriteControl, serverOptions, clientOptions ws.Options, clientWriteControl ...*delayedWriteControl) (*ws.Peer, *ws.Peer) {
+	t.Helper()
+	connected := make(chan *ws.Peer, 1)
+	handler, err := ws.NewHandler(ws.ServerOptions{
+		Options:      serverOptions,
+		Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
+		CheckOrigin:  func(*http.Request) bool { return true },
+		OnConnect: func(peer *ws.Peer) {
+			// The HTTP upgrade has been flushed before introducing write delay.
+			control.enabled.Store(true)
+			connected <- peer
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewUnstartedServer(handler)
+	server.Listener = delayedWriteListener{Listener: server.Listener, control: control}
+	server.Start()
+	t.Cleanup(server.Close)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	t.Cleanup(cancel)
+	dialOptions := ws.DialOptions{Options: clientOptions}
+	if len(clientWriteControl) != 0 {
+		transport := &http.Transport{DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			conn, err := (&net.Dialer{}).DialContext(ctx, network, address)
+			if err != nil {
+				return nil, err
+			}
+			return &delayedWriteConn{Conn: conn, control: clientWriteControl[0]}, nil
+		}}
+		t.Cleanup(transport.CloseIdleConnections)
+		dialOptions.HTTPClient = &http.Client{Transport: transport}
+	}
+	client, _, err := ws.Dial(ctx, server.URL, dialOptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	remote := receive(t, connected)
+	t.Cleanup(func() { _ = remote.Close() })
+	return client, remote
+}
+
+func TestOutboundQueueDrainsReplayBeyondCapacity(t *testing.T) {
+	for _, capacity := range []int{2, 8} {
+		t.Run(fmt.Sprintf("capacity_%d", capacity), func(t *testing.T) {
+			const replayCount = 512
+			received := make(chan int, replayCount)
+			decodeErrors := make(chan error, replayCount)
+			control := &delayedWriteControl{delay: time.Millisecond, started: make(chan struct{})}
+			client, server := delayedWritePair(t, control, ws.Options{
+				QueueCapacity: capacity,
+				WriteTimeout:  2 * time.Second,
+				Handlers: map[string]ws.Handler{
+					"replay": func(ctx context.Context, peer *ws.Peer, _ json.RawMessage) (any, error) {
+						for sequence := range replayCount {
+							if err := peer.Emit(ctx, "replay.item", sequence); err != nil {
+								return nil, err
+							}
+						}
+						return replayCount, nil
+					},
+					"echo": func(_ context.Context, _ *ws.Peer, data json.RawMessage) (any, error) {
+						return data, nil
+					},
+				},
+			}, ws.Options{Events: map[string]ws.EventHandler{
+				"replay.item": func(_ context.Context, _ *ws.Peer, data json.RawMessage) {
+					var sequence int
+					if err := json.Unmarshal(data, &sequence); err != nil {
+						decodeErrors <- err
+						return
+					}
+					received <- sequence
+				},
+			}})
+			var count int
+			if err := client.Call(context.Background(), "replay", nil, &count); err != nil {
+				t.Fatalf("healthy replay exceeding queue capacity failed: %v", err)
+			}
+			if count != replayCount {
+				t.Fatalf("replay result = %d, want %d", count, replayCount)
+			}
+			for want := range replayCount {
+				if got := receive(t, received); got != want {
+					t.Fatalf("replay sequence = %d, want %d", got, want)
+				}
+			}
+			select {
+			case err := <-decodeErrors:
+				t.Fatalf("invalid replay payload: %v", err)
+			default:
+			}
+			var echo string
+			if err := client.Call(context.Background(), "echo", "still connected", &echo); err != nil || echo != "still connected" {
+				t.Fatalf("echo after replay = %q, error=%v", echo, err)
+			}
+			if client.Err() != nil || server.Err() != nil {
+				t.Fatalf("healthy replay disconnected peers: client=%v server=%v", client.Err(), server.Err())
+			}
+		})
+	}
+}
+
+func TestOutboundQueueCancellationDoesNotDisconnect(t *testing.T) {
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	allowWrites := func() { releaseOnce.Do(func() { close(release) }) }
+	defer allowWrites()
+	control := &delayedWriteControl{delay: 50 * time.Millisecond, started: make(chan struct{}), gate: release}
+	received := make(chan int, 4)
+	client, server := delayedWritePair(t, control, ws.Options{
+		QueueCapacity: 2,
+		WriteTimeout:  time.Second,
+		Handlers: map[string]ws.Handler{
+			"echo": func(_ context.Context, _ *ws.Peer, data json.RawMessage) (any, error) { return data, nil },
+		},
+	}, ws.Options{Events: map[string]ws.EventHandler{
+		"progress": func(_ context.Context, _ *ws.Peer, data json.RawMessage) {
+			var value int
+			if err := json.Unmarshal(data, &value); err != nil {
+				received <- -1
+				return
+			}
+			received <- value
+		},
+	}})
+	if err := server.Emit(context.Background(), "progress", 0); err != nil {
+		t.Fatal(err)
+	}
+	// Hold the first real write until the deadline assertion is complete. This
+	// guarantees the two queued frames cannot drain, even on a heavily loaded host.
+	receive(t, control.started)
+	for _, value := range []int{1, 2} {
+		if err := server.Emit(context.Background(), "progress", value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+	defer cancel()
+	err := server.Emit(ctx, "progress", 999)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("full-queue caller cancellation = %v, want deadline exceeded", err)
+	}
+	if client.Err() != nil || server.Err() != nil {
+		t.Fatalf("caller deadline disconnected peers: client=%v server=%v", client.Err(), server.Err())
+	}
+	allowWrites()
+	for want := range 3 {
+		if got := receive(t, received); got != want {
+			t.Fatalf("queued event = %d, want %d", got, want)
+		}
+	}
+	if err := server.Emit(context.Background(), "progress", 3); err != nil {
+		t.Fatal(err)
+	}
+	if got := receive(t, received); got != 3 {
+		t.Fatalf("cancelled event was published: received %d before marker 3", got)
+	}
+	var echo string
+	if err := client.Call(context.Background(), "echo", "alive", &echo); err != nil || echo != "alive" {
+		t.Fatalf("echo after cancelled enqueue = %q, error=%v", echo, err)
+	}
+}
+
+func TestOutboundQueueDoesNotDelayCancellationOfSentCall(t *testing.T) {
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	allowWrites := func() { releaseOnce.Do(func() { close(release) }) }
+	defer allowWrites()
+	serverControl := &delayedWriteControl{started: make(chan struct{})}
+	clientControl := &delayedWriteControl{started: make(chan struct{}), gate: release}
+	handlerStarted := make(chan struct{})
+	client, server := delayedWritePair(t, serverControl, ws.Options{Handlers: map[string]ws.Handler{
+		"wait": func(ctx context.Context, _ *ws.Peer, _ json.RawMessage) (any, error) {
+			close(handlerStarted)
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+	}}, ws.Options{QueueCapacity: 2, WriteTimeout: 5 * time.Second}, clientControl)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	returned := make(chan error, 1)
+	go func() { returned <- client.Call(ctx, "wait", nil, nil) }()
+	// Only introduce congestion after the request has reached its handler.
+	receive(t, handlerStarted)
+	clientControl.enabled.Store(true)
+	if err := client.Emit(context.Background(), "progress", 0); err != nil {
+		t.Fatal(err)
+	}
+	receive(t, clientControl.started)
+	for _, value := range []int{1, 2} {
+		if err := client.Emit(context.Background(), "progress", value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cancel()
+	select {
+	case err := <-returned:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("sent call cancellation = %v, want context canceled", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("caller cancellation waited for space to enqueue the best-effort cancellation frame")
+	}
+	if client.Err() != nil || server.Err() != nil {
+		t.Fatalf("call cancellation disconnected peers: client=%v server=%v", client.Err(), server.Err())
+	}
+	// Delivery of the remote cancellation is intentionally not required when the
+	// output queue is full. Connection cleanup releases the waiting handler.
+	allowWrites()
+}
