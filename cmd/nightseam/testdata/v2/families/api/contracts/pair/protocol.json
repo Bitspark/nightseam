@@ -1,0 +1,63 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [
+    {
+      "name": "S",
+      "of": "session"
+    },
+    {
+      "name": "T",
+      "of": "session"
+    }
+  ],
+  "types": {
+    "Echo": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "heard",
+          "type": "T.Envelope"
+        }
+      ]
+    },
+    "Frame": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "message",
+          "type": "S.Envelope"
+        },
+        {
+          "name": "back",
+          "type": "S.Handle"
+        }
+      ]
+    },
+    "Named": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "held",
+          "type": "probe.Envelope"
+        }
+      ]
+    }
+  },
+  "server": {
+    "methods": {
+      "named": {
+        "request": "Named",
+        "result": "Named"
+      },
+      "relay": {
+        "request": "T.Envelope",
+        "result": "Both"
+      }
+    },
+    "events": {
+      "echoed": {
+        "type": "Echo"
+      }
+    }
+  }
+}

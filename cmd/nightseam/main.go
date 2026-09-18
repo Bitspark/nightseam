@@ -294,6 +294,7 @@ Nothing is written that is already up to date.`,
 	}
 
 	root.AddCommand(
+		upgradeCommand(a, family),
 		&cobra.Command{
 			Use:               "generate [family...]",
 			Short:             "Render every contract, or the named ones, writing what changed",

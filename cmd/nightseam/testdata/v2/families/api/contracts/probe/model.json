@@ -1,0 +1,61 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Base": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "text",
+          "type": "string"
+        }
+      ]
+    },
+    "OpenRecord": {
+      "kind": "record",
+      "open": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "Payload": {
+      "kind": "record",
+      "extends": [
+        "Base"
+      ],
+      "fields": [
+        {
+          "name": "count",
+          "type": "integer"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    "Payloads": {
+      "kind": "alias",
+      "type": {
+        "array": "Payload"
+      }
+    },
+    "Status": {
+      "kind": "enum",
+      "values": [
+        "ready",
+        "done",
+        "context.example"
+      ]
+    }
+  }
+}

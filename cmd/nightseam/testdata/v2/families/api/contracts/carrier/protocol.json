@@ -1,0 +1,54 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [
+    {
+      "name": "S",
+      "of": "session"
+    }
+  ],
+  "types": {
+    "Attachment": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "connection",
+          "type": "S.Handle"
+        },
+        {
+          "name": "last",
+          "type": "integer"
+        }
+      ]
+    },
+    "Frame": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "sequence",
+          "type": "integer"
+        },
+        {
+          "name": "message",
+          "type": "S.Envelope"
+        }
+      ]
+    }
+  },
+  "server": {
+    "methods": {
+      "attach": {
+        "request": "AttachParams",
+        "result": "Attachment"
+      },
+      "relay": {
+        "request": "Frame",
+        "result": "probe.Envelope"
+      }
+    },
+    "events": {
+      "frame.relayed": {
+        "type": "Frame"
+      }
+    }
+  }
+}

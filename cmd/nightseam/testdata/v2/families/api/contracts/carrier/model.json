@@ -1,0 +1,20 @@
+{
+  "nightseam": 2,
+  "types": {
+    "AttachParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        }
+      ]
+    },
+    "Frames": {
+      "kind": "alias",
+      "type": {
+        "array": "Frame"
+      }
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [
+    {
+      "name": "A",
+      "of": "session"
+    },
+    {
+      "name": "B",
+      "of": "session"
+    }
+  ],
+  "types": {
+    "Borrowed": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "frame",
+          "type": {
+            "apply": "carrier.Frame",
+            "with": {
+              "S": "B"
+            }
+          }
+        }
+      ]
+    },
+    "Fixed": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "frame",
+          "type": {
+            "apply": "carrier.Frame",
+            "with": {
+              "S": "probe"
+            }
+          }
+        }
+      ]
+    },
+    "Mine": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "held",
+          "type": "A.Envelope"
+        }
+      ]
+    }
+  },
+  "server": {
+    "methods": {
+      "look": {
+        "request": "Mine",
+        "result": "Both"
+      }
+    }
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Base": {
+      "kind": "record",
+      "description": "What every payload carries.",
+      "fields": [
+        {
+          "name": "text",
+          "description": "The text of the payload.",
+          "type": "string"
+        }
+      ]
+    },
+    "Counts": {
+      "kind": "alias",
+      "type": {
+        "map": "integer"
+      }
+    },
+    "OpenRecord": {
+      "kind": "record",
+      "description": "A record that keeps the fields it does not declare.",
+      "open": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "Payload": {
+      "kind": "record",
+      "description": "A payload: a base with a count and a note that may be absent or null.",
+      "extends": [
+        "Base"
+      ],
+      "fields": [
+        {
+          "name": "count",
+          "type": "integer"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    "Payloads": {
+      "kind": "alias",
+      "description": "Payloads, in order.",
+      "type": {
+        "array": "Payload"
+      }
+    },
+    "Seen": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "at",
+          "type": "timestamp"
+        },
+        {
+          "name": "status",
+          "type": "Status"
+        },
+        {
+          "name": "extra",
+          "type": "json",
+          "required": false
+        },
+        {
+          "name": "ratio",
+          "type": "number"
+        },
+        {
+          "name": "ok",
+          "type": "boolean"
+        }
+      ]
+    },
+    "Status": {
+      "kind": "enum",
+      "description": "Where a probe stands.",
+      "values": [
+        "ready",
+        "done",
+        "context.example"
+      ]
+    }
+  }
+}

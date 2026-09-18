@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nightseam:v2:session",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "imports": {
+      "$ref": "urn:nightseam:v2:common#/$defs/imports"
+    },
+    "types": {
+      "$ref": "urn:nightseam:v2:common#/$defs/types"
+    },
+    "decides": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "asks": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "conversation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "path"
+      ],
+      "properties": {
+        "event": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "extensions": {
+      "type": "object"
+    }
+  }
+}

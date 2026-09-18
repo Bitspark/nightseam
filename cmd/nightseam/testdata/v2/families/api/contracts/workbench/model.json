@@ -1,0 +1,504 @@
+{
+  "nightseam": 2,
+  "types": {
+    "CancelWorkItemParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "expected_version",
+          "type": "integer",
+          "required": false
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
+    },
+    "CreateProjectParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "key",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "description",
+          "type": "string"
+        }
+      ]
+    },
+    "CreateWorkItemParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "project",
+          "type": "string"
+        },
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "draft",
+          "type": "SpecificationDraft",
+          "required": false
+        }
+      ]
+    },
+    "Criterion": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "description",
+          "type": "string"
+        }
+      ]
+    },
+    "Event": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "sequence",
+          "type": "integer"
+        },
+        {
+          "name": "type",
+          "type": "string"
+        },
+        {
+          "name": "project_id",
+          "type": "string"
+        },
+        {
+          "name": "work_item_id",
+          "type": "string"
+        },
+        {
+          "name": "actor_id",
+          "type": "string"
+        },
+        {
+          "name": "data",
+          "type": "json"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp"
+        }
+      ]
+    },
+    "GetWorkItemParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        }
+      ]
+    },
+    "ListEventsParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "after",
+          "type": "integer",
+          "required": false
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false
+        }
+      ]
+    },
+    "ListProjectsParams": {
+      "kind": "record",
+      "fields": []
+    },
+    "ListWorkItemsParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "project",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "state",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "Project": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "owner_id",
+          "type": "string"
+        },
+        {
+          "name": "version",
+          "type": "integer"
+        },
+        {
+          "name": "key",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "description",
+          "type": "string"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp"
+        }
+      ]
+    },
+    "PublishSpecificationParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "expected_version",
+          "type": "integer",
+          "required": false
+        }
+      ]
+    },
+    "ReopenWorkItemParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "expected_version",
+          "type": "integer",
+          "required": false
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
+    },
+    "SetDependenciesParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "expected_version",
+          "type": "integer",
+          "required": false
+        },
+        {
+          "name": "dependencies",
+          "type": {
+            "array": "string"
+          }
+        }
+      ]
+    },
+    "SetStepsParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "expected_version",
+          "type": "integer",
+          "required": false
+        },
+        {
+          "name": "steps",
+          "type": {
+            "array": "Step"
+          }
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "Specification": {
+      "kind": "record",
+      "extends": [
+        "SpecificationDraft"
+      ],
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "revision",
+          "type": "integer"
+        },
+        {
+          "name": "published_at",
+          "type": "timestamp"
+        }
+      ]
+    },
+    "SpecificationDraft": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "objective",
+          "type": "string"
+        },
+        {
+          "name": "criteria",
+          "type": {
+            "array": "Criterion"
+          }
+        },
+        {
+          "name": "constraints",
+          "type": {
+            "array": "string"
+          }
+        },
+        {
+          "name": "dependencies",
+          "type": {
+            "array": "string"
+          }
+        }
+      ]
+    },
+    "Step": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "objective",
+          "type": "string"
+        },
+        {
+          "name": "state",
+          "type": "string"
+        },
+        {
+          "name": "result_note",
+          "type": "string"
+        },
+        {
+          "name": "change_reason",
+          "type": "string"
+        }
+      ]
+    },
+    "SubscribeParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "after",
+          "type": "integer",
+          "required": false
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "SubscribeResult": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "subscribed",
+          "type": "boolean"
+        }
+      ]
+    },
+    "UpdateProjectParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "expected_version",
+          "type": "integer",
+          "required": false
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "UpdateWorkItemParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "expected_version",
+          "type": "integer",
+          "required": false
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "draft",
+          "type": "SpecificationDraft",
+          "required": false
+        }
+      ]
+    },
+    "User": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ]
+    },
+    "WorkItem": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "project_id",
+          "type": "string"
+        },
+        {
+          "name": "key",
+          "type": "string"
+        },
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "state",
+          "type": "string"
+        },
+        {
+          "name": "version",
+          "type": "integer"
+        },
+        {
+          "name": "draft",
+          "type": "SpecificationDraft",
+          "nullable": true
+        },
+        {
+          "name": "specifications",
+          "type": {
+            "array": "Specification"
+          }
+        },
+        {
+          "name": "current_specification_id",
+          "type": "string"
+        },
+        {
+          "name": "plan_specification_id",
+          "type": "string"
+        },
+        {
+          "name": "steps",
+          "type": {
+            "array": "Step"
+          }
+        },
+        {
+          "name": "dependencies",
+          "type": {
+            "array": "string"
+          }
+        },
+        {
+          "name": "readiness",
+          "type": "string"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp"
+        }
+      ]
+    }
+  }
+}

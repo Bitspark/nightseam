@@ -1,0 +1,30 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "echo": {
+        "request": "Payload",
+        "result": "Payload"
+      },
+      "no_args": {
+        "result": "string"
+      }
+    },
+    "events": {
+      "changed": {
+        "type": "Payload"
+      }
+    }
+  },
+  "client": {
+    "methods": {
+      "reverse": {
+        "request": "Payload",
+        "result": "Payload"
+      }
+    }
+  },
+  "errors": {
+    "denied": "The caller is denied"
+  }
+}

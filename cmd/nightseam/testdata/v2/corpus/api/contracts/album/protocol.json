@@ -1,0 +1,87 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [
+    {
+      "name": "A",
+      "of": "session"
+    },
+    {
+      "name": "B",
+      "of": "session"
+    }
+  ],
+  "imports": [
+    "carrier"
+  ],
+  "types": {
+    "Borrowed": {
+      "kind": "record",
+      "description": "A carrier frame, its S filled by B.",
+      "fields": [
+        {
+          "name": "frame",
+          "type": {
+            "apply": "carrier.Frame",
+            "with": {
+              "S": "B"
+            }
+          }
+        }
+      ]
+    },
+    "Both": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "mine",
+          "type": "Mine"
+        },
+        {
+          "name": "borrowed",
+          "type": "Borrowed"
+        },
+        {
+          "name": "fixed",
+          "type": "Fixed"
+        },
+        {
+          "name": "params",
+          "type": "carrier.AttachParams"
+        }
+      ]
+    },
+    "Fixed": {
+      "kind": "record",
+      "description": "A carrier frame, its S filled by probe.",
+      "fields": [
+        {
+          "name": "frame",
+          "type": {
+            "apply": "carrier.Frame",
+            "with": {
+              "S": "probe"
+            }
+          }
+        }
+      ]
+    },
+    "Mine": {
+      "kind": "record",
+      "description": "One message of A.",
+      "fields": [
+        {
+          "name": "held",
+          "type": "A.Envelope"
+        }
+      ]
+    }
+  },
+  "server": {
+    "methods": {
+      "look": {
+        "request": "Mine",
+        "result": "Both"
+      }
+    }
+  }
+}

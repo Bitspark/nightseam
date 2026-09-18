@@ -343,7 +343,10 @@ func TestImportDirection(t *testing.T) {
 	// does.
 	allowed := map[string]map[string]bool{
 		"diag":                        {},
+		"naming":                      {},
 		"model":                       {"diag": true},
+		"load":                        {"diag": true, "model": true},
+		"upgrade":                     {"naming": true},
 		"legacy/contract":             {},
 		"legacy/spi":                  {"legacy/contract": true},
 		"legacy/kernel":               {"legacy/contract": true, "legacy/spi": true},

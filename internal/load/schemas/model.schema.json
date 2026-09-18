@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nightseam:v2:model",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "nightseam"
+  ],
+  "properties": {
+    "nightseam": {
+      "const": 2
+    },
+    "imports": {
+      "$ref": "urn:nightseam:v2:common#/$defs/imports"
+    },
+    "types": {
+      "$ref": "urn:nightseam:v2:common#/$defs/types"
+    }
+  }
+}

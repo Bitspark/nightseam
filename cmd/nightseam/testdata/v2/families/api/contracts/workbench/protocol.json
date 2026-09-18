@@ -1,0 +1,89 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "events.list": {
+        "request": "ListEventsParams",
+        "result": {
+          "array": "Event"
+        }
+      },
+      "me": {
+        "result": "User"
+      },
+      "projects.create": {
+        "request": "CreateProjectParams",
+        "result": "Project"
+      },
+      "projects.list": {
+        "request": "ListProjectsParams",
+        "result": {
+          "array": "Project"
+        }
+      },
+      "projects.update": {
+        "request": "UpdateProjectParams",
+        "result": "Project"
+      },
+      "subscribe": {
+        "request": "SubscribeParams",
+        "result": "SubscribeResult"
+      },
+      "work.cancel": {
+        "request": "CancelWorkItemParams",
+        "result": "WorkItem"
+      },
+      "work.create": {
+        "request": "CreateWorkItemParams",
+        "result": "WorkItem"
+      },
+      "work.dependencies": {
+        "request": "SetDependenciesParams",
+        "result": "WorkItem"
+      },
+      "work.get": {
+        "request": "GetWorkItemParams",
+        "result": "WorkItem"
+      },
+      "work.list": {
+        "request": "ListWorkItemsParams",
+        "result": {
+          "array": "WorkItem"
+        }
+      },
+      "work.publish": {
+        "request": "PublishSpecificationParams",
+        "result": "WorkItem"
+      },
+      "work.reopen": {
+        "request": "ReopenWorkItemParams",
+        "result": "WorkItem"
+      },
+      "work.steps": {
+        "request": "SetStepsParams",
+        "result": "WorkItem"
+      },
+      "work.update": {
+        "request": "UpdateWorkItemParams",
+        "result": "WorkItem"
+      }
+    },
+    "events": {
+      "workbench.changed": {
+        "type": "Event"
+      }
+    }
+  },
+  "errors": {
+    "canceled": "The request was canceled.",
+    "conflict": "The operation conflicts with the current version or work state.",
+    "deadline_exceeded": "The request deadline expired.",
+    "internal": "An internal server error occurred.",
+    "invalid_argument": "The operation violates an application input constraint.",
+    "invalid_params": "Operation parameters are invalid.",
+    "invalid_request": "The request envelope is invalid.",
+    "method_not_found": "The Workbench operation is unknown.",
+    "not_found": "The requested project or work item does not exist.",
+    "unauthenticated": "An authenticated Workbench user is required."
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [
+    {
+      "name": "S",
+      "of": "session",
+      "description": "The family whose messages are carried."
+    }
+  ],
+  "types": {
+    "AttachParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string"
+        }
+      ]
+    },
+    "Attachment": {
+      "kind": "record",
+      "description": "A channel that speaks S, and the last sequence it saw.",
+      "fields": [
+        {
+          "name": "connection",
+          "type": "S.Handle"
+        },
+        {
+          "name": "last",
+          "type": "integer"
+        }
+      ]
+    },
+    "Frame": {
+      "kind": "record",
+      "description": "One message of S with its place in the sequence.",
+      "fields": [
+        {
+          "name": "sequence",
+          "type": "integer"
+        },
+        {
+          "name": "message",
+          "type": "S.Envelope"
+        }
+      ]
+    },
+    "Frames": {
+      "kind": "alias",
+      "type": {
+        "array": "Frame"
+      }
+    }
+  },
+  "server": {
+    "methods": {
+      "attach": {
+        "description": "Opens a channel that speaks S.",
+        "request": "AttachParams",
+        "result": "Attachment"
+      },
+      "relay": {
+        "description": "Relays a frame and answers with one message of probe.",
+        "request": "Frame",
+        "result": "probe.Envelope"
+      }
+    },
+    "events": {
+      "frame.relayed": {
+        "type": "Frame"
+      }
+    }
+  }
+}

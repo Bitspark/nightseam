@@ -1,0 +1,44 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "echo": {
+        "description": "Returns the payload, its text reversed.",
+        "request": "Payload",
+        "result": "Payload"
+      },
+      "no_args": {
+        "description": "Takes nothing and returns a string.",
+        "result": "string"
+      },
+      "seen": {
+        "request": "Seen",
+        "result": "Payloads"
+      }
+    },
+    "events": {
+      "changed": {
+        "description": "A payload changed.",
+        "type": "Payload"
+      }
+    }
+  },
+  "client": {
+    "methods": {
+      "reverse": {
+        "description": "Asks the client to reverse a payload.",
+        "request": "Payload",
+        "result": "Payload"
+      }
+    },
+    "events": {
+      "noticed": {
+        "type": "Seen"
+      }
+    }
+  },
+  "errors": {
+    "denied": "The caller is denied.",
+    "not_found": "There is no such probe."
+  }
+}

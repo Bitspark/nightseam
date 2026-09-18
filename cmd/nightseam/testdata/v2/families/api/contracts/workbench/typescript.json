@@ -1,0 +1,18 @@
+{
+  "names": {
+    "events.list": "listEvents",
+    "projects.create": "createProject",
+    "projects.list": "listProjects",
+    "projects.update": "updateProject",
+    "work.cancel": "cancelWorkItem",
+    "work.create": "createWorkItem",
+    "work.dependencies": "setDependencies",
+    "work.get": "getWorkItem",
+    "work.list": "listWorkItems",
+    "work.publish": "publishSpecification",
+    "work.reopen": "reopenWorkItem",
+    "work.steps": "setSteps",
+    "work.update": "updateWorkItem",
+    "workbench.changed": "changed"
+  }
+}

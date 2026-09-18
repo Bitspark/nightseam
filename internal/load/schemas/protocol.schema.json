@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nightseam:v2:protocol",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "profile"
+  ],
+  "$defs": {
+    "side": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "methods": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "urn:nightseam:v2:common#/$defs/memberName"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "result"
+            ],
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "request": {
+                "$ref": "urn:nightseam:v2:common#/$defs/expr"
+              },
+              "result": {
+                "$ref": "urn:nightseam:v2:common#/$defs/expr"
+              },
+              "errors": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        },
+        "events": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "urn:nightseam:v2:common#/$defs/memberName"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "type": {
+                "$ref": "urn:nightseam:v2:common#/$defs/expr"
+              }
+            }
+          }
+        },
+        "crud": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "urn:nightseam:v2:common#/$defs/typeName"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "list",
+                "get",
+                "create",
+                "update",
+                "delete"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "properties": {
+    "profile": {
+      "const": "nightseam.duplex/1"
+    },
+    "imports": {
+      "$ref": "urn:nightseam:v2:common#/$defs/imports"
+    },
+    "types": {
+      "$ref": "urn:nightseam:v2:common#/$defs/types"
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "of"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "urn:nightseam:v2:common#/$defs/parameterName"
+          },
+          "of": {
+            "enum": [
+              "session"
+            ]
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "server": {
+      "$ref": "#/$defs/side"
+    },
+    "client": {
+      "$ref": "#/$defs/side"
+    },
+    "errors": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  }
+}

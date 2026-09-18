@@ -20,9 +20,9 @@ The v1 generator lives under `internal/legacy/` — `contract`, `kernel`,
 case and the surfaces under `testdata/surface` hold it byte for byte; a
 diff there before the switch is a regression, not a change.
 
-v2 grows beside it under `internal/` — `diag`, `emit`, `model`, `load`,
-`analysis`, `check`, `render`, `spi`, `targets/`, `kernel`, `oracle`,
-`upgrade` — and lands on `main` milestone by milestone with the fast tier
+v2 grows beside it under `internal/` — `diag`, `naming`, `emit`, `model`,
+`load`, `analysis`, `check`, `render`, `spi`, `targets/`, `kernel`,
+`oracle`, `upgrade` — and lands on `main` milestone by milestone with the fast tier
 green. Before cutting and before landing a milestone:
 
 ```
