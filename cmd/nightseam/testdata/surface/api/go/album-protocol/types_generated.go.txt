@@ -18,7 +18,7 @@ func (Mine[AEnvelope]) MarshalJSON() ([]byte, error)
 func (Mine[AEnvelope]) Of() Tag
 type Borrowed[BEnvelope any] struct{Frame carrierprotocol.Frame[BEnvelope] `json:"frame"`}
 type Both[AEnvelope any, BEnvelope any] struct{Mine Mine[AEnvelope] `json:"mine"`; Borrowed Borrowed[BEnvelope] `json:"borrowed"`; Fixed Fixed `json:"fixed"`; Params carrierprotocol.AttachParams `json:"params"`}
-type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`}
+type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`; Traceparent runtime.Optional[string] `json:"traceparent,omitzero"`; Tracestate runtime.Optional[string] `json:"tracestate,omitzero"`}
 type Fixed struct{Frame carrierprotocol.Frame[probeprotocol.Envelope] `json:"frame"`}
 type Handle struct{Channel int64 `json:"channel"`}
 type Mine[AEnvelope any] struct{Held AEnvelope `json:"held"`}

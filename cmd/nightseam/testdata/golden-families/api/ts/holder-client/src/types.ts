@@ -13,6 +13,8 @@ export interface Envelope {
   "error"?: unknown;
   "event"?: string;
   "data"?: unknown;
+  "traceparent"?: string;
+  "tracestate"?: string;
 }
 export interface Handle {
   "channel": number;
@@ -26,7 +28,7 @@ export interface Family { readonly name: "holder"; Envelope: Envelope; Handle: H
 /** The session role: every family of the world that has a session tier. */
 export type SessionFamily = codex.Family | probe.Family;
 
-const contractTypes = {"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Held":{"kind":"record","fields":[{"name":"payload","type":"S.Payload","required":true},{"name":"message","type":"S.Envelope","required":true}]}} as unknown as Record<string, WireType>;
+const contractTypes = {"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Held":{"kind":"record","fields":[{"name":"payload","type":"S.Payload","required":true},{"name":"message","type":"S.Envelope","required":true}]}} as unknown as Record<string, WireType>;
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
 export const validateWire = createValidator(contractTypes, {  });
 /** This family bound: its name and its validator, to fill a slot of the session role in another family's client. */

@@ -25,6 +25,8 @@ export interface Envelope {
   "error"?: unknown;
   "event"?: string;
   "data"?: unknown;
+  "traceparent"?: string;
+  "tracestate"?: string;
 }
 /** A carrier frame, its S filled by probe. */
 export interface Fixed {
@@ -42,7 +44,7 @@ export interface Family { readonly name: "album"; Envelope: Envelope; Fixed: Fix
 /** The session role: every family of the world that has a session tier. */
 export type SessionFamily = probe.Family;
 
-const contractTypes = {"Borrowed":{"kind":"record","fields":[{"name":"frame","type":{"apply":"carrier.Frame","with":{"S":"B"}},"required":true}]},"Both":{"kind":"record","fields":[{"name":"mine","type":"Mine","required":true},{"name":"borrowed","type":"Borrowed","required":true},{"name":"fixed","type":"Fixed","required":true},{"name":"params","type":"carrier.AttachParams","required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false}]},"Fixed":{"kind":"record","fields":[{"name":"frame","type":{"apply":"carrier.Frame","with":{"S":"probe"}},"required":true}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Mine":{"kind":"record","fields":[{"name":"held","type":"A.Envelope","required":true}]}} as unknown as Record<string, WireType>;
+const contractTypes = {"Borrowed":{"kind":"record","fields":[{"name":"frame","type":{"apply":"carrier.Frame","with":{"S":"B"}},"required":true}]},"Both":{"kind":"record","fields":[{"name":"mine","type":"Mine","required":true},{"name":"borrowed","type":"Borrowed","required":true},{"name":"fixed","type":"Fixed","required":true},{"name":"params","type":"carrier.AttachParams","required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false}]},"Fixed":{"kind":"record","fields":[{"name":"frame","type":{"apply":"carrier.Frame","with":{"S":"probe"}},"required":true}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Mine":{"kind":"record","fields":[{"name":"held","type":"A.Envelope","required":true}]}} as unknown as Record<string, WireType>;
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
 export const validateWire = createValidator(contractTypes, { "carrier": validate_carrier, "probe": validate_probe });
 /** This family bound: its name and its validator, to fill a slot of the session role in another family's client. */
