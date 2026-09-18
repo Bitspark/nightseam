@@ -1,5 +1,7 @@
 import { webSocketConnection } from '@nightseam/duplex';
 import type { Frame, FrameConnection, WebSocketLike } from '@nightseam/duplex';
+import { defaultPropagator, traceOf, traced } from './trace.ts';
+import type { Propagator, Trace } from './trace.ts';
 
 export type { WebSocketLike } from '@nightseam/duplex';
 
@@ -29,11 +31,15 @@ export class DuplexError extends Error {
 }
 
 export type PeerStatus = 'disconnected' | 'connecting' | 'connected';
-export interface CallOptions { signal?: AbortSignal; timeoutMs?: number }
+/** A context makes the frame a child of the request the caller is serving. */
+export interface CallOptions { signal?: AbortSignal; timeoutMs?: number; context?: RequestContext }
+export interface EmitOptions { context?: RequestContext }
 export interface RequestContext {
   signal: AbortSignal;
   peer: DuplexPeer;
   requestId: string;
+  /** What the propagator read from the frame that started this request. */
+  trace?: Trace;
 }
 export type RequestHandler = (params: unknown, context: RequestContext) => unknown | Promise<unknown>;
 export type Dispatcher = (method: string, params: unknown, context: RequestContext) => unknown | Promise<unknown>;
@@ -49,6 +55,8 @@ export interface PeerOptions {
   requestTimeoutMs?: number;
   writeTimeoutMs?: number;
   connectTimeoutMs?: number;
+  /** Absent, the default mints W3C ids; an adapter for a tracing library replaces it. */
+  propagator?: Propagator;
   onError?: (error: DuplexError) => void;
 }
 
@@ -65,6 +73,8 @@ interface Incoming {
   controller: AbortController;
   timer: Timer;
   responded: boolean;
+  /** The request's trace; its response, and nothing else, carries it back. */
+  trace?: Trace;
 }
 interface Outgoing {
   text: string;
@@ -83,6 +93,7 @@ interface QueuedEvent { name: string; data: unknown }
 export class DuplexPeer {
   private readonly options: PeerOptions;
   private readonly limits: typeof DUPLEX_DEFAULTS;
+  private readonly propagator: Propagator;
   private readonly localPrefix: string;
   private readonly remotePrefix: string;
   private connection?: FrameConnection;
@@ -116,6 +127,7 @@ export class DuplexPeer {
         (this.limits as Record<string, number>)[key] = value;
       }
     }
+    this.propagator = options.propagator ?? defaultPropagator;
     this.localPrefix = options.role === 'server' ? 's:' : 'c:';
     this.remotePrefix = options.role === 'server' ? 'c:' : 's:';
   }
@@ -226,13 +238,15 @@ export class DuplexPeer {
       return Promise.reject(new DuplexError('identifier_exhausted', 'Create a new peer before issuing further calls.'));
     }
     const id = this.localPrefix + (++this.nextID).toString(10);
+    // One trace for the exchange: the request carries it and its cancel repeats it.
+    const trace = this.propagator.inject(options.context);
     return new Promise<T>((resolve, reject) => {
       const pending: Pending = { resolve: value => resolve(value as T), reject };
       this.pending.set(id, pending);
       const cancel = (error: DuplexError) => {
         if (!this.takePending(id)) return;
         reject(error);
-        void this.send({ version: 1, kind: 'cancel', id }).catch(() => {});
+        void this.send(traced({ version: 1, kind: 'cancel', id }, trace)).catch(() => {});
       };
       pending.timer = setTimeout(() => cancel(new DuplexError('request_timeout', `Call ${method} timed out; its outcome may be unknown.`)), options.timeoutMs ?? this.limits.requestTimeoutMs);
       if (options.signal) {
@@ -240,16 +254,16 @@ export class DuplexPeer {
         options.signal.addEventListener('abort', abort, { once: true });
         pending.removeAbort = () => options.signal!.removeEventListener('abort', abort);
       }
-      void this.send({ version: 1, kind: 'request', id, method, params }).catch(error => {
+      void this.send(traced({ version: 1, kind: 'request', id, method, params }, trace)).catch(error => {
         this.takePending(id)?.reject(asError(error, 'send_failed'));
       });
     });
   }
 
   /** Resolves when accepted by the socket and its reported byte buffer drains. */
-  emit(event: string, data: unknown = null): Promise<void> {
+  emit(event: string, data: unknown = null, options: EmitOptions = {}): Promise<void> {
     try { requireName(event, 'event'); } catch (error) { return Promise.reject(error); }
-    return this.send({ version: 1, kind: 'event', event, data });
+    return this.send(traced({ version: 1, kind: 'event', event, data }, this.propagator.inject(options.context)));
   }
 
   private isOpen(): boolean { return this.state === 'connected' && this.connection?.state === 'open'; }
@@ -349,24 +363,25 @@ export class DuplexPeer {
         }
         break;
       }
-      case 'request': this.request(frame.id as string, frame.method as string, frame.params); break;
+      case 'request': this.request(frame.id as string, frame.method as string, frame.params, traceOf(frame)); break;
       case 'event': this.event(frame.event as string, frame.data); break;
     }
   }
 
-  private request(id: string, method: string, params: unknown): void {
+  private request(id: string, method: string, params: unknown, trace?: Trace): void {
     if (this.incoming.has(id)) {
       this.fail(new DuplexError('invalid_message', 'An incoming request ID is already active.'));
       return;
     }
     if (this.incoming.size >= this.limits.maxIncomingRequests) {
-      void this.send({ version: 1, kind: 'response', id, error: { code: 'busy', message: 'Incoming request limit reached.' } }).catch(error => this.fail(asError(error)));
+      void this.send(traced({ version: 1, kind: 'response', id, error: { code: 'busy', message: 'Incoming request limit reached.' } }, trace)).catch(error => this.fail(asError(error)));
       return;
     }
     const controller = new AbortController();
     const incoming: Incoming = {
       controller,
       responded: false,
+      trace,
       timer: setTimeout(() => {
         controller.abort();
         this.respond(id, incoming, undefined, new DuplexError('request_timeout', 'Request deadline exceeded.'));
@@ -374,6 +389,7 @@ export class DuplexPeer {
     };
     this.incoming.set(id, incoming);
     const context: RequestContext = { peer: this, signal: controller.signal, requestId: id };
+    this.propagator.extract(context, trace);
     void Promise.resolve().then(() => {
       // The peer can close or cancel before the handler's first microtask.
       if (controller.signal.aborted) throw new DuplexError('cancelled', 'Request was cancelled.');
@@ -397,7 +413,8 @@ export class DuplexPeer {
     const frame: Envelope = { version: 1, kind: 'response', id };
     if (error) frame.error = { code: error.code, message: error.message, ...(error.data === undefined ? {} : { data: error.data }) };
     else frame.result = result;
-    void this.send(frame).catch(error => this.fail(asError(error)));
+    // A response carries its request's trace, and mints none of its own.
+    void this.send(traced(frame, incoming.trace)).catch(error => this.fail(asError(error)));
   }
 
   private event(name: string, data: unknown): void {

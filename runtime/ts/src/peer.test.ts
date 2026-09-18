@@ -442,7 +442,7 @@ test('trace context is kept on the decoded envelope of every kind, and tracestat
   }
 });
 
-test('a traced frame of every kind routes as before, and the peer emits no trace of its own', async t => {
+test("a traced frame of every kind routes as before, and a response carries its request's trace", async t => {
   const socket = new Socket();
   const peer = new DuplexPeer();
   await peer.attach(socket);
@@ -471,7 +471,12 @@ test('a traced frame of every kind routes as before, and the peer emits no trace
   assert.equal(peer.status, 'connected');
   assert.deepEqual(socket.sent.map(frame => frame.id), ['c:1', 's:1', 's:2']);
   assert.deepEqual(socket.sent.find(frame => frame.id === 's:1')?.result, { value: 2 });
-  assert.equal(socket.sent.some(frame => Object.hasOwn(frame, 'traceparent') || Object.hasOwn(frame, 'tracestate')), false);
+  // Each response repeats the members of the request it answers; trace.test.ts holds the rest.
+  for (const id of ['s:1', 's:2']) {
+    const response = socket.sent.find(frame => frame.id === id);
+    assert.equal(response?.traceparent, TRACEPARENT, id);
+    assert.equal(response?.tracestate, TRACESTATE, id);
+  }
 });
 
 test('a malformed traceparent is refused as any invalid frame is', async () => {
