@@ -8,6 +8,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- Generated TypeScript siblings use relative file dependencies by default;
+  `--ts-sibling` selects file, workspace or version resolution consistently
+  for generation and stale-output checks.
 - Session binding uses an optional log head lookup in Go and TypeScript,
   avoiding a full replay where the log already knows its last sequence;
   memory logs provide it, and a failed lookup cannot start a session at zero.

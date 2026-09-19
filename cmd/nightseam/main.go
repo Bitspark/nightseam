@@ -53,7 +53,7 @@ func main() {
 
 // app is the checkout every command works on, and where its generated
 // packages are rooted: the Go module and the npm scope.
-type app struct{ root, module, scope string }
+type app struct{ root, module, scope, sibling string }
 
 // kernel composes the targets for this checkout, settling the module and
 // the scope a command left to their defaults: the module is read from the
@@ -69,7 +69,7 @@ func (a *app) kernel() (*kernel.Kernel, error) {
 	if a.scope == "" {
 		a.scope = "@" + path.Base(a.module)
 	}
-	return toolKernel(a.module, a.scope), nil
+	return toolKernel(a.module, a.scope, a.sibling), nil
 }
 
 // moduleOf reads the module path a go.mod declares.
@@ -227,6 +227,7 @@ Nightseam's runtime. Nothing is written that is already up to date.`,
 	root.PersistentFlags().StringVar(&a.root, "root", ".", "repository root")
 	root.PersistentFlags().StringVar(&a.module, "module", "", "Go module the generated packages are rooted at (default: the module of <root>/go.mod)")
 	root.PersistentFlags().StringVar(&a.scope, "scope", "", "npm scope of the generated TypeScript packages (default: @ and the module's last element)")
+	root.PersistentFlags().StringVar(&a.sibling, "ts-sibling", "file", "generated TypeScript sibling dependencies: file, workspace or version")
 
 	// family completes an argument with the families' names.
 	family := func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

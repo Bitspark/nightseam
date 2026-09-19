@@ -34,6 +34,36 @@ every method returning an `unimplemented` error, and the TypeScript client's
 handler of what the server sends — as stubs under `api/impl/<family>`, or
 `--dir`. It writes once and never rewrites: the directory is the consumer's.
 
+## TypeScript sibling dependencies
+
+Generated packages refer to other generated families with relative `file:`
+dependencies by default. The generator knows where it placed both packages;
+the reference follows those locations, including custom target layouts and
+per-family placements, without requiring a registry publication.
+
+`--ts-sibling` selects the resolution mechanism for `generate` and `check`:
+
+| value | emitted dependency | use |
+| --- | --- | --- |
+| `file` (default) | `file:../session-client` | local packages, supported by npm and pnpm |
+| `workspace` | `workspace:*` | pnpm or Yarn workspaces that discover the generated packages; npm does not support this protocol |
+| `version` | `0.0.0` | the generated sibling's version, for a workspace configured to link matching versions or a registry that supplies it |
+
+Use the same flag for generation and checking. For example:
+
+```sh
+go tool nightseam generate --ts-sibling workspace
+go tool nightseam check --ts-sibling workspace
+```
+
+Include all generated packages in the consumer workspace so that the package
+manager installs each package's own runtime dependencies too. pnpm installs
+`file:` dependencies as local package copies; rerun installation after
+regenerating them, or choose `workspace` for live workspace links. The flag changes
+only references between generated families; published Nightseam runtime and
+tunnel dependencies retain their release versions. A program composing the
+TypeScript target sets the same value through `typescript.Config.Sibling`.
+
 ## Which version rendered this
 
 `version` prints the module version of the running tool — what a consumer's

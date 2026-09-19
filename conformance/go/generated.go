@@ -33,7 +33,7 @@ const GeneratedScope = "@example"
 
 // renderProbe renders the corpus's probe family into dir.
 func renderProbe(checkout, dir string) error {
-	k := compose.Kernel(GeneratedModule, GeneratedScope)
+	k := compose.Kernel(GeneratedModule, GeneratedScope, "")
 	corpus := filepath.Join(checkout, "cmd", "nightseam", "testdata", "corpus")
 	world := k.Load(os.DirFS(corpus), "api/contracts")
 	result, err := k.Render(world, "probe")
