@@ -38,8 +38,8 @@ registry.attention();
 ```
 
 `Bind` gives a session its own connection, the family's governance and its
-log; it is live from then until that connection closes, and it reads the log
-once on the way in, so that a log bound with frames already in it is bound
+log; it is live from then until that connection closes, and learns the log's
+head on the way in, so that a log bound with frames already in it is bound
 at its head rather than at nothing. `Attach` adds a consumer over a
 connection of its own, in a role — `session.Participant` or
 `session.Observer` in Go, `'participant'` or `'observer'` in TypeScript —
@@ -96,6 +96,10 @@ type Log interface {
     Append(ctx context.Context, frame Frame) (sequence int64, err error)
     Replay(ctx context.Context, after int64, deliver func(Frame) error) error
 }
+// An optional capability of a Log; Bind prefers it to Replay.
+type Header interface {
+    Head(ctx context.Context) (int64, error)
+}
 ```
 
 `NewMemoryLog(maxFrameBytes)` in Go and `memoryLog(maxFrameBytes)` in
@@ -113,10 +117,17 @@ must outlive one is the consumer's own `Log` — the interface above, over
 whatever it stores frames in — passed to `Bind` in its place; nothing else
 changes. `Replay` delivers in ascending sequence order, which is the whole of
 what a durable implementation owes beyond storing frames, and is what
-`Bind`'s one read on the way in relies on to seat the session at the log's
-head ([the log, on the wire](../wire/session.md#the-log)). A log that knows
-its head without a read may one day say so, as something the relay prefers
-where a log has it; every `Log` above stays what it is.
+`Bind`'s fallback read relies on to seat the session at the log's head
+([the log, on the wire](../wire/session.md#the-log)). A log that knows its
+head without a read implements Go `Header` or the optional TypeScript
+`Log.head(): Promise<number>`. The result is its last assigned sequence,
+zero for an empty log. Both memory logs provide this lookup without replay.
+The lookup runs before processing any machine frames, as the fallback does.
+
+A failed lookup does not fall back to replay or start from zero: Go `Bind`
+returns `session_invalid`; TypeScript's queued initialization ends the
+session and closes its connections with 1011. A negative head is invalid;
+TypeScript also requires a safe integer.
 
 ## What it refuses with
 

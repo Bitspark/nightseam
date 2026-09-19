@@ -54,7 +54,7 @@
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "check": "tsc -p tsconfig.check.json",
-    "test": "node --experimental-strip-types --test --test-timeout=10000 src/session.test.ts src/connection.test.ts src/seam.test.ts"
+    "test": "node --experimental-strip-types --test --test-timeout=10000 src/session.test.ts src/connection.test.ts src/seam.test.ts src/log.test.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

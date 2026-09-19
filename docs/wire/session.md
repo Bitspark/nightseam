@@ -176,11 +176,11 @@ storing frames: the relay holds the up connection across the append and the
 send, so that what the log says the consumers sent is the order the machine
 saw.
 
-A session is bound at its log's head: the log is read once on the way in,
-and the session seated at the last sequence that read delivered, so a
+A session is bound at its log's head: the log reports its last assigned
+sequence where it can, otherwise it is read once from the beginning, so a
 session bound after a restart stands at its log's end and a consumer
 attaching with `after: 0` before the machine has spoken again is given
-everything the log holds rather than nothing. The read happens before the
+everything the log holds rather than nothing. Learning the head happens before the
 machine's connection is read and under the relay's own lock, so a frame
 arriving while it runs is recorded above the head and never under a
 sequence the log already gave out ([the log is bound at its

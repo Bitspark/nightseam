@@ -8,6 +8,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- Session binding uses an optional log head lookup in Go and TypeScript,
+  avoiding a full replay where the log already knows its last sequence;
+  memory logs provide it, and a failed lookup cannot start a session at zero.
 - TypeScript checks include every source file, test and conformance helper
   under the build's shared compiler settings, with Node's test types and a
   compiler dependency per package; a regression test proves new test files
