@@ -24,18 +24,37 @@ are one number. Entries are in the words of the commits that landed them.
   the README renders it as the Languages table and CI holds the table to the
   matrix; the release refuses a tag whose matrix the tier table stops; the
   full matrix runs nightly and a failure becomes an issue against the
-  scenario. Go and TypeScript are tier 1; Python and Rust are planned for 2,
-  C#, Java, C++ and Haskell for 4.
+  scenario. Go and TypeScript are tier 1; Python, Rust, C++ and Haskell are
+  the pilot languages, planned for tier 2 and pushed to every profile first
+  — the two hardest in because they are the hardest — and Java and Swift
+  follow at 4.
+- A dial-only language is held in every role: a scenario no longer says who
+  opens the socket but writes `pair.conns`, `pair.peers` or
+  `pair.peer_and_conn` on the runner, which expands each from what the
+  testees answered `hello` with — the natural side listening when it can,
+  otherwise the other side listening a raw connection over which each takes
+  a peer of its role. What a scenario needs is held per side, derived from
+  each side's steps; `TestDialOnly` runs the star with TypeScript treated as
+  unable to listen and allows no skip but that one; every run builds and
+  renders under a directory of its own, since two runs may share one
+  checkout; and `matrix.json` is written only by a run that held every
+  profile for every language.
 - `docs/layers.md`, the test for where something new on the wire belongs:
   the profile's only when the peer acts on it; a layer's own vocabulary as
   ordinary frames under a reserved prefix when one layer produces it and
-  another reads it; a header when it is a consumer's fact about a call.
+  another reads it; a header when it is a consumer's fact about a call — and
+  why a header does not propagate: delivering is the peer's one action on
+  it, and a header is a fact about this call, not about the calls a handler
+  makes in answering it.
 - `meta`, the one header the profile has: a flat string map a request or an
   event may carry about the call rather than in it, delivered to the handler
   beside the payload and read into by nothing, never on a response, never in
   an observer event, `nightseam.`-prefixed keys reserved and refused. Both
   peers, both validators, the generated client and binding of both languages
-  pass it through; the session relay forwards it verbatim.
+  pass it through; the session relay forwards it verbatim. The suite holds
+  the carriage across the wire and through the relay — both testees take a
+  `meta` argument on `peer.call` and `peer.emit` — and the log is held to
+  keeping a carriage as it keeps a payload.
 - The WebSocket transport negotiates a subprotocol: `Subprotocols` on both
   sides, `SelectSubprotocol` on the server for a browser's ticket, what was
   selected readable on the peer, none offered or selected by default.
@@ -88,7 +107,37 @@ are one number. Entries are in the words of the commits that landed them.
   — both peers and the validators and the generator in one lane, emitting
   what they accept in the same commit, every caller changed in the same
   commit — and a design is chosen for being right, never for being cheap to
-  roll out; `COLLABORATION.md` says so.
+  roll out; `COLLABORATION.md` says so. It also gains the design issue — a
+  question whose answer is the operator's to give, in a Design issue form
+  under the `design` label, holding what exists today, the options lettered
+  with what each costs, a recommendation marked as whose it is, and the
+  verdict copied onto it verbatim before a lane is cut from it — and says
+  which of the two ways to commit only one's own work applies when.
+- One backpressure rule and one bound on outstanding calls, where the two
+  peers had disagreed and `docs/profile.md` had described one of them as
+  both: every queue is paced for one write deadline before its consumer is
+  called stalled, in both runtimes and on both sides of the connection,
+  because a burst that would drain in a second should not end a connection
+  — the TypeScript peer paces its outgoing queue where it failed at once
+  with `busy`, the Go peer paces its inbound event queue where it yielded
+  once and gave up. Pacing an inbound queue is pacing the remote, so
+  responses and cancellations on that connection wait behind a full event
+  queue, which is what the deadline bounds. Go gains `MaxPendingRequests`,
+  default 128, refusing the call past it with `busy` where it stands — no
+  frame, no request an observer is told of — as TypeScript always has. The
+  *Limits and backpressure* section is rewritten to the one rule, and three
+  scenarios under `conformance/scenarios/peer` hold it with either language
+  in either seat.
+- The composition root is a package: the targets, their configs and their
+  order live in `internal/compose`, which `cmd/nightseam` and the
+  conformance runner both import, so that the suite renders with exactly the
+  tool's targets — it had composed a kernel of its own and drifted to two
+  targets where the tool has three, and would have gone on validating output
+  the tool no longer produces with nothing saying so. `TestImportDirection`
+  refuses a target named anywhere else.
+- Every exported name a consumer meets first carries its doc comment, in
+  `runtime/go` and in the published TypeScript packages — what pkg.go.dev
+  and a `.d.ts` show a reader before anything else.
 - The root module's Go directive and the nested module's move together;
   `otel/go` declares 1.26.0 as its dependencies require.
 - The npm publish attaches provenance: the release workflow mints a
@@ -132,6 +181,35 @@ are one number. Entries are in the words of the commits that landed them.
   there: that event is lost and nothing else is. The rule is written down for
   both languages, in the `Observer` of each runtime and in
   [docs/observability.md](docs/observability.md).
+- A receiver's own deadline answers `cancelled` on the wire in both runtimes:
+  when a handler's deadline passed, the Go peer answered the caller
+  `cancelled` and the TypeScript peer `request_timeout`, so the code a caller
+  saw for one fact depended on which language served it. TypeScript now
+  answers what the profile's error table has always said; `request_timeout`
+  stays a caller's own error for its own deadline, never a frame anyone
+  receives, and the *Requests* section of `docs/profile.md` says so.
+- An observer's events are one order per peer, and the writer is the one
+  place a send is told: the Go peer observed a frame sent after handing it
+  to the writer, so a reply's `frame.received` could precede its request's
+  `frame.sent` in an array the suite holds to one order; the send is now
+  told by the goroutine that writes, immediately before the bytes leave, and
+  the TypeScript peer moves the same way — it told the observer where it
+  queued the frame, so a queue holding two had told both before either
+  reached the transport. `docs/observability.md` gains an *Order* section
+  stating the promise, its cost — one serialization point per direction —
+  and what it does not promise; and its trace-and-family rule, wrong about
+  two of the three layers where both runtimes had agreed all along, now says
+  that every event names the thing its layer is about while an event
+  concerning a frame carries that frame's trace.
+- The TypeScript tunnel holds the receive window its Go twin holds: a
+  channel kept what nobody had listened for in an array with no bound, so a
+  sender that ignored the credit it was granted was served rather than
+  refused and what a channel could take was the remote's to choose. A
+  TypeScript channel now holds one window, the frame beyond it ends the
+  channel with 1002, the two languages' reasons match word for word, and a
+  channel refused while nobody was listening keeps the close for its first
+  listener. Held by a case in each language and by a tunnel scenario that
+  writes `channel.frame` on the peer the tunnel runs over, in both pairings.
 
 ## 0.2.0
 
