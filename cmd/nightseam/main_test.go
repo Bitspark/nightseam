@@ -383,7 +383,7 @@ func TestImportDirection(t *testing.T) {
 		"spi":                {"diag": true, "model": true, "render": true},
 		"targets/golang":     {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
 		"targets/typescript": {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
-		"doc":                {"diag": true, "model": true, "render": true, "spi": true},
+		"doc":                {"diag": true, "model": true, "render": true, "spi": true, "pattern": true},
 		"targets/markdown":   {"doc": true, "model": true, "spi": true, "emit": true},
 		"targets/atlas":      {"doc": true, "spi": true},
 		"kernel":             {"diag": true, "model": true, "load": true, "analysis": true, "check": true, "render": true, "spi": true},

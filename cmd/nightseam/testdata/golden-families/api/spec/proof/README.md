@@ -249,7 +249,7 @@ For example:
 
 ```json
 {
-  "url": "‹url›",
+  "url": "https://a/",
   "alt": "‹alt›"
 }
 ```

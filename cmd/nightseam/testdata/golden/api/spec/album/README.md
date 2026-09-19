@@ -46,7 +46,7 @@ For example:
 {
   "frame": {
     "sequence": 0,
-    "message": "‹S.Envelope›"
+    "message": "‹B.Envelope›"
   }
 }
 ```
@@ -96,13 +96,28 @@ For example:
   "borrowed": {
     "frame": {
       "sequence": 0,
-      "message": "‹S.Envelope›"
+      "message": "‹B.Envelope›"
     }
   },
   "fixed": {
     "frame": {
       "sequence": 0,
-      "message": "‹S.Envelope›"
+      "message": {
+        "version": 0,
+        "kind": "‹kind›",
+        "id": "‹id›",
+        "method": "‹method›",
+        "params": {},
+        "result": {},
+        "error": {},
+        "event": "‹event›",
+        "data": {},
+        "traceparent": "‹traceparent›",
+        "tracestate": "‹tracestate›",
+        "meta": {
+          "‹key›": "‹meta›"
+        }
+      }
     }
   },
   "params": {
@@ -144,7 +159,22 @@ For example:
 {
   "frame": {
     "sequence": 0,
-    "message": "‹S.Envelope›"
+    "message": {
+      "version": 0,
+      "kind": "‹kind›",
+      "id": "‹id›",
+      "method": "‹method›",
+      "params": {},
+      "result": {},
+      "error": {},
+      "event": "‹event›",
+      "data": {},
+      "traceparent": "‹traceparent›",
+      "tracestate": "‹tracestate›",
+      "meta": {
+        "‹key›": "‹meta›"
+      }
+    }
   }
 }
 ```
@@ -324,13 +354,28 @@ The server answers:
     "borrowed": {
       "frame": {
         "sequence": 0,
-        "message": "‹S.Envelope›"
+        "message": "‹B.Envelope›"
       }
     },
     "fixed": {
       "frame": {
         "sequence": 0,
-        "message": "‹S.Envelope›"
+        "message": {
+          "version": 0,
+          "kind": "‹kind›",
+          "id": "‹id›",
+          "method": "‹method›",
+          "params": {},
+          "result": {},
+          "error": {},
+          "event": "‹event›",
+          "data": {},
+          "traceparent": "‹traceparent›",
+          "tracestate": "‹tracestate›",
+          "meta": {
+            "‹key›": "‹meta›"
+          }
+        }
       }
     },
     "params": {

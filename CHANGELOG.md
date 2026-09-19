@@ -8,6 +8,8 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Documentation examples honor array lengths and explicit family bindings,
+  and synthesize checked witnesses for supported patterned strings.
 - Registry smoke consumers have their own pnpm workspace boundary, so an
   install beneath an existing workspace leaves its manifest, settings and
   lockfile unchanged while retaining the release's dependency declarations.
