@@ -570,14 +570,18 @@ func (c *checker) apply(x model.Apply, at diag.Location, where site) {
 			c.Add(here, "self_slot", "A parameter cannot be filled with the family that declares the application.")
 		case f.Imported[family] == nil:
 			c.Addf(here, "unresolved_type", "Family %s fills a parameter and is not imported.", family)
-		case f.Carriers(parameter.Of)[family] == nil && family != f.Name:
+		case f.Carriers(parameter.Of)[family] == nil:
 			c.Addf(here, "invalid_filler", "Family %s fills parameter %s of %s, which is of the %s tier, and %s does not carry it.", family, name, applied(x), parameter.Of, family)
 		}
 	}
+	// The applied type is a declaration like any other, so it is of this
+	// declaration's tier or a lower one.
+	rank, in := where.context, f
 	if x.Family != "" {
-		if t := f.Imported[x.Family].Types[x.Name]; t != nil && f.Imported[x.Family].Rank(x.Name) > where.context {
-			c.tierViolation(at, where.context, x.Family+"."+x.Name, t.At.File)
-		}
+		in = f.Imported[x.Family]
+	}
+	if in.Rank(x.Name) > rank {
+		c.tierViolation(at, rank, applied(x), target.At.File)
 	}
 }
 
