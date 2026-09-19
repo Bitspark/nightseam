@@ -6,6 +6,14 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Fixed
+
+- Release verification waits up to thirty minutes for registry propagation,
+  with retry backoff capped at thirty seconds, so cached Go proxy misses
+  have time to expire after a tag is published.
+- `nightseam init` skips Go handler scaffolds for model-only families,
+  which have no generated binding package to implement.
+
 ### Changed
 
 - The specification is a document the generator builds once from the
@@ -26,6 +34,12 @@ are one number. Entries are in the words of the commits that landed them.
   member the config lacks, or what the tool's flags set; a problem of it
   is the checkout's own diagnostic, which `validate` now prints first and
   which refuses `generate`, `check` and `init`.
+- Session families expose typed `session.control` and `session.cursor`
+  callbacks through the built-in family's ordinary protocol side. Initial
+  control is available before replay through construction-time events;
+  later callbacks observe transfers and releases. Generation includes the
+  shared session payload package, and the checker reserves `session.` for
+  the layer's own operations in every consumer family.
 - Both runtime validators read literals, nullable and inline shapes, scoped
   type and family applications, explicit generic inheritance and adjacent
   union payloads. Family descriptors retain parameter and import ownership;
@@ -38,6 +52,14 @@ are one number. Entries are in the words of the commits that landed them.
   inline shapes, mixed type and family parameters, and inherited sides.
   Generated codecs retain the supplied types' validation constraints;
   model-only families generate their types without protocol helpers.
+
+- The TypeScript target renders the settled type language: adjacent unions,
+  nullable and literal expressions, inline shapes, type and family parameters,
+  nested applications and explicitly bound inheritance. Generated clients
+  retain imported operation names and validate both parameter kinds through
+  scoped runtime bindings. Model-only families emit types and a validator;
+  the proof family and built-ins compile, and executable fixtures hold
+  inherited calls, events, reverse calls and lossless union payloads.
 
 ## 0.4.0 - 2026-09-19
 

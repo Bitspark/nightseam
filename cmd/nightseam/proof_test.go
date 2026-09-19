@@ -13,7 +13,6 @@ import (
 	"github.com/Bitspark/nightseam/internal/model/builtin"
 	"github.com/Bitspark/nightseam/internal/render"
 	"github.com/Bitspark/nightseam/internal/targets/golang"
-	"github.com/Bitspark/nightseam/internal/targets/markdown"
 )
 
 // proofWorld reads the proof checkout: one contract using every form the
@@ -36,8 +35,8 @@ func proofWorld(t *testing.T) analysis.World {
 // values that may be null, a type parameter beside a family parameter of
 // the protocol tier on one declaration, a local application, a side that
 // extends another family's, and a pattern in the dialect — is accepted by
-// the neutral checks. Go and the specification have their own golden
-// corpora; targets still learning these forms hold their refusals below.
+// the neutral checks. Both language targets and the specification also
+// accept it and hold their complete output in golden corpora.
 func TestProofFamilyIsAccepted(t *testing.T) {
 	world := proofWorld(t)
 	for name := range world {
@@ -47,10 +46,8 @@ func TestProofFamilyIsAccepted(t *testing.T) {
 	}
 }
 
-// TestProofFamilyUsesEveryNewForm: every form the targets do not render yet
-// is used by the proof family, each named once — so that a form dropped
-// from the fixture fails here rather than going unproved, and so that the
-// names a target's refusal carries are written down in one place.
+// TestProofFamilyUsesEveryNewForm holds the settled forms as a fixed list,
+// so dropping a form from the proof cannot silently leave it unproved.
 func TestProofFamilyUsesEveryNewForm(t *testing.T) {
 	r := render.Build(analysis.Resolve(proofWorld(t), "proof"))
 	var got []string
@@ -93,31 +90,13 @@ func TestProofFamilyDerivesItsInlineNames(t *testing.T) {
 	}
 }
 
-// TestEveryTargetRefusesWhatItDoesNotRender: a target still learning the
-// proof family refuses each form it does not render, naming the form and
-// itself. Go and the specification render the complete proof. Refusals
-// keep the code corpus green while the remaining language render
-// lanes catch up — a target that met a form it had never been taught would
-// otherwise emit something that is not what was declared, or nothing at
-// all, and the golden files would say neither.
-func TestEveryTargetRefusesWhatItDoesNotRender(t *testing.T) {
+// Every composed target accepts the complete language proof; a new renderer
+// must uphold the same contract before joining the composition.
+func TestEveryTargetAcceptsSettledLanguage(t *testing.T) {
 	r := render.Build(analysis.Resolve(proofWorld(t), "proof"))
-	forms := len(render.FormsUsed(r))
 	for _, target := range compose.Targets("example.com/api", "@example", "") {
-		diagnostics := target.Check(r)
-		if target.Name() == golang.Name || target.Name() == markdown.Name {
-			if len(diagnostics) != 0 {
-				t.Errorf("%s refuses the complete proof: %v", target.Name(), diagnostics)
-			}
-			continue
-		}
-		if len(diagnostics) != forms {
-			t.Errorf("%s refused %d of the %d forms it does not render", target.Name(), len(diagnostics), forms)
-		}
-		for _, d := range diagnostics {
-			if d.Code != "unrendered_form" || !strings.Contains(d.Message, target.Name()) {
-				t.Errorf("%s said %s", target.Name(), d)
-			}
+		if diagnostics := target.Check(r); len(diagnostics) != 0 {
+			t.Errorf("%s refuses the complete proof: %v", target.Name(), diagnostics)
 		}
 	}
 }

@@ -18,10 +18,8 @@ package doc
 
 import (
 	"encoding/json"
-	"strings"
 
 	"github.com/Bitspark/nightseam/internal/model"
-	"github.com/Bitspark/nightseam/internal/model/builtin"
 	"github.com/Bitspark/nightseam/internal/render"
 )
 
@@ -178,7 +176,7 @@ func BuildCheckout(w *render.World) *Checkout {
 
 // Build documents one family as render presents it.
 func Build(f *render.Family) *Family {
-	d := &Family{Name: f.Name, Source: f.Source, Builtin: strings.HasPrefix(f.Source, builtin.Prefix), Files: f.Files, Imports: f.References, Carries: f.Carries, Generic: f.Generic, Protocol: f.HasProtocol()}
+	d := &Family{Name: f.Name, Source: f.Source, Builtin: f.Builtin, Files: f.Files, Imports: f.References, Carries: f.Carries, Generic: f.Generic, Protocol: f.HasProtocol()}
 	for _, p := range f.Parameters {
 		d.Parameters = append(d.Parameters, Parameter{Name: p.Name, Of: p.Of, Description: p.Description, Drawn: drawn(p.Uses, p.Name)})
 	}

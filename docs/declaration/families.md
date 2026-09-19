@@ -258,6 +258,14 @@ which is plainly not a file of the checkout. [A tier is a built-in
 family](../decisions/a-tier-is-a-built-in-family.md) is the record, and
 `internal/model/builtin/` the declarations.
 
+The session tier's built-in remains a shared family. A family with
+`session.json` implicitly extends its protocol sides, so `session.control`
+and `session.cursor` arrive as ordinary typed events whose payloads are
+`session.Control` and `session.Cursor`. Generation emits the shared session
+package beside the application packages. Extending an application's side
+alone does not acquire its session tier. Consumer declarations may not use
+the `session.` method or event prefix, whether they have that tier or not.
+
 ## session.json
 
 ```json

@@ -5,6 +5,7 @@ import (
 	context "context"
 	json "encoding/json"
 	protocol "example.com/probe/api/go/probe-protocol"
+	sessionprotocol "example.com/probe/api/go/session-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
@@ -73,6 +74,8 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	families["echo"] = "probe"
 	families["reverse"] = "probe"
+	families["session.control"] = "probe"
+	families["session.cursor"] = "probe"
 	families["changed"] = "probe"
 	options.Families = families
 	return nil
@@ -92,6 +95,18 @@ func Serve(ctx context.Context, conn duplex.Conn, options runtime.Options, handl
 		return nil, err
 	}
 	return runtime.NewPeer(ctx, conn, runtime.ServerRole, options)
+}
+func (c *Remote) EmitSessionControl(ctx context.Context, data sessionprotocol.Control) error {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"session.Control\""), data); err != nil {
+		return err
+	}
+	return c.Peer.Emit(ctx, "session.control", data)
+}
+func (c *Remote) EmitSessionCursor(ctx context.Context, data sessionprotocol.Cursor) error {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"session.Cursor\""), data); err != nil {
+		return err
+	}
+	return c.Peer.Emit(ctx, "session.cursor", data)
 }
 func (c *Remote) EmitChanged(ctx context.Context, data protocol.Payload) error {
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Payload\""), data); err != nil {

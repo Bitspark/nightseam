@@ -24,7 +24,12 @@ import (
 	binding "example.test/generated/api/go/probe-binding"
 	client "example.test/generated/api/go/probe-client"
 	protocol "example.test/generated/api/go/probe-protocol"
+	sessionprotocol "example.test/generated/api/go/session-protocol"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/duplex/go/ws"
 	"github.com/Bitspark/nightseam/runtime/go"
+	"github.com/Bitspark/nightseam/session/go"
+	"github.com/coder/websocket"
 )
 
 func main() {
@@ -150,22 +155,85 @@ func (s *server) Echo(ctx context.Context, remote *binding.Remote, params protoc
 	params.Text = string(runes)
 	return params, nil
 }
-func (s *server) NoArgs(ctx context.Context, remote *binding.Remote) (string, error) { return "none", nil }
+func (s *server) NoArgs(ctx context.Context, remote *binding.Remote) (string, error) {
+	return "none", nil
+}
 func (s *server) Seen(ctx context.Context, remote *binding.Remote, params protocol.Seen) (protocol.Payloads, error) {
 	return protocol.Payloads{}, nil
 }
 
 // served is a served binding under control.
 type served struct {
-	http    *http.Server
-	url     string
-	peer    chan *runtime.Peer
-	remote  *binding.Remote
-	noticed chan protocol.Seen
-	mu      sync.Mutex
+	http        *http.Server
+	url         string
+	peer        chan *runtime.Peer
+	remote      *binding.Remote
+	noticed     chan protocol.Seen
+	mu          sync.Mutex
+	registry    *session.Registry
+	attachments map[string]*session.Attachment
+	attached    chan struct{}
+	connections int
+	machine     *runtime.Peer
 }
 
-func (s *served) shutdown() { _ = s.http.Close() }
+func (s *served) shutdown() {
+	_ = s.http.Close()
+	if s.machine != nil {
+		_ = s.machine.Close()
+	}
+}
+
+// A relay-backed endpoint uses the real generated binding as its machine.
+// Each accepted consumer is named by its connection order, consumer1, ... .
+func (s *served) sessionHandler() (http.Handler, error) {
+	registry, err := session.New(session.Options{})
+	if err != nil {
+		return nil, err
+	}
+	s.registry, s.attachments, s.attached = registry, map[string]*session.Attachment{}, make(chan struct{}, 16)
+	up, machine := duplex.Pipe(1 << 20)
+	peer, err := binding.Serve(context.Background(), machine, runtime.Options{}, &server{noticed: s.noticed})
+	if err != nil {
+		_ = up.Abort()
+		_ = machine.Abort()
+		return nil, err
+	}
+	s.machine, s.remote = peer, &binding.Remote{Peer: peer}
+	log := session.NewMemoryLog(1 << 20)
+	_, err = log.Append(context.Background(), session.Frame{Direction: session.Down, Message: json.RawMessage(`{"version":1,"kind":"event","event":"changed","data":{"text":"replay","count":1}}`)})
+	if err == nil {
+		err = registry.Bind("generated", up, session.Governance{Decides: client.Decides, Asks: client.Asks}, log)
+	}
+	if err != nil {
+		_ = peer.Close()
+		_ = up.Abort()
+		return nil, err
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+		if err != nil {
+			return
+		}
+		s.mu.Lock()
+		s.connections++
+		origin := fmt.Sprintf("consumer%d", s.connections)
+		s.mu.Unlock()
+		down := ws.New(conn, 1<<20)
+		attachment, err := registry.Attach("generated", down, session.Participant, origin, 0)
+		if err != nil {
+			_ = down.Abort()
+			return
+		}
+		s.mu.Lock()
+		s.attachments[origin] = attachment
+		s.mu.Unlock()
+		select {
+		case s.attached <- struct{}{}:
+		default:
+		}
+	}), nil
+}
 
 // The canned client handler: reverse answers the payload with its text
 // prefixed by the language's name.
@@ -178,12 +246,44 @@ func (clientHandler) Reverse(ctx context.Context, c *client.Client, params proto
 
 // dialled is a generated client under control.
 type dialled struct {
-	client  *client.Client
-	changed chan protocol.Payload
-	cancel  context.CancelFunc
+	client            *client.Client
+	changed           chan protocol.Payload
+	notifications     []map[string]any
+	notificationMu    sync.Mutex
+	notificationReady chan struct{}
+	cancel            context.CancelFunc
 }
 
 func (d *dialled) shutdown() { _ = d.client.Close(); d.cancel() }
+func (d *dialled) control(_ context.Context, data sessionprotocol.Control) {
+	d.notification("session.control", decoded(data))
+}
+func (d *dialled) notification(event string, data any) {
+	d.notificationMu.Lock()
+	d.notifications = append(d.notifications, map[string]any{"event": event, "data": data})
+	d.notificationMu.Unlock()
+	select {
+	case d.notificationReady <- struct{}{}:
+	default:
+	}
+}
+func (d *dialled) awaitNotification(ctx context.Context) (map[string]any, error) {
+	for {
+		d.notificationMu.Lock()
+		if len(d.notifications) > 0 {
+			next := d.notifications[0]
+			d.notifications = d.notifications[1:]
+			d.notificationMu.Unlock()
+			return next, nil
+		}
+		d.notificationMu.Unlock()
+		select {
+		case <-d.notificationReady:
+		case <-ctx.Done():
+			return nil, fail("timeout", "no typed notification")
+		}
+	}
+}
 
 func (t *testee) lookup(handle string) (any, bool) {
 	t.mu.Lock()
@@ -230,26 +330,37 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		return nil, nil
 	case "gen.serve":
 		s := &served{peer: make(chan *runtime.Peer, 1), noticed: make(chan protocol.Seen, 16)}
-		handler, err := binding.NewHandler(&server{noticed: s.noticed}, runtime.ServerOptions{
-			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
-			CheckOrigin:  func(*http.Request) bool { return true },
-			OnConnect: func(p *runtime.Peer) {
-				remote := &binding.Remote{Peer: p}
-				_ = remote.OnNoticed(func(_ context.Context, data protocol.Seen) { s.noticed <- data })
-				s.mu.Lock()
-				s.remote = remote
-				s.mu.Unlock()
-				select {
-				case s.peer <- p:
-				default:
-				}
-			},
-		})
+		var sessionMode bool
+		_ = json.Unmarshal(raw["session"], &sessionMode)
+		var handler http.Handler
+		var err error
+		if sessionMode {
+			handler, err = s.sessionHandler()
+		} else {
+			handler, err = binding.NewHandler(&server{noticed: s.noticed}, runtime.ServerOptions{
+				Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
+				CheckOrigin:  func(*http.Request) bool { return true },
+				OnConnect: func(p *runtime.Peer) {
+					remote := &binding.Remote{Peer: p}
+					_ = remote.OnNoticed(func(_ context.Context, data protocol.Seen) { s.noticed <- data })
+					s.mu.Lock()
+					s.remote = remote
+					s.mu.Unlock()
+					select {
+					case s.peer <- p:
+					default:
+					}
+				},
+			})
+		}
 		if err != nil {
 			return nil, fail("failed", "%v", err)
 		}
 		socket, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
+			if s.machine != nil {
+				_ = s.machine.Close()
+			}
 			return nil, err
 		}
 		s.url = "ws://" + socket.Addr().String()
@@ -260,17 +371,26 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		// The dialling context is the connection's lifetime, so it lives as
 		// long as the client does.
 		ctx, cancel := context.WithCancel(context.Background())
-		d := &dialled{changed: make(chan protocol.Payload, 16), cancel: cancel}
-		c, err := client.Dial(ctx, str(raw, "url"), runtime.DialOptions{}, clientHandler{}, client.Events{
-			Changed: func(_ context.Context, data protocol.Payload) { d.changed <- data },
-		})
+		d := &dialled{changed: make(chan protocol.Payload, 16), notificationReady: make(chan struct{}, 1), cancel: cancel}
+		events := client.Events{Changed: func(_ context.Context, data protocol.Payload) {
+			d.changed <- data
+			d.notification("changed", decoded(data))
+		}}
+		control := true
+		if value, ok := raw["control"]; ok {
+			_ = json.Unmarshal(value, &control)
+		}
+		if control {
+			events.SessionControl = d.control
+		}
+		c, err := client.Dial(ctx, str(raw, "url"), runtime.DialOptions{}, clientHandler{}, events)
 		if err != nil {
 			cancel()
 			return nil, fail("failed", "%v", err)
 		}
 		d.client = c
 		return map[string]any{"handle": t.mint("cl", d)}, nil
-	case "client.echo", "client.seen", "client.no_args", "client.emit_noticed", "client.await_changed", "client.close":
+	case "client.echo", "client.seen", "client.no_args", "client.emit_noticed", "client.await_changed", "client.await_notification", "client.on_control", "client.close":
 		object, ok := t.lookup(str(raw, "on"))
 		d, is := object.(*dialled)
 		if !ok || !is {
@@ -279,6 +399,10 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		ctx, cancel := context.WithTimeout(context.Background(), within(raw))
 		defer cancel()
 		switch op {
+		case "client.on_control":
+			return nil, d.client.OnSessionControl(d.control)
+		case "client.await_notification":
+			return d.awaitNotification(ctx)
 		case "client.echo":
 			var params protocol.Payload
 			if err := json.Unmarshal(raw["params"], &params); err != nil {
@@ -325,7 +449,7 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 			_ = d.client.Close()
 			return nil, nil
 		}
-	case "server.emit_changed", "server.await_noticed", "server.reverse":
+	case "server.emit_changed", "server.await_noticed", "server.reverse", "server.control":
 		object, ok := t.lookup(str(raw, "on"))
 		s, is := object.(*served)
 		if !ok || !is {
@@ -333,6 +457,28 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), within(raw))
 		defer cancel()
+		if op == "server.control" {
+			if s.registry == nil {
+				return nil, fail("invalid", "the server has no session")
+			}
+			origin := str(raw, "origin")
+			if origin == "" {
+				return nil, s.registry.Control("generated", nil)
+			}
+			for {
+				s.mu.Lock()
+				holder := s.attachments[origin]
+				s.mu.Unlock()
+				if holder != nil {
+					return nil, s.registry.Control("generated", holder)
+				}
+				select {
+				case <-s.attached:
+				case <-ctx.Done():
+					return nil, fail("timeout", "no consumer %s", origin)
+				}
+			}
+		}
 		s.mu.Lock()
 		remote := s.remote
 		s.mu.Unlock()

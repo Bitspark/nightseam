@@ -665,7 +665,19 @@ func Protocol(f *analysis.Family) []diag.Diagnostic {
 	context := model.Rank(model.ProtocolFile)
 	where := site{context: context, inline: true}
 	wire := map[string]diag.Location{}
+	reserved := func(name string, at diag.Location) {
+		for _, tier := range model.Tiers {
+			if tier.Builtin == "" || tier.Carries || !strings.HasPrefix(name, tier.Builtin+".") {
+				continue
+			}
+			owner, ok := f.Builtin(tier.Builtin)
+			if ok && f.Source != owner.Source {
+				c.Addf(at, "reserved_name", "Operation %s is in the namespace of the built-in %s family; its operations come from the %s tier and may not be declared by a consumer.", name, tier.Builtin, tier.Name)
+			}
+		}
+	}
 	operation := func(direction, name string, at diag.Location) {
+		reserved(name, at)
 		key := direction + ":" + name
 		if previous, ok := wire[key]; ok {
 			c.Addf(at, "operation_collision", "Operation %s collides with the one at %s: both flow %s under one name.", name, previous, direction)

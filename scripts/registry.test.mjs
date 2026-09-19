@@ -81,6 +81,24 @@ test("a propagation timeout names every package still unavailable and the last r
   });
 });
 
+test("the default window outlasts a cached Go proxy miss without polling aggressively", { timeout: 5_000 }, async t => {
+  let now = 0;
+  const fake = await registry(t, (path, count, res) => {
+    if (path === core && now < 20 * 60_000) res.writeHead(404).end();
+    else ready(path, res);
+  });
+  const clock = {
+    now: () => now,
+    sleep: async milliseconds => { now += milliseconds; },
+  };
+  await waitForRegistries(tag, { ...fake.options, clock });
+  assert.ok(now >= 20 * 60_000, "the cached miss must expire before the release passes");
+  assert.ok(now <= 20 * 60_000 + 30_000, "availability must be noticed within the longest retry interval");
+  assert.ok(fake.calls.get(core) <= 45, "a long propagation wait must back off instead of polling every ten seconds");
+  assert.equal(fake.calls.get(adapter), 1, "an available module should not be polled again");
+  assert.equal(fake.calls.get(runtime), 1, "an available package should not be polled again");
+});
+
 test("an early timer wakeup does not start another request at the deadline", async t => {
   const fake = await registry(t, (path, count, res) => {
     if (path === runtime) res.writeHead(404).end();

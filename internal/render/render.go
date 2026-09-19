@@ -23,6 +23,7 @@ type Use = analysis.Use
 type Family struct {
 	Name            string
 	Source          string      // original declaration directory, including a built-in's distinct namespace
+	Builtin         bool        // the source belongs to the embedded built-in namespace
 	Files           []string    // the tier files present
 	Generic         bool        // whether any type or operation draws on a parameter
 	Parameters      []Parameter // in declaration order
@@ -40,7 +41,6 @@ type Family struct {
 	types           map[string]*Type
 	builder         *builder
 	inlines         map[*model.Type]*Type
-	imported        map[string]*Family
 }
 
 // Parameter is one parameter of a generic family with the types it is
@@ -209,7 +209,7 @@ func (b *builder) build(f *analysis.Family) *Family {
 	if r := b.families[f]; r != nil {
 		return r
 	}
-	r := &Family{Name: f.Name, Source: f.Source, Files: f.Files, overrides: map[string]model.Overrides{}, f: f, types: map[string]*Type{}, builder: b, inlines: map[*model.Type]*Type{}}
+	r := &Family{Name: f.Name, Source: f.Source, Builtin: f.IsBuiltin(), Files: f.Files, overrides: map[string]model.Overrides{}, f: f, types: map[string]*Type{}, builder: b, inlines: map[*model.Type]*Type{}}
 	b.families[f] = r
 	for _, p := range f.Parameters() {
 		r.Parameters = append(r.Parameters, Parameter{Name: p.Name, Of: p.Of, Description: p.Description, At: p.At})
@@ -274,24 +274,6 @@ func union(sets ...[]Use) []Use {
 
 // Type finds a type by name.
 func (r *Family) Type(name string) *Type { return r.types[name] }
-
-// Imported is an imported family, ready to render, or nil where the world
-// lacks it: what a rendering that reaches into an imported type's shape —
-// an example of it, say — reads it through.
-func (r *Family) Imported(family string) *Family {
-	if imported, ok := r.imported[family]; ok {
-		return imported
-	}
-	if r.imported == nil {
-		r.imported = map[string]*Family{}
-	}
-	var imported *Family
-	if other, ok := r.f.Imported[family]; ok {
-		imported = Build(other)
-	}
-	r.imported[family] = imported
-	return imported
-}
 
 // IsParameter reports whether a plain name in an expression names a
 // parameter of the family rather than a type of it.

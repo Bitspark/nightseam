@@ -219,7 +219,7 @@ func TestGeneratedTypeScriptChecksAndValidates(t *testing.T) {
 			copyFixtureTree(t, filepath.Join(root, "tunnel/ts"), filepath.Join(directory, "tunnel/ts"))
 			// Node refuses to strip source TypeScript inside node_modules. A paths entry
 			// gives the compiler the runtime; executable validation imports protocol types.
-			config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@nightseam/runtime": []string{"./runtime/ts/src/index.ts"}, "@nightseam/duplex": []string{"./duplex/ts/src/index.ts"}, "@nightseam/tunnel": []string{"./tunnel/ts/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts", "tunnel/ts/**/*.ts"}}
+			config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@example/*": []string{"./api/ts/*/src/index.ts"}, "@nightseam/runtime": []string{"./runtime/ts/src/index.ts"}, "@nightseam/duplex": []string{"./duplex/ts/src/index.ts"}, "@nightseam/tunnel": []string{"./tunnel/ts/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts", "tunnel/ts/**/*.ts"}}
 			data, _ := json.Marshal(config)
 			writeFixture(t, directory, "tsconfig.json", data)
 			writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))
@@ -267,9 +267,9 @@ for (const [name, family] of [['started echo', 'probe'], ['ended echo', 'probe']
 client.close();
 `
 
-// runtimeLoader resolves the runtime packages to their sources for Node,
-// which does not strip types inside node_modules.
-const runtimeLoader = `export async function resolve(specifier,context,next){const map={'@nightseam/runtime':'./runtime/ts/src/index.ts','@nightseam/duplex':'./duplex/ts/src/index.ts','@nightseam/tunnel':'./tunnel/ts/src/index.ts'};if(map[specifier])return {url:new URL(map[specifier],import.meta.url).href,shortCircuit:true};return next(specifier,context);}`
+// runtimeLoader resolves runtime and generated sibling packages to their
+// sources for Node, which does not strip types inside node_modules.
+const runtimeLoader = `export async function resolve(specifier,context,next){const map={'@nightseam/runtime':'./runtime/ts/src/index.ts','@nightseam/duplex':'./duplex/ts/src/index.ts','@nightseam/tunnel':'./tunnel/ts/src/index.ts'};const entry=map[specifier]??(specifier.startsWith('@example/')?'./api/ts/'+specifier.slice('@example/'.length)+'/src/index.ts':undefined);if(entry)return {url:new URL(entry,import.meta.url).href,shortCircuit:true};return next(specifier,context);}`
 
 func TestWorkbenchContractRenders(t *testing.T) {
 	files := renderTool(t, familiesRoot)
@@ -318,7 +318,7 @@ func TestCommands(t *testing.T) {
 		t.Fatalf("check passed an ungenerated checkout: %v\n%s", err, errs)
 	}
 	out, _, err = run(t, root, "generate", "probe")
-	if err != nil || strings.Count(out, "generated ") != 9 {
+	if err != nil || strings.Count(out, "generated ") != 18 {
 		t.Fatalf("generate: %v\n%s", err, out)
 	}
 	if _, err := os.Stat(filepath.Join(root, "api", "ts", "probe-client", "src", "index.ts")); err != nil {
@@ -382,7 +382,7 @@ func TestImportDirection(t *testing.T) {
 		"spi":                {"diag": true, "render": true},
 		"targets/golang":     {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
 		"targets/typescript": {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
-		"doc":                {"diag": true, "model": true, "model/builtin": true, "render": true, "spi": true},
+		"doc":                {"diag": true, "model": true, "render": true, "spi": true},
 		"targets/markdown":   {"doc": true, "model": true, "spi": true, "emit": true},
 		"kernel":             {"diag": true, "model": true, "load": true, "analysis": true, "check": true, "render": true, "spi": true},
 		"compose":            {"kernel": true, "spi": true, "diag": true, "load": true, "doc": true, "targets/golang": true, "targets/typescript": true, "targets/markdown": true},

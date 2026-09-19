@@ -188,7 +188,7 @@ func (x *exampler) value(e model.TypeExpr, name string, c constraints) value {
 		}
 		return placeholder(v.Name)
 	case model.Imported:
-		if other := x.f.Imported(v.Family); other != nil {
+		if other := x.f.ReferencedFamily(v.Family); other != nil && other != x.f {
 			if t := other.Type(v.Name); t != nil {
 				return x.in(other).typed(t, name, c)
 			}
@@ -305,7 +305,7 @@ func (x *exampler) variant(tag, valueMember string, v model.Variant) value {
 func (x *exampler) applied(a model.Apply, name string, c constraints) value {
 	f := x.f
 	if a.Family != "" {
-		if f = x.f.Imported(a.Family); f == nil {
+		if f = x.f.ReferencedFamily(a.Family); f == nil {
 			return placeholder(a.Family + "." + a.Name)
 		}
 	}

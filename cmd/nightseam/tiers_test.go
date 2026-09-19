@@ -35,7 +35,7 @@ func TestTierFilesAreLoadedAndRendered(t *testing.T) {
 	if out, _, err := run(t, root, "validate"); err != nil || out != "1 families; valid\n" {
 		t.Fatalf("validate: %v\n%s", err, out)
 	}
-	if out, _, err := run(t, root, "generate"); err != nil || strings.Count(out, "generated ") != 9 {
+	if out, _, err := run(t, root, "generate"); err != nil || strings.Count(out, "generated ") != 18 {
 		t.Fatalf("generate: %v\n%s", err, out)
 	}
 	client, err := os.ReadFile(filepath.Join(root, "api/go/probe-client/client_generated.go"))
@@ -150,6 +150,27 @@ func TestGenerateRemovesWhatNothingRenders(t *testing.T) {
 	}
 }
 
+// A model-only family has generated types but no protocol handler to implement.
+func TestInitSkipsModelOnlyFamilies(t *testing.T) {
+	root := t.TempDir()
+	writeFixture(t, root, "api/contracts/catalog/model.json", []byte(`{"nightseam":2,"types":{"Item":{"kind":"record","fields":[]}}}`))
+	if out, errs, err := run(t, root, "generate", "catalog"); err != nil {
+		t.Fatalf("generate: %v\n%s%s", err, out, errs)
+	}
+	if _, err := os.Stat(filepath.Join(root, "api/go/catalog-protocol/types_generated.go")); err != nil {
+		t.Fatalf("the model's generated types are missing: %v", err)
+	}
+	if out, errs, err := run(t, root, "init", "catalog"); err != nil || out != "" || errs != "" {
+		t.Fatalf("model-only init must write no handlers: %v\n%s%s", err, out, errs)
+	}
+	if _, err := os.Stat(filepath.Join(root, "api/impl/catalog")); !os.IsNotExist(err) {
+		t.Fatalf("model-only init created an implementation directory: %v", err)
+	}
+	if out, errs, err := run(t, root, "check", "catalog"); err != nil || out != "" || errs != "" {
+		t.Fatalf("init disturbed generated output: %v\n%s%s", err, out, errs)
+	}
+}
+
 // TestInitWritesTheHandlersOnce: init writes a Go server handler and a
 // TypeScript client handler for a family into a directory of the
 // consumer's own, compiling against the generated packages, and leaves
@@ -174,7 +195,7 @@ func TestInitWritesTheHandlersOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(stub), "export const handler: Handler = {") || !strings.Contains(string(stub), "async reverse(params: Protocol.Payload, context: RequestContext): Promise<Protocol.Payload>") {
+	if !strings.Contains(string(stub), "export const handler: Handler = {") || !strings.Contains(string(stub), "async reverse(params, context)") || !strings.Contains(string(stub), `throw new Error("reverse is not implemented")`) {
 		t.Errorf("the TypeScript handler is wrong:\n%s", stub)
 	}
 	writeFixture(t, root, "api/impl/probe/handler.go", []byte("package probe // mine\n"))

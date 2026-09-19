@@ -101,7 +101,7 @@ and each profile is.
 | language | tier | core | generator | tunnel | session | observability | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
-| `typescript` | 1 | ✓ | ✓ 4 skipped | ✓ | ✓ | ✓ | ok |
+| `typescript` | 1 | ✓ | ✓ 6 skipped | ✓ | ✓ | ✓ | ok |
 
 Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2; `java`, `swift` at tier 4.
 <!-- matrix:end -->

@@ -1,4 +1,6 @@
 func (*Remote) EmitChanged(ctx context.Context, data protocol.Payload) error
+func (*Remote) EmitSessionControl(ctx context.Context, data sessionprotocol.Control) error
+func (*Remote) EmitSessionCursor(ctx context.Context, data sessionprotocol.Cursor) error
 func (*Remote) OnNoticed(handler func(context.Context, protocol.Seen)) error
 func (*Remote) Reverse(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
 func NewHandler(handler Handler, options runtime.ServerOptions) (http.Handler, error)
