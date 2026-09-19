@@ -13,7 +13,7 @@ func hellos(listenA, listenB bool) map[string]Hello {
 		}
 		return f
 	}
-	layers := []string{"seam", "peer", "tunnel", "session"}
+	layers := []string{"seam", "peer", "tunnel"}
 	return map[string]Hello{"a": {Layers: layers, Features: features(listenA)}, "b": {Layers: layers, Features: features(listenB)}}
 }
 

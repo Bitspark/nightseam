@@ -2,7 +2,7 @@
 // needs, computed once from analysis after the neutral checks passed, and
 // nothing target-specific. Types in the order every rendering lists them,
 // each with its wire fields flattened and the type parameters it takes; the
-// two sides with their operations; the errors; the session; the families
+// two sides with their operations; the errors; the families
 // the rendering refers to; the wire description the validators embed; the
 // names a convention derives and a target's override file replaces.
 package render
@@ -21,26 +21,24 @@ type Use = analysis.Use
 
 // Family is one family, ready to render.
 type Family struct {
-	Name            string
-	Source          string      // original declaration directory, including a built-in's distinct namespace
-	Builtin         bool        // the source belongs to the embedded built-in namespace
-	Files           []string    // the tier files present
-	Generic         bool        // whether any type or operation draws on a parameter
-	Parameters      []Parameter // in declaration order
-	Uses            []Use       // the family's, in order: what every entry point is generic in
-	Types           []*Type     // in byte order, the injected ones among them
-	Server, Client  Side        // the two sides
-	Errors          []Error     // by code
-	Session         *Session    // nil without a session tier
-	References      []string    // families whose generated packages this one's refer to, sorted
-	Carries         []string    // the built-in families the tiers bring, sorted
-	SessionFamilies []string    // the other families with a session tier, sorted: what a parameter may bind
-	Wire            string      // the wire description of every type, canonical JSON, what a validator reads
-	overrides       map[string]model.Overrides
-	f               *analysis.Family
-	types           map[string]*Type
-	builder         *builder
-	inlines         map[*model.Type]*Type
+	Name           string
+	Source         string      // original declaration directory, including a built-in's distinct namespace
+	Builtin        bool        // the source belongs to the embedded built-in namespace
+	Files          []string    // the tier files present
+	Generic        bool        // whether any type or operation draws on a parameter
+	Parameters     []Parameter // in declaration order
+	Uses           []Use       // the family's, in order: what every entry point is generic in
+	Types          []*Type     // in byte order, the injected ones among them
+	Server, Client Side        // the two sides
+	Errors         []Error     // by code
+	References     []string    // families whose generated packages this one's refer to, sorted
+	Carries        []string    // the built-in families the tiers bring, sorted
+	Wire           string      // the wire description of every type, canonical JSON, what a validator reads
+	overrides      map[string]model.Overrides
+	f              *analysis.Family
+	types          map[string]*Type
+	builder        *builder
+	inlines        map[*model.Type]*Type
 }
 
 // Parameter is one parameter of a generic family with the types it is
@@ -172,28 +170,6 @@ type Error struct {
 	Origin            Origin
 }
 
-// Session is the governance of a session family.
-type Session struct {
-	Decides       []string
-	Asks          []string
-	Conversation  *model.Conversation
-	Declaration   *model.Session
-	Inherited     []SessionSource
-	Conversations []ConversationSource // all distinct inherited/own declarations; one supplies Conversation
-}
-
-// SessionSource retains governance declared on an inherited side.
-type SessionSource struct {
-	Family, Side string
-	Declaration  *model.Session
-}
-
-// ConversationSource identifies one distinct conversation declaration.
-type ConversationSource struct {
-	Family       string
-	Conversation model.Conversation
-}
-
 // World is every family of a checkout, ready to render, by name — what a
 // target that renders the checkout as a whole sees.
 type World struct {
@@ -233,10 +209,6 @@ func (b *builder) build(f *analysis.Family) *Family {
 	}
 	r.References = f.References()
 	r.Carries = f.Carries
-	for name := range f.Members {
-		r.SessionFamilies = append(r.SessionFamilies, name)
-	}
-	sort.Strings(r.SessionFamilies)
 	r.Wire = wire(f)
 	for target, raw := range f.Overrides {
 		if raw == nil {
@@ -410,7 +382,7 @@ func FormsUsed(f *Family) []Form {
 		switch {
 		case p.Of == "":
 			add("a type parameter of the family", p.At)
-		case p.Of != model.SessionRole:
+		default:
 			add("a family parameter of the "+p.Of+" tier", p.At)
 		}
 	}

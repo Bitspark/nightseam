@@ -97,18 +97,6 @@ func emitTypes(f *file) {
 	}
 	f.line("/** The family: its name and the wire types a slot of it draws on. */")
 	f.linef("export interface %s { readonly name: %s; %s }", identFamily, quote(fam.Name), strings.Join(drawn, "; "))
-	if needsSessionFamily(fam) {
-		union := "never"
-		if len(fam.SessionFamilies) > 0 {
-			names := make([]string, len(fam.SessionFamilies))
-			for i, family := range fam.SessionFamilies {
-				names[i] = alias(family) + "." + identFamily
-			}
-			union = strings.Join(names, " | ")
-		}
-		f.line("/** The session role: every family of the world that has a session tier. */")
-		f.linef("export type %s = %s;", identSessionFamily, union)
-	}
 	f.line("")
 	f.linef("const contractTypes = %s as unknown as WireFamily;", fam.Wire)
 	var validators []string
@@ -226,22 +214,14 @@ func emitClient(f *file) {
 	f.linef("import type { Tunnel } from %s;", quote(f.config.Tunnel))
 	f.linef("import { %s } from './types.ts';", identValidateWire)
 	if fam.Generic {
-		bindings := []string{identAnyFamily, identFamilyBinding, identTypeBinding}
-		if needsSessionFamily(fam) {
-			bindings = append(bindings, identSessionFamily)
-		}
-		bindings = append(bindings, identSlots)
+		bindings := []string{identAnyFamily, identFamilyBinding, identTypeBinding, identSlots}
 		f.linef("import type { %s } from './types.ts';", strings.Join(bindings, ", "))
 	}
 	f.linef("import type * as %s from './types.ts';", identProtocol)
 	f.imports(false)
 	f.line("export * from './types.ts';")
 	f.line("export { DuplexError };")
-	if fam.Session != nil {
-		f.line("/** Typed user callbacks installed before the client reads its first frame. Cursor tracking is always installed. */")
-	} else {
-		f.line("/** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */")
-	}
+	f.line("/** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */")
 	f.w.Block(fmt.Sprintf("export interface %s%s {", identEvents, decl), "}", func() {
 		for _, e := range fam.Server.Events {
 			f.linef("%s?: (data: %s, context: EventContext) => void | Promise<void>;", p.operations[e.Name], f.spell(e.Type))
@@ -262,17 +242,6 @@ func emitClient(f *file) {
 			f.linef("%s(%s): Promise<%s>;", p.operations[m.Name], f.parameters(m), f.spell(m.Result))
 		}
 	})
-	if s := fam.Session; s != nil {
-		// The session tier's governance, as data both halves read.
-		f.line("/** The methods that need control to send. */")
-		f.linef("export const %s: ReadonlySet<string> = new Set(%s);", identDecides, list(s.Decides))
-		f.line("/** The methods the server sends that raise a request the holder of control must answer. */")
-		f.linef("export const %s: ReadonlySet<string> = new Set(%s);", identAsks, list(s.Asks))
-		if s.Conversation != nil {
-			f.line("/** Where the agent's own conversation id arrives: the event, and the path to the id in its data. */")
-			f.linef("export const %s = { event: %s, path: %s } as const;", identConversation, quote(s.Conversation.Event), quote(s.Conversation.Path))
-		}
-	}
 	// The public errors the family declares: what a DuplexError's code may
 	// be, by name.
 	if len(fam.Errors) > 0 {
@@ -291,11 +260,6 @@ func emitClient(f *file) {
 	}
 	f.w.Block(fmt.Sprintf("export class %s%s implements %s%s {", identClient, decl, identCaller, args), "}", func() {
 		f.linef("readonly %s: DuplexPeer;", identPeer)
-		if fam.Session != nil {
-			f.linef("#%s = 0;", identSequence)
-			f.line("/** The latest relay cursor processed by this client, initially zero. */")
-			f.linef("get %s(): number { return this.#%s; }", identSequence, identSequence)
-		}
 		var made []string
 		if fam.Generic {
 			for _, name := range names {
@@ -316,9 +280,6 @@ func emitClient(f *file) {
 			for _, m := range fam.Client.Methods {
 				f.line("if (!handler) throw new Error('reverse-call handler is required');")
 				f.linef("peer.handle(%s, async (params, context) => { try { %s(%s, params%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, context); %s(%s, result%s); return result; });", quote(m.Name), identValidateWire, requestExpression(m), slots, p.operations[m.Name], f.request(m), identValidateWire, expression(m.Result), slots)
-			}
-			if fam.Session != nil {
-				f.linef("this.%s%s(data => { this.#%s = data.sequence; });", identOn, upperFirst(p.operations["session.cursor"]), identSequence)
 			}
 			for _, e := range fam.Server.Events {
 				f.linef("if (events.%s) this.%s%s(events.%s);", p.operations[e.Name], identOn, upperFirst(p.operations[e.Name]), p.operations[e.Name])

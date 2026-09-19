@@ -1,4 +1,4 @@
-// The Go testee: Nightseam's Go runtime, tunnel and session under the
+// The Go testee: Nightseam's Go runtime and tunnel under the
 // control of the conformance runner, over the protocol of
 // conformance/DRIVER.md. It is the reference implementation the suite holds
 // every other language to, and a worked example of what a testee is: a
@@ -160,7 +160,7 @@ func (t *testee) dispatch(r request) (any, error) {
 		return map[string]any{
 			"driver":   driverVersion,
 			"language": "go",
-			"layers":   []string{"seam", "peer", "tunnel", "session"},
+			"layers":   []string{"seam", "peer", "tunnel"},
 			"features": []string{"listen", "pipe", "observer", "propagator", "lazy"},
 		}, nil
 	case "reset":

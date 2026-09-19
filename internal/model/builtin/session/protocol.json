@@ -1,9 +1,0 @@
-{
-  "profile": "nightseam.duplex/1",
-  "server": {
-    "events": {
-      "session.control": {"description": "Who holds control: once on attach, before the replay begins, and on every change.", "type": "Control"},
-      "session.cursor": {"description": "Where the attachment stands, straight after each frame it is delivered.", "type": "Cursor"}
-    }
-  }
-}

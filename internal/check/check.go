@@ -26,7 +26,6 @@ type concern struct {
 // concerns are the checkers of the tiers above the model, in tier order.
 var concerns = []concern{
 	{Name: "protocol", File: model.ProtocolFile, Check: Protocol},
-	{Name: "session", File: model.SessionFile, Check: Session},
 	{Name: "live", File: model.LiveFile, Check: Live},
 }
 
@@ -371,7 +370,7 @@ func (c *checker) imported(x model.Imported, at diag.Location, where site) {
 	other, ok := f.Imported[x.Family]
 	if !ok {
 		if _, builtin := f.Builtin(x.Family); builtin {
-			c.Addf(at, "implicit_import", "Family %s is built in: a family that has the tier bringing it carries its types under their own names, and one that does not cannot name them. %s", x.Family, whereBuiltinReaches(x.Family))
+			c.Addf(at, "implicit_import", "Family %s is built in: a family that has the tier bringing it carries its types under their own names, and one that does not cannot name them.", x.Family)
 			return
 		}
 		c.Addf(at, "unresolved_type", "Type %s.%s names a family this family does not import.", x.Family, x.Name)
@@ -570,18 +569,6 @@ func (c *checker) arguments(target string, wanted map[string]model.Parameter, wi
 			c.Addf(here, "invalid_filler", "Family %s fills parameter %s of %s, which is of the %s tier, and %s does not carry it.", family, name, target, parameter.Of, family)
 		}
 	}
-}
-
-// whereBuiltinReaches says how a built-in family that is not carried
-// reaches a family that has its tier, so that a diagnostic about one points
-// somewhere rather than only refusing.
-func whereBuiltinReaches(name string) string {
-	for _, tier := range model.Tiers {
-		if tier.Builtin == name && !tier.Carries {
-			return "The " + tier.Name + " tier's vocabulary is one declaration for every family and reaches a family's generated code as a side that extends it, not as types this family names."
-		}
-	}
-	return ""
 }
 
 func applied(x model.Apply) string {

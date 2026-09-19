@@ -3,7 +3,7 @@
   "parameters": [
     {
       "name": "S",
-      "of": "session"
+      "of": "protocol"
     }
   ],
   "imports": [

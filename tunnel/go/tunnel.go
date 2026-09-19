@@ -143,7 +143,6 @@ func (t *Tunnel) watch() {
 type openParams struct {
 	Channel int64  `json:"channel"`
 	Family  string `json:"family"`
-	After   int64  `json:"after"`
 	Window  int    `json:"window"`
 }
 
@@ -168,21 +167,20 @@ type closePayload struct {
 	Reason  string `json:"reason"`
 }
 
-// Open opens a channel to the other side, saying what family it speaks and
-// the last sequence this side holds, and returns it once the other side
-// accepted it.
-func (t *Tunnel) Open(ctx context.Context, family string, after int64) (*Channel, error) {
+// Open opens a channel to the other side, saying what family it speaks, and
+// returns it once the other side accepted it.
+func (t *Tunnel) Open(ctx context.Context, family string) (*Channel, error) {
 	if family == "" {
 		return nil, t.refused(family, errors.New("a channel is opened for a family"))
 	}
 	t.mu.Lock()
 	id := t.next
 	t.next += 2
-	c := t.newChannel(id, family, after, 0)
+	c := t.newChannel(id, family, 0)
 	t.table[id] = c
 	t.mu.Unlock()
 	var result openResult
-	if err := t.peer.Call(ctx, OpenMethod, openParams{Channel: id, Family: family, After: after, Window: t.options.Window}, &result); err != nil {
+	if err := t.peer.Call(ctx, OpenMethod, openParams{Channel: id, Family: family, Window: t.options.Window}, &result); err != nil {
 		t.remove(id)
 		c.endLocal(duplex.CodeNormal, "")
 		return nil, t.refused(family, err)
@@ -272,8 +270,8 @@ func (t *Tunnel) lookup(id int64) *Channel {
 // has taken.
 func (t *Tunnel) onOpen(_ context.Context, _ *runtime.Peer, raw json.RawMessage) (any, error) {
 	var params openParams
-	if err := json.Unmarshal(raw, &params); err != nil || params.Channel <= 0 || params.Family == "" || params.After < 0 || params.Window <= 0 {
-		return nil, t.refuse(params.Family, ErrorInvalid, "channel.open needs a positive channel id of the opener's parity, a family, a sequence and a window")
+	if err := json.Unmarshal(raw, &params); err != nil || params.Channel <= 0 || params.Family == "" || params.Window <= 0 {
+		return nil, t.refuse(params.Family, ErrorInvalid, "channel.open needs a positive channel id of the opener's parity, a family and a window")
 	}
 	c, code, message := t.admit(params)
 	if c == nil {
@@ -299,7 +297,7 @@ func (t *Tunnel) admit(params openParams) (*Channel, string, string) {
 	if len(t.pending) >= t.options.AcceptCapacity {
 		return nil, ErrorRefused, "no room for a channel nobody has accepted"
 	}
-	c := t.newChannel(params.Channel, params.Family, params.After, params.Window)
+	c := t.newChannel(params.Channel, params.Family, params.Window)
 	t.table[params.Channel] = c
 	t.pending = append(t.pending, c)
 	select {
@@ -378,12 +376,10 @@ func (t *Tunnel) onClose(_ context.Context, _ *runtime.Peer, raw json.RawMessage
 }
 
 // Channel is one channel of a tunnel: a duplex.Conn, and what the opener
-// said of it — its id on the outer connection, the family it speaks and the
-// last sequence the opener holds, from which the other side resumes.
+// said of it — its id on the outer connection and the family it speaks.
 type Channel struct {
 	ID     int64
 	Family string
-	After  int64
 
 	t        *Tunnel
 	inbox    chan duplex.Frame
@@ -401,8 +397,8 @@ type Channel struct {
 	opened   bool
 }
 
-func (t *Tunnel) newChannel(id int64, family string, after int64, credit int) *Channel {
-	return &Channel{ID: id, Family: family, After: after, t: t, inbox: make(chan duplex.Frame, t.options.Window), credit: credit, wake: make(chan struct{}, 1), done: make(chan struct{})}
+func (t *Tunnel) newChannel(id int64, family string, credit int) *Channel {
+	return &Channel{ID: id, Family: family, t: t, inbox: make(chan duplex.Frame, t.options.Window), credit: credit, wake: make(chan struct{}, 1), done: make(chan struct{})}
 }
 
 var _ duplex.Conn = (*Channel)(nil)

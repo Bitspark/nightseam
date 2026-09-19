@@ -42,8 +42,8 @@ func TestStar(t *testing.T) {
 
 // TestDialOnly is the proof that a language whose runtime only dials is
 // held in every role: the star with the TypeScript testee treated as
-// unable to listen, so every scenario of the seam, the peer, the tunnel
-// and the session runs over a connection the Go side accepted — and none
+// unable to listen, so every scenario of the seam, the peer and the tunnel
+// runs over a connection the Go side accepted — and none
 // may be skipped for it. Its outcomes go to a matrix of their own, since
 // the language's row counts each scenario once.
 func TestDialOnly(t *testing.T) {

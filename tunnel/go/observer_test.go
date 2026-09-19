@@ -94,9 +94,9 @@ func (r *recorder) await(t *testing.T, count int) []string {
 func channelLine(event runtime.ObserverEvent) string {
 	switch e := event.(type) {
 	case tunnel.ChannelOpened:
-		return fmt.Sprintf("opened %s id=%d after=%d opener=%t", e.Family, e.ID, e.After, e.Opener)
+		return fmt.Sprintf("opened %s id=%d opener=%t", e.Family, e.ID, e.Opener)
 	case tunnel.ChannelAccepted:
-		return fmt.Sprintf("accepted %s id=%d after=%d", e.Family, e.ID, e.After)
+		return fmt.Sprintf("accepted %s id=%d", e.Family, e.ID)
 	case tunnel.ChannelClosed:
 		return fmt.Sprintf("closed %s id=%d code=%d reason=%q", e.Family, e.ID, e.Code, e.Reason)
 	case tunnel.CreditStall:
@@ -155,7 +155,7 @@ func watched(t *testing.T, options tunnel.Options) (client, server *tunnel.Tunne
 
 // opening opens a channel from one tunnel and takes it at the other, so that
 // what a test then reads is a channel both sides hold.
-func opening(t *testing.T, ctx context.Context, from, to *tunnel.Tunnel, family string, after int64) (opened, accepted *tunnel.Channel) {
+func opening(t *testing.T, ctx context.Context, from, to *tunnel.Tunnel, family string) (opened, accepted *tunnel.Channel) {
 	t.Helper()
 	taken := make(chan *tunnel.Channel, 1)
 	go func() {
@@ -165,7 +165,7 @@ func opening(t *testing.T, ctx context.Context, from, to *tunnel.Tunnel, family 
 		}
 		taken <- c
 	}()
-	opened, err := from.Open(ctx, family, after)
+	opened, err := from.Open(ctx, family)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,14 +173,14 @@ func opening(t *testing.T, ctx context.Context, from, to *tunnel.Tunnel, family 
 }
 
 // A channel opened, accepted, exchanged over and closed is told of on both
-// sides, in that order and with the id, the family and the sequence the opener
+// sides, in that order and with the id and the family the opener
 // named — and the frames that crossed it are told of by neither tunnel: what a
 // channel carries is the business of the peers speaking over it.
 func TestAChannelIsToldOfOnBothSides(t *testing.T) {
 	client, server, atClient, atServer := watched(t, tunnel.Options{})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	opened, inbound := opening(t, ctx, client, server, "probe", 7)
+	opened, inbound := opening(t, ctx, client, server, "probe")
 	for _, exchange := range []struct {
 		from, to *tunnel.Channel
 		data     string
@@ -197,12 +197,12 @@ func TestAChannelIsToldOfOnBothSides(t *testing.T) {
 	}
 	id := opened.ID
 	same(t, "the opener", atClient.await(t, 2), []string{
-		fmt.Sprintf("opened probe id=%d after=7 opener=true", id),
+		fmt.Sprintf("opened probe id=%d opener=true", id),
 		fmt.Sprintf("closed probe id=%d code=%d reason=%q", id, duplex.CodeNormal, "the work is done"),
 	})
 	same(t, "the accepter", atServer.await(t, 3), []string{
-		fmt.Sprintf("opened probe id=%d after=7 opener=false", id),
-		fmt.Sprintf("accepted probe id=%d after=7", id),
+		fmt.Sprintf("opened probe id=%d opener=false", id),
+		fmt.Sprintf("accepted probe id=%d", id),
 		fmt.Sprintf("closed probe id=%d code=%d reason=%q", id, duplex.CodeNormal, "the work is done"),
 	})
 	noPayload(t, "the opener", atClient)
@@ -215,7 +215,7 @@ func TestAStallIsToldOf(t *testing.T) {
 	client, server, atClient, _ := watched(t, tunnel.Options{Window: 2})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	opened, _ := opening(t, ctx, client, server, "probe", 0)
+	opened, _ := opening(t, ctx, client, server, "probe")
 	for i := 0; i < 2; i++ {
 		if err := opened.Send(ctx, duplex.Frame{Kind: duplex.Text, Data: []byte("x")}); err != nil {
 			t.Fatal(err)
@@ -246,10 +246,10 @@ func TestARefusedOpenIsToldOf(t *testing.T) {
 	client, _, atClient, atServer := watched(t, tunnel.Options{AcceptCapacity: 1})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if _, err := client.Open(ctx, "probe", 0); err != nil {
+	if _, err := client.Open(ctx, "probe"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.Open(ctx, "probe", 0); err == nil {
+	if _, err := client.Open(ctx, "probe"); err == nil {
 		t.Fatal("the second open was not refused")
 	}
 	refused, ok := heard[tunnel.OpenRefused](atClient)
@@ -261,7 +261,7 @@ func TestARefusedOpenIsToldOf(t *testing.T) {
 		t.Fatalf("the refuser was told %+v, %t", atRefuser, ok)
 	}
 	// An open this side will not make at all is refused here and told of here.
-	if _, err := client.Open(ctx, "", 0); err == nil {
+	if _, err := client.Open(ctx, ""); err == nil {
 		t.Fatal("a channel of no family opened")
 	}
 	lines := atClient.lines()
@@ -278,7 +278,7 @@ func TestAChannelsPeerTakesItsOwnObserver(t *testing.T) {
 	client, server, atClient, atServer := watched(t, tunnel.Options{})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	opened, inbound := opening(t, ctx, client, server, "probe", 0)
+	opened, inbound := opening(t, ctx, client, server, "probe")
 	inside := &recorder{}
 	served, err := runtime.NewPeer(ctx, inbound, runtime.ServerRole, runtime.Options{Handlers: map[string]runtime.Handler{
 		"echo": func(_ context.Context, _ *runtime.Peer, params json.RawMessage) (any, error) { return params, nil },

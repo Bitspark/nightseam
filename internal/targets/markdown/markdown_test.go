@@ -12,15 +12,14 @@ import (
 
 // TestWritesThePage: one page per family, under api/spec, carrying every
 // tier — the entity with its key and constraints, an example of it and
-// where it is used, the sides with each operation on the wire, the errors,
-// the session — and nothing a target could collide with; and the writer,
+// where it is used, the sides with each operation on the wire and the
+// errors — and nothing a target could collide with; and the writer,
 // made a target, answers what the kernel asks of one.
 func TestWritesThePage(t *testing.T) {
 	world := analysis.World(modeltest.World(map[string]map[string]string{
 		"x": {
 			"model.json":    `{"nightseam": 2, "types": {"Account": {"kind": "entity", "key": "id", "description": "An account.", "fields": [{"name": "id", "type": "string"}, {"name": "email", "type": "string", "unique": true, "pattern": "@"}]}, "Status": {"kind": "enum", "values": ["on", "off"]}}}`,
 			"protocol.json": modeltest.Protocol(`"server": {"methods": {"get": {"request": "Account", "result": {"array": "Account"}, "errors": ["not_found"], "description": "Gets one | or more."}}, "events": {"changed": {"type": {"ref": "Account"}}}}, "errors": {"not_found": "No such account."}`),
-			"session.json":  `{"decides": ["get"], "conversation": {"event": "changed", "path": "id"}}`,
 		},
 	}))
 	f := render.Build(analysis.Resolve(world, "x"))
@@ -37,11 +36,10 @@ func TestWritesThePage(t *testing.T) {
 	}
 	text := string(files[0].Data)
 	for _, want := range []string{
-		"# x", "declared in `model.json`, `protocol.json`, `session.json`",
+		"# x", "declared in `model.json`, `protocol.json`",
 		"An entity, identified by `id`. An account.", "| `email` | `string` | required | unique, matches `@` |",
 		"One of `on`, `off`.", "| `get` | `Account` | array of `Account` | `not_found` | Gets one " + "\\" + "| or more. |",
 		"| `changed` | reference to `Account` |", "| `not_found` | No such account. |",
-		"- **Decides**: `get`", "the id arrives in the `changed` event, at `id` of its data",
 		"For example:", `  "email": "@"`, "Used by `get` (request, result), `changed` (data).",
 		"### `get` on the wire", "The client sends:", `  "method": "get",`, `  "id": "c:1",`, "The server answers:",
 		"Or refuses with `not_found`:", `    "message": "No such account."`, "### `changed` on the wire", "The server emits:", `  "event": "changed",`,

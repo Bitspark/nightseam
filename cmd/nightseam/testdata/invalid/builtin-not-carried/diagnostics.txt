@@ -1,2 +1,0 @@
-x/model.json#/types/Held/fields/0/type: Family session is built in: a family that has the tier bringing it carries its types under their own names, and one that does not cannot name them. The session tier's vocabulary is one declaration for every family and reaches a family's generated code as a side that extends it, not as types this family names. [implicit_import]
-error: 1 problems

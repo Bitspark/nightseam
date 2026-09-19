@@ -1,7 +1,6 @@
 // Package builtin holds the families Nightseam declares of itself: the
-// profile's `duplex`, the tunnel's `tunnel` and the session's `session`,
-// written as ordinary tier files in the declaration language and carried
-// in the binary. They are how a tier reaches a family that carries it —
+// profile's `duplex` and the tunnel's `tunnel`, written as ordinary tier
+// files in the declaration language and carried in the binary. They are how a tier reaches a family that carries it —
 // there is no injection — and they are read by the same decoders a
 // consumer's family is.
 //
@@ -23,7 +22,7 @@ import (
 	"github.com/Bitspark/nightseam/internal/model"
 )
 
-//go:embed duplex/*.json tunnel/*.json session/*.json
+//go:embed duplex/*.json tunnel/*.json
 var files embed.FS
 
 // Prefix marks a built-in's tier file apart from a consumer's.
@@ -88,13 +87,8 @@ func read(name string) (*model.Family, error) {
 				f.Types[typeName] = t
 			}
 		}
-		switch tier.Name {
-		case "protocol":
+		if tier.Name == "protocol" {
 			if f.Protocol, err = model.DecodeProtocol(file, data); err != nil {
-				return nil, err
-			}
-		case "session":
-			if f.Session, err = model.DecodeSession(file, data); err != nil {
 				return nil, err
 			}
 		}
@@ -136,14 +130,12 @@ func Names() []string {
 // Carried is the built-in families whose types a family with these tier
 // files takes as its own: the tiers' table says which tier carries which
 // built-in. A family with protocol.json carries `duplex`'s `Envelope` and
-// `Handle`, since a family's envelope is a message of that family; a tier
-// whose built-in is not carried has one declaration for every family and
-// reaches a family's operations as a side that extends it.
+// `Handle`, since a family's envelope is a message of that family.
 func Carried(files []string) []string {
 	var out []string
 	for _, file := range files {
 		tier, ok := model.TierOf(file)
-		if !ok || tier.Builtin == "" || !tier.Carries {
+		if !ok || tier.Builtin == "" {
 			continue
 		}
 		if _, exists := Family(tier.Builtin); exists {

@@ -18,7 +18,6 @@ import (
 	"net/url"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -26,12 +25,7 @@ import (
 	binding "example.test/generated/api/go/probe-binding"
 	client "example.test/generated/api/go/probe-client"
 	protocol "example.test/generated/api/go/probe-protocol"
-	sessionprotocol "example.test/generated/api/go/session-protocol"
-	"github.com/Bitspark/nightseam/duplex/go"
-	"github.com/Bitspark/nightseam/duplex/go/ws"
 	"github.com/Bitspark/nightseam/runtime/go"
-	"github.com/Bitspark/nightseam/session/go"
-	"github.com/coder/websocket"
 )
 
 func main() {
@@ -166,107 +160,15 @@ func (s *server) Seen(ctx context.Context, remote *binding.Remote, params protoc
 
 // served is a served binding under control.
 type served struct {
-	http        *http.Server
-	url         string
-	peer        chan *runtime.Peer
-	remote      *binding.Remote
-	noticed     chan protocol.Seen
-	mu          sync.Mutex
-	registry    *session.Registry
-	attachments map[string]*session.Attachment
-	attached    chan struct{}
-	connections int
-	machine     *runtime.Peer
+	http    *http.Server
+	url     string
+	peer    chan *runtime.Peer
+	remote  *binding.Remote
+	noticed chan protocol.Seen
+	mu      sync.Mutex
 }
 
-func (s *served) shutdown() {
-	_ = s.http.Close()
-	if s.machine != nil {
-		_ = s.machine.Close()
-	}
-}
-
-// A relay-backed endpoint uses the real generated binding as its machine.
-// Each accepted consumer is named by its connection order, consumer1, ... .
-func (s *served) sessionHandler(prefill json.RawMessage) (http.Handler, error) {
-	registry, err := session.New(session.Options{})
-	if err != nil {
-		return nil, err
-	}
-	s.registry, s.attachments, s.attached = registry, map[string]*session.Attachment{}, make(chan struct{}, 16)
-	up, machine := duplex.Pipe(1 << 20)
-	peer, err := binding.Serve(context.Background(), machine, runtime.Options{}, &server{noticed: s.noticed})
-	if err != nil {
-		_ = up.Abort()
-		_ = machine.Abort()
-		return nil, err
-	}
-	s.machine, s.remote = peer, &binding.Remote{Peer: peer}
-	log := session.NewMemoryLog(1 << 20)
-	frames := []struct{ Direction, Origin, Text string }{{Direction: "down", Text: `{"version":1,"kind":"event","event":"changed","data":{"text":"replay","count":1}}`}}
-	if len(prefill) != 0 {
-		err = json.Unmarshal(prefill, &frames)
-	}
-	for _, frame := range frames {
-		if err != nil {
-			break
-		}
-		direction := session.Down
-		switch frame.Direction {
-		case "", "down":
-		case "up":
-			direction = session.Up
-		default:
-			err = fmt.Errorf("prefill direction is up or down")
-			continue
-		}
-		if !json.Valid([]byte(frame.Text)) {
-			err = fmt.Errorf("prefill text is the frame's message")
-			break
-		}
-		_, err = log.Append(context.Background(), session.Frame{Direction: direction, Origin: frame.Origin, Message: json.RawMessage(frame.Text)})
-	}
-	if err == nil {
-		err = registry.Bind("generated", up, session.Governance{Decides: client.Decides, Asks: client.Asks}, log)
-	}
-	if err != nil {
-		_ = peer.Close()
-		_ = up.Abort()
-		return nil, err
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var after int64
-		if value := r.URL.Query().Get("after"); value != "" {
-			var err error
-			after, err = strconv.ParseInt(value, 10, 64)
-			if err != nil {
-				http.Error(w, "invalid after", http.StatusBadRequest)
-				return
-			}
-		}
-		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
-		if err != nil {
-			return
-		}
-		s.mu.Lock()
-		s.connections++
-		origin := fmt.Sprintf("consumer%d", s.connections)
-		s.mu.Unlock()
-		down := ws.New(conn, 1<<20)
-		attachment, err := registry.Attach("generated", down, session.Participant, origin, after)
-		if err != nil {
-			_ = down.Abort()
-			return
-		}
-		s.mu.Lock()
-		s.attachments[origin] = attachment
-		s.mu.Unlock()
-		select {
-		case s.attached <- struct{}{}:
-		default:
-		}
-	}), nil
-}
+func (s *served) shutdown() { _ = s.http.Close() }
 
 // The canned client handler: reverse answers the payload with its text
 // prefixed by the language's name.
@@ -288,12 +190,6 @@ type dialled struct {
 }
 
 func (d *dialled) shutdown() { _ = d.client.Close(); d.cancel() }
-func (d *dialled) control(_ context.Context, data sessionprotocol.Control) {
-	d.notification("session.control", decoded(data))
-}
-func (d *dialled) cursor(_ context.Context, data sessionprotocol.Cursor) {
-	d.notification("session.cursor", decoded(data))
-}
 func (d *dialled) notification(event string, data any) {
 	d.notificationMu.Lock()
 	d.notifications = append(d.notifications, map[string]any{"event": event, "data": data})
@@ -369,37 +265,26 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		return nil, nil
 	case "gen.serve":
 		s := &served{peer: make(chan *runtime.Peer, 1), noticed: make(chan protocol.Seen, 16)}
-		var sessionMode bool
-		_ = json.Unmarshal(raw["session"], &sessionMode)
-		var handler http.Handler
-		var err error
-		if sessionMode {
-			handler, err = s.sessionHandler(raw["prefill"])
-		} else {
-			handler, err = binding.NewHandler(&server{noticed: s.noticed}, runtime.ServerOptions{
-				Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
-				CheckOrigin:  func(*http.Request) bool { return true },
-				OnConnect: func(p *runtime.Peer) {
-					remote := &binding.Remote{Peer: p}
-					_ = remote.OnNoticed(func(_ context.Context, data protocol.Seen) { s.noticed <- data })
-					s.mu.Lock()
-					s.remote = remote
-					s.mu.Unlock()
-					select {
-					case s.peer <- p:
-					default:
-					}
-				},
-			})
-		}
+		handler, err := binding.NewHandler(&server{noticed: s.noticed}, runtime.ServerOptions{
+			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
+			CheckOrigin:  func(*http.Request) bool { return true },
+			OnConnect: func(p *runtime.Peer) {
+				remote := &binding.Remote{Peer: p}
+				_ = remote.OnNoticed(func(_ context.Context, data protocol.Seen) { s.noticed <- data })
+				s.mu.Lock()
+				s.remote = remote
+				s.mu.Unlock()
+				select {
+				case s.peer <- p:
+				default:
+				}
+			},
+		})
 		if err != nil {
 			return nil, fail("failed", "%v", err)
 		}
 		socket, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
-			if s.machine != nil {
-				_ = s.machine.Close()
-			}
 			return nil, err
 		}
 		s.url = "ws://" + socket.Addr().String()
@@ -415,32 +300,10 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 			d.changed <- data
 			d.notification("changed", decoded(data))
 		}}
-		control := true
-		if value, ok := raw["control"]; ok {
-			_ = json.Unmarshal(value, &control)
-		}
-		if control {
-			events.SessionControl = d.control
-		}
-		var cursor bool
-		_ = json.Unmarshal(raw["cursor"], &cursor)
-		if cursor {
-			events.SessionCursor = d.cursor
-		}
 		endpoint, err := url.Parse(str(raw, "url"))
 		if err != nil {
 			cancel()
 			return nil, fail("invalid", "%v", err)
-		}
-		if value, ok := raw["after"]; ok {
-			var after int64
-			if err := json.Unmarshal(value, &after); err != nil {
-				cancel()
-				return nil, fail("invalid", "after is an integer")
-			}
-			query := endpoint.Query()
-			query.Set("after", strconv.FormatInt(after, 10))
-			endpoint.RawQuery = query.Encode()
 		}
 		c, err := client.Dial(ctx, endpoint.String(), runtime.DialOptions{}, clientHandler{}, events)
 		if err != nil {
@@ -449,7 +312,7 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		}
 		d.client = c
 		return map[string]any{"handle": t.mint("cl", d)}, nil
-	case "client.echo", "client.seen", "client.no_args", "client.emit_noticed", "client.await_changed", "client.await_notification", "client.on_control", "client.on_cursor", "client.sequence", "client.close":
+	case "client.echo", "client.seen", "client.no_args", "client.emit_noticed", "client.await_changed", "client.await_notification", "client.close":
 		object, ok := t.lookup(str(raw, "on"))
 		d, is := object.(*dialled)
 		if !ok || !is {
@@ -458,12 +321,6 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		ctx, cancel := context.WithTimeout(context.Background(), within(raw))
 		defer cancel()
 		switch op {
-		case "client.sequence":
-			return map[string]any{"sequence": d.client.Sequence()}, nil
-		case "client.on_cursor":
-			return nil, d.client.OnSessionCursor(d.cursor)
-		case "client.on_control":
-			return nil, d.client.OnSessionControl(d.control)
 		case "client.await_notification":
 			return d.awaitNotification(ctx)
 		case "client.echo":
@@ -512,7 +369,7 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 			_ = d.client.Close()
 			return nil, nil
 		}
-	case "server.emit_changed", "server.await_noticed", "server.reverse", "server.control":
+	case "server.emit_changed", "server.await_noticed", "server.reverse":
 		object, ok := t.lookup(str(raw, "on"))
 		s, is := object.(*served)
 		if !ok || !is {
@@ -520,28 +377,6 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), within(raw))
 		defer cancel()
-		if op == "server.control" {
-			if s.registry == nil {
-				return nil, fail("invalid", "the server has no session")
-			}
-			origin := str(raw, "origin")
-			if origin == "" {
-				return nil, s.registry.Control("generated", nil)
-			}
-			for {
-				s.mu.Lock()
-				holder := s.attachments[origin]
-				s.mu.Unlock()
-				if holder != nil {
-					return nil, s.registry.Control("generated", holder)
-				}
-				select {
-				case <-s.attached:
-				case <-ctx.Done():
-					return nil, fail("timeout", "no consumer %s", origin)
-				}
-			}
-		}
 		s.mu.Lock()
 		remote := s.remote
 		s.mu.Unlock()
@@ -591,12 +426,6 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 			return map[string]any{"valid": false, "message": err.Error()}, nil
 		}
 		return map[string]any{"valid": true}, nil
-	case "gen.decides":
-		return map[string]any{"value": client.Decides(str(raw, "method"))}, nil
-	case "gen.asks":
-		return map[string]any{"value": client.Asks(str(raw, "method"))}, nil
-	case "gen.conversation":
-		return map[string]any{"event": client.Conversation.Event, "path": client.Conversation.Path}, nil
 	case "gen.errors":
 		codes := append([]string(nil), protocol.Errors...)
 		sort.Strings(codes)

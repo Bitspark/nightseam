@@ -14,7 +14,10 @@ import (
 // every family with a protocol carries.
 func TestBuiltinsDecode(t *testing.T) {
 	families := Families()
-	for _, name := range []string{"duplex", "tunnel", "session"} {
+	if len(families) != 2 {
+		t.Fatalf("the built-in families are %v; they are duplex and tunnel", Names())
+	}
+	for _, name := range []string{"duplex", "tunnel"} {
 		if _, ok := families[name]; !ok {
 			t.Fatalf("the built-in %s family is missing", name)
 		}

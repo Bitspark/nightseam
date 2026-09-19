@@ -27,7 +27,6 @@ type ChannelOpened struct {
 	At     time.Time
 	Family string
 	ID     int64
-	After  int64
 	Opener bool
 }
 
@@ -38,7 +37,6 @@ type ChannelAccepted struct {
 	At     time.Time
 	Family string
 	ID     int64
-	After  int64
 }
 
 // ChannelClosed is a channel ending, once and whatever ended it: the close
@@ -113,7 +111,7 @@ func (t *Tunnel) observeOpened(c *Channel, opener bool) {
 		if t.peer.Observer() == nil {
 			return
 		}
-		t.peer.Observe(ChannelOpened{At: time.Now(), Family: c.Family, ID: c.ID, After: c.After, Opener: opener})
+		t.peer.Observe(ChannelOpened{At: time.Now(), Family: c.Family, ID: c.ID, Opener: opener})
 	})
 }
 
@@ -121,7 +119,7 @@ func (t *Tunnel) observeAccepted(c *Channel) {
 	if t.peer.Observer() == nil {
 		return
 	}
-	t.peer.Observe(ChannelAccepted{At: time.Now(), Family: c.Family, ID: c.ID, After: c.After})
+	t.peer.Observe(ChannelAccepted{At: time.Now(), Family: c.Family, ID: c.ID})
 }
 
 func (t *Tunnel) observeClosed(c *Channel, code duplex.Code, reason string) {

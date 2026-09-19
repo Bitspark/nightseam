@@ -74,7 +74,6 @@ func allowedAcross(layer, op string) bool {
 		"seam":      {"conn"},
 		"peer":      {"conn", "peer", "call"},
 		"tunnel":    {"conn", "peer", "call", "tunnel"},
-		"session":   {"conn", "peer", "call", "tunnel", "session", "attachment"},
 		"generated": {"gen", "client", "server"},
 	}
 	if family == "pair" {

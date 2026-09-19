@@ -32,8 +32,6 @@ const probeProtocol = `{"profile": "nightseam.duplex/1", "imports": ["other"],
 	"client": {"methods": {"reverse": {"request": "Payload", "result": "Payload"}}},
 	"errors": {"denied": "The caller is denied."}}`
 
-const probeSession = `{"decides": ["echo"], "asks": ["reverse"], "conversation": {"event": "changed", "path": "text"}}`
-
 // TestCheckoutReadsFamilies: a checkout's directories are its families, each
 // tier file decoded into the one model, types and imports from every tier,
 // override files read raw, and the names in order.
@@ -41,7 +39,6 @@ func TestCheckoutReadsFamilies(t *testing.T) {
 	world, problems := Checkout(checkout(map[string]string{
 		"probe/model.json":      probeModel,
 		"probe/protocol.json":   probeProtocol,
-		"probe/session.json":    probeSession,
 		"probe/go.json":         `{"names": {"Payload.text": "Text"}}`,
 		"album/model.json":      `{"nightseam": 2, "imports": ["probe"]}`,
 		"album/typescript.json": `{}`,
@@ -53,7 +50,7 @@ func TestCheckoutReadsFamilies(t *testing.T) {
 		t.Fatalf("names are %v", world.Names)
 	}
 	probe := world.Families["probe"]
-	if strings.Join(probe.Files, ",") != "model.json,protocol.json,session.json" || !probe.Has("session.json") {
+	if strings.Join(probe.Files, ",") != "model.json,protocol.json" || !probe.Has("protocol.json") {
 		t.Fatalf("files are %v", probe.Files)
 	}
 	if probe.Types["Payload"].At.File != "model.json" || probe.Types["Seen"].At.File != "protocol.json" {
@@ -62,8 +59,8 @@ func TestCheckoutReadsFamilies(t *testing.T) {
 	if strings.Join(probe.Imports, ",") != "other" || strings.Join(world.Families["album"].Imports, ",") != "probe" {
 		t.Fatal("imports are not the union of the tiers'")
 	}
-	if probe.Protocol == nil || probe.Protocol.Server.Methods[0].Name != "echo" || probe.Session == nil || probe.Session.Asks[0] != "reverse" {
-		t.Fatal("the protocol or session tier did not decode")
+	if probe.Protocol == nil || probe.Protocol.Server.Methods[0].Name != "echo" {
+		t.Fatal("the protocol tier did not decode")
 	}
 	if string(probe.Overrides["go"]) != `{"names": {"Payload.text": "Text"}}` || string(world.Families["album"].Overrides["typescript"]) != `{}` {
 		t.Fatalf("overrides are %v", probe.Overrides)
@@ -89,10 +86,6 @@ func TestCheckoutRefuses(t *testing.T) {
 		"no model tier": {
 			files: map[string]string{"probe/protocol.json": probeProtocol},
 			code:  "missing_tier", at: "model.json#", says: "declares its model in model.json",
-		},
-		"a session without a protocol": {
-			files: map[string]string{"probe/model.json": probeModel, "probe/session.json": probeSession},
-			code:  "missing_tier", at: "session.json#", says: "needs protocol.json beside it",
 		},
 		"an unknown file": {
 			files: map[string]string{"probe/model.json": probeModel, "probe/rust.json": `{}`},
@@ -147,11 +140,14 @@ func TestNoContracts(t *testing.T) {
 // TestTiersAreATable: the tiers rank lowest first and each file names its
 // tier; a file no tier owns ranks below all.
 func TestTiersAreATable(t *testing.T) {
-	if model.Rank("model.json") != 0 || model.Rank("protocol.json") != 1 || model.Rank("session.json") != 2 || model.Rank("go.json") != -1 {
+	if model.Rank("model.json") != 0 || model.Rank("protocol.json") != 1 || model.Rank("session.json") != -1 || model.Rank("go.json") != -1 {
 		t.Fatal("ranks are wrong")
 	}
-	if tier, ok := model.TierOf("session.json"); !ok || tier.Name != "session" || !strings.Contains(strings.Join(tier.Sections, ","), "decides") {
-		t.Fatal("session.json is not the session tier")
+	if tier, ok := model.TierOf("protocol.json"); !ok || tier.Name != "protocol" || !strings.Contains(strings.Join(tier.Sections, ","), "server") {
+		t.Fatal("protocol.json is not the protocol tier")
+	}
+	if _, ok := model.TierOf("session.json"); ok {
+		t.Fatal("session.json is still a tier")
 	}
 	if model.OverrideFile("go") != "go.json" {
 		t.Fatal("override files are <target>.json")

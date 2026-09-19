@@ -7,25 +7,22 @@ import "strings"
 // the sections its file may carry beyond the types and imports every tier
 // carries, and the built-in family that declares the tier's own vocabulary.
 //
-// A family that has the tier file imports that built-in implicitly, with no
-// imports line. Carries says how: the protocol tier's built-in, `duplex`,
-// is carried — its types are the family's own, since a family's envelope is
-// a message of that family — while a tier whose built-in is not carried has
-// one declaration for every family, referred to in place.
+// A family that has the tier file carries that built-in's types implicitly,
+// with no imports line: the protocol tier's built-in, `duplex`, is carried
+// — its types are the family's own, since a family's envelope is a message
+// of that family.
 type Tier struct {
 	Name     string
 	Rank     int
 	File     string
 	Sections []string
-	Builtin  string // the built-in family that declares the tier's vocabulary
-	Carries  bool   // whether that built-in's types are the carrying family's own
+	Builtin  string // the built-in family whose types the tier carries
 }
 
 // The tier files, lowest first.
 const (
 	ModelFile    = "model.json"
 	ProtocolFile = "protocol.json"
-	SessionFile  = "session.json"
 	LiveFile     = "live.json"
 )
 
@@ -33,9 +30,8 @@ const (
 // shape schema in load, its checker in check and its field on Family.
 var Tiers = []Tier{
 	{Name: "model", Rank: 0, File: ModelFile, Sections: []string{"nightseam"}},
-	{Name: "protocol", Rank: 1, File: ProtocolFile, Sections: []string{"profile", "parameters", "server", "client", "errors"}, Builtin: "duplex", Carries: true},
-	{Name: "session", Rank: 2, File: SessionFile, Sections: []string{"decides", "asks", "conversation", "extensions"}, Builtin: "session"},
-	{Name: "live", Rank: 3, File: LiveFile, Sections: []string{"server", "client"}},
+	{Name: "protocol", Rank: 1, File: ProtocolFile, Sections: []string{"profile", "parameters", "server", "client", "errors"}, Builtin: "duplex"},
+	{Name: "live", Rank: 2, File: LiveFile, Sections: []string{"server", "client"}},
 }
 
 // TierOf finds a tier by its file name, whether the file is a consumer's or
@@ -82,13 +78,9 @@ const (
 	HandleType   = "Handle"
 )
 
-// SessionRole is the tier a family carries when it has a session tier:
-// what a parameter of session binds to.
-const SessionRole = "session"
-
 // LiveRole is the tier a family carries when it has a live tier: what a
-// parameter of live binds to, and what makes a draw through that
-// parameter live.
+// parameter of live binds to, and what makes a draw through that parameter
+// live.
 const LiveRole = "live"
 
 // TierRoles is every tier a family parameter may be `of` — the tiers above

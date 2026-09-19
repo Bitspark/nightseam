@@ -87,7 +87,7 @@ func addOptionNeeds(add func(side, need string), side string, options any) {
 
 var layerOfFamily = map[string]string{
 	"conn": "seam", "peer": "peer", "call": "peer", "tunnel": "tunnel",
-	"session": "session", "attachment": "session", "gen": "generated", "client": "generated", "server": "generated",
+	"gen": "generated", "client": "generated", "server": "generated",
 }
 
 func other(side string) string {
