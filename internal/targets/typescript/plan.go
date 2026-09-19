@@ -48,6 +48,15 @@ const (
 var imported = []string{"DuplexPeer", "DuplexError", "PeerOptions", "CallOptions", "RequestContext", "FrameConnection", "Tunnel", "createValidator", "TypeExpression", "WireType"}
 var globals = []string{"Array", "Record", "Promise", "Set", "Error", "String"}
 
+// An omitted Events field must be absent on an ordinary {}. Inherited
+// Object members would register built-in methods as callbacks, and their
+// signatures can make {} fail to satisfy the optional Events interface.
+var eventObjectMembers = []string{
+	"constructor", "__defineGetter__", "__defineSetter__", "hasOwnProperty",
+	"__lookupGetter__", "__lookupSetter__", "isPrototypeOf", "propertyIsEnumerable",
+	"toString", "valueOf", "__proto__", "toLocaleString",
+}
+
 // Reserved is every identifier the generated module declares of itself,
 // imports, or uses of the language.
 func Reserved() []string {
@@ -55,6 +64,11 @@ func Reserved() []string {
 	names = append(names, imported...)
 	names = append(names, globals...)
 	names = append(names, identPeer, identSlotsField, identClose, identConstructor, identThen)
+	for _, name := range eventObjectMembers {
+		if !slices.Contains(names, name) {
+			names = append(names, name)
+		}
+	}
 	return names
 }
 
@@ -153,8 +167,11 @@ func (p *plan) plan() {
 	for _, m := range f.Client.Methods {
 		operation(m.Name, m.At, "Method name")
 	}
+	events := emit.NewNamespace("Events interface")
+	events.Fix("generated event object's inherited member", eventObjectMembers...)
 	for _, e := range f.Server.Events {
 		member, at := operation(e.Name, e.At, "Event name")
+		p.declare(events, member, at, "typed event field")
 		p.declare(p.client, identOn+upperFirst(member), at, "event handler")
 	}
 	for _, e := range f.Client.Events {

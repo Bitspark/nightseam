@@ -119,6 +119,9 @@ are one number. Entries are in the words of the commits that landed them.
 - Generated clients take typed event handlers at construction in Go and
   TypeScript, before the first frame is read, so an immediate replay keeps
   its first event; existing Go preparation hooks and later registration remain.
+- TypeScript event fields that collide with inherited Object members are
+  refused before generation; a name override preserves the wire event and
+  keeps omitted callbacks absent from an empty `Events` object.
 - Go's `session.New` returns `(*Registry, error)` and refuses negative
   attachment, inflight and send-timeout limits with `invalid_options`;
   zero still selects the defaults. Both conformance testees preserve the

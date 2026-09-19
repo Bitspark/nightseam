@@ -1,0 +1,3 @@
+x/protocol.json#/server/events/to_string: typed event field toString collides with the generated event object's inherited member in the Events interface. [reserved_name]
+x/typescript.json#/names/changed: typed event field constructor collides with the generated event object's inherited member in the Events interface. [reserved_name]
+error: 2 problems
