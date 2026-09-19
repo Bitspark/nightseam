@@ -15,7 +15,7 @@
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "$ref": "urn:nightseam:v1:common#/$defs/familyName"
+            "$ref": "urn:nightseam:v1:common#/$defs/sideInheritance"
           }
         },
         "methods": {

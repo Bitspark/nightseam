@@ -205,7 +205,7 @@
               "type": "array",
               "uniqueItems": true,
               "items": {
-                "$ref": "#/$defs/typeName"
+                "$ref": "#/$defs/inheritance"
               }
             },
             "open": {
@@ -244,7 +244,7 @@
               "type": "array",
               "uniqueItems": true,
               "items": {
-                "$ref": "#/$defs/typeName"
+                "$ref": "#/$defs/inheritance"
               }
             },
             "open": {
@@ -330,7 +330,7 @@
               "type": "array",
               "uniqueItems": true,
               "items": {
-                "$ref": "#/$defs/typeName"
+                "$ref": "#/$defs/inheritance"
               }
             },
             "variants": {
@@ -339,7 +339,23 @@
                 "$ref": "#/$defs/wireName"
               },
               "additionalProperties": {
-                "$ref": "#/$defs/expr"
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/expr"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "empty"
+                    ],
+                    "properties": {
+                      "empty": {
+                        "const": true
+                      }
+                    }
+                  }
+                ]
               }
             }
           }
@@ -376,6 +392,74 @@
           }
         }
       }
+    },
+    "inheritance": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^(?:[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\.)?[A-Z][A-Za-z0-9_]*$"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "apply",
+            "with"
+          ],
+          "properties": {
+            "apply": {
+              "type": "string",
+              "pattern": "^(?:[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\.)?[A-Z][A-Za-z0-9_]*$"
+            },
+            "with": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/familyName"
+                  },
+                  {
+                    "$ref": "#/$defs/expr"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "sideInheritance": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/familyName"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "apply",
+            "with"
+          ],
+          "properties": {
+            "apply": {
+              "$ref": "#/$defs/familyName"
+            },
+            "with": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/familyName"
+                  },
+                  {
+                    "$ref": "#/$defs/expr"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

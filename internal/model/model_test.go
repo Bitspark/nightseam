@@ -198,7 +198,7 @@ func TestDecodeTypes(t *testing.T) {
 		t.Fatal("length decoded wrong")
 	}
 	page := types["Page"]
-	if !page.Open || page.Extends[0] != "Base" || page.Fields[0].Min == nil || page.Fields[0].Min.String() != "0" {
+	if !page.Open || page.Extends[0].Name != "Base" || page.Fields[0].Min == nil || page.Fields[0].Min.String() != "0" {
 		t.Fatalf("Page decoded as %+v", page)
 	}
 	if types["Status"].Values[1] != "b" || String(types["Ids"].Alias) != `{"array":{"ref":"User"}}` {

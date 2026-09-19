@@ -343,6 +343,8 @@ Used by `work.steps` (request).
 
 A record.
 
+Extends `SpecificationDraft`.
+
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `objective` | `string` | required | — | inherited from `SpecificationDraft`. |

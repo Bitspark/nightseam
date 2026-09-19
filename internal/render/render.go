@@ -22,6 +22,7 @@ type Use = analysis.Use
 // Family is one family, ready to render.
 type Family struct {
 	Name            string
+	Source          string      // original declaration directory, including a built-in's distinct namespace
 	Files           []string    // the tier files present
 	Generic         bool        // whether any type or operation draws on a parameter
 	Parameters      []Parameter // in declaration order
@@ -37,6 +38,8 @@ type Family struct {
 	overrides       map[string]model.Overrides
 	f               *analysis.Family
 	types           map[string]*Type
+	builder         *builder
+	inlines         map[*model.Type]*Type
 	imported        map[string]*Family
 }
 
@@ -58,19 +61,36 @@ type Type struct {
 	Open                    bool
 	Values                  []string
 	Alias                   model.TypeExpr
-	Tag                     string          // union: the member that discriminates
-	Value                   string          // union: the member a non-object payload rides under
-	Variants                []model.Variant // union: own variants, by tag
-	Uses                    []Use           // the type parameters the type takes
-	Carried                 bool            // carried from a built-in family, not declared here
-	From                    string          // the built-in family that declares a carried type
+	Tag                     string    // union: the member that discriminates
+	Value                   string    // union: the member the complete payload rides under
+	Variants                []Variant // union: inherited variants, then own
+	OwnVariants             []Variant
+	Extends                 []model.Inheritance
+	Bases                   []Base            // resolved, applied bases in extends order
+	Scope                   []model.Parameter // lexical parameters, including captured parameters of an inline shape
+	Declaration             *model.Type       // original declaration; never rewritten by rendering
+	Origin                  Origin
+	Inline                  bool
+	Uses                    []Use      // the type parameters the type takes
+	Arguments               []Argument // arguments of an applied view; declaration identity is unchanged
+	Carried                 bool       // carried from a built-in family, not declared here
+	From                    string     // the built-in family that declares a carried type
 	At                      diag.Location
+	resolved                bool
+}
+
+// Base retains the written edge beside its applied view in this scope.
+type Base struct {
+	Edge model.Inheritance
+	Type *Type
 }
 
 // Field is one wire field, with its constraints.
 type Field struct {
 	Name, Description string
 	Type              model.TypeExpr
+	DeclaredType      model.TypeExpr // bound expression retaining entity-reference meaning
+	Scope             []model.Parameter
 	Required          bool
 	Nullable          bool
 	Unique            bool
@@ -79,14 +99,44 @@ type Field struct {
 	Pattern           string
 	Owner             string // the type that declares it
 	At                diag.Location
+	Origin            Origin
 }
+
+// Origin identifies the declaration a fact came from, independently of the
+// family or derived name under which a target is rendering it.
+type Origin struct {
+	Family, Declaration string
+	At                  diag.Location
+}
+
+// Variant is a union arm, with its declaration and resolved wire shape.
+type Variant struct {
+	model.Variant
+	Origin       Origin
+	Form         VariantForm
+	Fields       []Field // fields of a resolved, non-null record/entity payload, inside value
+	Payload      *Type   // resolved record/entity payload, nil for other expressions
+	DeclaredType model.TypeExpr
+	Scope        []model.Parameter
+	Arguments    []Argument // the declaring union's effective arguments for this inherited variant
+}
+
+// VariantForm says how a payload sits beside the discriminator.
+type VariantForm string
+
+const (
+	VariantValue VariantForm = "value" // complete payload under the union's value member
+	VariantEmpty VariantForm = "empty" // tag alone, with no value member
+)
 
 // Side is one peer's interface.
 type Side struct {
-	Extends []string // the families whose same side this one extends
-	Methods []Method
-	Events  []Event
-	At      diag.Location
+	Extends    []model.Inheritance // the families whose same side this one extends
+	Methods    []Method
+	Events     []Event
+	OwnMethods []Method
+	OwnEvents  []Event
+	At         diag.Location
 }
 
 // Method is one operation, with what it is generic in.
@@ -97,6 +147,10 @@ type Method struct {
 	Errors            []string
 	Uses              []Use
 	At                diag.Location
+	Origin            Origin
+	Declaration       *model.Method // original expressions in Origin.Family's scope
+	BoundDeclaration  *model.Method // substituted expressions, preserving references
+	Scope             []model.Parameter
 }
 
 // Event is one notification.
@@ -105,19 +159,39 @@ type Event struct {
 	Type              model.TypeExpr
 	Uses              []Use
 	At                diag.Location
+	Origin            Origin
+	Declaration       *model.Event // original expression in Origin.Family's scope
+	BoundDeclaration  *model.Event // substituted expression, preserving references
+	Scope             []model.Parameter
 }
 
 // Error is one public error.
 type Error struct {
 	Code, Description string
 	At                diag.Location
+	Origin            Origin
 }
 
 // Session is the governance of a session family.
 type Session struct {
-	Decides      []string
-	Asks         []string
-	Conversation *model.Conversation
+	Decides       []string
+	Asks          []string
+	Conversation  *model.Conversation
+	Declaration   *model.Session
+	Inherited     []SessionSource
+	Conversations []ConversationSource // all distinct inherited/own declarations; one supplies Conversation
+}
+
+// SessionSource retains governance declared on an inherited side.
+type SessionSource struct {
+	Family, Side string
+	Declaration  *model.Session
+}
+
+// ConversationSource identifies one distinct conversation declaration.
+type ConversationSource struct {
+	Family       string
+	Conversation model.Conversation
 }
 
 // World is every family of a checkout, ready to render, by name — what a
@@ -128,20 +202,26 @@ type World struct {
 
 // Build renders the facts of a family that passed every neutral check.
 func Build(f *analysis.Family) *Family {
-	g := f.Generics()
-	r := &Family{Name: f.Name, Files: f.Files, Generic: g.Generic(), Uses: g.Family, overrides: map[string]model.Overrides{}, f: f, types: map[string]*Type{}}
+	return (&builder{families: map[*analysis.Family]*Family{}}).build(f)
+}
+
+func (b *builder) build(f *analysis.Family) *Family {
+	if r := b.families[f]; r != nil {
+		return r
+	}
+	r := &Family{Name: f.Name, Source: f.Source, Files: f.Files, overrides: map[string]model.Overrides{}, f: f, types: map[string]*Type{}, builder: b, inlines: map[*model.Type]*Type{}}
+	b.families[f] = r
 	for _, p := range f.Parameters() {
-		var uses []Use
-		for _, use := range g.Family {
-			if use.Parameter == p.Name {
-				uses = append(uses, use)
-			}
-		}
-		r.Parameters = append(r.Parameters, Parameter{Name: p.Name, Of: p.Of, Description: p.Description, Uses: uses, At: p.At})
+		r.Parameters = append(r.Parameters, Parameter{Name: p.Name, Of: p.Of, Description: p.Description, At: p.At})
 	}
 	for _, name := range f.TypeNames() {
 		t := f.Types[name]
-		rt := &Type{Name: name, Kind: t.Kind, Description: t.Description, Key: t.Key, Parameters: t.Parameters, Open: t.Open, Values: t.Values, Alias: t.Alias, Tag: t.Tag, Value: t.ValueMember(), Variants: t.Variants, Uses: g.Types[name], Carried: f.IsCarried(name), From: f.CarriedFrom(name), At: t.At}
+		rt := &Type{Name: name, Kind: t.Kind, Description: t.Description, Key: t.Key, Parameters: t.Parameters, Open: t.Open, Values: t.Values, Alias: t.Alias, Tag: t.Tag, Value: t.ValueMember(), Carried: f.IsCarried(name), From: f.CarriedFrom(name), At: t.At}
+		rt.Declaration, rt.Extends, rt.Scope = t, t.Extends, append(append([]model.Parameter{}, f.Parameters()...), t.Parameters...)
+		rt.Origin = Origin{Family: f.Name, Declaration: name, At: t.At}
+		if rt.Carried {
+			rt.Origin.Family = rt.From
+		}
 		f.WalkFields(name, func(at analysis.FieldAt) {
 			rt.Fields = append(rt.Fields, field(at.Owner, at.Field))
 		})
@@ -150,16 +230,6 @@ func Build(f *analysis.Family) *Family {
 		}
 		r.Types = append(r.Types, rt)
 		r.types[name] = rt
-	}
-	if p := f.Protocol; p != nil {
-		r.Server = side(f, p.Server)
-		r.Client = side(f, p.Client)
-		for _, e := range p.Errors {
-			r.Errors = append(r.Errors, Error{Code: e.Code, Description: e.Description, At: e.At})
-		}
-	}
-	if s := f.Session; s != nil {
-		r.Session = &Session{Decides: s.Decides, Asks: s.Asks, Conversation: s.Conversation}
 	}
 	r.References = f.References()
 	r.Carries = f.Carries
@@ -176,23 +246,12 @@ func Build(f *analysis.Family) *Family {
 			r.overrides[target] = o
 		}
 	}
+	r.complete()
 	return r
 }
 
 func field(owner string, m model.Field) Field {
 	return Field{Name: m.Name, Description: m.Description, Type: m.Type, Required: m.Required, Nullable: m.Nullable, Unique: m.Unique, Min: m.Min, Max: m.Max, Length: m.Length, Pattern: m.Pattern, Owner: owner, At: m.At}
-}
-
-func side(f *analysis.Family, s model.Side) Side {
-	out := Side{Extends: s.Extends, At: s.At}
-	for _, m := range s.Methods {
-		uses := union(f.UsesOf(m.Request), f.UsesOf(m.Result))
-		out.Methods = append(out.Methods, Method{Name: m.Name, Description: m.Description, Request: m.Request, Result: m.Result, Errors: m.Errors, Uses: uses, At: m.At})
-	}
-	for _, e := range s.Events {
-		out.Events = append(out.Events, Event{Name: e.Name, Description: e.Description, Type: e.Type, Uses: f.UsesOf(e.Type), At: e.At})
-	}
-	return out
 }
 
 func union(sets ...[]Use) []Use {
@@ -242,45 +301,33 @@ func (r *Family) IsParameter(name string) bool { return r.f.HasParameter(name) }
 func (r *Family) HasProtocol() bool { return r.f.Protocol != nil }
 
 // UsesOf is what an expression is generic in.
-func (r *Family) UsesOf(e model.TypeExpr) []Use { return r.f.UsesOf(e) }
+func (r *Family) UsesOf(e model.TypeExpr) []Use { return r.uses(e, r.f.Parameters()) }
 
 // ImportedUses is what a type of an imported family is generic in, in that
 // family's own parameters.
 func (r *Family) ImportedUses(family, typeName string) []Use {
-	return r.f.Generics().Imported[family][typeName]
-}
-
-// Argument is what fills one type parameter of an applied type: a family
-// parameter of this family, or a named family. Exactly one is set.
-type Argument struct {
-	Use       Use    // the imported type's parameter, at the type drawn
-	Parameter string // a family parameter of this family
-	Family    string // a named family
-}
-
-// Arguments resolves an application: for each type parameter the applied
-// type takes, what fills it — a family parameter of this family when the
-// application says so or when the family has one, a named family otherwise.
-func (r *Family) Arguments(a model.Apply) []Argument {
-	var out []Argument
-	for _, use := range r.ImportedUses(a.Family, a.Name) {
-		argument := Argument{Use: use}
-		filler, bound := a.With[use.Parameter]
-		switch {
-		case !bound && len(r.familyParameters()) == 1:
-			argument.Parameter = r.familyParameters()[0]
-		case !bound:
-			argument.Parameter = use.Parameter
-		case r.f.HasFamilyParameter(filler.Name()):
-			argument.Parameter = filler.Name()
-		case filler.Family != "":
-			argument.Family = filler.Family
-		default:
-			argument.Parameter = filler.Name()
+	if other := r.other(family); other != nil {
+		if t := other.Type(typeName); t != nil {
+			return t.Uses
 		}
-		out = append(out, argument)
 	}
-	return out
+	return nil
+}
+
+// Argument fills one use of an applied declaration's parameter. Type fills
+// a type slot; Parameter or Family fills a family slot. Exactly one is set.
+type Argument struct {
+	Use       Use            // the imported type's parameter, at the type drawn
+	Parameter string         // a family parameter of this family
+	Family    string         // a named family
+	Type      model.TypeExpr // the expression filling a type parameter
+	Slot      model.Parameter
+}
+
+// Arguments resolves the expressions and families filling an applied
+// type's parameter uses, in declaration order.
+func (r *Family) Arguments(a model.Apply) []Argument {
+	return r.arguments(a)
 }
 
 func (r *Family) familyParameters() []string {

@@ -214,9 +214,10 @@ func (f *Family) HasFamilyParameter(name string) bool {
 // FieldAt is one field of a record as inheritance reaches it: the record
 // that declares it and its index there.
 type FieldAt struct {
-	Owner string
-	Index int
-	Field model.Field
+	Owner  string
+	Index  int
+	Field  model.Field
+	Family string
 }
 
 // WalkFields visits a record's fields in wire order: each inherited
@@ -226,27 +227,24 @@ type FieldAt struct {
 // closes, and a parent that is not a record is skipped, so the walk is safe
 // on any family the loader accepts.
 func (f *Family) WalkFields(name string, visit func(FieldAt)) {
-	var walk func(string, map[string]bool)
-	walk = func(current string, stack map[string]bool) {
-		if stack[current] {
+	var walk func(*Family, *model.Type, map[string]model.Filler, map[*model.Type]bool)
+	walk = func(source *Family, t *model.Type, bindings map[string]model.Filler, stack map[*model.Type]bool) {
+		if t == nil || stack[t] {
 			return
 		}
-		stack[current] = true
-		defer delete(stack, current)
-		t, ok := f.Types[current]
-		if !ok {
-			return
-		}
+		stack[t] = true
+		defer delete(stack, t)
 		for _, parent := range t.Extends {
-			if p, ok := f.Types[parent]; ok && isRecord(p) {
-				walk(parent, stack)
+			if owner, p, ok := source.Base(parent); ok && isRecord(p) {
+				walk(owner, p, f.BindArguments(parent.With, source, bindings), stack)
 			}
 		}
 		for i, field := range t.Fields {
-			visit(FieldAt{current, i, field})
+			field.Type = f.BindExpression(field.Type, source, bindings)
+			visit(FieldAt{Owner: t.Name, Index: i, Field: field, Family: source.Name})
 		}
 	}
-	walk(name, map[string]bool{})
+	walk(f, f.Types[name], nil, map[*model.Type]bool{})
 }
 
 // FlattenedFields is a record's fields in wire order, inherited first.
@@ -353,6 +351,7 @@ func (f *Family) Generics() Generics {
 		return *f.generics
 	}
 	g := Generics{Types: map[string][]Use{}, Imported: map[string]map[string][]Use{}}
+	f.generics = &g // invalid import cycles must still terminate while checks collect diagnostics
 	for name, other := range f.Imported {
 		g.Imported[name] = other.Generics().Types
 	}
@@ -556,7 +555,12 @@ func (f *Family) ShapeFields(t *model.Type) []model.Field {
 	}
 	var fields []model.Field
 	for _, parent := range t.Extends {
-		fields = append(fields, f.FlattenedFields(parent)...)
+		if owner, base, ok := f.Base(parent); ok {
+			for _, field := range owner.FlattenedFields(base.Name) {
+				field.Type = f.BindExpression(field.Type, owner, parent.With)
+				fields = append(fields, field)
+			}
+		}
 	}
 	return append(fields, t.Fields...)
 }
@@ -565,25 +569,23 @@ func (f *Family) ShapeFields(t *model.Type) []model.Field {
 // extends, sorted.
 func (f *Family) VariantTags(name string) []string {
 	seen := map[string]bool{}
-	var walk func(string, map[string]bool)
-	walk = func(current string, stack map[string]bool) {
-		if stack[current] {
+	var walk func(*Family, *model.Type, map[*model.Type]bool)
+	walk = func(source *Family, t *model.Type, stack map[*model.Type]bool) {
+		if t == nil || stack[t] || t.Kind != model.KindUnion {
 			return
 		}
-		stack[current] = true
-		defer delete(stack, current)
-		t, ok := f.Types[current]
-		if !ok || t.Kind != model.KindUnion {
-			return
-		}
+		stack[t] = true
+		defer delete(stack, t)
 		for _, parent := range t.Extends {
-			walk(parent, stack)
+			if owner, base, ok := source.Base(parent); ok {
+				walk(owner, base, stack)
+			}
 		}
 		for _, variant := range t.Variants {
 			seen[variant.Tag] = true
 		}
 	}
-	walk(name, map[string]bool{})
+	walk(f, f.Types[name], map[*model.Type]bool{})
 	tags := make([]string, 0, len(seen))
 	for tag := range seen {
 		tags = append(tags, tag)
@@ -618,6 +620,15 @@ func (f *Family) Inlines() []Inline {
 			walk(x.Elem, path, at)
 		case model.Nullable:
 			walk(x.Elem, path, at)
+		case model.Apply:
+			names := make([]string, 0, len(x.With))
+			for name := range x.With {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			for _, name := range names {
+				walk(x.With[name].Type, path, at.Sub("with", name))
+			}
 		case model.Inline:
 			out = append(out, Inline{Type: x.Type, Name: naming.Derived(path...), Path: path, At: at})
 			for i := range x.Type.Fields {

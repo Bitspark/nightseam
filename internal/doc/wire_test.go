@@ -48,20 +48,20 @@ func typed(f *Family, name string) *Type {
 }
 
 // TestExamplesOfEveryForm: an example of each form of the type language is
-// what the wire carries — a union at its first variant by tag, the tag
-// alone where the variant carries an empty shape, the tag among an object
-// payload's members and a payload that is no object under the value
-// member, a literal as its value, a nullable as a value, a shape
-// written inline as its fields, a generic type as its filler fills it,
-// a draw through a parameter and a type parameter as placeholders, a
-// length as padding, an enum as its first value — deterministically.
+// what the wire carries — a union at its first variant, inherited variants
+// first and by tag among them, its complete payload under the value member
+// whatever it is, an empty record included; a literal as its value, a
+// nullable as a value, a shape written inline as its fields, a generic
+// type as its filler fills it, a draw through a parameter and a type
+// parameter as placeholders, a length as padding, an enum as its first
+// value — deterministically.
 func TestExamplesOfEveryForm(t *testing.T) {
 	f := proof(t)
 	for name, want := range map[string]string{
 		"Part":     `{"type":"count","value":0}`,
-		"RichPart": `{"type":"table","rows":["‹rows›"]}`,
+		"RichPart": `{"type":"count","value":0}`,
 		"TextPart": `{"type":"text","body":"‹body›"}`,
-		"Option":   `{"kind":"none"}`,
+		"Option":   `{"kind":"none","value":{}}`,
 		"Result":   `{"kind":"err","value":"‹E›"}`,
 		"Page":     `{"items":["‹T›"],"next":"‹next›"}`,
 		"Parts":    `{"items":[{"type":"count","value":0}],"next":"‹next›"}`,
@@ -112,11 +112,22 @@ func TestFramesAreTheProfiles(t *testing.T) {
 	if parts.Weight != (Weight{Request: 1, Result: 2}) {
 		t.Errorf("parts weighs %+v", parts.Weight)
 	}
-	if got := string(relay.Frames.Response); got != `{"version":1,"kind":"response","id":"c:1","result":{"kind":"none"}}` {
+	if got := string(relay.Frames.Response); got != `{"version":1,"kind":"response","id":"c:1","result":{"kind":"none","value":{}}}` {
 		t.Errorf("relay response: %s", got)
 	}
-	if len(f.Server.Events) != 1 || string(f.Server.Events[0].Frame) != `{"version":1,"kind":"event","event":"part.added","data":{"type":"table","rows":["‹rows›"]}}` || f.Server.Events[0].Weight != 2 {
-		t.Errorf("the event is %+v", f.Server.Events)
+	// The server side extends probe's, so probe's event is here beside the
+	// family's own, inherited.
+	var added *Event
+	for i := range f.Server.Events {
+		if f.Server.Events[i].Name == "part.added" {
+			added = &f.Server.Events[i]
+		}
+	}
+	if len(f.Server.Events) != 2 || f.Server.Events[0].Name != "changed" || f.Server.Events[0].Origin.Family != "probe" {
+		t.Errorf("the inherited event is not here first: %+v", f.Server.Events)
+	}
+	if added == nil || string(added.Frame) != `{"version":1,"kind":"event","event":"part.added","data":{"type":"count","value":0}}` || added.Weight != 2 {
+		t.Errorf("the event is %+v", added)
 	}
 	for _, m := range append(f.Server.Methods, f.Client.Methods...) {
 		for _, frame := range append([]json.RawMessage{m.Frames.Request, m.Frames.Response}, refusals(m)...) {

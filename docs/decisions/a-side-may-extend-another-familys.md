@@ -17,6 +17,14 @@ base's own type names read in the extending family's package — is each
 target's, and until a target has it the target refuses the family and says
 so.
 
+A generic base family requires an explicit inheritance application,
+`{"apply":"base","with":{"T":"Item"}}`, which selects the same side and
+fills every base family parameter. A bare family name is for a nongeneric
+base only. [#136](https://github.com/Bitspark/nightseam/issues/136) extends
+[the one filling operation](one-parameter-mechanism-of-two-sorts.md) here;
+parameter spelling never supplies a binding. A diamond may reach the same
+operation declaration with the same binding; different bindings collide.
+
 A session's governance resolves names on the inherited sides as well as
 its own. Its conversation definition follows the side carrying the event,
 through intermediate bases too. The same event and path may arrive more

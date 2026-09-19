@@ -12,13 +12,14 @@ import (
 	"github.com/Bitspark/nightseam/internal/load"
 	"github.com/Bitspark/nightseam/internal/model/builtin"
 	"github.com/Bitspark/nightseam/internal/render"
+	"github.com/Bitspark/nightseam/internal/targets/markdown"
 )
 
 // proofWorld reads the proof checkout: one contract using every form the
 // type language gained at once, beside the family whose side it extends.
 func proofWorld(t *testing.T) analysis.World {
 	t.Helper()
-	world, diagnostics := load.Checkout(os.DirFS("testdata"), "proof", []string{"go", "typescript", "spec"})
+	world, diagnostics := load.Checkout(os.DirFS("testdata"), "proof", []string{"go", "typescript", "markdown"})
 	for _, d := range diagnostics {
 		t.Errorf("loading the proof checkout: %s", d)
 	}
@@ -29,14 +30,13 @@ func proofWorld(t *testing.T) analysis.World {
 }
 
 // TestProofFamilyIsAccepted: the proof contract — a generic union, a union
-// that extends another, a variant that carries its own tag as a literal and
+// that extends another, a variant payload with a literal field and
 // one that is not an object at all, a shape written inline, a collection of
 // values that may be null, a type parameter beside a family parameter of
 // the protocol tier on one declaration, a local application, a side that
 // extends another family's, and a pattern in the dialect — is accepted by
-// the neutral checks. No target renders it yet, so it is held here by check
-// alone until the render lanes land and the gate moves it into the golden
-// corpus.
+// the neutral checks. The specification has its own golden corpus; the Go
+// and TypeScript render lanes still hold their unsupported forms below.
 func TestProofFamilyIsAccepted(t *testing.T) {
 	world := proofWorld(t)
 	for name := range world {
@@ -92,9 +92,10 @@ func TestProofFamilyDerivesItsInlineNames(t *testing.T) {
 	}
 }
 
-// TestEveryTargetRefusesWhatItDoesNotRender: every composed target refuses
+// TestEveryTargetRefusesWhatItDoesNotRender: each language target refuses
 // the proof family, once per form it does not render yet, naming the form
-// and itself. That refusal is what keeps the corpus green while the render
+// and itself. The spec target renders the complete proof. These refusals
+// keep the code corpus green while the language render
 // lanes catch up — a target that met a form it had never been taught would
 // otherwise emit something that is not what was declared, or nothing at
 // all, and the golden files would say neither.
@@ -103,6 +104,12 @@ func TestEveryTargetRefusesWhatItDoesNotRender(t *testing.T) {
 	forms := len(render.FormsUsed(r))
 	for _, target := range compose.Targets("example.com/api", "@example", "") {
 		diagnostics := target.Check(r)
+		if target.Name() == markdown.Name {
+			if len(diagnostics) != 0 {
+				t.Errorf("the specification refuses the proof family: %v", diagnostics)
+			}
+			continue
+		}
 		if len(diagnostics) != forms {
 			t.Errorf("%s refused %d of the %d forms it does not render", target.Name(), len(diagnostics), forms)
 		}

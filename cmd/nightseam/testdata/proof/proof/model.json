@@ -23,15 +23,15 @@
     },
     "TextPart": {
       "kind": "record",
-      "description": "A part that carries its own tag, so it is a variant without a wrapper.",
+      "description": "A part with its own literal type field, retained inside the union payload.",
       "fields": [
-        {"name": "type", "description": "The discriminator, declared as the literal of this variant.", "type": {"literal": "text"}},
+        {"name": "type", "description": "A literal field of the payload; the union has its own discriminator.", "type": {"literal": "text"}},
         {"name": "body", "type": "string", "length": {"min": 1}}
       ]
     },
     "Part": {
       "kind": "union",
-      "description": "One part of a message: a record that carries its own tag, a shape written inline, and a payload that is not an object.",
+      "description": "One part of a message: a record with a literal field, a shape written inline, and a scalar payload.",
       "tag": "type",
       "variants": {
         "text": "TextPart",

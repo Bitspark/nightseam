@@ -13,17 +13,17 @@ import (
 // names is a writer of one page of the checkout as a whole — every
 // family's name — and one page per family, its name: the smallest writer
 // of both units.
-type names struct{ layout Layout }
+type roster struct{ layout Layout }
 
-func (*names) Name() string     { return "names" }
-func (n *names) Layout() Layout { return n.layout }
-func (n *names) Family(f *Family) ([]spi.File, error) {
+func (*roster) Name() string     { return "names" }
+func (n *roster) Layout() Layout { return n.layout }
+func (n *roster) Family(f *Family) ([]spi.File, error) {
 	if n.layout.Family == "" {
 		return nil, nil
 	}
 	return []spi.File{{Path: n.layout.Dir(f.Name) + "/name.txt", Data: []byte(f.Name + "\n")}}, nil
 }
-func (n *names) Checkout(c *Checkout) ([]spi.File, error) {
+func (n *roster) Checkout(c *Checkout) ([]spi.File, error) {
 	if len(n.layout.Checkout) == 0 {
 		return nil, nil
 	}
@@ -48,7 +48,7 @@ func world(t *testing.T) *render.World {
 // checkout's pages' directory for the checkout, knows each page as its
 // family's or as the checkout's, and renders each unit through the writer.
 func TestTargetAnswersForBothUnits(t *testing.T) {
-	target := Target(&names{Layout{Family: "api/names/{family}", Checkout: []string{"api/names/index.txt", "api/all/every.txt"}}})
+	target := Target(&roster{Layout{Family: "api/names/{family}", Checkout: []string{"api/names/index.txt", "api/all/every.txt"}}})
 	if got := target.Owns("a"); len(got) != 1 || got[0] != "api/names/a" {
 		t.Fatalf("owns %v for a", got)
 	}
@@ -82,7 +82,7 @@ func TestTargetAnswersForBothUnits(t *testing.T) {
 // owns nothing for it, renders nothing for it, and its layout refuses a
 // page path that names a family or escapes the checkout.
 func TestTargetOfOneUnitOwnsNothingOfTheOther(t *testing.T) {
-	whole := Target(&names{Layout{Checkout: []string{"api/all/every.txt"}}})
+	whole := Target(&roster{Layout{Checkout: []string{"api/all/every.txt"}}})
 	if got := whole.Owns("a"); len(got) != 0 {
 		t.Fatalf("a writer of the checkout alone owns %v for a family", got)
 	}
@@ -92,7 +92,7 @@ func TestTargetOfOneUnitOwnsNothingOfTheOther(t *testing.T) {
 	if files, err := whole.Render(world(t).Families[0]); err != nil || len(files) != 0 {
 		t.Fatalf("a writer of the checkout alone rendered %v, %v for a family", files, err)
 	}
-	each := Target(&names{Layout{Family: "api/names/{family}"}})
+	each := Target(&roster{Layout{Family: "api/names/{family}"}})
 	if got := each.Owns(""); len(got) != 0 {
 		t.Fatalf("a writer of families alone owns %v for the checkout", got)
 	}

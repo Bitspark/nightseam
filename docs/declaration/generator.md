@@ -127,11 +127,22 @@ its files are found, what is stale — and a writer implements none of that.
 A writer declares its unit: pages of one family, pages of the checkout as
 a whole, or both. `markdown` is the first writer, a page per family at
 `api/spec/<family>/README.md`, which renders where the tree is read; it
-reserves nothing and refuses only the forms of the declaration language no
-writer renders yet. A writer of the checkout as a whole — an index of every
+reserves no language identifiers and refuses nothing. A writer of the checkout as a whole — an index of every
 family, a page across them — is rendered on every run, after the families,
 from every family the checkout has, whole or not at all: a family with a
 diagnostic refuses it, naming itself.
+
+The specification includes inherited fields, union variants, operations,
+errors and session governance, while retaining the declared bases and the
+origin of inherited members. Shapes written inline appear under their
+derived names; nullable values, literals, both parameter sorts and explicit
+applications keep their declaration meaning. The generated header records
+the actual source directory, including a custom contracts root.
+
+The same writer renders the complete [built-in family references](builtins/README.md),
+including each family's operations and types. Their generated headers name the
+embedded `nightseam:` source, and the fast test tier holds the documents to
+those declarations. The reference index names the regeneration command.
 
 ## The checkout's config
 

@@ -1,53 +1,55 @@
-# A union is internally tagged
+# A union is adjacently tagged
 
-**The question.** `enum` of strings was the only sum the language had.
-Everything event-like, polymorphic or result-shaped was declared as `json`
-and validated by hand in every consumer — the thing the generator exists to
-remove. What is a union, and what does it look like on the wire?
+**The question.** What wire carrier preserves every admitted union payload,
+including arbitrary JSON, maps and nullable records, through encoding and
+decoding in every language?
 
-**Decided.** `{"kind": "union", "tag": "type", "variants": {…}}`:
-**internally tagged, with a declared discriminator**. One wire form, which
-every planned language reads —
+**Decided.** A union declares its discriminator with `"tag"` and carries
+its complete payload under `"value"`, or the member named by its `"value"`
+setting. Records, maps, JSON, arrays, primitives and null all use the same
+carrier: `{"type":"text","value":{"body":"…"}}` or
+`{"type":"count","value":3}`. The discriminator and value member differ.
 
-- A **variant is any type expression**, not only a named record: a
-  primitive, an application, a nullable, a shape written inline.
-- A variant whose value is an object on the wire carries the tag as a
-  member beside its own: `{"type": "text", "body": "…"}`.
-- A variant whose value is **not** an object rides under a `value` member
-  beside the tag: `{"type": "count", "value": 3}`. The union may name that
-  member otherwise with `"value": "<member>"`.
-- A variant record that **declares the tag member itself** is a variant
-  without a wrapper — and then it declares it as `{"literal": "text"}`,
-  the literal of that variant, required. Declaring it any other way is a
-  `check` diagnostic and not a convention, because the first family that did
-  it would hand two languages one frame to read two ways.
-- Unions take parameters like anything else ([one parameter mechanism, of
-  two sorts](one-parameter-mechanism-of-two-sorts.md)), so `Result<T, E>`
-  and `Option<T>` are declared in a family rather than built into the
-  language.
-- A union may `extends` another, **adding** variants: the two read the same
-  discriminator and the same value member, a tag the base already carries
-  may not be redeclared, and a chain that returns is refused. A value of the
-  base validates against the extended; the reverse does not, and that
-  direction is the validators' to hold.
-- `enum` stays, as the union of variants with no payload.
+A variant is any type expression, or `{"empty":true}` for a variant with
+no payload. That marker is legal only in a union's `variants` map. It
+encodes as the tag alone: `{"type":"none"}`. An empty record is a payload
+`{}`, and a nullable payload whose value is null still writes `"value":null`.
+A record's own literal member remains inside its payload; it may differ
+from the outer tag, be optional, or be nullable.
 
-**Why.** External tagging (`{"text": {…}}`) is compact and every language
-special-cases the single-key object, a payload that is itself an object
-nests twice, and the tag cannot be read without unwrapping. An untagged
-`oneOf` is ambiguous on the wire and undecidable for a validator the moment
-two variants overlap. Internal tagging is what each planned language renders
-natively or nearly: a discriminated union in TypeScript, `#[serde(tag)]` in
-Rust, a sealed hierarchy in Haskell and Swift, an interface with a decode
-switch in Go, a `Literal`-tagged union in Python. `std::variant` in C++ has
-no tag of its own and is the case the form was pushed against: it reads the
-declared discriminator and selects the alternative, which is more code than
-the others write and is not a different wire form — which is the test a form
-has to pass, and the reason the reach was taken to its limit here rather
-than discovered at the eighth language.
+Unions take parameters through [one parameter mechanism](one-parameter-mechanism-of-two-sorts.md).
+They may extend other unions, adding variants with the same discriminator
+and value member. A generic base requires explicit arguments at that edge.
+A base's tag cannot be redeclared; an inheritance cycle or conflicting
+inherited declaration/binding is refused. A base value validates against
+the extended union; the reverse does not. String `enum` stays unchanged.
 
-**Serves.** Agnosticism — one wire form every language reads, rather than a
-`json` field each consumer reads its own way.
+**Why this replaces the first verdict.** #56 chose internal tagging over
+external tagging (`{"text":{…}}`) and untagged `oneOf`: a discriminator
+selects one alternative without guessing which overlapping shape a value
+has. It put object members beside the tag and other payloads under `value`,
+and let a record's literal member carry its own tag.
 
-**Since.** 0.4.0, [#56](https://github.com/Bitspark/nightseam/issues/56),
-landed by #101.
+#146 found that this loses information. JSON payloads `3` and `{"value":3}`
+both became `{"kind":"json","value":3}`. Nullable-record payloads null
+and `{"value":null}` also became one frame. A decoder cannot reconstruct
+both meanings, and specializing a generic codec would break the law that
+generic and bound declarations behave alike. The adjacent carrier preserves
+both examples and prevents payload keys from colliding with envelope keys.
+The flat-object and literal-record exceptions are withdrawn.
+
+The representation remains one every language can read. TypeScript has a
+discriminated union. Go, under #140, has a concrete value that owns its codec
+and switches on its kind, with typed variants and widening/narrowing helpers;
+it can be used as a type argument without a codec registry. Other targets
+must realize the same wire carrier and generic-versus-bound law.
+
+**Serves.** Agnosticism — one lossless wire form and one meaning for a
+payload in every language.
+
+**Since.** 0.4.0: [#56](https://github.com/Bitspark/nightseam/issues/56),
+amended by [#140](https://github.com/Bitspark/nightseam/issues/140) for Go's
+surface and [#146](https://github.com/Bitspark/nightseam/issues/146) for the
+carrier. #133 holds declaration/checker/render facts; #135 holds both
+validators and the shared table; #102/#103 hold generated codecs; #105
+holds the cross-wire proofs.

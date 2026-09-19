@@ -165,15 +165,14 @@ func (t *target) Family(p string) (string, bool) {
 	return "", false
 }
 
-// Check refuses a layout that cannot be written to, and the forms of the
-// declaration language no writer renders yet, naming the form and the
-// writer; a document is written of any other family the neutral checks
-// accept, and a writer declares no identifier a family could collide with.
+// Check refuses a layout that cannot be written to, and nothing else: the
+// document describes every form the neutral checks accept, and a writer
+// declares no identifier a family could collide with.
 func (t *target) Check(f *render.Family) []diag.Diagnostic {
 	if err := t.layout.Validate(); err != nil {
 		return []diag.Diagnostic{{Family: f.Name, Code: "invalid_config", Message: err.Error()}}
 	}
-	return render.Unrendered(f, t.w.Name())
+	return nil
 }
 
 // Render writes the pages of one family.

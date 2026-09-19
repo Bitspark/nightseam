@@ -251,7 +251,11 @@ func (x *exampler) typed(t *render.Type, name string, c constraints) value {
 	for _, field := range t.Fields {
 		fields = append(fields, fieldOf(field))
 	}
-	return x.shape(t.Kind, fields, t.Values, t.Alias, t.Tag, t.Value, t.Variants, name, c)
+	var variants []model.Variant
+	for _, variant := range t.Variants {
+		variants = append(variants, variant.Variant)
+	}
+	return x.shape(t.Kind, fields, t.Values, t.Alias, t.Tag, t.Value, variants, name, c)
 }
 
 // shape is an example of a type by its kind.
@@ -284,28 +288,17 @@ func (x *exampler) record(fields []model.Field) value {
 	return object(members...)
 }
 
-// variant is an example of a union at one variant, as the wire carries an
-// internally tagged union: a payload that is an object carries the tag
-// among its members, first, and a member of its own named as the tag — a
-// literal declaring the discriminator — gives way to it; a payload that is
-// no object rides under the value member beside the tag; no payload is the
-// tag alone.
+// variant is an example of a union at one variant, as the wire carries
+// it: the tag, and the complete payload under the union's value member —
+// a record, a map, a scalar, null, whatever the variant admits, so that
+// every payload survives the wire unchanged — or, for an arm declared with
+// no payload, the tag alone.
 func (x *exampler) variant(tag, valueMember string, v model.Variant) value {
 	tagged := member{tag, text(v.Tag)}
 	if v.Type == nil {
 		return object(tagged)
 	}
-	payload := x.value(v.Type, v.Tag, constraints{})
-	if !payload.isObject() {
-		return object(tagged, member{valueMember, payload})
-	}
-	members := []member{tagged}
-	for _, m := range payload.members {
-		if m.key != tag {
-			members = append(members, m)
-		}
-	}
-	return object(members...)
+	return object(tagged, member{valueMember, x.value(v.Type, v.Tag, constraints{})})
 }
 
 // applied is an example of a generic type with its parameters filled.
@@ -441,7 +434,9 @@ func references(f *render.Family) map[string][]Reference {
 					visit(v.Name)
 				}
 			case model.Ref:
-				visit(v.Entity)
+				if v.Family == "" || v.Family == f.Name {
+					visit(v.Entity)
+				}
 			case model.Apply:
 				if v.Family == "" && f.Type(v.Name) != nil {
 					visit(v.Name)

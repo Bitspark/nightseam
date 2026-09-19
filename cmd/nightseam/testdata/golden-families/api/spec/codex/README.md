@@ -45,6 +45,8 @@ For example:
 
 A record.
 
+Extends `Base`.
+
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `text` | `string` | required | — | inherited from `Base`. |

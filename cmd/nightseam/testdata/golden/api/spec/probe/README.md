@@ -59,6 +59,8 @@ For example:
 
 A record. A payload: a base with a count and a note that may be absent or null.
 
+Extends `Base`.
+
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `text` | `string` | required | — | inherited from `Base`. The text of the payload. |
