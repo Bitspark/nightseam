@@ -5,7 +5,6 @@ generator writes into a generated client's manifest, and the Go module's tag
 are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
-
 ### Added
 
 - The **live tier**, `live.json`, and the `callable` kind: a declaration whose
@@ -64,53 +63,6 @@ are one number. Entries are in the words of the commits that landed them.
   both cross-language directions over real sockets, each ending by counting
   what its scopes still hold, so a retained binding fails a scenario whose
   payloads all matched.
-
-### Removed
-
-- `after`, the session's resume cursor, from `Tunnel.Open`, `channel.open`,
-  `Channel.After` and the `channel.opened` and `channel.accepted` observer
-  events in both languages. Nothing in data, RPC or live reads it; a session
-  that resumes now states its own cursor when it attaches rather than taking
-  one off the channel it attached over.
-
-### Fixed
-
-- Documentation examples honor array lengths and explicit family bindings,
-  and synthesize checked witnesses for supported patterned strings.
-- Registry smoke consumers have their own pnpm workspace boundary, so an
-  install beneath an existing workspace leaves its manifest, settings and
-  lockfile unchanged while retaining the release's dependency declarations.
-- Release verification waits up to thirty minutes for registry propagation,
-  with retry backoff capped at thirty seconds, so cached Go proxy misses
-  have time to expire after a tag is published.
-- `nightseam init` skips Go handler scaffolds for model-only families,
-  which have no generated binding package to implement.
-
-### Removed
-
-- The governed session layer, whole: the `session` tier and its `decides`,
-  `asks` and `conversation` declarations; controller, participant and
-  observer roles, holder selection, attention and question handover; the
-  fixed upstream/consumer topology and the lifecycle it imposed; the
-  `session/go` and `@nightseam/session` packages with their registry,
-  attachments, log and replay; the built-in `session` family, the reserved
-  `session.` namespace and the generated `Decides`, `Asks`, `Conversation`,
-  cursor and control helpers; the session observer events and their OTel
-  spans; and the `session` conformance profile with its scenarios, driver
-  ops and testee halves. Nightseam has no released consumer, so this is a
-  clean break with no shim and no migration; the live layer that replaces it
-  is designed in #201 and #202. The decision records of the removed layer are
-  kept and marked superseded.
-- `Tunnel.Open`'s `after` cursor and `channel.open`'s `after` member, in both
-  languages, the built-in `tunnel` declaration, the driver and the tables.
-  They existed only so an attaching consumer could resume a governed log, and
-  the tunnel never read them; a layer that needs to resume says so in its own
-  vocabulary.
-- The `holder` corpus family, which drew a declared type through an unbound
-  family parameter. The rule it exercised — every family that may bind a
-  parameter declares what is drawn through it — is unchanged and still held by
-  `internal/check`; with `protocol` the only tier role, no checkout of more
-  than one family can satisfy it for a type the built-ins do not carry.
 
 ### Changed
 
@@ -171,6 +123,49 @@ are one number. Entries are in the words of the commits that landed them.
   including nested JSON, names, descriptors and custom encodings. Generated
   Go codecs and sessions over raw connections use the same guards. Valid
   surrogate pairs and ordinary U+FFFD stay unchanged.
+
+### Removed
+
+- The governed session layer, whole: the `session` tier and its `decides`,
+  `asks` and `conversation` declarations; controller, participant and
+  observer roles, holder selection, attention and question handover; the
+  fixed upstream/consumer topology and the lifecycle it imposed; the
+  `session/go` and `@nightseam/session` packages with their registry,
+  attachments, log and replay; the built-in `session` family, the reserved
+  `session.` namespace and the generated `Decides`, `Asks`, `Conversation`,
+  cursor and control helpers; the session observer events and their OTel
+  spans; and the `session` conformance profile with its scenarios, driver
+  ops and testee halves. Nightseam has no released consumer, so this is a
+  clean break with no shim and no migration; the live layer that replaces it
+  is designed in #201 and #202. The decision records of the removed layer are
+  kept and marked superseded.
+- The `holder` corpus family, which drew a declared type through an unbound
+  family parameter. The rule it exercised — every family that may bind a
+  parameter declares what is drawn through it — is unchanged and still held by
+  `internal/check`; with `protocol` the only tier role, no checkout of more
+  than one family can satisfy it for a type the built-ins do not carry.
+
+- `after`, the session's resume cursor: from `Tunnel.Open` and
+  `Channel.After`, from `channel.open` and the `channel.opened` and
+  `channel.accepted` observer events, in both languages, and from the
+  built-in `tunnel` declaration, the driver and the tables. It existed only
+  so an attaching consumer could resume a governed log, and the tunnel never
+  read it — it forwarded it to whatever served the channel. Nothing in data,
+  RPC or live reads it; a layer that needs to resume states its own cursor
+  when it attaches rather than taking one off the channel it attached over.
+
+### Fixed
+
+- Documentation examples honor array lengths and explicit family bindings,
+  and synthesize checked witnesses for supported patterned strings.
+- Registry smoke consumers have their own pnpm workspace boundary, so an
+  install beneath an existing workspace leaves its manifest, settings and
+  lockfile unchanged while retaining the release's dependency declarations.
+- Release verification waits up to thirty minutes for registry propagation,
+  with retry backoff capped at thirty seconds, so cached Go proxy misses
+  have time to expire after a tag is published.
+- `nightseam init` skips Go handler scaffolds for model-only families,
+  which have no generated binding package to implement.
 
 ## 0.4.0 - 2026-09-19
 
@@ -269,7 +264,6 @@ generation and paired value validation for those forms remain in
 - The document/writer model, language code examples, HTML atlas and
   validated documentation examples continue in 0.5.0. Pilot languages are
   planned for [0.6.0](https://github.com/Bitspark/nightseam/milestone/5).
-
 
 ## 0.3.0
 
