@@ -1,3 +1,3 @@
-nightseam.json#/disabled/0: No target named "rust" is composed; the targets are go, typescript, markdown. [unknown_target]
-nightseam.json#/targets/haskell: No target named "haskell" is composed, so its section configures nothing; the targets are go, typescript, markdown. [unknown_target]
+nightseam.json#/disabled/0: No target named "rust" is composed; the targets are go, typescript, markdown, atlas. [unknown_target]
+nightseam.json#/targets/haskell: No target named "haskell" is composed, so its section configures nothing; the targets are go, typescript, markdown, atlas. [unknown_target]
 error: 2 problems
