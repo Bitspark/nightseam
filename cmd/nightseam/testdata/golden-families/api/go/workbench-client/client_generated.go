@@ -123,14 +123,14 @@ func Open(ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options
 func (c *Client) Close() error { return c.Peer.Close() }
 func (c *Client) ListEvents(ctx context.Context, params protocol.ListEventsParams) ([]protocol.Event, error) {
 	var result []protocol.Event
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"ListEventsParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"ListEventsParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "events.list", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("{\"array\":\"Event\"}"), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"array\":\"Event\"}"), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -144,7 +144,7 @@ func (c *Client) Me(ctx context.Context) (protocol.User, error) {
 	if err := c.Peer.Call(ctx, "me", struct{}{}, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"User\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"User\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -154,14 +154,14 @@ func (c *Client) Me(ctx context.Context) (protocol.User, error) {
 }
 func (c *Client) CreateProject(ctx context.Context, params protocol.CreateProjectParams) (protocol.Project, error) {
 	var result protocol.Project
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"CreateProjectParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"CreateProjectParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "projects.create", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Project\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Project\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -171,14 +171,14 @@ func (c *Client) CreateProject(ctx context.Context, params protocol.CreateProjec
 }
 func (c *Client) ListProjects(ctx context.Context, params protocol.ListProjectsParams) ([]protocol.Project, error) {
 	var result []protocol.Project
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"ListProjectsParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"ListProjectsParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "projects.list", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("{\"array\":\"Project\"}"), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"array\":\"Project\"}"), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -188,14 +188,14 @@ func (c *Client) ListProjects(ctx context.Context, params protocol.ListProjectsP
 }
 func (c *Client) UpdateProject(ctx context.Context, params protocol.UpdateProjectParams) (protocol.Project, error) {
 	var result protocol.Project
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"UpdateProjectParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"UpdateProjectParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "projects.update", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Project\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Project\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -205,14 +205,14 @@ func (c *Client) UpdateProject(ctx context.Context, params protocol.UpdateProjec
 }
 func (c *Client) Subscribe(ctx context.Context, params protocol.SubscribeParams) (protocol.SubscribeResult, error) {
 	var result protocol.SubscribeResult
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"SubscribeParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"SubscribeParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "subscribe", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"SubscribeResult\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"SubscribeResult\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -222,14 +222,14 @@ func (c *Client) Subscribe(ctx context.Context, params protocol.SubscribeParams)
 }
 func (c *Client) CancelWorkItem(ctx context.Context, params protocol.CancelWorkItemParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"CancelWorkItemParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"CancelWorkItemParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "work.cancel", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -239,14 +239,14 @@ func (c *Client) CancelWorkItem(ctx context.Context, params protocol.CancelWorkI
 }
 func (c *Client) CreateWorkItem(ctx context.Context, params protocol.CreateWorkItemParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"CreateWorkItemParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"CreateWorkItemParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "work.create", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -256,14 +256,14 @@ func (c *Client) CreateWorkItem(ctx context.Context, params protocol.CreateWorkI
 }
 func (c *Client) SetDependencies(ctx context.Context, params protocol.SetDependenciesParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"SetDependenciesParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"SetDependenciesParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "work.dependencies", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -273,14 +273,14 @@ func (c *Client) SetDependencies(ctx context.Context, params protocol.SetDepende
 }
 func (c *Client) GetWorkItem(ctx context.Context, params protocol.GetWorkItemParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"GetWorkItemParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"GetWorkItemParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "work.get", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -290,14 +290,14 @@ func (c *Client) GetWorkItem(ctx context.Context, params protocol.GetWorkItemPar
 }
 func (c *Client) ListWorkItems(ctx context.Context, params protocol.ListWorkItemsParams) ([]protocol.WorkItem, error) {
 	var result []protocol.WorkItem
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"ListWorkItemsParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"ListWorkItemsParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "work.list", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("{\"array\":\"WorkItem\"}"), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"array\":\"WorkItem\"}"), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -307,14 +307,14 @@ func (c *Client) ListWorkItems(ctx context.Context, params protocol.ListWorkItem
 }
 func (c *Client) PublishSpecification(ctx context.Context, params protocol.PublishSpecificationParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"PublishSpecificationParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"PublishSpecificationParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "work.publish", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -324,14 +324,14 @@ func (c *Client) PublishSpecification(ctx context.Context, params protocol.Publi
 }
 func (c *Client) ReopenWorkItem(ctx context.Context, params protocol.ReopenWorkItemParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"ReopenWorkItemParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"ReopenWorkItemParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "work.reopen", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -341,14 +341,14 @@ func (c *Client) ReopenWorkItem(ctx context.Context, params protocol.ReopenWorkI
 }
 func (c *Client) SetSteps(ctx context.Context, params protocol.SetStepsParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"SetStepsParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"SetStepsParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "work.steps", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -358,14 +358,14 @@ func (c *Client) SetSteps(ctx context.Context, params protocol.SetStepsParams) (
 }
 func (c *Client) UpdateWorkItem(ctx context.Context, params protocol.UpdateWorkItemParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"UpdateWorkItemParams\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"UpdateWorkItemParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "work.update", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -375,7 +375,7 @@ func (c *Client) UpdateWorkItem(ctx context.Context, params protocol.UpdateWorkI
 }
 func (c *Client) OnChanged(handler func(context.Context, protocol.Event)) error {
 	return c.Peer.HandleEvent("workbench.changed", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
-		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Event\""), raw); err != nil {
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Event\""), raw); err != nil {
 			_ = peer.Close()
 			return
 		}

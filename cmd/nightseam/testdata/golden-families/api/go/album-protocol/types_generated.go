@@ -22,13 +22,13 @@ func (v Borrowed[BEnvelope]) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Borrowed", data); err != nil {
+	if err = schema.Bind(map[string]any{"B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateExpressionRaw("Borrowed", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Borrowed[BEnvelope]) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Borrowed", data); err != nil {
+	if err := schema.Bind(map[string]any{"B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateExpressionRaw("Borrowed", data); err != nil {
 		return err
 	}
 	var decoded (struct {
@@ -41,6 +41,9 @@ func (v *Borrowed[BEnvelope]) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Borrowed[BEnvelope]) Of() Tag { return Tag{} }
+func (Borrowed[BEnvelope]) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema.Bind(map[string]any{"B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil), Type: "Borrowed"}
+}
 
 type Both[AEnvelope, BEnvelope any] struct {
 	Mine     Mine[AEnvelope]     `json:"mine"`
@@ -57,13 +60,13 @@ func (v Both[AEnvelope, BEnvelope]) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Both", data); err != nil {
+	if err = schema.Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateExpressionRaw("Both", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Both[AEnvelope, BEnvelope]) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Both", data); err != nil {
+	if err := schema.Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateExpressionRaw("Both", data); err != nil {
 		return err
 	}
 	var decoded (struct {
@@ -78,6 +81,9 @@ func (v *Both[AEnvelope, BEnvelope]) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Both[AEnvelope, BEnvelope]) Of() Tag { return Tag{} }
+func (Both[AEnvelope, BEnvelope]) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema.Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil), Type: "Both"}
+}
 
 // Envelope: One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else.
 type Envelope struct {
@@ -101,13 +107,13 @@ func (v Envelope) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Envelope", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Envelope) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Envelope", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return err
 	}
 	type wire Envelope
@@ -119,6 +125,9 @@ func (v *Envelope) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Envelope) Of() Tag { return Tag{} }
+func (Envelope) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Envelope"}
+}
 
 type Fixed struct {
 	Frame carrierprotocol.Frame[probeprotocol.Envelope] `json:"frame"`
@@ -130,13 +139,13 @@ func (v Fixed) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Fixed", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Fixed", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Fixed) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Fixed", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Fixed", data); err != nil {
 		return err
 	}
 	type wire Fixed
@@ -148,6 +157,9 @@ func (v *Fixed) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Fixed) Of() Tag { return Tag{} }
+func (Fixed) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Fixed"}
+}
 
 // Handle: A reference to a channel on the connection that carries the message holding it.
 type Handle struct {
@@ -160,13 +172,13 @@ func (v Handle) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Handle", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Handle) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Handle", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return err
 	}
 	type wire Handle
@@ -178,6 +190,9 @@ func (v *Handle) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Handle) Of() Tag { return Tag{} }
+func (Handle) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Handle"}
+}
 
 type Mine[AEnvelope any] struct {
 	Held AEnvelope `json:"held"`
@@ -190,13 +205,13 @@ func (v Mine[AEnvelope]) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Mine", data); err != nil {
+	if err = schema.Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope]()}, nil).ValidateExpressionRaw("Mine", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Mine[AEnvelope]) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Mine", data); err != nil {
+	if err := schema.Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope]()}, nil).ValidateExpressionRaw("Mine", data); err != nil {
 		return err
 	}
 	var decoded (struct {
@@ -209,3 +224,6 @@ func (v *Mine[AEnvelope]) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Mine[AEnvelope]) Of() Tag { return Tag{} }
+func (Mine[AEnvelope]) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema.Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope]()}, nil), Type: "Mine"}
+}

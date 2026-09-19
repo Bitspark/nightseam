@@ -21,13 +21,13 @@ func (v Base) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Base", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Base", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Base) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Base", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Base", data); err != nil {
 		return err
 	}
 	type wire Base
@@ -38,7 +38,8 @@ func (v *Base) UnmarshalJSON(data []byte) error {
 	*v = Base(decoded)
 	return nil
 }
-func (Base) Of() Tag { return Tag{} }
+func (Base) Of() Tag                       { return Tag{} }
+func (Base) WireType() runtime.TypeBinding { return runtime.TypeBinding{Schema: schema, Type: "Base"} }
 
 // Envelope: One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else.
 type Envelope struct {
@@ -62,13 +63,13 @@ func (v Envelope) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Envelope", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Envelope) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Envelope", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return err
 	}
 	type wire Envelope
@@ -80,6 +81,9 @@ func (v *Envelope) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Envelope) Of() Tag { return Tag{} }
+func (Envelope) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Envelope"}
+}
 
 // Handle: A reference to a channel on the connection that carries the message holding it.
 type Handle struct {
@@ -92,13 +96,13 @@ func (v Handle) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Handle", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Handle) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Handle", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return err
 	}
 	type wire Handle
@@ -110,6 +114,9 @@ func (v *Handle) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Handle) Of() Tag { return Tag{} }
+func (Handle) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Handle"}
+}
 
 type OpenRecord struct {
 	ID               string                     `json:"id"`
@@ -128,7 +135,7 @@ func (v OpenRecord) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	declared := map[string]bool{}
-	for _, key := range schema.Fields("OpenRecord") {
+	for _, key := range []string{"id", "note"} {
 		declared[key] = true
 	}
 	for key, value := range v.AdditionalFields {
@@ -140,13 +147,13 @@ func (v OpenRecord) MarshalJSON() ([]byte, error) {
 	if data, err = json.Marshal(obj); err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("OpenRecord", data); err != nil {
+	if err = schema.ValidateExpressionRaw("OpenRecord", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *OpenRecord) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("OpenRecord", data); err != nil {
+	if err := schema.ValidateExpressionRaw("OpenRecord", data); err != nil {
 		return err
 	}
 	type wire OpenRecord
@@ -159,13 +166,16 @@ func (v *OpenRecord) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
-	for _, key := range schema.Fields("OpenRecord") {
+	for _, key := range []string{"id", "note"} {
 		delete(fields, key)
 	}
 	v.AdditionalFields = fields
 	return nil
 }
 func (OpenRecord) Of() Tag { return Tag{} }
+func (OpenRecord) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "OpenRecord"}
+}
 
 type Payload struct {
 	Text  string                                     `json:"text"`
@@ -179,13 +189,13 @@ func (v Payload) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Payload", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Payload", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Payload) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Payload", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Payload", data); err != nil {
 		return err
 	}
 	type wire Payload
@@ -197,6 +207,9 @@ func (v *Payload) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Payload) Of() Tag { return Tag{} }
+func (Payload) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Payload"}
+}
 
 type Payloads = []Payload
 
@@ -209,6 +222,9 @@ const (
 )
 
 func (Status) Of() Tag { return Tag{} }
+func (Status) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Status"}
+}
 
 // The public errors of the family: what a handler returns, as the Code of a *runtime.PublicError, and a caller tells apart with IsError.
 const (

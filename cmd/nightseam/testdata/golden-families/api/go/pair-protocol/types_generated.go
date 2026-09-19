@@ -23,13 +23,13 @@ func (v Both[SEnvelope, SHandle, TEnvelope]) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Both", data); err != nil {
+	if err = schema.Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw("Both", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Both[SEnvelope, SHandle, TEnvelope]) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Both", data); err != nil {
+	if err := schema.Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw("Both", data); err != nil {
 		return err
 	}
 	var decoded (struct {
@@ -43,6 +43,9 @@ func (v *Both[SEnvelope, SHandle, TEnvelope]) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Both[SEnvelope, SHandle, TEnvelope]) Of() Tag { return Tag{} }
+func (Both[SEnvelope, SHandle, TEnvelope]) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil), Type: "Both"}
+}
 
 type Echo[TEnvelope any] struct {
 	Heard TEnvelope `json:"heard"`
@@ -55,13 +58,13 @@ func (v Echo[TEnvelope]) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Echo", data); err != nil {
+	if err = schema.Bind(map[string]any{"T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw("Echo", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Echo[TEnvelope]) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Echo", data); err != nil {
+	if err := schema.Bind(map[string]any{"T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw("Echo", data); err != nil {
 		return err
 	}
 	var decoded (struct {
@@ -74,6 +77,9 @@ func (v *Echo[TEnvelope]) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Echo[TEnvelope]) Of() Tag { return Tag{} }
+func (Echo[TEnvelope]) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil), Type: "Echo"}
+}
 
 // Envelope: One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else.
 type Envelope struct {
@@ -97,13 +103,13 @@ func (v Envelope) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Envelope", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Envelope) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Envelope", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return err
 	}
 	type wire Envelope
@@ -115,6 +121,9 @@ func (v *Envelope) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Envelope) Of() Tag { return Tag{} }
+func (Envelope) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Envelope"}
+}
 
 type Frame[SEnvelope, SHandle any] struct {
 	Message SEnvelope `json:"message"`
@@ -129,13 +138,13 @@ func (v Frame[SEnvelope, SHandle]) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Frame", data); err != nil {
+	if err = schema.Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateExpressionRaw("Frame", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Frame[SEnvelope, SHandle]) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Frame", data); err != nil {
+	if err := schema.Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateExpressionRaw("Frame", data); err != nil {
 		return err
 	}
 	var decoded (struct {
@@ -149,6 +158,9 @@ func (v *Frame[SEnvelope, SHandle]) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Frame[SEnvelope, SHandle]) Of() Tag { return Tag{} }
+func (Frame[SEnvelope, SHandle]) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil), Type: "Frame"}
+}
 
 // Handle: A reference to a channel on the connection that carries the message holding it.
 type Handle struct {
@@ -161,13 +173,13 @@ func (v Handle) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Handle", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Handle) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Handle", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return err
 	}
 	type wire Handle
@@ -179,6 +191,9 @@ func (v *Handle) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Handle) Of() Tag { return Tag{} }
+func (Handle) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Handle"}
+}
 
 type Named struct {
 	Held probeprotocol.Envelope `json:"held"`
@@ -190,13 +205,13 @@ func (v Named) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Named", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Named", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Named) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Named", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Named", data); err != nil {
 		return err
 	}
 	type wire Named
@@ -208,3 +223,6 @@ func (v *Named) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Named) Of() Tag { return Tag{} }
+func (Named) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Named"}
+}

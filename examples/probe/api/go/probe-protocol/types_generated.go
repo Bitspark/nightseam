@@ -32,13 +32,13 @@ func (v Envelope) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Envelope", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Envelope) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Envelope", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return err
 	}
 	type wire Envelope
@@ -50,6 +50,9 @@ func (v *Envelope) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Envelope) Of() Tag { return Tag{} }
+func (Envelope) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Envelope"}
+}
 
 // Handle: A reference to a channel on the connection that carries the message holding it.
 type Handle struct {
@@ -62,13 +65,13 @@ func (v Handle) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Handle", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Handle) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Handle", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return err
 	}
 	type wire Handle
@@ -80,6 +83,9 @@ func (v *Handle) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Handle) Of() Tag { return Tag{} }
+func (Handle) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Handle"}
+}
 
 // Payload: What a probe carries: some text, and how often it has been seen.
 type Payload struct {
@@ -93,13 +99,13 @@ func (v Payload) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Payload", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Payload", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Payload) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Payload", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Payload", data); err != nil {
 		return err
 	}
 	type wire Payload
@@ -111,6 +117,9 @@ func (v *Payload) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Payload) Of() Tag { return Tag{} }
+func (Payload) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Payload"}
+}
 
 // The public errors of the family: what a handler returns, as the Code of a *runtime.PublicError, and a caller tells apart with IsError.
 const (

@@ -1,0 +1,6 @@
+func (*Remote[SEnvelope, SHandle, Item]) EmitChanged(ctx context.Context, data probeprotocol.Payload) error
+func (*Remote[SEnvelope, SHandle, Item]) EmitPartAdded(ctx context.Context, data protocol.RichPart) error
+func NewHandler[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](handler Handler[SEnvelope, SHandle, Item], options runtime.ServerOptions) (http.Handler, error)
+func Serve[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[SEnvelope, SHandle, Item]) (*runtime.Peer, error)
+type Handler[SEnvelope any, SHandle any, Item any] interface{Echo(ctx context.Context, remote *Remote[SEnvelope, SHandle, Item], params probeprotocol.Payload) (probeprotocol.Payload, error); Parts(ctx context.Context, remote *Remote[SEnvelope, SHandle, Item], params protocol.PartsRequest) (protocol.Result[protocol.Parts, string], error); Relay(ctx context.Context, remote *Remote[SEnvelope, SHandle, Item], params protocol.Carried[SEnvelope, SHandle, Item]) (protocol.Option[protocol.Envelope], error)}
+type Remote[SEnvelope any, SHandle any, Item any] struct{Peer *runtime.Peer}

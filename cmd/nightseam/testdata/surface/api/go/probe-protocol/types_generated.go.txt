@@ -11,17 +11,24 @@ func (*Payload) UnmarshalJSON(data []byte) error
 func (*Seen) UnmarshalJSON(data []byte) error
 func (Base) MarshalJSON() ([]byte, error)
 func (Base) Of() Tag
+func (Base) WireType() runtime.TypeBinding
 func (Envelope) MarshalJSON() ([]byte, error)
 func (Envelope) Of() Tag
+func (Envelope) WireType() runtime.TypeBinding
 func (Handle) MarshalJSON() ([]byte, error)
 func (Handle) Of() Tag
+func (Handle) WireType() runtime.TypeBinding
 func (OpenRecord) MarshalJSON() ([]byte, error)
 func (OpenRecord) Of() Tag
+func (OpenRecord) WireType() runtime.TypeBinding
 func (Payload) MarshalJSON() ([]byte, error)
 func (Payload) Of() Tag
+func (Payload) WireType() runtime.TypeBinding
 func (Seen) MarshalJSON() ([]byte, error)
 func (Seen) Of() Tag
+func (Seen) WireType() runtime.TypeBinding
 func (Status) Of() Tag
+func (Status) WireType() runtime.TypeBinding
 func IsError(err error, code string) bool
 type Base struct{Text string `json:"text"`}
 type Counts map[string]int64

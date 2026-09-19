@@ -1,5 +1,6 @@
 Tag
 Of
+WireType
 MarshalJSON
 UnmarshalJSON
 AdditionalFields
