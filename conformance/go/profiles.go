@@ -216,9 +216,9 @@ func dedupe(sorted []string) []string {
 	return out
 }
 
-// Cell is one language's standing in one profile, on one side of the wire
+// profileCell is one language's standing in one profile, on one side of the wire
 // against the reference: how many scenarios passed, were skipped, failed.
-type Cell struct {
+type profileCell struct {
 	Passed  int `json:"passed"`
 	Skipped int `json:"skipped"`
 	Failed  int `json:"failed"`
@@ -228,12 +228,12 @@ type Cell struct {
 // profile, and the language's tier beside it.
 type Matrix struct {
 	profiles []string
-	rows     map[string]map[string]*Cell
+	rows     map[string]map[string]*profileCell
 	tiers    map[string]int
 }
 
 func NewMatrix(p *Profiles) *Matrix {
-	m := &Matrix{rows: map[string]map[string]*Cell{}, tiers: map[string]int{}}
+	m := &Matrix{rows: map[string]map[string]*profileCell{}, tiers: map[string]int{}}
 	for name := range p.Profiles {
 		m.profiles = append(m.profiles, name)
 	}
@@ -248,12 +248,12 @@ func NewMatrix(p *Profiles) *Matrix {
 func (m *Matrix) Record(language, profile string, o Outcome) {
 	row, ok := m.rows[language]
 	if !ok {
-		row = map[string]*Cell{}
+		row = map[string]*profileCell{}
 		m.rows[language] = row
 	}
 	cell, ok := row[profile]
 	if !ok {
-		cell = &Cell{}
+		cell = &profileCell{}
 		row[profile] = cell
 	}
 	switch {
@@ -299,26 +299,26 @@ func (m *Matrix) Verdict(p *Profiles, language string) string {
 // profiles, and a verdict per language.
 type Report struct {
 	Profiles  []string                  `json:"profiles"`
-	Languages map[string]LanguageReport `json:"languages"`
+	Languages map[string]languageReport `json:"languages"`
 }
 
-// LanguageReport is one language's row.
-type LanguageReport struct {
-	Tier    int             `json:"tier,omitempty"`
-	Verdict string          `json:"verdict"`
-	Cells   map[string]Cell `json:"cells"`
+// languageReport is one language's row.
+type languageReport struct {
+	Tier    int                    `json:"tier,omitempty"`
+	Verdict string                 `json:"verdict"`
+	Cells   map[string]profileCell `json:"cells"`
 }
 
 // Write renders the matrix as JSON to file, rows and profiles sorted, so
 // that two runs of the same suite write the same bytes.
 func (m *Matrix) Write(p *Profiles, file string) error {
-	report := Report{Profiles: m.profiles, Languages: map[string]LanguageReport{}}
+	report := Report{Profiles: m.profiles, Languages: map[string]languageReport{}}
 	for language, row := range m.rows {
-		cells := map[string]Cell{}
+		cells := map[string]profileCell{}
 		for profile, cell := range row {
 			cells[profile] = *cell
 		}
-		report.Languages[language] = LanguageReport{Tier: m.tiers[language], Verdict: m.Verdict(p, language), Cells: cells}
+		report.Languages[language] = languageReport{Tier: m.tiers[language], Verdict: m.Verdict(p, language), Cells: cells}
 	}
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {

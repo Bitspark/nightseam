@@ -381,6 +381,7 @@ func TestImportDirection(t *testing.T) {
 		"kernel":             {"diag": true, "model": true, "load": true, "analysis": true, "check": true, "render": true, "spi": true},
 		"compose":            {"kernel": true, "spi": true, "targets/golang": true, "targets/typescript": true, "targets/spec": true},
 		"oracle":             {"model": true},
+		"surface":            {},
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	seen := 0

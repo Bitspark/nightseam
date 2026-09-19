@@ -14,7 +14,7 @@ import { sessionOps } from './session.ts';
 export const DRIVER = 1;
 
 /** An error answer: the protocol's codes, or the remote's, with whatever members the op says. */
-export class Failure extends Error {
+class Failure extends Error {
   readonly code: string;
   readonly members: Record<string, unknown>;
   constructor(code: string, message: string, members: Record<string, unknown> = {}) {
@@ -33,7 +33,7 @@ export const unsupported = (what: string) => fail('unsupported', what);
 export const invalid = (what: string) => fail('invalid', what);
 
 /** What a handle's object does when the testee resets. */
-export interface Closer {
+interface Closer {
   shutdown(): void;
 }
 

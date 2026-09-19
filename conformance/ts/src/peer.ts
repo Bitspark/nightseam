@@ -37,7 +37,7 @@ interface Lifecycle {
 }
 
 /** An observer that keeps what it is told, for peer.observed. */
-export class Recorder implements Observer {
+class Recorder implements Observer {
   events: ObserverEvent[] = [];
   closed?: { code: number; local: boolean };
   private readonly closedWaiters: Array<() => void> = [];
@@ -75,7 +75,7 @@ const splitTrace = (trace: Trace | undefined): Record<string, unknown> | undefin
 };
 
 /** Renders one event as DRIVER.md says every language reports it. */
-export const normalize = (event: ObserverEvent, withTrace: boolean): Record<string, unknown> => {
+const normalize = (event: ObserverEvent, withTrace: boolean): Record<string, unknown> => {
   const out: Record<string, unknown> = {};
   const record = event as unknown as Record<string, unknown>;
   for (const [key, value] of Object.entries(record)) {
@@ -107,7 +107,7 @@ export const normalize = (event: ObserverEvent, withTrace: boolean): Record<stri
 };
 
 /** A peer under control. */
-export class Peer {
+class Peer {
   readonly events = new Inbox<{ name: string; data: unknown; meta?: Meta }>();
   readonly requests = new Inbox<Lifecycle>();
   readonly peer: DuplexPeer;
@@ -528,4 +528,3 @@ export function peerOps(t: Testee): Record<string, Op> {
 }
 
 // Keep the seam's Conn in this module's type graph for peer.over.
-export type { Conn };

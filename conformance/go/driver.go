@@ -181,19 +181,19 @@ func (h Hello) Has(need string) bool {
 // Answer is what a testee answered one request with.
 type Answer struct {
 	OK    any
-	Error *DriverError
+	Error *driverError
 }
 
-// DriverError is an answer that is an error: the protocol's own code, or
+// driverError is an answer that is an error: the protocol's own code, or
 // what the remote answered with. Members is the whole error as answered —
 // code, message, and whatever else the op says an error of its carries.
-type DriverError struct {
+type driverError struct {
 	Code    string
 	Message string
 	Members map[string]any
 }
 
-func (e *DriverError) Error() string {
+func (e *driverError) Error() string {
 	if e.Message == "" {
 		return e.Code
 	}
@@ -309,7 +309,7 @@ func (t *Testee) Request(ctx context.Context, op string, args map[string]any, wi
 			t.dead = fmt.Errorf("the %s testee answered an error without a code: %s", t.Language, envelope.Error)
 			return Answer{}, t.dead
 		}
-		return Answer{Error: &DriverError{Code: code, Message: message, Members: object}}, nil
+		return Answer{Error: &driverError{Code: code, Message: message, Members: object}}, nil
 	}
 	if len(envelope.OK) == 0 {
 		return Answer{OK: map[string]any{}}, nil

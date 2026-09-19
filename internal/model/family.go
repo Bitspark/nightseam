@@ -407,16 +407,6 @@ func (p *Protocol) Parameter(name string) (*Parameter, bool) {
 	return nil, false
 }
 
-// ParameterNames is the parameters' names in declaration order: the order
-// every rendering declares its type parameters in.
-func (p *Protocol) ParameterNames() []string {
-	names := make([]string, len(p.Parameters))
-	for i, parameter := range p.Parameters {
-		names[i] = parameter.Name
-	}
-	return names
-}
-
 // Expressions visits every type expression a family declares, with where it
 // sits: each own field of each type, each alias, each method's request and
 // result, each event's type. Parents before children.

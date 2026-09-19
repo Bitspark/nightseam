@@ -69,13 +69,13 @@ func (Map) typeExpr()       {}
 func (Ref) typeExpr()       {}
 func (Apply) typeExpr()     {}
 
-// Primitives are the wire primitives, in name order.
-var Primitives = []string{"boolean", "integer", "json", "number", "string", "timestamp"}
+// primitives are the wire primitives, in name order.
+var primitives = []string{"boolean", "integer", "json", "number", "string", "timestamp"}
 
-// IsPrimitive reports whether a name is a wire primitive.
-func IsPrimitive(name string) bool {
-	i := sort.SearchStrings(Primitives, name)
-	return i < len(Primitives) && Primitives[i] == name
+// isPrimitive reports whether a name is a wire primitive.
+func isPrimitive(name string) bool {
+	i := sort.SearchStrings(primitives, name)
+	return i < len(primitives) && primitives[i] == name
 }
 
 // IsParameter reports whether a qualifier names a parameter rather than a
@@ -84,9 +84,9 @@ func IsParameter(qualifier string) bool {
 	return qualifier != "" && qualifier[0] >= 'A' && qualifier[0] <= 'Z'
 }
 
-// FillerOf reads what fills a parameter: a parameter of this family when
+// fillerOf reads what fills a parameter: a parameter of this family when
 // spelled in upper camel case, a named family otherwise.
-func FillerOf(name string) Filler {
+func fillerOf(name string) Filler {
 	if IsParameter(name) {
 		return Filler{Parameter: name}
 	}
@@ -168,7 +168,7 @@ func Decode(raw json.RawMessage) (TypeExpr, error) {
 			if filler == "" {
 				return nil, fmt.Errorf("with: %s is filled by nothing", parameter)
 			}
-			fillers[parameter] = FillerOf(filler)
+			fillers[parameter] = fillerOf(filler)
 		}
 		return Apply{Family: family, Name: name, With: fillers}, nil
 	case "apply":
@@ -181,7 +181,7 @@ func decodeName(name string) (TypeExpr, error) {
 	if name == "" {
 		return nil, fmt.Errorf("a type name is required")
 	}
-	if IsPrimitive(name) {
+	if isPrimitive(name) {
 		return Primitive(name), nil
 	}
 	qualifier, typeName, qualified := strings.Cut(name, ".")
@@ -195,15 +195,6 @@ func decodeName(name string) (TypeExpr, error) {
 		return Drawn{Parameter: qualifier, Name: typeName}, nil
 	}
 	return Imported{Family: qualifier, Name: typeName}, nil
-}
-
-// MustDecode decodes a type expression a test writes by hand.
-func MustDecode(source string) TypeExpr {
-	expr, err := Decode(json.RawMessage(source))
-	if err != nil {
-		panic(err)
-	}
-	return expr
 }
 
 func (p Primitive) MarshalJSON() ([]byte, error) { return json.Marshal(string(p)) }

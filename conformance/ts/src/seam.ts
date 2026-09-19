@@ -5,7 +5,7 @@ import { pipe, webSocketConnection, type Frame, type FrameConnection, type WebSo
 import { Inbox, fail, invalid, intOf, stringOf, withinOf, within, type Args, type Op, type Testee } from './testee.ts';
 
 /** How a connection ended: a close frame's code and reason, or a failure. */
-export type Ended = { code: number; reason: string } | { failed: true };
+type Ended = { code: number; reason: string } | { failed: true };
 
 /**
  * A connection under control: what it received while the runner was not
@@ -60,7 +60,7 @@ export class Conn {
 
 export const isConn = (object: unknown): object is Conn => object instanceof Conn;
 
-export const closeError = (ended: Ended) =>
+const closeError = (ended: Ended) =>
   'failed' in ended
     ? fail('failed', 'the connection failed')
     : fail('closed', `the connection closed with ${ended.code}`, { close_code: ended.code, reason: ended.reason });
@@ -124,7 +124,7 @@ export const asLike = (socket: WebSocket): WebSocketLike => {
   return socket as unknown as WebSocketLike;
 };
 
-export const kindOf = (args: Args): 'text' | 'binary' => {
+const kindOf = (args: Args): 'text' | 'binary' => {
   const kind = stringOf(args, 'kind', true);
   if (kind !== 'text' && kind !== 'binary') throw invalid('kind is text or binary');
   return kind;

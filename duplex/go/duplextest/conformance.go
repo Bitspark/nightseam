@@ -137,13 +137,14 @@ func Run(t *testing.T, connect Connect) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		received := make(chan error, 1)
-		go func() { _, err := b.Receive(ctx); received <- err }()
-		time.Sleep(50 * time.Millisecond)
+		started := make(chan struct{})
+		go func() { close(started); _, err := b.Receive(ctx); received <- err }()
+		<-started
 		if err := a.Abort(); err != nil {
 			t.Fatal(err)
 		}
-		if err := <-received; err == nil {
-			t.Fatal("the remote side of an aborted connection received a frame")
+		if err := <-received; err == nil || errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("the remote side of an aborted connection did not end on abort: %v", err)
 		}
 		if _, err := a.Receive(ctx); !errors.Is(err, duplex.ErrClosed) {
 			t.Fatalf("receive on the aborted side: %v", err)

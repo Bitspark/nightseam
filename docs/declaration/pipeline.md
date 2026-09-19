@@ -44,6 +44,7 @@ internal/emit/          a writer, an import set, a namespace: what every target 
 internal/naming/        the convention every target derives names by
 internal/diag/          where a problem is: family, tier file, pointer, code
 internal/oracle/        test support: the left path of the diagram a generic rendering commutes with
+internal/surface/       exported Go declarations: shared by the surface goldens and cmd/nightseam-surface
 ```
 
 ## What holds it

@@ -160,6 +160,19 @@ and is given at a consumer's install, which is after the tag. It runs on
 every pull request too, in `ci.yml`'s full job, so that a packaging change
 fails the change rather than the release that carries it.
 
+Before installing, the smoke checks each tarball for `dist/index.js`,
+`dist/index.d.ts`, `README.md`, `LICENSE` and `NOTICE`. For a local run,
+build the packages and copy the notices first:
+
+```sh
+pnpm -r build
+node --input-type=module -e "import { copyNotices } from './scripts/packages.mjs'; copyNotices();"
+node scripts/smoke-packed.mjs
+```
+
+The release preparation also copies the notices, except with `--dry-run`,
+which reports that they were not copied.
+
 It needs no registry and no tag, which is what lets it run while this
 repository is still private. Two choices make that true, and each had an
 alternative:
