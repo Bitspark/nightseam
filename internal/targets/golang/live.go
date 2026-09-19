@@ -259,25 +259,25 @@ func (f *file) liveField(field render.Field, export bool) {
 				f.w.Block(fmt.Sprintf("if %s.Null {", src), "} else {", func() {
 					f.linef("%s = %s.RawMessage(\"null\")", dst, json)
 				})
-				f.liveExpr(fieldExpr(field), src+".Value", dst+"Inner", true, "nil")
+				f.liveExpr(field.Type, src+".Value", dst+"Inner", true, "nil")
 				f.linef("%s = %sInner", dst, dst)
 				f.line("}")
 				return
 			}
 			f.w.Block(fmt.Sprintf("if string(%s) == \"null\" {", src), "} else {", func() {
-				f.linef("%s = %s.Null[%s]()", dst, f.runtime(), f.spell(fieldExpr(field)))
+				f.linef("%s = %s.Null[%s]()", dst, f.runtime(), f.spell(field.Type))
 			})
-			f.liveExpr(fieldExpr(field), src, dst+"Inner", false, "value")
+			f.liveExpr(field.Type, src, dst+"Inner", false, "value")
 			f.linef("%s = %s.NonNull(%sInner)", dst, f.runtime(), dst)
 			f.line("}")
 			return
 		}
 		if export {
-			f.liveExpr(fieldExpr(field), src, dst+"Converted", true, "nil")
+			f.liveExpr(field.Type, src, dst+"Converted", true, "nil")
 			f.linef("%s = %sConverted", dst, dst)
 			return
 		}
-		f.liveExpr(fieldExpr(field), src, dst+"Converted", false, "value")
+		f.liveExpr(field.Type, src, dst+"Converted", false, "value")
 		f.linef("%s = %sConverted", dst, dst)
 	}
 	switch {
@@ -315,8 +315,6 @@ func (f *file) memberType(field render.Field) string {
 	}
 	return t
 }
-
-func fieldExpr(field render.Field) model.TypeExpr { return field.Type }
 
 // liveExpr converts one expression in the chosen direction, declaring dst.
 // fail is what a failing conversion returns beside the error.

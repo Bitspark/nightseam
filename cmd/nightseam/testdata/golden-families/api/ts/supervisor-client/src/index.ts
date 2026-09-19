@@ -16,6 +16,7 @@ export interface Handler {
 }
 export interface Caller {
   shift(params: Protocol.Shift, options?: CallOptions): Promise<string>;
+  relieve(params: Protocol.RelieveRequest, options?: CallOptions): Promise<Protocol.Shift>;
   watch(params: Protocol.Watch, options?: CallOptions): Promise<worker.Job>;
 }
 /** The public errors of the family: what the code of a DuplexError a call rejects with may be. */
@@ -30,14 +31,16 @@ export class Client implements Caller {
     liveOver(peer, {});
   }
   /** Connects to a WebSocket endpoint and speaks the family over it. */
-  static async dial(url: string, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "shift": "supervisor", "watch": "supervisor" } }); const client = new Client(peer, handler, events); await peer.connect(url); return client; }
+  static async dial(url: string, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "shift": "supervisor", "relieve": "supervisor", "watch": "supervisor" } }); const client = new Client(peer, handler, events); await peer.connect(url); return client; }
   /** Speaks the family over a connection of the seam — a tunnel channel, a pipe, an open socket — as the client side of it. */
-  static async attach(connection: FrameConnection, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "shift": "supervisor", "watch": "supervisor" } }); const client = new Client(peer, handler, events); await peer.attach(connection); return client; }
+  static async attach(connection: FrameConnection, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "shift": "supervisor", "relieve": "supervisor", "watch": "supervisor" } }); const client = new Client(peer, handler, events); await peer.attach(connection); return client; }
   /** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */
   static async open(tunnel: Tunnel, handle: Protocol.Handle, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach(channel, options, handler, events); }
   close(): void { this.peer.close(); }
   /** Ordinary RPC that needs no live runtime. */
   async shift(params: Protocol.Shift, options?: CallOptions): Promise<string> { validateWire("Shift", params); const result = await this.peer.call<string>("shift", params, options); validateWire("string", result); return result; }
+  /** A shape written inline that carries a callable: named by where it sits, like any other, and converted at the boundary like any other. */
+  async relieve(params: Protocol.RelieveRequest, options?: CallOptions): Promise<Protocol.Shift> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = conversion.exportRelieveRequest(scope, params as Protocol.RelieveRequest); validateWire({"kind":"record","fields":[{"name":"shift","type":"Shift","required":true},{"name":"sink","type":"worker.ProgressSink","required":true}]}, sent); const result = await this.peer.call<unknown>("relieve", sent, options); validateWire("Shift", result); return result as Protocol.Shift; }
   /** Takes an imported callback record. */
   async watch(params: Protocol.Watch, options?: CallOptions): Promise<worker.Job> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = conversion.exportWatch(scope, params as Protocol.Watch); validateWire("Watch", sent); const result = await this.peer.call<unknown>("watch", sent, options); validateWire("worker.Job", result); return live_worker.importJob(scope, result); }
 }

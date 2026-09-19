@@ -90,6 +90,25 @@ func (Handle) WireType() runtime.TypeBinding {
 	return runtime.TypeBinding{Schema: schema, Type: "Handle"}
 }
 
+type RelieveRequest struct {
+	Shift Shift                       `json:"shift"`
+	Sink  workerprotocol.ProgressSink `json:"sink"`
+}
+
+// MarshalJSON refuses: RelieveRequest carries a callable, and a live value has no encoding apart from the scope its bindings belong to.
+func (v RelieveRequest) MarshalJSON() ([]byte, error) {
+	return nil, fmt.Errorf("RelieveRequest carries a callable; write it with ExportRelieveRequest, which takes the live scope its bindings are made in")
+}
+
+// UnmarshalJSON refuses for the same reason: a reference resolves in a scope or nowhere.
+func (v *RelieveRequest) UnmarshalJSON(data []byte) error {
+	return fmt.Errorf("RelieveRequest carries a callable; read it with ImportRelieveRequest, which takes the live scope its references resolve in")
+}
+func (RelieveRequest) Of() Tag { return Tag{} }
+func (RelieveRequest) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"shift\",\"type\":\"Shift\",\"required\":true},{\"name\":\"sink\",\"type\":\"worker.ProgressSink\",\"required\":true}]}")}
+}
+
 // Shift: Self-contained data, declared where data belongs.
 type Shift struct {
 	Name string `json:"name"`
@@ -142,6 +161,70 @@ func (v *Watch) UnmarshalJSON(data []byte) error {
 func (Watch) Of() Tag { return Tag{} }
 func (Watch) WireType() runtime.TypeBinding {
 	return runtime.TypeBinding{Schema: schema, Type: "Watch"}
+}
+
+// ExportRelieveRequest writes RelieveRequest as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place.
+func ExportRelieveRequest(scope *live.Scope, v RelieveRequest) (json.RawMessage, error) {
+	if scope == nil {
+		return nil, fmt.Errorf("RelieveRequest: a live value is exported into a scope")
+	}
+	wire := map[string]json.RawMessage{}
+	var shiftMember json.RawMessage
+	shiftMemberConverted, err := runtime.MarshalJSON(v.Shift)
+	if err != nil {
+		return nil, err
+	}
+	shiftMember = shiftMemberConverted
+	wire["shift"] = shiftMember
+	var sinkMember json.RawMessage
+	sinkMemberConverted, err := workerprotocol.ExportProgressSink(scope, v.Sink)
+	if err != nil {
+		return nil, err
+	}
+	sinkMember = sinkMemberConverted
+	wire["sink"] = sinkMember
+	data, err := runtime.MarshalObject([]string{"shift", "sink"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.ValidateExpressionRaw(runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"shift\",\"type\":\"Shift\",\"required\":true},{\"name\":\"sink\",\"type\":\"worker.ProgressSink\",\"required\":true}]}"), data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportRelieveRequest reads RelieveRequest as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
+func ImportRelieveRequest(scope *live.Scope, raw json.RawMessage) (RelieveRequest, error) {
+	var value RelieveRequest
+	if scope == nil {
+		return value, fmt.Errorf("RelieveRequest: a live value is imported into a scope")
+	}
+	if err := schema.ValidateExpressionRaw(runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"shift\",\"type\":\"Shift\",\"required\":true},{\"name\":\"sink\",\"type\":\"worker.ProgressSink\",\"required\":true}]}"), raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["shift"]; present {
+		var held Shift
+		var heldConverted Shift
+		if err := json.Unmarshal(member, &heldConverted); err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Shift = held
+	}
+	if member, present := wire["sink"]; present {
+		var held workerprotocol.ProgressSink
+		heldConverted, err := workerprotocol.ImportProgressSink(scope, member)
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Sink = held
+	}
+	return value, nil
 }
 
 // ExportWatch writes Watch as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place.

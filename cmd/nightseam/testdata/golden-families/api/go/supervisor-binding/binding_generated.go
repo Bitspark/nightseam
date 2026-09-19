@@ -18,6 +18,8 @@ type Remote struct{ Peer *runtime.Peer }
 type Handler interface {
 	// Shift: Ordinary RPC that needs no live runtime.
 	Shift(ctx context.Context, remote *Remote, params protocol.Shift) (string, error)
+	// Relieve: A shape written inline that carries a callable: named by where it sits, like any other, and converted at the boundary like any other.
+	Relieve(ctx context.Context, remote *Remote, params protocol.RelieveRequest) (protocol.Shift, error)
 	// Watch: Takes an imported callback record.
 	Watch(ctx context.Context, remote *Remote, params protocol.Watch) (workerprotocol.Job, error)
 }
@@ -51,6 +53,27 @@ func install(handler Handler, options *runtime.Options) error {
 		}
 		return result, nil
 	}
+	if _, exists := handlers["relieve"]; exists {
+		return fmt.Errorf("duplicate handler %s", "relieve")
+	}
+	handlers["relieve"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
+		scope, ok := live.ScopeOf(peer)
+		if !ok {
+			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
+		}
+		params, err := protocol.ImportRelieveRequest(scope, raw)
+		if err != nil {
+			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+		}
+		result, err := handler.Relieve(ctx, &Remote{Peer: peer}, params)
+		if err != nil {
+			return nil, err
+		}
+		if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Shift\""), result); err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
 	if _, exists := handlers["watch"]; exists {
 		return fmt.Errorf("duplicate handler %s", "watch")
 	}
@@ -75,6 +98,7 @@ func install(handler Handler, options *runtime.Options) error {
 		families[name] = existing
 	}
 	families["shift"] = "supervisor"
+	families["relieve"] = "supervisor"
 	families["watch"] = "supervisor"
 	options.Families = families
 	prepare := options.Prepare

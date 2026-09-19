@@ -642,11 +642,16 @@ func (f *Family) Inlines() []Inline {
 		for i := range t.Variants {
 			walk(t.Variants[i].Type, []string{name, t.Variants[i].Tag}, t.At.Sub("variants", t.Variants[i].Tag))
 		}
+		// A callable's request and result are type expressions like any
+		// other, so a shape may be written inline in one and is named by
+		// where it sits: Report/request derives ReportRequest.
+		walk(t.Request, []string{name, "request"}, t.At.Sub("request"))
+		walk(t.Result, []string{name, "result"}, t.At.Sub("result"))
 	}
-	if f.Protocol == nil {
-		return out
-	}
-	for _, side := range []*model.Side{&f.Protocol.Server, &f.Protocol.Client} {
+	// Every side the family declares, not only the protocol's: a tier with
+	// operations is a row in the tier table, and a shape written inline in
+	// one of its operations is named the same way as in any other.
+	for _, side := range f.Sides() {
 		for i := range side.Methods {
 			m := &side.Methods[i]
 			walk(m.Request, []string{m.Name, "request"}, m.At.Sub("request"))
