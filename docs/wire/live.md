@@ -20,11 +20,14 @@ ordinary value of whatever message holds it:
 {"binding": "9f2c4ab11e07d3a5.3", "contract": "probe/Report"}
 ```
 
-`binding` is opaque and the exporting side's to mint; `contract` is the
-declaration the callable was declared at, `family/Type` ([the callable
-kind](../declaration/families.md)). Both are compared before an invocation is
-dispatched, and neither is an authorization: the layer proves *which binding of
-which contract*, never *who may call it*.
+`binding` is opaque and the exporting side's to mint; `contract` names the
+declaration the callable was declared at, `family/Type`. The runtime compares
+that string and never parses it: what makes a declaration produce one is the
+callable kind of
+[#201's verdict](https://github.com/Bitspark/nightseam/issues/201#issuecomment-5745189544),
+which lands with the declaration tier and is not this layer's. Both members are
+compared before an invocation is dispatched, and neither is an authorization:
+the layer proves *which binding of which contract*, never *who may call it*.
 
 A binding id carries the scope's own nonce, minted at random when the scope is
 made. That is what makes a reference of one connection meaningless on another:
