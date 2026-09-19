@@ -2,19 +2,121 @@
   "name": "a caller's cancellation reaches the handler, and the connection serves on",
   "layer": "peer",
   "replaces": "runtime/go/interop_test.go: wait, cancelled, and the echo after",
-  "needs": ["peer", "listen"],
+  "needs": [
+    "peer"
+  ],
   "steps": [
-    {"on": "a", "op": "peer.listen", "bind": {"handle": "l", "url": "url"}},
-    {"on": "b", "op": "peer.dial", "args": {"url": "$url"}, "bind": "pb"},
-    {"on": "a", "op": "peer.accept", "args": {"on": "$l"}, "bind": "pa"},
-    {"on": "a", "op": "peer.handle", "args": {"on": "$pa", "method": "wait", "behavior": {"kind": "wait"}}},
-    {"on": "a", "op": "peer.handle", "args": {"on": "$pa", "method": "echo", "behavior": {"kind": "echo"}}},
-    {"on": "b", "op": "peer.call", "args": {"on": "$pb", "method": "wait", "params": {}}, "bind": "c"},
-    {"on": "a", "op": "peer.await_request", "args": {"on": "$pa", "method": "wait", "phase": "started"}, "expect": {"phase": "started"}},
-    {"on": "b", "op": "call.cancel", "args": {"on": "$c"}},
-    {"on": "b", "op": "call.await", "args": {"on": "$c"}, "expect": {"error": {"code": "cancelled"}}},
-    {"on": "a", "op": "peer.await_request", "args": {"on": "$pa", "method": "wait", "phase": "ended"}, "expect": {"outcome": "cancelled"}, "note": "the handler's context ended because the caller gave up"},
-    {"on": "b", "op": "peer.call", "args": {"on": "$pb", "method": "echo", "params": {"after": "cancel"}}, "bind": "c2"},
-    {"on": "b", "op": "call.await", "args": {"on": "$c2"}, "expect": {"result": {"after": "cancel"}}, "note": "a cancellation left the connection whole"}
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "wait",
+        "behavior": {
+          "kind": "wait"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "echo",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "wait",
+        "params": {}
+      },
+      "bind": "c"
+    },
+    {
+      "on": "a",
+      "op": "peer.await_request",
+      "args": {
+        "on": "$pa",
+        "method": "wait",
+        "phase": "started"
+      },
+      "expect": {
+        "phase": "started"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.cancel",
+      "args": {
+        "on": "$c"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c"
+      },
+      "expect": {
+        "error": {
+          "code": "cancelled"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_request",
+      "args": {
+        "on": "$pa",
+        "method": "wait",
+        "phase": "ended"
+      },
+      "expect": {
+        "outcome": "cancelled"
+      },
+      "note": "the handler's context ended because the caller gave up"
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "params": {
+          "after": "cancel"
+        }
+      },
+      "bind": "c2"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c2"
+      },
+      "expect": {
+        "result": {
+          "after": "cancel"
+        }
+      },
+      "note": "a cancellation left the connection whole"
+    }
   ]
 }

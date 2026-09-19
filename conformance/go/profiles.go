@@ -327,6 +327,21 @@ func (m *Matrix) Write(p *Profiles, file string) error {
 	return os.WriteFile(file, append(data, '\n'), 0o644)
 }
 
+// Missing names every language and profile cell the run left empty, as
+// "language/profile", sorted: the whole suite leaves none.
+func (m *Matrix) Missing(languages []string) []string {
+	var out []string
+	for _, language := range languages {
+		for _, profile := range m.profiles {
+			if m.rows[language] == nil || m.rows[language][profile] == nil {
+				out = append(out, language+"/"+profile)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // Blocking names the languages whose verdict stops a release.
 func (m *Matrix) Blocking(p *Profiles) []string {
 	var out []string

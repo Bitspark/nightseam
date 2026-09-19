@@ -13,7 +13,7 @@
     "needs": {
       "type": "array", "uniqueItems": true,
       "items": {"enum": ["listen", "pipe", "observer", "propagator", "lazy", "seam", "peer", "tunnel", "session", "generated"]},
-      "description": "Layers and features both testees must answer hello with; otherwise the scenario is skipped for that pairing."
+      "description": "Layers and features the steps ask for, the union over both sides: what the steps of each side ask is derived from them and held against that side's testee alone, and the runner refuses a file whose needs differ from the union, so the declaration stays what places the scenario in a profile and nothing more."
     },
     "mirror": {
       "type": "boolean", "default": false,
@@ -35,7 +35,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["on", "op"],
       "properties": {
-        "on": {"enum": ["a", "b"], "description": "Which testee takes the op."},
+        "on": {"enum": ["a", "b", "runner"], "description": "Which testee takes the op; runner for a pair.* op, which the runner expands into the testees' ops from what each answered hello with, so that whichever side can listen does."},
         "op": {"type": "string", "pattern": "^[a-z]+\\.[a-z_]+$"},
         "args": {"type": "object", "description": "The op's arguments; a string value may be a placeholder."},
         "bind": {

@@ -1,0 +1,301 @@
+{
+  "name": "the observer of a tunnel's peer is told what becomes of its channels: opened, accepted, closed, a stall for credit, an open refused",
+  "layer": "tunnel",
+  "replaces": "tunnel/go/observer_test.go and tunnel/ts/src/tunnel.test.ts's observer cases, across the wire",
+  "needs": [
+    "lazy",
+    "observer",
+    "peer",
+    "seam",
+    "tunnel"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a",
+        "server_options": {
+          "observe": true
+        },
+        "client_options": {
+          "observe": true
+        }
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "tunnel.over",
+      "args": {
+        "on": "$pa",
+        "options": {
+          "window": 2,
+          "accept_capacity": 1
+        }
+      },
+      "bind": "ta"
+    },
+    {
+      "on": "b",
+      "op": "tunnel.over",
+      "args": {
+        "on": "$pb",
+        "options": {
+          "window": 2
+        }
+      },
+      "bind": "tb"
+    },
+    {
+      "on": "b",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$tb",
+        "family": "probe",
+        "after": 3,
+        "consume": "lazy"
+      },
+      "bind": {
+        "handle": "cb",
+        "id": "id"
+      }
+    },
+    {
+      "on": "a",
+      "op": "tunnel.accept",
+      "args": {
+        "on": "$ta",
+        "consume": "lazy"
+      },
+      "bind": {
+        "handle": "ca"
+      },
+      "expect": {
+        "id": "$id",
+        "family": "probe",
+        "after": 3
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pa"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "channel.accepted",
+            "family": "probe",
+            "id": "$id",
+            "after": 3
+          }
+        ]
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pb"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "channel.opened",
+            "family": "probe",
+            "id": "$id",
+            "after": 3,
+            "opener": true
+          }
+        ]
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "text",
+        "text": "1"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "text",
+        "text": "2"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "text",
+        "text": "3",
+        "within_ms": 300
+      },
+      "expect_error": {
+        "code": "timeout"
+      },
+      "note": "the window is two and nobody reads: the third send waits"
+    },
+    {
+      "on": "b",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pb"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "credit.stall",
+            "family": "probe",
+            "id": "$id",
+            "waiting": 1
+          }
+        ]
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "1"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "2"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca",
+        "within_ms": 300
+      },
+      "expect": {
+        "kind": "text",
+        "text": "3"
+      },
+      "expect_error": {
+        "code": "timeout"
+      },
+      "note": "a send that waited past its deadline is the sender's to have given up or to deliver once credit returns; the seam promises neither, and either way the reader is caught up"
+    },
+    {
+      "on": "b",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$tb",
+        "family": "probe"
+      },
+      "bind": {
+        "handle": "c2"
+      }
+    },
+    {
+      "on": "b",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$tb",
+        "family": "probe"
+      },
+      "expect_error": {
+        "code": "channel_refused"
+      },
+      "note": "one opened and not yet accepted is all the other side holds"
+    },
+    {
+      "on": "a",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pa"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "open.refused",
+            "family": "probe"
+          }
+        ]
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.close",
+      "args": {
+        "on": "$cb",
+        "code": 4001,
+        "reason": "the opener is done"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect_error": {
+        "code": "closed",
+        "close_code": 4001,
+        "reason": "the opener is done"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pa"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "channel.closed",
+            "family": "probe",
+            "id": "$id",
+            "code": 4001,
+            "reason": "the opener is done"
+          }
+        ]
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pb"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "channel.closed",
+            "family": "probe",
+            "id": "$id",
+            "code": 4001,
+            "reason": "the opener is done"
+          }
+        ]
+      }
+    }
+  ]
+}

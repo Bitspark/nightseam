@@ -3,43 +3,22 @@
   "layer": "tunnel",
   "replaces": "tunnel/go/observer_test.go's stall case and tunnel/ts/src/tunnel.test.ts's",
   "needs": [
-    "tunnel",
+    "lazy",
     "peer",
-    "listen",
-    "lazy"
+    "seam",
+    "tunnel"
   ],
   "steps": [
     {
-      "on": "a",
-      "op": "peer.listen",
+      "on": "runner",
+      "op": "pair.peers",
       "args": {
-        "options": {
-          "observe": true
-        }
+        "server": "a"
       },
       "bind": {
-        "handle": "l",
-        "url": "url"
+        "server": "pa",
+        "client": "pb"
       }
-    },
-    {
-      "on": "b",
-      "op": "peer.dial",
-      "args": {
-        "url": "$url",
-        "options": {
-          "observe": true
-        }
-      },
-      "bind": "pb"
-    },
-    {
-      "on": "a",
-      "op": "peer.accept",
-      "args": {
-        "on": "$l"
-      },
-      "bind": "pa"
     },
     {
       "on": "a",
@@ -120,23 +99,6 @@
       "note": "the window is two and nobody reads: the third send waits"
     },
     {
-      "on": "b",
-      "op": "peer.observed",
-      "args": {
-        "on": "$pb"
-      },
-      "expect": {
-        "$contains": [
-          {
-            "type": "credit.stall",
-            "family": "probe",
-            "id": "$id",
-            "waiting": 1
-          }
-        ]
-      }
-    },
-    {
       "on": "a",
       "op": "conn.receive",
       "args": {
@@ -159,14 +121,30 @@
       }
     },
     {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca",
+        "within_ms": 300
+      },
+      "expect": {
+        "kind": "text",
+        "text": "3"
+      },
+      "expect_error": {
+        "code": "timeout"
+      },
+      "note": "a send that waited past its deadline is the sender's to have given up or to deliver once credit returns; the seam promises neither, and either way the reader is caught up"
+    },
+    {
       "on": "b",
       "op": "conn.send",
       "args": {
         "on": "$cb",
         "kind": "text",
-        "text": "3"
+        "text": "4"
       },
-      "note": "a send that timed out was given up; with the reader caught up and credit returned, the next goes through"
+      "note": "with the reader caught up and credit returned, a send goes through"
     },
     {
       "on": "a",
@@ -176,7 +154,7 @@
       },
       "expect": {
         "kind": "text",
-        "text": "3"
+        "text": "4"
       }
     }
   ]

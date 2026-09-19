@@ -6,26 +6,44 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
 
 var (
-	matrixOnce     sync.Once
-	matrix         *Matrix
-	matrixProfiles *Profiles
-	matrixRoot     string
+	matrixOnce      sync.Once
+	matrix          *Matrix
+	matrixProfiles  *Profiles
+	matrixRoot      string
+	matrixLanguages []string
+	matrixOut       string
 )
 
+// RemoveOut removes what the run built and rendered, once its testees have
+// stopped. TestMain calls it last.
+func RemoveOut() {
+	if matrixOut != "" {
+		_ = os.RemoveAll(matrixOut)
+	}
+}
+
 // WriteMatrix writes the matrix of everything the run held, as
-// conformance/matrix.json, and says it on stderr; nothing, when no suite
-// was opened. TestMain calls it once the tests are done.
+// conformance/matrix.json, and says it on stderr — when the run was the
+// whole suite: every profile held for every language with a testee. A run
+// of some tests, or some scenarios, says its matrix and writes nothing, so
+// the file on disk is never a part of a run read as the whole. TestMain
+// calls it once the tests are done.
 func WriteMatrix() error {
 	if matrix == nil {
 		return nil
 	}
 	fmt.Fprintf(os.Stderr, "the matrix of this run:\n%s", matrix)
+	if missing := matrix.Missing(matrixLanguages); len(missing) > 0 {
+		fmt.Fprintf(os.Stderr, "not written to matrix.json: the run did not hold %s\n", strings.Join(missing, ", "))
+		return nil
+	}
 	return matrix.Write(matrixProfiles, filepath.Join(matrixRoot, "matrix.json"))
 }
 
@@ -40,7 +58,10 @@ type Suite struct {
 	// Placed is each scenario's profile, by layer/name.
 	Placed map[string]string
 	Matrix *Matrix
-	places Places
+	// Observe, when set, is told every outcome as it happens, beside the
+	// matrix: what a test that asks more of a run than its counts reads.
+	Observe func(sc Scenario, a, b string, o Outcome)
+	places  Places
 	// rendered is where each language's probe rendering lies, once prepared.
 	rendered map[string]string
 }
@@ -81,13 +102,24 @@ func Open(t *testing.T) *Suite {
 		}
 		placed[sc.Key()] = profile
 	}
-	out := filepath.Join(root, ".out")
+	// Every run builds and renders into a directory of its own, since two
+	// runs may share one checkout — a binary a running testee holds cannot
+	// be rebuilt over on Windows, and a rendering half written is nobody's.
+	// It lies under conformance/ so that a rendered TypeScript package
+	// resolves the workspace's packages by walking up. TestMain removes it.
+	out := filepath.Join(root, ".out", fmt.Sprint(os.Getpid()))
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	// One matrix for the whole run, whichever tests open a suite: TestMain
 	// writes it once they are done.
-	matrixOnce.Do(func() { matrix = NewMatrix(profiles); matrixProfiles = profiles; matrixRoot = root })
+	matrixOnce.Do(func() {
+		matrix = NewMatrix(profiles)
+		matrixProfiles = profiles
+		matrixRoot = root
+		matrixLanguages = languagesOf(recipes)
+		matrixOut = out
+	})
 	s := &Suite{Root: root, Checkout: filepath.Dir(root), Recipes: recipes, Scenarios: scenarios, Profiles: profiles, Placed: placed, Matrix: matrix, places: Places{Checkout: filepath.Dir(root), Out: out}, rendered: map[string]string{}}
 	t.Cleanup(func() {
 		if blocking := s.Matrix.Blocking(s.Profiles); len(blocking) > 0 {
@@ -109,15 +141,17 @@ func Open(t *testing.T) *Suite {
 }
 
 // Languages is every language with a recipe, sorted, Go first.
-func (s *Suite) Languages() []string {
+func (s *Suite) Languages() []string { return languagesOf(s.Recipes) }
+
+func languagesOf(recipes map[string]Recipe) []string {
 	var out []string
-	for language := range s.Recipes {
+	for language := range recipes {
 		if language != "go" {
 			out = append(out, language)
 		}
 	}
 	sort.Strings(out)
-	if _, ok := s.Recipes["go"]; ok {
+	if _, ok := recipes["go"]; ok {
 		out = append([]string{"go"}, out...)
 	}
 	return out
@@ -154,6 +188,18 @@ func (s *Suite) run(t *testing.T, a, b string, generated bool, keep func(Scenari
 		testee, err := Start(ctx, s.Recipes[language], places, generated)
 		if err != nil {
 			t.Fatalf("start the %s testee: %v", language, err)
+		}
+		// NIGHTSEAM_PRETEND_DIAL_ONLY names a language the runner treats as
+		// unable to listen, whatever its testee said: how the suite proves a
+		// dial-only language is held in every role, with a testee that can.
+		if !generated && os.Getenv("NIGHTSEAM_PRETEND_DIAL_ONLY") == language {
+			var features []string
+			for _, f := range testee.Hello.Features {
+				if f != "listen" {
+					features = append(features, f)
+				}
+			}
+			testee.Hello.Features = features
 		}
 		// A testee of a tier is held to what the tier requires: a layer it
 		// lacks fails the run rather than skipping its scenarios. The
@@ -202,6 +248,9 @@ func (s *Suite) one(t *testing.T, ctx context.Context, sc Scenario, a, b string,
 				held = b
 			}
 			s.Matrix.Record(held, s.Placed[sc.Key()], outcome)
+			if s.Observe != nil {
+				s.Observe(sc, a, b, outcome)
+			}
 			if outcome.Skipped != "" {
 				t.Skip(outcome.Skipped)
 			}

@@ -3,16 +3,25 @@
   "layer": "peer",
   "replaces": "runtime/go/observer_test.go TestAnObserverSeesACallAnEventAndACloseInOrder and its TypeScript twin",
   "needs": [
-    "peer",
-    "listen",
-    "observer"
+    "observer",
+    "peer"
   ],
   "steps": [
     {
-      "on": "a",
-      "op": "peer.listen",
+      "on": "runner",
+      "op": "pair.peers",
       "args": {
-        "options": {
+        "server": "a",
+        "server_options": {
+          "observe": true,
+          "families": {
+            "echo": "probe",
+            "back": "probe",
+            "tick": "probe",
+            "tock": "probe"
+          }
+        },
+        "client_options": {
           "observe": true,
           "families": {
             "echo": "probe",
@@ -23,34 +32,9 @@
         }
       },
       "bind": {
-        "handle": "l",
-        "url": "url"
+        "server": "pa",
+        "client": "pb"
       }
-    },
-    {
-      "on": "b",
-      "op": "peer.dial",
-      "args": {
-        "url": "$url",
-        "options": {
-          "observe": true,
-          "families": {
-            "echo": "probe",
-            "back": "probe",
-            "tick": "probe",
-            "tock": "probe"
-          }
-        }
-      },
-      "bind": "pb"
-    },
-    {
-      "on": "a",
-      "op": "peer.accept",
-      "args": {
-        "on": "$l"
-      },
-      "bind": "pa"
     },
     {
       "on": "a",

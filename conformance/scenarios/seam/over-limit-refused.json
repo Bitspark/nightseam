@@ -3,37 +3,20 @@
   "layer": "seam",
   "replaces": "duplex/go/duplextest, its fourth scenario",
   "needs": [
-    "seam",
-    "listen"
+    "seam"
   ],
   "steps": [
     {
-      "on": "a",
-      "op": "conn.listen",
-      "args": {
-        "limit": 1024
-      },
+      "on": "runner",
+      "op": "pair.conns",
       "bind": {
-        "handle": "l",
-        "url": "url"
+        "a": "ca",
+        "b": "cb"
+      },
+      "args": {
+        "limit_a": 1024,
+        "limit_b": 1048576
       }
-    },
-    {
-      "on": "b",
-      "op": "conn.dial",
-      "args": {
-        "url": "$url",
-        "limit": 1048576
-      },
-      "bind": "cb"
-    },
-    {
-      "on": "a",
-      "op": "conn.accept",
-      "args": {
-        "on": "$l"
-      },
-      "bind": "ca"
     },
     {
       "on": "b",

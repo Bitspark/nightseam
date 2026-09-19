@@ -34,7 +34,7 @@ func TestScenariosLoad(t *testing.T) {
 	for _, s := range scenarios {
 		byLayer[s.Layer]++
 		for i, step := range s.Steps {
-			if !strings.HasPrefix(step.Op, s.Layer+".") && !allowedAcross(s.Layer, step.Op) {
+			if step.On != "runner" && !strings.HasPrefix(step.Op, s.Layer+".") && !allowedAcross(s.Layer, step.Op) {
 				t.Errorf("%s step %d: %s is not an op of layer %s or one beneath it", s.Name, i, step.Op, s.Layer)
 			}
 		}
@@ -52,6 +52,9 @@ func allowedAcross(layer, op string) bool {
 		"tunnel":    {"conn", "peer", "call", "tunnel"},
 		"session":   {"conn", "peer", "call", "tunnel", "session", "attachment"},
 		"generated": {"gen", "client", "server"},
+	}
+	if family == "pair" {
+		return true
 	}
 	for _, f := range beneath[layer] {
 		if f == family {

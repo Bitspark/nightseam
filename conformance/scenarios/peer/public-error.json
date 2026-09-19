@@ -2,16 +2,99 @@
   "name": "a handler's public error reaches the caller with its code, message and data",
   "layer": "peer",
   "replaces": "runtime/go/interop_test.go: fail",
-  "needs": ["peer", "listen"],
+  "needs": [
+    "peer"
+  ],
   "steps": [
-    {"on": "a", "op": "peer.listen", "bind": {"handle": "l", "url": "url"}},
-    {"on": "b", "op": "peer.dial", "args": {"url": "$url"}, "bind": "pb"},
-    {"on": "a", "op": "peer.accept", "args": {"on": "$l"}, "bind": "pa"},
-    {"on": "a", "op": "peer.handle", "args": {"on": "$pa", "method": "fail", "behavior": {"kind": "fail", "code": "denied", "message": "Access denied", "data": {"reason": "policy", "n": 3}}}},
-    {"on": "b", "op": "peer.call", "args": {"on": "$pb", "method": "fail", "params": {}}, "bind": "c"},
-    {"on": "b", "op": "call.await", "args": {"on": "$c"}, "expect": {"error": {"code": "denied", "message": "Access denied", "data": {"reason": "policy", "n": 3}}}},
-    {"on": "a", "op": "peer.await_request", "args": {"on": "$pa", "method": "fail", "phase": "ended"}, "expect": {"outcome": "error"}},
-    {"on": "b", "op": "peer.call", "args": {"on": "$pb", "method": "nobody", "params": {}}, "bind": "c2"},
-    {"on": "b", "op": "call.await", "args": {"on": "$c2"}, "expect": {"error": {"code": "method_not_found"}}, "note": "a method nobody registered is refused by name"}
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "fail",
+        "behavior": {
+          "kind": "fail",
+          "code": "denied",
+          "message": "Access denied",
+          "data": {
+            "reason": "policy",
+            "n": 3
+          }
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "fail",
+        "params": {}
+      },
+      "bind": "c"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c"
+      },
+      "expect": {
+        "error": {
+          "code": "denied",
+          "message": "Access denied",
+          "data": {
+            "reason": "policy",
+            "n": 3
+          }
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_request",
+      "args": {
+        "on": "$pa",
+        "method": "fail",
+        "phase": "ended"
+      },
+      "expect": {
+        "outcome": "error"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "nobody",
+        "params": {}
+      },
+      "bind": "c2"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c2"
+      },
+      "expect": {
+        "error": {
+          "code": "method_not_found"
+        }
+      },
+      "note": "a method nobody registered is refused by name"
+    }
   ]
 }

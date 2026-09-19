@@ -2,43 +2,24 @@
   "name": "a request beyond what a session may have open is refused with busy, and the refusal is a change like any other",
   "layer": "session",
   "needs": [
-    "session",
-    "tunnel",
+    "lazy",
     "peer",
-    "seam",
-    "listen",
     "pipe",
-    "lazy"
+    "seam",
+    "session",
+    "tunnel"
   ],
   "steps": [
     {
-      "on": "a",
-      "op": "peer.listen",
+      "on": "runner",
+      "op": "pair.peers",
       "args": {
-        "options": {
-          "observe": true
-        }
+        "server": "a"
       },
       "bind": {
-        "handle": "l",
-        "url": "url"
+        "server": "pa",
+        "client": "pb"
       }
-    },
-    {
-      "on": "b",
-      "op": "peer.dial",
-      "args": {
-        "url": "$url"
-      },
-      "bind": "pb"
-    },
-    {
-      "on": "a",
-      "op": "peer.accept",
-      "args": {
-        "on": "$l"
-      },
-      "bind": "pa"
     },
     {
       "on": "a",
@@ -72,10 +53,7 @@
       "op": "peer.over",
       "args": {
         "on": "$pipe_near",
-        "role": "client",
-        "options": {
-          "observe": true
-        }
+        "role": "client"
       },
       "bind": "near"
     },

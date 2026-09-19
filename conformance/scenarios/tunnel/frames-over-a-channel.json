@@ -2,42 +2,21 @@
   "name": "a channel is a connection: frames arrive in order and whole, text and binary alike, and a close carries its code and reason to the other side",
   "layer": "tunnel",
   "needs": [
-    "tunnel",
     "peer",
-    "listen"
+    "seam",
+    "tunnel"
   ],
   "steps": [
     {
-      "on": "a",
-      "op": "peer.listen",
+      "on": "runner",
+      "op": "pair.peers",
       "args": {
-        "options": {
-          "observe": true
-        }
+        "server": "a"
       },
       "bind": {
-        "handle": "l",
-        "url": "url"
+        "server": "pa",
+        "client": "pb"
       }
-    },
-    {
-      "on": "b",
-      "op": "peer.dial",
-      "args": {
-        "url": "$url",
-        "options": {
-          "observe": true
-        }
-      },
-      "bind": "pb"
-    },
-    {
-      "on": "a",
-      "op": "peer.accept",
-      "args": {
-        "on": "$l"
-      },
-      "bind": "pa"
     },
     {
       "on": "a",
@@ -158,42 +137,6 @@
         "code": "closed",
         "close_code": 4001,
         "reason": "the opener is done"
-      }
-    },
-    {
-      "on": "a",
-      "op": "peer.observed",
-      "args": {
-        "on": "$pa"
-      },
-      "expect": {
-        "$contains": [
-          {
-            "type": "channel.closed",
-            "family": "probe",
-            "id": "$id",
-            "code": 4001,
-            "reason": "the opener is done"
-          }
-        ]
-      }
-    },
-    {
-      "on": "b",
-      "op": "peer.observed",
-      "args": {
-        "on": "$pb"
-      },
-      "expect": {
-        "$contains": [
-          {
-            "type": "channel.closed",
-            "family": "probe",
-            "id": "$id",
-            "code": 4001,
-            "reason": "the opener is done"
-          }
-        ]
       }
     }
   ]

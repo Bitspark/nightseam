@@ -147,10 +147,13 @@ func (s Scenario) Mirrored() Scenario {
 	m.Steps = make([]Step, len(s.Steps))
 	for i, step := range s.Steps {
 		m.Steps[i] = step
-		if step.On == "a" {
+		switch step.On {
+		case "a":
 			m.Steps[i].On = "b"
-		} else {
+		case "b":
 			m.Steps[i].On = "a"
+		default:
+			m.Steps[i] = mirrorRunnerStep(step)
 		}
 	}
 	return m
@@ -213,9 +216,15 @@ func parse(root, file string, data []byte, schema *jsonschema.Schema) ([]Scenari
 		if err != nil {
 			return nil, fmt.Errorf("step %d: %w", i, err)
 		}
+		if err := checkRunnerStep(step); err != nil {
+			return nil, fmt.Errorf("step %d: %w", i, err)
+		}
 		steps = append(steps, step)
 	}
 	base := Scenario{Name: sf.Name, Layer: sf.Layer, Replaces: sf.Replaces, Description: sf.Description, Needs: sf.Needs, Mirror: sf.Mirror, Steps: steps, File: file}
+	if err := holdDeclared(base); err != nil {
+		return nil, err
+	}
 	if sf.Foreach == nil {
 		return []Scenario{base}, nil
 	}

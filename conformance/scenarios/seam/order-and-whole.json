@@ -2,20 +2,121 @@
   "name": "frames arrive in order and whole, text and binary alike",
   "layer": "seam",
   "replaces": "duplex/go/duplextest, its first scenario",
-  "needs": ["seam", "listen"],
+  "needs": [
+    "seam"
+  ],
   "steps": [
-    {"on": "a", "op": "conn.listen", "args": {"limit": 1048576}, "bind": {"handle": "l", "url": "url"}},
-    {"on": "b", "op": "conn.dial", "args": {"url": "$url", "limit": 1048576}, "bind": "cb"},
-    {"on": "a", "op": "conn.accept", "args": {"on": "$l"}, "bind": "ca"},
-    {"on": "b", "op": "conn.send", "args": {"on": "$cb", "kind": "text", "text": "frame 00"}},
-    {"on": "b", "op": "conn.send", "args": {"on": "$cb", "kind": "binary", "base64": "ZnJhbWUgMDE="}},
-    {"on": "b", "op": "conn.send", "args": {"on": "$cb", "kind": "text", "text": "frame 02"}},
-    {"on": "b", "op": "conn.send", "args": {"on": "$cb", "kind": "binary", "base64": "AAECAwQFBgcICQ=="}},
-    {"on": "a", "op": "conn.receive", "args": {"on": "$ca"}, "expect": {"kind": "text", "text": "frame 00"}},
-    {"on": "a", "op": "conn.receive", "args": {"on": "$ca"}, "expect": {"kind": "binary", "base64": "ZnJhbWUgMDE="}},
-    {"on": "a", "op": "conn.receive", "args": {"on": "$ca"}, "expect": {"kind": "text", "text": "frame 02"}},
-    {"on": "a", "op": "conn.receive", "args": {"on": "$ca"}, "expect": {"kind": "binary", "base64": "AAECAwQFBgcICQ=="}},
-    {"on": "a", "op": "conn.send", "args": {"on": "$ca", "kind": "text", "text": "back"}},
-    {"on": "b", "op": "conn.receive", "args": {"on": "$cb"}, "expect": {"kind": "text", "text": "back"}}
+    {
+      "on": "runner",
+      "op": "pair.conns",
+      "bind": {
+        "a": "ca",
+        "b": "cb"
+      },
+      "args": {
+        "limit_a": 1048576,
+        "limit_b": 1048576
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "text",
+        "text": "frame 00"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "binary",
+        "base64": "ZnJhbWUgMDE="
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "text",
+        "text": "frame 02"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "binary",
+        "base64": "AAECAwQFBgcICQ=="
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "frame 00"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "kind": "binary",
+        "base64": "ZnJhbWUgMDE="
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "frame 02"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "kind": "binary",
+        "base64": "AAECAwQFBgcICQ=="
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.send",
+      "args": {
+        "on": "$ca",
+        "kind": "text",
+        "text": "back"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$cb"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "back"
+      }
+    }
   ]
 }

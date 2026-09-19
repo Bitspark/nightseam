@@ -3,8 +3,7 @@
   "layer": "peer",
   "needs": [
     "peer",
-    "seam",
-    "listen"
+    "seam"
   ],
   "foreach": {
     "table": "tables/frames.json",
@@ -15,28 +14,16 @@
   },
   "steps": [
     {
-      "on": "b",
-      "op": "peer.listen",
+      "on": "runner",
+      "op": "pair.peer_and_conn",
+      "args": {
+        "peer": "b",
+        "role": "server"
+      },
       "bind": {
-        "handle": "l",
-        "url": "url"
+        "peer": "pb",
+        "conn": "ca"
       }
-    },
-    {
-      "on": "a",
-      "op": "conn.dial",
-      "args": {
-        "url": "$url"
-      },
-      "bind": "ca"
-    },
-    {
-      "on": "b",
-      "op": "peer.accept",
-      "args": {
-        "on": "$l"
-      },
-      "bind": "pb"
     },
     {
       "on": "b",

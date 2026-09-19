@@ -2,20 +2,151 @@
   "name": "a call is answered, and a handler calls back across the same connection",
   "layer": "peer",
   "replaces": "runtime/go/interop_test.go with runtime/ts/src/interop.ts: echo and roundtrip",
-  "needs": ["peer", "listen"],
+  "needs": [
+    "peer"
+  ],
   "steps": [
-    {"on": "a", "op": "peer.listen", "bind": {"handle": "l", "url": "url"}},
-    {"on": "b", "op": "peer.dial", "args": {"url": "$url"}, "bind": "pb"},
-    {"on": "a", "op": "peer.accept", "args": {"on": "$l"}, "bind": "pa"},
-    {"on": "a", "op": "peer.handle", "args": {"on": "$pa", "method": "echo", "behavior": {"kind": "echo"}}},
-    {"on": "a", "op": "peer.handle", "args": {"on": "$pa", "method": "roundtrip", "behavior": {"kind": "reverse", "method": "multiply"}}},
-    {"on": "b", "op": "peer.handle", "args": {"on": "$pb", "method": "multiply", "behavior": {"kind": "return", "value": {"value": 21}}}},
-    {"on": "b", "op": "peer.call", "args": {"on": "$pb", "method": "echo", "params": {"text": "value", "count": 7, "note": null, "precise": 9007199254740991}}, "bind": "c1"},
-    {"on": "b", "op": "peer.call", "args": {"on": "$pb", "method": "roundtrip", "params": {"value": 7}}, "bind": "c2"},
-    {"on": "b", "op": "call.await", "args": {"on": "$c1"}, "expect": {"result": {"text": "value", "count": 7, "note": null, "precise": 9007199254740991}}},
-    {"on": "b", "op": "call.await", "args": {"on": "$c2"}, "expect": {"result": {"value": 21}}, "note": "the server's handler called multiply on the client and answered with what came back"},
-    {"on": "b", "op": "peer.await_request", "args": {"on": "$pb", "method": "multiply", "phase": "ended"}, "expect": {"method": "multiply", "phase": "ended", "outcome": "ok"}},
-    {"on": "a", "op": "peer.call", "args": {"on": "$pa", "method": "multiply", "params": {"value": 1}}, "bind": "c3", "note": "and the server calls the client directly"},
-    {"on": "a", "op": "call.await", "args": {"on": "$c3"}, "expect": {"result": {"value": 21}}}
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "echo",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "roundtrip",
+        "behavior": {
+          "kind": "reverse",
+          "method": "multiply"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pb",
+        "method": "multiply",
+        "behavior": {
+          "kind": "return",
+          "value": {
+            "value": 21
+          }
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "params": {
+          "text": "value",
+          "count": 7,
+          "note": null,
+          "precise": 9007199254740991
+        }
+      },
+      "bind": "c1"
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "roundtrip",
+        "params": {
+          "value": 7
+        }
+      },
+      "bind": "c2"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c1"
+      },
+      "expect": {
+        "result": {
+          "text": "value",
+          "count": 7,
+          "note": null,
+          "precise": 9007199254740991
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c2"
+      },
+      "expect": {
+        "result": {
+          "value": 21
+        }
+      },
+      "note": "the server's handler called multiply on the client and answered with what came back"
+    },
+    {
+      "on": "b",
+      "op": "peer.await_request",
+      "args": {
+        "on": "$pb",
+        "method": "multiply",
+        "phase": "ended"
+      },
+      "expect": {
+        "method": "multiply",
+        "phase": "ended",
+        "outcome": "ok"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.call",
+      "args": {
+        "on": "$pa",
+        "method": "multiply",
+        "params": {
+          "value": 1
+        }
+      },
+      "bind": "c3",
+      "note": "and the server calls the client directly"
+    },
+    {
+      "on": "a",
+      "op": "call.await",
+      "args": {
+        "on": "$c3"
+      },
+      "expect": {
+        "result": {
+          "value": 21
+        }
+      }
+    }
   ]
 }

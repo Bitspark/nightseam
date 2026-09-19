@@ -3,12 +3,15 @@ package conformance
 import (
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"testing"
 )
 
 // TestMain writes the matrix once every test that opened a suite is done.
 func TestMain(m *testing.M) {
 	code := m.Run()
+	RemoveOut()
 	if err := WriteMatrix(); err != nil {
 		fmt.Fprintln(os.Stderr, "write matrix.json:", err)
 		if code == 0 {
@@ -34,6 +37,41 @@ func TestStar(t *testing.T) {
 			continue
 		}
 		t.Run(pairName(p[0], p[1]), func(t *testing.T) { s.pair(t, p[0], p[1]) })
+	}
+}
+
+// TestDialOnly is the proof that a language whose runtime only dials is
+// held in every role: the star with the TypeScript testee treated as
+// unable to listen, so every scenario of the seam, the peer, the tunnel
+// and the session runs over a connection the Go side accepted — and none
+// may be skipped for it. Its outcomes go to a matrix of their own, since
+// the language's row counts each scenario once.
+func TestDialOnly(t *testing.T) {
+	t.Setenv("NIGHTSEAM_PRETEND_DIAL_ONLY", "typescript")
+	s := Open(t)
+	if _, ok := s.Recipes["typescript"]; !ok {
+		t.Skip("no TypeScript testee")
+	}
+	s.Matrix = NewMatrix(s.Profiles)
+	// The one skip allowed is a scenario that is about listening — one whose
+	// file declares listen, a WebSocket handshake say — with the dial-only
+	// testee on the side that listens; every other skip is the runner
+	// failing to open the connection from the other side.
+	s.Observe = func(sc Scenario, a, b string, o Outcome) {
+		if o.Skipped == "" {
+			return
+		}
+		if !slices.Contains(sc.Needs, "listen") || !strings.Contains(o.Skipped, "listen") {
+			t.Errorf("%s (a: %s, b: %s) was skipped for a testee that only dials: %s", sc.Name, a, b, o.Skipped)
+		}
+	}
+	for _, p := range [][2]string{{"go", "typescript"}, {"typescript", "go"}} {
+		t.Run(pairName(p[0], p[1]), func(t *testing.T) { s.pair(t, p[0], p[1]) })
+	}
+	for profile, cell := range s.Matrix.rows["typescript"] {
+		if cell.Passed == 0 {
+			t.Errorf("%s: nothing passed", profile)
+		}
 	}
 }
 

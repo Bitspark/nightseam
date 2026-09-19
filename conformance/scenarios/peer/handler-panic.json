@@ -2,39 +2,23 @@
   "name": "a handler that gives up is an internal error to the caller, a panic to the observer, and the connection serves on",
   "layer": "peer",
   "needs": [
-    "peer",
-    "listen",
-    "observer"
+    "observer",
+    "peer"
   ],
   "steps": [
     {
-      "on": "a",
-      "op": "peer.listen",
+      "on": "runner",
+      "op": "pair.peers",
       "args": {
-        "options": {
+        "server": "a",
+        "server_options": {
           "observe": true
         }
       },
       "bind": {
-        "handle": "l",
-        "url": "url"
+        "server": "pa",
+        "client": "pb"
       }
-    },
-    {
-      "on": "b",
-      "op": "peer.dial",
-      "args": {
-        "url": "$url"
-      },
-      "bind": "pb"
-    },
-    {
-      "on": "a",
-      "op": "peer.accept",
-      "args": {
-        "on": "$l"
-      },
-      "bind": "pa"
     },
     {
       "on": "a",

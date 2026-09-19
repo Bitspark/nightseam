@@ -51,13 +51,25 @@ func indent(s string) string {
 // need either testee lacks skips it; an op a testee answers unsupported
 // skips it; anything else that parts from the scenario fails it.
 func Run(ctx context.Context, a, b *Testee, s Scenario) Outcome {
-	for _, need := range s.Needs {
-		for _, t := range []*Testee{a, b} {
+	// The runner's own steps become the testees' by what each can do, and
+	// each side is then held to what its own steps ask: a language that
+	// lacks a feature skips the scenario only where it would use it.
+	steps, skip := expand(s, map[string]Hello{"a": a.Hello, "b": b.Hello})
+	if skip != "" {
+		return Outcome{Skipped: skip}
+	}
+	for side, needs := range SideNeeds(steps) {
+		t := a
+		if side == "b" {
+			t = b
+		}
+		for _, need := range needs {
 			if !t.Hello.Has(need) {
-				return Outcome{Skipped: fmt.Sprintf("the %s testee lacks %s", t.Language, need)}
+				return Outcome{Skipped: fmt.Sprintf("the %s testee, on side %s, lacks %s", t.Language, side, need)}
 			}
 		}
 	}
+	s.Steps = steps
 	for _, t := range []*Testee{a, b} {
 		if err := t.Reset(ctx); err != nil {
 			return Outcome{Failed: &Failure{Reason: err.Error(), StderrA: a.Stderr(), StderrB: b.Stderr()}}

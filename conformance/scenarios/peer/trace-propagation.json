@@ -3,45 +3,29 @@
   "layer": "peer",
   "replaces": "runtime/go/trace tests and runtime/ts/src/trace.test.ts, across the wire",
   "needs": [
-    "peer",
-    "listen",
     "observer",
+    "peer",
     "propagator"
   ],
   "steps": [
     {
-      "on": "a",
-      "op": "peer.listen",
+      "on": "runner",
+      "op": "pair.peers",
       "args": {
-        "options": {
+        "server": "a",
+        "server_options": {
+          "observe": true,
+          "propagate": true
+        },
+        "client_options": {
           "observe": true,
           "propagate": true
         }
       },
       "bind": {
-        "handle": "l",
-        "url": "url"
+        "server": "pa",
+        "client": "pb"
       }
-    },
-    {
-      "on": "b",
-      "op": "peer.dial",
-      "args": {
-        "url": "$url",
-        "options": {
-          "observe": true,
-          "propagate": true
-        }
-      },
-      "bind": "pb"
-    },
-    {
-      "on": "a",
-      "op": "peer.accept",
-      "args": {
-        "on": "$l"
-      },
-      "bind": "pa"
     },
     {
       "on": "a",

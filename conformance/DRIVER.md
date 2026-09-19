@@ -57,7 +57,7 @@ lacks one. The features:
 
 | feature | means |
 |---|---|
-| `listen` | the testee can accept a connection (`conn.listen`, `peer.listen`); a language whose runtime only dials lacks it and still runs both roles, through `peer.over` on a connection the other side accepted |
+| `listen` | the testee can accept a connection (`conn.listen`, `peer.listen`); a language whose runtime only dials lacks it and still runs both roles, since the runner has the other side listen and takes the peer over the connection with `peer.over` — see *Who listens* |
 | `pipe` | `conn.pipe`, an in-process connected pair |
 | `observer` | `observe: true` on a peer, and `peer.observed` |
 | `propagator` | `propagate: true` on a peer: traces are minted and carried |
@@ -118,6 +118,41 @@ arrive and holds them. Lazy is what a scenario about credit needs: a channel
 whose reader has stopped is the only way a sender stalls. A testee that
 lacks `lazy` says so in `hello` and the runner skips those scenarios.
 
+## Who listens
+
+A scenario never says which side opens the socket. It opens its connections
+with the runner's own ops, written `"on": "runner"`, and the runner expands
+each into the testees' ops from what the two answered `hello` with:
+whichever side can listen does, so that a language whose runtime only dials
+is held in every role all the same. The profile's role — server, client —
+is the scenario's to assign; who listens beneath it is the runner's to
+choose, and a peer of either role is taken over a connection either side
+accepted, through `peer.over`.
+
+| op | arguments | binds |
+|---|---|---|
+| `pair.conns` | `limit_a`, `limit_b`, `consume_a`, `consume_b` — each side's own receive limit and consumption | `{"a", "b"}` the two connections |
+| `pair.peers` | **`server`** `"a"`\|`"b"`, `server_options`, `client_options` | `{"server", "client"}` the two peers |
+| `pair.peer_and_conn` | **`peer`** `"a"`\|`"b"`, **`role`**, `options` (the peer's), `limit`, `consume` (the raw side's) | `{"peer", "conn"}` |
+
+The paths, in the order the runner tries them: the natural side listens
+(`peer.listen`, `peer.dial`, `peer.accept`, or the seam's three); else the
+other side listens a raw connection and the peers are taken over its ends
+with `peer.over`, lazily consumed since a peer reads its own connection;
+else — neither can listen — the scenario is skipped for that pairing with
+that reason. A scenario that is *about* listening, a WebSocket handshake
+say, writes `conn.listen` or `peer.listen` itself and needs `listen` on
+that side.
+
+What a scenario `needs` is held **per side**: from each side's steps the
+runner derives the layer of every op and the features the ops and their
+arguments use — `listen`, `pipe`, `lazy`, `observer` for `peer.observed`,
+`propagator` for `propagate: true` — and holds that side's testee to them
+alone, so a language that lacks a feature skips a scenario only where it
+would use it. The file's `needs` is the union over both sides, which the
+runner refuses a file to differ from: it is what places the scenario in a
+profile, and documentation that cannot drift.
+
 ## Ops
 
 Arguments in **bold** are required. Every op takes `on` where it acts on a
@@ -152,15 +187,27 @@ The profile: `runtime/go`'s `Peer`, `@nightseam/runtime`'s `DuplexPeer`.
 | `peer.over` | **`on`** connection or channel, **`role`** `"client"`\|`"server"`, `options` | `{"handle"}` a peer speaking the profile over that connection |
 | `peer.handle` | **`on`**, **`method`**, **`behavior`** | `{}` — registers a canned handler, see below |
 | `peer.on_event` | **`on`**, **`name`**, `behavior` | `{}` — how an event is taken: `record` (default), `block`, `panic` |
-| `peer.call` | **`on`**, **`method`**, `params`, `timeout_ms` | `{"handle"}` a call, in flight |
+| `peer.call` | **`on`**, **`method`**, `params`, `timeout_ms`, `meta` | `{"handle"}` a call, in flight |
 | `call.await` | **`on`**, `within_ms` | `{"result": …}` or `{"error": {"code", "message", "data"}}` |
 | `call.cancel` | **`on`** | `{}` — the caller gives up; its `call.await` then ends `cancelled` |
-| `peer.emit` | **`on`**, **`event`**, `data`, `within_ms` | `{}` |
-| `peer.await_event` | **`on`**, **`name`**, `within_ms` | `{"data": …}` |
-| `peer.await_request` | **`on`**, **`method`**, **`phase`** `"started"`\|`"ended"`, `within_ms` | `{"id", "method", "phase", "outcome"}` — what a canned handler saw; `outcome` on `ended` is `ok`, `error`, `cancelled` or `panic` |
+| `peer.emit` | **`on`**, **`event`**, `data`, `within_ms`, `meta` | `{}` |
+| `peer.await_event` | **`on`**, **`name`**, `within_ms` | `{"data": …, "meta"?}` |
+| `peer.await_request` | **`on`**, **`method`**, **`phase`** `"started"`\|`"ended"`, `within_ms` | `{"id", "method", "phase", "outcome", "meta"?}` — what a canned handler saw; `outcome` on `ended` is `ok`, `error`, `cancelled` or `panic` |
 | `peer.observed` | **`on`**, `trace` (bool), `drain` (bool, default true) | `[event, …]` what the observer was told, normalized, see below |
 | `peer.close` | **`on`** | `{}` |
 | `peer.await_close` | **`on`**, `within_ms` | `{"clean": bool}` — clean when this side or the other closed it by choice; otherwise the peer ended on an error, the transport's or its own |
+
+`meta` on `peer.call` and `peer.emit` is the profile's carriage the frame
+takes: an object whose every value is a string, absent by default. A testee
+sends it the way its language says what a frame carries — a context the call
+is made under, an option beside the params — and never adds one of its own,
+so a step that names none produces a frame with the member absent rather
+than empty. `peer.await_request` on the `started` phase and `peer.await_event`
+report what the frame they answer for carried, under `meta`, and leave the
+member out where it carried none; that is how a scenario holds that a
+carriage reached the handler it was addressed to and went no further. A key
+of the reserved `nightseam.` prefix is dropped before sending rather than
+refused, since the peer at the far end refuses a frame carrying one.
 
 `subprotocols` is an array of tokens, empty or absent by default. On
 `peer.listen` it is what the server will select from, in its own order of
@@ -352,6 +399,9 @@ one fails the suite rather than skipping it, as every fixture in this
 repository does. `build` is a list of commands run once, in order; `run` is
 how a testee process starts. `{self}` is the directory of `testee.json`,
 `{checkout}` the repository root, `{rendered}` where the runner renders the
-probe family for the generated testee, `{out}` a scratch directory kept for
-the run, `{exe}` the platform's executable suffix. `env` on any command is
+probe family for the generated testee, `{out}` a scratch directory of this
+run's own under `conformance/.out`, removed when the run ends, `{exe}` the
+platform's executable suffix. A rendering placed under `{out}` lies inside
+the checkout, where a TypeScript package resolves `@nightseam/*` through
+the workspace. `env` on any command is
 merged over the runner's environment; `cwd` defaults to `{self}`.

@@ -2,17 +2,93 @@
   "name": "a close carries its code and reason across",
   "layer": "seam",
   "replaces": "duplex/go/duplextest, its third scenario",
-  "needs": ["seam", "listen"],
+  "needs": [
+    "seam"
+  ],
   "steps": [
-    {"on": "a", "op": "conn.listen", "bind": {"handle": "l", "url": "url"}},
-    {"on": "b", "op": "conn.dial", "args": {"url": "$url"}, "bind": "cb"},
-    {"on": "a", "op": "conn.accept", "args": {"on": "$l"}, "bind": "ca"},
-    {"on": "b", "op": "conn.send", "args": {"on": "$cb", "kind": "text", "text": "last"}},
-    {"on": "a", "op": "conn.receive", "args": {"on": "$ca"}, "expect": {"kind": "text", "text": "last"}},
-    {"on": "b", "op": "conn.close", "args": {"on": "$cb", "code": 1008, "reason": "an observer sent a deciding frame"}},
-    {"on": "a", "op": "conn.receive", "args": {"on": "$ca"}, "expect_error": {"code": "closed", "close_code": 1008, "reason": "an observer sent a deciding frame"}},
-    {"on": "a", "op": "conn.await_close", "args": {"on": "$ca"}, "expect": {"code": 1008, "reason": "an observer sent a deciding frame"}},
-    {"on": "b", "op": "conn.send", "args": {"on": "$cb", "kind": "text", "text": "after"}, "expect_error": {"code": "closed"}, "note": "a closed connection sends nothing"},
-    {"on": "b", "op": "conn.receive", "args": {"on": "$cb", "within_ms": 500}, "expect_error": {"code": "closed"}}
+    {
+      "on": "runner",
+      "op": "pair.conns",
+      "bind": {
+        "a": "ca",
+        "b": "cb"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "text",
+        "text": "last"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "last"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.close",
+      "args": {
+        "on": "$cb",
+        "code": 1008,
+        "reason": "an observer sent a deciding frame"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect_error": {
+        "code": "closed",
+        "close_code": 1008,
+        "reason": "an observer sent a deciding frame"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.await_close",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "code": 1008,
+        "reason": "an observer sent a deciding frame"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "text",
+        "text": "after"
+      },
+      "expect_error": {
+        "code": "closed"
+      },
+      "note": "a closed connection sends nothing"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$cb",
+        "within_ms": 500
+      },
+      "expect_error": {
+        "code": "closed"
+      }
+    }
   ]
 }

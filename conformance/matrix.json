@@ -12,7 +12,7 @@
       "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 71,
+          "passed": 88,
           "skipped": 0,
           "failed": 0
         },
@@ -22,12 +22,12 @@
           "failed": 0
         },
         "observability": {
-          "passed": 8,
+          "passed": 9,
           "skipped": 0,
           "failed": 0
         },
         "session": {
-          "passed": 4,
+          "passed": 5,
           "skipped": 0,
           "failed": 0
         },
@@ -43,7 +43,7 @@
       "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 142,
+          "passed": 176,
           "skipped": 0,
           "failed": 0
         },
@@ -53,12 +53,12 @@
           "failed": 0
         },
         "observability": {
-          "passed": 16,
+          "passed": 18,
           "skipped": 0,
           "failed": 0
         },
         "session": {
-          "passed": 8,
+          "passed": 10,
           "skipped": 0,
           "failed": 0
         },
