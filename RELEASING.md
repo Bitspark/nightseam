@@ -53,6 +53,13 @@ with the rest, `scripts/release-prepare.mjs` holds them to the tag, and
 
 ## Cutting a release
 
+A pushed release tag is never moved or deleted: the organization's active
+`release-tags-immutable` ruleset protects both `v*` and nested `**/v*` tags,
+and a changed release gets a new version. The release workflow checks the
+remote tag against its checkout before validation and again before publishing;
+a rehearsal may use a name that has not been published, but cannot reuse one
+that names another commit.
+
 1. Be on `main`, clean, with both tiers green: `go test ./...`,
    `pnpm -r check && pnpm -r build && pnpm -r test`,
    `node scripts/matrix-table.mjs --check`, and `go vet ./... && go test ./...` in
@@ -197,6 +204,13 @@ alternative:
   up afterwards. A temporary tag would have to be pushed to be fetched, which
   is the one thing a rehearsal may not do. The proxy carries Nightseam alone;
   everything else falls through to whatever `GOPROXY` the machine has.
+  Its version is `v<version>-rehearsal.<commit>` (appended to an existing
+  prerelease when needed), required only by the copied consumer; the source
+  checkout's version stays unchanged. `GOMODCACHE` lives inside the smoke's
+  scratch directory, with `-modcacherw` so it can be removed, and `GOSUMDB=off`
+  is scoped to the smoke's Go commands. Rehearsal artifacts never enter the
+  machine's shared module cache or impersonate a released version, and no
+  global Go setting is changed.
 
 What a rehearsal does not answer is the registry's own refusals: a name
 already taken at that version, a token expired or without publish rights on

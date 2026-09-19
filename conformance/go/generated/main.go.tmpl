@@ -260,13 +260,15 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		// The dialling context is the connection's lifetime, so it lives as
 		// long as the client does.
 		ctx, cancel := context.WithCancel(context.Background())
-		c, err := client.Dial(ctx, str(raw, "url"), runtime.DialOptions{}, clientHandler{})
+		d := &dialled{changed: make(chan protocol.Payload, 16), cancel: cancel}
+		c, err := client.Dial(ctx, str(raw, "url"), runtime.DialOptions{}, clientHandler{}, client.Events{
+			Changed: func(_ context.Context, data protocol.Payload) { d.changed <- data },
+		})
 		if err != nil {
 			cancel()
 			return nil, fail("failed", "%v", err)
 		}
-		d := &dialled{client: c, changed: make(chan protocol.Payload, 16), cancel: cancel}
-		_ = c.OnChanged(func(_ context.Context, data protocol.Payload) { d.changed <- data })
+		d.client = c
 		return map[string]any{"handle": t.mint("cl", d)}, nil
 	case "client.echo", "client.seen", "client.no_args", "client.emit_noticed", "client.await_changed", "client.close":
 		object, ok := t.lookup(str(raw, "on"))

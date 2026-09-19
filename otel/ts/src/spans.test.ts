@@ -93,6 +93,7 @@ async function calling(tracer: Tracer, text: string): Promise<Payload> {
     consumer.near,
     { propagator: propagator(), observer: observer(tracer) },
     answering,
+    {},
   );
 
   // The consumer's own span, which is what the call is made under: it is the

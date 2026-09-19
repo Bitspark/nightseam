@@ -18,10 +18,10 @@ import (
 // rendered in. module roots the Go packages and scope names the npm scope
 // the TypeScript ones are published under; the runtime the targets bind
 // to is each target's default, Nightseam's own.
-func Targets(module, scope string) []spi.Target {
+func Targets(module, scope, sibling string) []spi.Target {
 	return []spi.Target{
 		golang.New(golang.Config{Module: module}),
-		typescript.New(typescript.Config{Scope: scope}),
+		typescript.New(typescript.Config{Scope: scope, Sibling: sibling}),
 		spec.New(spec.Config{}),
 	}
 }
@@ -32,4 +32,6 @@ func Targets(module, scope string) []spi.Target {
 func Names() []string { return []string{golang.Name, typescript.Name, spec.Name} }
 
 // Kernel is the pipeline composed with the targets.
-func Kernel(module, scope string) *kernel.Kernel { return kernel.New(Targets(module, scope)...) }
+func Kernel(module, scope, sibling string) *kernel.Kernel {
+	return kernel.New(Targets(module, scope, sibling)...)
+}

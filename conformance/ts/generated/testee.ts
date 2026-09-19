@@ -25,13 +25,10 @@ const fail = (code: string, message: string) => new Failure(code, message);
 type Args = Record<string, unknown>;
 
 class Dialled {
-  readonly client: Client;
+  client!: Client;
   readonly changed: Payload[] = [];
   private readonly waiters: Array<() => void> = [];
-  constructor(client: Client) {
-    this.client = client;
-    client.onChanged(data => { this.changed.push(data); for (const w of this.waiters.splice(0)) w(); });
-  }
+  changedEvent(data: Payload): void { this.changed.push(data); for (const w of this.waiters.splice(0)) w(); }
   awaitChanged(withinMs: number): Promise<Payload | undefined> {
     if (this.changed.length) return Promise.resolve(this.changed.shift());
     return new Promise(resolve => {
@@ -83,11 +80,13 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
   bye: () => { bye = true; reset(); return {}; },
   'gen.serve': () => { throw fail('unsupported', 'TypeScript renders a client and no binding'); },
   'gen.dial': async args => {
+    const dialled = new Dialled();
     const client = await Client.dial(String(args.url), {}, {
       reverse: (params: Payload) => ({ ...params, text: 'typescript:' + params.text }),
-    }).catch(error => { throw fail('failed', String(error)); });
+    }, { changed: data => dialled.changedEvent(data) }).catch(error => { throw fail('failed', String(error)); });
     const handle = `cl${++next}`;
-    handles.set(handle, new Dialled(client));
+    dialled.client = client;
+    handles.set(handle, dialled);
     return { handle };
   },
   'client.echo': args => typed(() => dialledOf(args).client.echo(args.params as Payload)),

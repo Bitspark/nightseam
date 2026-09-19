@@ -90,9 +90,9 @@ type RequestStarted struct {
 }
 
 // RequestEnded pairs with every RequestStarted. Duration is the span between
-// the two, and ErrorCode names what the application refused with where the
-// outcome is Errored — a cancellation and a deadline are outcomes of their own
-// and name no code.
+// the two, and ErrorCode names the local cause: request_timeout for a deadline,
+// cancelled for a cancellation, or the public error's code for a refusal.
+// These codes hold for incoming and outgoing requests; success names no code.
 type RequestEnded struct {
 	At        time.Time
 	ID        string
@@ -197,9 +197,9 @@ func outcomeOf(err error) (Outcome, string) {
 	case errors.As(err, &public) && public != nil:
 		return OutcomeErrored, public.Code
 	case errors.Is(err, context.DeadlineExceeded):
-		return OutcomeTimedOut, ""
+		return OutcomeTimedOut, "request_timeout"
 	case errors.Is(err, context.Canceled):
-		return OutcomeCancelled, ""
+		return OutcomeCancelled, "cancelled"
 	}
 	return OutcomeErrored, ""
 }

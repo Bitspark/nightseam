@@ -1137,6 +1137,111 @@ test('an outcome is what ended the call: an error code, a cancellation, a deadli
   ]);
 });
 
+for (const outcome of ['cancelled', 'timeout'] as const) {
+  test(`a local ${outcome} is observed before its cancel, and the receiver observes a withdrawal`, async (t) => {
+    const consumer = recorder();
+    const cancelSent = deferred();
+    const incomingEnded = deferred<Extract<ObserverEvent, { type: 'request.ended' }>>();
+    const { client, server } = await paired(
+      {
+        observer: {
+          observe(event) {
+            consumer.observe(event);
+            if (event.type === 'frame.sent' && event.kind === 'cancel') cancelSent.resolve();
+          },
+        },
+      },
+      {
+        observer: {
+          observe(event) {
+            if (event.type === 'request.ended') incomingEnded.resolve(event);
+          },
+        },
+      },
+    );
+    t.after(() => client.close());
+    const started = deferred();
+    server.handle('wait', (_params, context) => {
+      started.resolve();
+      return new Promise((resolve) => {
+        context.signal.addEventListener('abort', () => resolve(null), { once: true });
+      });
+    });
+    const controller = new AbortController();
+    const code = outcome === 'timeout' ? 'request_timeout' : 'cancelled';
+    const call = assert.rejects(
+      client.call('wait', {}, { signal: controller.signal, timeoutMs: outcome === 'timeout' ? 20 : 5000 }),
+      { code },
+    );
+    await started.promise;
+    if (outcome === 'cancelled') controller.abort();
+    await call;
+    await cancelSent.promise;
+    const endedIndex = consumer.events.findIndex((event) => event.type === 'request.ended');
+    const cancelIndex = consumer.events.findIndex((event) => event.type === 'frame.sent' && event.kind === 'cancel');
+    assert.ok(endedIndex >= 0 && endedIndex < cancelIndex);
+    assert.deepEqual(shape(consumer.events[endedIndex]), {
+      type: 'request.ended',
+      id: 'c:1',
+      method: 'wait',
+      incoming: false,
+      durationMs: true,
+      outcome,
+      errorCode: code,
+      family: '',
+    });
+    assert.deepEqual(shape(await incomingEnded.promise), {
+      type: 'request.ended',
+      id: 'c:1',
+      method: 'wait',
+      incoming: true,
+      durationMs: true,
+      outcome: 'cancelled',
+      errorCode: 'cancelled',
+      family: '',
+    });
+  });
+}
+
+test('a handler deadline is observed locally as a timeout and remotely as a refusal', async (t) => {
+  const consumer = recorder();
+  const machine = recorder();
+  const { client, server } = await paired({ observer: consumer }, { observer: machine, requestTimeoutMs: 20 });
+  t.after(() => client.close());
+  server.handle(
+    'wait',
+    (_params, context) =>
+      new Promise((resolve) => {
+        context.signal.addEventListener('abort', () => resolve(null), { once: true });
+      }),
+  );
+  await assert.rejects(client.call('wait'), { code: 'cancelled' });
+  assert.deepEqual(machine.events.filter((event) => event.type === 'request.ended').map(shape), [
+    {
+      type: 'request.ended',
+      id: 'c:1',
+      method: 'wait',
+      incoming: true,
+      durationMs: true,
+      outcome: 'timeout',
+      errorCode: 'request_timeout',
+      family: '',
+    },
+  ]);
+  assert.deepEqual(consumer.events.filter((event) => event.type === 'request.ended').map(shape), [
+    {
+      type: 'request.ended',
+      id: 'c:1',
+      method: 'wait',
+      incoming: false,
+      durationMs: true,
+      outcome: 'error',
+      errorCode: 'cancelled',
+      family: '',
+    },
+  ]);
+});
+
 test('backpressure is observed where the queue fills and where the deadline passes', async () => {
   // A socket whose buffer never drains: the first frame waits, the second meets a full queue.
   // A frame that merely waits on the socket is not backpressure; a queue full or a deadline passed is, as the Go peer tells it.

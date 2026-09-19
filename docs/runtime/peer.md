@@ -66,6 +66,13 @@ TypeScript has the same order by construction rather than by a hook: a
 `DuplexPeer` is made, `handle` and `onEvent` register on it, and `attach` or
 `connect` gives it a connection — handlers first, frames second.
 
+Generated clients take a typed `Events` value at `Dial`, `Attach` and `Open`
+(TypeScript `dial`, `attach` and `open`). Go installs it in `Prepare`, before
+running a caller-supplied `Prepare`; TypeScript installs it in the client
+constructor before connecting. An empty value leaves events unhandled.
+`OnX`/`onX` remain available for later registration, but a handler registered
+after the flow producing its events began may miss earlier events.
+
 ## Options and limits
 
 Every bound of [the profile](../wire/profile.md#limits-and-backpressure) is

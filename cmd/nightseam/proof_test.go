@@ -101,7 +101,7 @@ func TestProofFamilyDerivesItsInlineNames(t *testing.T) {
 func TestEveryTargetRefusesWhatItDoesNotRender(t *testing.T) {
 	r := render.Build(analysis.Resolve(proofWorld(t), "proof"))
 	forms := len(render.FormsUsed(r))
-	for _, target := range compose.Targets("example.com/api", "@example") {
+	for _, target := range compose.Targets("example.com/api", "@example", "") {
 		diagnostics := target.Check(r)
 		if len(diagnostics) != forms {
 			t.Errorf("%s refused %d of the %d forms it does not render", target.Name(), len(diagnostics), forms)

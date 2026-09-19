@@ -47,6 +47,7 @@ jobs:
       # The tag being released, or the one being rehearsed. Every step reads
       # this rather than the ref, which on a rehearsal is a branch.
       TAG: ${{ inputs.tag || github.ref_name }}
+      REQUIRE_TAG: ${{ github.event_name == 'push' && '--require' || '' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -65,6 +66,8 @@ jobs:
           node-version-file: package.json
           cache: pnpm
           registry-url: https://registry.npmjs.org
+      - name: Hold the remote tag to the checked-out commit
+        run: node scripts/release-tag.mjs "$TAG" $REQUIRE_TAG
       # Every spelling of the version against the tag, and the conformance
       # matrix against the tier table: a red cell in a profile the language's
       # tier guarantees refuses the tag here, before anything is published,
@@ -107,7 +110,9 @@ jobs:
       - name: Publish to npm
         # On a rehearsal this packs each tarball, mints the provenance
         # attestation and stops short of the upload.
-        run: pnpm -r publish --access public --no-git-checks --provenance $DRY_RUN
+        run: |
+          node scripts/release-tag.mjs "$TAG" $REQUIRE_TAG
+          pnpm -r publish --access public --no-git-checks --provenance $DRY_RUN
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && '--dry-run' || '' }}

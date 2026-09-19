@@ -11,6 +11,7 @@ Errors
 IsError
 Remote
 Handler
+Events
 install
 NewHandler
 Serve

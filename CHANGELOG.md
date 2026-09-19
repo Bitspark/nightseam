@@ -52,6 +52,9 @@ are one number. Entries are in the words of the commits that landed them.
   carries the profile's own descriptions, which is the only movement in the
   golden corpus.
 
+- Generated TypeScript siblings use relative file dependencies by default;
+  `--ts-sibling` selects file, workspace or version resolution consistently
+  for generation and stale-output checks.
 - Session binding uses an optional log head lookup in Go and TypeScript,
   avoiding a full replay where the log already knows its last sequence;
   memory logs provide it, and a failed lookup cannot start a session at zero.
@@ -113,6 +116,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Generated clients take typed event handlers at construction in Go and
+  TypeScript, before the first frame is read, so an immediate replay keeps
+  its first event; existing Go preparation hooks and later registration remain.
 - Go's `session.New` returns `(*Registry, error)` and refuses negative
   attachment, inflight and send-timeout limits with `invalid_options`;
   zero still selects the defaults. Both conformance testees preserve the
@@ -121,6 +127,9 @@ are one number. Entries are in the words of the commits that landed them.
   history: the deadline scenario no longer consumes request events before
   the cancel arrives, and the scenario loader refuses such polling without
   `drain: false`.
+- Packed-smoke Go modules use a distinct rehearsal version and an isolated,
+  removable module cache, so a rehearsal cannot poison a consumer's release
+  cache. The release workflow refuses a remote tag naming another commit.
 - A replay hands a consumer the machine's events alone, where it handed it
   every frame the log held: a consumer attaching after another had decided
   anything was replayed that other consumer's requests, which carry an id the
@@ -146,6 +155,9 @@ are one number. Entries are in the words of the commits that landed them.
 - The release round trip waits up to two minutes with backoff for npm and
   Go module propagation before installing, names unavailable packages on
   timeout, and has the workflow permission to file an issue on failure.
+- Request observers in Go and TypeScript report `request_timeout` for local
+  deadlines and `cancelled` for local cancellation, in both directions, and
+  observe the request ending before its best-effort cancel is sent.
 
 ## 0.3.0
 

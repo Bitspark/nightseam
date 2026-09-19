@@ -12,6 +12,10 @@ import (
 )
 
 type Client[SEnvelope, SPayload any] struct{ Peer *runtime.Peer }
+
+// Events installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.
+type Events[SEnvelope, SPayload any] struct {
+}
 type Handler[SEnvelope, SPayload any] interface {
 }
 
@@ -25,7 +29,7 @@ func _[SEnvelope, SPayload any]() {
 }
 
 // install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
-func install[SEnvelope, SPayload any](handler Handler[SEnvelope, SPayload], options *runtime.Options) error {
+func install[SEnvelope, SPayload any](handler Handler[SEnvelope, SPayload], events Events[SEnvelope, SPayload], options *runtime.Options) error {
 	handlers := map[string]runtime.Handler{}
 	for name, existing := range options.Handlers {
 		handlers[name] = existing
@@ -37,12 +41,19 @@ func install[SEnvelope, SPayload any](handler Handler[SEnvelope, SPayload], opti
 	}
 	families["hold"] = "holder"
 	options.Families = families
+	prepare := options.Prepare
+	options.Prepare = func(peer *runtime.Peer) error {
+		if prepare != nil {
+			return prepare(peer)
+		}
+		return nil
+	}
 	return nil
 }
 
 // Dial connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.
-func Dial[SEnvelope runtime.Of[STag], SPayload runtime.Of[STag], STag any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[SEnvelope, SPayload]) (*Client[SEnvelope, SPayload], error) {
-	if err := install[SEnvelope, SPayload](handler, &options.Options); err != nil {
+func Dial[SEnvelope runtime.Of[STag], SPayload runtime.Of[STag], STag any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[SEnvelope, SPayload], events Events[SEnvelope, SPayload]) (*Client[SEnvelope, SPayload], error) {
+	if err := install[SEnvelope, SPayload](handler, events, &options.Options); err != nil {
 		return nil, err
 	}
 	peer, response, err := runtime.Dial(ctx, url, options)
@@ -56,8 +67,8 @@ func Dial[SEnvelope runtime.Of[STag], SPayload runtime.Of[STag], STag any](ctx c
 }
 
 // Attach speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.
-func Attach[SEnvelope runtime.Of[STag], SPayload runtime.Of[STag], STag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[SEnvelope, SPayload]) (*Client[SEnvelope, SPayload], error) {
-	if err := install[SEnvelope, SPayload](handler, &options); err != nil {
+func Attach[SEnvelope runtime.Of[STag], SPayload runtime.Of[STag], STag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[SEnvelope, SPayload], events Events[SEnvelope, SPayload]) (*Client[SEnvelope, SPayload], error) {
+	if err := install[SEnvelope, SPayload](handler, events, &options); err != nil {
 		return nil, err
 	}
 	peer, err := runtime.NewPeer(ctx, conn, runtime.ClientRole, options)
@@ -68,12 +79,12 @@ func Attach[SEnvelope runtime.Of[STag], SPayload runtime.Of[STag], STag any](ctx
 }
 
 // Open resolves a handle to the channel it names on a tunnel and speaks the family over it.
-func Open[SEnvelope runtime.Of[STag], SPayload runtime.Of[STag], STag any](ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler[SEnvelope, SPayload]) (*Client[SEnvelope, SPayload], error) {
+func Open[SEnvelope runtime.Of[STag], SPayload runtime.Of[STag], STag any](ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler[SEnvelope, SPayload], events Events[SEnvelope, SPayload]) (*Client[SEnvelope, SPayload], error) {
 	channel, ok := t.Channel(handle.Channel)
 	if !ok {
 		return nil, fmt.Errorf("no channel %d on the connection", handle.Channel)
 	}
-	return Attach[SEnvelope, SPayload](ctx, channel, options, handler)
+	return Attach[SEnvelope, SPayload](ctx, channel, options, handler, events)
 }
 func (c *Client[SEnvelope, SPayload]) Close() error { return c.Peer.Close() }
 func (c *Client[SEnvelope, SPayload]) Hold(ctx context.Context, params protocol.Held[SEnvelope, SPayload]) (SPayload, error) {
