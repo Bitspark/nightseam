@@ -405,7 +405,7 @@ const modulePath = "github.com/Bitspark/nightseam"
 // carry it: a version in their header would rewrite every file of every
 // consumer on every release, and would make check fail on a version that
 // renders the same bytes, which is the failure this command exists to
-// explain rather than one to add. docs/generator.md states that split.
+// explain rather than one to add. docs/declaration/generator.md states that split.
 func versionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",

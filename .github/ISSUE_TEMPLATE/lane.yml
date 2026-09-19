@@ -44,8 +44,8 @@ body:
     id: touches
     attributes:
       label: Touches
-      description: "The directories this lane edits, as backticked paths: `runtime/go`, `docs/session.md`. The scope check on the PR reads this line and notes, never refuses, a file outside it."
-      placeholder: "`session/go`, `session/ts`, `docs/session.md`"
+      description: "The directories this lane edits, as backticked paths: `runtime/go`, `docs/wire/session.md`. The scope check on the PR reads this line and notes, never refuses, a file outside it."
+      placeholder: "`session/go`, `session/ts`, `docs/wire/session.md`"
   - type: dropdown
     id: parity
     attributes:

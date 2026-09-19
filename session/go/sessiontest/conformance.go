@@ -468,7 +468,7 @@ func Run(t *testing.T, connect Connect) {
 		// hands a channel. The request the relay recorded on its way to the
 		// machine is in the log with its own all the same — the replay passes
 		// over it and the cursor passes it, which is why a meta that holds a
-		// credential wants a Log that redacts, as docs/session.md says.
+		// credential wants a Log that redacts, as docs/wire/session.md says.
 		_, late := attach(t, registry, "s", "late", session.Observer, 0)
 		if replayed := late.take(t); string(replayed.raw) != emitted {
 			t.Fatalf("the log replayed the event as %s", replayed.raw)

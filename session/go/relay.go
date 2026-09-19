@@ -557,7 +557,7 @@ func (r *relay) replay(a *Attachment, after, ceiling int64) error {
 //     machine and never down. Its id is the session's own — c:N, minted for
 //     the machine — which on a consumer's channel is the prefix that channel
 //     mints under, so a peer reading a replayed request of another
-//     consumer's ends the connection on the prefix (docs/profile.md) and the
+//     consumer's ends the connection on the prefix (docs/wire/profile.md) and the
 //     replay takes the consumer with it.
 //   - A response of the machine's answers a request the session sent for one
 //     consumer, under that consumer's own id. It means nothing under any

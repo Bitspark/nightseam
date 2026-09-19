@@ -56,7 +56,9 @@ It has no authentication, no rule about who may take control or for how
 long, no durable store and no lifecycle of its own: those are the
 consumer's, called in. `Log` is the interface a durable store implements;
 `memoryLog` is the one shipped. The full description is
-[docs/session.md](https://github.com/Bitspark/nightseam/blob/main/docs/session.md).
+[docs/wire/session.md](https://github.com/Bitspark/nightseam/blob/main/docs/wire/session.md),
+and the surface in both languages
+[docs/runtime/session.md](https://github.com/Bitspark/nightseam/blob/main/docs/runtime/session.md).
 
 Apache-2.0, with `NOTICE` beside it. The repository is
 [Bitspark/nightseam](https://github.com/Bitspark/nightseam).

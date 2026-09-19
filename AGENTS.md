@@ -9,8 +9,8 @@ Read these, in this order, before the first change:
    direct push and nobody is exempt.
 2. The issue you hold — its **What**, **Surface**, **Held by** and
    **Touches** are the lane; what it does not name is not yours.
-3. [docs/layers.md](docs/layers.md) before anything on the wire;
-   [docs/tiers.md](docs/tiers.md) before anything about a language;
+3. [docs/wire/vocabulary.md](docs/wire/vocabulary.md) before anything on the wire;
+   [docs/languages/tiers.md](docs/languages/tiers.md) before anything about a language;
    [conformance/DRIVER.md](conformance/DRIVER.md) before a scenario or a
    testee.
 

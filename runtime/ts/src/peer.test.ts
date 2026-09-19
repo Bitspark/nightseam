@@ -958,7 +958,7 @@ test('a peer over a connection that is no WebSocket negotiated nothing', async t
 });
 
 test('a frame is observed sent immediately before its bytes reach the transport', async () => {
-  // The ordering promise of docs/observability.md, held where it is narrowest:
+  // The ordering promise of docs/runtime/observer.md, held where it is narrowest:
   // one place observes every send, and it is the writer. Where the send was
   // observed by whoever queued the frame, a queue holding two frames observed
   // both before either reached the transport, and anything the first drew

@@ -6,6 +6,46 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Changed
+
+- `docs/` is sets by reader, each page one kind of thing: `wire/` is what
+  crosses the wire in the wire's own terms and no runtime's — `profile.md`,
+  `tunnel.md`, `session.md`, and `vocabulary.md`, the test that says where
+  something new on the wire belongs; `runtime/` is the surface of each
+  component, Go and TypeScript side by side — `peer.md`, `tunnel.md`,
+  `session.md`, `observer.md`; `declaration/` is the input side —
+  `families.md`, `generics.md`, `generator.md`, `generated.md` (new: what
+  the generated packages export in each language, drawn from the recorded
+  surface), `pipeline.md`; `languages/` is `tiers.md` and `onboarding.md`.
+  The eight flat pages are gone into them: `language.md` into
+  `declaration/families.md` and `generics.md`, `generator.md` into
+  `declaration/generator.md` and `pipeline.md`, `profile.md` into
+  `wire/profile.md` and `runtime/peer.md`, `tunnel.md` and `session.md`
+  each into its `wire/` and `runtime/` halves, `observability.md` into
+  `runtime/observer.md`, `tiers.md` into `languages/tiers.md` and
+  `onboarding.md`, `layers.md` into `wire/vocabulary.md`. Every inbound link
+  moved with them, and `node scripts/links.mjs` holds every link in every
+  page to the tree in CI. The package READMEs published with 0.3.0 name
+  the flat paths until the next publish.
+- `docs/decisions/` is the record of what was decided and why — one page
+  per decision the pages already gave a reason for, twenty-two of them,
+  each the question, what was decided, what the alternative cost, the goal
+  it serves and since when — so that the next person to propose the
+  alternative finds the reason rather than repeats the afternoon; the state
+  pages keep the rule and one sentence of why and point at the record for
+  the argument.
+- `docs/goals/` is the north stars — boundary, layering, composability,
+  agnosticism, declarative, configurability, extensibility, observability
+  — each a page that says what Nightseam is for in that respect at the
+  limit, the dimensions along which the tree can have more or less of it,
+  what it yields to and what it is not, naming nothing in the tree, so that
+  a reviewer can take one page and the tree at any point and say where the
+  tree falls short and how to get closer; `goals/README.md` has the two
+  tests that keep a page abstract and the review protocol, whose output
+  lands as design issues with the goal as provenance. COLLABORATION.md's
+  boundary rule and parity point at the goals they are the contributor's
+  form of.
+
 ### Fixed
 
 - A replay hands a consumer the machine's events alone, where it handed it
@@ -136,7 +176,7 @@ are one number. Entries are in the words of the commits that landed them.
   everything else the three layers tell as a span event, carrying only the
   fields that are a name, a count, a flag, a duration or a trace — so that no
   payload reaches a backend by this path either.
-  [docs/observability.md](docs/observability.md) says what a trace of one
+  `docs/observability.md` says what a trace of one
   call through a relay looks like.
 - The Go module at `otel/go` is released by a second tag, `otel/go/vX.Y.Z`,
   cut after the root tag it requires; `RELEASING.md` says in what order, and
@@ -153,7 +193,7 @@ are one number. Entries are in the words of the commits that landed them.
   generated file of every consumer on every release, which the golden
   discipline would feel immediately, and would fail a `check` over output that
   is otherwise byte-identical — the failure this command exists to explain
-  rather than one to add. [docs/generator.md](docs/generator.md) states the
+  rather than one to add. `docs/generator.md` states the
   split.
 
 ### Changed
@@ -281,7 +321,7 @@ are one number. Entries are in the words of the commits that landed them.
   carried on. The Go peer now calls its observer from one place and recovers
   there: that event is lost and nothing else is. The rule is written down for
   both languages, in the `Observer` of each runtime and in
-  [docs/observability.md](docs/observability.md).
+  `docs/observability.md`.
 - A receiver's own deadline answers `cancelled` on the wire in both runtimes:
   when a handler's deadline passed, the Go peer answered the caller
   `cancelled` and the TypeScript peer `request_timeout`, so the code a caller

@@ -107,7 +107,7 @@ with the rest, `scripts/release-prepare.mjs` holds them to the tag, and
 
 ## What a release refuses
 
-A release is a promise per language, and `docs/tiers.md` says which promise.
+A release is a promise per language, and `docs/languages/tiers.md` says which promise.
 `scripts/release-prepare.mjs` reads `conformance/matrix.json` — the standing
 committed on the tag, which CI holds fresh, since a matrix that drifted fails
 the README's table check — and applies the tier table to it before anything

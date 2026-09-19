@@ -1,11 +1,14 @@
-# Observing a peer
+# The observer
 
 One observer sees everything a connection carries, at every layer above it.
 The peer of the profile takes it; the tunnel and the session declare events
 of their own and emit them through the peer they run over, so a consumer
 chooses an observer once and is told about frames, channels and sessions
 alike. Neither the tunnel nor the session takes an observer of its own,
-because that would be a second place to choose one.
+because that would be a second place to choose one ([layers share the
+peer's observer](../decisions/layers-share-the-peers-observer.md)). What
+holds of every event — names and never a payload — is [an observer never
+sees a payload](../decisions/an-observer-never-sees-a-payload.md).
 
 What holds of every event, at every layer:
 
@@ -60,15 +63,10 @@ What this asks of a runtime is one serialization point per direction: the
 writer tells the observer of each send immediately before it writes, and the
 reader tells it of each receipt immediately after parsing. A peer that told
 the observer where the frame was *queued* instead would have no order at all
-— the writer is free to write a queued frame, have it answered and have the
-answer read before the queueing goroutine says anything, so a reply could be
-observed received before the request that drew it was observed sent. That is
-not a theoretical window: it was seen once in a conformance run, and rarely
-enough to be worse than often, since a gate that fails on a schedule nobody
-can predict invites the loosening of the gate.
-
-So a frame observed sent is one the peer handed to the transport, and a
-connection that fails with frames still queued never observed those sent.
+([the observer is told at the
+write](../decisions/the-observer-is-told-at-the-write.md)). So a frame
+observed sent is one the peer handed to the transport, and a connection
+that fails with frames still queued never observed those sent.
 
 The promise is one peer's. Two peers' observers are two orders, and nothing
 relates them but a trace.
@@ -102,7 +100,8 @@ adapter, below.
 hooks a peer leaves open to OpenTelemetry. It is a package of its own in
 TypeScript and a Go module of its own — the only one — so that the four
 components above keep the dependency-freedom they publish and a consumer who
-chooses no backend installs nothing for one.
+chooses no backend installs nothing for one ([OpenTelemetry is its own
+package](../decisions/opentelemetry-is-its-own-package.md)).
 
 ```go
 import otelns "github.com/Bitspark/nightseam/otel/go"

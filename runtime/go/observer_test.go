@@ -585,7 +585,7 @@ func TestAPanickingObserverInterruptsNoRouting(t *testing.T) {
 }
 
 // TestAFrameIsObservedSentBeforeItsAnswerIsObservedReceived holds the ordering
-// promise of docs/observability.md where it is narrowest and where it broke: a
+// promise of docs/runtime/observer.md where it is narrowest and where it broke: a
 // nested call, whose request goes out and whose answer comes back on two
 // goroutines of the same peer. Before the writer became the one place a send is
 // observed, the frame handed to the writer could be written, answered and the

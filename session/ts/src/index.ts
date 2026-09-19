@@ -87,7 +87,7 @@ type Envelope = Record<string, unknown>;
  * The session's own vocabulary on the wire. A layer that speaks on the wire
  * does it as the tunnel does — ordinary frames of the profile under a prefix
  * the layer reserves, which the peer forwards and reads nothing into
- * (docs/layers.md); `channel.open` and `channel.credit` are the tunnel's.
+ * (docs/wire/vocabulary.md); `channel.open` and `channel.credit` are the tunnel's.
  * These two are the relay's alone: the relay produces them, a consumer reads
  * them, a machine that sends one has its connection ended, and neither is
  * logged, a session's own frames being state rather than messages of it.
@@ -967,7 +967,7 @@ function member(raw: string): string | undefined {
  *   and never down. Its id is the session's own — `c:N`, minted for the
  *   machine — which on a consumer's channel is the prefix that channel mints
  *   under, so a peer reading a replayed request of another consumer's ends
- *   the connection on the prefix (docs/profile.md) and the replay takes the
+ *   the connection on the prefix (docs/wire/profile.md) and the replay takes the
  *   consumer with it.
  * - A response of the machine's answers a request the session sent for one
  *   consumer, under that consumer's own id. It means nothing under any

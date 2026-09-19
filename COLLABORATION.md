@@ -11,7 +11,10 @@ Nightseam owns what can be stated in terms of the profile and the
 declaration language and is the same for every consumer — mechanism. A
 consumer owns what names a concept of its own or decides a policy. Before
 adding something here, say which side of that line it is on; if it needs a
-consumer's concept to be stated, it belongs in the consumer.
+consumer's concept to be stated, it belongs in the consumer. The rule is
+the contributor's form of a goal, [docs/goals/boundary.md](docs/goals/boundary.md),
+which says what the line looks like at the limit and what the other goals
+yield to it.
 
 ## No legacy, and rewrites are cheap
 
@@ -29,9 +32,9 @@ The same condition decides between designs: a design is chosen for being
 right, never for being cheap to roll out. A rewrite now is cheaper than it
 will ever be again — with a release, consumers and more runtimes each one
 costs more — so the model is settled now, and the cost of settling it is
-the point of this phase. `docs/layers.md` is the test for where a thing
-on the wire belongs; it was written after this rule was learned the hard
-way in one afternoon.
+the point of this phase. [docs/wire/vocabulary.md](docs/wire/vocabulary.md)
+is the test for where a thing on the wire belongs; it was written after this
+rule was learned the hard way in one afternoon.
 
 ## Parity
 
@@ -50,8 +53,13 @@ done until its twin has it and the conformance suite says so; a scenario
 is written once, for every language. A third language joins by writing a
 testee, `conformance/<lang>/testee.json` and the program it names — at the
 tier it can hold: what each tier promises and how the suite enforces it is
-[docs/tiers.md](docs/tiers.md), and the last run's matrix is
-`conformance/matrix.json`.
+[docs/languages/tiers.md](docs/languages/tiers.md), the order to build one
+in is [docs/languages/onboarding.md](docs/languages/onboarding.md), and the
+last run's matrix is `conformance/matrix.json`. Parity is the contributor's
+form of a goal, the language dimension of
+[docs/goals/agnosticism.md](docs/goals/agnosticism.md): the thing is
+defined outside every language, and each language is one realization of
+it, none ahead and none the definition's home.
 
 ## The two tiers of tests
 

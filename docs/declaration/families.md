@@ -1,34 +1,35 @@
-# The declaration language
+# A family in tiers
 
 A family of API is declared in tiers of JSON under `api/contracts/<family>/`
 of the consuming checkout. This page is the reference for what may be
 written there — the tiers, the types, the two sides, the governance of a
-session, the per-target names — and for what a family generic in others
-means in each language.
+session, the per-target names. [A family generic in others](generics.md)
+is the rest of the language; [the generator](generator.md) says how a
+declaration is rendered, [the generated packages](generated.md) what comes
+out, and the [README](../../README.md) is the short path.
 
-[The generator](generator.md) says how a declaration is rendered and what
-the rendered packages own; the [README](../README.md) says how to run it.
-
-## A family in tiers
+## The files
 
 A family `f` is a directory `api/contracts/f/` of the consuming checkout,
-one file per tier:
+one file per tier and, where the convention is not enough, one per target:
 
 ```
 api/contracts/probe/model.json       tier 1: the types
 api/contracts/probe/protocol.json    tier 2: the two sides, the errors, the parameters
 api/contracts/probe/session.json     tier 3: how a session is governed
 api/contracts/probe/go.json          not a tier: what the Go rendering names otherwise than the convention does
-api/contracts/probe/typescript.json  not a tier: the same for TypeScript
+api/contracts/probe/typescript.json  not a tier: the same for TypeScript (and spec.json for the specification)
 ```
 
 The family and the tier come from the path; no file repeats them. Every
 tier file may carry `types` and `imports`; a type is declared in the tier it
 belongs to, and **a declaration refers to its own tier or a lower one, never
 a higher one**: the tool refuses one that does. The tiers are one table
-(`internal/model/tiers.go`), and a concern is a row in it.
+(`internal/model/tiers.go`), and a concern is a row in it. A file under
+`api/contracts/` that is neither a tier file nor a target's override file
+is refused, and so is a file where a family directory should be.
 
-### model.json
+## model.json
 
 ```json
 {
@@ -61,9 +62,10 @@ of an imported family, `"identity.User"`; a type drawn from a parameter,
 to an entity by its key; `{"apply": "carrier.Frame", "with": {"S": "B"}}`, a
 generic type of an imported family with its parameters filled. There is one
 reference form: a qualifier in upper camel case is a parameter, in lower
-case a family, and every family a declaration names is imported.
+case a family, and every family a declaration names is imported ([one
+reference form](../decisions/one-reference-form.md)).
 
-### protocol.json
+## protocol.json
 
 ```json
 {
@@ -82,17 +84,16 @@ case a family, and every family a declaration names is imported.
 A side is an interface: the methods it implements and the events it emits.
 The server side is implemented by the server and called by the client; the
 client side is the reverse. A method's `request` is a record, or absent;
-its `result` any type; its `errors` codes the family declares. The public
-errors reach both languages by name: the Go protocol package declares a
-constant per error, `ErrorNotFound = "not_found"`, the list `Errors`, and
-`IsError(err, code)`; the TypeScript client exports `errors`, an object with
-a member per error, `errors.notFound`, and the `ErrorCode` union of them.
+its `result` any type; its `errors` codes the family declares, and a method
+that names an error the family does not declare is refused. The public
+errors reach both languages by name — [the generated
+packages](generated.md#errors) say how.
 
 Every family with a protocol carries two injected types it may not declare:
 `Envelope`, one message of the profile, and `Handle`, a reference to a
 channel that speaks it.
 
-### session.json
+## session.json
 
 ```json
 {"decides": ["echo"], "asks": ["reverse"], "conversation": {"event": "changed", "path": "text"}}
@@ -103,9 +104,10 @@ methods — the ones the server sends — that raise a request the holder of
 control must answer; `conversation` where the conversation id arrives. An
 `extensions` member is carried through for other tools and read by nothing
 here. A family with a session tier carries the `session` role, which a
-parameter binds to.
+parameter binds to. What a session does with `decides` and `asks` is [the
+session](../wire/session.md).
 
-### go.json and typescript.json
+## go.json and typescript.json
 
 ```json
 {"names": {"work.get": "GetWorkItem", "Item.url": "Link"}}
@@ -118,68 +120,5 @@ it must, by path: `Type`, `Type.field`, `Enum.value`, a method or event,
 `errors.code`. An override file may only override: a key that names nothing
 the family declares is refused, and so is a name the generated code
 declares of itself — what each target reserves is held under
-`cmd/nightseam/testdata/reserved`.
-
-## A family generic in others
-
-A family declares the parameters it is generic in, and a type draws on one:
-
-```json
-"parameters": [{"name": "S", "of": "session"}, {"name": "T", "of": "session"}],
-"types": {
-  "Frame": {"kind": "record", "fields": [
-    {"name": "message", "type": "S.Envelope"},
-    {"name": "back",    "type": "S.Handle"},
-    {"name": "heard",   "type": "T.Envelope"},
-    {"name": "last",    "type": "S.Payload"}]}}
-```
-
-`S.Envelope` is one message of the family bound to S, `S.Handle` a channel
-that speaks it, `S.Payload` any record or enum `Payload` of it — which every
-family that may bind `S` is then held to declare, plainly, checked across
-the world. A parameter is bound where the generated code is instantiated,
-to any family that declares its role; today `session`, the role a family
-with a session tier carries. Two parameters never collapse into one.
-
-A family that refers to a **generic** type of an import says what fills
-each of that type's parameters:
-
-```json
-{"apply": "carrier.Frame", "with": {"S": "B"}}
-```
-
-`with` maps the imported type's parameters to this family's — which keeps
-the result generic there — or to named families, which does not. A family
-with exactly one parameter may refer to such a type plainly and fill it
-with that one; with any other number the plain reference is refused rather
-than guessed, and the diagnostic names the application to write.
-
-Nightseam renders such a family once, generically, and a consumer
-instantiates it:
-
-- TypeScript has associated types, so one parameter is one type parameter
-  whatever it is drawn at: `Frame<S extends AnyFamily = SessionFamily>` with
-  `message: S["Envelope"]` and `last: S["Payload"]`, the bound narrowed to
-  `AnyFamily & { "Payload": unknown }` where a type beyond the two every
-  family carries is drawn, `SessionFamily` the union of the session families
-  of the world, and one binding argument per parameter,
-  `Client.dial(url, probe.family, codex.family, …)`, whose validators then
-  validate what fills each slot.
-- Go has none, so a parameter becomes one type parameter per type drawn
-  from it, named for both: `S` drawn at its `Envelope`, `Handle` and
-  `Payload` gives `SEnvelope`, `SHandle` and `SPayload`, and a type takes
-  only the ones it uses — `Frame[SEnvelope any]`, `Attachment[SHandle any]`.
-  `Frame[codexprotocol.Envelope]` validates what fills the slot through
-  codex's codec; `Frame[runtime.Raw]` passes it through, which is what a
-  relay wants. Every record and enum of a protocol package returns the
-  package's `Tag` from `Of`, and `Dial`, `Attach`, `Serve`, `NewHandler` and
-  `Open` hold every type parameter drawn from `S` to `runtime.Of[STag]`, so
-  an `Envelope` of one family beside a `Handle` of another does not compile.
-
-The two ways to a concrete package — binding the parameters into the
-declaration and rendering it plain, or rendering generically and
-instantiating — must agree: `gen(bind(C, F)) ≅ gen(C)[F]`. The fixtures
-render both into one module and hold them equal: by reflection in Go, by
-`Equals<>` under `tsc` in TypeScript, and on the wire, a plain client
-against a generic server and the reverse.
-
+`cmd/nightseam/testdata/reserved`. The naming conventions themselves are
+data both languages' tests read, `conformance/tables/naming.json`.

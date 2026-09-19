@@ -46,8 +46,9 @@ beside the runtime's. A layer built over a channel reaches the same observer
 with `channel.observe(event)`.
 
 The Go tunnel and this one are held to each other over a real socket. The
-full description is [docs/tunnel.md](https://github.com/Bitspark/nightseam/blob/main/docs/tunnel.md), and
-[docs/observability.md](https://github.com/Bitspark/nightseam/blob/main/docs/observability.md) has every
+full description is [docs/wire/tunnel.md](https://github.com/Bitspark/nightseam/blob/main/docs/wire/tunnel.md),
+the surface in both languages [docs/runtime/tunnel.md](https://github.com/Bitspark/nightseam/blob/main/docs/runtime/tunnel.md), and
+[docs/runtime/observer.md](https://github.com/Bitspark/nightseam/blob/main/docs/runtime/observer.md) has every
 event of every layer.
 
 Apache-2.0, with `NOTICE` beside it. The repository is

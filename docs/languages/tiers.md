@@ -5,7 +5,8 @@ needs to know what it is promised there. This page says what: the
 **profiles** a language can hold, the **tiers** that say which profiles a
 language guarantees and when, and how the conformance suite under
 `conformance/` enforces both. `conformance/profiles.json` is the data the
-suite reads; this page is what it means.
+suite reads; this page is what it means. How a language joins is
+[onboarding](onboarding.md).
 
 ## Four promises
 
@@ -44,7 +45,8 @@ scenario it cannot place, so nothing is ever unclassified.
 The testee protocol is tiered the same way: a testee answers `hello` with
 the `layers` and `features` it implements, and a scenario a testee lacks a
 need of is skipped, not failed. A language holding `core` alone implements
-`conn.*`, `peer.*` and `call.*` and nothing else.
+`conn.*`, `peer.*` and `call.*` and nothing else
+([the driver protocol](../../conformance/DRIVER.md)).
 
 ## Tiers
 
@@ -80,10 +82,9 @@ the promotion is a change to `profiles.json` with the release that makes it.
 The assignment is a policy about promises, not a ranking of languages, and
 not a forecast of effort: the four pilots are planned for tier 2 because
 they are the four that get pushed to every profile first, and two of them —
-C++ and Haskell — are there *because* they are the hardest. This repository
-tests its limits to find out where the model breaks before Bitlink settles
-it, and a language that would only ever be held to `core` is a language
-nobody pushed. Java and Swift follow at tier 4 and rise as they hold.
+C++ and Haskell — are there *because* they are the hardest ([tiers are
+promises, not rankings](../decisions/tiers-are-promises-not-rankings.md)).
+Java and Swift follow at tier 4 and rise as they hold.
 
 ## How the suite enforces it
 
@@ -101,25 +102,5 @@ tolerates — is an issue against the scenario, since the reference decides.
 The release workflow refuses a tag whose matrix has a cell that the tier
 table says stops the release, and marks the languages that the table says
 are provisional in the release notes. The matrix of the last run on `main`
-is rendered into the README.
-
-## Onboarding a language
-
-The tiers are the order a language is built in, and each step is a lane of
-its own that lands alone:
-
-1. `duplex/<lang>` and `runtime/<lang>` with a testee holding `core` — the
-   language enters the matrix at tier 4.
-2. `internal/targets/<lang>` (Go's is `golang`) with the generated testee
-   holding `generator` — tier 3.
-3. `tunnel/<lang>`, then `session/<lang>`, then the observer and the shipped
-   adapter, then `otel/<lang>` — the profiles of P3, one lane each, holding
-   their scenarios; when all hold for a release the language may be
-   promoted to tier 2.
-4. Tier 1 is not a step but a decision: a language whose lanes have shipped
-   simultaneously with Go's and TypeScript's for a sustained period may join
-   the reference, and thereafter a feature lane is written as three twins.
-
-A language's lanes serialize among themselves; across languages they run in
-parallel, and nothing of one language waits on another's beyond the
-reference.
+is rendered into the README, and a table that drifted from
+`conformance/matrix.json` fails the pull request that drifted it.

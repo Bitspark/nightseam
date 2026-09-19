@@ -92,5 +92,7 @@ go tool nightseam check         # in your CI: fail if the checked-in output is s
 
 `generate` rewrites `api/go`, `api/ts` and `api/spec` and touches nothing
 else; the compiler then says where your own code has to follow, in both
-languages. [docs/language.md](../docs/language.md) is what may be declared,
-[docs/generator.md](../docs/generator.md) what is rendered from it.
+languages. [docs/declaration/families.md](../docs/declaration/families.md)
+is what may be declared, [docs/declaration/generator.md](../docs/declaration/generator.md)
+what is rendered from it, and [docs/declaration/generated.md](../docs/declaration/generated.md)
+what comes out.

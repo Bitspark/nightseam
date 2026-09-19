@@ -29,7 +29,7 @@ peer, err := runtime.NewPeer(ctx, conn, runtime.ClientRole, runtime.Options{
 })
 ```
 
-[docs/observability.md](https://github.com/Bitspark/nightseam/blob/main/docs/observability.md)
+[docs/runtime/observer.md](https://github.com/Bitspark/nightseam/blob/main/docs/runtime/observer.md)
 says what a trace of one call through a relay looks like.
 
 Apache-2.0, with `NOTICE` beside it. The repository is

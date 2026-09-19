@@ -32,7 +32,7 @@ built over the peer — a `Tunnel`, which registers the channel operations —
 go on before `connect` or `attach`, or the other side's first request can be
 answered `method_not_found` by a peer whose handlers are still on their way.
 The order is the rule and not an accident of this API; Go reaches it with
-`runtime.Options.Prepare` ([docs/profile.md](https://github.com/Bitspark/nightseam/blob/main/docs/profile.md)). A peer that already has a
+`runtime.Options.Prepare` ([docs/runtime/peer.md](https://github.com/Bitspark/nightseam/blob/main/docs/runtime/peer.md)). A peer that already has a
 connection refuses another: `attach` and `connect` reject `already_connected`
 rather than listening twice. Application
 code owns authentication and the authorization of incoming methods. A
@@ -54,7 +54,7 @@ envelope or a binary frame closes the connection. Parsing uses `JSON.parse`,
 so a duplicate member keeps its last value and number precision beyond
 JavaScript's safe integers is lost before the validator sees it; the Go peer
 rejects both. The profile is described in full in
-[docs/profile.md](https://github.com/Bitspark/nightseam/blob/main/docs/profile.md).
+[docs/wire/profile.md](https://github.com/Bitspark/nightseam/blob/main/docs/wire/profile.md).
 
 ## Trace context
 
@@ -76,7 +76,7 @@ and connection deadlines (`requestTimeoutMs`, `connectTimeoutMs`), and
 10-second output and event-handler deadlines (`writeTimeoutMs`); the options
 take positive integers. Each name is the Go runtime's own, transliterated
 with a duration's unit spelled into it —
-[docs/profile.md](https://github.com/Bitspark/nightseam/blob/main/docs/profile.md)
+[docs/runtime/peer.md](https://github.com/Bitspark/nightseam/blob/main/docs/runtime/peer.md)
 tables the pairs. Cancellation aborts a handler's signal but cannot interrupt
 running JavaScript; a cancelled handler keeps its slot until it settles.
 Incoming saturation answers `busy`; a stalled output or event consumer is
@@ -116,7 +116,7 @@ A layer running over the peer — `@nightseam/tunnel`, `@nightseam/session`, or
 one of your own — declares its events into `ObserverEvents` and emits them
 through the same observer, so a `switch (event.type)` stays exhaustive over
 every layer imported.
-[docs/observability.md](https://github.com/Bitspark/nightseam/blob/main/docs/observability.md) has the
+[docs/runtime/observer.md](https://github.com/Bitspark/nightseam/blob/main/docs/runtime/observer.md) has the
 rule and every event.
 
 ## The connection beneath

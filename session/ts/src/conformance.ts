@@ -701,7 +701,7 @@ export function run(connect: Connect): void {
     // channel. The request the relay recorded on its way to the machine is in
     // the log with its own all the same — the replay passes over it and the
     // cursor passes it — which is why a meta that holds a credential wants a
-    // Log that redacts, as docs/session.md says.
+    // Log that redacts, as docs/wire/session.md says.
     const late = await consumer(wire, registry, 'observer', 'late');
     assert.deepEqual((await late.at.family()).meta, { cause: 'nightly' });
     assert.equal(late.at.cursor, 2);
