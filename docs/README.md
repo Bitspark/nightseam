@@ -17,6 +17,7 @@ The runtime components each have a page:
 | [session.md](session.md) | a session over a tunnel's channels: the relay's rules, the log, the surface, what a consumer builds on it |
 | [observability.md](observability.md) | one observer across the three layers: the rule, the twenty-five events in both languages, the `slog` and console adapters, the OpenTelemetry one beside them, and a layer's own |
 | [tiers.md](tiers.md) | languages, profiles and tiers: the four promises a language can make, the profiles the conformance suite holds them to, which tier guarantees what and when, and how a language is onboarded |
+| [layers.md](layers.md) | what belongs where: the test that decides whether something new on the wire is the profile's, a layer's own vocabulary, or a header — and how a layer speaks on the wire |
 
 Around the repository:
 

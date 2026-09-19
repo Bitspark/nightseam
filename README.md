@@ -132,6 +132,7 @@ go tool nightseam version             # which version of the tool is running
 | [docs/session.md](docs/session.md) | a session over a tunnel's channels: the relay's rules, the log, what a consumer builds on it |
 | [docs/observability.md](docs/observability.md) | one observer across the three layers: the rule, every event in both languages, and how a layer of your own joins it |
 | [docs/tiers.md](docs/tiers.md) | languages, profiles and tiers: what a language of each tier promises, and how the conformance suite holds it |
+| [docs/layers.md](docs/layers.md) | what belongs where: the test that decides whether something new on the wire is the profile's, a layer's own, or a header |
 | [conformance/DRIVER.md](conformance/DRIVER.md) | the conformance suite: the protocol a language's testee speaks to the runner, every op, and how a language joins |
 
 ## Working on Nightseam
