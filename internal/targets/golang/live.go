@@ -224,10 +224,10 @@ func (f *file) liveBody(t *render.Type, export bool) {
 		f.line("return value, nil")
 	case model.KindAlias:
 		if export {
+			// Every export answers a json.RawMessage already; marshalling it
+			// again would encode an encoded value.
 			f.liveExpr(t.Alias, "v", "converted", true, "nil")
-			f.linef("data, err := %s.MarshalJSON(converted)", f.runtime())
-			f.line("if err != nil { return nil, err }")
-			f.line("return data, nil")
+			f.line("return converted, nil")
 			return
 		}
 		f.liveExpr(t.Alias, "raw", "converted", false, "value")

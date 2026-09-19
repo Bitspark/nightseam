@@ -60,7 +60,7 @@ func (f *file) liveImports() {
 	if !f.family.Live {
 		return
 	}
-	f.linef("import { LiveScope, type Reference } from %s;", quote(f.config.Live))
+	f.linef("import { LiveScope } from %s;", quote(f.config.Live))
 	f.liveSiblings()
 }
 
@@ -121,8 +121,8 @@ func (f *file) emitCallable(t *render.Type) {
 	f.linef("/** The declaration a reference to %s carries. It is nominal: a reference is usable exactly where this callable is expected. */", name)
 	f.linef("export const %s = %s;", p.contracts[t.Name], quote(t.Contract))
 	f.linef("/** Makes a binding of a local %s and answers the reference that names it. */", name)
-	f.w.Block(fmt.Sprintf("export function %s(scope: LiveScope, value: %s): Reference {", p.exports[t.Name], name), "}", func() {
-		f.w.Block(fmt.Sprintf("return scope.export(%s, async (request, options) => {", p.contracts[t.Name]), "});", func() {
+	f.w.Block(fmt.Sprintf("export function %s(scope: LiveScope, value: %s): unknown {", p.exports[t.Name], name), "}", func() {
+		f.w.Block(fmt.Sprintf("const reference = scope.export(%s, async (request, options) => {", p.contracts[t.Name]), "});", func() {
 			call := "options"
 			if t.Request != nil {
 				f.linef("%s(%s, request);", identValidateWire, expression(t.Request))
@@ -137,6 +137,10 @@ func (f *file) emitCallable(t *render.Type) {
 			f.linef("%s(%s, result);", identValidateWire, expression(t.Result))
 			f.line("return result;")
 		})
+		// The reference's wire form, not the Reference itself: what travels is
+		// the two members, and the validator that meets the converted value
+		// then reads an ordinary object rather than an instance of a class.
+		f.line("return reference.toJSON();")
 	})
 	f.linef("/** A %s that calls the binding a reference names. */", name)
 	f.w.Block(fmt.Sprintf("export function %s(scope: LiveScope, raw: unknown): %s {", p.imports_[t.Name], name), "}", func() {

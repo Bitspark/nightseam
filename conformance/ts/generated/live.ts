@@ -107,13 +107,13 @@ export const liveOps: Record<string, (args: Args) => unknown | Promise<unknown>>
   },
   'client.live_describe': async (args: Args) => {
     const d = lookup(args);
-    const label = await d.client.describe({ id: String(args.id), label: String(args.label) });
+    const label = await d.client.describe({ id: String(args.ticket), label: String(args.label) });
     return { label };
   },
   'client.live_start': async (args: Args) => {
     const d = lookup(args);
     const job = await d.client.start({
-      ticket: { id: String(args.id), label: String(args.label) },
+      ticket: { id: String(args.ticket), label: String(args.label) },
       progress: d.sink(),
     });
     return { job: d.hold(job), ticket: job.ticket };
@@ -126,7 +126,7 @@ export const liveOps: Record<string, (args: Args) => unknown | Promise<unknown>>
   'client.live_rename': async (args: Args) => {
     const job = lookup(args).job(String(args.job));
     if (!job.rename) throw new LiveFailure('invalid', 'the job carries no rename');
-    const renamed = await job.rename({ id: String(args.id), label: String(args.label) });
+    const renamed = await job.rename({ id: String(args.ticket), label: String(args.label) });
     return { label: renamed.label };
   },
 };

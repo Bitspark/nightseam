@@ -158,7 +158,7 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 		if err != nil {
 			return nil, err
 		}
-		label, callErr := d.client.Describe(context.Background(), worker.Ticket{ID: str(raw, "id"), Label: str(raw, "label")})
+		label, callErr := d.client.Describe(context.Background(), worker.Ticket{ID: str(raw, "ticket"), Label: str(raw, "label")})
 		if callErr != nil {
 			return map[string]any{"error": callError(callErr)}, nil
 		}
@@ -169,7 +169,7 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 			return nil, err
 		}
 		job, callErr := d.client.Start(context.Background(), worker.Start{
-			Ticket:   worker.Ticket{ID: str(raw, "id"), Label: str(raw, "label")},
+			Ticket:   worker.Ticket{ID: str(raw, "ticket"), Label: str(raw, "label")},
 			Progress: d.sink(),
 		})
 		if callErr != nil {
@@ -209,7 +209,7 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 		if !job.Rename.Present {
 			return nil, fail("invalid", "the job carries no rename")
 		}
-		renamed, callErr := job.Rename.Value(context.Background(), worker.Ticket{ID: str(raw, "id"), Label: str(raw, "label")})
+		renamed, callErr := job.Rename.Value(context.Background(), worker.Ticket{ID: str(raw, "ticket"), Label: str(raw, "label")})
 		if callErr != nil {
 			return map[string]any{"error": callError(callErr)}, nil
 		}

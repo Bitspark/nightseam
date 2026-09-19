@@ -650,11 +650,7 @@ func ExportSinks(scope *live.Scope, v Sinks) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := runtime.MarshalJSON(converted)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
+	return converted, nil
 }
 
 // ImportSinks reads Sinks as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
@@ -832,11 +828,7 @@ func ExportWatchers(scope *live.Scope, v Watchers) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := runtime.MarshalJSON(converted)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
+	return converted, nil
 }
 
 // ImportWatchers reads Watchers as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.

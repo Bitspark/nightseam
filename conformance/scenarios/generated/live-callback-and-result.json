@@ -27,7 +27,7 @@
       "op": "client.live_describe",
       "args": {
         "on": "$cl",
-        "id": "t-1",
+        "ticket": "t-1",
         "label": "nightly"
       },
       "expect": {
@@ -40,7 +40,7 @@
       "op": "client.live_start",
       "args": {
         "on": "$cl",
-        "id": "t-1",
+        "ticket": "t-1",
         "label": "nightly"
       },
       "expect": {
@@ -70,7 +70,7 @@
       "args": {
         "on": "$cl",
         "job": "$job",
-        "id": "t-1",
+        "ticket": "t-1",
         "label": "renamed"
       },
       "expect": {

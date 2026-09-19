@@ -27,7 +27,7 @@
       "op": "client.live_start",
       "args": {
         "on": "$cl",
-        "id": "t-2",
+        "ticket": "t-2",
         "label": "long"
       },
       "expect": {
