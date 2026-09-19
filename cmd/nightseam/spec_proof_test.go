@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -12,6 +13,24 @@ import (
 	"github.com/Bitspark/nightseam/internal/render"
 	"github.com/Bitspark/nightseam/internal/targets/spec"
 )
+
+// The spec target alone renders through the checked kernel, so its complete
+// output is held even while the language targets still refuse new forms.
+func TestProofSpecificationGolden(t *testing.T) {
+	k := kernel.New(spec.New(spec.Config{}))
+	world := k.Load(os.DirFS("testdata"), "proof")
+	files := map[string][]byte{}
+	for _, name := range world.Names {
+		result, err := k.Render(world, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for path, data := range result.Files {
+			files[path] = data
+		}
+	}
+	holdGolden(t, "testdata/golden-proof-spec", files)
+}
 
 // The proof uses the complete language, so a readable own-declarations
 // document is insufficient: inherited members and derived inline shapes

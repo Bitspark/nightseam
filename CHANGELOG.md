@@ -20,7 +20,10 @@ are one number. Entries are in the words of the commits that landed them.
   each renderer's existing refusals.
 - The spec target renders standalone references for the built-in families,
   held to their embedded declarations by the fast test tier, and describes
-  nullable expressions, literals, type parameters and local applications.
+  the settled language: nullable expressions, literals, both parameter sorts,
+  applications, derived inline shapes, inherited unions, extended protocol
+  sides and their session governance. Its source addresses and inherited
+  entity references retain their declaration provenance.
 - The declaration language gained the type language of #55's eight
   verdicts, whole and in one lane. **Unions**: `{"kind": "union", "tag":
   "type", "variants": {…}}`, internally tagged with a declared

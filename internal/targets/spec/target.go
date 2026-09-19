@@ -109,14 +109,13 @@ func (t *target) Family(p string) (string, bool) {
 	return "", false
 }
 
-// Check refuses the forms of the declaration language the document does not
-// write yet, naming the form and this target; a document is written of any
-// other family the neutral checks accept.
+// Check holds the output layout to its rules. The specification describes
+// every settled form the neutral checks accept.
 func (t *target) Check(f *render.Family) []diag.Diagnostic {
 	if err := t.config.Validate(); err != nil {
 		return []diag.Diagnostic{{Family: f.Name, Code: "invalid_config", Message: err.Error()}}
 	}
-	return render.Unrendered(f, Name)
+	return nil
 }
 
 // Reserved is what the target reserves: nothing.
@@ -191,6 +190,12 @@ func (d *doc) render() {
 		d.line("")
 		d.line("How a session of the family is governed.")
 		d.line("")
+		for _, inherited := range s.Inherited {
+			d.linef("Governance inherited from the %s side of `%s`.", inherited.Side, inherited.Family)
+		}
+		if len(s.Inherited) > 0 {
+			d.line("")
+		}
 		d.linef("- **Decides**: %s — the methods that need control to send.", codes(s.Decides))
 		d.linef("- **Asks**: %s — the methods the server sends that raise a request the holder of control must answer.", codes(s.Asks))
 		if s.Conversation != nil {
@@ -200,17 +205,8 @@ func (d *doc) render() {
 }
 
 func (d *doc) source() string {
-	for _, declaration := range d.f.Types {
-		if !declaration.Carried {
-			if directory := path.Dir(declaration.At.File); directory != "." {
-				return directory + "/"
-			}
-		}
-	}
-	for _, side := range []render.Side{d.f.Server, d.f.Client} {
-		if directory := path.Dir(side.At.File); directory != "." {
-			return directory + "/"
-		}
+	if d.f.Source != "" {
+		return strings.TrimSuffix(d.f.Source, "/") + "/"
 	}
 	return "api/contracts/" + d.f.Name + "/"
 }
@@ -300,7 +296,11 @@ func (d *doc) declarations(types []*render.Type) {
 		if len(t.Uses) > 0 {
 			var names []string
 			for _, use := range t.Uses {
-				names = append(names, "`"+use.Parameter+"."+use.Type+"`")
+				name := use.Parameter
+				if use.Type != "" {
+					name += "." + use.Type
+				}
+				names = append(names, code(name))
 			}
 			what += ", generic in " + strings.Join(names, ", ")
 		}
@@ -308,6 +308,14 @@ func (d *doc) declarations(types []*render.Type) {
 			what += ", carried from the built-in `" + t.From + "` family"
 		}
 		d.linef("%s %s.%s", article(what), what, suffix(t.Description))
+		if t.Inline {
+			d.line("")
+			d.line("Declared inline; its name is derived from its declaration path.")
+		}
+		if len(t.Extends) > 0 {
+			d.line("")
+			d.linef("Extends %s.", codes(t.Extends))
+		}
 		if len(t.Parameters) > 0 {
 			d.line("")
 			d.line("#### Parameters")
@@ -342,7 +350,7 @@ func (d *doc) declarations(types []*render.Type) {
 				if field.Owner != t.Name {
 					description = strings.TrimSpace("inherited from `" + field.Owner + "`. " + description)
 				}
-				d.linef("| `%s` | %s | %s | %s | %s |", field.Name, cell(spell(field.Type)), presence, constraints(field), cell(description))
+				d.linef("| `%s` | %s | %s | %s | %s |", field.Name, cell(d.spell(field.Type, field.Origin.Family, t.Scope)), presence, constraints(field), cell(description))
 			}
 		case "enum":
 			var values []string
@@ -353,16 +361,16 @@ func (d *doc) declarations(types []*render.Type) {
 			d.linef("One of %s.", strings.Join(values, ", "))
 		case "alias":
 			d.line("")
-			d.linef("An alias of %s.", spell(t.Alias))
+			d.linef("An alias of %s.", d.spell(t.Alias, t.Origin.Family, t.Scope))
 		case "union":
 			d.line("")
 			d.linef("The `%s` member identifies the variant. A non-object payload is carried in `%s` beside the tag; an object payload contributes its members directly. A record declaring the tag itself carries the matching literal.", t.Tag, t.Value)
 			d.line("")
-			d.line("| Tag | Payload |")
-			d.line("|---|---|")
+			d.line("| Tag | Payload | Declared by |")
+			d.line("|---|---|---|")
 			for _, variant := range t.Variants {
 				tag, _ := json.Marshal(variant.Tag)
-				d.linef("| %s | %s |", cell(code(string(tag))), cell(spell(variant.Type)))
+				d.linef("| %s | %s | %s |", cell(code(string(tag))), cell(d.spell(variant.Type, variant.Origin.Family, t.Scope)), code(d.qualified(variant.Origin.Family, variant.Origin.Declaration)))
 			}
 		}
 	}
@@ -385,11 +393,15 @@ func (d *doc) side(name, intro string, side render.Side) {
 		d.line("| Method | Request | Result | Errors | Description |")
 		d.line("|---|---|---|---|---|")
 		for _, m := range side.Methods {
-			request := "—"
-			if m.Request != nil {
-				request = spell(m.Request)
+			requestType, resultType := m.Request, m.Result
+			if m.Declaration != nil {
+				requestType, resultType = m.Declaration.Request, m.Declaration.Result
 			}
-			d.linef("| `%s` | %s | %s | %s | %s |", m.Name, cell(request), cell(spell(m.Result)), codes(m.Errors), cell(m.Description))
+			request := "—"
+			if requestType != nil {
+				request = d.spell(requestType, m.Origin.Family, nil)
+			}
+			d.linef("| `%s` | %s | %s | %s | %s |", m.Name, cell(request), cell(d.spell(resultType, m.Origin.Family, nil)), codes(m.Errors), cell(d.inherited(m.Description, m.Origin.Family)))
 		}
 	}
 	if len(side.Events) > 0 {
@@ -397,48 +409,75 @@ func (d *doc) side(name, intro string, side render.Side) {
 		d.line("| Event | Data | Description |")
 		d.line("|---|---|---|")
 		for _, e := range side.Events {
-			d.linef("| `%s` | %s | %s |", e.Name, cell(spell(e.Type)), cell(e.Description))
+			data := e.Type
+			if e.Declaration != nil {
+				data = e.Declaration.Type
+			}
+			d.linef("| `%s` | %s | %s |", e.Name, cell(d.spell(data, e.Origin.Family, nil)), cell(d.inherited(e.Description, e.Origin.Family)))
 		}
 	}
 }
 
+func (d *doc) inherited(description, family string) string {
+	if family != "" && family != d.f.Name {
+		return strings.TrimSpace("Inherited from `" + family + "`. " + description)
+	}
+	return description
+}
+
+func (d *doc) qualified(family, name string) string {
+	if family != "" && family != d.f.Name {
+		return family + "." + name
+	}
+	return name
+}
+
 // spell writes a type expression as the document reads it.
-func spell(e model.TypeExpr) string {
+func (d *doc) spell(e model.TypeExpr, owner string, scope []model.Parameter) string {
 	switch x := e.(type) {
 	case model.Primitive:
 		return "`" + string(x) + "`"
 	case model.Named:
-		return "`" + x.Name + "`"
+		for _, parameter := range scope {
+			if parameter.Name == x.Name {
+				return code(x.Name)
+			}
+		}
+		return code(d.qualified(owner, x.Name))
 	case model.Imported:
-		return "`" + x.Family + "." + x.Name + "`"
+		return code(d.qualified(x.Family, x.Name))
 	case model.Drawn:
 		return "`" + x.Parameter + "." + x.Name + "`"
 	case model.Array:
-		return "array of " + spell(x.Elem)
+		return "array of " + d.spell(x.Elem, owner, scope)
 	case model.Map:
-		return "map of " + spell(x.Elem)
+		return "map of " + d.spell(x.Elem, owner, scope)
 	case model.Nullable:
-		return "nullable " + spell(x.Elem)
+		return "nullable " + d.spell(x.Elem, owner, scope)
 	case model.Literal:
 		value, _ := json.Marshal(x.Value)
 		return "the literal " + code(string(value))
 	case model.Ref:
-		return "reference to `" + x.Entity + "`"
+		return "reference to " + code(d.qualified(owner, x.Entity))
+	case model.Inline:
+		if declaration := d.f.InlineType(x); declaration != nil {
+			return code(d.qualified(declaration.Origin.Family, declaration.Name))
+		}
 	case model.Apply:
 		var with []string
 		for _, parameter := range sortedKeys(x.With) {
 			filler := x.With[parameter]
 			value := filler.Family
 			if value == "" {
-				value = spell(filler.Type)
+				value = d.spell(filler.Type, owner, scope)
 			}
 			with = append(with, parameter+"="+value)
 		}
-		name := x.Name
-		if x.Family != "" {
-			name = x.Family + "." + name
+		family := x.Family
+		if family == "" {
+			family = owner
 		}
-		return "`" + name + "` with " + strings.Join(with, ", ")
+		return code(d.qualified(family, x.Name)) + " with " + strings.Join(with, ", ")
 	}
 	return "`" + model.String(e) + "`"
 }

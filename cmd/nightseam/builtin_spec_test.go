@@ -26,7 +26,11 @@ func TestBuiltinSpecificationsGolden(t *testing.T) {
 			if diagnostics := check.Family(family); len(diagnostics) != 0 {
 				t.Fatal(diagnostics)
 			}
-			files, err := target.Render(render.Build(family))
+			facts := render.Build(family)
+			if diagnostics := target.Check(facts); len(diagnostics) != 0 {
+				t.Fatal(diagnostics)
+			}
+			files, err := target.Render(facts)
 			if err != nil {
 				t.Fatal(err)
 			}
