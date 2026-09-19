@@ -460,7 +460,7 @@ promises and what these scenarios are for.
 | `client.live_cancel` | **`on`**, **`job`** | `{}` — the returned `cancel`, called |
 | `client.live_rename` | **`on`**, **`job`**, **`ticket`**, **`label`** | `{"label"}` — the returned `rename`, called, with a request and a result of its own |
 | `gen.live_report_again` | **`on`** | `{}` — the served side calls the sink it kept, after the call that supplied it returned |
-| `gen.live_supervise` | **`on`**, **`sinks`** | `{"state"}` — the served side calls the client, handing it a map of callables and reading back a sum |
+| `gen.live_supervise` | **`on`**, **`sinks`**, `within_ms` | `{"state"}` — waits for the server's client attachment, then calls the client with a map of callables and reads back a sum, within one deadline |
 | `gen.live_seen` | **`on`** | `{"started", "calls"}` — how many starts the served side took, and what was called on it |
 
 An argument is merged into the request envelope, so no op names one `id`;

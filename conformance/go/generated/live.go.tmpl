@@ -28,11 +28,12 @@ import (
 // was handed so that a scenario can make it call back **after** the call
 // that supplied the callback has returned, which is the higher-order case.
 type liveServer struct {
-	mu      sync.Mutex
-	sink    worker.ProgressSink
-	remote  *workerbinding.Remote
-	started int
-	renames []string
+	mu       sync.Mutex
+	sink     worker.ProgressSink
+	remote   *workerbinding.Remote
+	attached chan struct{}
+	started  int
+	renames  []string
 }
 
 func (s *liveServer) Describe(_ context.Context, _ *workerbinding.Remote, ticket worker.Ticket) (string, error) {
@@ -73,6 +74,8 @@ type liveServed struct {
 	url    string
 }
 
+func (s *liveServed) shutdown() { _ = s.http.Close() }
+
 // remote is the client as the server sees it, kept so that a scenario can
 // drive the reverse direction.
 
@@ -86,6 +89,8 @@ type liveDialled struct {
 	jobs    map[string]worker.Job
 	next    int
 }
+
+func (d *liveDialled) shutdown() { _ = d.client.Close(); d.cancel() }
 
 func (d *liveDialled) sink() worker.ProgressSink {
 	return worker.ProgressSink{Report: func(_ context.Context, percent worker.Percent) error {
@@ -118,13 +123,17 @@ func (d *liveDialled) job(name string) (worker.Job, bool) {
 func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, error) {
 	switch op {
 	case "gen.live_serve":
-		s := &liveServed{server: &liveServer{}}
+		s := &liveServed{server: &liveServer{attached: make(chan struct{})}}
 		handler, err := workerbinding.NewHandler(s.server, runtime.ServerOptions{
 			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 			CheckOrigin:  func(*http.Request) bool { return true },
 			OnConnect: func(p *runtime.Peer) {
 				s.server.mu.Lock()
+				first := s.server.remote == nil
 				s.server.remote = &workerbinding.Remote{Peer: p}
+				if first {
+					close(s.server.attached)
+				}
 				s.server.mu.Unlock()
 			},
 		})
@@ -237,12 +246,18 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 		if err != nil {
 			return nil, err
 		}
+		ctx, cancel := context.WithTimeout(context.Background(), within(raw))
+		defer cancel()
+		// The client's dial can finish before the server's OnConnect runs.
+		// Wait for our own attachment, within the same deadline as the call.
+		select {
+		case <-s.server.attached:
+		case <-ctx.Done():
+			return nil, fail("timeout", "nobody is attached to this server")
+		}
 		s.server.mu.Lock()
 		remote := s.server.remote
 		s.server.mu.Unlock()
-		if remote == nil {
-			return nil, fail("invalid", "nobody is attached to this server")
-		}
 		// The reverse direction, carrying callables in a container and
 		// answering a sum: the server hands the client sinks of its own and
 		// the client calls each one.
@@ -258,7 +273,7 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 				return nil
 			}}
 		}
-		outcome, callErr := remote.Supervise(context.Background(), worker.Supervise{Sinks: sinks})
+		outcome, callErr := remote.Supervise(ctx, worker.Supervise{Sinks: sinks})
 		if callErr != nil {
 			return map[string]any{"error": callError(callErr)}, nil
 		}
@@ -280,7 +295,7 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 // callables, so a testee that dials serves it.
 type liveClientHandler struct{}
 
-func (liveClientHandler) Supervise(_ context.Context, _ *workerclient.Client, params worker.Supervise) (worker.Outcome, error) {
+func (liveClientHandler) Supervise(ctx context.Context, _ *workerclient.Client, params worker.Supervise) (worker.Outcome, error) {
 	// By key, in order. A map is an object on the wire and its members are
 	// unordered there, so the declaration promises nothing about the order
 	// these are called in — which means a scenario cannot assert one unless
@@ -293,7 +308,7 @@ func (liveClientHandler) Supervise(_ context.Context, _ *workerclient.Client, pa
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		if err := params.Sinks[name].Report(context.Background(), 1); err != nil {
+		if err := params.Sinks[name].Report(ctx, 1); err != nil {
 			return worker.Outcome{}, err
 		}
 	}

@@ -15,6 +15,13 @@
       }
     },
     {
+      "on": "a",
+      "op": "gen.live_supervise",
+      "args": { "on": "$srv", "sinks": [], "within_ms": 20 },
+      "expect_error": { "code": "timeout" },
+      "note": "before any client dials, the reverse call waits for attachment within its deadline"
+    },
+    {
       "on": "b",
       "op": "gen.live_dial",
       "args": {
