@@ -19,6 +19,6 @@
     "@nightseam/duplex": "workspace:*",
     "@nightseam/runtime": "workspace:*",
     "@nightseam/tunnel": "workspace:*",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   }
 }
