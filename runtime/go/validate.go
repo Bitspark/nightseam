@@ -46,9 +46,10 @@ type argument struct {
 // An expression retains the schema and bindings where it was written. In
 // particular, an argument to an imported generic belongs to its caller.
 type expression struct {
-	schema *Schema
-	value  any
-	scope  map[string]argument
+	schema  *Schema
+	value   any
+	scope   map[string]argument
+	aliases map[*wireType]bool
 }
 
 type wireParameter struct{ Name, Of string }
@@ -199,7 +200,7 @@ func (s *Schema) Fields(name string) []string {
 	return out
 }
 
-func (e expression) child(value any) expression { e.value = value; return e }
+func (e expression) child(value any) expression { e.value = value; e.aliases = nil; return e }
 
 type resolvedExpression struct {
 	expression
@@ -383,14 +384,8 @@ func (e expression) named(name, location string) (expression, *wireType, string,
 func (e expression) resolve(location string) (resolvedExpression, error) {
 	// Alias/application cycles have no value constructor at which recursion
 	// can make progress. Records may recurse: each child starts a new resolve.
-	seen := map[string]bool{}
-	aliases := map[*wireType]bool{}
+	aliases := copyAliases(e.aliases)
 	for {
-		key := fmt.Sprintf("%p/%p/%v", e.schema, e.scope, e.value)
-		if seen[key] {
-			return resolvedExpression{}, expected(location, "acyclic type expression")
-		}
-		seen[key] = true
 		var definition *wireType
 		name := ""
 		switch v := e.value.(type) {
@@ -400,7 +395,7 @@ func (e expression) resolve(location string) (resolvedExpression, error) {
 					return resolvedExpression{}, expected(location, "type argument")
 				}
 				e = *arg.typeExpression
-				aliases = map[*wireType]bool{}
+				aliases = copyAliases(e.aliases)
 				continue
 			}
 			if family, _, drawn := strings.Cut(v, "."); drawn && e.unboundFamily(family) {
@@ -445,6 +440,9 @@ func (e expression) resolve(location string) (resolvedExpression, error) {
 					}
 					if parameter.Of == "" {
 						captured := e.child(filler)
+						// Restoring this ancestry when the argument is read
+						// distinguishes Id<Id<T>> from A<T> = Id<A<T>>.
+						captured.aliases = copyAliases(aliases)
 						scope[parameter.Name] = argument{typeExpression: &captured}
 					} else {
 						family, ok := filler.(string)
@@ -499,6 +497,14 @@ func (e expression) resolve(location string) (resolvedExpression, error) {
 		}
 		return resolvedExpression{expression: e, definition: definition, name: name}, nil
 	}
+}
+
+func copyAliases(source map[*wireType]bool) map[*wireType]bool {
+	result := map[*wireType]bool{}
+	for definition := range source {
+		result[definition] = true
+	}
+	return result
 }
 
 func (e expression) unboundFamily(name string) bool {
@@ -767,7 +773,11 @@ func (e expression) validate(value any, location string) error {
 			return r.child(inner).validate(value, location)
 		}
 		if literal, ok := composite["literal"]; ok {
-			want, _ := json.Marshal(literal)
+			printable := literal
+			if number, ok := literal.(json.Number); ok {
+				printable, _ = number.Float64()
+			}
+			want, _ := json.Marshal(printable)
 			if sameLiteral(literal, value) {
 				return nil
 			}
