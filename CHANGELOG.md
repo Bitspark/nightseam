@@ -54,6 +54,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- The release round trip waits up to two minutes with backoff for npm and
+  Go module propagation before installing, names unavailable packages on
+  timeout, and has the workflow permission to file an issue on failure.
 - An observer snapshot repeated until its expectations match preserves its
   history: the deadline scenario no longer consumes request events before
   the cancel arrives, and the scenario loader refuses such polling without
