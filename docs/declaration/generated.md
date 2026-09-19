@@ -42,6 +42,9 @@ description the validator reads is embedded here: `ValidateRaw(name, data,
 at...)`, `ValidateExpressionRaw`, `ValidateValue` and `MustTypeExpression`
 validate a value against a declared type, and are what the binding and the
 client call on every frame.
+`WireSchema()` exposes that descriptor and its imports to other generated
+families, so validation of an imported application retains its parameter
+bindings and the family that declared each expression.
 
 ### The binding package
 

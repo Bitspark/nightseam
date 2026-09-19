@@ -19,4 +19,15 @@ export type { Trace, Propagator } from './trace.ts';
 export { webSocketConnection } from '@nightseam/duplex';
 export type { Frame, ConnectionState, ConnectionHandlers, FrameConnection, WebSocketLike } from '@nightseam/duplex';
 export { createValidator } from './validate.ts';
-export type { TypeExpression, WireField, WireType, AnyFamily, FamilyBinding, Slots, Validator } from './validate.ts';
+export type {
+  TypeExpression,
+  WireField,
+  WireType,
+  WireFamily,
+  WireParameter,
+  TypeBinding,
+  AnyFamily,
+  FamilyBinding,
+  Slots,
+  Validator,
+} from './validate.ts';

@@ -17,38 +17,64 @@ func TestValidatorConformance(t *testing.T) {
 		t.Fatal(err)
 	}
 	var table struct {
-		Wire     json.RawMessage
-		Imported map[string]json.RawMessage
-		Cases    []struct {
+		Wire        json.RawMessage
+		Imported    map[string]json.RawMessage
+		Equivalence []struct {
+			Generic, Bound json.RawMessage
+			Values         []json.RawMessage
+		}
+		Cases []struct {
 			Expression json.RawMessage
 			Value      json.RawMessage
 			Valid      bool
 			Message    string
+			Slots      map[string]struct {
+				Type   json.RawMessage
+				Family string
+			}
 		}
 	}
 	if err := json.Unmarshal(data, &table); err != nil {
 		t.Fatal(err)
 	}
-	imported := map[string]Imported{}
+	imported := map[string]*Schema{}
 	for family, wire := range table.Imported {
-		schema, err := NewSchema(wire, nil)
+		schema, err := NewSchema(wire, imported)
 		if err != nil {
 			t.Fatal(err)
 		}
-		imported[family] = schema.ValidateRaw
+		imported[family] = schema
 	}
 	schema, err := NewSchema(table.Wire, imported)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, c := range table.Cases {
-		err := schema.ValidateExpressionRaw(MustTypeExpression(string(c.Expression)), c.Value)
+		types := map[string]any{}
+		families := map[string]*Schema{}
+		for name, slot := range c.Slots {
+			if slot.Family != "" {
+				families[name] = imported[slot.Family]
+			} else {
+				types[name] = MustTypeExpression(string(slot.Type))
+			}
+		}
+		err := schema.Bind(types, families).ValidateExpressionRaw(MustTypeExpression(string(c.Expression)), c.Value)
 		if (err == nil) != c.Valid {
 			t.Errorf("%s against %s: valid=%v, got %v", c.Value, c.Expression, c.Valid, err)
 			continue
 		}
 		if c.Message != "" && err.Error() != c.Message {
 			t.Errorf("%s against %s: message %q, got %q", c.Value, c.Expression, c.Message, err)
+		}
+	}
+	for _, law := range table.Equivalence {
+		for _, value := range law.Values {
+			generic := schema.ValidateExpressionRaw(MustTypeExpression(string(law.Generic)), value)
+			bound := schema.ValidateExpressionRaw(MustTypeExpression(string(law.Bound)), value)
+			if (generic == nil) != (bound == nil) {
+				t.Errorf("generic %s and bound %s disagree on %s: %v / %v", law.Generic, law.Bound, value, generic, bound)
+			}
 		}
 	}
 	if err := schema.ValidateValue("Status", "on"); err != nil {

@@ -171,12 +171,36 @@ adapter](observer.md#the-opentelemetry-adapter) is the one that ships.
 The wire validator lives in each runtime, once, and reads the family's wire
 description the protocol package embeds: `runtime.NewSchema(wire, imported)`
 and `MustSchema` in Go, with `ValidateRaw`, `ValidateExpressionRaw` and
-`ValidateValue`; `createValidator(types, imported)` in TypeScript, which
+`ValidateValue`; `createValidator(description, imported)` in TypeScript, which
 validates calls, replies, reverse calls and events alike. Both are held to
 one conformance table, `conformance/tables/validator.json`. `Optional[T]` and
 `Nullable[T]` in Go carry presence and nullness as the two facts the
 declaration keeps apart; `Raw` passes a payload through unread, which is
 what a relay wants.
+
+The descriptor is `{"types": {...}, "parameters": [...]}`: the types keep
+the declaration's expressions and each parameter keeps its `name` and
+optional `of`. Imports are `map[string]*runtime.Schema` in Go and a map of
+validators returned by `createValidator` in TypeScript. They retain the
+declaring family, so an argument to an imported generic resolves names in
+the caller's scope. Only the family parameters used by that imported type
+need arguments; a local application fills the type's own parameters.
+
+Both validators read literals, nullable expressions, inline shapes,
+internally tagged unions and nested applications of either parameter sort.
+Object variants carry the discriminator beside their fields; other values
+use the union's `value` member. An extending union accepts its base's
+variants, and the base refuses the added variants. Nullable values do not
+make required fields optional.
+
+Go's `schema.Bind(types, families)` supplies bindings for raw validation and
+returns a new schema. TypeScript's fourth validator argument is a `Slots`
+map: a family binding has `name` and `validate`, while a type binding has
+`type` and `validate`, the validator of the family where that expression
+belongs. An explicit application validates its arguments in both runtimes.
+An unbound family slot in a generated Go generic codec is checked by the
+instantiated Go type during marshal or unmarshal; TypeScript requires its
+runtime binding.
 
 ## Observing it
 
