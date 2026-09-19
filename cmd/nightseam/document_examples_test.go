@@ -16,6 +16,7 @@ import (
 //go:generate go test . -short -run ^TestDocumentExamplesTable$ -update
 
 type documentExample struct {
+	Corpus      string                        `json:"corpus"`
 	Family      string                        `json:"family"`
 	Path        string                        `json:"path"`
 	Expression  model.TypeExpr                `json:"expression,omitempty"`
@@ -27,9 +28,9 @@ type documentExample struct {
 }
 
 type documentExamples struct {
-	Name    string                     `json:"name"`
-	Schemas map[string]json.RawMessage `json:"schemas"`
-	Rows    []documentExample          `json:"rows"`
+	Description string                                `json:"description"`
+	Schemas     map[string]map[string]json.RawMessage `json:"schemas"`
+	Rows        []documentExample                     `json:"rows"`
 }
 
 func TestDocumentExamplesTable(t *testing.T) {
@@ -41,7 +42,7 @@ func TestDocumentExamplesTable(t *testing.T) {
 		"families/relay/server/methods/relay/request":  false,
 		"families/relay/server/methods/relay/response": false,
 	}
-	var table []documentExamples
+	table := documentExamples{Description: "Every corpus document example, union arm and operation frame, with its visible concrete bindings or an explicit unavailable reason; derived by go generate ./cmd/nightseam.", Schemas: map[string]map[string]json.RawMessage{}}
 	for _, corpus := range []string{"corpus", "families"} {
 		world, diagnostics := load.Checkout(os.DirFS("testdata/"+corpus), "api/contracts", []string{"go", "typescript", "markdown"})
 		if len(diagnostics) != 0 {
@@ -65,9 +66,9 @@ func TestDocumentExamplesTable(t *testing.T) {
 			rendered.Families = append(rendered.Families, f)
 			collect(f)
 		}
-		out := documentExamples{Name: corpus, Schemas: map[string]json.RawMessage{}}
+		table.Schemas[corpus] = map[string]json.RawMessage{}
 		for name, f := range facts {
-			out.Schemas[name] = json.RawMessage(f.Wire)
+			table.Schemas[corpus][name] = json.RawMessage(f.Wire)
 		}
 		for _, f := range doc.BuildCheckout(&rendered, nil).Families {
 			add := func(path string, expression model.TypeExpr, value json.RawMessage, info doc.ExampleInfo, to, member string) {
@@ -81,7 +82,7 @@ func TestDocumentExamplesTable(t *testing.T) {
 					}
 					expectedUnavailable[key] = true
 				}
-				out.Rows = append(out.Rows, documentExample{Family: f.Name, Path: path, Expression: expression, Value: value, Bindings: info.ExampleBindings, Unavailable: info.ExampleUnavailable, To: to, Member: member})
+				table.Rows = append(table.Rows, documentExample{Corpus: corpus, Family: f.Name, Path: path, Expression: expression, Value: value, Bindings: info.ExampleBindings, Unavailable: info.ExampleUnavailable, To: to, Member: member})
 			}
 			for _, typ := range append(append([]*doc.Type{}, f.Types...), f.Carried...) {
 				expr := doc.ExampleExpression(facts[f.Name].Type(typ.Name))
@@ -111,7 +112,6 @@ func TestDocumentExamplesTable(t *testing.T) {
 				}
 			}
 		}
-		table = append(table, out)
 	}
 	for path, seen := range expectedUnavailable {
 		if !seen {
