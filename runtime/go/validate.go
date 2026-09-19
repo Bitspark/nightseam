@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
+
+	"github.com/Bitspark/nightseam/internal/pattern"
 )
 
 // Schema validates a family's descriptor: {"types": {...}, "parameters":
@@ -95,6 +97,11 @@ func NewSchema(wire []byte, imported map[string]*Schema) (*Schema, error) {
 	if s.types == nil {
 		return nil, fmt.Errorf("expected family descriptor with types")
 	}
+	for _, name := range sortedKeys(s.types) {
+		if err := checkPatterns(s.types[name]); err != nil {
+			return nil, err
+		}
+	}
 	if s.imported == nil {
 		s.imported = map[string]*Schema{}
 	}
@@ -135,6 +142,16 @@ func (s *Schema) ValidateRaw(name string, data []byte, at ...string) error {
 // ValidateExpressionRaw verifies a type expression's value and rejects
 // trailing values. at roots the diagnostic, as ValidateRaw's does.
 func (s *Schema) ValidateExpressionRaw(expression any, data []byte, at ...string) error {
+	if err := checkPatterns(expression); err != nil {
+		return err
+	}
+	for _, name := range sortedKeys(s.scope) {
+		if argument := s.scope[name].typeExpression; argument != nil {
+			if err := checkPatterns(argument.value); err != nil {
+				return err
+			}
+		}
+	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	var value any
@@ -150,6 +167,58 @@ func (s *Schema) ValidateExpressionRaw(expression any, data []byte, at ...string
 		location = at[0]
 	}
 	return (expressionContext(s, expression)).validate(value, location)
+}
+
+// Patterns are descriptor constraints, so an invalid one is refused even
+// when its optional field is absent or its containing collection is empty.
+func checkPatterns(value any) error {
+	check := func(value string) error {
+		if pattern.Check(value) != nil {
+			quoted, _ := json.Marshal(value)
+			return fmt.Errorf("pattern %s: outside Nightseam dialect", quoted)
+		}
+		return nil
+	}
+	switch value := value.(type) {
+	case *wireType:
+		if value == nil {
+			return nil
+		}
+		for _, field := range value.Fields {
+			if err := check(field.Pattern); err != nil {
+				return err
+			}
+			if err := checkPatterns(field.Type); err != nil {
+				return err
+			}
+		}
+		if err := checkPatterns(value.Type); err != nil {
+			return err
+		}
+		for _, tag := range sortedKeys(value.Variants) {
+			if err := checkPatterns(value.Variants[tag]); err != nil {
+				return err
+			}
+		}
+	case map[string]any:
+		if value, ok := value["pattern"].(string); ok {
+			if err := check(value); err != nil {
+				return err
+			}
+		}
+		for _, key := range sortedKeys(value) {
+			if err := checkPatterns(value[key]); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for _, item := range value {
+			if err := checkPatterns(item); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func expressionContext(s *Schema, value any) expression {

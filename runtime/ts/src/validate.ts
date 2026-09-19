@@ -148,6 +148,65 @@ function plainObject(value: unknown): value is Record<string, unknown> {
   );
 }
 
+function diagnosticLiteral(value: string | number | boolean): string {
+  return JSON.stringify(value).replace(
+    /[<>&\u2028\u2029]/g,
+    (character) => '\\u' + character.charCodeAt(0).toString(16).padStart(4, '0'),
+  );
+}
+
+// These syntax exclusions are the declaration's existing dialect rules.
+// Matching semantics are held separately by value cases, not by compilation.
+const outsidePattern = [
+  '(?P<',
+  '(?P=',
+  '(?<=',
+  '(?<!',
+  '(?<',
+  '(?=',
+  '(?!',
+  '[[:',
+  '\\k<',
+  '\\p{',
+  '\\P{',
+  '\\A',
+  '\\z',
+  '\\Z',
+  '\\Q',
+  '\\C',
+];
+
+function checkPattern(value: string): void {
+  const refuse = (): never => {
+    throw new Error('pattern ' + diagnosticLiteral(value) + ': outside Nightseam dialect');
+  };
+  for (let index = 0; index < value.length; index++) {
+    const rest = value.slice(index);
+    if (outsidePattern.some((prefix) => rest.startsWith(prefix))) refuse();
+    if (value[index] === '\\') {
+      if (/^\\[1-9]/.test(rest)) refuse();
+      index++;
+    } else if (/^\(\?[imsUu-]+[):]/.test(rest)) refuse();
+  }
+  try {
+    new RegExp(value);
+  } catch {
+    refuse();
+  }
+}
+
+function checkPatterns(value: unknown, seen = new Set<object>()): void {
+  if (!value || typeof value !== 'object' || seen.has(value)) return;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    for (const item of value) checkPatterns(item, seen);
+  } else {
+    const object = value as Record<string, unknown>;
+    if (typeof object.pattern === 'string') checkPattern(object.pattern);
+    for (const key of Object.keys(object).sort()) checkPatterns(object[key], seen);
+  }
+}
+
 /** Holds a field's value to its constraints: min and max on a number or a timestamp, length on a string or an array, pattern on a string. */
 function constrain(field: WireField, value: unknown, location: string): void {
   if (field.min !== undefined || field.max !== undefined) {
@@ -462,10 +521,7 @@ function validate(expression: Expression, value: unknown, location: string): voi
       return;
     }
     if ('literal' in type) {
-      const literal = JSON.stringify(type.literal).replace(
-        /[<>&\u2028\u2029]/g,
-        (character) => '\\u' + character.charCodeAt(0).toString(16).padStart(4, '0'),
-      );
+      const literal = diagnosticLiteral(type.literal);
       if (value !== type.literal) bad(location, 'literal ' + literal);
       return;
     }
@@ -528,10 +584,13 @@ function validate(expression: Expression, value: unknown, location: string): voi
 /** Creates a validator whose imports retain both values and declaration scope. */
 export function createValidator(family: WireFamily, imported: Record<string, Validator> = {}): Validator {
   if (!family.types) throw new Error('expected family descriptor with types');
+  checkPatterns(family.types);
   const schema: Schema = { family, imported };
   const validateWire = (type: TypeExpression, value: unknown, location = '$', slots: Slots = {}): void => {
+    checkPatterns(type);
     const scope: Scope = Object.create(null) as Scope;
     for (const [parameter, binding] of Object.entries(slots)) {
+      if ('type' in binding) checkPatterns(binding.type);
       scope[parameter] =
         'type' in binding
           ? { type: { schema: binding.validate[descriptor], value: binding.type, scope: {} } }

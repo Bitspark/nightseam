@@ -17,8 +17,12 @@ func TestValidatorConformance(t *testing.T) {
 		t.Fatal(err)
 	}
 	var table struct {
-		Wire        json.RawMessage
-		Imported    map[string]json.RawMessage
+		Wire     json.RawMessage
+		Imported map[string]json.RawMessage
+		Patterns []struct {
+			Pattern string
+			Valid   bool
+		}
 		Equivalence []struct {
 			Generic, Bound json.RawMessage
 			Values         []json.RawMessage
@@ -36,6 +40,20 @@ func TestValidatorConformance(t *testing.T) {
 	}
 	if err := json.Unmarshal(data, &table); err != nil {
 		t.Fatal(err)
+	}
+	for _, row := range table.Patterns {
+		description, err := json.Marshal(map[string]any{"types": map[string]any{
+			"Probe": map[string]any{"kind": "alias", "type": map[string]any{"array": map[string]any{"nullable": map[string]any{
+				"kind": "record", "fields": []any{map[string]any{"name": "tag", "type": "string", "pattern": row.Pattern}},
+			}}}},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = NewSchema(description, nil)
+		if (err == nil) != row.Valid {
+			t.Errorf("pattern %q: valid=%v, got %v", row.Pattern, row.Valid, err)
+		}
 	}
 	imported := map[string]*Schema{}
 	for family, wire := range table.Imported {
