@@ -1104,6 +1104,38 @@ func Run(t *testing.T, connect Connect) {
 		refused(t, "a replay with nowhere to deliver", session.ErrorInvalidOptions,
 			session.NewMemoryLog(0).Replay(context.Background(), 0, nil))
 	})
+
+	t.Run("a frame that is not text ends the connection as unsupported data", func(t *testing.T) {
+		// A frame of the wrong kind carries no message of the profile at
+		// all, which is unsupported data — 1003 — where text that is no
+		// message of it is a fault of another kind and closes with another
+		// code. Either side may send one and each is refused the same way.
+		const said = "a session speaks JSON text frames"
+		registry, machine := bind(t, "s")
+		_, one := attach(t, registry, "s", "one", session.Participant, 0)
+		_, two := attach(t, registry, "s", "watcher", session.Observer, 0)
+
+		one.sendBinary(t, []byte{0x00, 0x01})
+		if closed := one.ended(t); closed.Code != duplex.CodeUnsupportedData || closed.Reason != said {
+			t.Fatalf("a consumer's binary frame ended its connection as %d %q", closed.Code, closed.Reason)
+		}
+		// The session stands and goes on routing: only the consumer that
+		// sent it is gone.
+		machine.send(t, `{"version":1,"kind":"event","event":"changed","data":{"text":"still here","count":1}}`)
+		if got := two.take(t); got.text("event") != "changed" {
+			t.Fatalf("the session stopped routing after a consumer's binary frame: %s", got.raw)
+		}
+
+		// The machine's own ends the session, and every consumer with it,
+		// under the same code and the same reason.
+		machine.sendBinary(t, []byte{0x02})
+		if ended := two.ended(t); ended.Code != duplex.CodeUnsupportedData || ended.Reason != said {
+			t.Fatalf("the machine's binary frame ended a consumer as %d %q", ended.Code, ended.Reason)
+		}
+		if up := machine.ended(t); up.Code != duplex.CodeUnsupportedData || up.Reason != said {
+			t.Fatalf("the machine's own side ended as %d %q", up.Code, up.Reason)
+		}
+	})
 }
 
 // The trace contexts the change run sends, each on a frame of its own, so
@@ -1411,6 +1443,17 @@ func (s *speaker) send(t *testing.T, raw string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := s.channel.Send(ctx, duplex.Frame{Kind: duplex.Text, Data: []byte(raw)}); err != nil {
+		t.Fatalf("%s could not send: %v", s.name, err)
+	}
+}
+
+// sendBinary sends a frame of the other kind, which a session speaks none
+// of: what it is refused with is the case below.
+func (s *speaker) sendBinary(t *testing.T, data []byte) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := s.channel.Send(ctx, duplex.Frame{Kind: duplex.Binary, Data: data}); err != nil {
 		t.Fatalf("%s could not send: %v", s.name, err)
 	}
 }

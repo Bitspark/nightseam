@@ -578,6 +578,13 @@ class Relay {
   /** A frame from a consumer: what it may send depends on its role and on who holds control. */
   private async fromDown(attachment: Attachment, frame: Wire): Promise<void> {
     if (!this.attachments.has(attachment)) return;
+    // What kind of frame it is comes before what it says: a frame that is
+    // not text carries no message of the profile at all, which is
+    // unsupported data and not a message the profile refuses.
+    if (frame.kind !== 'text') {
+      attachment.channel.close(1003, BINARY_FRAME);
+      return;
+    }
     const envelope = read(frame);
     if (!envelope) {
       attachment.channel.close(1008, 'a frame that is not a message of the profile');
@@ -638,6 +645,13 @@ class Relay {
 
   /** A frame from the machine: recorded as the machine sent it, then a response to the one consumer that asked, an event to all of them, a request to the holder. */
   private async fromUp(frame: Wire): Promise<void> {
+    // As on a consumer's connection: the frame's kind is read before what
+    // it says, a frame that is not text being unsupported data rather than
+    // a message the profile refuses.
+    if (frame.kind !== 'text') {
+      this.up.close(1003, BINARY_FRAME);
+      return;
+    }
     const envelope = read(frame);
     if (!envelope) {
       this.up.close(1008, 'a frame that is not a message of the profile');
@@ -817,7 +831,15 @@ class Relay {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-/** read is a frame as the message it carries, or nothing when it carries none: the profile is JSON text. */
+/**
+ * What a session's connections are closed with when a frame of the wrong
+ * kind arrives on one: 1003, unsupported data, in both languages. Text that
+ * is no message of the profile is a different fault and carries a different
+ * code — 1008 here, and the reason that names it.
+ */
+const BINARY_FRAME = 'a session speaks JSON text frames';
+
+/** read is a frame as the message it carries, or nothing when it carries none: the profile is JSON text. Its caller has already refused a frame that is not text, and the guard below is what makes that a type the body may read. */
 function read(frame: Wire): Envelope | undefined {
   if (frame.kind !== 'text') return undefined;
   let value: unknown;

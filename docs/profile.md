@@ -17,14 +17,18 @@ tunnel channel are others; every transport is held to one conformance suite
 per language — `duplex/go/duplextest` and `duplex/ts/src/conformance.ts`,
 each run by the pipe, the WebSocket adapter and the tunnel channel. Close
 codes are the WebSocket registry's numbers on every transport: 1000 normal,
-1001 going away, 1002 protocol error, 1006 abnormal closure, 1008 policy
-violation, 1009 too large, 1011 internal, and 4000–4999 for what runs above
-the seam; the profile itself closes with **4011** when the other side broke
-it.
+1001 going away, 1002 protocol error, 1003 unsupported data, 1006 abnormal
+closure, 1008 policy violation, 1009 too large, 1011 internal, and 4000–4999
+for what runs above the seam; the profile itself closes with **4011** when
+the other side broke it.
 
 The profile sends text frames only and refuses a binary frame; a frame
 larger than the peer's limit is refused before delivery and the connection
 with it. The seam frames every frame whole; the profile never splits one.
+**1003** is what a frame of the wrong kind is refused with — the session
+closes both of its connections with it, and with `a session speaks JSON text
+frames` — where text that is no message of the profile is a fault of another
+kind and carries another code.
 
 ## The subprotocol
 

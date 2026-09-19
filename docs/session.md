@@ -273,10 +273,15 @@ has as many open towards the machine as it may. `not_controlling` travels
 both ways — from a call that gave an observer control, and on the wire to a
 consumer that decided without holding it.
 
-A close is not a refusal and carries a code of its own: a frame of the wrong
-kind ends the connection with **1003** and `a session speaks JSON text
-frames`, text that is no message of the profile with **1002** from the
-machine's side and **1008** from a consumer's, each naming what it was.
+A close is not a refusal and carries a code of its own. A frame of the wrong
+kind ends the connection it arrived on with **1003**, unsupported data, and
+the reason `a session speaks JSON text frames`, in both languages and on
+either connection: a consumer's own ends that consumer and leaves the
+session standing, the machine's ends the session and every consumer with it.
+Text that is no message of the profile is a fault of another kind and
+carries another code — **1002** in Go, **1008** in TypeScript, which is a
+divergence of its own and is filed rather than settled here. A machine that
+sends a frame of the session's own vocabulary is **1002** in both.
 [profile.md](profile.md) lists every close code.
 
 ## Limits

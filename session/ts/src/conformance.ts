@@ -886,4 +886,32 @@ export function run(connect: Connect): void {
 
     wire.close();
   });
+
+  test('a frame that is not text ends the connection as unsupported data', async () => {
+    // A frame of the wrong kind carries no message of the profile at all,
+    // which is unsupported data — 1003 — where text that is no message of
+    // it is a fault of another kind and closes with another code. Either
+    // side may send one and each is refused the same way.
+    const said = 'a session speaks JSON text frames';
+    const { wire, registry, machine } = await bound();
+    const one = await consumer(wire, registry, 'participant', 'one');
+    const two = await consumer(wire, registry, 'observer', 'watcher');
+
+    one.near.send({ kind: 'binary', data: new Uint8Array([0, 1]) });
+    await tick();
+    assert.deepEqual(one.at.closed, { code: 1003, reason: said });
+    // The session stands and goes on routing: only the consumer that sent
+    // it is gone.
+    assert.equal(two.at.closed, undefined);
+    const live = { version: 1, kind: 'event', event: 'changed', data: payload('still here') };
+    say(machine, live);
+    assert.deepEqual(await two.at.family(), live);
+
+    // The machine's own ends the session, and every consumer with it, under
+    // the same code and the same reason.
+    machine.send({ kind: 'binary', data: new Uint8Array([2]) });
+    await tick();
+    assert.deepEqual(two.at.closed, { code: 1003, reason: said });
+    wire.close();
+  });
 }
