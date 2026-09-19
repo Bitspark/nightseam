@@ -150,6 +150,27 @@ func TestGenerateRemovesWhatNothingRenders(t *testing.T) {
 	}
 }
 
+// A model-only family has generated types but no protocol handler to implement.
+func TestInitSkipsModelOnlyFamilies(t *testing.T) {
+	root := t.TempDir()
+	writeFixture(t, root, "api/contracts/catalog/model.json", []byte(`{"nightseam":2,"types":{"Item":{"kind":"record","fields":[]}}}`))
+	if out, errs, err := run(t, root, "generate", "catalog"); err != nil {
+		t.Fatalf("generate: %v\n%s%s", err, out, errs)
+	}
+	if _, err := os.Stat(filepath.Join(root, "api/go/catalog-protocol/types_generated.go")); err != nil {
+		t.Fatalf("the model's generated types are missing: %v", err)
+	}
+	if out, errs, err := run(t, root, "init", "catalog"); err != nil || out != "" || errs != "" {
+		t.Fatalf("model-only init must write no handlers: %v\n%s%s", err, out, errs)
+	}
+	if _, err := os.Stat(filepath.Join(root, "api/impl/catalog")); !os.IsNotExist(err) {
+		t.Fatalf("model-only init created an implementation directory: %v", err)
+	}
+	if out, errs, err := run(t, root, "check", "catalog"); err != nil || out != "" || errs != "" {
+		t.Fatalf("init disturbed generated output: %v\n%s%s", err, out, errs)
+	}
+}
+
 // TestInitWritesTheHandlersOnce: init writes a Go server handler and a
 // TypeScript client handler for a family into a directory of the
 // consumer's own, compiling against the generated packages, and leaves

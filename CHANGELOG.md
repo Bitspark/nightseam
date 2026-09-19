@@ -35,6 +35,11 @@ are one number. Entries are in the words of the commits that landed them.
   the proof family and built-ins compile, and executable fixtures hold
   inherited calls, events, reverse calls and lossless union payloads.
 
+### Fixed
+
+- `nightseam init` skips Go handler scaffolds for model-only families,
+  which have no generated binding package to implement.
+
 ## 0.4.0 - 2026-09-19
 
 This release makes the consumer improvements landed since 0.3.0 available
