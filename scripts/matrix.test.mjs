@@ -5,7 +5,7 @@
 // nobody has run. docs/tiers.md is what these hold.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cell, columns, gate, missing, planned, table } from "./matrix.mjs";
+import { cell, columns, gate, missing, planned, table, unrun } from "./matrix.mjs";
 import { replace, section, start, end } from "./matrix-table.mjs";
 
 // The profiles as conformance/profiles.json declares them: the onboarding
@@ -62,6 +62,20 @@ test("a matrix missing a language profiles.json places is named, since a filtere
   assert.deepEqual(missing(matrix, profiles), []);
   const partial = { ...matrix, languages: { typescript: matrix.languages.typescript } };
   assert.deepEqual(missing(partial, profiles), ["go"]);
+});
+
+test("a profile no row has a cell for is named, since a gate reads an absent cell as nothing failing", () => {
+  assert.deepEqual(unrun(matrix, profiles), []);
+  const withoutGenerator = {
+    ...matrix,
+    languages: Object.fromEntries(
+      Object.entries(matrix.languages).map(([language, value]) => {
+        const { generator, ...cells } = value.cells;
+        return [language, { ...value, cells }];
+      }),
+    ),
+  };
+  assert.deepEqual(unrun(withoutGenerator, profiles), ["go has no generator cell", "typescript has no generator cell"]);
 });
 
 test("the table marks the reference and carries every language's tier and verdict", () => {

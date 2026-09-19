@@ -36,6 +36,23 @@ export function missing(matrix, profiles) {
   return Object.keys(profiles.languages ?? {}).filter(language => !rows[language]).sort();
 }
 
+/**
+ * Every profile a language's row has no cell for at all. The suite records a
+ * cell for each profile it placed a scenario in, skips included, so a column
+ * that is simply absent is a run that never reached it — which a table would
+ * show as an em dash and a gate would read as nothing failing. Named per
+ * language, since a language may enter the matrix before it carries a
+ * profile's testee.
+ */
+export function unrun(matrix, profiles) {
+  const declared = Object.keys(profiles.profiles ?? {});
+  const out = [];
+  for (const language of Object.keys(matrix.languages ?? {}).sort())
+    for (const profile of declared)
+      if (!matrix.languages[language].cells?.[profile]) out.push(`${language} has no ${profile} cell`);
+  return out;
+}
+
 /** What one cell says: passed, what was skipped with it, what failed. */
 export function cell(value) {
   if (!value) return "—";

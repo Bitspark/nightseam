@@ -46,7 +46,10 @@ tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
 1. Be on `main`, clean, with both tiers green: `go test ./...`,
    `pnpm -r check && pnpm -r test`, and `go vet ./... && go test ./...` in
    each nested Go module — `otel/go` — which the root module's `./...` does
-   not enter.
+   not enter. The conformance suite runs with the first of those and writes
+   `conformance/matrix.json`; commit it with whatever moved it, since the
+   release is weighed against the matrix the tag carries. *What a release
+   refuses*, below, says what a red cell does.
 2. Set the version everywhere: `node scripts/version.mjs 0.3.0`. It rewrites
    every manifest, the generator's constant and every nested module's
    requirement on the root module; since the constant is in
@@ -65,11 +68,39 @@ tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
    second tag is what that `go get` names, and it publishes nothing of its
    own.
 4. The `release` workflow runs on `v*`, which is the first tag and not the
-   second: it checks the versions against the tag, installs, runs both tiers
-   and each nested module's, builds, checks what provenance needs, publishes
-   the packages with the repository's `NPM_TOKEN` secret and `--provenance`,
-   and creates the GitHub release with that version's changelog section as
-   its notes.
+   second: it checks the versions and the conformance matrix against the tag,
+   installs, runs both tiers and each nested module's, builds, checks what
+   provenance needs, publishes the packages with the repository's `NPM_TOKEN`
+   secret and `--provenance`, and creates the GitHub release with that
+   version's changelog section as its notes.
+
+## What a release refuses
+
+A release is a promise per language, and `docs/tiers.md` says which promise.
+`scripts/release-prepare.mjs` reads `conformance/matrix.json` — the standing
+committed on the tag, which CI holds fresh, since a matrix that drifted fails
+the README's table check — and applies the tier table to it before anything
+is published:
+
+- a red cell in a profile the language's tier **guarantees** is what that
+  tier's `onFailure` says. For tiers 1 and 2 it is `stop`: the tag is
+  refused. For tiers 3 and 4 it is `provisional`: the release ships and the
+  language is named in the notes, under *Languages*, so a consumer reading
+  the release learns it without opening the matrix.
+- a red cell **elsewhere** is what the tier's `otherwise` says. Only tier 2
+  has one, `stop-next`: the release ships, the notes say the lag has begun,
+  and the next release is refused if the cell is still red. Whether it was
+  red before is read from the previous `v*` tag's own
+  `conformance/matrix.json`, which is why the workflow checks out the whole
+  history — a shallow checkout carries no tag to read, and every second
+  failure would pass as a first.
+- a matrix with no row for a language `profiles.json` places at a tier is
+  refused outright: it is the artifact of a run filtered by `-run`, and a tag
+  weighed against one is weighed against a language nobody ran.
+
+A first release, and a tag cut before the matrix was committed, both count as
+nothing failing before — so the first red cell outside a tier 2 language's
+guarantees always ships, and the second never does.
 
 ## Rehearsing one
 
@@ -79,18 +110,20 @@ except the two things that cannot be taken back: nothing is uploaded and no
 release is created, `--dry-run` taking the publish as far as packing each
 tarball and minting its provenance attestation. Run it before the first real
 tag of a version, and whenever the release path itself has changed, because
-each way it can fail — a version that drifted, a tier that is red, a build
-that emits nothing, a repository that is not public, an OIDC token the job
-may not mint — otherwise fails a run that follows a tag which already
-exists.
+each way it can fail — a version that drifted, a matrix cell the tier table
+stops for, a tier that is red, a build that emits nothing, a repository that
+is not public, an OIDC token the job may not mint — otherwise fails a run
+that follows a tag which already exists.
 
 What a rehearsal does not answer is the registry's own refusals: a name
 already taken at that version, a token expired or without publish rights on
 the scope. Those are given at the upload and nowhere before it.
 
 By hand, and further from what CI does: `node scripts/release-prepare.mjs
-v0.3.0` checks every spelling of the version and copies the license files,
-and `pnpm -r publish --dry-run --no-git-checks` shows what each tarball
+v0.3.0 --dry-run` checks every spelling of the version and the matrix
+against the tier table and writes nothing — without `--dry-run` it also
+copies the license files and writes `release-notes.md` — and
+`pnpm -r publish --dry-run --no-git-checks` shows what each tarball
 would hold. Neither mints provenance — that needs the workflow's token.
 
 ## What a consumer does

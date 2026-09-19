@@ -42,6 +42,13 @@ jobs:
       TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The whole history, for the tags alone: a tier 2 language is
+          # allowed one release of lag, and whether this release is the
+          # second it has failed in is read off the previous tag's
+          # conformance/matrix.json. A shallow checkout carries no tag to
+          # read, and the gate would let a second failure through as a first.
+          fetch-depth: 0
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -51,7 +58,14 @@ jobs:
           node-version-file: package.json
           cache: pnpm
           registry-url: https://registry.npmjs.org
-      - name: Hold the versions to the tag
+      # Every spelling of the version against the tag, and the conformance
+      # matrix against the tier table: a red cell in a profile the language's
+      # tier guarantees refuses the tag here, before anything is published,
+      # and a language the table ships as provisional is written into the
+      # notes. The matrix read is the one committed on the tag — the standing
+      # the release is cut at — and the suite runs below, so a tree that
+      # cannot pass fails the tag anyway.
+      - name: Hold the versions and the matrix to the tag
         run: node scripts/release-prepare.mjs "$TAG"
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r check
