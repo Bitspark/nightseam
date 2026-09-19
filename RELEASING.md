@@ -220,7 +220,7 @@ alternative:
 
 - **npm: a pnpm `overrides` map to the tarballs' paths**, rather than
   `pnpm add ./scratch/*.tgz`. The published packages depend on one another,
-  so a direct install of the five would satisfy the five and then go to the
+  so a direct install of them would satisfy exactly those and then go to the
   registry for the transitive `@nightseam/duplex` the tarballs already hold;
   an override reaches a transitive dependency and a direct one alike. Since
   pnpm 10 an override is a workspace setting, so the copy is given a
@@ -322,7 +322,7 @@ A release that adds a package therefore goes:
   package name is made with a granular access token — read and write on the
   `@nightseam` scope alone, one day's expiry — stored as the `NPM_TOKEN`
   secret for that one run, because npm's trusted publishing is configured on
-  a package that already exists. Once the five exist, each is given this
+  a package that already exists. Once they exist, each is given this
   repository's `release.yml` in the `release` environment as its trusted
   publisher, the secret is deleted, and every later publish authenticates
   by OIDC with no credential stored anywhere; that needs npm 11.5.1 and
