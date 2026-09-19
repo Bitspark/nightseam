@@ -11,6 +11,7 @@
  */
 import { createInterface } from 'node:readline';
 import { Client, DuplexError, asks, conversation, decides, errors, validateWire, type Payload, type Seen } from './api/ts/probe-client/src/index.ts';
+import type {Control} from './api/ts/session-client/src/index.ts';
 
 class Failure extends Error {
   readonly code: string;
@@ -27,8 +28,20 @@ type Args = Record<string, unknown>;
 class Dialled {
   client!: Client;
   readonly changed: Payload[] = [];
+  readonly notifications: Array<{event:string; data:unknown}> = [];
+  private readonly notificationWaiters: Array<() => void> = [];
   private readonly waiters: Array<() => void> = [];
-  changedEvent(data: Payload): void { this.changed.push(data); for (const w of this.waiters.splice(0)) w(); }
+  changedEvent(data: Payload): void { this.changed.push(data); for (const w of this.waiters.splice(0)) w(); this.notification('changed',data); }
+  controlEvent(data: Control): void { this.notification('session.control',data); }
+  private notification(event:string,data:unknown): void { this.notifications.push({event,data}); for(const w of this.notificationWaiters.splice(0)) w(); }
+  awaitNotification(withinMs:number): Promise<{event:string; data:unknown}|undefined> {
+    if(this.notifications.length) return Promise.resolve(this.notifications.shift());
+    return new Promise(resolve=>{
+      const wake=()=>{clearTimeout(timer); resolve(this.notifications.shift());};
+      const timer=setTimeout(()=>{const i=this.notificationWaiters.indexOf(wake); if(i>=0)this.notificationWaiters.splice(i,1); resolve(undefined);},withinMs);
+      this.notificationWaiters.push(wake);
+    });
+  }
   awaitChanged(withinMs: number): Promise<Payload | undefined> {
     if (this.changed.length) return Promise.resolve(this.changed.shift());
     return new Promise(resolve => {
@@ -83,7 +96,7 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
     const dialled = new Dialled();
     const client = await Client.dial(String(args.url), {}, {
       reverse: (params: Payload) => ({ ...params, text: 'typescript:' + params.text }),
-    }, { changed: data => dialled.changedEvent(data) }).catch(error => { throw fail('failed', String(error)); });
+    }, { changed: data => dialled.changedEvent(data), ...(args.control === false ? {} : {sessionControl:(data:Control)=>dialled.controlEvent(data)}) }).catch(error => { throw fail('failed', String(error)); });
     const handle = `cl${++next}`;
     dialled.client = client;
     handles.set(handle, dialled);
@@ -102,6 +115,12 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
     return { data };
   },
   'client.close': args => { dialledOf(args).client.close(); return {}; },
+  'client.on_control': args => { const dialled=dialledOf(args); dialled.client.onSessionControl(data=>dialled.controlEvent(data)); return {}; },
+  'client.await_notification': async args => {
+    const notification=await dialledOf(args).awaitNotification(withinOf(args));
+    if(notification===undefined) throw fail('timeout','no typed notification');
+    return notification;
+  },
   'gen.validate': args => {
     try {
       validateWire(JSON.parse(String(args.type)), args.value);
