@@ -185,6 +185,22 @@ and is given at a consumer's install, which is after the tag. It runs on
 every pull request too, in `ci.yml`'s full job, so that a packaging change
 fails the change rather than the release that carries it.
 
+The smoke also *imports* what it would publish. The example imports the two
+packages a generated client needs, so without more than that the rest of the
+release is packed, installed, held to carrying the files it names, and never
+opened. Every package the release finds is therefore imported from the copied
+consumer at every entry point its `publishConfig.exports` declares — type
+checked with library checking on, then loaded by Node — which is what asks the
+questions only a real import answers: a `dist` that imports a package the
+workspace link satisfied and a registry would not, an `exports` condition that
+resolves to nothing under Node's own resolver, declarations that only ever
+type-checked against a sibling's *source* rather than against its emitted
+`.d.ts`, an entry point the build emitted nothing into. The published map is
+what is imported and not the workspace one: inside the workspace a package may
+expose helpers — `./conformance` — that are this repository's fixtures and not
+entry points anybody installs, and `publishConfig` swaps the whole map at
+publish time.
+
 Before installing, the smoke checks each tarball for `dist/index.js`,
 `dist/index.d.ts`, `README.md`, `LICENSE` and `NOTICE`. For a local run,
 build the packages and copy the notices first:
@@ -267,6 +283,38 @@ is the same thing written for the consumer.
   carries; the example depends on the same two at the same version, with no
   `workspace:*`. A workspace override to a sibling checkout is for
   development only, and comes out when the packages it stands in for exist.
+
+## A name npm has not served
+
+`scripts/packages.mjs` finds the published packages on the disk, so a
+component added beside the others is released with the rest without being
+named anywhere. What the disk cannot say is whether npm has ever served that
+name — and that is what decides how the name authenticates. npm attaches a
+trusted publisher to a package that **already exists**, so the first publish
+of a name cannot be made by OIDC: it needs a granular token, read and write on
+the `@nightseam` scope alone with one day's expiry, stored as the `NPM_TOKEN`
+secret for that one run, exactly as the first names needed one.
+
+`node scripts/first-publish.mjs` asks the public registry which of the
+discovered names it already serves. It sends no credential, since whether a
+name exists is public and it asks nothing else, and a name it cannot get an
+answer about is a refusal rather than a new name. The release workflow runs it
+before the install, on a rehearsal as well as on a tag, and on a tag with
+`--require-credential`, which refuses the run when a name is new and no token
+is set. That refusal is the whole point of asking early: `pnpm -r publish`
+reaches a new name *after* the tag is pushed and after the names before it are
+already uploaded, and neither of those is taken back.
+
+A release that adds a package therefore goes:
+
+1. Rehearse. The rehearsal names it — `first publish: @nightseam/…` — and
+   publishes nothing.
+2. Create the granular token and store it as the `NPM_TOKEN` secret.
+3. Tag. The new name goes up by the token, the established ones by their
+   trusted publishers.
+4. Give the new package this repository's `release.yml` in the `release`
+   environment as its trusted publisher, and delete the secret again. The next
+   release publishes every name by OIDC, and `first-publish.mjs` says so.
 
 ## Once, before the first release
 

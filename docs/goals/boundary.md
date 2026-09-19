@@ -26,7 +26,9 @@ made.
   not a request from one.
 - **How sharply the line is stated.** Whether a proposal can be classified
   by a reader who did not write it; whether the same question, asked twice,
-  gets the same side.
+  gets the same side. The question is asked in one written form,
+  [admitting a concept](../admission.md), and the answers it has given are
+  kept there, so that the next asking is measured against the last.
 - **The shape of the crossing.** A consumer calls in with facts in its own
   terms — who it is, what it decided — and the mechanism takes them as
   given. Where a consumer must translate its concept into the tree's to be

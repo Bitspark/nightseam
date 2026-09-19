@@ -4,7 +4,7 @@
 // breaks a link is a check nobody has run.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { anchors, check, decodeMarkdown, links, slug } from "./links.mjs";
+import { anchors, check, decodeMarkdown, links, slug, sources } from "./links.mjs";
 
 test("Markdown must be UTF-8 before links and headings are read", () => {
   const page = "# A page — with an ellipsis … and a character outside the BMP 🧵\n";
@@ -75,4 +75,56 @@ test("an anchor on a page the check does not hold is a problem, on a file that i
   const tracked = new Set(["a.md", "b.md", "c.txt"]);
   const pages = new Map([["a.md", "[b](b.md#x) [c](c.txt#x)"]]);
   assert.deepEqual(check(pages, tracked), [{ page: "a.md", line: 1, target: "b.md#x", reason: "b.md is not a page this holds" }]);
+});
+
+test("the issue forms are sources beside the pages, and a workflow is not", () => {
+  const tracked = new Set([
+    "README.md",
+    "docs/admission.md",
+    ".github/ISSUE_TEMPLATE/design.yml",
+    ".github/ISSUE_TEMPLATE/config.yml",
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    ".github/workflows/ci.yml",
+    ".github/ruleset-main.json",
+    "scripts/links.mjs",
+  ]);
+  assert.deepEqual(
+    [...sources(tracked)].sort(),
+    [".github/ISSUE_TEMPLATE/config.yml", ".github/ISSUE_TEMPLATE/design.yml", ".github/PULL_REQUEST_TEMPLATE.md", "README.md", "docs/admission.md"],
+  );
+});
+
+test("a link in a form's markdown is read where it stands, and held to the tree by the repository's own URL", () => {
+  // A form renders on github.com, not in the tree, so its links are the
+  // repository's own absolute URLs; the check holds those as it holds a
+  // relative one. Its descriptions are YAML strings, indented and quoted,
+  // and a link inside them is read all the same.
+  const form = [
+    "name: Design",
+    "body:",
+    "  - type: markdown",
+    "    attributes:",
+    "      value: |",
+    "        The test is [admission](https://github.com/Bitspark/nightseam/blob/main/docs/admission.md#the-test).",
+    "  - type: textarea",
+    "    attributes:",
+    '      description: "Paths as `[not](a/link.md)`; see [the goal](https://github.com/Bitspark/nightseam/blob/main/docs/goals/gone.md)."',
+  ].join("\n");
+  assert.deepEqual(links(form), [
+    { line: 6, target: "https://github.com/Bitspark/nightseam/blob/main/docs/admission.md#the-test" },
+    { line: 9, target: "https://github.com/Bitspark/nightseam/blob/main/docs/goals/gone.md" },
+  ]);
+  const tracked = new Set(["docs/admission.md", ".github/ISSUE_TEMPLATE/design.yml"]);
+  const pages = new Map([
+    ["docs/admission.md", "# Admission\n## The test\n"],
+    [".github/ISSUE_TEMPLATE/design.yml", form],
+  ]);
+  assert.deepEqual(check(pages, tracked), [
+    {
+      page: ".github/ISSUE_TEMPLATE/design.yml",
+      line: 9,
+      target: "https://github.com/Bitspark/nightseam/blob/main/docs/goals/gone.md",
+      reason: "docs/goals/gone.md is not in the tree",
+    },
+  ]);
 });

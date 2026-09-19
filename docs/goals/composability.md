@@ -35,7 +35,9 @@ any other thing that carries frames, whatever it is made of.
 Layering: a part composes with what is beneath it, never sideways, and a
 composition that would have a part know a sibling is refused however
 convenient. The boundary: a part is a mechanism, and a part that exists to
-carry one consumer's policy is that consumer's, outside. Where composing
+carry one consumer's policy is that consumer's, outside — and a part is a
+primitive only when no assembly of the parts beneath it could have been it,
+which is decided by [admitting a concept](../admission.md). Where composing
 would cost a copy or a hop at every seam, the seam is made cheap rather
 than the composition being made special.
 

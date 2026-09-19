@@ -1,0 +1,12 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Message": {
+      "kind": "record",
+      "fields": [
+        {"name": "topic", "type": "string"},
+        {"name": "body", "type": "string"}
+      ]
+    }
+  }
+}

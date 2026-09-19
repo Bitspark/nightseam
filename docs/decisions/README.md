@@ -23,6 +23,7 @@ both, and says so at the top.
 
 | decision | serves | since |
 | --- | --- | --- |
+| [A concept is admitted by composition](a-concept-is-admitted-by-composition.md) | [boundary](../goals/boundary.md), [composability](../goals/composability.md) | 0.5.0, #199 |
 | [Envelope members are what the peer acts on](envelope-members-are-what-the-peer-acts-on.md) | [layering](../goals/layering.md) | v2 |
 | [`meta` is a header, not a member](meta-is-a-header-not-a-member.md) | [layering](../goals/layering.md), [boundary](../goals/boundary.md) | 0.3.0, #49 |
 | [No subprotocol by default](no-subprotocol-by-default.md) | [agnosticism](../goals/agnosticism.md) | 0.3.0 |

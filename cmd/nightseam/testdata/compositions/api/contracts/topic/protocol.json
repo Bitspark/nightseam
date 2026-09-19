@@ -1,0 +1,27 @@
+{
+  "profile": "nightseam.duplex/1",
+  "types": {
+    "Subscribe": {
+      "kind": "record",
+      "fields": [
+        {"name": "topic", "type": "string"},
+        {"name": "subscriber", "type": "duplex.Handle"}
+      ]
+    },
+    "Subscription": {
+      "kind": "record",
+      "fields": [
+        {"name": "token", "type": "string"},
+        {"name": "from", "type": "integer"}
+      ]
+    }
+  },
+  "server": {
+    "methods": {
+      "publish": {"request": "Message", "result": "integer", "description": "Answered with the sequence the topic gave the message, which is the order every subscriber is told it in."},
+      "subscribe": {"request": "Subscribe", "result": "Subscription", "errors": ["unknown_reference"]},
+      "unsubscribe": {"request": {"kind": "record", "fields": [{"name": "token", "type": "string"}]}, "result": "boolean"}
+    }
+  },
+  "errors": {"unknown_reference": "The subscriber names no channel of this connection, or one that speaks another family."}
+}
