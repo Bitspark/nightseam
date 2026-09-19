@@ -33,17 +33,14 @@ export interface Handle {
   /** The channel's id on that connection. */
   "channel": number;
 }
-/** What a probe carries: some text, and how often it has been seen. */
+/** What a probe carries. */
 export interface Payload {
-  /** The text of the payload. */
   "text": string;
-  /** How often the payload has been seen. */
-  "count": number;
 }
 /** The family: its name and the wire types a slot of it draws on. */
 export interface Family { readonly name: "probe"; Envelope: Envelope; Handle: Handle; Payload: Payload }
 
-const contractTypes = {"types":{"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Payload":{"kind":"record","fields":[{"name":"text","type":"string","required":true},{"name":"count","type":"integer","required":true}]}}} as unknown as WireFamily;
+const contractTypes = {"types":{"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Payload":{"kind":"record","fields":[{"name":"text","type":"string","required":true}]}}} as unknown as WireFamily;
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
 export const validateWire = createValidator(contractTypes, {  });
 /** This family bound: its name and its validator, to fill a slot of the session role in another family's client. */
