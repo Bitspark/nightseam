@@ -92,7 +92,7 @@ its **tier**: 1 guarantees every profile with no lag, 2 guarantees `core` and
 | `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
 | `typescript` | 1 | ✓ | ✓ 4 skipped | ✓ | ✓ | ✓ | ok |
 
-Planned, with no testee yet: `python`, `rust` at tier 2; `cpp`, `csharp`, `haskell`, `java` at tier 4.
+Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2; `java`, `swift` at tier 4.
 <!-- matrix:end -->
 
 The table is the last conformance run, rendered from

@@ -72,15 +72,18 @@ data keeps them apart because the suite gates on the difference.
 | tier | languages |
 |---|---|
 | 1 | Go, TypeScript |
-| 2 | Python, Rust |
-| 3–4 | C#, Java, C++, Haskell |
+| 2 | Python, Rust, C++, Haskell — the four pilots |
+| 3–4 | Java, Swift |
 
 A language is promoted by passing the next tier's gate for one release, and
 the promotion is a change to `profiles.json` with the release that makes it.
-The assignment is a policy about promises, not a ranking of languages: a
-language whose toolchain is quick to onboard may pass through tier 3 in a
-release and one whose is not may hold tier 4 for several, and neither
-changes what the tier means.
+The assignment is a policy about promises, not a ranking of languages, and
+not a forecast of effort: the four pilots are planned for tier 2 because
+they are the four that get pushed to every profile first, and two of them —
+C++ and Haskell — are there *because* they are the hardest. This repository
+tests its limits to find out where the model breaks before Bitlink settles
+it, and a language that would only ever be held to `core` is a language
+nobody pushed. Java and Swift follow at tier 4 and rise as they hold.
 
 ## How the suite enforces it
 

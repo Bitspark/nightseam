@@ -18,7 +18,7 @@
     "typescript": {"tier": 1}
   },
   "planned": {
-    "python": 2, "rust": 2,
-    "csharp": 4, "java": 4, "cpp": 4, "haskell": 4
+    "python": 2, "rust": 2, "cpp": 2, "haskell": 2,
+    "java": 4, "swift": 4
   }
 }
