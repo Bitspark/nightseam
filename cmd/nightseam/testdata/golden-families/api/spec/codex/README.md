@@ -28,6 +28,8 @@ A record, open: fields beyond the declared ones are kept.
 
 A record.
 
+Extends `Base`.
+
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `text` | `string` | required | — | inherited from `Base`. |

@@ -108,7 +108,19 @@ A third target, `spec`, renders each family's specification as Markdown at
 `api/spec/<family>/README.md` — its types with their fields and
 constraints, the two sides with their operations and errors, the parameters
 it is generic in, the governance of a session of it — from the declaration
-alone, so that the document is never behind it. It reserves nothing and
-refuses nothing, and it is a target that is no language: the example of
+alone, so that the document is never behind it. It reserves no language
+identifiers, and it is a target that is no language: the example of
 what a target is, beyond a rendering into code ([a specification is
 rendered, not written](../decisions/a-specification-is-rendered-not-written.md)).
+
+The specification includes inherited fields, union variants, operations,
+errors and session governance, while retaining the declared bases and the
+origin of inherited members. Shapes written inline appear under their
+derived names; nullable values, literals, both parameter sorts and explicit
+applications keep their declaration meaning. The generated header records
+the actual source directory, including a custom contracts root.
+
+The same target renders the complete [built-in family references](builtins/README.md),
+including each family's operations and types. Their generated headers name the
+embedded `nightseam:` source, and the fast test tier holds the documents to
+those declarations. The reference index names the regeneration command.

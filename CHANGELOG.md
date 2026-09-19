@@ -18,6 +18,16 @@ are one number. Entries are in the words of the commits that landed them.
   facts use the adjacent payload carrier from #146 and distinguish the
   explicit no-payload marker from an empty record or null. Target support remains gated by
   each renderer's existing refusals.
+- The spec target renders standalone references for the built-in families,
+  held to their embedded declarations by the fast test tier, and describes
+  the settled language: nullable expressions, literals, both parameter sorts,
+  applications, derived inline shapes, inherited unions, extended protocol
+  sides and their session governance. Its source addresses and inherited
+  entity references retain their declaration provenance. Union specifications
+  describe the complete payload under the value member, including records,
+  according to the lossless carrier verdict. Explicit inheritance bindings
+  appear beside their bases, and inherited members retain their substituted
+  type expressions and entity-reference ownership.
 - The declaration language gained the type language of #55's eight
   verdicts, whole and in one lane. **Unions**: `{"kind": "union", "tag":
   "type", "variants": {…}}`, internally tagged with a declared

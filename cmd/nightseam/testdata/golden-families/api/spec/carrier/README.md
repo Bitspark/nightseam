@@ -8,9 +8,9 @@ The tiers it declares bring the built-in family `duplex`, imported implicitly.
 
 ## Parameters
 
-The family is generic in the families bound to these parameters, where its generated code is instantiated:
+The family is instantiated by filling these parameters:
 
-- **S**, of the `session` role, drawn at `Envelope`, `Handle`.
+- **S**: a family with the `session` tier, drawn at `Envelope`, `Handle`.
 
 ## Types
 

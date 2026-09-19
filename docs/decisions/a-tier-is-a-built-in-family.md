@@ -22,6 +22,11 @@ their members, so a reader sees them without reading this repository; and
 rather than kept in step by hand. Naming a built-in in `imports` is
 refused, and so is declaring a type it carries.
 
+The same spec target renders [standalone references](../declaration/builtins/README.md)
+for every built-in family, including its operations as well as its types.
+The fast test tier compares those checked-in documents with the embedded
+declarations, so a changed built-in cannot leave its reference behind.
+
 The protocol tier's built-in is **carried**: its types are the importing
 family's own, because a family's envelope is a message of *that* family and
 `probe.Envelope` and `codex.Envelope` are two types a language must keep
