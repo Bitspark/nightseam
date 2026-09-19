@@ -26,7 +26,15 @@ peer.close();
 
 Both peers can call methods while serving one. A handler receives
 `{ signal, peer, requestId, trace }`; a `dispatch` option is the fallback for
-methods with no handler. Register handlers before connecting. Application
+methods with no handler. **Register before you attach**: a peer reads the
+connection from the moment it has one, so `handle`, `onEvent` and anything
+built over the peer — a `Tunnel`, which registers the channel operations —
+go on before `connect` or `attach`, or the other side's first request can be
+answered `method_not_found` by a peer whose handlers are still on their way.
+The order is the rule and not an accident of this API; Go reaches it with
+`runtime.Options.Prepare` ([docs/profile.md](https://github.com/Bitspark/nightseam/blob/main/docs/profile.md)). A peer that already has a
+connection refuses another: `attach` and `connect` reject `already_connected`
+rather than listening twice. Application
 code owns authentication and the authorization of incoming methods. A
 `webSocketFactory` supplies a socket of the platform's own; `attach(connection)`
 takes an externally authenticated socket, or any `FrameConnection` — a

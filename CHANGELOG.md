@@ -208,6 +208,25 @@ Nothing yet.
 
 ### Fixed
 
+- A handler installed on an accepted peer cannot miss the other side's first
+  request: `runtime.Options.Prepare` runs on the peer after its handlers and
+  events are installed and before it reads a frame, so `Handle`, `HandleEvent`
+  and a `tunnel.New` over the peer are there before anything can arrive. The
+  Go peer started reading inside `newPeer` and `Accept` called `OnConnect`
+  after that, so a client that opened a channel the moment it saw the `101` —
+  the first act of a consumer that came for a session, and the pattern
+  `docs/tunnel.md` taught — could be refused `channel_refused` with
+  `method_not_found` beneath it; a server whose install takes a millisecond
+  lost 868 of 1000 opens that way and loses none now. `ServerOptions` and
+  `DialOptions` reach the hook through their embedded `Options`, so both
+  constructors have it and neither grew a member; a `Prepare` that fails
+  fails the construction, and a socket whose handshake was already answered
+  is closed with 1008 rather than left open in silence. `OnConnect` is
+  unchanged and means what it meant — the peer is live — and the documents
+  say which is for what: install in one, use in the other. TypeScript had the
+  order already, a peer being made before it is attached, and its README says
+  that this is the rule.
+
 - The seam has a conformance suite in TypeScript too, and three transports run
   it: `duplex/ts/src/conformance.ts`, the twin of `duplex/go/duplextest`, run
   by the in-memory pipe and the WebSocket adapter in `duplex/ts` and by a

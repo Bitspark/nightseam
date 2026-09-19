@@ -106,8 +106,38 @@ buffer — it stalls its own sender and nothing else.
 
 ## Using it
 
+A tunnel is made over a peer **before that peer reads its first frame**, on
+whichever side may be opened to: `tunnel.New` registers `channel.open` and
+the three channel events on the peer, and a peer that is already reading can
+refuse the other side's first open `method_not_found` before they are there.
+In Go that place is `Options.Prepare`, which runs on the peer between its
+construction and its loops — `ServerOptions` and `DialOptions` both reach it,
+and `OnConnect` is too late. In TypeScript it is the ordering the peer has
+anyway: make the `Tunnel`, then `connect` or `attach`.
+
 ```go
-carrier, _ := tunnel.New(peer, tunnel.Options{})       // once per outer peer
+handler, _ := runtime.NewHandler(runtime.ServerOptions{
+	Options: runtime.Options{Prepare: func(peer *runtime.Peer) error {
+		carrier, err := tunnel.New(peer, tunnel.Options{}) // once per outer peer, before it reads
+		if err != nil {
+			return err
+		}
+		go serve(peer.Context(), carrier)                  // takes what the other side opens
+		return nil
+	}},
+	Authenticate: authenticate, CheckOrigin: allow,
+})
+```
+
+```go
+var carrier *tunnel.Tunnel
+peer, _, _ := runtime.Dial(ctx, url, runtime.DialOptions{
+	Options: runtime.Options{Prepare: func(p *runtime.Peer) (err error) {
+		carrier, err = tunnel.New(p, tunnel.Options{})     // the dialing side, likewise
+		return err
+	}},
+})
+defer peer.Close()
 channel, _ := carrier.Open(ctx, "chat", 0)             // this side opens
 served, _ := chatbinding.Serve(ctx, channel, …)        // and speaks the family over it
 
@@ -116,10 +146,12 @@ client, _ := chatclient.Open(ctx, carrier, handle, …)  // or resolves a handle
 ```
 
 ```ts
-const tunnel = new Tunnel(peer);
-const channel = await tunnel.open('chat');
+const peer = new DuplexPeer();
+const carrier = new Tunnel(peer);                      // before the peer is attached
+await peer.connect(url);
+const channel = await carrier.open('chat');
 const client = await Client.attach(channel, …);
-const resolved = await Client.open(tunnel, handle, …);
+const resolved = await Client.open(carrier, handle, …);
 ```
 
 ## Observing it

@@ -296,7 +296,10 @@ sends a frame of the session's own vocabulary is **1002** in both.
 
 A consumer's server: its attach operation opens the consumer's connection —
 a channel through the tunnel where one socket carries several, the socket
-itself where it carries one — and calls `Attach`; its rule for who may take
+itself where it carries one — and calls `Attach`; the tunnel over an
+accepted peer is made in `runtime.Options.Prepare` in Go and before `attach`
+in TypeScript, so that a consumer's first `channel.open` meets it rather
+than a peer still being furnished (docs/tunnel.md); its rule for who may take
 control — and a lease, if it wants one — calls `Control`; its frame log is a
 durable `Log`; its attention list is `Attention()`; its machine side hands
 `Bind` a connection per running session, a channel it opened and named in a

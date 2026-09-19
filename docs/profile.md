@@ -61,6 +61,30 @@ are: a client that offers a subprotocol must be met by a server that selects
 one of them, or the browser refuses the connection. Offering and selecting
 are one decision, taken on both sides together.
 
+## When a peer starts reading
+
+A peer reads the connection from the moment it exists, so what it must serve
+is installed before it exists, not after. Both constructors run in one order:
+the options are taken, **`Prepare` runs on the peer**, the read and write
+loops start, and only then does the caller get the peer — `Accept` calls
+`OnConnect`, `Dial` returns. `Prepare` is `runtime.Options.Prepare` in Go,
+reached through the embedded `Options` of `ServerOptions` and `DialOptions`,
+and it holds a peer nothing has reached: `Handle`, `HandleEvent` and a
+`tunnel.New` over the peer cannot miss a frame there. An error from it fails
+the construction — no peer is returned, and a socket the handshake already
+answered is closed with 1008 rather than left open in silence.
+
+`OnConnect` is the other half and means what it always meant: the peer is
+live, has read frames and may have answered them. A handler installed there
+is installed on a peer the other side may already have called, which is
+`method_not_found` for the first request of a consumer that opens a channel
+the moment it sees the `101`. Install in `Prepare`, use in `OnConnect`.
+
+TypeScript has the same order by construction rather than by a hook: a
+`DuplexPeer` is made, `handle` and `onEvent` register on it, and `attach` or
+`connect` gives it a connection — handlers first, frames second. Attaching a
+peer that already has one is refused `already_connected`.
+
 ## The envelope
 
 One JSON object per frame, with `version` `1` and a `kind`:

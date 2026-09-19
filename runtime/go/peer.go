@@ -83,8 +83,16 @@ type Event struct {
 // Options limits are per connection. Zero values select the documented defaults.
 // Handlers may run concurrently; event callbacks run serially in receive order.
 type Options struct {
-	Handlers              map[string]Handler
-	Events                map[string]EventHandler
+	Handlers map[string]Handler
+	Events   map[string]EventHandler
+	// Prepare runs on the peer once it is built and before it reads its
+	// first frame: what it installs — Handle, HandleEvent, a tunnel over the
+	// peer — is there before anything can arrive, so the other side's first
+	// request cannot be refused method_not_found by a peer whose handlers
+	// are still on their way. Install in Prepare, use in OnConnect, which
+	// runs on a peer that is already live. An error fails the construction:
+	// the peer never runs and the constructor answers with it.
+	Prepare               func(*Peer) error
 	MaxConcurrentHandlers int
 	// MaxPendingRequests bounds the calls this peer may have outstanding at
 	// once; the one past it is refused busy without reaching the wire. It is
@@ -247,6 +255,12 @@ func newPeer(ctx context.Context, conn duplex.Conn, role Role, options Options, 
 	for k, v := range o.Events {
 		p.eventHandlers[k] = v
 	}
+	if o.Prepare != nil {
+		if err := o.Prepare(p); err != nil {
+			p.abandon(err)
+			return nil, err
+		}
+	}
 	p.observeOpened(role)
 	go p.readLoop()
 	go p.writeLoop()
@@ -299,6 +313,21 @@ func (p *Peer) fail(err error) { p.end(err, codeAborted, "") }
 // a gateway or a proxy between the two can act on a code and can act on
 // nothing at all (docs/profile.md).
 func (p *Peer) refuse(err error) { p.end(err, duplex.CodeDuplex, err.Error()) }
+
+// abandon releases a peer that never ran: Prepare failed, the loops were
+// never started and nothing of the profile reached the wire, so there is
+// nothing to close with a code here — the connection is disposed of by the
+// constructor that opened it. Whatever Prepare started before it failed sees
+// the context cancelled and Done closed, as it would on any other end.
+func (p *Peer) abandon(err error) {
+	p.once.Do(func() {
+		p.mu.Lock()
+		p.err = err
+		p.mu.Unlock()
+		p.cancel()
+		close(p.done)
+	})
+}
 
 // codeAborted stands for no close at all: the connection is aborted, nothing
 // is sent, and the far side reads 1006.

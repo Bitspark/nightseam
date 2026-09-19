@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/duplex/go/ws"
 )
 
@@ -18,7 +19,12 @@ type ServerOptions struct {
 	Options      Options
 	Authenticate func(*http.Request) (context.Context, error)
 	CheckOrigin  func(*http.Request) bool
-	OnConnect    func(*Peer)
+	// OnConnect is called with a peer that is already live: it has read
+	// frames and may have answered them. It is where a server uses the peer
+	// — calls it, keeps it, waits on it. What a peer must serve is installed
+	// in Options.Prepare, which runs before it reads anything; a handler
+	// installed here can be too late for the other side's first request.
+	OnConnect func(*Peer)
 	// Subprotocols are what the server will select, in its own order of
 	// preference, from what a client offers; empty selects none, which is
 	// the default and what every consumer that sets nothing keeps. The
@@ -76,10 +82,23 @@ func Accept(w http.ResponseWriter, r *http.Request, options ServerOptions) (*Pee
 	conn := ws.New(socket, o.MaxFrameBytes)
 	peer, err := newPeer(ctx, conn, ServerRole, options.Options, socket.Subprotocol())
 	if err != nil {
-		_ = conn.Abort()
+		// Everything else newPeer refuses was refused by validate above, so
+		// this is Prepare's own error: the upgrade is answered and the
+		// profile will not be spoken over it, and a socket left open in
+		// silence behind a 101 is the one thing the client cannot read.
+		refuseConnection(conn, o.WriteTimeout)
 		return nil, err
 	}
 	return peer, nil
+}
+
+// refuseConnection ends a socket the handshake opened and the peer above it
+// never took, with the code a policy refusal carries everywhere (1008) rather
+// than the abort a live peer's failure would leave.
+func refuseConnection(conn duplex.Conn, timeout time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	_ = conn.Close(ctx, duplex.CodePolicyViolation, "the connection was refused before the profile began")
 }
 
 // NewHandler serves the profile at an HTTP endpoint: each request that
@@ -160,7 +179,10 @@ func Dial(ctx context.Context, url string, options DialOptions) (*Peer, *http.Re
 	conn := ws.New(socket, o.MaxFrameBytes)
 	peer, err := newPeer(ctx, conn, ClientRole, options.Options, socket.Subprotocol())
 	if err != nil {
-		_ = conn.Abort()
+		// As in Accept: the only error left here is Prepare's, and the
+		// server is told the connection was refused rather than left with a
+		// socket this side will never speak over.
+		refuseConnection(conn, o.WriteTimeout)
 		return nil, response, err
 	}
 	return peer, response, nil
