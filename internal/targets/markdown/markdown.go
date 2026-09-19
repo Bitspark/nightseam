@@ -304,6 +304,7 @@ func (p *page) declarations(types []*doc.Type) {
 				p.linef("| %s | %s | %s |", cell(code(string(tag))), cell(payload), code(p.qualified(variant.Origin.Family, variant.Origin.Declaration)))
 			}
 		}
+		p.languageBlocks(t.Languages)
 		p.example(t)
 	}
 }
@@ -425,6 +426,7 @@ func (p *page) side(name, intro string, side doc.Side) {
 			p.linef("Or refuses with `%s`:", refusal.Code)
 			p.json(refusal.Frame)
 		}
+		p.languageBlocks(m.Languages)
 	}
 	for _, e := range side.Events {
 		p.line("")
@@ -432,6 +434,40 @@ func (p *page) side(name, intro string, side doc.Side) {
 		p.line("")
 		p.linef("The %s emits:", callee)
 		p.json(e.Frame)
+		p.languageBlocks(e.Languages)
+	}
+}
+
+func (p *page) languageBlocks(languages map[string]doc.Language) {
+	names := make([]string, 0, len(languages))
+	for name := range languages {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		language := languages[name]
+		var fragments []string
+		for _, fragment := range []string{language.Declare, language.Invoke.Call, language.Invoke.Handle} {
+			if fragment != "" {
+				fragments = append(fragments, fragment)
+			}
+		}
+		if len(fragments) == 0 {
+			continue
+		}
+		source := strings.Join(fragments, "\n\n")
+		fence := "```"
+		for strings.Contains(source, fence) {
+			fence += "`"
+		}
+		p.line("")
+		p.linef("In %s:", code(name))
+		p.line("")
+		p.line(fence + name)
+		for _, line := range strings.Split(source, "\n") {
+			p.line(line)
+		}
+		p.line(fence)
 	}
 }
 

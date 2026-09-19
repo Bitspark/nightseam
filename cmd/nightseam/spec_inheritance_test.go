@@ -115,7 +115,7 @@ func TestSpecificationKeepsReferenceArgumentScope(t *testing.T) {
 
 func renderSpecificationFixture(t *testing.T, files fstest.MapFS, family string) string {
 	t.Helper()
-	k := kernel.New(doc.Target(markdown.New(markdown.Config{})))
+	k := kernel.New(doc.Target(markdown.New(markdown.Config{}), nil))
 	world := k.Load(files, "contracts")
 	result, err := k.Render(world, family)
 	if err != nil {

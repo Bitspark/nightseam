@@ -26,7 +26,7 @@ func TestRenderTypeExpressionsAndParameters(t *testing.T) {
 		},
 	}))
 	f := render.Build(analysis.Resolve(world, "x"))
-	files, err := doc.Target(New(Config{})).Render(f)
+	files, err := doc.Target(New(Config{}), nil).Render(f)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestRenderInheritedSessionGovernance(t *testing.T) {
 	if diagnostics := check.Family(family); len(diagnostics) != 0 {
 		t.Fatal(diagnostics)
 	}
-	files, err := doc.Target(New(Config{})).Render(render.Build(family))
+	files, err := doc.Target(New(Config{}), nil).Render(render.Build(family))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestRenderFamilyTypeParameterWithoutFamilyDraw(t *testing.T) {
 			"protocol.json": modeltest.Protocol(`"parameters":[{"name":"Item"}],"server":{"methods":{"echo":{"request":"Item","result":"Item"}}}`),
 		},
 	}))
-	files, err := doc.Target(New(Config{})).Render(render.Build(analysis.Resolve(world, "x")))
+	files, err := doc.Target(New(Config{}), nil).Render(render.Build(analysis.Resolve(world, "x")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestRenderUnionAndSideDeclarations(t *testing.T) {
 			"protocol.json": modeltest.Protocol(`"imports":["base"],"server":{"extends":["base"],"methods":{"choose":{"result":"Choice"}}}`),
 		},
 	}))
-	files, err := doc.Target(New(Config{})).Render(render.Build(analysis.Resolve(world, "x")))
+	files, err := doc.Target(New(Config{}), nil).Render(render.Build(analysis.Resolve(world, "x")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestRenderBuiltinReferences(t *testing.T) {
 	for _, name := range builtin.Names() {
 		t.Run(name, func(t *testing.T) {
 			family := render.Build(analysis.Resolve(world, name))
-			files, err := doc.Target(New(Config{})).Render(family)
+			files, err := doc.Target(New(Config{}), nil).Render(family)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -178,7 +178,7 @@ func TestRenderUnionDistinguishesAbsentPayload(t *testing.T) {
 			{Variant: model.Variant{Tag: "record"}, DeclaredType: model.Named{Name: "EmptyRecord"}},
 		},
 	})
-	files, err := doc.Target(New(Config{})).Render(family)
+	files, err := doc.Target(New(Config{}), nil).Render(family)
 	if err != nil {
 		t.Fatal(err)
 	}

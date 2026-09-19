@@ -82,11 +82,14 @@ func (l Layout) Dir(family string) string {
 // what it refuses, what it renders — is answered here once, from the
 // writer's layout, so that a writer implements none of it and every format
 // is held by the kernel the same way.
-func Target(w Writer) spi.Target { return &target{w: w, layout: w.Layout()} }
+func Target(w Writer, spellers map[string]spi.Speller) spi.Target {
+	return &target{w: w, layout: w.Layout(), spellers: spellers}
+}
 
 type target struct {
-	w      Writer
-	layout Layout
+	spellers map[string]spi.Speller
+	w        Writer
+	layout   Layout
 }
 
 func (t *target) Name() string { return t.w.Name() }
@@ -180,7 +183,7 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 	if err := t.layout.Validate(); err != nil {
 		return nil, err
 	}
-	return t.w.Family(Build(f))
+	return t.w.Family(Build(f, t.spellers))
 }
 
 // RenderCheckout writes the pages of the checkout as a whole.
@@ -188,5 +191,5 @@ func (t *target) RenderCheckout(w *render.World) ([]spi.File, error) {
 	if err := t.layout.Validate(); err != nil {
 		return nil, err
 	}
-	return t.w.Checkout(BuildCheckout(w))
+	return t.w.Checkout(BuildCheckout(w, t.spellers))
 }

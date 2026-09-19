@@ -15,10 +15,10 @@ import (
 	"github.com/Bitspark/nightseam/internal/targets/markdown"
 )
 
-// The spec target alone renders through the checked kernel, so its complete
-// output is held even while the language targets still refuse new forms.
+// The document renders through the checked kernel with both language
+// targets' spellings, so the proof holds every form's code blocks as well.
 func TestProofSpecificationGolden(t *testing.T) {
-	k := kernel.New(doc.Target(markdown.New(markdown.Config{})))
+	k := kernel.New(doc.Target(markdown.New(markdown.Config{}), testSpellers()))
 	world := k.Load(os.DirFS("testdata"), "proof")
 	files := map[string][]byte{}
 	for _, name := range world.Names {
@@ -38,7 +38,7 @@ func TestProofSpecificationGolden(t *testing.T) {
 // must be present, named and linked by their actual type expressions.
 func TestProofSpecificationIsComplete(t *testing.T) {
 	family := render.Build(analysis.Resolve(proofWorld(t), "proof"))
-	target := doc.Target(markdown.New(markdown.Config{}))
+	target := doc.Target(markdown.New(markdown.Config{}), nil)
 	if diagnostics := target.Check(family); len(diagnostics) != 0 {
 		t.Errorf("the spec target refuses the proof family: %v", diagnostics)
 	}
@@ -95,7 +95,7 @@ func TestSpecificationNamesNestedInlineShapes(t *testing.T) {
 	if diagnostics := check.Family(family); len(diagnostics) != 0 {
 		t.Fatalf("the inline fixture is invalid: %v", diagnostics)
 	}
-	target := doc.Target(markdown.New(markdown.Config{}))
+	target := doc.Target(markdown.New(markdown.Config{}), nil)
 	facts := render.Build(family)
 	if diagnostics := target.Check(facts); len(diagnostics) != 0 {
 		t.Errorf("the spec target refuses nested inline shapes: %v", diagnostics)
@@ -124,7 +124,7 @@ func TestSpecificationNamesItsActualSourceDirectory(t *testing.T) {
 	files := fstest.MapFS{
 		"custom/contracts/x/model.json": {Data: []byte(`{"nightseam":2,"types":{"Item":{"kind":"record","fields":[{"name":"id","type":"string"}]}}}`)},
 	}
-	k := kernel.New(doc.Target(markdown.New(markdown.Config{})))
+	k := kernel.New(doc.Target(markdown.New(markdown.Config{}), nil))
 	world := k.Load(files, "custom/contracts")
 	result, err := k.Render(world, "x")
 	if err != nil {
@@ -154,7 +154,7 @@ func TestSpecificationPreservesInheritedEntityReferences(t *testing.T) {
 			t.Fatalf("the reference fixture is invalid in %s: %v", name, diagnostics)
 		}
 	}
-	files, err := doc.Target(markdown.New(markdown.Config{})).Render(render.Build(analysis.Resolve(world, "child")))
+	files, err := doc.Target(markdown.New(markdown.Config{}), nil).Render(render.Build(analysis.Resolve(world, "child")))
 	if err != nil {
 		t.Fatal(err)
 	}

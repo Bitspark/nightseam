@@ -37,7 +37,7 @@ func TestCheckoutPagesAreRenderedWhole(t *testing.T) {
 	previous := toolTargets
 	toolTargets = func(c load.Config, module, scope, sibling string) ([]spi.Target, []diag.Diagnostic) {
 		targets, diagnostics := compose.Configure(c, module, scope, sibling)
-		return append(targets, doc.Target(roster{})), diagnostics
+		return append(targets, doc.Target(roster{}, nil)), diagnostics
 	}
 	defer func() { toolTargets = previous }()
 

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/Bitspark/nightseam/internal/analysis"
+	"github.com/Bitspark/nightseam/internal/doc"
 	"github.com/Bitspark/nightseam/internal/kernel"
 	"github.com/Bitspark/nightseam/internal/render"
 	"github.com/Bitspark/nightseam/internal/spi"
@@ -85,17 +86,18 @@ func TestLanguageCallsCompile(t *testing.T) {
 
 func languageCalls(f *render.Family, s spi.Speller) []string {
 	var calls []string
+	d := doc.Build(f, map[string]spi.Speller{"language": s})
 	for _, side := range []struct {
 		name       string
-		operations render.Side
-	}{{"server", f.Server}, {"client", f.Client}} {
+		operations doc.Side
+	}{{"server", d.Server}, {"client", d.Client}} {
 		for _, m := range side.operations.Methods {
-			if call := s.Invoke(f, side.name, m.Name).Call; call != "" {
+			if call := m.Languages["language"].Invoke.Call; call != "" {
 				calls = append(calls, call)
 			}
 		}
 		for _, e := range side.operations.Events {
-			if call := s.Invoke(f, side.name, e.Name).Call; call != "" {
+			if call := e.Languages["language"].Invoke.Call; call != "" {
 				calls = append(calls, call)
 			}
 		}

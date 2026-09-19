@@ -8,6 +8,7 @@ import (
 
 	"github.com/Bitspark/nightseam/internal/analysis"
 	"github.com/Bitspark/nightseam/internal/compose"
+	"github.com/Bitspark/nightseam/internal/doc"
 	"github.com/Bitspark/nightseam/internal/load"
 	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
@@ -34,6 +35,13 @@ func TestLanguageSnippetsComeFromGeneratedCode(t *testing.T) {
 					if !ok {
 						t.Fatal("language target has no Speller")
 					}
+					document := doc.Build(f, map[string]spi.Speller{target.Name(): s})
+					documentTypes := map[string]*doc.Type{}
+					for _, group := range [][]*doc.Type{document.Types, document.Carried} {
+						for _, typ := range group {
+							documentTypes[typ.Name] = typ
+						}
+					}
 					files, err := target.Render(f)
 					if err != nil {
 						t.Fatal(err)
@@ -43,7 +51,8 @@ func TestLanguageSnippetsComeFromGeneratedCode(t *testing.T) {
 						generated.Write(file.Data)
 					}
 					for _, typ := range f.Types {
-						declaration := s.Declare(f, typ.Declaration)
+						language := documentTypes[typ.Name].Languages[target.Name()]
+						declaration := language.Declare
 						if declaration == "" || !strings.Contains(generated.String(), declaration) {
 							t.Errorf("%s declaration is absent from generated code:\n%s", typ.Name, declaration)
 						}
@@ -51,8 +60,8 @@ func TestLanguageSnippetsComeFromGeneratedCode(t *testing.T) {
 						if typ.Inline {
 							expr = model.Inline{Type: typ.Declaration}
 						}
-						if spelling := s.Spell(f, expr); spelling == "" {
-							t.Errorf("%s has no spelling", typ.Name)
+						if spelling := s.Spell(f, expr); spelling == "" || language.Name != spelling {
+							t.Errorf("%s document spelling %q differs from target %q", typ.Name, language.Name, spelling)
 						}
 					}
 					stubs, err := target.(spi.Scaffolder).Scaffold(f, "api/impl/"+f.Name)
@@ -63,9 +72,9 @@ func TestLanguageSnippetsComeFromGeneratedCode(t *testing.T) {
 					for _, stub := range stubs {
 						scaffold.Write(stub.Data)
 					}
-					for side, operations := range map[string]render.Side{"server": f.Server, "client": f.Client} {
+					for side, operations := range map[string]doc.Side{"server": document.Server, "client": document.Client} {
 						for _, m := range operations.Methods {
-							invocation := s.Invoke(f, side, m.Name)
+							invocation := m.Languages[target.Name()].Invoke
 							wantHandle := target.Name() == "go" && side == "server" || target.Name() == "typescript" && side == "client"
 							if wantHandle && invocation.Handle == "" {
 								t.Errorf("%s %s has no init handler snippet", side, m.Name)
@@ -78,7 +87,7 @@ func TestLanguageSnippetsComeFromGeneratedCode(t *testing.T) {
 							}
 						}
 						for _, e := range operations.Events {
-							if s.Invoke(f, side, e.Name).Call == "" {
+							if e.Languages[target.Name()].Invoke.Call == "" {
 								t.Errorf("%s %s event has no call snippet", side, e.Name)
 							}
 						}
