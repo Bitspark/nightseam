@@ -7,7 +7,7 @@ export interface AttachParams {
   "id": string;
 }
 /** A channel that speaks S, and the last sequence it saw. */
-export interface Attachment<S extends AnyFamily = SessionFamily> {
+export interface Attachment<S extends AnyFamily = AnyFamily> {
   "connection": S["Handle"];
   "last": number;
 }
@@ -39,11 +39,11 @@ export interface Envelope {
   "meta"?: Record<string, string>;
 }
 /** One message of S with its place in the sequence. */
-export interface Frame<S extends AnyFamily = SessionFamily> {
+export interface Frame<S extends AnyFamily = AnyFamily> {
   "sequence": number;
   "message": S["Envelope"];
 }
-export type Frames<S extends AnyFamily = SessionFamily> = Array<Frame<S>>;
+export type Frames<S extends AnyFamily = AnyFamily> = Array<Frame<S>>;
 /** A reference to a channel on the connection that carries the message holding it. */
 export interface Handle {
   /** The channel's id on that connection. */
@@ -51,10 +51,8 @@ export interface Handle {
 }
 /** The family: its name and the wire types a slot of it draws on. */
 export interface Family { readonly name: "carrier"; AttachParams: AttachParams; Envelope: Envelope; Handle: Handle }
-/** The session role: every family of the world that has a session tier. */
-export type SessionFamily = probe.Family;
 
-const contractTypes = {"types":{"AttachParams":{"kind":"record","fields":[{"name":"id","type":"string","required":true}]},"Attachment":{"kind":"record","fields":[{"name":"connection","type":"S.Handle","required":true},{"name":"last","type":"integer","required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Frame":{"kind":"record","fields":[{"name":"sequence","type":"integer","required":true},{"name":"message","type":"S.Envelope","required":true}]},"Frames":{"kind":"alias","type":{"array":"Frame"}},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]}},"parameters":[{"name":"S","of":"session"}]} as unknown as WireFamily;
+const contractTypes = {"types":{"AttachParams":{"kind":"record","fields":[{"name":"id","type":"string","required":true}]},"Attachment":{"kind":"record","fields":[{"name":"connection","type":"S.Handle","required":true},{"name":"last","type":"integer","required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Frame":{"kind":"record","fields":[{"name":"sequence","type":"integer","required":true},{"name":"message","type":"S.Envelope","required":true}]},"Frames":{"kind":"alias","type":{"array":"Frame"}},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]}},"parameters":[{"name":"S","of":"protocol"}]} as unknown as WireFamily;
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
 export const validateWire = createValidator(contractTypes, { "probe": validate_probe });
 /** This family bound: its name and its validator, to fill a slot of the session role in another family's client. */
