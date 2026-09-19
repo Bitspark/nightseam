@@ -24,6 +24,7 @@ type Handler interface {
 // Caller is the protocol's caller side: every operation a client sends. Client implements it.
 type Caller interface {
 	Shift(ctx context.Context, params protocol.Shift) (string, error)
+	Relieve(ctx context.Context, params protocol.RelieveRequest) (protocol.Shift, error)
 	Watch(ctx context.Context, params protocol.Watch) (workerprotocol.Job, error)
 }
 
@@ -41,6 +42,7 @@ func install(handler Handler, events Events, options *runtime.Options) error {
 		families[name] = existing
 	}
 	families["shift"] = "supervisor"
+	families["relieve"] = "supervisor"
 	families["watch"] = "supervisor"
 	options.Families = families
 	prepare := options.Prepare
@@ -104,6 +106,30 @@ func (c *Client) Shift(ctx context.Context, params protocol.Shift) (string, erro
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"string\""), raw); err != nil {
+		return result, err
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+// Relieve: A shape written inline that carries a callable: named by where it sits, like any other, and converted at the boundary like any other.
+func (c *Client) Relieve(ctx context.Context, params protocol.RelieveRequest) (protocol.Shift, error) {
+	var result protocol.Shift
+	scope, ok := live.ScopeOf(c.Peer)
+	if !ok {
+		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
+	}
+	sent, err := protocol.ExportRelieveRequest(scope, params)
+	if err != nil {
+		return result, err
+	}
+	var raw json.RawMessage
+	if err := c.Peer.Call(ctx, "relieve", sent, &raw); err != nil {
+		return result, err
+	}
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Shift\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {

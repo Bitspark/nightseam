@@ -37,6 +37,10 @@ export interface Handle {
   /** The channel's id on that connection. */
   "channel": number;
 }
+export interface RelieveRequest {
+  "shift": Shift;
+  "sink": worker.ProgressSink;
+}
 /** Self-contained data, declared where data belongs. */
 export interface Shift {
   "name": string;
@@ -48,7 +52,22 @@ export interface Watch {
   "spares"?: Array<worker.ProgressSink>;
 }
 /** The family: its name and the wire types a slot of it draws on. */
-export interface Family { readonly name: "supervisor"; Envelope: Envelope; Handle: Handle; Shift: Shift; Watch: Watch }
+export interface Family { readonly name: "supervisor"; Envelope: Envelope; Handle: Handle; RelieveRequest: RelieveRequest; Shift: Shift; Watch: Watch }
+/** Writes RelieveRequest as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
+export function exportRelieveRequest(scope: LiveScope, value: RelieveRequest): unknown {
+  const out: Record<string, unknown> = {};
+  out["shift"] = value["shift"];
+  out["sink"] = live_worker.exportProgressSink(scope, value["sink"] as worker.ProgressSink);
+  return out;
+}
+/** Reads RelieveRequest as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
+export function importRelieveRequest(scope: LiveScope, raw: unknown): RelieveRequest {
+  const wire = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  out["shift"] = wire["shift"];
+  out["sink"] = live_worker.importProgressSink(scope, wire["sink"]);
+  return out as unknown as RelieveRequest;
+}
 /** Writes Watch as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportWatch(scope: LiveScope, value: Watch): unknown {
   const out: Record<string, unknown> = {};
