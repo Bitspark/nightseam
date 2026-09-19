@@ -8,10 +8,10 @@ The tiers it declares bring the built-in family `duplex`, imported implicitly.
 
 ## Parameters
 
-The family is generic in the families bound to these parameters, where its generated code is instantiated:
+The family is instantiated by filling these parameters:
 
-- **A**, of the `session` role, drawn at `Envelope`.
-- **B**, of the `session` role, drawn at `Envelope`.
+- **A**: a family with the `session` tier, drawn at `Envelope`.
+- **B**: a family with the `session` tier, drawn at `Envelope`.
 
 ## Types
 
@@ -21,7 +21,7 @@ A record, generic in `B.Envelope`.
 
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
-| `frame` | `carrier.Frame` with S=B | required | — |  |
+| `frame` | `carrier.Frame` with S=`B` | required | — |  |
 
 ### Both
 
