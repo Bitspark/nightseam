@@ -27,15 +27,15 @@ tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
   uploaded, a tag is the release. `runtime/go`, `duplex/go`, `tunnel/go`
   and `session/go` are its importable packages, with their sub-packages —
   `duplex/go/ws`, `runtime/go/slogobserver`, and the suites `duplex/go/duplextest`
-  and `session/go/sessiontest`, and `cmd/nightseam` is
-  what a consumer adds as a Go tool.
+  and `session/go/sessiontest`. `cmd/nightseam` is what a consumer adds as a
+  Go tool.
 - **Go, nested**: a component that depends on what the core module may not
   is a module of its own, released by a second tag `<dir>/vX.Y.Z` cut beside
   `vX.Y.Z` — that is how the Go toolchain names a module in a subdirectory,
   and it is the whole of releasing one. `otel/go`, the OpenTelemetry
-  adapter, is the first and at present the only one: the core module depends
-  on nothing and that is what is published, so the backend a consumer opts
-  into lives beside it rather than in it. Such a module requires the root
+  adapter, is the first and at present the only one: the core module pulls
+  in no telemetry backend and that is what is published, so the backend a
+  consumer opts into lives beside it rather than in it. Such a module requires the root
   module at the release's own number and carries a `replace` to this
   checkout, which is for the repository's own build and which a consumer
   ignores — a dependency's replace is not a consumer's. They are found

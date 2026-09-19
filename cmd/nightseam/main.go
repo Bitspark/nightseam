@@ -16,7 +16,7 @@
 // The generated Go packages are rooted at the checkout's module, read from
 // its go.mod or given as --module; the TypeScript packages at an npm
 // scope, --scope, the module's last element unless given. Both bind to
-// Nightseam's runtime, github.com/Bitspark/nightseam/runtime and
+// Nightseam's runtime, github.com/Bitspark/nightseam/runtime/go and
 // @nightseam/runtime, the peer of the nightseam.duplex/1 profile.
 //
 // The generator is a kernel and one package per target, composed in

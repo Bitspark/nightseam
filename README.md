@@ -115,8 +115,8 @@ go get -tool github.com/Bitspark/nightseam/cmd/nightseam   # the generator, as a
 ```
 
 Nightseam is developer tooling and never a runtime dependency of its own
-generator: a generated package depends on the protocol types and the runtime,
-and on nothing else.
+generator: a generated package depends on the protocol types, the runtime and
+the tunnel, and on nothing else.
 
 ## The packages
 
@@ -126,13 +126,14 @@ and on nothing else.
 | [`@nightseam/runtime`](runtime/ts) | [`runtime/go`](runtime/go) | the peer of the profile: correlation, cancellation, backpressure, presence, trace context, the wire validator, the observer and its console and slog adapters |
 | [`@nightseam/tunnel`](tunnel/ts) | [`tunnel/go`](tunnel/go) | channels multiplexed over one peer, each one a connection of the seam, with per-channel credit |
 | [`@nightseam/session`](session/ts) | [`session/go`](session/go) | a session over a tunnel's channels: the relay, the registry, the holder of control, the log, and the changes it reports |
-| [`@nightseam/otel`](otel/ts) | [`otel/go`](otel/go) | the OpenTelemetry adapter, the one component a consumer opts into: a propagator over the W3C trace context propagator and an observer that opens a span per request, so that the four above depend on nothing |
+| [`@nightseam/otel`](otel/ts) | [`otel/go`](otel/go) | the OpenTelemetry adapter, the one component a consumer opts into: a propagator over the W3C trace context propagator and an observer that opens a span per request, so that the four above pull in no telemetry backend — on npm they depend on nothing at all, and in Go on one third-party module, the WebSocket transport |
 | — | [`cmd/nightseam`](cmd/nightseam) | the generator |
 
 Every published component exists in both languages and both are held to one
 suite; the suite's own testees live at `conformance/<lang>`, private. A third
 language is `<component>/<lang>` for each of these, a target under
-`internal/targets/<lang>`, and a testee under `conformance/<lang>`; nothing
+`internal/targets/` (Go's is `golang`, and `spec` is a target that is no
+language), and a testee under `conformance/<lang>`; nothing
 else moves, and [docs/tiers.md](docs/tiers.md) is the order to do it in.
 
 ## Using it
