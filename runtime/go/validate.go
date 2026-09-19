@@ -242,8 +242,19 @@ func (s *Schema) Bind(types map[string]any, families map[string]*Schema) *Schema
 			if drawn[family] == nil {
 				drawn[family] = &Schema{types: map[string]*wireType{}}
 			}
-			drawn[family].types[member] = &wireType{Kind: "alias", Type: TypeBinding{Schema: s, Type: value}}
 		}
+	}
+	// A second binding may add one drawn member to a family already partly
+	// filled. Forward all its members while retaining each argument's scope.
+	for name, arg := range bound.scope {
+		family, member, qualified := strings.Cut(name, ".")
+		if !qualified || drawn[family] == nil || arg.typeExpression == nil {
+			continue
+		}
+		e := arg.typeExpression
+		source := *e.schema
+		source.scope = e.scope
+		drawn[family].types[member] = &wireType{Kind: "alias", Type: TypeBinding{Schema: &source, Type: e.value}}
 	}
 	for name, schema := range drawn {
 		bound.scope[name] = argument{family: schema}
