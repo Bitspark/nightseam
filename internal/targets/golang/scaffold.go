@@ -15,10 +15,13 @@ import (
 // Scaffold writes the server's handler: a type implementing the binding
 // package's Handler with every method returning an unimplemented error,
 // for the consumer to fill in. A generic family's handler is generic in
-// the same type parameters.
+// the same type parameters. A model-only family has no handler to implement.
 func (t *target) Scaffold(f *render.Family, dir string) ([]spi.File, error) {
 	if err := t.config.Validate(); err != nil {
 		return nil, err
+	}
+	if !f.HasProtocol() {
+		return nil, nil
 	}
 	p, diagnostics := newPlan(f)
 	if len(diagnostics) != 0 {
