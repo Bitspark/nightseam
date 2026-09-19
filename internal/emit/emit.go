@@ -61,8 +61,8 @@ type Imports struct {
 	paths map[string]string
 }
 
-// Import is one import.
-type Import struct{ Alias, Path string }
+// imported is one import.
+type imported struct{ Alias, Path string }
 
 // Use registers an import and returns its alias, for the emitter to spell.
 func (i *Imports) Use(alias, path string) string {
@@ -74,10 +74,10 @@ func (i *Imports) Use(alias, path string) string {
 }
 
 // Sorted is every import, by alias.
-func (i *Imports) Sorted() []Import {
-	out := make([]Import, 0, len(i.paths))
+func (i *Imports) Sorted() []imported {
+	out := make([]imported, 0, len(i.paths))
 	for alias, path := range i.paths {
-		out = append(out, Import{alias, path})
+		out = append(out, imported{alias, path})
 	}
 	sort.Slice(out, func(a, b int) bool { return out[a].Alias < out[b].Alias })
 	return out

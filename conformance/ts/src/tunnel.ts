@@ -26,10 +26,10 @@ class TunnelOn {
   }
 }
 
-export const isTunnel = (object: unknown): object is TunnelOn => object instanceof TunnelOn;
+const isTunnel = (object: unknown): object is TunnelOn => object instanceof TunnelOn;
 
 /** A channel under control: a connection whose reader is attached only when asked, so that credit is held back until then. */
-export class ChannelConn extends Conn {
+class ChannelConn extends Conn {
   readonly channel: Channel;
   constructor(channel: Channel, lazy: boolean) {
     super(channel, undefined, lazy);

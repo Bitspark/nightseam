@@ -70,7 +70,8 @@ func (r Role) String() string {
 	return "role(" + strconv.Itoa(int(r)) + ")"
 }
 
-// Options limit a registry's sessions. Zero or less selects the default.
+// Options limit a registry's sessions. Zero selects the default; a negative
+// limit is refused with ErrorInvalidOptions.
 type Options struct {
 	// MaxAttachments is how many consumers may be attached to one session at
 	// once; an attach beyond it is refused. Default: 64.
@@ -94,17 +95,26 @@ type Options struct {
 	Observer runtime.Observer
 }
 
-func (o Options) normalized() Options {
-	if o.MaxAttachments <= 0 {
+func (o Options) normalized() (Options, error) {
+	if o.MaxAttachments < 0 {
+		return o, coded(ErrorInvalidOptions, "MaxAttachments must not be negative")
+	}
+	if o.MaxInflight < 0 {
+		return o, coded(ErrorInvalidOptions, "MaxInflight must not be negative")
+	}
+	if o.SendTimeout < 0 {
+		return o, coded(ErrorInvalidOptions, "SendTimeout must not be negative")
+	}
+	if o.MaxAttachments == 0 {
 		o.MaxAttachments = 64
 	}
-	if o.MaxInflight <= 0 {
+	if o.MaxInflight == 0 {
 		o.MaxInflight = 256
 	}
-	if o.SendTimeout <= 0 {
+	if o.SendTimeout == 0 {
 		o.SendTimeout = 10 * time.Second
 	}
-	return o
+	return o, nil
 }
 
 // Registry is every live session by its id: the one place a frame of a
@@ -122,8 +132,14 @@ type Registry struct {
 }
 
 // New makes a registry with the limits its sessions run under.
-func New(options Options) *Registry {
-	return &Registry{options: options.normalized(), sessions: map[string]*relay{}}
+// Zero limits select their defaults; a negative limit returns a nil registry
+// and an *Error with code ErrorInvalidOptions.
+func New(options Options) (*Registry, error) {
+	options, err := options.normalized()
+	if err != nil {
+		return nil, err
+	}
+	return &Registry{options: options, sessions: map[string]*relay{}}, nil
 }
 
 // Bind gives a session its own connection — the machine's — the governance
@@ -140,11 +156,11 @@ func New(options Options) *Registry {
 // does not tells Options.Observer; and where there is neither, nothing,
 // which is the no-op an observer already means.
 //
-// The log is read once here, from its beginning, and the session goes on
-// from its head: a durable log bound with frames already in it replays them
+// The log's head is learned here through Header, or through one Replay from
+// its beginning, and the session goes on from it: a durable log replays its frames
 // to a consumer that attaches after nothing, rather than waiting for the
 // machine to speak for the session to learn where it is. A log that cannot
-// be read is not bound.
+// report its head is not bound.
 func (r *Registry) Bind(id string, up duplex.Conn, g Governance, log Log) error {
 	switch {
 	case id == "":
@@ -269,3 +285,8 @@ type Attachment struct {
 // session and every other consumer go on. Control it held is released, and
 // an open ask waits for the next holder. It may be called more than once.
 func (a *Attachment) Detach() { a.end(duplex.CodeNormal, "detached") }
+
+// Done is closed when the attachment ends, whether detached, disconnected,
+// refused after a send failure, or ended with its session. It signals
+// cancellation; the connection's close may still be completing.
+func (a *Attachment) Done() <-chan struct{} { return a.ctx.Done() }

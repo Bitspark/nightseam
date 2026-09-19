@@ -25,6 +25,7 @@ const carried = "channel-payload-sentinel-4bf92f35"
 // happened on — a handler, a caller, the reader — so it holds a lock of its
 // own.
 type recorder struct {
+	changed  chan struct{}
 	mu       sync.Mutex
 	observed []runtime.ObserverEvent
 }
@@ -33,6 +34,10 @@ func (r *recorder) Observe(event runtime.ObserverEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.observed = append(r.observed, event)
+	if r.changed != nil {
+		close(r.changed)
+		r.changed = nil
+	}
 }
 
 func (r *recorder) all() []runtime.ObserverEvent {
@@ -54,19 +59,32 @@ func (r *recorder) lines() []string {
 	return lines
 }
 
+// next captures a notification before reading the state, so no update is lost.
+func (r *recorder) next() <-chan struct{} {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.changed == nil {
+		r.changed = make(chan struct{})
+	}
+	return r.changed
+}
+
 // await waits until the tunnel told this observer at least count things, so
 // that a test never reads a sequence a tunnel is still writing.
 func (r *recorder) await(t *testing.T, count int) []string {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
 	for {
+		next := r.next()
 		if lines := r.lines(); len(lines) >= count {
 			return lines
 		}
-		if time.Now().After(deadline) {
+		select {
+		case <-next:
+		case <-deadline.C:
 			t.Fatalf("the tunnel told of %d things, want %d:\n%s", len(r.lines()), count, strings.Join(r.lines(), "\n"))
 		}
-		time.Sleep(time.Millisecond)
 	}
 }
 

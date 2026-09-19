@@ -98,13 +98,13 @@ func (Ref) typeExpr()       {}
 func (Apply) typeExpr()     {}
 func (Inline) typeExpr()    {}
 
-// Primitives are the wire primitives, in name order.
-var Primitives = []string{"boolean", "integer", "json", "number", "string", "timestamp"}
+// primitives are the wire primitives, in name order.
+var primitives = []string{"boolean", "integer", "json", "number", "string", "timestamp"}
 
-// IsPrimitive reports whether a name is a wire primitive.
-func IsPrimitive(name string) bool {
-	i := sort.SearchStrings(Primitives, name)
-	return i < len(Primitives) && Primitives[i] == name
+// isPrimitive reports whether a name is a wire primitive.
+func isPrimitive(name string) bool {
+	i := sort.SearchStrings(primitives, name)
+	return i < len(primitives) && primitives[i] == name
 }
 
 // IsParameter reports whether a qualifier names a parameter rather than a
@@ -116,7 +116,7 @@ func IsParameter(qualifier string) bool {
 // IsFamilyName reports whether a name is spelled as a family is: lower
 // kebab case, and not one of the primitives.
 func IsFamilyName(name string) bool {
-	if name == "" || IsPrimitive(name) || name[0] < 'a' || name[0] > 'z' {
+	if name == "" || isPrimitive(name) || name[0] < 'a' || name[0] > 'z' {
 		return false
 	}
 	for i := 0; i < len(name); i++ {
@@ -307,7 +307,7 @@ func decodeName(name string) (TypeExpr, error) {
 	if name == "" {
 		return nil, fmt.Errorf("a type name is required")
 	}
-	if IsPrimitive(name) {
+	if isPrimitive(name) {
 		return Primitive(name), nil
 	}
 	qualifier, typeName, qualified := strings.Cut(name, ".")
@@ -321,15 +321,6 @@ func decodeName(name string) (TypeExpr, error) {
 		return Drawn{Parameter: qualifier, Name: typeName}, nil
 	}
 	return Imported{Family: qualifier, Name: typeName}, nil
-}
-
-// MustDecode decodes a type expression a test writes by hand.
-func MustDecode(source string) TypeExpr {
-	expr, err := Decode(json.RawMessage(source))
-	if err != nil {
-		panic(err)
-	}
-	return expr
 }
 
 func (p Primitive) MarshalJSON() ([]byte, error) { return json.Marshal(string(p)) }

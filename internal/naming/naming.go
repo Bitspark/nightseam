@@ -12,19 +12,19 @@ import (
 
 var wordPattern = regexp.MustCompile(`[A-Za-z0-9]+`)
 
-// Initialisms are the words spelled in capitals in upper camel case: ID,
+// initialisms are the words spelled in capitals in upper camel case: ID,
 // URL, not Id, Url.
-var Initialisms = map[string]bool{"id": true, "api": true, "url": true, "http": true, "json": true, "uuid": true}
+var initialisms = map[string]bool{"id": true, "api": true, "url": true, "http": true, "json": true, "uuid": true}
 
-// Words splits a declared name into its alphanumeric words: work_item_id
+// words splits a declared name into its alphanumeric words: work_item_id
 // and frame.relayed alike.
-func Words(name string) []string { return wordPattern.FindAllString(name, -1) }
+func words(name string) []string { return wordPattern.FindAllString(name, -1) }
 
 // UpperCamel joins a name's words with each capitalised, initialisms in
 // full: work_item_id → WorkItemID, frame.relayed → FrameRelayed.
 func UpperCamel(name string) string {
 	var out strings.Builder
-	for _, word := range Words(name) {
+	for _, word := range words(name) {
 		out.WriteString(capitalise(word))
 	}
 	return out.String()
@@ -35,7 +35,7 @@ func UpperCamel(name string) string {
 // work_item_id → workItemId, not_found → notFound.
 func LowerCamel(name string) string {
 	var out strings.Builder
-	for i, word := range Words(name) {
+	for i, word := range words(name) {
 		word = strings.ToLower(word)
 		if i > 0 {
 			word = strings.ToUpper(word[:1]) + word[1:]
@@ -46,7 +46,7 @@ func LowerCamel(name string) string {
 }
 
 func capitalise(word string) string {
-	if Initialisms[strings.ToLower(word)] {
+	if initialisms[strings.ToLower(word)] {
 		return strings.ToUpper(word)
 	}
 	return strings.ToUpper(word[:1]) + word[1:]

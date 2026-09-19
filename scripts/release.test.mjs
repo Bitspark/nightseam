@@ -62,6 +62,7 @@ test("a green matrix releases, and a dry run writes nothing", () => {
   assert.match(out, /the matrix holds against no previous release/);
   // A dry run writes nothing: no release notes, no licence copied.
   assert.match(out, /nothing written/);
+  assert.match(out, /LICENSE and NOTICE were not copied/);
 });
 
 test("a tier 1 language failing a profile refuses the tag", () => {

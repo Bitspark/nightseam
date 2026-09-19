@@ -52,12 +52,18 @@ are one number. Entries are in the words of the commits that landed them.
   carries the profile's own descriptions, which is the only movement in the
   golden corpus.
 
+- Session binding uses an optional log head lookup in Go and TypeScript,
+  avoiding a full replay where the log already knows its last sequence;
+  memory logs provide it, and a failed lookup cannot start a session at zero.
 - TypeScript checks include every source file, test and conformance helper
   under the build's shared compiler settings, with Node's test types and a
   compiler dependency per package; a regression test proves new test files
   cannot escape the check. Prettier holds handwritten TypeScript formatting
   in CI, workspace conformance imports use package subpaths, and the three
   components share option validation while retaining their existing bounds.
+- Attachments expose completion directly through Go `Done()` and TypeScript
+  `done`, including session termination, so consumers can forget them without
+  watching every registry change.
 - `docs/` is sets by reader, each page one kind of thing: `wire/` is what
   crosses the wire in the wire's own terms and no runtime's — `profile.md`,
   `tunnel.md`, `session.md`, and `vocabulary.md`, the test that says where
@@ -96,8 +102,21 @@ are one number. Entries are in the words of the commits that landed them.
   boundary rule and parity point at the goals they are the contributor's
   form of.
 
+- The pre-release audit's remaining checks are executable: generated Go
+  surfaces compare through `nightseam-surface`, observer tests wait for
+  notifications, and event pacing uses a controlled clock and completion
+  signals. Internal helpers no longer widen exported surfaces, tunnel
+  members are documented, and a send on a closed TypeScript channel throws
+  `DuplexError` with code `disconnected`. The packed smoke refuses archives
+  missing built entry points, README, LICENSE or NOTICE; CI prepares the
+  notices as release preparation does, and a dry run says it did not.
+
 ### Fixed
 
+- Go's `session.New` returns `(*Registry, error)` and refuses negative
+  attachment, inflight and send-timeout limits with `invalid_options`;
+  zero still selects the defaults. Both conformance testees preserve the
+  constructor's refusal code, held by the shared session scenario.
 - An observer snapshot repeated until its expectations match preserves its
   history: the deadline scenario no longer consumes request events before
   the cancel arrives, and the scenario loader refuses such polling without
@@ -124,6 +143,9 @@ are one number. Entries are in the words of the commits that landed them.
   before it — so a consumer resuming from the cursor it was told reads the log
   on rather than over the frames it was never given, which a replay that
   ended on a truncated frame did too.
+- The release round trip waits up to two minutes with backoff for npm and
+  Go module propagation before installing, names unavailable packages on
+  timeout, and has the workflow permission to file an issue on failure.
 
 ## 0.3.0
 

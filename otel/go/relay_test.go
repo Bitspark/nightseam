@@ -72,7 +72,11 @@ func relay(t *testing.T, observer runtime.Observer) *relayed {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &relayed{t: t, ctx: ctx, registry: session.New(session.Options{}),
+	registry, err := session.New(session.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &relayed{t: t, ctx: ctx, registry: registry,
 		opening: opening, accepting: accepting, carriers: []*runtime.Peer{near, far}}
 	t.Cleanup(func() { near.Close(); far.Close() })
 	return r

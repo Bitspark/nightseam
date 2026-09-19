@@ -111,7 +111,11 @@ func (t *testee) sessionOps() map[string]func(request) (any, error) {
 					return nil, unsupported("session option " + key)
 				}
 			}
-			reg := &registry{Registry: session.New(options), changes: newInbox[session.Change]()}
+			created, err := session.New(options)
+			if err != nil {
+				return nil, sessionError(err)
+			}
+			reg := &registry{Registry: created, changes: newInbox[session.Change]()}
 			reg.stop = reg.OnChange(func(c session.Change) { reg.changes.put(c) })
 			return map[string]any{"handle": t.mint("reg", reg)}, nil
 		},
@@ -175,7 +179,7 @@ func (t *testee) sessionOps() map[string]func(request) (any, error) {
 						return nil, invalid("log.prefill direction is up or down")
 					}
 					if !json.Valid([]byte(frame.Text)) {
-						return nil, invalid("log.prefill names each frame by its message, as text")
+						return nil, invalid("log.prefill text is the frame's message")
 					}
 					if _, err := log.Append(context.Background(), session.Frame{Direction: direction,
 						Origin: frame.Origin, At: time.Now().UTC(), Message: json.RawMessage(frame.Text)}); err != nil {

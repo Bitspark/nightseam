@@ -252,6 +252,7 @@ func holdGolden(t *testing.T, name, got string) {
 // running: Observe is called from whichever goroutine the event happened on,
 // so what was written is read under a lock.
 type buffer struct {
+	changed chan struct{}
 	mu      sync.Mutex
 	written bytes.Buffer
 }
@@ -259,6 +260,10 @@ type buffer struct {
 func (b *buffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if b.changed != nil {
+		close(b.changed)
+		b.changed = nil
+	}
 	return b.written.Write(p)
 }
 
@@ -268,19 +273,32 @@ func (b *buffer) String() string {
 	return b.written.String()
 }
 
+// next captures a notification before reading the state, so no update is lost.
+func (b *buffer) next() <-chan struct{} {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.changed == nil {
+		b.changed = make(chan struct{})
+	}
+	return b.changed
+}
+
 // await waits until at least count lines were written, so that a golden is
 // never read off a log a peer is still finishing.
 func (b *buffer) await(t *testing.T, count int) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
 	for {
+		next := b.next()
 		if written := b.String(); strings.Count(written, "\n") >= count {
 			return
 		}
-		if time.Now().After(deadline) {
+		select {
+		case <-next:
+		case <-deadline.C:
 			t.Fatalf("%d lines were written, want %d:\n%s", strings.Count(b.String(), "\n"), count, b)
 		}
-		time.Sleep(time.Millisecond)
 	}
 }
 

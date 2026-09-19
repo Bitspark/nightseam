@@ -11,11 +11,11 @@
 // --matrix and --previous-matrix name other files, which is how the tests
 // drive the gate: the matrices that refuse a release are ones no run has
 // produced yet.
-import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { gate, matrixFile, missing, profilesFile, readJSON, unrun } from "./matrix.mjs";
-import { dependency, examples, manifestsUnder, modules, packages, requirement, root } from "./packages.mjs";
+import { copyNotices, dependency, examples, manifestsUnder, modules, packages, requirement, root } from "./packages.mjs";
 
 const flag = name => {
   const at = process.argv.indexOf(name);
@@ -99,12 +99,9 @@ const marked = [...provisional, ...lagging];
 const notes = section.slice(section.indexOf("\n") + 1).trim() + "\n" + (marked.length ? `\n## Languages\n\n${marked.map(line => `- ${line}.`).join("\n")}\n` : "");
 
 if (dryRun) {
-  console.log(`would release ${tag}${marked.length ? `, marking ${marked.length} language${marked.length > 1 ? "s" : ""} in the notes` : ""}; nothing written`);
+  console.log(`would release ${tag}${marked.length ? `, marking ${marked.length} language${marked.length > 1 ? "s" : ""} in the notes` : ""}; nothing written; LICENSE and NOTICE were not copied`);
 } else {
-  for (const directory of packages) {
-    copyFileSync(join(root, "LICENSE"), join(root, directory, "LICENSE"));
-    copyFileSync(join(root, "NOTICE"), join(root, directory, "NOTICE"));
-  }
+  copyNotices();
   writeFileSync(join(root, "release-notes.md"), notes);
 }
 const against = previous ? `the matrix of ${previous.tag}` : "no previous release";

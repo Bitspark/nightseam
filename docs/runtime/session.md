@@ -15,7 +15,10 @@ is [the session](../wire/session.md).
 ## The surface
 
 ```go
-registry := session.New(session.Options{})
+registry, err := session.New(session.Options{})
+if err != nil {
+    return err
+}
 registry.Bind(id, up, session.Governance{Decides: chatclient.Decides, Asks: chatclient.Asks}, session.NewMemoryLog(1<<20))
 attachment, _ := registry.Attach(id, down, session.Participant, "consumer:7", after)
 attachment.Holder()                // who holds control, as this consumer was told
@@ -35,8 +38,8 @@ registry.attention();
 ```
 
 `Bind` gives a session its own connection, the family's governance and its
-log; it is live from then until that connection closes, and it reads the log
-once on the way in, so that a log bound with frames already in it is bound
+log; it is live from then until that connection closes, and learns the log's
+head on the way in, so that a log bound with frames already in it is bound
 at its head rather than at nothing. `Attach` adds a consumer over a
 connection of its own, in a role — `session.Participant` or
 `session.Observer` in Go, `'participant'` or `'observer'` in TypeScript —
@@ -54,14 +57,18 @@ null`), `attachment.sequence` and `attachment.onControl(fn): () => void`. A
 registration is not called with the state the consumer joined at — that
 frame is sent before `Attach` returns, which is before there is anywhere to
 call — and `Holder` reads it instead. `Detach` and `detach` end a consumer's
-attachment from this side.
+attachment from this side. Go `Attachment.Done() <-chan struct{}` closes and
+TypeScript `attachment.done: Promise<void>` resolves when the attachment
+ends, including when its connection fails or its whole session ends. They
+remain observable after termination, without a registry-wide subscription.
+Go's signal reports cancellation; connection-close work may still be completing.
 
 ## Options
 
 The registry is configured by the value passed where it is made:
 `session.Options`, to `session.New`, in Go; `RegistryOptions`, to `new
 Registry(...)`, in TypeScript. Every member is optional and a member left
-out takes the default — zero or less in Go, absent in TypeScript, and `new
+out takes the default — zero in Go, absent in TypeScript, and `new
 Registry()` with nothing at all is the default registry.
 
 | Go | TypeScript | default | meaning |
@@ -71,9 +78,12 @@ Registry()` with nothing at all is the default registry.
 | `SendTimeout` | — | 10s | Go only: how long a frame may wait for a connection; a consumer that does not take its frames is detached, a machine that does not ends the session — a Go send taking a context it can wait on where the TypeScript connection's `send` hands the frame over and returns, leaving nothing to bound |
 | `Observer` | `observer` | none | where a session tells what it does when its machine's connection observes through nothing of its own (§ observing it) |
 
-What a registry settled on is readable back in TypeScript, `registry.limit`,
-and a member that is not a positive integer is refused there with
-`invalid_options` where Go takes it for the default.
+Go's `session.New(options) (*Registry, error)` refuses a negative
+`MaxAttachments`, `MaxInflight` or `SendTimeout` with a nil registry and a
+`*session.Error` whose code is `invalid_options`; zero still selects the
+default. TypeScript refuses an explicitly supplied limit that is not a
+positive integer, including zero, with `invalid_options`. What a registry
+settled on is readable back in TypeScript, `registry.limit`.
 
 ## The log
 
@@ -89,6 +99,10 @@ type Frame struct {
 type Log interface {
     Append(ctx context.Context, frame Frame) (sequence int64, err error)
     Replay(ctx context.Context, after int64, deliver func(Frame) error) error
+}
+// An optional capability of a Log; Bind prefers it to Replay.
+type Header interface {
+    Head(ctx context.Context) (int64, error)
 }
 ```
 
@@ -107,10 +121,17 @@ must outlive one is the consumer's own `Log` — the interface above, over
 whatever it stores frames in — passed to `Bind` in its place; nothing else
 changes. `Replay` delivers in ascending sequence order, which is the whole of
 what a durable implementation owes beyond storing frames, and is what
-`Bind`'s one read on the way in relies on to seat the session at the log's
-head ([the log, on the wire](../wire/session.md#the-log)). A log that knows
-its head without a read may one day say so, as something the relay prefers
-where a log has it; every `Log` above stays what it is.
+`Bind`'s fallback read relies on to seat the session at the log's head
+([the log, on the wire](../wire/session.md#the-log)). A log that knows its
+head without a read implements Go `Header` or the optional TypeScript
+`Log.head(): Promise<number>`. The result is its last assigned sequence,
+zero for an empty log. Both memory logs provide this lookup without replay.
+The lookup runs before processing any machine frames, as the fallback does.
+
+A failed lookup does not fall back to replay or start from zero: Go `Bind`
+returns `session_invalid`; TypeScript's queued initialization ends the
+session and closes its connections with 1011. A negative head is invalid;
+TypeScript also requires a safe integer.
 
 ## What it refuses with
 
@@ -137,7 +158,7 @@ neighbours in Go.
 
 | code | what it refuses |
 | --- | --- |
-| `invalid_options` | a limit that is not a limit — `maxAttachments` or `maxInflight` in TypeScript, where Go's `Options` reads zero or less as the default — and, in Go, a replay given nowhere to deliver |
+| `invalid_options` | a negative `MaxAttachments`, `MaxInflight` or `SendTimeout` in Go; a supplied `maxAttachments` or `maxInflight` that is not a positive integer in TypeScript; and, in Go, a replay given nowhere to deliver |
 | `no_session` | no session is bound under that id, or the one that was has ended: `Attach` and `Control` both |
 | `not_attached` | control given to a consumer that is not attached to this session, one of another's or one that has left |
 | `not_controlling` | control given to an observer — and, on the wire, a deciding frame from a consumer that does not hold control |

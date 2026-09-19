@@ -261,7 +261,7 @@ func TestDecodeProtocol(t *testing.T) {
 	if p.Server.CRUD["Project"][0] != "list" {
 		t.Fatal("crud is not carried")
 	}
-	if names := p.ParameterNames(); len(names) != 1 || names[0] != "S" {
+	if len(p.Parameters) != 1 || p.Parameters[0].Name != "S" {
 		t.Fatal("parameter names are wrong")
 	}
 }
@@ -315,4 +315,13 @@ func TestExpressions(t *testing.T) {
 	if !reflect.DeepEqual(sites, want) {
 		t.Fatalf("visited:\n%s", strings.Join(sites, "\n"))
 	}
+}
+
+// MustDecode decodes a type expression a test writes by hand.
+func MustDecode(source string) TypeExpr {
+	expr, err := Decode(json.RawMessage(source))
+	if err != nil {
+		panic(err)
+	}
+	return expr
 }

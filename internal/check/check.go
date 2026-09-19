@@ -1,7 +1,7 @@
 // Package check holds the rules a family is held to before any target sees
 // it: one function per tier over the facts analysis derived, and one over
 // the override files. Each reports every problem it finds, located by tier
-// file and pointer, and none renders anything. The Concerns table pairs
+// file and pointer, and none renders anything. The concerns table pairs
 // each concern with its checker, so that the kernel runs them in tier order
 // without naming one.
 package check
@@ -15,15 +15,15 @@ import (
 	"github.com/Bitspark/nightseam/internal/model"
 )
 
-// Concern pairs a tier with the checker that holds a family to its rules.
-type Concern struct {
+// concern pairs a tier with the checker that holds a family to its rules.
+type concern struct {
 	Name  string
 	File  string
 	Check func(*analysis.Family) []diag.Diagnostic
 }
 
-// Concerns are the checkers of the tiers above the model, in tier order.
-var Concerns = []Concern{
+// concerns are the checkers of the tiers above the model, in tier order.
+var concerns = []concern{
 	{Name: "protocol", File: model.ProtocolFile, Check: Protocol},
 	{Name: "session", File: model.SessionFile, Check: Session},
 }
@@ -32,7 +32,7 @@ var Concerns = []Concern{
 // the override files' check, and sorts what they say.
 func Family(f *analysis.Family) []diag.Diagnostic {
 	diagnostics := Model(f)
-	for _, concern := range Concerns {
+	for _, concern := range concerns {
 		if f.Has(concern.File) {
 			diagnostics = append(diagnostics, concern.Check(f)...)
 		}

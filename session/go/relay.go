@@ -77,25 +77,30 @@ func newRelay(registry *Registry, id string, up duplex.Conn, g Governance, log L
 // seat places the relay's cursor at the log's head, so that a session bound
 // over a log that already holds frames goes on from its end rather than from
 // nothing: a consumer attaching before the machine has spoken is replayed
-// what the log holds. It reads the log once, from after zero, and takes the
-// last sequence Replay delivered, which is the head because Replay delivers
-// in ascending sequence order.
+// what the log holds. It asks Header where available, otherwise reads the
+// log once from after zero and takes the last sequence Replay delivered.
 //
 // Run before the pump and under the relay's lock: a frame the machine sends
 // while the cursor is being seated is recorded behind the read, above the
-// head, rather than under a sequence the log has already given out. A Log
-// that knows its head without a read may later say so as an optional
-// interface the relay prefers where a log has one, which leaves every
-// existing Log valid and this read what a log without it is bound by.
+// head, rather than under a sequence the log has already given out.
 func (r *relay) seat() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	head := int64(0)
-	if err := r.log.Replay(r.ctx, 0, func(frame Frame) error {
-		head = frame.Sequence
-		return nil
-	}); err != nil {
+	var err error
+	if header, ok := r.log.(Header); ok {
+		head, err = header.Head(r.ctx)
+	} else {
+		err = r.log.Replay(r.ctx, 0, func(frame Frame) error {
+			head = frame.Sequence
+			return nil
+		})
+	}
+	if err != nil {
 		return err
+	}
+	if head < 0 {
+		return fmt.Errorf("the log returned a negative head: %d", head)
 	}
 	r.sequence = head
 	return nil

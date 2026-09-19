@@ -1,6 +1,8 @@
+import { decodeEnvelope } from './envelope.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DuplexPeer, DuplexError, decodeEnvelope } from './peer.ts';
+import { setImmediate as nextTurn } from 'node:timers/promises';
+import { DuplexPeer, DuplexError } from './peer.ts';
 import type { PeerOptions, WebSocketLike } from './peer.ts';
 import type { Observer, ObserverEvent } from './observer.ts';
 import { webSocketConnection } from '@nightseam/duplex';
@@ -407,36 +409,57 @@ test('event queues are bounded and a slow listener is paced, then disconnected',
   blocked.resolve();
 });
 
-test('a producer that outruns its consumer for a whole deadline is a stalled consumer', async () => {
+test('a producer that outruns its consumer for a whole deadline is a stalled consumer', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const socket = new Socket();
   const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 40 });
   const closed = deferred<DuplexError>();
   peer.onClose(closed.resolve);
   await peer.attach(socket);
-  // Every listener returns well inside its own deadline, so nothing here is a
-  // stalled listener; what passes the deadline is the backlog, which never
-  // comes under capacity because the events keep arriving.
-  peer.onEvent(() => new Promise<void>((resolve) => setTimeout(resolve, 10)));
+  // The first listener finishes before its deadline and the second is still
+  // within its deadline when the backlog gives out. Advance a controlled
+  // clock so that scheduler load cannot make the listener lose that race.
+  const first = deferred();
+  const second = deferred();
+  let calls = 0;
+  peer.onEvent(() => (++calls === 1 ? first.promise : second.promise));
+  t.after(() => {
+    first.resolve();
+    second.resolve();
+    peer.close();
+  });
   for (let i = 0; i < 20; i++) socket.receive({ version: 1, kind: 'event', event: `burst-${i}`, data: {} });
+  t.mock.timers.tick(20);
+  first.resolve();
+  await nextTurn();
+  assert.equal(calls, 2);
+  // The backlog has now lasted 40 ms; neither listener has reached its own deadline.
+  t.mock.timers.tick(20);
   assert.equal((await closed.promise).code, 'busy');
 });
 
-test('an event burst that drains within the deadline is paced, not disconnected', async () => {
+test('an event burst that drains within the deadline is paced, not disconnected', async (t) => {
   const socket = new Socket();
   const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 1_000 });
   await peer.attach(socket);
   const held = deferred();
+  const drained = deferred();
+  t.after(() => {
+    held.resolve();
+    peer.close();
+  });
   const delivered: string[] = [];
   peer.onEvent(async (name) => {
     await held.promise;
     delivered.push(name);
+    if (delivered.length === 2) drained.resolve();
   });
   socket.receive({ version: 1, kind: 'event', event: 'one', data: {} });
   socket.receive({ version: 1, kind: 'event', event: 'two', data: {} });
   held.resolve();
   // The backlog clears inside the deadline, so the burst was a burst: both
   // events arrive in order and the connection is whole.
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await drained.promise;
   assert.deepEqual(delivered, ['one', 'two']);
   assert.equal(peer.status, 'connected');
 });

@@ -5,7 +5,7 @@
 // beside the others is versioned and released with them without anyone
 // remembering to name it in three places. The Go side of the same rule is
 // TestVersionsMoveInLockstep, which globs the same paths.
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,6 +21,13 @@ export const packages = components
   .map(name => `${name}/ts`)
   .filter(directory => existsSync(join(root, directory, "package.json")))
   .filter(directory => !JSON.parse(readFileSync(join(root, directory, "package.json"), "utf8")).private);
+
+/** Lay down the repository notices in every package before packing or publishing. */
+export function copyNotices() {
+  for (const directory of packages) {
+    for (const name of ["LICENSE", "NOTICE"]) copyFileSync(join(root, name), join(root, directory, name));
+  }
+}
 
 /**
  * Every <name>/go that is a module of its own: a component depending on what

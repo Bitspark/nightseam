@@ -16,6 +16,43 @@ import { CURSOR_EVENT, memoryLog, PREFIX, Registry, type Attachment } from './in
 /** One envelope of the profile, as a raw end reads and writes it. */
 type Envelope = Record<string, unknown>;
 
+for (const ending of ['detach', 'consumer close', 'session end', 'protocol error'] as const) {
+  test(`attachment.done resolves on ${ending} and remains observable`, async () => {
+    const registry = new Registry();
+    const [machine, up] = pipe();
+    registry.bind('done', up, governance, memoryLog(1024));
+    const [consumer, down] = pipe();
+    const attachment = registry.attach('done', down, 'participant', 'one', 0);
+    const done = attachment.done;
+    let ended = false;
+    void done.then(() => {
+      ended = true;
+    });
+    await Promise.resolve();
+    assert.equal(ended, false);
+    switch (ending) {
+      case 'detach':
+        attachment.detach();
+        break;
+      case 'consumer close':
+        consumer.close();
+        break;
+      case 'session end':
+        machine.close();
+        break;
+      case 'protocol error':
+        consumer.send({ kind: 'text', data: 'not JSON' });
+        break;
+    }
+    await done;
+    assert.equal(ended, true);
+    attachment.detach();
+    assert.equal(attachment.done, done);
+    await attachment.done;
+    machine.close();
+  });
+}
+
 const tick = () =>
   new Promise((resolve) => {
     setTimeout(resolve, 5);

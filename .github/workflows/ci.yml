@@ -8,7 +8,11 @@ name: ci
 on:
   push:
     branches: [main]
+  # edited is among them because scope reads the pull request's body: the
+  # fix for a scope refusal is to write Closes #N there, and an edit that
+  # reached no workflow left the check red on a PR that satisfied it.
   pull_request:
+    types: [opened, synchronize, reopened, edited]
 
 jobs:
   fast:
@@ -132,6 +136,9 @@ jobs:
       # every pull request, and so that a packaging change fails the change
       # rather than the release that carries it. RELEASING.md says what it
       # does not answer.
+      # Prepare the same package notices the release includes; the smoke
+      # refuses any tarball missing them, including during a local run.
+      - run: node --input-type=module -e "import { copyNotices } from './scripts/packages.mjs'; copyNotices();"
       - run: node scripts/smoke-packed.mjs
       - run: go vet ./...
         working-directory: otel/go

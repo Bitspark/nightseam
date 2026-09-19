@@ -1,7 +1,8 @@
+import { decodeEnvelope } from './envelope.ts';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { DuplexPeer, decodeEnvelope } from './peer.ts';
+import { DuplexPeer } from './peer.ts';
 import type { EventContext, Meta, RequestContext, WebSocketLike } from './peer.ts';
 import type { ObserverEvent } from './observer.ts';
 

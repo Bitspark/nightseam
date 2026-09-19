@@ -10,12 +10,9 @@ import "fmt"
 // answers a consumer's frame with on the wire, which is why they are the two
 // a consumer meets as the profile's error object rather than as a return.
 //
-// Two of the ten no Go call can reach, and they are here because the
-// vocabulary is one list and not one per language: ErrorOriginInvalid,
-// because an origin is a string here and cannot be anything else, and
-// ErrorInvalidOptions for a registry's limits, because Options reads zero or
-// less as the default where TypeScript refuses it. A Go log still refuses a
-// replay with nowhere to deliver with ErrorInvalidOptions.
+// ErrorOriginInvalid is the one no Go call can reach, because an origin is
+// a string here and cannot be anything else. It is here because the
+// vocabulary is one list and not one per language.
 const (
 	// ErrorInvalidOptions: what a call was given is not what it takes — a
 	// limit that is not a limit, a replay with nowhere to deliver.
@@ -55,8 +52,8 @@ const (
 const ErrorBusy = "busy"
 
 // Error is what a session call refuses with: a code a program branches on
-// and a message a person reads. Every refusal Bind, Attach, Control and the
-// package's own Log return is one, so both of the ways Go asks about an
+// and a message a person reads. Every refusal New, Bind, Attach, Control and
+// the package's own Log return is one, so both of the ways Go asks about an
 // error reach it —
 //
 //	var refusal *session.Error

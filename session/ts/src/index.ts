@@ -180,10 +180,12 @@ export interface Frame {
 /**
  * The consumer's store of a session's frames; the package ships an in-memory
  * one. A log handed to `bind` that already holds frames is bound at its head:
- * `bind` reads it once, through `replay` from after zero, and the session goes
- * on from the last sequence that read delivered.
+ * `bind` asks `head` where available, otherwise reads `replay` from after
+ * zero and takes the last sequence delivered.
  */
 export interface Log {
+  /** Optional head lookup without replay: the last assigned sequence, or zero for an empty log. A rejection ends the binding rather than falling back to replay. */
+  head?(): Promise<number>;
   /** Records a frame and returns the sequence it was given, which counts from one. */
   append(frame: Frame): Promise<number>;
   /**
@@ -205,6 +207,9 @@ export function memoryLog(maxFrameBytes: number): Log {
   const bound = positiveInteger(maxFrameBytes, 'maxFrameBytes');
   const frames: Frame[] = [];
   return {
+    head(): Promise<number> {
+      return Promise.resolve(frames.length);
+    },
     append(frame: Frame): Promise<number> {
       const bytes = encoder.encode(JSON.stringify(frame.message ?? null));
       const over = bytes.byteLength > bound;
@@ -305,10 +310,11 @@ export class Registry {
   /**
    * Binds a session to the channel its machine speaks on, governed by its
    * family's session tier and logged to `log`; the session lives until that
-   * channel closes. The log is read once here, from its beginning, and the
-   * session goes on from its head: a durable log bound with frames already in
+   * channel closes. The log's head is learned through `head`, or one replay
+   * from its beginning: a durable log bound with frames already in
    * it replays them to a consumer that attaches after nothing, rather than
    * waiting for the machine to speak for the session to learn where it is.
+   * A failed lookup ends the session and closes its connections with 1011.
    *
    * The connection is the seam's — a channel of a tunnel, a pipe, a bare
    * socket — and where the session tells what it does follows from it: one
@@ -401,6 +407,9 @@ export class Registry {
 
 /** One consumer on a session: the connection it speaks on, the role it attached in and the origin its frames carry. */
 export class Attachment {
+  /** Resolves once this attachment ends, including when its whole session ends. Late observers see the same settled promise. */
+  readonly done: Promise<void>;
+  private finish!: () => void;
   readonly role: Role;
   readonly origin: string;
   readonly channel: FrameConnection;
@@ -415,6 +424,9 @@ export class Attachment {
 
   /** @internal */
   constructor(relay: Relay, channel: FrameConnection, role: Role, origin: string) {
+    this.done = new Promise<void>((resolve) => {
+      this.finish = resolve;
+    });
     this.relay = relay;
     this.channel = channel;
     this.role = role;
@@ -488,6 +500,7 @@ export class Attachment {
   release(): void {
     this.unlisten?.();
     this.unlisten = undefined;
+    this.finish();
   }
 }
 
@@ -570,31 +583,37 @@ class Relay {
    * seat places the cursor at the log's head, so that a session bound over a
    * log that already holds frames goes on from its end rather than from
    * nothing: a consumer attaching before the machine has spoken is replayed
-   * what the log holds. It reads the log once, from after zero, and takes the
-   * last sequence `replay` delivered, which is the head because `replay`
-   * delivers in ascending sequence order.
+   * what the log holds. It asks `head` where available, otherwise replays
+   * from after zero and takes the last sequence delivered.
    *
    * It is the first step of the relay's queue, put there before the machine's
    * channel is listened to: a frame the machine sends while the cursor is
    * being seated is recorded behind the read, above the head, rather than
-   * under a sequence the log has already given out. A `Log` that knows its
-   * head without a read may later say so as a member the relay prefers where
-   * a log has one, which leaves every existing `Log` valid and this read what
-   * a log without it is bound by.
+   * under a sequence the log has already given out.
    */
   private async seat(): Promise<void> {
     let head = 0;
-    await this.log.replay(0, (frame) => {
-      head = frame.sequence;
-      return Promise.resolve();
-    });
+    if (this.log.head) head = await this.log.head();
+    else
+      await this.log.replay(0, (frame) => {
+        head = frame.sequence;
+        return Promise.resolve();
+      });
+    if (!Number.isSafeInteger(head) || head < 0) throw new Error('The log head must be a non-negative safe integer.');
     this.sequence = head;
     this.seated = true;
   }
 
   /** @internal */
   listen(): void {
-    this.run(() => this.seat());
+    this.run(async () => {
+      try {
+        await this.seat();
+      } catch {
+        this.end(1011, 'The session log head is unavailable.');
+        this.up.close(1011, 'The session log head is unavailable.');
+      }
+    });
     this.up.listen({
       frame: (frame) => this.run(() => this.fromUp(frame)),
       close: (code, reason) => this.run(() => this.end(code, reason)),
@@ -707,9 +726,13 @@ class Relay {
 
   /** run puts one step on the relay's queue; a step that throws leaves the session standing. */
   private run(step: () => void | Promise<void>): void {
-    this.queue = this.queue.then(step).catch(() => {
-      /* A channel that failed is dropped where it failed. */
-    });
+    this.queue = this.queue
+      .then(() => {
+        if (!this.ended) return step();
+      })
+      .catch(() => {
+        /* A channel that failed is dropped where it failed. */
+      });
   }
 
   /** A frame from a consumer: what it may send depends on its role and on who holds control. */

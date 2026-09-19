@@ -50,6 +50,7 @@ export const CHANNEL_REFUSED = 'channel_refused';
 export const CHANNEL_EXISTS = 'channel_exists';
 export const CHANNEL_INVALID = 'channel_invalid';
 
+/** Bounds on incoming frames, credit, and channels waiting to be accepted. */
 export interface TunnelOptions {
   /** Bounds a frame received over a channel; a larger one is refused before delivery, and the channel with it. Default: one mebibyte. */
   maxFrameBytes?: number;
@@ -92,6 +93,7 @@ export class Tunnel {
     peer.onClose(() => this.onOuterClose());
   }
 
+  /** The effective receive limits and credit window, with defaults applied. */
   get limits(): Readonly<Required<TunnelOptions>> {
     return this.options;
   }
@@ -327,8 +329,11 @@ export class Tunnel {
  * what waits, so a peer above paces on it as on any connection.
  */
 export class Channel implements FrameConnection {
+  /** The channel identifier on the outer connection. */
   readonly id: number;
+  /** The family named by the opener. */
   readonly family: string;
+  /** The last session sequence the opener holds, from which replay resumes. */
   readonly after: number;
   private readonly tunnel: Tunnel;
   private credit: number;
@@ -349,15 +354,18 @@ export class Channel implements FrameConnection {
     this.credit = credit;
   }
 
+  /** Whether frames can still be sent on this channel. */
   get state(): ConnectionState {
     return this.current;
   }
+  /** Frames waiting for the other side to grant credit. */
   get buffered(): number {
     return this.queued.length;
   }
 
+  /** Sends a frame, or queues it until credit arrives; a closed channel refuses with disconnected. */
   send(frame: Frame): void {
-    if (this.current !== 'open') throw new Error('Channel is not open.');
+    if (this.current !== 'open') throw new DuplexError('disconnected', 'Channel is not open.');
     if (this.credit > 0) {
       this.credit--;
       this.transmit(frame);
@@ -375,6 +383,7 @@ export class Channel implements FrameConnection {
     }
   }
 
+  /** Closes the channel locally and tells the remote side the code and reason. */
   close(code = 1000, reason = ''): void {
     if (this.current === 'closed') return;
     this.current = 'closed';
@@ -387,6 +396,7 @@ export class Channel implements FrameConnection {
     this.ended(code, reason);
   }
 
+  /** Registers delivery and close handlers, drains held frames, and returns an unsubscribe function. */
   listen(handlers: ConnectionHandlers): () => void {
     this.listeners.add(handlers);
     // What arrived before anyone listened is delivered now, in order, and
