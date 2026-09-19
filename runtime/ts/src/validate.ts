@@ -10,7 +10,7 @@ export type TypeExpression =
   | { array: TypeExpression }
   | { map: TypeExpression }
   | { nullable: TypeExpression }
-  | { literal: string | number | boolean }
+  | { literal: string }
   | { ref: string }
   | { apply: string; with: Record<string, TypeExpression> }
   | { empty: true }
@@ -148,7 +148,7 @@ function plainObject(value: unknown): value is Record<string, unknown> {
   );
 }
 
-function diagnosticLiteral(value: string | number | boolean): string {
+function diagnosticLiteral(value: string): string {
   return JSON.stringify(value).replace(
     /[<>&\u2028\u2029]/g,
     (character) => '\\u' + character.charCodeAt(0).toString(16).padStart(4, '0'),
@@ -521,6 +521,7 @@ function validate(expression: Expression, value: unknown, location: string): voi
       return;
     }
     if ('literal' in type) {
+      if (typeof type.literal !== 'string' || !type.literal) bad(location, 'nonempty string literal');
       const literal = diagnosticLiteral(type.literal);
       if (value !== type.literal) bad(location, 'literal ' + literal);
       return;
