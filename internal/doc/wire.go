@@ -159,9 +159,12 @@ func (x *exampler) in(f *render.Family) *exampler {
 type constraints struct {
 	min, max *json.Number
 	length   *model.Length
+	pattern  string
 }
 
-func of(f model.Field) constraints { return constraints{min: f.Min, max: f.Max, length: f.Length} }
+func of(f model.Field) constraints {
+	return constraints{min: f.Min, max: f.Max, length: f.Length, pattern: f.Pattern}
+}
 
 // fieldOf is a render field as a model field, for its constraints.
 func fieldOf(f render.Field) model.Field {
@@ -198,16 +201,27 @@ func (x *exampler) value(e model.TypeExpr, name string, c constraints) value {
 		}
 		return placeholder(v.Name)
 	case model.Imported:
-		if other := x.f.ReferencedFamily(v.Family); other != nil && other != x.f {
-			if t := other.Type(v.Name); t != nil {
-				return x.in(other).typed(t, name, c)
-			}
-		}
-		return placeholder(v.Family + "." + v.Name)
+		return x.applied(model.Apply{Family: v.Family, Name: v.Name}, name, c)
 	case model.Drawn:
+		if filled, ok := x.subst[v.Parameter+"."+v.Name]; ok {
+			return filled(name, c)
+		}
 		return placeholder(v.Parameter + "." + v.Name)
 	case model.Array:
-		return array(x.value(v.Elem, name, c))
+		n := 1
+		if c.length != nil {
+			if c.length.Min != nil {
+				n = max(n, *c.length.Min)
+			}
+			if c.length.Max != nil {
+				n = min(n, *c.length.Max)
+			}
+		}
+		items := make([]value, n)
+		for i := range items {
+			items[i] = x.value(v.Elem, name, constraints{})
+		}
+		return array(items...)
 	case model.Map:
 		return object(member{"‹key›", x.value(v.Elem, name, c)})
 	case model.Nullable:
@@ -234,6 +248,11 @@ func (x *exampler) value(e model.TypeExpr, name string, c constraints) value {
 func (x *exampler) primitive(p model.Primitive, name string, c constraints) value {
 	switch p {
 	case "string":
+		if c.pattern != "" {
+			if example, ok := patternExample(c.pattern, c.length); ok {
+				return text(example)
+			}
+		}
 		return text(bounded("‹"+name+"›", c.length))
 	case "boolean":
 		return scalar("true")
@@ -324,14 +343,19 @@ func (x *exampler) applied(a model.Apply, name string, c constraints) value {
 		return placeholder(a.Name)
 	}
 	y := x.in(f)
-	for _, p := range t.Parameters {
-		if with, ok := a.With[p.Name]; ok && with.Type != nil {
-			// A filler is spelled in the applying family's scope, so its
-			// example is taken there, by this exampler, when the applied
-			// type reaches the parameter.
-			expr := with.Type
-			y.subst[p.Name] = func(name string, c constraints) value { return x.value(expr, name, c) }
+	for _, argument := range x.f.Arguments(a) {
+		key := argument.Use.Parameter
+		expr := argument.Type
+		if argument.Use.Type != "" {
+			key += "." + argument.Use.Type
+			if argument.Family != "" {
+				expr = model.Imported{Family: argument.Family, Name: argument.Use.Type}
+			} else {
+				expr = model.Drawn{Parameter: argument.Parameter, Name: argument.Use.Type}
+			}
 		}
+		// Both type fillers and family draws retain their applying scope.
+		y.subst[key] = func(name string, c constraints) value { return x.value(expr, name, c) }
 	}
 	return y.typed(t, name, c)
 }
