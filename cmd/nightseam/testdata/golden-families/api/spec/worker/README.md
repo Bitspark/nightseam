@@ -28,7 +28,10 @@ export type Cancel = (options?: { signal?: AbortSignal }) => Promise<void>;
 For example:
 
 ```json
-null
+{
+  "binding": "‹binding›",
+  "contract": "worker/Cancel"
+}
 ```
 
 Used by `Job.cancel`.
@@ -69,8 +72,14 @@ For example:
 ```json
 {
   "ticket": "‹id›",
-  "cancel": null,
-  "rename": null
+  "cancel": {
+    "binding": "‹binding›",
+    "contract": "worker/Cancel"
+  },
+  "rename": {
+    "binding": "‹binding›",
+    "contract": "worker/Rename"
+  }
 }
 ```
 
@@ -167,7 +176,10 @@ For example:
 
 ```json
 {
-  "report": null
+  "report": {
+    "binding": "‹binding›",
+    "contract": "worker/Report"
+  }
 }
 ```
 
@@ -194,7 +206,10 @@ export type Rename = (request: Ticket, options?: { signal?: AbortSignal }) => Pr
 For example:
 
 ```json
-null
+{
+  "binding": "‹binding›",
+  "contract": "worker/Rename"
+}
 ```
 
 Used by `Job.rename`.
@@ -220,7 +235,10 @@ export type Report = (request: Percent, options?: { signal?: AbortSignal }) => P
 For example:
 
 ```json
-null
+{
+  "binding": "‹binding›",
+  "contract": "worker/Report"
+}
 ```
 
 Used by `ProgressSink.report`, `Watchers` (alias).
@@ -249,7 +267,10 @@ For example:
 ```json
 {
   "‹key›": {
-    "report": null
+    "report": {
+      "binding": "‹binding›",
+      "contract": "worker/Report"
+    }
   }
 }
 ```
@@ -296,10 +317,16 @@ For example:
     "label": "‹label›"
   },
   "progress": {
-    "report": null
+    "report": {
+      "binding": "‹binding›",
+      "contract": "worker/Report"
+    }
   },
   "watchers": [
-    null
+    {
+      "binding": "‹binding›",
+      "contract": "worker/Report"
+    }
   ]
 }
 ```
@@ -336,7 +363,10 @@ For example:
 {
   "sinks": {
     "‹key›": {
-      "report": null
+      "report": {
+        "binding": "‹binding›",
+        "contract": "worker/Report"
+      }
     }
   }
 }
@@ -406,7 +436,10 @@ For example:
 
 ```json
 [
-  null
+  {
+    "binding": "‹binding›",
+    "contract": "worker/Report"
+  }
 ]
 ```
 
@@ -583,10 +616,16 @@ The client sends:
       "label": "‹label›"
     },
     "progress": {
-      "report": null
+      "report": {
+        "binding": "‹binding›",
+        "contract": "worker/Report"
+      }
     },
     "watchers": [
-      null
+      {
+        "binding": "‹binding›",
+        "contract": "worker/Report"
+      }
     ]
   }
 }
@@ -601,8 +640,14 @@ The server answers:
   "id": "c:1",
   "result": {
     "ticket": "‹id›",
-    "cancel": null,
-    "rename": null
+    "cancel": {
+      "binding": "‹binding›",
+      "contract": "worker/Cancel"
+    },
+    "rename": {
+      "binding": "‹binding›",
+      "contract": "worker/Rename"
+    }
   }
 }
 ```
@@ -683,7 +728,10 @@ The server sends:
   "params": {
     "sinks": {
       "‹key›": {
-        "report": null
+        "report": {
+          "binding": "‹binding›",
+          "contract": "worker/Report"
+        }
       }
     }
   }

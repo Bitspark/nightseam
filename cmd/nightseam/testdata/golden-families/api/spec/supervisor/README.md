@@ -45,7 +45,10 @@ For example:
     "name": "‹name›"
   },
   "sink": {
-    "report": null
+    "report": {
+      "binding": "‹binding›",
+      "contract": "worker/Report"
+    }
   }
 }
 ```
@@ -124,11 +127,17 @@ For example:
     "name": "‹name›"
   },
   "sink": {
-    "report": null
+    "report": {
+      "binding": "‹binding›",
+      "contract": "worker/Report"
+    }
   },
   "spares": [
     {
-      "report": null
+      "report": {
+        "binding": "‹binding›",
+        "contract": "worker/Report"
+      }
     }
   ]
 }
@@ -302,7 +311,10 @@ The client sends:
       "name": "‹name›"
     },
     "sink": {
-      "report": null
+      "report": {
+        "binding": "‹binding›",
+        "contract": "worker/Report"
+      }
     }
   }
 }
@@ -350,11 +362,17 @@ The client sends:
       "name": "‹name›"
     },
     "sink": {
-      "report": null
+      "report": {
+        "binding": "‹binding›",
+        "contract": "worker/Report"
+      }
     },
     "spares": [
       {
-        "report": null
+        "report": {
+          "binding": "‹binding›",
+          "contract": "worker/Report"
+        }
       }
     ]
   }
@@ -370,8 +388,14 @@ The server answers:
   "id": "c:1",
   "result": {
     "ticket": "‹id›",
-    "cancel": null,
-    "rename": null
+    "cancel": {
+      "binding": "‹binding›",
+      "contract": "worker/Cancel"
+    },
+    "rename": {
+      "binding": "‹binding›",
+      "contract": "worker/Rename"
+    }
   }
 }
 ```

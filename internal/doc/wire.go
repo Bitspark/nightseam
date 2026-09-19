@@ -276,6 +276,16 @@ func (x *exampler) typed(t *render.Type, name string, c constraints) value {
 	}
 	x.trail[key] = true
 	defer delete(x.trail, key)
+	if t.Kind == model.KindCallable {
+		// A live value on the wire is a reference to a binding, and that is
+		// what a validator accepts here. The example is what the value looks
+		// like crossing the seam, not something a consumer writes: a consumer
+		// writes a function, and the generated codec exports it.
+		return object(
+			member{"binding", text("‹binding›")},
+			member{"contract", text(t.Contract)},
+		)
+	}
 	var fields []model.Field
 	for _, field := range t.Fields {
 		fields = append(fields, fieldOf(field))
