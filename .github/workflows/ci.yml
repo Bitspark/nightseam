@@ -86,6 +86,7 @@ jobs:
           node-version-file: package.json
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
       - run: pnpm -r check
       # The packages are built here and not only at a tag, so that a
       # tsconfig.build.json that stopped emitting fails a pull request rather

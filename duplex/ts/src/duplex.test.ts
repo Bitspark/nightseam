@@ -12,21 +12,41 @@ import type { Frame, WebSocketLike } from './index.ts';
 
 run('the in-memory pipe', async () => {
   const [a, b] = pipe();
-  return { a, b, end: () => { a.close(); } };
+  return {
+    a,
+    b,
+    end: () => {
+      a.close();
+    },
+  };
 });
 
 // A socket takes every frame inside the send and holds none of it back, so
 // the suite asks it nothing of what a transport holds; bufferedAmount is the
 // socket's own and the adapter is held to reading it below.
-run('a WebSocket', async () => {
-  const [left, right] = Socket.pair();
-  return { a: webSocketConnection(left), b: webSocketConnection(right), end: () => { left.close(); } };
-}, { holds: false });
+run(
+  'a WebSocket',
+  async () => {
+    const [left, right] = Socket.pair();
+    return {
+      a: webSocketConnection(left),
+      b: webSocketConnection(right),
+      end: () => {
+        left.close();
+      },
+    };
+  },
+  { holds: false },
+);
 
 test('the pipe delivers in a later turn, never inside the send', async () => {
   const [a, b] = pipe();
   const frames: Frame[] = [];
-  b.listen({ frame: frame => { frames.push(frame); } });
+  b.listen({
+    frame: (frame) => {
+      frames.push(frame);
+    },
+  });
   a.send({ kind: 'text', data: 'now' });
   assert.deepEqual(frames, [], 'a pipe delivered a frame inside the send');
   await settled();
@@ -47,10 +67,18 @@ test('the pipe takes eight frames in flight and holds what a send leaves past th
   await settled();
   assert.equal(a.buffered, 2, 'what nobody takes stopped being buffered on its own');
   const frames: Frame[] = [];
-  b.listen({ frame: frame => { frames.push(frame); } });
+  b.listen({
+    frame: (frame) => {
+      frames.push(frame);
+    },
+  });
   await settled();
   assert.equal(a.buffered, 0, 'what the far end took is still counted as buffered');
-  assert.deepEqual(frames.map(frame => frame.data), Array.from({ length: 10 }, (_, i) => `frame ${i}`), 'what was held was handed on out of order, or lost');
+  assert.deepEqual(
+    frames.map((frame) => frame.data),
+    Array.from({ length: 10 }, (_, i) => `frame ${i}`),
+    'what was held was handed on out of order, or lost',
+  );
   a.close();
 });
 
@@ -68,14 +96,24 @@ test('a socket that opens says so, and a string, an ArrayBuffer and a Uint8Array
   const connection = webSocketConnection(socket);
   const frames: Frame[] = [];
   let opened = 0;
-  connection.listen({ open: () => { opened++; }, frame: frame => { frames.push(frame); } });
+  connection.listen({
+    open: () => {
+      opened++;
+    },
+    frame: (frame) => {
+      frames.push(frame);
+    },
+  });
   socket.dispatchEvent(new Event('open'));
   socket.receive('a string');
   socket.receive(new Uint8Array([1, 2, 3]).buffer);
   socket.receive(new Uint8Array([4, 5]));
   await settled();
   assert.equal(opened, 1, 'the open event reached the handler once');
-  assert.deepEqual(frames.map(frame => frame.kind), ['text', 'binary', 'binary']);
+  assert.deepEqual(
+    frames.map((frame) => frame.kind),
+    ['text', 'binary', 'binary'],
+  );
   assert.equal(frames[0]!.data, 'a string');
   assert.deepEqual(new Uint8Array(frames[1]!.data as ArrayBuffer), new Uint8Array([1, 2, 3]));
   assert.deepEqual(frames[2]!.data, new Uint8Array([4, 5]));
@@ -85,11 +123,19 @@ test('a Blob is read as the bytes it holds, and what a socket delivered after it
   const socket = new Socket();
   const connection = webSocketConnection(socket);
   const frames: Frame[] = [];
-  connection.listen({ frame: frame => { frames.push(frame); } });
+  connection.listen({
+    frame: (frame) => {
+      frames.push(frame);
+    },
+  });
   socket.receive(new Blob([new Uint8Array([7, 8, 9])]));
   socket.receive('behind the blob');
   await settled();
-  assert.deepEqual(frames.map(frame => frame.kind), ['binary', 'text'], 'a frame overtook the blob before it');
+  assert.deepEqual(
+    frames.map((frame) => frame.kind),
+    ['binary', 'text'],
+    'a frame overtook the blob before it',
+  );
   assert.deepEqual(new Uint8Array(frames[0]!.data as ArrayBuffer), new Uint8Array([7, 8, 9]));
   assert.equal(frames[1]!.data, 'behind the blob');
 });
@@ -99,17 +145,29 @@ test('binaryType is asked for arraybuffer, and a socket that refuses it is adapt
   webSocketConnection(socket);
   assert.equal(socket.binaryType, 'arraybuffer', 'binary would arrive as a Blob, a turn behind everything else');
   const refusing = new Socket();
-  Object.defineProperty(refusing, 'binaryType', { get: () => 'blob', set: () => { throw new Error('Not settable here.'); } });
+  Object.defineProperty(refusing, 'binaryType', {
+    get: () => 'blob',
+    set: () => {
+      throw new Error('Not settable here.');
+    },
+  });
   const connection = webSocketConnection(refusing);
   assert.equal(connection.state, 'open', 'a socket that refuses binaryType was not adapted');
 });
 
-test('a message of no shape the seam knows is an error and no frame, as is the socket\'s own error', async () => {
+test("a message of no shape the seam knows is an error and no frame, as is the socket's own error", async () => {
   const socket = new Socket();
   const connection = webSocketConnection(socket);
   const frames: Frame[] = [];
   let errors = 0;
-  connection.listen({ frame: frame => { frames.push(frame); }, error: () => { errors++; } });
+  connection.listen({
+    frame: (frame) => {
+      frames.push(frame);
+    },
+    error: () => {
+      errors++;
+    },
+  });
   socket.receive(42);
   socket.dispatchEvent(new Event('error'));
   await settled();
@@ -117,11 +175,15 @@ test('a message of no shape the seam knows is an error and no frame, as is the s
   assert.deepEqual(frames, [], 'a message of no shape became a frame');
 });
 
-test('the close event\'s code and reason reach the handler, and a close that carries neither is 1005', async () => {
+test("the close event's code and reason reach the handler, and a close that carries neither is 1005", async () => {
   const told = new Socket();
   const toldConnection = webSocketConnection(told);
   let closed: { code: number; reason: string } | undefined;
-  toldConnection.listen({ close: (code, reason) => { closed = { code, reason }; } });
+  toldConnection.listen({
+    close: (code, reason) => {
+      closed = { code, reason };
+    },
+  });
   told.close(4011, 'the duplex profile closed it');
   await settled();
   assert.deepEqual(closed, { code: 4011, reason: 'the duplex profile closed it' });
@@ -129,18 +191,26 @@ test('the close event\'s code and reason reach the handler, and a close that car
   const silent = new Socket();
   const silentConnection = webSocketConnection(silent);
   let none: { code: number; reason: string } | undefined;
-  silentConnection.listen({ close: (code, reason) => { none = { code, reason } } });
+  silentConnection.listen({
+    close: (code, reason) => {
+      none = { code, reason };
+    },
+  });
   silent.readyState = 3;
   silent.dispatchEvent(new Event('close'));
   await settled();
-  assert.deepEqual(none, { code: 1005, reason: '' }, 'a close event with no code is the registry\'s no status present');
+  assert.deepEqual(none, { code: 1005, reason: '' }, "a close event with no code is the registry's no status present");
 });
 
 test('the handlers are detached when the connection closes, so a message after it reaches nobody', async () => {
   const socket = new Socket();
   const connection = webSocketConnection(socket);
   const frames: Frame[] = [];
-  connection.listen({ frame: frame => { frames.push(frame); } });
+  connection.listen({
+    frame: (frame) => {
+      frames.push(frame);
+    },
+  });
   socket.close(1000, '');
   socket.readyState = 1;
   socket.receive('after the close');
@@ -148,10 +218,16 @@ test('the handlers are detached when the connection closes, so a message after i
   assert.deepEqual(frames, [], 'a message after the close reached a handler');
 });
 
-test('state is the socket\'s readyState and buffered its bufferedAmount, and a send it cannot take throws', () => {
+test("state is the socket's readyState and buffered its bufferedAmount, and a send it cannot take throws", () => {
   const socket = new Socket();
   const connection = webSocketConnection(socket);
-  for (const [readyState, state] of [[0, 'connecting'], [1, 'open'], [2, 'closing'], [3, 'closed'], [9, 'closed']] as const) {
+  for (const [readyState, state] of [
+    [0, 'connecting'],
+    [1, 'open'],
+    [2, 'closing'],
+    [3, 'closed'],
+    [9, 'closed'],
+  ] as const) {
     socket.readyState = readyState;
     assert.equal(connection.state, state, `readyState ${readyState}`);
   }
@@ -199,7 +275,9 @@ class Socket extends EventTarget implements WebSocketLike {
     const partner = this.partner;
     if (!partner) return;
     const delivered = typeof data === 'string' ? data : partner.shape(data);
-    queueMicrotask(() => { if (partner.readyState === 1) partner.receive(delivered); });
+    queueMicrotask(() => {
+      if (partner.readyState === 1) partner.receive(delivered);
+    });
   }
 
   /** Delivers one message as a socket does, whatever the test made of it. */
@@ -224,5 +302,8 @@ class Socket extends EventTarget implements WebSocketLike {
 
 /** Every turn a socket or a blob could need; nothing of the seam is slower. */
 async function settled(): Promise<void> {
-  for (let i = 0; i < 5; i++) await new Promise(resolve => { setTimeout(resolve, 2); });
+  for (let i = 0; i < 5; i++)
+    await new Promise((resolve) => {
+      setTimeout(resolve, 2);
+    });
 }

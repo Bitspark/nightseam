@@ -30,7 +30,7 @@ export class Conn {
   attachReader(): void {
     if (this.detach) return;
     this.detach = this.connection.listen({
-      frame: frame => this.frames.put({ frame }),
+      frame: (frame) => this.frames.put({ frame }),
       close: (code, reason) => this.finish({ code, reason }),
       error: () => this.finish({ failed: true }),
     });
@@ -61,7 +61,9 @@ export class Conn {
 export const isConn = (object: unknown): object is Conn => object instanceof Conn;
 
 export const closeError = (ended: Ended) =>
-  'failed' in ended ? fail('failed', 'the connection failed') : fail('closed', `the connection closed with ${ended.code}`, { close_code: ended.code, reason: ended.reason });
+  'failed' in ended
+    ? fail('failed', 'the connection failed')
+    : fail('closed', `the connection closed with ${ended.code}`, { close_code: ended.code, reason: ended.reason });
 
 /** A listener accepting one WebSocket at a URL. */
 class Listener {
@@ -72,35 +74,45 @@ class Listener {
     this.server = server;
     this.url = url;
   }
-  shutdown(): void { this.server.close(); }
+  shutdown(): void {
+    this.server.close();
+  }
 }
 
 const isListener = (object: unknown): object is Listener => object instanceof Listener;
 
-export const listen = (limit: number): Promise<Listener> => new Promise((resolve, reject) => {
-  const server = createServer();
-  const sockets = new WebSocketServer({ server, maxPayload: limit });
-  const listener = new Listener(server, '');
-  let first = true;
-  sockets.on('connection', socket => {
-    if (!first) { socket.close(1008, 'one connection is accepted'); return; }
-    first = false;
-    listener.accepted.put(socket);
+export const listen = (limit: number): Promise<Listener> =>
+  new Promise((resolve, reject) => {
+    const server = createServer();
+    const sockets = new WebSocketServer({ server, maxPayload: limit });
+    const listener = new Listener(server, '');
+    let first = true;
+    sockets.on('connection', (socket) => {
+      if (!first) {
+        socket.close(1008, 'one connection is accepted');
+        return;
+      }
+      first = false;
+      listener.accepted.put(socket);
+    });
+    server.on('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        reject(new Error('no address'));
+        return;
+      }
+      listener.url = `ws://127.0.0.1:${address.port}`;
+      resolve(listener);
+    });
   });
-  server.on('error', reject);
-  server.listen(0, '127.0.0.1', () => {
-    const address = server.address();
-    if (!address || typeof address === 'string') { reject(new Error('no address')); return; }
-    listener.url = `ws://127.0.0.1:${address.port}`;
-    resolve(listener);
-  });
-});
 
-export const dial = (url: string, limit: number): Promise<WebSocket> => new Promise((resolve, reject) => {
-  const socket = new WebSocket(url, { maxPayload: limit });
-  socket.once('open', () => resolve(socket));
-  socket.once('error', reject);
-});
+export const dial = (url: string, limit: number): Promise<WebSocket> =>
+  new Promise((resolve, reject) => {
+    const socket = new WebSocket(url, { maxPayload: limit });
+    socket.once('open', () => resolve(socket));
+    socket.once('error', reject);
+  });
 
 /**
  * A ws socket as the seam's WebSocketLike: the same surface, its events
@@ -128,32 +140,35 @@ const lazyOf = (args: Args): boolean => {
 export function seamOps(t: Testee): Record<string, Op> {
   const conn = (args: Args) => t.lookup(args.on, isConn, 'a connection');
   return {
-    'conn.listen': async args => {
+    'conn.listen': async (args) => {
       const l = await listen(intOf(args, 'limit', 1 << 20));
       return { handle: t.mint('l', l), url: l.url };
     },
-    'conn.accept': async args => {
+    'conn.accept': async (args) => {
       const l = t.lookup(args.on, isListener, 'a listener');
       const { item } = await l.accepted.await(withinOf(args), () => true);
       if (!item) throw fail('timeout', 'nobody connected');
       return { handle: t.mint('c', new Conn(webSocketConnection(asLike(item)), item, lazyOf(args))) };
     },
-    'conn.dial': async args => {
-      const socket = await dial(stringOf(args, 'url', true), intOf(args, 'limit', 1 << 20)).catch(error => { throw fail('failed', String(error)); });
+    'conn.dial': async (args) => {
+      const socket = await dial(stringOf(args, 'url', true), intOf(args, 'limit', 1 << 20)).catch((error) => {
+        throw fail('failed', String(error));
+      });
       return { handle: t.mint('c', new Conn(webSocketConnection(asLike(socket)), socket, lazyOf(args))) };
     },
-    'conn.pipe': args => {
+    'conn.pipe': (args) => {
       const [a, b] = pipe();
       const lazy = lazyOf(args);
       return { a: t.mint('c', new Conn(a, undefined, lazy)), b: t.mint('c', new Conn(b, undefined, lazy)) };
     },
-    'conn.send': async args => {
+    'conn.send': async (args) => {
       const c = conn(args);
       if (c.ended) throw closeError(c.ended);
       const kind = kindOf(args);
-      const frame: Frame = kind === 'text'
-        ? { kind, data: stringOf(args, 'text') }
-        : { kind, data: new Uint8Array(Buffer.from(stringOf(args, 'base64'), 'base64')) };
+      const frame: Frame =
+        kind === 'text'
+          ? { kind, data: stringOf(args, 'text') }
+          : { kind, data: new Uint8Array(Buffer.from(stringOf(args, 'base64'), 'base64')) };
       try {
         c.connection.send(frame);
       } catch (error) {
@@ -164,11 +179,11 @@ export function seamOps(t: Testee): Record<string, Op> {
       const deadline = Date.now() + withinOf(args);
       while (c.connection.buffered > 0 && !c.ended) {
         if (Date.now() >= deadline) throw fail('timeout', 'the send did not settle: the frame waits on the other side');
-        await new Promise(resolve => setTimeout(resolve, 5));
+        await new Promise((resolve) => setTimeout(resolve, 5));
       }
       return {};
     },
-    'conn.receive': async args => {
+    'conn.receive': async (args) => {
       const c = conn(args);
       c.attachReader();
       const { item } = await c.frames.await(withinOf(args), () => true);
@@ -178,15 +193,16 @@ export function seamOps(t: Testee): Record<string, Op> {
         throw closeError(item.ended);
       }
       const frame = item.frame!;
-      if (frame.kind === 'binary') return { kind: 'binary', base64: Buffer.from(frame.data as ArrayBuffer).toString('base64') };
+      if (frame.kind === 'binary')
+        return { kind: 'binary', base64: Buffer.from(frame.data as ArrayBuffer).toString('base64') };
       return { kind: 'text', text: frame.data };
     },
-    'conn.close': async args => {
+    'conn.close': async (args) => {
       const c = conn(args);
       const code = intOf(args, 'code', 1000);
       const reason = stringOf(args, 'reason');
       if (c.ended) return {};
-      const closed = new Promise<void>(resolve => {
+      const closed = new Promise<void>((resolve) => {
         if (c.socket) c.socket.once('close', () => resolve());
         else resolve();
       });
@@ -195,17 +211,17 @@ export function seamOps(t: Testee): Record<string, Op> {
       c.finish({ code, reason });
       return {};
     },
-    'conn.abort': args => {
+    'conn.abort': (args) => {
       const c = conn(args);
       if (c.socket) c.socket.terminate();
       else if (c.connection.state === 'open') c.connection.close(1006, '');
       c.finish({ code: 1006, reason: '' });
       return {};
     },
-    'conn.await_close': async args => {
+    'conn.await_close': async (args) => {
       const c = conn(args);
       c.attachReader();
-      const { item } = await c.frames.await(withinOf(args), i => i.ended !== undefined);
+      const { item } = await c.frames.await(withinOf(args), (i) => i.ended !== undefined);
       if (!item?.ended) throw fail('timeout', 'the connection did not end');
       c.frames.put(item);
       return 'failed' in item.ended ? { code: 1006, reason: '' } : { code: item.ended.code, reason: item.ended.reason };

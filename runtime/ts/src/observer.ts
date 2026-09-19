@@ -18,13 +18,50 @@ import type { Trace } from './trace.ts';
 export interface ObserverEvents {
   'connection.opened': { type: 'connection.opened'; at: Date; role: 'client' | 'server' };
   'connection.closed': { type: 'connection.closed'; at: Date; code: number; reason: string; local: boolean };
-  'frame.sent': { type: 'frame.sent'; at: Date; kind: string; name: string; bytes: number; id?: string; trace?: Trace; family: string };
-  'frame.received': { type: 'frame.received'; at: Date; kind: string; name: string; bytes: number; id?: string; trace?: Trace; family: string };
-  'request.started': { type: 'request.started'; at: Date; id: string; method: string; incoming: boolean; trace?: Trace; family: string };
-  'request.ended': { type: 'request.ended'; at: Date; id: string; method: string; incoming: boolean; durationMs: number; outcome: 'ok' | 'error' | 'cancelled' | 'timeout'; errorCode?: string; trace?: Trace; family: string };
+  'frame.sent': {
+    type: 'frame.sent';
+    at: Date;
+    kind: string;
+    name: string;
+    bytes: number;
+    id?: string;
+    trace?: Trace;
+    family: string;
+  };
+  'frame.received': {
+    type: 'frame.received';
+    at: Date;
+    kind: string;
+    name: string;
+    bytes: number;
+    id?: string;
+    trace?: Trace;
+    family: string;
+  };
+  'request.started': {
+    type: 'request.started';
+    at: Date;
+    id: string;
+    method: string;
+    incoming: boolean;
+    trace?: Trace;
+    family: string;
+  };
+  'request.ended': {
+    type: 'request.ended';
+    at: Date;
+    id: string;
+    method: string;
+    incoming: boolean;
+    durationMs: number;
+    outcome: 'ok' | 'error' | 'cancelled' | 'timeout';
+    errorCode?: string;
+    trace?: Trace;
+    family: string;
+  };
   'event.emitted': { type: 'event.emitted'; at: Date; name: string; bytes: number; trace?: Trace; family: string };
   'event.delivered': { type: 'event.delivered'; at: Date; name: string; bytes: number; trace?: Trace; family: string };
-  'backpressure': { type: 'backpressure'; at: Date; queued: number; stalled: boolean; deadlineMs: number };
+  backpressure: { type: 'backpressure'; at: Date; queued: number; stalled: boolean; deadlineMs: number };
   'handler.panic': { type: 'handler.panic'; at: Date; method: string; value: string; trace?: Trace; family: string };
 }
 
@@ -46,7 +83,13 @@ export type ObserverEvent = ObserverEvents[keyof ObserverEvents];
  * given. An observer that throws throws alone: the peer catches it, loses that
  * event and carries on, a diagnostic being no reason for a connection to end.
  */
-export interface Observer { observe(event: ObserverEvent): void }
+export interface Observer {
+  observe(event: ObserverEvent): void;
+}
 
 /** The default. A peer given none observes nothing and pays for nothing. */
-export const NO_OBSERVER: Observer = Object.freeze({ observe(): void { /* Nothing is aggregated, here or anywhere. */ } });
+export const NO_OBSERVER: Observer = Object.freeze({
+  observe(): void {
+    /* Nothing is aggregated, here or anywhere. */
+  },
+});

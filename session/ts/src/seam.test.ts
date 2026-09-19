@@ -16,7 +16,10 @@ import { CURSOR_EVENT, memoryLog, PREFIX, Registry, type Attachment } from './in
 /** One envelope of the profile, as a raw end reads and writes it. */
 type Envelope = Record<string, unknown>;
 
-const tick = () => new Promise(resolve => { setTimeout(resolve, 5); });
+const tick = () =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 5);
+  });
 
 /** say writes one envelope to a connection, as a peer of the family would. */
 function say(connection: FrameConnection, envelope: Envelope): void {
@@ -30,18 +33,22 @@ function listen(connection: FrameConnection) {
   let taken = 0;
   let closed: { code: number; reason: string } | undefined;
   connection.listen({
-    frame: frame => {
+    frame: (frame) => {
       if (frame.kind !== 'text') return;
       const envelope = JSON.parse(frame.data) as Envelope;
       envelopes.push(envelope);
       waiters.shift()?.(envelope);
     },
-    close: (code, reason) => { closed = { code, reason }; },
+    close: (code, reason) => {
+      closed = { code, reason };
+    },
   });
   function next(): Promise<Envelope> {
     if (taken < envelopes.length) return Promise.resolve(envelopes[taken++]!);
     taken++;
-    return new Promise<Envelope>(resolve => { waiters.push(resolve); });
+    return new Promise<Envelope>((resolve) => {
+      waiters.push(resolve);
+    });
   }
   return {
     envelopes,
@@ -56,7 +63,9 @@ function listen(connection: FrameConnection) {
         return frame;
       }
     },
-    get closed() { return closed; },
+    get closed() {
+      return closed;
+    },
   };
 }
 
@@ -93,11 +102,29 @@ async function drive(registry: Registry): Promise<void> {
 
 test('a session bound over a connection that observes through nothing of its own tells the registry observer', async () => {
   const told: string[] = [];
-  const observer: Observer = { observe: (event: ObserverEvent) => { told.push(event.type); } };
+  const observer: Observer = {
+    observe: (event: ObserverEvent) => {
+      told.push(event.type);
+    },
+  };
   await drive(new Registry({ observer }));
-  for (const type of ['session.bound', 'session.attached', 'control.changed', 'ask.raised', 'ask.routed',
-    'ask.answered', 'frame.appended', 'session.refused', 'session.detached', 'session.unbound']) {
-    assert.equal(told.includes(type), true, 'the registry observer was never told ' + type + '; it heard ' + told.join(', '));
+  for (const type of [
+    'session.bound',
+    'session.attached',
+    'control.changed',
+    'ask.raised',
+    'ask.routed',
+    'ask.answered',
+    'frame.appended',
+    'session.refused',
+    'session.detached',
+    'session.unbound',
+  ]) {
+    assert.equal(
+      told.includes(type),
+      true,
+      'the registry observer was never told ' + type + '; it heard ' + told.join(', '),
+    );
   }
 });
 
@@ -106,7 +133,10 @@ test('a session with neither a connection that observes nor a registry observer 
   await drive(registry);
   // The session ran to its end: it is gone from the registry, which is what
   // unbound says to an observer there is none of.
-  assert.throws(() => registry.control('s', null), (error: unknown) => (error as { code?: string }).code === 'no_session');
+  assert.throws(
+    () => registry.control('s', null),
+    (error: unknown) => (error as { code?: string }).code === 'no_session',
+  );
 });
 
 /**
@@ -153,7 +183,7 @@ test('an in-process machine over a pipe and a consumer over a tunnel channel on 
   // with no tunnel and no socket between it and the relay.
   const [own, up] = pipe();
   const machine = new DuplexPeer({ role: 'server' });
-  machine.handle('echo', params => {
+  machine.handle('echo', (params) => {
     const said = params as { text: string; count: number };
     return { text: 'machine:' + said.text, count: said.count };
   });
@@ -176,8 +206,19 @@ test('an in-process machine over a pipe and a consumer over a tunnel channel on 
 
   // A call: the consumer's request reaches the machine under an id of the
   // session's own and its answer comes back under the consumer's.
-  say(consumer, { version: 1, kind: 'request', id: 'c:1', method: 'echo', params: { text: 'over the seam', count: 1 } });
-  assert.deepEqual(await atConsumer.family(), { version: 1, kind: 'response', id: 'c:1', result: { text: 'machine:over the seam', count: 1 } });
+  say(consumer, {
+    version: 1,
+    kind: 'request',
+    id: 'c:1',
+    method: 'echo',
+    params: { text: 'over the seam', count: 1 },
+  });
+  assert.deepEqual(await atConsumer.family(), {
+    version: 1,
+    kind: 'response',
+    id: 'c:1',
+    result: { text: 'machine:over the seam', count: 1 },
+  });
 
   // An event: what the machine emits reaches every consumer attached.
   await machine.emit('changed', { text: 'moved', count: 2 });

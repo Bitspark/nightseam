@@ -59,7 +59,10 @@ export const NO_STATUS = 1005;
  */
 export function webSocketConnection(socket: WebSocketLike): FrameConnection {
   const listeners = new Set<ConnectionHandlers>();
-  const each = <K extends keyof ConnectionHandlers>(name: K, ...args: Parameters<NonNullable<ConnectionHandlers[K]>>) => {
+  const each = <K extends keyof ConnectionHandlers>(
+    name: K,
+    ...args: Parameters<NonNullable<ConnectionHandlers[K]>>
+  ) => {
     for (const handlers of [...listeners]) {
       (handlers[name] as ((...args: unknown[]) => void) | undefined)?.(...args);
     }
@@ -67,9 +70,12 @@ export function webSocketConnection(socket: WebSocketLike): FrameConnection {
   // A Blob is read asynchronously; frames after it wait behind it so order holds.
   let tail: Promise<void> | undefined;
   const after = (task: () => void | Promise<void>) => {
-    const next: Promise<void> = (tail ?? Promise.resolve()).then(task).catch(() => {}).then(() => {
-      if (tail === next) tail = undefined;
-    });
+    const next: Promise<void> = (tail ?? Promise.resolve())
+      .then(task)
+      .catch(() => {})
+      .then(() => {
+        if (tail === next) tail = undefined;
+      });
     tail = next;
   };
   const deliver = (frame: Frame) => {
@@ -82,7 +88,12 @@ export function webSocketConnection(socket: WebSocketLike): FrameConnection {
     if (typeof data === 'string') deliver({ kind: 'text', data });
     else if (data instanceof ArrayBuffer || data instanceof Uint8Array) deliver({ kind: 'binary', data });
     else if (isBlob(data)) {
-      after(() => data.arrayBuffer().then(buffer => each('frame', { kind: 'binary', data: buffer }), () => each('error')));
+      after(() =>
+        data.arrayBuffer().then(
+          (buffer) => each('frame', { kind: 'binary', data: buffer }),
+          () => each('error'),
+        ),
+      );
     } else each('error');
   };
   const close = (event: globalThis.Event) => {
@@ -103,20 +114,32 @@ export function webSocketConnection(socket: WebSocketLike): FrameConnection {
   };
   // Browsers deliver binary as Blob unless told otherwise; ArrayBuffer keeps delivery synchronous.
   if ('binaryType' in socket) {
-    try { (socket as { binaryType: string }).binaryType = 'arraybuffer'; } catch { /* Not settable here. */ }
+    try {
+      (socket as { binaryType: string }).binaryType = 'arraybuffer';
+    } catch {
+      /* Not settable here. */
+    }
   }
   return {
-    get state() { return STATES[socket.readyState] ?? 'closed'; },
-    get buffered() { return socket.bufferedAmount; },
+    get state() {
+      return STATES[socket.readyState] ?? 'closed';
+    },
+    get buffered() {
+      return socket.bufferedAmount;
+    },
     send(frame) {
       if (socket.readyState !== 1) throw new Error('Connection is not open.');
       // WebSocketLike declares the text surface the peer needs; real sockets also accept binary.
       (socket.send as (data: string | ArrayBuffer | Uint8Array) => void)(frame.data);
     },
-    close(code = 1000, reason = '') { socket.close(code, reason); },
+    close(code = 1000, reason = '') {
+      socket.close(code, reason);
+    },
     listen(handlers) {
       listeners.add(handlers);
-      return () => { listeners.delete(handlers); };
+      return () => {
+        listeners.delete(handlers);
+      };
     },
   };
 }
@@ -149,7 +172,9 @@ export function pipe(): [FrameConnection, FrameConnection] {
     private readonly held: Frame[] = [];
     private draining = false;
     private readonly listeners = new Set<ConnectionHandlers>();
-    get buffered(): number { return this.held.length; }
+    get buffered(): number {
+      return this.held.length;
+    }
     send(frame: Frame): void {
       if (this.state !== 'open') throw new Error('Connection is not open.');
       (this.inFlight.length < IN_FLIGHT ? this.inFlight : this.held).push(frame);
@@ -170,13 +195,18 @@ export function pipe(): [FrameConnection, FrameConnection] {
       this.listeners.add(handlers);
       // What the partner sent while nobody listened has a taker now.
       this.partner.drainLater();
-      return () => { this.listeners.delete(handlers); };
+      return () => {
+        this.listeners.delete(handlers);
+      };
     }
     /** Hands on what the far end can take, in a later turn and never inside a send. */
     private drainLater(): void {
       if (this.draining) return;
       this.draining = true;
-      queueMicrotask(() => { this.draining = false; this.drain(); });
+      queueMicrotask(() => {
+        this.draining = false;
+        this.drain();
+      });
     }
     private drain(): void {
       while (this.inFlight.length > 0) {

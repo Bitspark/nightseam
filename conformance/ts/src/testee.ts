@@ -27,12 +27,15 @@ export class Failure extends Error {
   }
 }
 
-export const fail = (code: string, message: string, members?: Record<string, unknown>) => new Failure(code, message, members);
+export const fail = (code: string, message: string, members?: Record<string, unknown>) =>
+  new Failure(code, message, members);
 export const unsupported = (what: string) => fail('unsupported', what);
 export const invalid = (what: string) => fail('invalid', what);
 
 /** What a handle's object does when the testee resets. */
-export interface Closer { shutdown(): void }
+export interface Closer {
+  shutdown(): void;
+}
 
 export type Args = Record<string, unknown>;
 export type Op = (args: Args) => Promise<unknown> | unknown;
@@ -62,7 +65,11 @@ export class Testee {
     this.handles.clear();
     for (const object of objects) {
       if (object && typeof (object as Closer).shutdown === 'function') {
-        try { (object as Closer).shutdown(); } catch { /* A reset forgets. */ }
+        try {
+          (object as Closer).shutdown();
+        } catch {
+          /* A reset forgets. */
+        }
       }
     }
   }
@@ -98,9 +105,16 @@ export class Inbox<T> {
       if (this.done) return { ended: true };
       const remaining = deadline - Date.now();
       if (remaining <= 0) return { ended: false };
-      await new Promise<void>(resolve => {
-        const timer = setTimeout(() => { this.waiters.delete(waiter); resolve(); }, remaining);
-        const waiter = () => { clearTimeout(timer); this.waiters.delete(waiter); resolve(); };
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          this.waiters.delete(waiter);
+          resolve();
+        }, remaining);
+        const waiter = () => {
+          clearTimeout(timer);
+          this.waiters.delete(waiter);
+          resolve();
+        };
         this.waiters.add(waiter);
       });
     }
@@ -160,9 +174,21 @@ export const within = async <T>(withinMs: number, work: Promise<T>, what: string
 
 const testee = new Testee();
 const ops: Record<string, Op> = {
-  hello: () => ({ driver: DRIVER, language: 'typescript', layers: ['seam', 'peer', 'tunnel', 'session'], features: ['listen', 'pipe', 'observer', 'propagator', 'lazy'] }),
-  reset: () => { testee.reset(); return {}; },
-  bye: () => { testee.bye = true; testee.reset(); return {}; },
+  hello: () => ({
+    driver: DRIVER,
+    language: 'typescript',
+    layers: ['seam', 'peer', 'tunnel', 'session'],
+    features: ['listen', 'pipe', 'observer', 'propagator', 'lazy'],
+  }),
+  reset: () => {
+    testee.reset();
+    return {};
+  },
+  bye: () => {
+    testee.bye = true;
+    testee.reset();
+    return {};
+  },
   ...seamOps(testee),
   ...peerOps(testee),
   ...tunnelOps(testee),
@@ -188,7 +214,10 @@ const serve = async (line: string): Promise<string> => {
     return JSON.stringify({ id, ok });
   } catch (error) {
     if (error instanceof Failure) return JSON.stringify({ id, error });
-    return JSON.stringify({ id, error: fail('internal', error instanceof Error ? `${error.name}: ${error.message}` : String(error)) });
+    return JSON.stringify({
+      id,
+      error: fail('internal', error instanceof Error ? `${error.name}: ${error.message}` : String(error)),
+    });
   }
 };
 
@@ -196,7 +225,7 @@ const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
 for await (const line of lines) {
   if (line.trim() === '') continue;
   const answer = await serve(line);
-  await new Promise<void>(resolve => process.stdout.write(answer + '\n', () => resolve()));
+  await new Promise<void>((resolve) => process.stdout.write(answer + '\n', () => resolve()));
   if (testee.bye) break;
 }
 testee.reset();

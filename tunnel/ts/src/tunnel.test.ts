@@ -14,11 +14,15 @@ function watching() {
   const events: ObserverEvent[] = [];
   return {
     events,
-    observe(event: ObserverEvent): void { events.push(event); },
+    observe(event: ObserverEvent): void {
+      events.push(event);
+    },
     /** The tunnel's events alone, in the order they were told. */
-    tunnel(): ObserverEvent[] { return events.filter(event => TUNNEL_EVENTS.has(event.type)); },
+    tunnel(): ObserverEvent[] {
+      return events.filter((event) => TUNNEL_EVENTS.has(event.type));
+    },
     of<K extends ObserverEvent['type']>(type: K): Extract<ObserverEvent, { type: K }>[] {
-      return events.filter(event => event.type === type) as Extract<ObserverEvent, { type: K }>[];
+      return events.filter((event) => event.type === type) as Extract<ObserverEvent, { type: K }>[];
     },
   };
 }
@@ -31,7 +35,14 @@ async function tunnels(options: TunnelOptions = {}) {
   const client = new DuplexPeer({ role: 'client', observer: seenByClient });
   const server = new DuplexPeer({ role: 'server', observer: seenByServer });
   await Promise.all([client.attach(left), server.attach(right)]);
-  return { client, server, ct: new Tunnel(client, options), st: new Tunnel(server, options), seenByClient, seenByServer };
+  return {
+    client,
+    server,
+    ct: new Tunnel(client, options),
+    st: new Tunnel(server, options),
+    seenByClient,
+    seenByServer,
+  };
 }
 
 /** One channel opened by the client and accepted by the server. */
@@ -48,21 +59,30 @@ function collect(channel: Channel) {
   let taken = 0;
   let closed: { code: number; reason: string } | undefined;
   channel.listen({
-    frame: frame => { frames.push(frame); waiters.shift()?.(frame); },
-    close: (code, reason) => { closed = { code, reason }; },
+    frame: (frame) => {
+      frames.push(frame);
+      waiters.shift()?.(frame);
+    },
+    close: (code, reason) => {
+      closed = { code, reason };
+    },
   });
   return {
     frames,
     next: () => {
       if (taken < frames.length) return Promise.resolve(frames[taken++]!);
       taken++;
-      return new Promise<Frame>(resolve => { waiters.push(resolve); });
+      return new Promise<Frame>((resolve) => {
+        waiters.push(resolve);
+      });
     },
-    get closed() { return closed; },
+    get closed() {
+      return closed;
+    },
   };
 }
 
-const tick = () => new Promise(resolve => setTimeout(resolve, 5));
+const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 
 test('a channel opens, carries frames both ways in order, text and binary, and a handle resolves it', async () => {
   const { ct, st } = await tunnels();
@@ -79,9 +99,14 @@ test('a channel opens, carries frames both ways in order, text and binary, and a
   opened.send({ kind: 'binary', data: new Uint8Array([1, 2, 3, 255]) });
   opened.send({ kind: 'text', data: 'three' });
   accepted.send({ kind: 'text', data: 'back' });
-  await atServer.next(); await atServer.next(); await atServer.next();
+  await atServer.next();
+  await atServer.next();
+  await atServer.next();
   await atClient.next();
-  assert.deepEqual(atServer.frames.map(frame => frame.kind), ['text', 'binary', 'text']);
+  assert.deepEqual(
+    atServer.frames.map((frame) => frame.kind),
+    ['text', 'binary', 'text'],
+  );
   assert.equal(atServer.frames[0]!.data, 'one');
   assert.deepEqual([...(atServer.frames[1]!.data as Uint8Array)], [1, 2, 3, 255]);
   assert.equal(atServer.frames[2]!.data, 'three');
@@ -121,8 +146,13 @@ test('credit paces the sender: beyond the window a frame waits in the channel un
   opened.send({ kind: 'text', data: '2' });
   opened.send({ kind: 'text', data: '3' });
   assert.equal(opened.buffered, 1);
-  await atServer.next(); await atServer.next(); await atServer.next();
-  assert.deepEqual(atServer.frames.map(frame => frame.data), ['1', '2', '3']);
+  await atServer.next();
+  await atServer.next();
+  await atServer.next();
+  assert.deepEqual(
+    atServer.frames.map((frame) => frame.data),
+    ['1', '2', '3'],
+  );
   assert.equal(opened.buffered, 0);
 });
 
@@ -132,7 +162,8 @@ test('a frame over the limit is refused, and the channel with it', async () => {
   const atServer = collect(accepted);
   const atClient = collect(opened);
   opened.send({ kind: 'text', data: 'x'.repeat(17) });
-  await tick(); await tick();
+  await tick();
+  await tick();
   assert.equal(atServer.frames.length, 0);
   assert.equal(atServer.closed?.code, 1009);
   assert.equal(atClient.closed?.code, 1009);
@@ -142,17 +173,25 @@ test('a frame over the limit is refused, and the channel with it', async () => {
 test('an open beyond the accept capacity is refused, and the tunnel stands', async () => {
   const { ct } = await tunnels({ acceptCapacity: 1 });
   await ct.open('probe');
-  await assert.rejects(ct.open('probe'), (error: unknown) => error instanceof DuplexError && error.code === 'channel_refused');
-  await assert.rejects(ct.open(''), (error: unknown) => error instanceof DuplexError && error.code === 'channel_invalid');
+  await assert.rejects(
+    ct.open('probe'),
+    (error: unknown) => error instanceof DuplexError && error.code === 'channel_refused',
+  );
+  await assert.rejects(
+    ct.open(''),
+    (error: unknown) => error instanceof DuplexError && error.code === 'channel_invalid',
+  );
 });
 
 test('a peer of the profile runs over a channel', async () => {
   const { ct, st } = await tunnels();
   const [opened, accepted] = await pair(ct, st);
   const server = new DuplexPeer({ role: 'server' });
-  server.handle('echo', params => params);
+  server.handle('echo', (params) => params);
   const events: unknown[] = [];
-  server.onEvent('hello', data => { events.push(data); });
+  server.onEvent('hello', (data) => {
+    events.push(data);
+  });
   await server.attach(accepted);
   const client = new DuplexPeer({ role: 'client' });
   await client.attach(opened);
@@ -170,7 +209,10 @@ test('the connection carrying the channels closing ends every channel with going
   const [opened, accepted] = await pair(ct, st);
   const atClient = collect(opened);
   const atServer = collect(accepted);
-  const rejected = assert.rejects(st.accept(), (error: unknown) => error instanceof DuplexError && error.code === 'disconnected');
+  const rejected = assert.rejects(
+    st.accept(),
+    (error: unknown) => error instanceof DuplexError && error.code === 'disconnected',
+  );
   server.close();
   await tick();
   assert.equal(atServer.closed?.code, 1001);
@@ -186,9 +228,14 @@ test('frames that arrive before anyone listens are held, and delivered in order 
   await tick();
   assert.equal(accepted.state, 'open');
   const late = collect(accepted);
-  assert.deepEqual(late.frames.map(frame => frame.data), ['early one', 'early two']);
+  assert.deepEqual(
+    late.frames.map((frame) => frame.data),
+    ['early one', 'early two'],
+  );
   opened.send({ kind: 'text', data: 'three' });
-  await late.next(); await late.next(); await late.next();
+  await late.next();
+  await late.next();
+  await late.next();
   assert.equal(late.frames[2]!.data, 'three');
   const [again, acceptedAgain] = await pair(ct, st);
   again.send({ kind: 'text', data: 'last' });
@@ -196,7 +243,10 @@ test('frames that arrive before anyone listens are held, and delivered in order 
   await tick();
   assert.equal(acceptedAgain.state, 'closed');
   const afterwards = collect(acceptedAgain);
-  assert.deepEqual(afterwards.frames.map(frame => frame.data), ['last']);
+  assert.deepEqual(
+    afterwards.frames.map((frame) => frame.data),
+    ['last'],
+  );
   assert.deepEqual(afterwards.closed, { code: 1000, reason: 'done' });
 });
 
@@ -210,8 +260,14 @@ test('a channel opened, accepted, carried and closed is what both observers saw,
   await tick();
   // The opener opened it and closed it; the other side saw it opened, took it,
   // and saw it close — neither tunnel was given an observer of its own.
-  assert.deepEqual(seenByClient.tunnel().map(event => event.type), ['channel.opened', 'channel.closed']);
-  assert.deepEqual(seenByServer.tunnel().map(event => event.type), ['channel.opened', 'channel.accepted', 'channel.closed']);
+  assert.deepEqual(
+    seenByClient.tunnel().map((event) => event.type),
+    ['channel.opened', 'channel.closed'],
+  );
+  assert.deepEqual(
+    seenByServer.tunnel().map((event) => event.type),
+    ['channel.opened', 'channel.accepted', 'channel.closed'],
+  );
   const openedHere = seenByClient.of('channel.opened')[0]!;
   assert.equal(openedHere.family, 'probe');
   assert.equal(openedHere.id, opened.id);
@@ -221,16 +277,19 @@ test('a channel opened, accepted, carried and closed is what both observers saw,
   const openedThere = seenByServer.of('channel.opened')[0]!;
   assert.equal(openedThere.id, opened.id);
   assert.equal(openedThere.opener, false);
-  assert.deepEqual(
-    (({ family, id, after }) => ({ family, id, after }))(seenByServer.of('channel.accepted')[0]!),
-    { family: 'probe', id: opened.id, after: 7 },
-  );
+  assert.deepEqual((({ family, id, after }) => ({ family, id, after }))(seenByServer.of('channel.accepted')[0]!), {
+    family: 'probe',
+    id: opened.id,
+    after: 7,
+  });
   for (const seen of [seenByClient, seenByServer]) {
     const closed = seen.of('channel.closed')[0]!;
-    assert.deepEqual(
-      (({ family, id, code, reason }) => ({ family, id, code, reason }))(closed),
-      { family: 'probe', id: opened.id, code: 1008, reason: 'the family said so' },
-    );
+    assert.deepEqual((({ family, id, code, reason }) => ({ family, id, code, reason }))(closed), {
+      family: 'probe',
+      id: opened.id,
+      code: 1008,
+      reason: 'the family said so',
+    });
   }
 });
 
@@ -243,13 +302,14 @@ test('an observer of a tunnel is told nothing of what a channel carried', async 
   opened.send({ kind: 'text', data: sentinel });
   opened.send({ kind: 'binary', data: new TextEncoder().encode(sentinel) });
   accepted.send({ kind: 'text', data: sentinel });
-  await atServer.next(); await atServer.next();
+  await atServer.next();
+  await atServer.next();
   await atClient.next();
   opened.close();
   await tick();
   const everything = JSON.stringify([...seenByClient.events, ...seenByServer.events]);
-  assert.ok(!everything.includes(sentinel), 'a frame\'s payload reached an observer');
-  assert.ok(!everything.includes(btoa(sentinel)), 'a binary frame\'s payload reached an observer');
+  assert.ok(!everything.includes(sentinel), "a frame's payload reached an observer");
+  assert.ok(!everything.includes(btoa(sentinel)), "a binary frame's payload reached an observer");
   assert.ok(seenByClient.tunnel().length > 0);
 });
 
@@ -262,29 +322,56 @@ test('a send beyond the window stalls, and the stall says which channel and how 
   opened.send({ kind: 'text', data: '3' });
   opened.send({ kind: 'text', data: '4' });
   const stalls = seenByClient.of('credit.stall');
-  assert.deepEqual(stalls.map(event => event.waiting), [1, 2]);
-  assert.deepEqual(stalls.map(event => event.family), ['probe', 'probe']);
-  assert.deepEqual(stalls.map(event => event.id), [opened.id, opened.id]);
-  await atServer.next(); await atServer.next(); await atServer.next(); await atServer.next();
-  assert.deepEqual(atServer.frames.map(frame => frame.data), ['1', '2', '3', '4']);
+  assert.deepEqual(
+    stalls.map((event) => event.waiting),
+    [1, 2],
+  );
+  assert.deepEqual(
+    stalls.map((event) => event.family),
+    ['probe', 'probe'],
+  );
+  assert.deepEqual(
+    stalls.map((event) => event.id),
+    [opened.id, opened.id],
+  );
+  await atServer.next();
+  await atServer.next();
+  await atServer.next();
+  await atServer.next();
+  assert.deepEqual(
+    atServer.frames.map((frame) => frame.data),
+    ['1', '2', '3', '4'],
+  );
 });
 
 test('an open that becomes no channel is refused where it was refused and where it was asked', async () => {
   const { ct, seenByClient, seenByServer } = await tunnels({ acceptCapacity: 1 });
   await ct.open('probe');
-  await assert.rejects(ct.open('codex'), (error: unknown) => error instanceof DuplexError && error.code === 'channel_refused');
-  await assert.rejects(ct.open(''), (error: unknown) => error instanceof DuplexError && error.code === 'channel_invalid');
+  await assert.rejects(
+    ct.open('codex'),
+    (error: unknown) => error instanceof DuplexError && error.code === 'channel_refused',
+  );
+  await assert.rejects(
+    ct.open(''),
+    (error: unknown) => error instanceof DuplexError && error.code === 'channel_invalid',
+  );
   // The side that refused it says why in its own words; the side that asked
   // says what it was told, and an open refused before it left says so too.
   assert.deepEqual(
-    seenByServer.of('open.refused').map(event => [event.family, event.reason]),
+    seenByServer.of('open.refused').map((event) => [event.family, event.reason]),
     [['codex', 'no room for a channel nobody has accepted']],
   );
   const asked = seenByClient.of('open.refused');
-  assert.deepEqual(asked.map(event => event.family), ['codex', '']);
+  assert.deepEqual(
+    asked.map((event) => event.family),
+    ['codex', ''],
+  );
   assert.match(asked[0]!.reason, /No room for a channel nobody has accepted/);
   assert.equal(asked[1]!.reason, 'a channel is opened for a family');
-  assert.deepEqual(seenByClient.of('channel.opened').map(event => event.family), ['probe']);
+  assert.deepEqual(
+    seenByClient.of('channel.opened').map((event) => event.family),
+    ['probe'],
+  );
 });
 
 test('a frame beyond the window ends the channel, and what is held is one window deep', async () => {
@@ -297,7 +384,7 @@ test('a frame beyond the window ends the channel, and what is held is one window
   opened.send({ kind: 'text', data: '1' });
   opened.send({ kind: 'text', data: '2' });
   await tick();
-  assert.equal(accepted.state, 'open', 'a window\'s worth is held, not refused');
+  assert.equal(accepted.state, 'open', "a window's worth is held, not refused");
   // One more, past the credit the receiver granted. Only the outer peer can
   // send it: the channel's own send would wait for credit that never comes.
   await client.emit('channel.frame', { channel: opened.id, text: 'beyond' });

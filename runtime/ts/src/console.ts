@@ -88,7 +88,7 @@ function* pairs(fields: Record<string, unknown>): Generator<string> {
   const type = typeof fields.type === 'string' ? fields.type : '';
   yield `msg=${render(type)}`;
   // `at` is no field of the line: the line's own time is when it was observed.
-  const keys = FIELDS[type] ?? Object.keys(fields).filter(key => key !== 'type' && key !== 'at');
+  const keys = FIELDS[type] ?? Object.keys(fields).filter((key) => key !== 'type' && key !== 'at');
   for (const key of keys) {
     if (key === 'trace') {
       const trace = fields.trace as Trace | undefined;
@@ -136,5 +136,9 @@ function quoting(text: string): boolean {
 
 /** A field of a layer's own event that is neither scalar nor date, as it stands. */
 function json(value: unknown): string {
-  try { return JSON.stringify(value) ?? String(value); } catch { return String(value); }
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
 }

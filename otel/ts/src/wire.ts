@@ -47,11 +47,18 @@ export function minted(): { trace: Trace; context: Context } {
   const spanId = randomHex(8);
   return {
     trace: { traceparent: `00-${traceId}-${spanId}-01` },
-    context: traceApi.setSpanContext(ROOT_CONTEXT, { traceId, spanId, traceFlags: TraceFlags.SAMPLED, isRemote: false }),
+    context: traceApi.setSpanContext(ROOT_CONTEXT, {
+      traceId,
+      spanId,
+      traceFlags: TraceFlags.SAMPLED,
+      isRemote: false,
+    }),
   };
 }
 
 /** Web Crypto is the only source, as it is in the runtime's own default. */
 function randomHex(bytes: number): string {
-  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), byte => byte.toString(16).padStart(2, '0')).join('');
+  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (byte) => byte.toString(16).padStart(2, '0')).join(
+    '',
+  );
 }

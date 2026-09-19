@@ -58,7 +58,11 @@ export interface WireType {
 }
 
 /** What a slot of the session role is filled with: any family. */
-export interface AnyFamily { readonly name: string; Envelope: unknown; Handle: unknown }
+export interface AnyFamily {
+  readonly name: string;
+  Envelope: unknown;
+  Handle: unknown;
+}
 
 /** A family bound at runtime: its name and its validator, which validates what fills a slot of it. */
 export interface FamilyBinding<F extends AnyFamily> {
@@ -76,10 +80,22 @@ function timestamp(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)(?:\.\d+)?(?:Z|([+-])(\d\d):(\d\d))$/.exec(value);
   if (!m) return false;
-  const year = Number(m[1]), month = Number(m[2]), day = Number(m[3]);
+  const year = Number(m[1]),
+    month = Number(m[2]),
+    day = Number(m[3]);
   const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
   const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  return month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1]! && Number(m[4]) <= 23 && Number(m[5]) <= 59 && Number(m[6]) <= 59 && (!m[7] || (Number(m[8]) <= 23 && Number(m[9]) <= 59)) && !Number.isNaN(Date.parse(value));
+  return (
+    month >= 1 &&
+    month <= 12 &&
+    day >= 1 &&
+    day <= days[month - 1]! &&
+    Number(m[4]) <= 23 &&
+    Number(m[5]) <= 59 &&
+    Number(m[6]) <= 59 &&
+    (!m[7] || (Number(m[8]) <= 23 && Number(m[9]) <= 59)) &&
+    !Number.isNaN(Date.parse(value))
+  );
 }
 
 function jsonValue(value: unknown, location: string, seen = new Set<object>()): void {
@@ -90,16 +106,24 @@ function jsonValue(value: unknown, location: string, seen = new Set<object>()): 
   }
   if (typeof value !== 'object' || seen.has(value)) throw new Error(location + ': expected acyclic JSON');
   seen.add(value);
-  if (Array.isArray(value)) { let index = 0; for (const child of value) jsonValue(child, location + '[' + (index++) + ']', seen); }
-  else {
-    if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) throw new Error(location + ': expected plain JSON object');
+  if (Array.isArray(value)) {
+    let index = 0;
+    for (const child of value) jsonValue(child, location + '[' + index++ + ']', seen);
+  } else {
+    if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)
+      throw new Error(location + ': expected plain JSON object');
     for (const [key, child] of Object.entries(value)) jsonValue(child, location + '.' + key, seen);
   }
   seen.delete(value);
 }
 
 function plainObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value) && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+  );
 }
 
 /** Holds a field's value to its constraints: min and max on a number or a timestamp, length on a string or an array, pattern on a string. */
@@ -109,15 +133,19 @@ function constrain(field: WireField, value: unknown, location: string): void {
       if (field.min !== undefined && value < field.min) throw new Error(location + ': expected at least ' + field.min);
       if (field.max !== undefined && value > field.max) throw new Error(location + ': expected at most ' + field.max);
     } else if (typeof value === 'string') {
-      if (field.min !== undefined && value < String(field.min)) throw new Error(location + ': expected at or after ' + field.min);
-      if (field.max !== undefined && value > String(field.max)) throw new Error(location + ': expected at or before ' + field.max);
+      if (field.min !== undefined && value < String(field.min))
+        throw new Error(location + ': expected at or after ' + field.min);
+      if (field.max !== undefined && value > String(field.max))
+        throw new Error(location + ': expected at or before ' + field.max);
     }
   }
   if (field.length) {
     const length = typeof value === 'string' ? [...value].length : Array.isArray(value) ? value.length : -1;
     if (length >= 0) {
-      if (field.length.min !== undefined && length < field.length.min) throw new Error(location + ': expected a length of at least ' + field.length.min);
-      if (field.length.max !== undefined && length > field.length.max) throw new Error(location + ': expected a length of at most ' + field.length.max);
+      if (field.length.min !== undefined && length < field.length.min)
+        throw new Error(location + ': expected a length of at least ' + field.length.min);
+      if (field.length.max !== undefined && length > field.length.max)
+        throw new Error(location + ': expected a length of at most ' + field.length.max);
     }
   }
   if (field.pattern && typeof value === 'string' && !new RegExp(field.pattern).test(value)) {
@@ -151,19 +179,25 @@ export function createValidator(types: Record<string, WireType>, imported: Recor
   const applied = (fillers: Record<string, string>, slots?: Slots): Slots => {
     const bound: Record<string, FamilyBinding<AnyFamily>> = {};
     for (const [parameter, filler] of Object.entries(fillers)) {
-      if (/^[A-Z]/.test(filler)) { if (slots?.[filler]) bound[parameter] = slots[filler]; continue; }
+      if (/^[A-Z]/.test(filler)) {
+        if (slots?.[filler]) bound[parameter] = slots[filler];
+        continue;
+      }
       const validate = imported[filler];
-      if (validate) bound[parameter] = { name: filler, validate: (type, value, location) => validate(type, value, location) };
+      if (validate)
+        bound[parameter] = { name: filler, validate: (type, value, location) => validate(type, value, location) };
     }
     return bound;
   };
   const validateWire: Validator = (type, value, location = '$', slots) => {
-    const bad = (expected: string): never => { throw new Error(location + ': expected ' + expected); };
+    const bad = (expected: string): never => {
+      throw new Error(location + ': expected ' + expected);
+    };
     if (typeof type === 'object') {
       if ('array' in type) {
         if (!Array.isArray(value)) bad('array');
         let index = 0;
-        for (const item of value as unknown[]) validateWire(type.array, item, location + '[' + (index++) + ']', slots);
+        for (const item of value as unknown[]) validateWire(type.array, item, location + '[' + index++ + ']', slots);
         return;
       }
       if ('ref' in type) {
@@ -174,10 +208,14 @@ export function createValidator(types: Record<string, WireType>, imported: Recor
         validateWire(key!.type, value, location, slots);
         return;
       }
-      if ('apply' in type) { foreign(type.apply, value, location, applied(type.with, slots)); return; }
+      if ('apply' in type) {
+        foreign(type.apply, value, location, applied(type.with, slots));
+        return;
+      }
       if ('map' in type) {
         if (!plainObject(value)) bad('object');
-        for (const [key, item] of Object.entries(value as Record<string, unknown>)) validateWire(type.map, item, location + '.' + key, slots);
+        for (const [key, item] of Object.entries(value as Record<string, unknown>))
+          validateWire(type.map, item, location + '.' + key, slots);
         return;
       }
       if (!('empty' in type)) bad('supported type expression');
@@ -186,15 +224,25 @@ export function createValidator(types: Record<string, WireType>, imported: Recor
     }
     if (type.includes('.')) {
       const at = type.indexOf('.');
-      if (/^[A-Z]/.test(type)) { drawn(type.slice(0, at), type.slice(at + 1), value, location, slots); return; }
+      if (/^[A-Z]/.test(type)) {
+        drawn(type.slice(0, at), type.slice(at + 1), value, location, slots);
+        return;
+      }
       foreign(type, value, location, slots);
       return;
     }
     switch (type) {
-      case 'json': jsonValue(value, location); return;
-      case 'string': if (typeof value !== 'string') bad('string'); return;
-      case 'boolean': if (typeof value !== 'boolean') bad('boolean'); return;
-      case 'number': case 'integer':
+      case 'json':
+        jsonValue(value, location);
+        return;
+      case 'string':
+        if (typeof value !== 'string') bad('string');
+        return;
+      case 'boolean':
+        if (typeof value !== 'boolean') bad('boolean');
+        return;
+      case 'number':
+      case 'integer':
         if (typeof value !== 'number') bad(type);
         if (!Number.isFinite(value)) bad('finite number');
         if (type === 'integer' && !Number.isSafeInteger(value)) bad('JavaScript-safe integer');
@@ -206,11 +254,18 @@ export function createValidator(types: Record<string, WireType>, imported: Recor
     }
     const definition = types[type];
     if (!definition) bad('known type');
-    if (definition!.kind === 'alias') { validateWire(definition!.type!, value, location, slots); return; }
-    if (definition!.kind === 'enum') { if (typeof value !== 'string' || !definition!.values!.includes(value)) bad(type); return; }
+    if (definition!.kind === 'alias') {
+      validateWire(definition!.type!, value, location, slots);
+      return;
+    }
+    if (definition!.kind === 'enum') {
+      if (typeof value !== 'string' || !definition!.values!.includes(value)) bad(type);
+      return;
+    }
     if (definition!.kind !== 'record' && definition!.kind !== 'entity') bad('supported type');
     if (!plainObject(value)) bad(type + ' object');
-    const object = value as Record<string, unknown>, allowed = new Set<string>();
+    const object = value as Record<string, unknown>,
+      allowed = new Set<string>();
     for (const field of fields(type)) {
       allowed.add(field.name);
       const at = location + '.' + field.name;

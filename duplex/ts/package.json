@@ -18,7 +18,10 @@
     "seam"
   ],
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./conformance": "./src/conformance.ts"
+  },
   "types": "./src/index.ts",
   "sideEffects": false,
   "files": [
@@ -45,7 +48,10 @@
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
-    "check": "tsc --noEmit --strict --target ES2022 --module nodenext --allowImportingTsExtensions --skipLibCheck src/index.ts",
+    "check": "tsc -p tsconfig.check.json",
     "test": "node --experimental-strip-types --test --test-timeout=10000 src/duplex.test.ts"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }

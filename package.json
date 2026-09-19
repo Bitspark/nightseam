@@ -13,12 +13,16 @@
   "scripts": {
     "build": "pnpm --recursive --if-present build",
     "check": "pnpm --recursive --if-present check",
-    "test": "pnpm --recursive --if-present test"
+    "test": "pnpm --recursive --if-present test",
+    "format": "prettier --write \"*/ts/src/**/*.ts\"",
+    "format:check": "prettier --check \"*/ts/src/**/*.ts\""
   },
   "devDependencies": {
     "@nightseam/duplex": "workspace:*",
     "@nightseam/runtime": "workspace:*",
     "@nightseam/tunnel": "workspace:*",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@types/node": "^26.6.1",
+    "prettier": "3.9.8"
   }
 }

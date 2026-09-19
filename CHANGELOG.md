@@ -8,6 +8,12 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- TypeScript checks include every source file, test and conformance helper
+  under the build's shared compiler settings, with Node's test types and a
+  compiler dependency per package; a regression test proves new test files
+  cannot escape the check. Prettier holds handwritten TypeScript formatting
+  in CI, workspace conformance imports use package subpaths, and the three
+  components share option validation while retaining their existing bounds.
 - `docs/` is sets by reader, each page one kind of thing: `wire/` is what
   crosses the wire in the wire's own terms and no runtime's — `profile.md`,
   `tunnel.md`, `session.md`, and `vocabulary.md`, the test that says where

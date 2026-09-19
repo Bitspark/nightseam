@@ -22,7 +22,7 @@
  * it forwards verbatim, by construction rather than by enumeration.
  */
 import type { FrameConnection } from '@nightseam/duplex';
-import { DuplexError } from '@nightseam/runtime';
+import { positiveInteger, DuplexError } from '@nightseam/runtime';
 import type { Observer, ObserverEvent, Trace } from '@nightseam/runtime';
 
 /**
@@ -46,21 +46,71 @@ declare module '@nightseam/runtime' {
     /** The machine's connection closed, so the session is gone and every consumer of it was ended with this close. */
     'session.unbound': { type: 'session.unbound'; at: Date; session: string; code: number; reason: string };
     /** A consumer joined a session in a role, under an origin, resuming from a sequence. */
-    'session.attached': { type: 'session.attached'; at: Date; session: string; role: Role; origin: string; after: number };
+    'session.attached': {
+      type: 'session.attached';
+      at: Date;
+      session: string;
+      role: Role;
+      origin: string;
+      after: number;
+    };
     /** A consumer left one, by detaching or by its connection closing; the session stands. */
     'session.detached': { type: 'session.detached'; at: Date; session: string; role: Role; origin: string };
     /** The machine sent a request the holder of control must answer; asking is whether the family's session tier counts it in attention. */
-    'ask.raised': { type: 'ask.raised'; at: Date; session: string; id: string; method: string; asking: boolean; trace?: Trace };
+    'ask.raised': {
+      type: 'ask.raised';
+      at: Date;
+      session: string;
+      id: string;
+      method: string;
+      asking: boolean;
+      trace?: Trace;
+    };
     /** That request was handed to a holder — when it arrived, and again each time control moved while it stood open. */
-    'ask.routed': { type: 'ask.routed'; at: Date; session: string; id: string; method: string; origin: string; trace?: Trace };
+    'ask.routed': {
+      type: 'ask.routed';
+      at: Date;
+      session: string;
+      id: string;
+      method: string;
+      origin: string;
+      trace?: Trace;
+    };
     /** The holder answered it, and the answer went to the machine. */
-    'ask.answered': { type: 'ask.answered'; at: Date; session: string; id: string; method: string; origin: string; trace?: Trace };
+    'ask.answered': {
+      type: 'ask.answered';
+      at: Date;
+      session: string;
+      id: string;
+      method: string;
+      origin: string;
+      trace?: Trace;
+    };
     /** Control of a session moved; an origin absent is control released, left with nobody. */
     'control.changed': { type: 'control.changed'; at: Date; session: string; origin?: string; held: boolean };
     /** A frame was appended to the session's log: its sequence, its direction, the origin of the consumer whose frame it was — none for the machine's own — and its size, never its message. */
-    'frame.appended': { type: 'frame.appended'; at: Date; session: string; sequence: number; direction: Direction; origin: string; bytes: number; method?: string; trace?: Trace };
+    'frame.appended': {
+      type: 'frame.appended';
+      at: Date;
+      session: string;
+      sequence: number;
+      direction: Direction;
+      origin: string;
+      bytes: number;
+      method?: string;
+      trace?: Trace;
+    };
     /** A consumer's frame the relay answered in the machine's place rather than forwarding: not_controlling where control is not held, busy where the session has too many requests open. */
-    'session.refused': { type: 'session.refused'; at: Date; session: string; code: string; method: string; role: Role; origin: string; trace?: Trace };
+    'session.refused': {
+      type: 'session.refused';
+      at: Date;
+      session: string;
+      code: string;
+      method: string;
+      role: Role;
+      origin: string;
+      trace?: Trace;
+    };
   }
 }
 
@@ -73,7 +123,9 @@ type Wire = Parameters<FrameConnection['send']>[0];
  * connection that carries no `observe` carries no such choice, and a session
  * over it takes the registry's observer instead.
  */
-interface Observing { observe(event: ObserverEvent): void }
+interface Observing {
+  observe(event: ObserverEvent): void;
+}
 
 /** Whether a connection observes through one of its own. */
 function observes(connection: FrameConnection): connection is FrameConnection & Observing {
@@ -150,14 +202,19 @@ export interface Log {
  * so that one frame cannot grow a long-lived session without bound.
  */
 export function memoryLog(maxFrameBytes: number): Log {
-  const bound = positive(maxFrameBytes, 'maxFrameBytes');
+  const bound = positiveInteger(maxFrameBytes, 'maxFrameBytes');
   const frames: Frame[] = [];
   return {
     append(frame: Frame): Promise<number> {
       const bytes = encoder.encode(JSON.stringify(frame.message ?? null));
       const over = bytes.byteLength > bound;
       const sequence = frames.length + 1;
-      frames.push({ ...frame, sequence, truncated: over, message: over ? decoder.decode(bytes.subarray(0, bound)) : frame.message });
+      frames.push({
+        ...frame,
+        sequence,
+        truncated: over,
+        message: over ? decoder.decode(bytes.subarray(0, bound)) : frame.message,
+      });
       return Promise.resolve(sequence);
     },
     async replay(after: number, deliver: (frame: Frame) => Promise<void>): Promise<void> {
@@ -239,8 +296,8 @@ export class Registry {
 
   constructor(options: RegistryOptions = {}) {
     this.limits = {
-      maxAttachments: positive(options.maxAttachments ?? 64, 'maxAttachments'),
-      maxInflight: positive(options.maxInflight ?? 256, 'maxInflight'),
+      maxAttachments: positiveInteger(options.maxAttachments ?? 64, 'maxAttachments'),
+      maxInflight: positiveInteger(options.maxInflight ?? 256, 'maxInflight'),
     };
     if (options.observer !== undefined) this.watcher = options.observer;
   }
@@ -259,7 +316,8 @@ export class Registry {
    * `RegistryOptions.observer`, and where there is neither, nothing.
    */
   bind(id: string, up: FrameConnection, governance: Governance, log: Log): void {
-    if (typeof id !== 'string' || id === '') throw new DuplexError('session_invalid', 'A session is bound under an id.');
+    if (typeof id !== 'string' || id === '')
+      throw new DuplexError('session_invalid', 'A session is bound under an id.');
     if (this.relays.has(id)) throw new DuplexError('session_exists', `Session ${id} is bound.`);
     const relay = new Relay(this, id, up, governance, log);
     this.relays.set(id, relay);
@@ -268,8 +326,10 @@ export class Registry {
 
   /** Attaches a consumer's connection to a bound session in a role, stamping what it sends with `origin`, after replaying the log from `after`. */
   attach(id: string, down: FrameConnection, role: Role, origin: string, after: number): Attachment {
-    if (role !== 'participant' && role !== 'observer') throw new DuplexError('role_invalid', 'A consumer attaches as a participant or an observer.');
-    if (typeof origin !== 'string') throw new DuplexError('origin_invalid', 'An origin is the caller\'s fact about the consumer, as text.');
+    if (role !== 'participant' && role !== 'observer')
+      throw new DuplexError('role_invalid', 'A consumer attaches as a participant or an observer.');
+    if (typeof origin !== 'string')
+      throw new DuplexError('origin_invalid', "An origin is the caller's fact about the consumer, as text.");
     if (!Number.isInteger(after) || after < 0) throw new DuplexError('sequence_invalid', 'after must be a sequence.');
     return this.relay(id).attach(down, role, origin, after);
   }
@@ -281,7 +341,7 @@ export class Registry {
 
   /** The sessions with an open ask: a request the machine sent that the holder of control has not answered. */
   attention(): string[] {
-    return [...this.relays.values()].filter(relay => relay.asking()).map(relay => relay.id);
+    return [...this.relays.values()].filter((relay) => relay.asking()).map((relay) => relay.id);
   }
 
   /**
@@ -293,7 +353,9 @@ export class Registry {
   onChange(fn: (change: Change) => void): () => void {
     const hook = { fn };
     this.hooks.add(hook);
-    return () => { this.hooks.delete(hook); };
+    return () => {
+      this.hooks.delete(hook);
+    };
   }
 
   /** @internal */
@@ -307,7 +369,11 @@ export class Registry {
     if (of.method !== undefined) change.method = of.method;
     if (of.trace) change.trace = of.trace;
     for (const hook of [...this.hooks]) {
-      try { hook.fn(change); } catch { /* A hook cannot interrupt the session it hears about. */ }
+      try {
+        hook.fn(change);
+      } catch {
+        /* A hook cannot interrupt the session it hears about. */
+      }
     }
   }
 
@@ -318,13 +384,19 @@ export class Registry {
   }
 
   /** @internal */
-  get limit(): Readonly<Limits> { return this.limits; }
+  get limit(): Readonly<Limits> {
+    return this.limits;
+  }
 
   /** @internal Where a session of this registry tells what it does when its up connection observes through nothing of its own. */
-  get observer(): Observer | undefined { return this.watcher; }
+  get observer(): Observer | undefined {
+    return this.watcher;
+  }
 
   /** @internal */
-  forget(id: string): void { this.relays.delete(id); }
+  forget(id: string): void {
+    this.relays.delete(id);
+  }
 }
 
 /** One consumer on a session: the connection it speaks on, the role it attached in and the origin its frames carry. */
@@ -355,7 +427,9 @@ export class Attachment {
    * it. It is what the last `session.control` this attachment was sent said,
    * so a consumer reading it here and one reading the wire agree.
    */
-  get holder(): string | null { return this.control; }
+  get holder(): string | null {
+    return this.control;
+  }
 
   /**
    * Where in the session's one order this consumer stands — what the last
@@ -364,7 +438,9 @@ export class Attachment {
    * kept by counting frames, which every frame a replay passed over would put
    * out by one.
    */
-  get sequence(): number { return this.cursor; }
+  get sequence(): number {
+    return this.cursor;
+  }
 
   /**
    * Asks to be told each time this consumer is sent a `session.control`, and
@@ -375,19 +451,27 @@ export class Attachment {
   onControl(fn: (holder: string | null) => void): () => void {
     const hook = { fn };
     this.watching.add(hook);
-    return () => { this.watching.delete(hook); };
+    return () => {
+      this.watching.delete(hook);
+    };
   }
 
   /** @internal What the relay told this consumer of who holds control, and the registrations waiting on it. */
   told(holder: string | null): void {
     this.control = holder;
     for (const hook of [...this.watching]) {
-      try { hook.fn(holder); } catch { /* A hook cannot interrupt the session it hears about. */ }
+      try {
+        hook.fn(holder);
+      } catch {
+        /* A hook cannot interrupt the session it hears about. */
+      }
     }
   }
 
   /** @internal Where the frame just delivered to this consumer stood. */
-  at(sequence: number): void { this.cursor = sequence; }
+  at(sequence: number): void {
+    this.cursor = sequence;
+  }
 
   /** Detaches the consumer: the relay stops carrying its connection, releases control if it held it, and the session stands; the connection is closed with 1000 "detached", as the Go twin closes it, so a consumer learns it was let go. */
   detach(): void {
@@ -396,17 +480,29 @@ export class Attachment {
   }
 
   /** @internal */
-  attachTo(unlisten: () => void): void { this.unlisten = unlisten; }
+  attachTo(unlisten: () => void): void {
+    this.unlisten = unlisten;
+  }
 
   /** @internal */
-  release(): void { this.unlisten?.(); this.unlisten = undefined; }
+  release(): void {
+    this.unlisten?.();
+    this.unlisten = undefined;
+  }
 }
 
 /** A consumer's request the machine has not answered: who sent it and the id it knows it by; the id the relay minted is what it is filed under. */
-interface Inflight { at: Attachment; id: string }
+interface Inflight {
+  at: Attachment;
+  id: string;
+}
 
 /** A request the machine sent: the message as it arrived, whether its method asks, and which consumer it stands with, if any. */
-interface Open { message: Envelope; asking: boolean; at: Attachment | null }
+interface Open {
+  message: Envelope;
+  asking: boolean;
+  at: Attachment | null;
+}
 
 /**
  * One bound session: the up connection, the consumers attached to it, the
@@ -453,9 +549,19 @@ class Relay {
     // through something of its own never falls back to the registry's, that
     // something being the observer the consumer already chose.
     const watcher = registry.observer;
-    this.tell = observes(up) ? event => up.observe(event)
-      : watcher ? event => { try { watcher.observe(event); } catch { /* An observer cannot interrupt the session it hears about. */ } }
-        : () => { /* No peer and no registry observer is the no-op an observer already means. */ };
+    this.tell = observes(up)
+      ? (event) => up.observe(event)
+      : watcher
+        ? (event) => {
+            try {
+              watcher.observe(event);
+            } catch {
+              /* An observer cannot interrupt the session it hears about. */
+            }
+          }
+        : () => {
+            /* No peer and no registry observer is the no-op an observer already means. */
+          };
     this.governance = governance;
     this.log = log;
   }
@@ -478,7 +584,10 @@ class Relay {
    */
   private async seat(): Promise<void> {
     let head = 0;
-    await this.log.replay(0, frame => { head = frame.sequence; return Promise.resolve(); });
+    await this.log.replay(0, (frame) => {
+      head = frame.sequence;
+      return Promise.resolve();
+    });
     this.sequence = head;
     this.seated = true;
   }
@@ -487,7 +596,7 @@ class Relay {
   listen(): void {
     this.run(() => this.seat());
     this.up.listen({
-      frame: frame => this.run(() => this.fromUp(frame)),
+      frame: (frame) => this.run(() => this.fromUp(frame)),
       close: (code, reason) => this.run(() => this.end(code, reason)),
     });
     this.change('bound');
@@ -496,7 +605,8 @@ class Relay {
 
   attach(down: FrameConnection, role: Role, origin: string, after: number): Attachment {
     if (this.ended) throw new DuplexError('no_session', `No session ${this.id} is bound.`);
-    if (this.attachments.size >= this.registry.limit.maxAttachments) throw new DuplexError('too_many_attachments', 'No room for another consumer on this session.');
+    if (this.attachments.size >= this.registry.limit.maxAttachments)
+      throw new DuplexError('too_many_attachments', 'No room for another consumer on this session.');
     const attachment = new Attachment(this, down, role, origin);
     this.attachments.add(attachment);
     // The replay is queued before the channel is listened to, so that what
@@ -524,7 +634,7 @@ class Relay {
       // log on from there rather than over the frames it already passed.
       let stood = after;
       let passed = after;
-      await this.log.replay(after, async frame => {
+      await this.log.replay(after, async (frame) => {
         if (frame.sequence > ceiling) return;
         passed = frame.sequence;
         if (!replayable(frame)) return;
@@ -533,10 +643,12 @@ class Relay {
       });
       if (passed > stood) this.stand(attachment, passed);
     });
-    attachment.attachTo(down.listen({
-      frame: frame => this.run(() => this.fromDown(attachment, frame)),
-      close: () => this.run(() => this.drop(attachment)),
-    }));
+    attachment.attachTo(
+      down.listen({
+        frame: (frame) => this.run(() => this.fromDown(attachment, frame)),
+        close: () => this.run(() => this.drop(attachment)),
+      }),
+    );
     // The sequence a consumer attached from is the one fact about it the
     // attachment does not carry, so the change says what it resumed from.
     this.change('attached', { attachment, sequence: after });
@@ -546,7 +658,8 @@ class Relay {
 
   control(holder: Attachment | null): void {
     if (holder !== null) {
-      if (!this.attachments.has(holder)) throw new DuplexError('not_attached', 'Control is held by a consumer attached to the session.');
+      if (!this.attachments.has(holder))
+        throw new DuplexError('not_attached', 'Control is held by a consumer attached to the session.');
       if (holder.role !== 'participant') throw new DuplexError('not_controlling', 'An observer never holds control.');
     }
     this.holder = holder;
@@ -554,11 +667,20 @@ class Relay {
     // attaching after this is told by its own attach rather than twice.
     const attached = [...this.attachments];
     this.change('control_changed', holder ? { attachment: holder } : {});
-    this.observe({ type: 'control.changed', at: new Date(), session: this.id, ...(holder ? { origin: holder.origin } : {}), held: holder !== null });
+    this.observe({
+      type: 'control.changed',
+      at: new Date(),
+      session: this.id,
+      ...(holder ? { origin: holder.origin } : {}),
+      held: holder !== null,
+    });
     // Every consumer is told who holds control, and before the request the
     // machine is waiting on follows it: the consumer it stood with no longer
     // answers it, and whoever holds control now is asked it afresh.
-    this.run(() => { this.tellControl(attached, holder); this.reroute(); });
+    this.run(() => {
+      this.tellControl(attached, holder);
+      this.reroute();
+    });
   }
 
   asking(): boolean {
@@ -566,20 +688,28 @@ class Relay {
     return false;
   }
 
-  detach(attachment: Attachment): void { this.run(() => this.drop(attachment)); }
+  detach(attachment: Attachment): void {
+    this.run(() => this.drop(attachment));
+  }
 
   /** change tells the registry's hooks one domain change of this session, which the registry stamps with the session and the time. */
-  private change(kind: ChangeKind, of: Of = {}): void { this.registry.changed(this.id, kind, of); }
+  private change(kind: ChangeKind, of: Of = {}): void {
+    this.registry.changed(this.id, kind, of);
+  }
 
   /** What this session tells its events to, settled where it was bound; an observer that is absent is told nothing and costs nothing. */
   private readonly tell: (event: ObserverEvent) => void;
 
   /** observe tells this session's observer one event of its own. */
-  private observe(event: ObserverEvent): void { this.tell(event); }
+  private observe(event: ObserverEvent): void {
+    this.tell(event);
+  }
 
   /** run puts one step on the relay's queue; a step that throws leaves the session standing. */
   private run(step: () => void | Promise<void>): void {
-    this.queue = this.queue.then(step).catch(() => { /* A channel that failed is dropped where it failed. */ });
+    this.queue = this.queue.then(step).catch(() => {
+      /* A channel that failed is dropped where it failed. */
+    });
   }
 
   /** A frame from a consumer: what it may send depends on its role and on who holds control. */
@@ -607,13 +737,24 @@ class Relay {
         if (this.governance.decides(method) && this.holder !== attachment) {
           // The consumer may not decide, so the relay answers in the machine's
           // place; nothing of the request reaches it or the log.
-          if (id) this.deliver(attachment, 0, { version: 1, kind: 'response', id, error: { code: 'not_controlling', message: 'Only the holder of control decides on this session.' } });
+          if (id)
+            this.deliver(attachment, 0, {
+              version: 1,
+              kind: 'response',
+              id,
+              error: { code: 'not_controlling', message: 'Only the holder of control decides on this session.' },
+            });
           this.refuse('not_controlling', attachment, method, envelope);
           return;
         }
         if (!id) return;
         if (this.inflight.size >= this.registry.limit.maxInflight) {
-          this.deliver(attachment, 0, { version: 1, kind: 'response', id, error: { code: 'busy', message: 'The session has too many requests open.' } });
+          this.deliver(attachment, 0, {
+            version: 1,
+            kind: 'response',
+            id,
+            error: { code: 'busy', message: 'The session has too many requests open.' },
+          });
           this.refuse('busy', attachment, method, envelope);
           return;
         }
@@ -643,7 +784,15 @@ class Relay {
         const answered = named(open.message) ?? '';
         const trace = traceOf(envelope);
         this.change('ask_answered', { attachment, method: answered, trace });
-        this.observe({ type: 'ask.answered', at: new Date(), session: this.id, id, method: answered, origin: attachment.origin, ...(trace ? { trace } : {}) });
+        this.observe({
+          type: 'ask.answered',
+          at: new Date(),
+          session: this.id,
+          id,
+          method: answered,
+          origin: attachment.origin,
+          ...(trace ? { trace } : {}),
+        });
         await this.sendUp(attachment, { ...envelope });
         return;
       }
@@ -702,7 +851,15 @@ class Relay {
         const trace = traceOf(envelope);
         this.open.set(id, { message: envelope, asking: this.governance.asks(method), at: this.holder });
         this.change('ask_raised', { method, trace });
-        this.observe({ type: 'ask.raised', at: new Date(), session: this.id, id, method, asking: this.governance.asks(method), ...(trace ? { trace } : {}) });
+        this.observe({
+          type: 'ask.raised',
+          at: new Date(),
+          session: this.id,
+          id,
+          method,
+          asking: this.governance.asks(method),
+          ...(trace ? { trace } : {}),
+        });
         if (this.holder) {
           this.deliver(this.holder, sequence, envelope);
           this.routed(id, method, this.holder, trace);
@@ -746,16 +903,37 @@ class Relay {
   }
 
   /** record appends a frame to the session's log and returns its sequence and the consumers there were when that sequence was assigned; one attaching between the two is not among them and takes the frame from the log's replay instead. A frame from the machine is nobody's, and carries no origin. The sequence is what a consumer the frame is delivered to is told its cursor stands at. */
-  private async record(direction: Direction, from: Attachment | null, envelope: Envelope): Promise<{ sequence: number; attached: Attachment[] }> {
+  private async record(
+    direction: Direction,
+    from: Attachment | null,
+    envelope: Envelope,
+  ): Promise<{ sequence: number; attached: Attachment[] }> {
     const origin = from?.origin ?? '';
-    const sequence = await this.log.append({ sequence: 0, direction, origin, at: new Date(), message: envelope, truncated: false });
+    const sequence = await this.log.append({
+      sequence: 0,
+      direction,
+      origin,
+      at: new Date(),
+      message: envelope,
+      truncated: false,
+    });
     this.sequence = sequence;
     const method = named(envelope);
     const trace = traceOf(envelope);
     this.change('frame_appended', { sequence, attachment: from ?? undefined, method, trace });
     // What the observer is told of a frame is its size and never its bytes:
     // the message is the log's, which is the one place a session keeps one.
-    this.observe({ type: 'frame.appended', at: new Date(), session: this.id, sequence, direction, origin, bytes: encoder.encode(JSON.stringify(envelope)).byteLength, ...(method !== undefined ? { method } : {}), ...(trace ? { trace } : {}) });
+    this.observe({
+      type: 'frame.appended',
+      at: new Date(),
+      session: this.id,
+      sequence,
+      direction,
+      origin,
+      bytes: encoder.encode(JSON.stringify(envelope)).byteLength,
+      ...(method !== undefined ? { method } : {}),
+      ...(trace ? { trace } : {}),
+    });
     return { sequence, attached: [...this.attachments] };
   }
 
@@ -797,19 +975,40 @@ class Relay {
   /** routed says one request of the machine's stands with one consumer — where it arrived, and again wherever control moved while it stood open. */
   private routed(id: string, method: string, holder: Attachment, trace: Trace | undefined): void {
     this.change('ask_routed', { attachment: holder, method, trace });
-    this.observe({ type: 'ask.routed', at: new Date(), session: this.id, id, method, origin: holder.origin, ...(trace ? { trace } : {}) });
+    this.observe({
+      type: 'ask.routed',
+      at: new Date(),
+      session: this.id,
+      id,
+      method,
+      origin: holder.origin,
+      ...(trace ? { trace } : {}),
+    });
   }
 
   /** refuse records what the relay answered in the machine's place: the frame reached neither the machine nor the log, and is a change all the same. */
   private refuse(code: string, attachment: Attachment, method: string, envelope: Envelope): void {
     const trace = traceOf(envelope);
     this.change('refused', { attachment, method, trace });
-    this.observe({ type: 'session.refused', at: new Date(), session: this.id, code, method, role: attachment.role, origin: attachment.origin, ...(trace ? { trace } : {}) });
+    this.observe({
+      type: 'session.refused',
+      at: new Date(),
+      session: this.id,
+      code,
+      method,
+      role: attachment.role,
+      origin: attachment.origin,
+      ...(trace ? { trace } : {}),
+    });
   }
 
   /** write hands a message to a connection; one that refuses it has closed, and its own close detaches it. */
   private write(channel: FrameConnection, message: unknown): void {
-    try { channel.send({ kind: 'text', data: JSON.stringify(message) }); } catch { /* The channel's close is what detaches it. */ }
+    try {
+      channel.send({ kind: 'text', data: JSON.stringify(message) });
+    } catch {
+      /* The channel's close is what detaches it. */
+    }
   }
 
   /** drop detaches one consumer: the session stands, and what it left open stands with it. */
@@ -830,7 +1029,13 @@ class Relay {
     for (const [minted, held] of this.inflight) if (held.at === attachment) this.inflight.delete(minted);
     for (const open of this.open.values()) if (open.at === attachment) open.at = null;
     this.change('detached', { attachment });
-    this.observe({ type: 'session.detached', at: new Date(), session: this.id, role: attachment.role, origin: attachment.origin });
+    this.observe({
+      type: 'session.detached',
+      at: new Date(),
+      session: this.id,
+      role: attachment.role,
+      origin: attachment.origin,
+    });
   }
 
   /** end ends the session: the machine's connection closed, so every consumer's ends with the same close. */
@@ -891,9 +1096,13 @@ function read(frame: Wire): Envelope | string {
   const object = scan(text);
   if (typeof object === 'string') return object;
   let value: unknown;
-  try { value = JSON.parse(text.slice(0, object)); } catch { return NOT_AN_OBJECT; }
+  try {
+    value = JSON.parse(text.slice(0, object));
+  } catch {
+    return NOT_AN_OBJECT;
+  }
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return NOT_AN_OBJECT;
-  return space(text, object) < text.length ? TRAILING_CONTENT : value as Envelope;
+  return space(text, object) < text.length ? TRAILING_CONTENT : (value as Envelope);
 }
 
 /**
@@ -949,7 +1158,11 @@ function quoted(text: string, from: number): number {
 /** A member's name as its own JSON says it, and nothing where that text says no string. */
 function member(raw: string): string | undefined {
   let name: unknown;
-  try { name = JSON.parse(raw); } catch { return undefined; }
+  try {
+    name = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
   return typeof name === 'string' ? name : undefined;
 }
 
@@ -986,7 +1199,9 @@ function member(raw: string): string | undefined {
 function replayable(frame: Frame): boolean {
   if (frame.truncated || frame.direction !== 'down') return false;
   const message = frame.message;
-  return typeof message === 'object' && message !== null && !Array.isArray(message) && (message as Envelope).kind === 'event';
+  return (
+    typeof message === 'object' && message !== null && !Array.isArray(message) && (message as Envelope).kind === 'event'
+  );
 }
 
 /** What a frame names: an event's name, a request's method; a response and a cancel name nothing. It is what the reserved prefix is read off. */
@@ -1007,9 +1222,4 @@ function traceOf(envelope: Envelope): Trace | undefined {
   const tracestate = typeof envelope.tracestate === 'string' ? envelope.tracestate : '';
   if (!traceparent && !tracestate) return undefined;
   return tracestate ? { traceparent, tracestate } : { traceparent };
-}
-
-function positive(value: unknown, what: string): number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) throw new DuplexError('invalid_options', `${what} must be a positive integer.`);
-  return value;
 }

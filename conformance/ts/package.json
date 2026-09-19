@@ -17,9 +17,10 @@
   "devDependencies": {
     "@types/node": "^26.6.1",
     "@types/ws": "^8.5.13",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "typescript": "^7.0.2"
   },
   "scripts": {
-    "check": "tsc --noEmit --strict --target ES2022 --module nodenext --allowImportingTsExtensions --skipLibCheck src/testee.ts"
+    "check": "tsc -p tsconfig.check.json"
   }
 }

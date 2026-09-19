@@ -18,19 +18,35 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { SpanKind, context as activeContext, type Tracer } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
-import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor, type ReadableSpan } from '@opentelemetry/sdk-trace-base';
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+  type ReadableSpan,
+} from '@opentelemetry/sdk-trace-base';
 import { DuplexPeer } from '@nightseam/runtime';
 import { memoryLog, Registry } from '@nightseam/session';
-import { Client, type Handler, type Payload } from '../../../cmd/nightseam/testdata/golden/api/ts/probe-client/src/index.ts';
-import { governance, pipes } from '../../../session/ts/src/conformance.ts';
+import {
+  Client,
+  type Handler,
+  type Payload,
+} from '../../../cmd/nightseam/testdata/golden/api/ts/probe-client/src/index.ts';
+import { governance, pipes } from '@nightseam/session/conformance';
 import { observer } from './observer.ts';
 import { propagator } from './propagator.ts';
 
 /** A string that stands for a payload: it is in the params, the result and the answer below. */
 const SENTINEL = 'sentinel-6d9f2c-payload';
 /** The family's names, as the generated client labels the peer it makes. */
-const FAMILIES = { echo: 'probe', no_args: 'probe', seen: 'probe', reverse: 'probe', changed: 'probe', noticed: 'probe' };
-const tick = () => new Promise(resolve => setTimeout(resolve, 5));
+const FAMILIES = {
+  echo: 'probe',
+  no_args: 'probe',
+  seen: 'probe',
+  reverse: 'probe',
+  changed: 'probe',
+  noticed: 'probe',
+};
+const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 
 // An injection from outside a request reads the active context, which means
 // what the application's own spans mean only where a context manager keeps it.
@@ -57,7 +73,12 @@ async function calling(tracer: Tracer, text: string): Promise<Payload> {
 
   // The machine: it serves echo, and inside that handler it asks whoever holds
   // control to reverse what it was given, from the handler's own context.
-  const served = new DuplexPeer({ role: 'server', propagator: propagator(), observer: observer(tracer), families: FAMILIES });
+  const served = new DuplexPeer({
+    role: 'server',
+    propagator: propagator(),
+    observer: observer(tracer),
+    families: FAMILIES,
+  });
   served.handle('echo', async (params, context) => {
     const reversed = await served.call<Payload>('reverse', params, { context });
     return { ...reversed, text: 'machine:' + reversed.text };
@@ -67,13 +88,21 @@ async function calling(tracer: Tracer, text: string): Promise<Payload> {
   // The consumer: attached as a participant, holding control, answering asks.
   const consumer = await wire.open(0);
   registry.control('s', registry.attach('s', consumer.far, 'participant', 'one', 0));
-  const answering: Handler = { reverse: params => ({ ...params, text: [...params.text].reverse().join('') }) };
-  const client = await Client.attach(consumer.near, { propagator: propagator(), observer: observer(tracer) }, answering);
+  const answering: Handler = { reverse: (params) => ({ ...params, text: [...params.text].reverse().join('') }) };
+  const client = await Client.attach(
+    consumer.near,
+    { propagator: propagator(), observer: observer(tracer) },
+    answering,
+  );
 
   // The consumer's own span, which is what the call is made under: it is the
   // one span of the trace this adapter did not open.
-  const answer = await tracer.startActiveSpan('consumer.call', async root => {
-    try { return await client.echo({ text, count: 1 }); } finally { root.end(); }
+  const answer = await tracer.startActiveSpan('consumer.call', async (root) => {
+    try {
+      return await client.echo({ text, count: 1 });
+    } finally {
+      root.end();
+    }
   });
   await tick();
   wire.close();
@@ -83,9 +112,9 @@ async function calling(tracer: Tracer, text: string): Promise<Payload> {
 
 /** The spans of the trace one span belongs to, which is the call's and not the tunnel's. */
 function of(spans: ReadableSpan[], name: string): ReadableSpan[] {
-  const root = spans.find(span => span.name === name);
-  assert.ok(root, `no span named ${name} in ${spans.map(span => span.name).join(', ')}`);
-  return spans.filter(span => span.spanContext().traceId === root.spanContext().traceId);
+  const root = spans.find((span) => span.name === name);
+  assert.ok(root, `no span named ${name} in ${spans.map((span) => span.name).join(', ')}`);
+  return spans.filter((span) => span.spanContext().traceId === root.spanContext().traceId);
 }
 
 test('one call through a relay to a handler whose ask is answered is one trace, parented hop by hop', async () => {
@@ -94,7 +123,7 @@ test('one call through a relay to a handler whose ask is answered is one trace, 
   await kept.provider.forceFlush();
   const spans = of(kept.spans(), 'consumer.call');
   const named = (name: string, kind: SpanKind) => {
-    const found = spans.filter(span => span.name === name && span.kind === kind);
+    const found = spans.filter((span) => span.name === name && span.kind === kind);
     assert.equal(found.length, 1, `${found.length} spans named ${name} of kind ${kind}`);
     return found[0]!;
   };
@@ -125,10 +154,12 @@ test('one call through a relay to a handler whose ask is answered is one trace, 
   // delivered while the call stood open is on the call's span too: every
   // event the peer delivered is a frame received and a delivery, and the one
   // frame received that is neither is the answer the call waited for.
-  const events = called.events.map(event => event.name);
+  const events = called.events.map((event) => event.name);
   assert.equal(events[0], 'frame.sent');
-  assert.equal(events.filter(name => name === 'frame.received').length,
-    events.filter(name => name === 'event.delivered').length + 1);
+  assert.equal(
+    events.filter((name) => name === 'frame.received').length,
+    events.filter((name) => name === 'event.delivered').length + 1,
+  );
   assert.equal(served.attributes['nightseam.family'], 'probe');
   assert.equal(served.attributes['nightseam.incoming'], true);
   assert.equal(asked.attributes['nightseam.method'], 'reverse');
@@ -144,7 +175,12 @@ test('no payload reaches a span of a call that carried one, anywhere in the trac
   // Every span of the run, the tunnel's own among them, and not only the
   // call's: what a span is named, what it carries and what happened in it.
   for (const span of spans) {
-    const written = JSON.stringify({ name: span.name, attributes: span.attributes, events: span.events, status: span.status });
+    const written = JSON.stringify({
+      name: span.name,
+      attributes: span.attributes,
+      events: span.events,
+      status: span.status,
+    });
     assert.equal(written.includes(SENTINEL), false, span.name);
   }
 });

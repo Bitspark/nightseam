@@ -175,6 +175,12 @@ importers:
       '@nightseam/tunnel':
         specifier: workspace:*
         version: link:tunnel/ts
+      '@types/node':
+        specifier: ^26.6.1
+        version: 26.6.1
+      prettier:
+        specifier: 3.9.8
+        version: 3.9.8
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -200,11 +206,18 @@ importers:
       '@types/ws':
         specifier: ^8.5.13
         version: 8.18.1
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
       ws:
         specifier: ^8.18.0
         version: 8.21.3
 
-  duplex/ts: {}
+  duplex/ts:
+    devDependencies:
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
   otel/ts:
     dependencies:
@@ -233,12 +246,19 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^2.0.0
         version: 2.11.0(@opentelemetry/api@1.9.1)
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
   runtime/ts:
     dependencies:
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:../../duplex/ts
+    devDependencies:
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
   session/ts:
     dependencies:
@@ -251,6 +271,10 @@ importers:
       '@nightseam/tunnel':
         specifier: workspace:*
         version: link:../../tunnel/ts
+    devDependencies:
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
   tunnel/ts:
     dependencies:
@@ -260,6 +284,10 @@ importers:
       '@nightseam/runtime':
         specifier: workspace:*
         version: link:../../runtime/ts
+    devDependencies:
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
 packages:
 
@@ -427,6 +455,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  prettier@3.9.8:
+    resolution: {integrity: sha512-WRFq3Wn3WId7LLROfMLdH7xaFr2jR62wU8nLO6rQUOLOxNZUviyJQs1M0iIhLexSFy+L+w0ch66wtoO2jRjG0A==}
+    engines: {node: '>=14'}
+    hasBin: true
+
   typescript@7.0.2:
     resolution: {integrity: sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==}
     engines: {node: '>=16.20.0'}
@@ -550,6 +583,8 @@ snapshots:
 
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
+
+  prettier@3.9.8: {}
 
   typescript@7.0.2:
     optionalDependencies:

@@ -81,6 +81,19 @@ the TypeScript compiler `pnpm install` brings — and **fail rather than
 skip** when one is missing, since a skip nobody reads is a gate nobody
 passes.
 
+Every TypeScript package checks all of `src/**/*.ts`, including its tests
+and conformance helpers, through `tsconfig.check.json`; check and build
+extend the same `tsconfig.base.json`. The root supplies Node's test types
+and the compiler used by Go's generated-code fixtures; its three runtime
+workspace dependencies are the packages those fixtures import. Each
+TypeScript package also declares its own compiler dependency.
+
+`pnpm format` formats handwritten TypeScript under `*/ts/src` with the
+pinned Prettier version; `pnpm format:check` holds it in CI. Generated code
+and golden fixtures remain the generator's output. The duplex and session
+packages expose `./conformance` inside the workspace for shared tests;
+these helpers use repository fixtures and are not published entry points.
+
 ## The golden discipline
 
 A renderer or a diagnostic changes as a diff of the golden files, which is
