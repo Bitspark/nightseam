@@ -4,7 +4,15 @@
 // breaks a link is a check nobody has run.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { anchors, check, links, slug } from "./links.mjs";
+import { anchors, check, decodeMarkdown, links, slug } from "./links.mjs";
+
+test("Markdown must be UTF-8 before links and headings are read", () => {
+  const page = "# A page — with an ellipsis … and a character outside the BMP 🧵\n";
+  assert.equal(decodeMarkdown(Buffer.from(page, "utf8"), "page.md"), page);
+  for (const bytes of [Buffer.from([0x85]), Buffer.from([0xe2, 0x80]), Buffer.from([0xed, 0xa0, 0x80])]) {
+    assert.throws(() => decodeMarkdown(bytes, "bad.md"), /bad\.md: Markdown must be valid UTF-8/);
+  }
+});
 
 test("every form of link is read, and code is not", () => {
   const page = [

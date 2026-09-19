@@ -7,7 +7,7 @@ decoding in every language?
 **Decided.** A union declares its discriminator with `"tag"` and carries
 its complete payload under `"value"`, or the member named by its `"value"`
 setting. Records, maps, JSON, arrays, primitives and null all use the same
-carrier: `{"type":"text","value":{"body":"…"}}` or
+carrier: `{"type":"text","value":{"body":"â€¦"}}` or
 `{"type":"count","value":3}`. The discriminator and value member differ.
 
 A variant is any type expression, or `{"empty":true}` for a variant with
@@ -25,7 +25,7 @@ inherited declaration/binding is refused. A base value validates against
 the extended union; the reverse does not. String `enum` stays unchanged.
 
 **Why this replaces the first verdict.** #56 chose internal tagging over
-external tagging (`{"text":{…}}`) and untagged `oneOf`: a discriminator
+external tagging (`{"text":{â€¦}}`) and untagged `oneOf`: a discriminator
 selects one alternative without guessing which overlapping shape a value
 has. It put object members beside the tag and other payloads under `value`,
 and let a record's literal member carry its own tag.
@@ -44,7 +44,7 @@ and switches on its kind, with typed variants and widening/narrowing helpers;
 it can be used as a type argument without a codec registry. Other targets
 must realize the same wire carrier and generic-versus-bound law.
 
-**Serves.** Agnosticism — one lossless wire form and one meaning for a
+**Serves.** Agnosticism â€” one lossless wire form and one meaning for a
 payload in every language.
 
 **Since.** 0.4.0: [#56](https://github.com/Bitspark/nightseam/issues/56),

@@ -26,6 +26,15 @@ import { root } from "./packages.mjs";
 /** The repository's own URLs, whose path after the ref is a path in the tree. */
 export const ownURL = /^https:\/\/github\.com\/Bitspark\/nightseam\/(?:blob|tree)\/main(?:\/([^#]*))?(#.*)?$/;
 
+/** Read a page without silently replacing malformed bytes with U+FFFD. */
+export function decodeMarkdown(bytes, path) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch (cause) {
+    throw new Error(`${path}: Markdown must be valid UTF-8`, { cause });
+  }
+}
+
 /**
  * Every link a page makes, as `{line, target}`, outside fenced and inline
  * code: inline links and images, and reference definitions. Autolinks in
@@ -154,7 +163,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   // the platform's own join, and that is the one place it is read.
   const pages = new Map();
   for (const path of tracked) {
-    if (path.endsWith(".md")) pages.set(path, readFileSync(join(root, path), "utf8"));
+    if (!path.endsWith(".md")) continue;
+    try {
+      pages.set(path, decodeMarkdown(readFileSync(join(root, path)), path));
+    } catch (error) {
+      console.error(error.message);
+      process.exit(1);
+    }
   }
   const problems = check(pages, tracked);
   for (const { page, line, target, reason } of problems) console.error(`${page}:${line}: ${target} — ${reason}`);
