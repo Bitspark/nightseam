@@ -220,7 +220,12 @@ func emitClient(f *file) {
 	f.linef("import type { Tunnel } from %s;", quote(f.config.Tunnel))
 	f.linef("import { %s } from './types.ts';", identValidateWire)
 	if fam.Generic {
-		f.linef("import type { %s, %s, %s, %s, %s } from './types.ts';", identAnyFamily, identFamilyBinding, identTypeBinding, identSessionFamily, identSlots)
+		bindings := []string{identAnyFamily, identFamilyBinding, identTypeBinding}
+		if needsSessionFamily(fam) {
+			bindings = append(bindings, identSessionFamily)
+		}
+		bindings = append(bindings, identSlots)
+		f.linef("import type { %s } from './types.ts';", strings.Join(bindings, ", "))
 	}
 	f.linef("import type * as %s from './types.ts';", identProtocol)
 	f.imports(false)

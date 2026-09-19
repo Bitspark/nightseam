@@ -119,6 +119,11 @@ func TestMixedClientBindsTypesAndFamiliesInTheirRuntimeSlots(t *testing.T) {
 		t.Fatal(err)
 	}
 	index := string(files[1].Data)
+	for _, file := range files {
+		if strings.Contains(string(file.Data), "probe-client") || strings.Contains(string(file.Data), "SessionFamily") {
+			t.Errorf("protocol and type bindings acquire an unrelated session dependency in %s", file.Path)
+		}
+	}
 	for _, want := range []string{`s: FamilyBinding<S>, item: TypeBinding`, `readonly item: TypeBinding;`, `this.slots = { "S": s, "Item": item };`, `validateWire("Mixed", result, '$', this.slots)`} {
 		if !strings.Contains(index, want) {
 			t.Errorf("missing %s in:\n%s", want, index)

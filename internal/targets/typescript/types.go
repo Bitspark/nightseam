@@ -16,8 +16,14 @@ func familyScope(f *render.Family) []model.Parameter {
 }
 
 func needsSessionFamily(f *render.Family) bool {
-	if f.Generic {
-		return true
+	for _, parameter := range f.Parameters {
+		if parameter.Of == model.SessionRole {
+			for _, use := range f.Uses {
+				if use.Parameter == parameter.Name {
+					return true
+				}
+			}
+		}
 	}
 	for _, t := range f.Types {
 		for _, parameter := range t.Scope {
