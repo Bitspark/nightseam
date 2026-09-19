@@ -1,0 +1,6 @@
+consumer/model.json#/imports/0: The checkout family at api/contracts/tunnel/model.json uses the reserved built-in name "tunnel"; rename its directory and update imports and qualified references. Family tunnel is built in and is imported by the tier that brings it, with no imports line. [implicit_import]
+consumer/model.json#/imports/1: The checkout family at api/contracts/duplex/model.json uses the reserved built-in name "duplex"; rename its directory and update imports and qualified references. Family duplex is built in and is imported by the tier that brings it, with no imports line. [implicit_import]
+consumer/protocol.json#/imports/0: The checkout family at api/contracts/tunnel/model.json uses the reserved built-in name "tunnel"; rename its directory and update imports and qualified references. Family tunnel is built in and is imported by the tier that brings it, with no imports line. [implicit_import]
+duplex/model.json#: Family name "duplex" is reserved for the built-in family at nightseam:duplex/model.json; rename the checkout directory api/contracts/duplex and update imports and qualified references. [builtin_name]
+tunnel/model.json#: Family name "tunnel" is reserved for the built-in family at nightseam:tunnel/model.json; rename the checkout directory api/contracts/tunnel and update imports and qualified references. [builtin_name]
+error: 5 problems

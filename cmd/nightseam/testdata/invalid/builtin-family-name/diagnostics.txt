@@ -1,0 +1,2 @@
+session/model.json#: Family name "session" is reserved for the built-in family at nightseam:session/model.json; rename the checkout directory api/contracts/session and update imports and qualified references. [builtin_name]
+error: 1 problems

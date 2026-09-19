@@ -216,6 +216,9 @@ schemas. A family that has a tier file **imports** that tier's built-in,
 with no `imports` line; naming one in `imports` is refused, since it is
 already there.
 
+The names `duplex`, `tunnel` and `session` are reserved for these built-ins;
+a family of the checkout must use another directory name.
+
 The protocol tier's built-in is **carried**: `duplex`'s `Envelope`, one
 message of the profile, and `Handle`, a reference to a channel that speaks
 it, are this family's own types, because a family's envelope is a message
