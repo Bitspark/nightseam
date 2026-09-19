@@ -137,6 +137,25 @@ func (f *Family) IsCarried(typeName string) bool {
 // for a type this family declares.
 func (f *Family) CarriedFrom(typeName string) string { return f.from[typeName] }
 
+// DeclaredByBuiltin is the built-in family that declares a type of this
+// name among the ones this family carries, empty when none does: what a
+// family may not declare itself, because it already has it.
+func (f *Family) DeclaredByBuiltin(name string) string {
+	for _, tier := range model.Tiers {
+		if tier.Builtin == "" || !tier.Carries || !f.Has(tier.File) {
+			continue
+		}
+		b, ok := builtin.Family(tier.Builtin)
+		if !ok {
+			continue
+		}
+		if _, declares := b.Types[name]; declares {
+			return tier.Builtin
+		}
+	}
+	return ""
+}
+
 // Spell is how a declaration of this family names one of its types: the
 // name, or the built-in that declares it and the name, for a carried one.
 func (f *Family) Spell(typeName string) string {

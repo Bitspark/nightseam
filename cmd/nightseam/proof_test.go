@@ -10,6 +10,7 @@ import (
 	"github.com/Bitspark/nightseam/internal/check"
 	"github.com/Bitspark/nightseam/internal/compose"
 	"github.com/Bitspark/nightseam/internal/load"
+	"github.com/Bitspark/nightseam/internal/model/builtin"
 	"github.com/Bitspark/nightseam/internal/render"
 )
 
@@ -109,6 +110,22 @@ func TestEveryTargetRefusesWhatItDoesNotRender(t *testing.T) {
 			if d.Code != "unrendered_form" || !strings.Contains(d.Message, target.Name()) {
 				t.Errorf("%s said %s", target.Name(), d)
 			}
+		}
+	}
+}
+
+// TestBuiltinFamiliesPassTheirOwnChecks: the families Nightseam declares of
+// itself are held to the rules every consumer's family is held to, in a
+// world of their own — a built-in that the tool would refuse from a
+// consumer would be one rule for us and another for them.
+func TestBuiltinFamiliesPassTheirOwnChecks(t *testing.T) {
+	world := analysis.World(builtin.Families())
+	if len(world) == 0 {
+		t.Fatal("there are no built-in families")
+	}
+	for name := range world {
+		for _, d := range check.Family(analysis.Resolve(world, name)) {
+			t.Errorf("the built-in %s family is refused: %s", name, d)
 		}
 	}
 }

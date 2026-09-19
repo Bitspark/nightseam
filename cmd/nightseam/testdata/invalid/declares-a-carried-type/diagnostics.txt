@@ -1,0 +1,2 @@
+x/protocol.json#/types/Envelope: Type Envelope is carried from the built-in duplex family by every family with that tier, and may not be declared; name it duplex.Envelope. [reserved_name]
+error: 1 problems

@@ -79,8 +79,8 @@ func Model(f *analysis.Family) []diag.Diagnostic {
 		if f.IsCarried(name) {
 			continue
 		}
-		if model.Carried(name) {
-			c.Addf(t.At, "reserved_name", "Type %s is carried by every family with a protocol and may not be declared.", name)
+		if from := f.DeclaredByBuiltin(name); from != "" {
+			c.Addf(t.At, "reserved_name", "Type %s is carried from the built-in %s family by every family with that tier, and may not be declared; name it %s.%s.", name, from, from, name)
 			continue
 		}
 		context := f.Rank(name)
