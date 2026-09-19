@@ -49,7 +49,7 @@ For example:
 ```json
 {
   "id": "‹id›",
-  "email": "‹email›",
+  "email": "a@a",
   "balance": 0,
   "tags": [
     "‹tags›"
