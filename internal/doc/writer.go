@@ -94,11 +94,29 @@ func (t *target) Name() string { return t.w.Name() }
 // Consumes is every concern: a document documents all of them.
 func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Model, spi.Protocol, spi.Session} }
 
+// Owns is the directory a family's pages are under, or, for the checkout
+// as a whole, the directories its pages lie in.
 func (t *target) Owns(family string) []string {
+	if family == "" {
+		return t.checkoutDirs()
+	}
 	if t.layout.Family == "" {
 		return nil
 	}
 	return []string{t.layout.Dir(family)}
+}
+
+func (t *target) checkoutDirs() []string {
+	seen := map[string]bool{}
+	var dirs []string
+	for _, p := range t.layout.Checkout {
+		if dir := path.Dir(p); !seen[dir] {
+			seen[dir] = true
+			dirs = append(dirs, dir)
+		}
+	}
+	sort.Strings(dirs)
+	return dirs
 }
 
 func (t *target) Roots() []string {
@@ -116,11 +134,21 @@ func (t *target) Roots() []string {
 	for _, placed := range t.layout.Place {
 		add(spi.PatternRoot(placed))
 	}
+	for _, dir := range t.checkoutDirs() {
+		add(dir)
+	}
 	sort.Strings(roots)
 	return roots
 }
 
+// Family answers a family's page with the family, and a page of the
+// checkout as a whole with "".
 func (t *target) Family(p string) (string, bool) {
+	for _, page := range t.layout.Checkout {
+		if p == page {
+			return "", true
+		}
+	}
 	for family, placed := range t.layout.Place {
 		if matched, ok := spi.MatchPattern(placed, p); ok && matched == family {
 			return family, true
@@ -154,4 +182,12 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 		return nil, err
 	}
 	return t.w.Family(Build(f))
+}
+
+// RenderCheckout writes the pages of the checkout as a whole.
+func (t *target) RenderCheckout(w *render.World) ([]spi.File, error) {
+	if err := t.layout.Validate(); err != nil {
+		return nil, err
+	}
+	return t.w.Checkout(BuildCheckout(w))
 }

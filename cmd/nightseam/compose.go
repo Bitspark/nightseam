@@ -13,7 +13,12 @@ import (
 // targetNames names the targets, for the override files a family may carry.
 var targetNames = compose.Names()
 
+// toolTargets composes the tool's targets. A test replaces it to compose
+// one more beside them — a target of a kind the tool has none of yet — and
+// nothing else does.
+var toolTargets = compose.Targets
+
 // toolKernel is the kernel composed with the tool's targets.
 func toolKernel(module, scope, sibling string) *kernel.Kernel {
-	return compose.Kernel(module, scope, sibling)
+	return kernel.New(toolTargets(module, scope, sibling)...)
 }

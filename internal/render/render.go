@@ -119,6 +119,12 @@ type Session struct {
 	Conversation *model.Conversation
 }
 
+// World is every family of a checkout, ready to render, by name — what a
+// target that renders the checkout as a whole sees.
+type World struct {
+	Families []*Family
+}
+
 // Build renders the facts of a family that passed every neutral check.
 func Build(f *analysis.Family) *Family {
 	g := f.Generics()

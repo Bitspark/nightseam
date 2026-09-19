@@ -141,6 +141,54 @@ func (k *Kernel) Render(world *World, name string) (Result, error) {
 	return Result{Files: files}, nil
 }
 
+// RenderCheckout renders the files of the checkout as a whole, with every
+// target that renders such: what an index of every family or a page across
+// them is. A checkout is rendered whole or not at all — every family it has
+// is validated first, and one with a diagnostic refuses the rendering,
+// naming itself — and by no target where no target renders it, so that a
+// checkout of families alone is validated one family at a time as before.
+// A rendered path outside what its target owns for the checkout, or
+// rendered twice, is refused after.
+func (k *Kernel) RenderCheckout(world *World) (Result, error) {
+	var renderers []spi.CheckoutRenderer
+	for _, target := range k.targets {
+		if renderer, ok := target.(spi.CheckoutRenderer); ok {
+			renderers = append(renderers, renderer)
+		}
+	}
+	if len(renderers) == 0 {
+		return Result{Files: map[string][]byte{}}, nil
+	}
+	w := &render.World{}
+	for _, name := range world.Names {
+		if diagnostics := k.Validate(world, name); len(diagnostics) != 0 {
+			return Result{}, fmt.Errorf("%s: invalid family: %s", name, diagnostics[0])
+		}
+		w.Families = append(w.Families, render.Build(Resolve(world, name)))
+	}
+	files := map[string][]byte{}
+	for _, renderer := range renderers {
+		target := renderer.(spi.Target)
+		rendered, err := renderer.RenderCheckout(w)
+		if err != nil {
+			return Result{}, fmt.Errorf("%s: %w", target.Name(), err)
+		}
+		for _, file := range rendered {
+			if !safe(file.Path) {
+				return Result{}, fmt.Errorf("%s: invalid output path %q", target.Name(), file.Path)
+			}
+			if !owned(file.Path, target.Owns("")) {
+				return Result{}, fmt.Errorf("%s: %s lies outside the directories the target owns for the checkout: %s", target.Name(), file.Path, strings.Join(target.Owns(""), ", "))
+			}
+			if _, exists := files[file.Path]; exists {
+				return Result{}, fmt.Errorf("%s: conflicting generated output %s", target.Name(), file.Path)
+			}
+			files[file.Path] = file.Data
+		}
+	}
+	return Result{Files: files}, nil
+}
+
 // consumes reports whether a target has anything to render for a family:
 // the family has a tier the target consumes.
 func (k *Kernel) consumes(target spi.Target, f *render.Family) bool {
@@ -182,7 +230,10 @@ func owned(p string, dirs []string) bool {
 // chosen families produced — a file of a family that was rendered and is
 // no longer, or of a family that no longer exists. A file of a family
 // that exists and was not chosen this time is not stale, only unrendered;
-// a file a target says is nobody's is left alone. Paths are sorted.
+// a file a target says is nobody's is left alone. A file of the checkout
+// as a whole, family "", is stale when nothing rendered it this time,
+// since the checkout is rendered on every run and never ceases to exist.
+// Paths are sorted.
 func (k *Kernel) Stale(fsys fs.FS, world *World, chosen []string, rendered map[string][]byte) ([]string, error) {
 	chosenSet := map[string]bool{}
 	for _, name := range chosen {
@@ -213,7 +264,7 @@ func (k *Kernel) Stale(fsys fs.FS, world *World, chosen []string, rendered map[s
 					return nil
 				}
 				_, exists := world.Families[family]
-				if !exists || chosenSet[family] {
+				if family == "" || !exists || chosenSet[family] {
 					seen[p] = true
 					stale = append(stale, p)
 				}

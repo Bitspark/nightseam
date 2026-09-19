@@ -121,6 +121,15 @@ type Session struct {
 // Conversation is where a session's conversation id arrives.
 type Conversation struct{ Event, Path string }
 
+// BuildCheckout documents every family of a checkout.
+func BuildCheckout(w *render.World) *Checkout {
+	c := &Checkout{}
+	for _, f := range w.Families {
+		c.Families = append(c.Families, Build(f))
+	}
+	return c
+}
+
 // Build documents one family as render presents it.
 func Build(f *render.Family) *Family {
 	d := &Family{Name: f.Name, Files: f.Files, Imports: f.References, Carries: f.Carries, Generic: f.Generic, Protocol: f.HasProtocol()}

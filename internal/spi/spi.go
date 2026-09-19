@@ -36,16 +36,20 @@ type Target interface {
 	Consumes() []Concern
 	// Owns names the directories the target's rendering of a family lives
 	// in, relative to the checkout: the generator owns them wholesale and a
-	// human writes nothing there. Every rendered path lies under one.
+	// human writes nothing there. Every rendered path lies under one. The
+	// checkout as a whole is the family "", the name the kernel gives the
+	// checkout's own diagnostics: a CheckoutRenderer answers Owns("") with
+	// the directories its files of the checkout lie under, and no other
+	// target is asked it.
 	Owns(family string) []string
 	// Roots names the directories under which the target places every
 	// family's rendering, relative to the checkout: where a rendering of a
 	// family that no longer exists would be found.
 	Roots() []string
 	// Family answers a path under a root with the family whose rendering
-	// it belongs to, by the target's layout, or false for a path that is
-	// nobody's — what a tool installed beside a rendering, say — which the
-	// generator leaves alone.
+	// it belongs to, by the target's layout — "" for a file of the checkout
+	// as a whole — or false for a path that is nobody's — what a tool
+	// installed beside a rendering, say — which the generator leaves alone.
 	Family(path string) (string, bool)
 	// Check reports what the family would make the target render that it
 	// cannot: the names its override file gives, the identifiers it would
@@ -67,6 +71,18 @@ type Scaffolder interface {
 	// Scaffold renders the stubs for a family into dir, relative to the
 	// checkout; each file's path lies under dir.
 	Scaffold(f *render.Family, dir string) ([]File, error)
+}
+
+// CheckoutRenderer is a target that renders files of the checkout as a
+// whole, which are no family's: an index of every family, a page that
+// shows them side by side. The kernel renders them on every run, after the
+// families, from every family the checkout has, and never counts one a
+// leftover; they lie under what Owns("") names, and Family answers "" for
+// them.
+type CheckoutRenderer interface {
+	// RenderCheckout emits the checkout's files. Paths are slash-separated
+	// and relative to the checkout.
+	RenderCheckout(w *render.World) ([]File, error)
 }
 
 // File is one rendered source.

@@ -162,26 +162,40 @@ func (a *app) render(names []string) (map[string][]byte, error) {
 	return files, err
 }
 
-// renderAndStale renders the named families and finds what is left over
-// under the targets' roots: a file of one of them that nothing rendered,
-// or of a family that no longer exists.
+// renderAndStale renders the named families, then the checkout as a whole
+// where a target renders it, and finds what is left over under the
+// targets' roots: a file of one of them that nothing rendered, or of a
+// family that no longer exists.
 func (a *app) renderAndStale(names []string) (map[string][]byte, []string, error) {
 	k, world, err := a.world()
 	if err != nil {
 		return nil, nil, err
 	}
 	files := map[string][]byte{}
+	merge := func(result kernel.Result) error {
+		for path, data := range result.Files {
+			if previous, exists := files[path]; exists && !bytes.Equal(previous, data) {
+				return fmt.Errorf("conflicting generated output %s", path)
+			}
+			files[path] = data
+		}
+		return nil
+	}
 	for _, name := range names {
 		result, err := k.Render(world, name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("%s: %w", name, err)
 		}
-		for path, data := range result.Files {
-			if previous, exists := files[path]; exists && !bytes.Equal(previous, data) {
-				return nil, nil, fmt.Errorf("conflicting generated output %s", path)
-			}
-			files[path] = data
+		if err := merge(result); err != nil {
+			return nil, nil, err
 		}
+	}
+	result, err := k.RenderCheckout(world)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := merge(result); err != nil {
+		return nil, nil, err
 	}
 	stale, err := k.Stale(os.DirFS(a.root), world, names, files)
 	if err != nil {
