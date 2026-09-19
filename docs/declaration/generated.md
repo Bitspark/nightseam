@@ -202,6 +202,48 @@ params and result, a reverse call's, an event's data — and installs the
 use `onX` for later registration, before the event-producing flow begins. The `families` option is filled in for the observer, so a
 frame event names the family.
 
+## Live values
+
+A family with a live tier renders one more thing in each language: a callable
+is a **function value**, and a record of callables is an ordinary record whose
+members are functions. A consumer writes one where it means to be called and
+receives one where it means to call, and never sees a reference.
+
+```go
+type Report = func(ctx context.Context, params Percent) error
+type Cancel = func(ctx context.Context) error
+type Rename = func(ctx context.Context, params Ticket) (Ticket, error)
+type ProgressSink struct{ Report Report }
+const ContractReport = "worker/Report"
+```
+
+```ts
+export type Report = (request: Percent, options?: { signal?: AbortSignal }) => Promise<void>;
+export type Cancel = (options?: { signal?: AbortSignal }) => Promise<void>;
+export interface ProgressSink { "report": Report }
+export const contractReport = "worker/Report";
+```
+
+The conversion is at the boundary, so a handler is handed native values. Each
+live type renders a pair that takes the scope its bindings belong to:
+
+```go
+func ExportJob(scope *live.Scope, v Job) (json.RawMessage, error)
+func ImportJob(scope *live.Scope, raw json.RawMessage) (Job, error)
+```
+
+Export walks the value, makes a binding of each local function and writes the
+reference that names it in its place; import validates, attaches, and replaces
+each reference with a typed proxy. The generated client and binding call these
+for an operation that carries callables, and install the scope over the peer in
+`Prepare`, before it reads — as a tunnel is made.
+
+A live type's own `MarshalJSON` **refuses**, and that is the semantics rather
+than a gap: a reference means nothing outside the scope that minted its
+binding, so a live value has no scope-free encoding. The refusal names the pair
+that does have a scope. TypeScript needs no such refusal — its generated client
+never hands a live value to the peer unconverted — but the same rule holds.
+
 ## Errors
 
 The public errors reach both languages by name and are the one vocabulary

@@ -2,7 +2,8 @@
 
 A family of API is declared in tiers of JSON under `api/contracts/<family>/`
 of the consuming checkout. This page is the reference for what may be
-written there — the tiers, the types, the two sides, the per-target names. [The holes in a declaration](generics.md) is
+written there — the tiers, the types, the two sides, the callables, the
+per-target names. [The holes in a declaration](generics.md) is
 the rest of the language; [the generator](generator.md) says how a
 declaration is rendered, [the generated packages](generated.md) what comes
 out, and the [README](../../README.md) is the short path.
@@ -21,6 +22,7 @@ one file per tier and, where the convention is not enough, one per target:
 ```
 api/contracts/probe/model.json       tier 1: the types
 api/contracts/probe/protocol.json    tier 2: the two sides, the errors, the parameters
+api/contracts/probe/live.json        tier 3: the callables, and the operations that carry them
 api/contracts/probe/go.json          not a tier: what the Go rendering names otherwise than the convention does
 api/contracts/probe/typescript.json  not a tier: the same for TypeScript (and markdown.json for the specification)
 ```
@@ -257,6 +259,115 @@ family](../decisions/a-tier-is-a-built-in-family.md) is the record, and
 
 Every tier that names a built-in carries it, so a built-in's types are
 always the carrying family's own and never a second family's operations.
+
+## live.json
+
+The third tier is the one thing the other two cannot express: a value that is
+not data. A `model.json` value means the same wherever it is read; a
+`protocol.json` operation carries such values and nothing else; and a
+`live.json` value carries a **callable** — an implementation on one side of a
+connection that the other side may invoke.
+
+```json
+{
+  "types": {
+    "Report": {"kind": "callable", "description": "Told how far along the job is.", "request": "Percent"},
+    "Cancel": {"kind": "callable", "description": "Asks the job to stop."},
+    "Rename": {"kind": "callable", "request": "Ticket", "result": "Ticket", "errors": ["gone"]},
+    "ProgressSink": {"kind": "record", "fields": [{"name": "report", "type": "Report"}]},
+    "Job": {"kind": "record", "fields": [
+      {"name": "ticket", "type": {"ref": "Ticket"}},
+      {"name": "cancel", "type": "Cancel"},
+      {"name": "rename", "type": "Rename", "required": false}
+    ]},
+    "Start": {"kind": "record", "fields": [
+      {"name": "ticket", "type": "Ticket"},
+      {"name": "progress", "type": "ProgressSink"}
+    ]}
+  },
+  "server": {"methods": {"start": {"request": "Start", "result": "Job", "errors": ["denied"]}}}
+}
+```
+
+A **`callable`** is a kind beside `record`, `entity`, `enum`, `alias` and
+`union`. It declares a `request`, a `result` and the `errors` it may return,
+each optional: `Cancel` above takes nothing and answers nothing. It is referred
+to by name, like any other type, and **may not be written inline** — a
+reference to a callable carries the identity of the declaration it implements,
+and a callable written where a type is named has no declaration to carry. It
+declares no `parameters`, for the same reason: a generic callable would have one
+identity per application rather than one declaration.
+
+An **interface is a record of callable members**, as `ProgressSink` is. Nothing
+about it is a service, a stream, a cell or a topic; those are protocols a
+consumer writes with these parts. Each member is its own binding, with its own
+lifetime: a record of callables acquires no shared identity and no shared
+release ([the live layer](../runtime/live.md)).
+
+`live.json`'s `server` and `client` have the protocol's shape and **add**
+operations to the surface it produces; they do not restate it, and they extend
+nothing, since a side is extended once, in the protocol tier. A family whose
+protocol side extends a family that has a live tier needs a live tier of its
+own, so that the surface a consumer of the base expects is whole.
+
+### What is live, and where it may be written
+
+A type is **live** when it carries a callable. Nothing says so: it is derived,
+as the least fixed point of "contains a callable" over the declarations —
+through fields, variants, aliases, arrays, maps and nullables, through imports,
+and through an inline shape. Two edges are deliberately not followed:
+
+- **`{"ref": "E"}` is never live.** An entity key is a name for a row, not a
+  name for a binding; a live entity has a live value and a data key, and the
+  two identities stay apart.
+- **A draw through a family parameter is decided where it is written.** Every
+  family that may bind the parameter declares the drawn type, so a draw that
+  would be live is refused there, naming the family that makes it so.
+
+Then the direction rule every tier shares does the rest of the work with no
+machinery of its own: a callable is declared in `live.json`, so it ranks with
+the live tier, so a `model.json` record or a `protocol.json` operation that
+names one — or names anything that reaches one — is already refused. **That is
+why data and RPC stay usable with no live runtime at all**: a checkout with no
+`live.json` renders exactly what it rendered before, imports no live package,
+and needs no registry. It is not a promise about the implementation; it is a
+consequence of the language.
+
+The rule runs the other way too. A declaration in `live.json` that carries no
+callable is refused, and so is an operation there: an ordinary RPC method
+belongs in `protocol.json`, where a consumer can use it without a live runtime,
+and admitting it here would make the live tier the place things drift to.
+
+Two forms are refused for now, each with the reason in the diagnostic. An
+**application** that is live only through what fills it — `Page<Job>`, where
+`Page` is a generic record of a lower tier — has no boundary conversion of its
+own; declare the filled shape in `live.json` and name it. And a **live type
+drawn through a family parameter** has none either, since what fills the
+parameter is the consumer's to choose.
+
+### What a reference carries
+
+The wire form of a live value is not a declared type. It is the language's
+projection of the callable kind, the way a JSON array is the projection of
+`{"array": T}`:
+
+```json
+{"binding": "9f2c4ab11e07d3a5.3", "contract": "worker/Report"}
+```
+
+`contract` is the declaration the callable was declared at, and it is
+**nominal**: a reference declared as one callable is refused where another is
+expected, even when the two have the same shape. `binding` is opaque to the
+declaration layer — the scope that minted it reads it, and nobody else. Each
+language's validator checks the form and that identity and nothing more: it
+resolves no binding, registers nothing and reaches no network, since whether a
+binding exists, is still alive and belongs to this scope is the live runtime's
+to answer when it imports it ([the live layer on the wire](../wire/live.md)).
+
+The live tier brings **no built-in family of its own**, for the same reason:
+there is no type for a consumer to name. The `live.` operation namespace is the
+layer's, as `channel.` is the tunnel's, and a consumer that declares an
+operation in one is refused ([how a layer speaks](../wire/vocabulary.md)).
 
 ## go.json and typescript.json
 

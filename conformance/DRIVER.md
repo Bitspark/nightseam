@@ -442,6 +442,32 @@ Its inherited echo returns the payload unchanged. Mirrored wire scenarios
 hold both ordered language pairings; the matrix records the unsupported
 TypeScript binding role separately from the generated client runs.
 
+#### The live tier — `gen.live_*`, `client.live_*`
+
+The same testee also links what the generator renders for the corpus's
+`worker` family, whose live tier declares callables. These ops drive it, and
+nothing in them touches the live runtime: every callable a testee hands over
+or receives is an ordinary function of its language, which is what the tier
+promises and what these scenarios are for.
+
+| op | arguments | answer |
+|---|---|---|
+| `gen.live_serve` | | `{"handle", "url"}` — the worker binding, served; unsupported in a target without bindings |
+| `gen.live_dial` | **`url`** | `{"handle"}` a generated worker client, its reverse-call handler canned |
+| `client.live_describe` | **`on`**, **`ticket`**, **`label`** | `{"label"}` — ordinary RPC over a family that has a live tier, carrying no callable |
+| `client.live_start` | **`on`**, **`ticket`**, **`label`** | `{"job", "ticket"}` — the request carries a sink this testee implemented; the answer names the returned record of callables |
+| `client.live_reports` | **`on`** | `{"values"}` — what this testee's own sink was told, in order |
+| `client.live_cancel` | **`on`**, **`job`** | `{}` — the returned `cancel`, called |
+| `client.live_rename` | **`on`**, **`job`**, **`ticket`**, **`label`** | `{"label"}` — the returned `rename`, called, with a request and a result of its own |
+| `gen.live_report_again` | **`on`** | `{}` — the served side calls the sink it kept, after the call that supplied it returned |
+| `gen.live_supervise` | **`on`**, **`sinks`** | `{"state"}` — the served side calls the client, handing it a map of callables and reading back a sum |
+| `gen.live_seen` | **`on`** | `{"started", "calls"}` — how many starts the served side took, and what was called on it |
+
+An argument is merged into the request envelope, so no op names one `id`;
+`ticket` is the entity key where one is meant. `job` names what
+`client.live_start` answered, which is this testee's own name for the record
+it received — a reference is never a value a scenario writes.
+
 ## `testee.json`
 
 A language joins the suite with `conformance/<lang>/testee.json`:

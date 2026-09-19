@@ -8,6 +8,37 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- The **live tier**, `live.json`, and the `callable` kind: a declaration whose
+  values are not data but implementations the other side of a connection can
+  invoke. A callable declares a `request`, a `result` and the `errors` it may
+  return, each optional; it is named and referred to by name, never written
+  inline, since a reference carries the identity of the declaration it
+  implements. An interface is a record of callable members, and no service,
+  stream, cell or topic kind is introduced. `live.json` carries `server` and
+  `client` sides that add operations to the surface the protocol tier
+  produces.
+- Liveness is **derived, not declared**: the least fixed point of "contains a
+  callable" over the declarations, through containers, imports and inline
+  shapes. An entity key reference is never live, and a draw through a family
+  parameter is decided where it is written. The direction rule every tier
+  already had then keeps data and RPC independent — a checkout with no
+  `live.json` renders exactly what it rendered before and imports no live
+  package — and a declaration or operation in `live.json` that carries no
+  callable is refused, so the tier cannot become the place things drift to.
+- A callable's contract identity is **nominal**, `family/Type`, computed once
+  in rendering and stamped into the wire description both runtimes read. Each
+  validator refuses a reference carrying another contract where one is
+  expected, even of the same shape, and checks nothing else: it resolves no
+  binding, registers nothing and reaches no network.
+- Generated Go and TypeScript render a callable as a **plain function value**,
+  so a record of callables is a record whose members are functions and each
+  member is its own binding. `ExportX`/`ImportX` per live type convert at the
+  boundary against `live/go` and `@nightseam/live`, and the generated client
+  and binding install the scope in `Prepare`; a live type's own `MarshalJSON`
+  refuses, because a reference means nothing outside the scope that minted it.
+- A consumer operation under a layer's reserved prefix is refused, read off
+  the built-in families that speak on the wire rather than written out: it
+  covers `channel.` and `live.` by one rule.
 - The packed-install smoke imports every published package from outside the
   workspace, at every entry point its `publishConfig.exports` declares:
   type-checked with library checking on, then loaded by Node. A package the
