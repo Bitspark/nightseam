@@ -215,15 +215,32 @@ test('incoming saturation responds busy without blocking responses', async t => 
   assert.equal(await first, null);
 });
 
-test('output queues are bounded and a stalled socket is disconnected', async () => {
+test('output queues are bounded and a stalled socket is paced, then disconnected', async () => {
   const socket = new Socket();
   socket.bufferedAmount = 1;
-  const peer = new DuplexPeer({ maxQueuedMessages: 1 });
+  const peer = new DuplexPeer({ maxQueuedMessages: 1, writeTimeoutMs: 40 });
   await peer.attach(socket);
-  const first = assert.rejects(peer.emit('first'), { code: 'busy' });
-  await assert.rejects(peer.emit('second'), { code: 'busy' });
+  const first = assert.rejects(peer.emit('first'));
+  // The second meets a full queue and is paced for one write deadline before
+  // the consumer is called stalled; nothing drains, so the deadline passes.
+  await assert.rejects(peer.emit('second'));
   await first;
   assert.equal(peer.status, 'disconnected');
+});
+
+test('an outgoing burst that drains within the deadline is paced, not disconnected', async () => {
+  const socket = new Socket();
+  socket.bufferedAmount = 1;
+  const peer = new DuplexPeer({ maxQueuedMessages: 1, writeTimeoutMs: 1_000 });
+  await peer.attach(socket);
+  const first = peer.emit('first');
+  const second = peer.emit('second');
+  // The socket drains: the queue empties, the paced sender is woken, and both
+  // frames go. Before the queue was paced the second ended the connection.
+  socket.bufferedAmount = 0;
+  await Promise.all([first, second]);
+  assert.equal(peer.status, 'connected');
+  assert.deepEqual(socket.sent.map(frame => frame.event), ['first', 'second']);
 });
 
 test('socket output has a write deadline', async () => {
@@ -235,16 +252,55 @@ test('socket output has a write deadline', async () => {
   assert.equal(peer.status, 'disconnected');
 });
 
-test('event queues are bounded and responses are still routed during a slow listener', async () => {
+test('event queues are bounded and a slow listener is paced, then disconnected', async () => {
   const socket = new Socket();
-  const peer = new DuplexPeer({ maxQueuedMessages: 1 });
+  const peer = new DuplexPeer({ maxQueuedMessages: 1, writeTimeoutMs: 40 });
+  const closed = deferred<DuplexError>();
+  peer.onClose(closed.resolve);
   await peer.attach(socket);
   const blocked = deferred();
   peer.onEvent(() => blocked.promise);
   socket.receive({ version: 1, kind: 'event', event: 'one', data: {} });
   socket.receive({ version: 1, kind: 'event', event: 'two', data: {} });
+  // A full queue is a burst until its deadline passes. This listener never
+  // returns, so its own deadline is the first to pass and names what stalled;
+  // the queue's deadline behind it is the backstop for a consumer that does
+  // return, only never fast enough.
+  assert.equal(peer.status, 'connected');
+  assert.equal((await closed.promise).code, 'stalled_consumer');
   assert.equal(peer.status, 'disconnected');
   blocked.resolve();
+});
+
+test('a producer that outruns its consumer for a whole deadline is a stalled consumer', async () => {
+  const socket = new Socket();
+  const peer = new DuplexPeer({ maxQueuedMessages: 1, writeTimeoutMs: 40 });
+  const closed = deferred<DuplexError>();
+  peer.onClose(closed.resolve);
+  await peer.attach(socket);
+  // Every listener returns well inside its own deadline, so nothing here is a
+  // stalled listener; what passes the deadline is the backlog, which never
+  // comes under capacity because the events keep arriving.
+  peer.onEvent(() => new Promise<void>(resolve => setTimeout(resolve, 10)));
+  for (let i = 0; i < 20; i++) socket.receive({ version: 1, kind: 'event', event: `burst-${i}`, data: {} });
+  assert.equal((await closed.promise).code, 'busy');
+});
+
+test('an event burst that drains within the deadline is paced, not disconnected', async () => {
+  const socket = new Socket();
+  const peer = new DuplexPeer({ maxQueuedMessages: 1, writeTimeoutMs: 1_000 });
+  await peer.attach(socket);
+  const held = deferred();
+  const delivered: string[] = [];
+  peer.onEvent(async name => { await held.promise; delivered.push(name); });
+  socket.receive({ version: 1, kind: 'event', event: 'one', data: {} });
+  socket.receive({ version: 1, kind: 'event', event: 'two', data: {} });
+  held.resolve();
+  // The backlog clears inside the deadline, so the burst was a burst: both
+  // events arrive in order and the connection is whole.
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.deepEqual(delivered, ['one', 'two']);
+  assert.equal(peer.status, 'connected');
 });
 
 test('stalled asynchronous event listener closes the peer', async () => {
@@ -737,14 +793,19 @@ test('backpressure is observed where the queue fills and where the deadline pass
   const socket = new Socket();
   socket.bufferedAmount = 1;
   const full = recorder();
-  const peer = new DuplexPeer({ maxQueuedMessages: 1, observer: full });
+  const peer = new DuplexPeer({ maxQueuedMessages: 1, writeTimeoutMs: 40, observer: full });
   await peer.attach(socket);
-  const first = assert.rejects(peer.emit('first'), { code: 'busy' });
-  await assert.rejects(peer.emit('second'), { code: 'busy' });
+  const first = assert.rejects(peer.emit('first'));
+  // Paced first and only then disconnected, as the Go peer paces it. The
+  // queue's deadline and the socket's are one limit, so whichever expires
+  // first ends the connection and the code it ends with is its own; what is
+  // held is the pair of events, which is the same either way.
+  await assert.rejects(peer.emit('second'));
   await first;
   assert.equal(peer.status, 'disconnected');
   assert.deepEqual(backpressure(full.events), [
-    { type: 'backpressure', queued: 1, stalled: true, deadlineMs: 10_000 },
+    { type: 'backpressure', queued: 1, stalled: false, deadlineMs: 40 },
+    { type: 'backpressure', queued: 1, stalled: true, deadlineMs: 40 },
   ]);
 
   const slow = new Socket();
@@ -766,13 +827,20 @@ test('backpressure is observed where the queue fills and where the deadline pass
   receiver.onEvent(() => held.promise);
   listening.receive({ version: 1, kind: 'event', event: 'one', data: {} });
   listening.receive({ version: 1, kind: 'event', event: 'two', data: {} });
-  assert.equal(receiver.status, 'disconnected');
+  // Paced, not disconnected: the consumer has a deadline to drain in and has
+  // not passed it. This peer cannot pause what a socket hands it, so the
+  // event is held where the Go peer stops reading; the deadline is the same.
+  assert.equal(receiver.status, 'connected');
   held.resolve();
+  await Promise.resolve();
   assert.deepEqual(backpressure(queued.events), [
-    { type: 'backpressure', queued: 1, stalled: true, deadlineMs: 10_000 },
+    { type: 'backpressure', queued: 1, stalled: false, deadlineMs: 10_000 },
   ]);
+  // Both are delivered, in order: the second was held while the first was in
+  // hand and went the moment it was free, which is what pacing is for.
   assert.deepEqual(queued.events.filter(event => event.type === 'event.delivered').map(shape), [
     { type: 'event.delivered', name: 'one', bytes: true, family: '' },
+    { type: 'event.delivered', name: 'two', bytes: true, family: '' },
   ]);
 });
 

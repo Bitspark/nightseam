@@ -268,3 +268,83 @@ func TestOutboundQueueDoesNotDelayCancellationOfSentCall(t *testing.T) {
 	// output queue is full. Connection cleanup releases the waiting handler.
 	allowWrites()
 }
+
+// TestInboundEventBurstIsPacedRatherThanDisconnected: a queue filled faster
+// than its consumer drains it is a burst, not a stall, and the peer pacing it
+// is what tells them apart — the events are delivered, in order, and the
+// connection is whole. Before the queue was paced this ended the connection
+// on the third event.
+func TestInboundEventBurstIsPacedRatherThanDisconnected(t *testing.T) {
+	release := make(chan struct{})
+	delivered := make(chan int, 8)
+	client, server := newPair(t, ws.Options{}, ws.Options{
+		QueueCapacity: 1,
+		WriteTimeout:  5 * time.Second,
+		Events: map[string]ws.EventHandler{
+			"progress": func(_ context.Context, _ *ws.Peer, data json.RawMessage) {
+				<-release
+				var value int
+				if err := json.Unmarshal(data, &value); err != nil {
+					t.Error(err)
+					return
+				}
+				delivered <- value
+			},
+		},
+	})
+	for _, value := range []int{1, 2, 3} {
+		if err := server.Emit(context.Background(), "progress", value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The burst is held while the consumer is busy and drains when it is not.
+	close(release)
+	for want := 1; want <= 3; want++ {
+		if got := receive(t, delivered); got != want {
+			t.Fatalf("event %d arrived where %d was due", got, want)
+		}
+	}
+	select {
+	case <-client.Done():
+		t.Fatalf("a burst that drained ended the connection: %v", client.Err())
+	default:
+	}
+}
+
+// TestOutstandingCallLimitRefusesWithoutEndingTheConnection: the caller's own
+// bound. The call past it is refused busy where it stands — no frame, no
+// request an observer is told of — and the connection serves the next call,
+// which is what makes it a refusal and not a failure.
+func TestOutstandingCallLimitRefusesWithoutEndingTheConnection(t *testing.T) {
+	started := make(chan struct{}, 4)
+	client, _ := newPair(t, ws.Options{Handlers: map[string]ws.Handler{
+		"wait": func(ctx context.Context, _ *ws.Peer, _ json.RawMessage) (any, error) {
+			started <- struct{}{}
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+		"echo": func(_ context.Context, _ *ws.Peer, params json.RawMessage) (any, error) { return params, nil },
+	}}, ws.Options{MaxPendingRequests: 2})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var waiting sync.WaitGroup
+	for range 2 {
+		waiting.Add(1)
+		go func() { defer waiting.Done(); _ = client.Call(ctx, "wait", nil, nil) }()
+	}
+	receive(t, started)
+	receive(t, started)
+
+	err := client.Call(context.Background(), "wait", nil, nil)
+	var public *ws.PublicError
+	if !errors.As(err, &public) || public.Code != "busy" {
+		t.Fatalf("the call past the limit ended with %v, not busy", err)
+	}
+
+	cancel()
+	waiting.Wait()
+	var echoed int
+	if err := client.Call(context.Background(), "echo", 7, &echoed); err != nil || echoed != 7 {
+		t.Fatalf("the connection did not serve on: %v, %d", err, echoed)
+	}
+}

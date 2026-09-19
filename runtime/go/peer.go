@@ -60,11 +60,15 @@ type Options struct {
 	Handlers              map[string]Handler
 	Events                map[string]EventHandler
 	MaxConcurrentHandlers int
-	QueueCapacity         int
-	MaxFrameBytes         int64
-	RequestTimeout        time.Duration
-	WriteTimeout          time.Duration
-	Propagator            Propagator
+	// MaxPendingRequests bounds the calls this peer may have outstanding at
+	// once; the one past it is refused busy without reaching the wire. It is
+	// the caller's own bound, as MaxConcurrentHandlers is the receiver's.
+	MaxPendingRequests int
+	QueueCapacity      int
+	MaxFrameBytes      int64
+	RequestTimeout     time.Duration
+	WriteTimeout       time.Duration
+	Propagator         Propagator
 	// Observer is told what the peer does with the traffic it carries; nil
 	// observes nothing and costs nothing. Families labels a method or event
 	// name with the family it belongs to, which the generated install fills:
@@ -74,11 +78,14 @@ type Options struct {
 }
 
 func (o Options) normalized() (Options, error) {
-	if o.MaxConcurrentHandlers < 0 || o.QueueCapacity < 0 || o.MaxFrameBytes < 0 || o.RequestTimeout < 0 || o.WriteTimeout < 0 {
+	if o.MaxConcurrentHandlers < 0 || o.MaxPendingRequests < 0 || o.QueueCapacity < 0 || o.MaxFrameBytes < 0 || o.RequestTimeout < 0 || o.WriteTimeout < 0 {
 		return o, errors.New("duplex limits must be positive")
 	}
 	if o.MaxConcurrentHandlers == 0 {
 		o.MaxConcurrentHandlers = 64
+	}
+	if o.MaxPendingRequests == 0 {
+		o.MaxPendingRequests = 128
 	}
 	if o.QueueCapacity == 0 {
 		o.QueueCapacity = 128
@@ -319,6 +326,12 @@ func (p *Peer) Call(ctx context.Context, method string, params, result any) erro
 		p.mu.Unlock()
 		return err
 	}
+	// The caller's own bound. A call past it never reaches the wire and never
+	// becomes an observer's request: nothing started, so nothing ended.
+	if len(p.pending) >= p.options.MaxPendingRequests {
+		p.mu.Unlock()
+		return &PublicError{Code: "busy", Message: "Outstanding call limit reached"}
+	}
 	p.pending[id] = reply
 	p.mu.Unlock()
 	defer func() { p.mu.Lock(); delete(p.pending, id); p.mu.Unlock() }()
@@ -522,16 +535,23 @@ func (p *Peer) enqueueEvent(event queuedEvent) bool {
 		return true
 	default:
 	}
-	// A tight decoder loop can fill a small queue before its ready consumer gets
-	// a scheduling turn. Yield once, without waiting on application callbacks;
-	// responses and cancellation must still use this same independent reader.
-	p.observeBackpressure(len(p.events), false, 0)
-	runtime.Gosched()
+	// A full queue can be a healthy transient burst — a tight decoder loop
+	// outrunning a ready consumer — so the producer is paced for one write
+	// deadline before the consumer is declared stalled, as the outgoing queue
+	// does. The producer here is the remote, and the only way to pace it is to
+	// stop reading: while this waits, responses and cancellations on this
+	// connection wait with it. That is the cost of not ending a connection
+	// that would drain in a second, and the deadline is what bounds it.
+	p.observeBackpressure(len(p.events), false, p.options.WriteTimeout)
+	timer := time.NewTimer(p.options.WriteTimeout)
+	defer timer.Stop()
 	select {
 	case p.events <- event:
 		return true
-	default:
-		p.observeBackpressure(len(p.events), true, 0)
+	case <-p.done:
+		return false
+	case <-timer.C:
+		p.observeBackpressure(len(p.events), true, p.options.WriteTimeout)
 		p.fail(ErrBackpressure)
 		return false
 	}

@@ -421,9 +421,13 @@ func TestAnObserverSeesAHandlerPanicWithTheValueAndNotTheParams(t *testing.T) {
 func TestAnObserverSeesBackpressureWhenTheEventConsumerStalls(t *testing.T) {
 	started := make(chan struct{})
 	observed := new(recorder)
+	// The event queue is paced for one write deadline before its consumer is
+	// declared stalled, so the deadline is what this waits for: short, since
+	// what is held is that it passes and not how long it is.
 	peer, remote := newPair(t, ws.Options{}, ws.Options{
 		Observer:      observed,
 		QueueCapacity: 1,
+		WriteTimeout:  200 * time.Millisecond,
 		Events: map[string]ws.EventHandler{
 			"progress": func(ctx context.Context, _ *ws.Peer, _ json.RawMessage) {
 				close(started)

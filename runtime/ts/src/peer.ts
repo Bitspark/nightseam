@@ -148,9 +148,13 @@ export class DuplexPeer {
   private readonly closedListeners = new Set<(error: DuplexError) => void>();
   private readonly outgoing: Outgoing[] = [];
   private writeTimer?: Timer;
+  /** Senders paced by a full outgoing queue, woken as it drains. */
+  private readonly waitingForRoom = new Set<(room: boolean) => void>();
   private readonly events: QueuedEvent[] = [];
   private eventActive = false;
   private eventTimer?: Timer;
+  /** Set while the event queue is over capacity: the deadline it has to drain in. */
+  private stallTimer?: Timer;
   private generation = 0;
   private negotiated = '';
 
@@ -340,8 +344,8 @@ export class DuplexPeer {
     return pending;
   }
 
-  private send(envelope: Envelope, name = ''): Promise<void> {
-    if (!this.isOpen()) return Promise.reject(new DuplexError('not_connected', 'Peer is not connected.'));
+  private async send(envelope: Envelope, name = ''): Promise<void> {
+    if (!this.isOpen()) throw new DuplexError('not_connected', 'Peer is not connected.');
     let text: string;
     try {
       text = JSON.stringify(envelope, (_key, value: unknown) => {
@@ -357,11 +361,34 @@ export class DuplexPeer {
     if (bytes > this.limits.maxFrameBytes) {
       return Promise.reject(new DuplexError('frame_too_large', 'Outgoing frame exceeds the size limit.'));
     }
-    if (this.outgoing.length >= this.limits.maxQueuedMessages) {
-      const error = new DuplexError('busy', 'Output consumer is stalled; queue limit reached.');
-      if (this.observer) this.pressure(this.outgoing.length, true);
-      this.fail(error);
-      return Promise.reject(error);
+    // A full queue can be a healthy transient burst — durable event replay,
+    // say — so the producer is paced for one write deadline before the
+    // consumer is declared stalled, as the Go peer paces it. A sender that
+    // waits here may be overtaken by one that does not, exactly as two
+    // goroutines blocked on a Go channel may be: the order of concurrent
+    // senders is no promise of the profile, and one sender's own frames keep
+    // their order because it awaits each in turn.
+    let paced = false;
+    for (;;) {
+      if (!this.isOpen()) throw new DuplexError('not_connected', 'Peer is not connected.');
+      if (this.outgoing.length < this.limits.maxQueuedMessages) break;
+      // Told once per send, however many times it is woken and finds the queue
+      // full again: one burst is one thing the observer is told about.
+      if (!paced) {
+        paced = true;
+        if (this.observer) this.pressure(this.outgoing.length, false);
+      }
+      const room = await new Promise<boolean>(resolve => {
+        const wake = (value: boolean) => { clearTimeout(timer); this.waitingForRoom.delete(wake); resolve(value); };
+        const timer = setTimeout(() => wake(false), this.limits.writeTimeoutMs);
+        this.waitingForRoom.add(wake);
+      });
+      if (!room) {
+        const error = new DuplexError('busy', 'Output consumer is stalled; queue limit reached.');
+        if (this.observer) this.pressure(this.outgoing.length, true);
+        this.fail(error);
+        throw error;
+      }
     }
     return new Promise<void>((resolve, reject) => {
       this.outgoing.push({ text, started: Date.now(), sent: false, waited: false, resolve, reject });
@@ -398,12 +425,19 @@ export class DuplexPeer {
       if (item.sent && connection.buffered === 0) {
         this.outgoing.shift();
         item.resolve();
+        this.makeRoom();
       } else {
         item.waited = true;
         this.writeTimer = setTimeout(() => { this.writeTimer = undefined; this.flush(); }, 5);
         return;
       }
     }
+  }
+
+  /** Wakes every paced sender once the queue has room; each re-checks for itself. */
+  private makeRoom(): void {
+    if (this.outgoing.length >= this.limits.maxQueuedMessages) return;
+    for (const wake of [...this.waitingForRoom]) wake(true);
   }
 
   private receive(incoming: Frame): void {
@@ -523,13 +557,30 @@ export class DuplexPeer {
   }
 
   private event(name: string, data: unknown, bytes: number, trace?: Trace, meta?: Meta): void {
-    if (this.events.length + Number(this.eventActive) >= this.limits.maxQueuedMessages) {
-      if (this.observer) this.pressure(this.events.length + Number(this.eventActive), true);
-      this.fail(new DuplexError('busy', 'Event consumer is stalled; queue limit reached.'));
-      return;
+    const queued = this.events.length + Number(this.eventActive);
+    if (queued >= this.limits.maxQueuedMessages && !this.stallTimer) {
+      // A full queue can be a healthy transient burst, so the producer is paced
+      // for one write deadline before the consumer is declared stalled, as the
+      // Go peer paces it. The producer is the remote, and a peer here cannot
+      // pause what it is handed — a socket delivers when it delivers — so the
+      // events are held rather than the reading stopped. The deadline is the
+      // same, and so is what happens at it.
+      if (this.observer) this.pressure(queued, false);
+      this.stallTimer = setTimeout(() => {
+        this.stallTimer = undefined;
+        if (this.observer) this.pressure(this.events.length + Number(this.eventActive), true);
+        this.fail(new DuplexError('busy', 'Event consumer is stalled; queue limit reached.'));
+      }, this.limits.writeTimeoutMs);
     }
     this.events.push({ name, data, bytes, trace, meta });
     this.drainEvents();
+  }
+
+  /** The queue came back under capacity within its deadline: the burst drained. */
+  private drained(): void {
+    if (!this.stallTimer || this.events.length + Number(this.eventActive) >= this.limits.maxQueuedMessages) return;
+    clearTimeout(this.stallTimer);
+    this.stallTimer = undefined;
   }
 
   private drainEvents(): void {
@@ -554,6 +605,10 @@ export class DuplexPeer {
       clearTimeout(this.eventTimer);
       this.eventTimer = undefined;
       this.eventActive = false;
+      // Where the backlog is judged: an event finishing is the only thing that
+      // brings the queue under capacity, so a burst that drained within its
+      // deadline stops being one here.
+      this.drained();
       this.drainEvents();
     };
     const next = () => {
@@ -592,8 +647,13 @@ export class DuplexPeer {
     this.writeTimer = undefined;
     clearTimeout(this.eventTimer);
     this.eventTimer = undefined;
+    clearTimeout(this.stallTimer);
+    this.stallTimer = undefined;
     this.eventActive = false;
     this.events.length = 0;
+    // A sender paced by a queue that will never drain is woken now rather than
+    // at its deadline; the peer is shut, so its send ends as any other does.
+    for (const wake of [...this.waitingForRoom]) wake(true);
     if (this.opening) {
       clearTimeout(this.opening.timer);
       this.opening.reject(error);

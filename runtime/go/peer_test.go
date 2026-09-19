@@ -276,8 +276,11 @@ func TestSaturationRejectsNewWorkButStillRoutesReverseResponses(t *testing.T) {
 
 func TestStalledEventConsumerDisconnects(t *testing.T) {
 	started := make(chan struct{})
+	// A stalled consumer is paced for one write deadline before it is
+	// disconnected; the deadline is short here so the pacing is not the wait.
 	client, server := newPair(t, ws.Options{}, ws.Options{
 		QueueCapacity: 1,
+		WriteTimeout:  200 * time.Millisecond,
 		Events: map[string]ws.EventHandler{
 			"progress": func(ctx context.Context, _ *ws.Peer, _ json.RawMessage) {
 				close(started)
