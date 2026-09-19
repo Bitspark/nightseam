@@ -84,7 +84,7 @@ func Configure(c load.Config, module, scope, sibling string) ([]spi.Target, []di
 	var a atlas.Config
 	report(atlas.Name, section(c, atlas.Name, &a))
 	report(atlas.Name, a.Validate())
-	compose(atlas.Name, func() spi.Target { return doc.Target(atlas.New(a)) })
+	compose(atlas.Name, func() spi.Target { return doc.Target(atlas.New(a), spellers) })
 
 	return targets, diagnostics
 }

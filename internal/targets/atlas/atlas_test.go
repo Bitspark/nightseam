@@ -108,7 +108,7 @@ func proof(t *testing.T) *doc.Checkout {
 	w := analysis.World(modeltest.World(families))
 	c := &doc.Checkout{}
 	for _, name := range []string{"probe", "proof"} {
-		c.Families = append(c.Families, doc.Build(render.Build(analysis.Resolve(w, name))))
+		c.Families = append(c.Families, doc.Build(render.Build(analysis.Resolve(w, name)), nil))
 	}
 	return c
 }

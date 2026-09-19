@@ -146,6 +146,10 @@ test('a lens never changes routes, payloads, ordering, or weights', () => {
   const wire = familyView(atlas, 'alpha');
   const future = familyView(atlas, 'alpha', 'future');
   assert.equal(future.types[0].display, 'FutureText');
+  assert.deepEqual(
+    finder(atlas, 'FutureText').map((entry) => entry.name),
+    ['Text'],
+  );
   assert.equal(future.exchanges[0].display, 'Read');
   future.types[0].display = wire.types[0].display;
   future.exchanges[0].display = wire.exchanges[0].display;

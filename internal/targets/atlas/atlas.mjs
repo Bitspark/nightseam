@@ -173,13 +173,25 @@ export function finder(atlas, query = '') {
     });
     for (const x of v.exchanges) entries.push({ ...x, family: f.Name });
     for (const t of v.types)
-      entries.push({ name: t.Name, family: f.Name, kind: 'type', id: t.id, href: t.href, description: t.Description });
+      entries.push({
+        name: t.Name,
+        family: f.Name,
+        kind: 'type',
+        id: t.id,
+        href: t.href,
+        description: t.Description,
+        aliases: Object.values(t.Languages ?? {})
+          .map((language) => language.Name)
+          .filter(Boolean),
+      });
     for (const e of v.errors)
       entries.push({ name: e.Code, family: f.Name, kind: 'error', id: e.id, href: e.href, description: e.Description });
   }
   const words = query.toLowerCase().trim().split(/\s+/);
   return entries.filter((e) =>
-    words.every((w) => `${e.family} ${e.name} ${e.kind} ${e.description ?? ''}`.toLowerCase().includes(w)),
+    words.every((w) =>
+      `${e.family} ${e.name} ${e.kind} ${e.description ?? ''} ${list(e.aliases).join(' ')}`.toLowerCase().includes(w),
+    ),
   );
 }
 

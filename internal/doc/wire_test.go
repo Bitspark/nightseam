@@ -104,7 +104,7 @@ func TestEveryUnionVariantHasItsOwnExample(t *testing.T) {
 		}
 	}
 	w := analysis.World(modeltest.World(map[string]map[string]string{"x": {"model.json": `{"nightseam":2,"types":{"Choice":{"kind":"union","tag":"kind","value":"body","variants":{"none":{"empty":true},"record":{"kind":"record","fields":[]},"again":"Choice"}}}}`}}))
-	typ := typed(Build(render.Build(analysis.Resolve(w, "x"))), "Choice")
+	typ := typed(Build(render.Build(analysis.Resolve(w, "x")), nil), "Choice")
 	want := map[string]string{"none": `{"kind":"none"}`, "record": `{"kind":"record","body":{}}`, "again": `{"kind":"again","body":null}`}
 	for _, variant := range typ.Variants {
 		if got := string(variant.Example); got != want[variant.Tag] {

@@ -1,20 +1,20 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Bitspark/nightseam/internal/compose"
 	"github.com/Bitspark/nightseam/internal/doc"
-	"github.com/Bitspark/nightseam/internal/kernel"
-	"github.com/Bitspark/nightseam/internal/targets/atlas"
 )
 
 // The proof's complete page holds every settled form and every variant's
 // canonical example beside the regular checkout goldens.
 func TestAtlasProofGolden(t *testing.T) {
-	k := kernel.New(doc.Target(atlas.New(atlas.Config{})))
+	k := compose.Kernel(module, scope, "")
 	world := k.Load(os.DirFS("testdata"), "proof")
 	result, err := k.RenderCheckout(world)
 	if err != nil {
@@ -34,6 +34,43 @@ func TestAtlasConfigAndCheckoutOwnership(t *testing.T) {
 	data, err := os.ReadFile(page)
 	if err != nil || !strings.Contains(string(data), "<title>Our protocol</title>") || !strings.Contains(string(data), "--lamp: #864;") {
 		t.Fatalf("config did not reach atlas: %v", err)
+	}
+	_, embedded, ok := strings.Cut(string(data), `<script type="application/json" id="nightseam-document">`)
+	if !ok {
+		t.Fatal("atlas document is missing")
+	}
+	embedded, _, _ = strings.Cut(embedded, "</script>")
+	var document struct {
+		Families []struct {
+			Name  string
+			Types []struct {
+				Name      string
+				Languages map[string]doc.Language
+			}
+		}
+	}
+	if err := json.Unmarshal([]byte(embedded), &document); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, family := range document.Families {
+		if family.Name != "probe" {
+			continue
+		}
+		for _, typ := range family.Types {
+			if typ.Name != "Payload" {
+				continue
+			}
+			found = true
+			for _, language := range []string{"go", "typescript"} {
+				if spelling := typ.Languages[language]; spelling.Name == "" || spelling.Declare == "" {
+					t.Errorf("atlas lost the %s type metadata", language)
+				}
+			}
+		}
+	}
+	if !found {
+		t.Fatal("atlas lost the probe payload")
 	}
 	if _, errs, err := run(t, root, "check"); err != nil {
 		t.Fatalf("check: %v\n%s", err, errs)
