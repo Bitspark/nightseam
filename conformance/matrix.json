@@ -3,7 +3,6 @@
     "core",
     "generator",
     "observability",
-    "session",
     "tunnel"
   ],
   "languages": {
@@ -17,17 +16,12 @@
           "failed": 0
         },
         "generator": {
-          "passed": 16,
+          "passed": 11,
           "skipped": 0,
           "failed": 0
         },
         "observability": {
-          "passed": 15,
-          "skipped": 0,
-          "failed": 0
-        },
-        "session": {
-          "passed": 16,
+          "passed": 13,
           "skipped": 0,
           "failed": 0
         },
@@ -48,17 +42,12 @@
           "failed": 0
         },
         "generator": {
-          "passed": 18,
-          "skipped": 14,
+          "passed": 12,
+          "skipped": 10,
           "failed": 0
         },
         "observability": {
-          "passed": 30,
-          "skipped": 0,
-          "failed": 0
-        },
-        "session": {
-          "passed": 32,
+          "passed": 26,
           "skipped": 0,
           "failed": 0
         },
