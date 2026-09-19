@@ -11,6 +11,12 @@ body:
         verbatim. It is answered in plain words on the issue or in chat, and
         the verdict is copied here before any lane is cut from it. A question
         that is really several is several issues, under one that indexes them.
+
+        A question that would admit a concept — a primitive of the declaration
+        language or a runtime — answers the six steps of
+        [admitting a concept](https://github.com/Bitspark/nightseam/blob/main/docs/admission.md)
+        below; without them it is not weighed. Existing, being reusable and
+        owning no state of the consumer's are not among the six.
   - type: textarea
     id: question
     attributes:
@@ -23,6 +29,37 @@ body:
     attributes:
       label: What exists today
       description: The current shape, in the terms of the code and the docs, so that every option is measured against the same thing.
+    validations:
+      required: true
+  - type: dropdown
+    id: concept
+    attributes:
+      label: Concept
+      description: What the question does to the set of concepts. The first two answers require the evidence below in full; the last two say in one line which existing concepts the question composes or chooses within.
+      options:
+        - Admits a new primitive
+        - Removes or reclassifies an existing concept
+        - Composes existing concepts and admits none
+        - Chooses within an existing concept — a spelling, a bound, a name
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Admission evidence
+      description: "The six steps of docs/admission.md, under the headings given. Scope: the level and its purpose, stated without the inventory. Basis: what the composition may use — the level beneath, as a client, nothing grandfathered. Composition attempted: the behavior built from it, with who owns each invariant. Obstruction: the guarantee lost and the scenario that loses it, or `none — it composes`. Smallest primitive: derived from the obstruction, decomposed again, or the existing one to repair or expose. Alternatives: what else was considered and what each costs. A question that admits no concept writes one line under Scope and `—` under the rest."
+      value: |
+        **Scope.**
+
+        **Basis.**
+
+        **Composition attempted.**
+
+        **Obstruction.**
+
+        **Smallest primitive.**
+
+        **Alternatives.**
     validations:
       required: true
   - type: textarea
@@ -43,7 +80,7 @@ body:
     id: verdict
     attributes:
       label: Verdict
-      description: Left empty when filed. The answer, verbatim, with who gave it and when; then the lanes cut from it, by number.
+      description: Left empty when filed. The answer, verbatim, with who gave it and when; then the class it gives the concept and the lanes cut from it, by number.
   - type: input
     id: edges
     attributes:
