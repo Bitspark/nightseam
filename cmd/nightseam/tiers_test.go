@@ -174,7 +174,7 @@ func TestInitWritesTheHandlersOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(stub), "export const handler: Handler = {") || !strings.Contains(string(stub), "async reverse(params: Protocol.Payload, context: RequestContext): Promise<Protocol.Payload>") {
+	if !strings.Contains(string(stub), "export const handler: Handler = {") || !strings.Contains(string(stub), "async reverse(params, context)") || !strings.Contains(string(stub), `throw new Error("reverse is not implemented")`) {
 		t.Errorf("the TypeScript handler is wrong:\n%s", stub)
 	}
 	writeFixture(t, root, "api/impl/probe/handler.go", []byte("package probe // mine\n"))
