@@ -15,10 +15,13 @@ run('the in-memory pipe', async () => {
   return { a, b, end: () => { a.close(); } };
 });
 
+// A socket takes every frame inside the send and holds none of it back, so
+// the suite asks it nothing of what a transport holds; bufferedAmount is the
+// socket's own and the adapter is held to reading it below.
 run('a WebSocket', async () => {
   const [left, right] = Socket.pair();
   return { a: webSocketConnection(left), b: webSocketConnection(right), end: () => { left.close(); } };
-});
+}, { holds: false });
 
 test('the pipe delivers in a later turn, never inside the send', async () => {
   const [a, b] = pipe();
@@ -29,6 +32,35 @@ test('the pipe delivers in a later turn, never inside the send', async () => {
   await settled();
   assert.deepEqual(frames, [{ kind: 'text', data: 'now' }]);
   a.close();
+});
+
+test('the pipe takes eight frames in flight and holds what a send leaves past them until the far end takes one', async () => {
+  const [a, b] = pipe();
+  // Nobody listens on b, so nothing is taken: the bound is what the transport
+  // itself takes, and it is the Go pipe's eight.
+  for (let i = 0; i < 8; i++) a.send({ kind: 'text', data: `frame ${i}` });
+  assert.equal(a.buffered, 0, 'eight frames in flight left something buffered');
+  a.send({ kind: 'text', data: 'frame 8' });
+  assert.equal(a.buffered, 1, 'a ninth frame was taken as though the transport had room for it');
+  a.send({ kind: 'text', data: 'frame 9' });
+  assert.equal(a.buffered, 2, 'what a send leaves past the bound is not counted');
+  await settled();
+  assert.equal(a.buffered, 2, 'what nobody takes stopped being buffered on its own');
+  const frames: Frame[] = [];
+  b.listen({ frame: frame => { frames.push(frame); } });
+  await settled();
+  assert.equal(a.buffered, 0, 'what the far end took is still counted as buffered');
+  assert.deepEqual(frames.map(frame => frame.data), Array.from({ length: 10 }, (_, i) => `frame ${i}`), 'what was held was handed on out of order, or lost');
+  a.close();
+});
+
+test('a send on a closed pipe throws, and nothing it held is counted', async () => {
+  const [a, b] = pipe();
+  a.send({ kind: 'text', data: 'never taken' });
+  a.close(4010, 'a policy of the family');
+  assert.equal(a.buffered, 0, 'a closed connection buffers what it can never hand on');
+  assert.equal(b.state, 'closed', 'the far end of a closed pipe is open');
+  assert.throws(() => a.send({ kind: 'text', data: 'late' }), /not open/);
 });
 
 test('a socket that opens says so, and a string, an ArrayBuffer and a Uint8Array are the two kinds of frame', async () => {

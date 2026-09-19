@@ -21,7 +21,13 @@ export interface ConnectionHandlers {
  */
 export interface FrameConnection {
   readonly state: ConnectionState;
-  /** Bytes accepted by send and not yet handed to the transport; the peer paces on it. */
+  /**
+   * What a send left with the connection and the transport has not taken yet,
+   * in whatever the transport counts: a WebSocket's bytes, a pipe's or a
+   * tunnel channel's frames. The peer paces on it and reads only whether it is
+   * zero, so a transport that can take no more says so by counting what waits
+   * rather than by taking without bound.
+   */
   readonly buffered: number;
   /** Throws when the connection is not open. */
   send(frame: Frame): void;
@@ -116,34 +122,72 @@ export function webSocketConnection(socket: WebSocketLike): FrameConnection {
 }
 
 /**
+ * How many frames a pipe holds in flight per direction before a send is held:
+ * the bound the Go pipe has, as a socket holds some bytes and no more.
+ */
+const IN_FLIGHT = 8;
+
+/**
  * Two connected ends in memory: what one sends, the other receives, in order,
  * in a later microtask; a close on one end is the close on the other, with its
- * code and reason. It carries the profile in tests without a socket, as the
- * Go pipe does.
+ * code and reason. Each direction holds at most eight frames in flight, as the
+ * Go pipe does: a send past the bound is held until the far end takes a frame,
+ * `buffered` counts what is held and reads zero once the far end took it, and
+ * a peer over the pipe paces on it exactly as it paces on a WebSocket's
+ * `bufferedAmount`. The far end takes a frame when the frame is handed to a
+ * listener, so an end nobody listens to holds what was sent rather than losing
+ * it, and is given it in order once someone listens. It carries the profile in
+ * tests without a socket, as the Go pipe does.
  */
 export function pipe(): [FrameConnection, FrameConnection] {
   class End implements FrameConnection {
     state: ConnectionState = 'open';
-    readonly buffered = 0;
     partner!: End;
+    /** What the transport took and the far end has not been handed: at most IN_FLIGHT. */
+    private readonly inFlight: Frame[] = [];
+    /** What a send left past the bound, waiting for room; what buffered counts. */
+    private readonly held: Frame[] = [];
+    private draining = false;
     private readonly listeners = new Set<ConnectionHandlers>();
+    get buffered(): number { return this.held.length; }
     send(frame: Frame): void {
       if (this.state !== 'open') throw new Error('Connection is not open.');
-      const partner = this.partner;
-      queueMicrotask(() => {
-        if (partner.state === 'open') for (const handlers of [...partner.listeners]) handlers.frame?.(frame);
-      });
+      (this.inFlight.length < IN_FLIGHT ? this.inFlight : this.held).push(frame);
+      this.drainLater();
     }
     close(code = 1000, reason = ''): void {
       if (this.state === 'closed') return;
       this.state = 'closed';
+      // What neither end has been handed goes nowhere, so nothing is buffered
+      // on a connection that has ended.
+      this.inFlight.length = 0;
+      this.held.length = 0;
       for (const handlers of [...this.listeners]) handlers.close?.(code, reason);
       this.listeners.clear();
       this.partner.close(code, reason);
     }
     listen(handlers: ConnectionHandlers): () => void {
       this.listeners.add(handlers);
+      // What the partner sent while nobody listened has a taker now.
+      this.partner.drainLater();
       return () => { this.listeners.delete(handlers); };
+    }
+    /** Hands on what the far end can take, in a later turn and never inside a send. */
+    private drainLater(): void {
+      if (this.draining) return;
+      this.draining = true;
+      queueMicrotask(() => { this.draining = false; this.drain(); });
+    }
+    private drain(): void {
+      while (this.inFlight.length > 0) {
+        const partner = this.partner;
+        // A frame is taken when a listener is handed it; until there is one it
+        // waits, and so does everything a send left behind it.
+        if (this.state !== 'open' || partner.state !== 'open' || partner.listeners.size === 0) return;
+        const frame = this.inFlight.shift()!;
+        if (this.held.length > 0) this.inFlight.push(this.held.shift()!);
+        for (const handlers of [...partner.listeners]) handlers.frame?.(frame);
+      }
     }
   }
   const left = new End();

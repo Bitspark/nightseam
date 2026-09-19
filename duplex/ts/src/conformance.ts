@@ -19,6 +19,15 @@
  * deliver the close first, so a peer that needs a frame seen sends it and
  * waits rather than closing on top of it.
  *
+ * The Go suite's remaining promise, that a send waits while the receiver does
+ * not receive, is asked here of every transport that holds anything at all:
+ * `send` cannot wait in this language, so what a transport cannot hand on it
+ * holds, and `buffered` counts it until the far end takes it — the pipe past
+ * its bound, a channel past the other side's window. A transport that hands
+ * every frame to something else inside the send holds nothing and reads zero
+ * throughout; it says so with `holds: false` and the case then asks it only
+ * what it can keep.
+ *
  * A transport's own test calls `run` with a name and a way to make a
  * connected pair: `duplex/ts` runs it over the in-memory pipe and over the
  * WebSocket adapter, `tunnel/ts` over a channel, as the three Go packages
@@ -39,11 +48,23 @@ export interface Pair {
 /** Makes a fresh connected pair. The suite ends what it opened. */
 export type Connect = () => Promise<Pair>;
 
+/** What a transport keeps, where the suite cannot ask it of every one. */
+export interface Keeps {
+  /**
+   * Whether a frame the far end has not taken is held by the transport and
+   * counted by `buffered`. True of the pipe, which bounds what it has in
+   * flight, and of a tunnel channel, which bounds it by the other side's
+   * window; false of an adapter that hands every frame on inside the send, as
+   * a socket does, which holds nothing and reads zero throughout.
+   */
+  holds?: boolean;
+}
+
 /** How long a promise of the seam is given before the suite calls it broken. */
 const DEADLINE = 5_000;
 
 /** Run holds a transport to the seam, naming it in every test it fails. */
-export function run(what: string, connect: Connect): void {
+export function run(what: string, connect: Connect, keeps: Keeps = {}): void {
   test(`${what}: frames arrive in order and whole, text and binary alike`, async () => {
     const pair = await connect();
     try {
@@ -159,6 +180,34 @@ export function run(what: string, connect: Connect): void {
       assert.ok(Number.isFinite(pair.a.buffered) && pair.a.buffered >= 0, `buffered is ${pair.a.buffered}`);
       await eventually('16 frames arrive', () => seen.frames.length >= 16);
       await eventually('what arrived is no longer buffered', () => pair.a.buffered === 0);
+    } finally {
+      pair.end();
+    }
+  });
+
+  test(`${what}: what the far end has not taken is held and counted, and handed on in order once it takes it`, async () => {
+    const pair = await connect();
+    try {
+      // Nobody listens on b, so nothing of what a sends is taken: a transport
+      // that bounds what it has in flight holds the rest and says how much in
+      // buffered, rather than taking without bound as a queue of its own.
+      const sent: Frame[] = [];
+      for (let i = 0; i < 40; i++) {
+        const frame: Frame = { kind: 'text', data: `held ${String(i).padStart(2, '0')}` };
+        sent.push(frame);
+        pair.a.send(frame);
+      }
+      const held = pair.a.buffered;
+      if (keeps.holds ?? true) {
+        assert.ok(held > 0, `40 frames nothing took left ${held} buffered: the transport takes without bound`);
+      }
+      // The far end takes them: what was held is handed on, in order and whole,
+      // and buffered reads zero once it has.
+      const seen = collect(pair.b);
+      await eventually(`the ${held} frames the transport held are handed on`, () => seen.frames.length >= sent.length);
+      await eventually('what the far end took is no longer buffered', () => pair.a.buffered === 0);
+      assert.equal(seen.frames.length, sent.length, 'more frames arrived than were sent');
+      for (let i = 0; i < sent.length; i++) same(seen.frames[i]!, sent[i]!, `frame ${i}`);
     } finally {
       pair.end();
     }

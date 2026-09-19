@@ -1,0 +1,224 @@
+{
+  "name": "a send past what the transport holds waits, and goes once the far end takes a frame",
+  "layer": "seam",
+  "replaces": "duplex/go/duplextest, its second scenario",
+  "description": "Backpressure is the seam's: a transport holds so many frames and no more, and a send past that waits rather than growing a buffer of its own. Held over an in-process pair, whose bound a scenario can exhaust, with nothing reading the far end until the scenario says so; mirrored, so each language's own pipe is held.",
+  "needs": [
+    "lazy",
+    "pipe",
+    "seam"
+  ],
+  "mirror": true,
+  "steps": [
+    {
+      "on": "b",
+      "op": "conn.pipe",
+      "args": {
+        "consume": "lazy"
+      },
+      "bind": {
+        "a": "near",
+        "b": "far"
+      },
+      "note": "an in-process pair nothing reads unasked: the one way a sender is made to wait, since a socket's own buffer takes far more than a scenario can send"
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$near",
+        "kind": "text",
+        "text": "frame 1"
+      },
+      "note": "eight the transport takes with nothing reading them: what it holds in flight, and every one of them settles"
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$near",
+        "kind": "text",
+        "text": "frame 2"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$near",
+        "kind": "text",
+        "text": "frame 3"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$near",
+        "kind": "text",
+        "text": "frame 4"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$near",
+        "kind": "text",
+        "text": "frame 5"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$near",
+        "kind": "text",
+        "text": "frame 6"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$near",
+        "kind": "text",
+        "text": "frame 7"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$near",
+        "kind": "text",
+        "text": "frame 8"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$near",
+        "kind": "text",
+        "text": "frame 9",
+        "within_ms": 300
+      },
+      "expect_error": {
+        "code": "timeout"
+      },
+      "note": "the ninth is past the bound and waits: the transport has no room and does not take it"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$far"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "frame 1"
+      },
+      "note": "the far end takes what was held, in order and whole"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$far"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "frame 2"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$far"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "frame 3"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$far"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "frame 4"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$far"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "frame 5"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$far"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "frame 6"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$far"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "frame 7"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$far"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "frame 8"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$near",
+        "kind": "text",
+        "text": "frame 9"
+      },
+      "note": "and the ninth goes now that the far end took a frame"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$far"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "frame 9"
+      },
+      "note": "one ninth frame arrives; whether a send that timed out left its own with the transport is the transport's, so the scenario reads one and holds neither answer"
+    }
+  ]
+}
