@@ -139,12 +139,12 @@ export function sessionOps(t: Testee): Record<string, Op> {
         for (const entry of options.prefill as Record<string, unknown>[]) {
           const direction = entry.direction ?? 'down';
           if (direction !== 'up' && direction !== 'down') throw invalid('log.prefill direction is up or down');
-          if (typeof entry.text !== 'string') throw invalid('log.prefill names each frame by its message, as text');
+          if (typeof entry.text !== 'string') throw invalid("log.prefill text is the frame's message");
           let message: unknown;
           try {
             message = JSON.parse(entry.text);
           } catch {
-            throw invalid('log.prefill names each frame by its message, as text');
+            throw invalid("log.prefill text is the frame's message");
           }
           const origin = typeof entry.origin === 'string' ? entry.origin : '';
           await log.append({ sequence: 0, direction, origin, at: new Date(), message, truncated: false });
