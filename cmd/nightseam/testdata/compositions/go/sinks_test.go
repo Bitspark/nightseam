@@ -220,7 +220,6 @@ type theTopic struct {
 	subs   map[string]*subscriber
 	next   int64
 	seq    int64
-	closed bool
 }
 
 type subscriber struct {

@@ -59,9 +59,9 @@ type scope struct {
 	closed bool
 }
 
-// binding is an implementation this side serves on a channel of its own.
+// binding is an implementation this side serves on a channel of its own. The
+// channel knows its own family, so the binding does not repeat it.
 type binding struct {
-	family  string
 	channel *tunnel.Channel
 	peer    *runtime.Peer
 }
@@ -115,7 +115,7 @@ func (s *scope) export(ctx context.Context, family string, serve func(context.Co
 		_ = peer.Close()
 		return 0, errScopeClosed
 	}
-	s.served[channel.ID] = &binding{family: family, channel: channel, peer: peer}
+	s.served[channel.ID] = &binding{channel: channel, peer: peer}
 	s.mu.Unlock()
 	return channel.ID, nil
 }

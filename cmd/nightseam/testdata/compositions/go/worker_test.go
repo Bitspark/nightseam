@@ -87,13 +87,12 @@ func (w *theWorker) Start(ctx context.Context, remote *workerbinding.Remote, par
 		return workerprotocol.Started{}, &runtime.PublicError{Code: workerprotocol.ErrorUnknownReference, Message: err.Error()}
 	}
 	job := &theJob{
-		label:     params.Ticket.Label,
-		steps:     params.Ticket.Steps,
-		sink:      sink,
-		reference: params.Progress.Channel,
-		cancel:    make(chan struct{}),
-		done:      make(chan struct{}),
-		state:     "starting",
+		label:  params.Ticket.Label,
+		steps:  params.Ticket.Steps,
+		sink:   sink,
+		cancel: make(chan struct{}),
+		done:   make(chan struct{}),
+		state:  "starting",
 	}
 	id, err := here.exportJob(ctx, job)
 	if err != nil {
@@ -250,11 +249,12 @@ func (r *relay) counts() (int64, error) {
 //     which — `stopped` is true only where the cancellation is what ended it.
 //     A caller that must know reads the answer rather than assuming.
 type theJob struct {
-	label     string
-	steps     int64
-	sink      *sinkbinding.Remote
-	reference int64
-	self      int64
+	label string
+	steps int64
+	sink  *sinkbinding.Remote
+	// self is the reference this job was published under, which is what the
+	// forwarding case revokes.
+	self int64
 
 	cancel chan struct{}
 	done   chan struct{}
