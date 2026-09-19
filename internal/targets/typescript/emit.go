@@ -105,7 +105,7 @@ func emitTypes(f *file) {
 	}
 	f.line("/** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */")
 	f.linef("export const %s = createValidator(contractTypes, { %s });", identValidateWire, strings.Join(validators, ", "))
-	f.line("/** This family bound: its name and its validator, to fill a slot of the session role in another family's client. */")
+	f.line("/** This family bound: its name and its validator, to fill a family slot in another family's client. */")
 	f.linef("export const %s = { name: %s, validate: %s } as const;", identFamilyValue, quote(fam.Name), identValidateWire)
 }
 

@@ -66,7 +66,7 @@ func TestCorpusRendersGolden(t *testing.T) {
 }
 
 // TestFamiliesRenderGolden: what every target renders for the families the
-// fixtures use — a family generic in two session families, one drawing a
+// fixtures use — a family generic in two other families, one drawing a
 // type beyond the two every family carries, one whose wire names differ
 // from its language names — is exactly the files under
 // testdata/golden-families.
