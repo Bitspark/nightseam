@@ -1,0 +1,127 @@
+{
+  "name": "a callable that was returned reaches a callable that was supplied",
+  "layer": "live",
+  "description": "The case the layer exists for: b hands back a binding that calls through to the binding a supplied, and it still works once the exchange that introduced it is over.",
+  "needs": [
+    "live",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.over",
+      "args": {
+        "on": "$pa"
+      },
+      "bind": "la"
+    },
+    {
+      "on": "b",
+      "op": "live.over",
+      "args": {
+        "on": "$pb"
+      },
+      "bind": "lb"
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report",
+        "behavior": {
+          "kind": "return",
+          "value": "reported"
+        }
+      },
+      "bind": {
+        "reference": "sink"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": "$sink",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "handle": "at_sink"
+      },
+      "note": "the supplied callback, held by the side it was supplied to"
+    },
+    {
+      "on": "b",
+      "op": "live.export",
+      "args": {
+        "on": "$lb",
+        "contract": "probe/Cancel",
+        "behavior": {
+          "kind": "through",
+          "attachment": "$at_sink"
+        }
+      },
+      "bind": {
+        "reference": "job"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.import",
+      "args": {
+        "on": "$la",
+        "reference": "$job",
+        "contract": "probe/Cancel"
+      },
+      "bind": {
+        "handle": "at_job"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.invoke",
+      "args": {
+        "on": "$at_job",
+        "request": 100
+      },
+      "bind": {
+        "handle": "c"
+      }
+    },
+    {
+      "on": "a",
+      "op": "call.await",
+      "args": {
+        "on": "$c"
+      },
+      "expect": {
+        "result": "reported"
+      },
+      "note": "through the returned callable, into the supplied one, and back"
+    },
+    {
+      "on": "a",
+      "op": "live.await_invocation",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report"
+      },
+      "expect": {
+        "contract": "probe/Report",
+        "outcome": "ok"
+      }
+    }
+  ]
+}

@@ -147,7 +147,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "watcher"
@@ -205,7 +204,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "one"
@@ -379,7 +377,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "again"
@@ -460,7 +457,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "counted"

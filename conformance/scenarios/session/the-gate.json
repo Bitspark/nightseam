@@ -133,7 +133,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "one"
@@ -146,12 +145,10 @@
         "consume": "lazy"
       },
       "bind": {
-        "handle": "ch_one",
-        "after": "ch_one_after"
+        "handle": "ch_one"
       },
       "expect": {
-        "family": "probe",
-        "after": 0
+        "family": "probe"
       }
     },
     {
@@ -163,7 +160,7 @@
         "channel": "$ch_one",
         "role": "participant",
         "origin": "one",
-        "after": "$ch_one_after"
+        "after": 0
       },
       "bind": "att_one"
     },
@@ -184,7 +181,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "two"
@@ -197,12 +193,10 @@
         "consume": "lazy"
       },
       "bind": {
-        "handle": "ch_two",
-        "after": "ch_two_after"
+        "handle": "ch_two"
       },
       "expect": {
-        "family": "probe",
-        "after": 0
+        "family": "probe"
       }
     },
     {
@@ -214,7 +208,7 @@
         "channel": "$ch_two",
         "role": "participant",
         "origin": "two",
-        "after": "$ch_two_after"
+        "after": 0
       },
       "bind": "att_two"
     },
@@ -516,7 +510,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 1,
         "consume": "eager"
       },
       "bind": "late"
@@ -529,12 +522,10 @@
         "consume": "lazy"
       },
       "bind": {
-        "handle": "ch_late",
-        "after": "ch_late_after"
+        "handle": "ch_late"
       },
       "expect": {
-        "family": "probe",
-        "after": 1
+        "family": "probe"
       }
     },
     {
@@ -546,7 +537,7 @@
         "channel": "$ch_late",
         "role": "observer",
         "origin": "late",
-        "after": "$ch_late_after"
+        "after": 1
       },
       "bind": "att_late"
     },

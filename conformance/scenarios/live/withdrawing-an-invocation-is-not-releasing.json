@@ -1,0 +1,163 @@
+{
+  "name": "withdrawing an invocation is not releasing the binding",
+  "layer": "live",
+  "description": "Three meanings held apart: a cancelled invocation ends that invocation, the binding it names survives it, and only a release ends the binding.",
+  "needs": [
+    "live",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.over",
+      "args": {
+        "on": "$pa"
+      },
+      "bind": "la"
+    },
+    {
+      "on": "b",
+      "op": "live.over",
+      "args": {
+        "on": "$pb"
+      },
+      "bind": "lb"
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report",
+        "behavior": {
+          "kind": "hold",
+          "until": "let.go",
+          "value": "late"
+        }
+      },
+      "bind": {
+        "reference": "r"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": "$r",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "handle": "at"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$at",
+        "request": "wait"
+      },
+      "bind": {
+        "handle": "held"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.await_invocation",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report"
+      },
+      "expect": {
+        "contract": "probe/Report",
+        "outcome": "started"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.cancel",
+      "args": {
+        "on": "$held"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$held"
+      },
+      "expect": {
+        "error": {
+          "code": "cancelled"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 1
+      },
+      "note": "a withdrawn invocation released nothing"
+    },
+    {
+      "on": "b",
+      "op": "live.release",
+      "args": {
+        "on": "$lb",
+        "reference": "$r"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$at",
+        "request": "again"
+      },
+      "bind": {
+        "handle": "after"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$after"
+      },
+      "expect": {
+        "error": {
+          "code": "reference_released"
+        }
+      },
+      "note": "and only the release ends it"
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    }
+  ]
+}

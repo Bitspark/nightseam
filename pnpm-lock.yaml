@@ -193,6 +193,9 @@ importers:
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:../../duplex/ts
+      '@nightseam/live':
+        specifier: workspace:*
+        version: link:../../live/ts
       '@nightseam/runtime':
         specifier: workspace:*
         version: link:../../runtime/ts

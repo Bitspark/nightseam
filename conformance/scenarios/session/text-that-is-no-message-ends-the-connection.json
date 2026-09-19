@@ -2,7 +2,7 @@
   "name": "text that is no message of the profile ends the connection as a protocol error, from a consumer and from the machine",
   "layer": "session",
   "replaces": "session/go/sessiontest and session/ts/src/conformance.ts, across the wire",
-  "description": "A session speaks the profile in JSON text. Text that is no message of it \u2014 no JSON at all, an object with a member named twice, content after the object \u2014 is a protocol error, 1002, under a reason naming what was wrong with the frame, where a frame of the wrong kind is unsupported data. The reasons are a closed set and the same in both languages, a consumer reading one off the close being unable to ask which runtime wrote the relay. Either side may send such text: a consumer's ends its own connection and leaves the session standing, the machine's ends the session and every consumer with it.",
+  "description": "A session speaks the profile in JSON text. Text that is no message of it — no JSON at all, an object with a member named twice, content after the object — is a protocol error, 1002, under a reason naming what was wrong with the frame, where a frame of the wrong kind is unsupported data. The reasons are a closed set and the same in both languages, a consumer reading one off the close being unable to ask which runtime wrote the relay. Either side may send such text: a consumer's ends its own connection and leaves the session standing, the machine's ends the session and every consumer with it.",
   "needs": [
     "lazy",
     "peer",
@@ -132,7 +132,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "one"
@@ -167,7 +166,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "two"
@@ -202,7 +200,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "three"

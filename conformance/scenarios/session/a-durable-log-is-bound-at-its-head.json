@@ -147,7 +147,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "all"
@@ -261,7 +260,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "late"
@@ -421,7 +419,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "after"

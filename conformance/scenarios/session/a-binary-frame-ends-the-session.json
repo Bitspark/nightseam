@@ -2,7 +2,7 @@
   "name": "a binary frame ends the connection it arrived on as unsupported data, from a consumer and from the machine",
   "layer": "session",
   "replaces": "session/go/sessiontest and session/ts/src/conformance.ts, across the wire",
-  "description": "A session speaks JSON text frames. A frame of another kind carries no message of the profile at all, which is 1003 \u2014 unsupported data \u2014 and not the 1002 that text which is no message of the profile is refused with. Either side may send one: a consumer's ends its own connection and leaves the session standing, the machine's ends the session and every consumer with it, and both carry the same reason.",
+  "description": "A session speaks JSON text frames. A frame of another kind carries no message of the profile at all, which is 1003 — unsupported data — and not the 1002 that text which is no message of the profile is refused with. Either side may send one: a consumer's ends its own connection and leaves the session standing, the machine's ends the session and every consumer with it, and both carry the same reason.",
   "needs": [
     "lazy",
     "peer",
@@ -132,7 +132,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "one"
@@ -167,7 +166,6 @@
       "args": {
         "on": "$carrier_b",
         "family": "probe",
-        "after": 0,
         "consume": "eager"
       },
       "bind": "two"

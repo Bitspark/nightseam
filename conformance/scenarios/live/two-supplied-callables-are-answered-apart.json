@@ -1,0 +1,156 @@
+{
+  "name": "two supplied callables are answered apart, each by its own binding",
+  "layer": "live",
+  "description": "Two references of one contract, exported by one side and imported by the other, reach two different implementations: routing follows the reference, not the contract.",
+  "needs": [
+    "live",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.over",
+      "args": {
+        "on": "$pa"
+      },
+      "bind": "la"
+    },
+    {
+      "on": "b",
+      "op": "live.over",
+      "args": {
+        "on": "$pb"
+      },
+      "bind": "lb"
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report",
+        "behavior": {
+          "kind": "return",
+          "value": "first"
+        }
+      },
+      "bind": {
+        "reference": "r1"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report",
+        "behavior": {
+          "kind": "return",
+          "value": "second"
+        }
+      },
+      "bind": {
+        "reference": "r2"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": "$r1",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "handle": "at1"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": "$r2",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "handle": "at2"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$at1",
+        "request": 10
+      },
+      "bind": {
+        "handle": "c1"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c1"
+      },
+      "expect": {
+        "result": "first"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$at2",
+        "request": 20
+      },
+      "bind": {
+        "handle": "c2"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c2"
+      },
+      "expect": {
+        "result": "second"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.counts",
+      "args": {
+        "on": "$la"
+      },
+      "expect": {
+        "exports": 2,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 2
+      }
+    }
+  ]
+}

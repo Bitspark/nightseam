@@ -2,6 +2,7 @@
   "profiles": [
     "core",
     "generator",
+    "live",
     "observability",
     "session",
     "tunnel"
@@ -18,6 +19,11 @@
         },
         "generator": {
           "passed": 16,
+          "skipped": 0,
+          "failed": 0
+        },
+        "live": {
+          "passed": 10,
           "skipped": 0,
           "failed": 0
         },
@@ -50,6 +56,11 @@
         "generator": {
           "passed": 18,
           "skipped": 14,
+          "failed": 0
+        },
+        "live": {
+          "passed": 20,
+          "skipped": 0,
           "failed": 0
         },
         "observability": {

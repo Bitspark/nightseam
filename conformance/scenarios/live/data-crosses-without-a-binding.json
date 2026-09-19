@@ -1,0 +1,127 @@
+{
+  "name": "nested data crosses without a binding, and the scope holds nothing",
+  "layer": "live",
+  "description": "The data level owes the live level nothing: an ordinary call carrying nested data over a connection that has a live scope registers no binding at all.",
+  "needs": [
+    "live",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.over",
+      "args": {
+        "on": "$pa"
+      },
+      "bind": "la"
+    },
+    {
+      "on": "b",
+      "op": "live.over",
+      "args": {
+        "on": "$pb"
+      },
+      "bind": "lb"
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "look",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "look",
+        "params": {
+          "rows": [
+            {
+              "id": 1,
+              "tags": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "id": 2,
+              "tags": []
+            }
+          ],
+          "page": {
+            "next": null
+          }
+        }
+      },
+      "bind": {
+        "handle": "c"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c"
+      },
+      "expect": {
+        "result": {
+          "rows": [
+            {
+              "id": 1,
+              "tags": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "id": 2,
+              "tags": []
+            }
+          ],
+          "page": {
+            "next": null
+          }
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.counts",
+      "args": {
+        "on": "$la"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    }
+  ]
+}

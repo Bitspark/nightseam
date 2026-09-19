@@ -10,6 +10,7 @@ import { seamOps } from './seam.ts';
 import { peerOps } from './peer.ts';
 import { tunnelOps } from './tunnel.ts';
 import { sessionOps } from './session.ts';
+import { liveOps } from './live.ts';
 
 const DRIVER = 1;
 
@@ -177,7 +178,7 @@ const ops: Record<string, Op> = {
   hello: () => ({
     driver: DRIVER,
     language: 'typescript',
-    layers: ['seam', 'peer', 'tunnel', 'session'],
+    layers: ['seam', 'peer', 'tunnel', 'session', 'live'],
     features: ['listen', 'pipe', 'observer', 'propagator', 'lazy'],
   }),
   reset: () => {
@@ -193,6 +194,7 @@ const ops: Record<string, Op> = {
   ...peerOps(testee),
   ...tunnelOps(testee),
   ...sessionOps(testee),
+  ...liveOps(testee),
 };
 
 const serve = async (line: string): Promise<string> => {

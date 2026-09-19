@@ -56,7 +56,6 @@
       "args": {
         "on": "$tb",
         "family": "probe",
-
         "consume": "lazy"
       },
       "bind": {
@@ -107,7 +106,6 @@
             "type": "channel.opened",
             "family": "probe",
             "id": "$id",
-
             "opener": true
           }
         ]

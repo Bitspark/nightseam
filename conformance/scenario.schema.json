@@ -7,12 +7,12 @@
   "required": ["name", "layer", "steps"],
   "properties": {
     "name": {"type": "string", "minLength": 1, "description": "Unique within its layer; the test's name."},
-    "layer": {"enum": ["seam", "peer", "tunnel", "session", "generated"]},
+    "layer": {"enum": ["seam", "peer", "tunnel", "session", "live", "generated"]},
     "replaces": {"type": "string", "description": "The gate this scenario took the place of, for the record."},
     "description": {"type": "string"},
     "needs": {
       "type": "array", "uniqueItems": true,
-      "items": {"enum": ["listen", "pipe", "observer", "propagator", "lazy", "seam", "peer", "tunnel", "session", "generated"]},
+      "items": {"enum": ["listen", "pipe", "observer", "propagator", "lazy", "seam", "peer", "tunnel", "session", "live", "generated"]},
       "description": "Layers and features the steps ask for, the union over both sides: what the steps of each side ask is derived from them and held against that side's testee alone, and the runner refuses a file whose needs differ from the union, so the declaration stays what places the scenario in a profile and nothing more."
     },
     "mirror": {

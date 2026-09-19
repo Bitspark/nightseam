@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@nightseam/duplex": "workspace:*",
+    "@nightseam/live": "workspace:*",
     "@nightseam/runtime": "workspace:*",
     "@nightseam/session": "workspace:*",
     "@nightseam/tunnel": "workspace:*"
