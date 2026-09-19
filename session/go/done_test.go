@@ -26,7 +26,10 @@ func (c *stalledSend) Send(ctx context.Context, frame duplex.Frame) error {
 func TestAttachmentDone(t *testing.T) {
 	for _, ending := range []string{"detach", "consumer close", "session end", "protocol error", "send timeout"} {
 		t.Run(ending, func(t *testing.T) {
-			registry := session.New(session.Options{SendTimeout: 20 * time.Millisecond})
+			registry, err := session.New(session.Options{SendTimeout: 20 * time.Millisecond})
+			if err != nil {
+				t.Fatal(err)
+			}
 			up, machine := duplex.Pipe(1 << 20)
 			t.Cleanup(func() { _ = machine.Abort() })
 			governance := session.Governance{Decides: func(string) bool { return false }, Asks: func(string) bool { return false }}
