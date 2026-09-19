@@ -6,6 +6,12 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Fixed
+
+- Release verification waits up to thirty minutes for registry propagation,
+  with retry backoff capped at thirty seconds, so cached Go proxy misses
+  have time to expire after a tag is published.
+
 ### Changed
 
 - Both runtime validators read literals, nullable and inline shapes, scoped
@@ -15,10 +21,6 @@ are one number. Entries are in the words of the commits that landed them.
   instantiated Go types without losing named constraints. Both runtimes use
   the ruled Unicode pattern semantics, held by shared values and Node
   differential checks, including large counts and surrogate escapes.
-- Release verification waits up to thirty minutes for registry propagation,
-  with retry backoff capped at thirty seconds, so cached Go proxy misses
-  have time to expire after a tag is published.
-
 ## 0.4.0 - 2026-09-19
 
 This release makes the consumer improvements landed since 0.3.0 available
