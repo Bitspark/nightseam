@@ -44,6 +44,7 @@ internal/kernel/        load, analyse, check, render
 internal/compose/       the composition root: the only place a target is named, imported by the tool and by the conformance suite
 internal/emit/          a writer, an import set, a namespace: what every target writes with
 internal/naming/        the convention every target derives names by
+internal/pattern/       pattern syntax checks shared by the declaration checker and the Go runtime; imports no generator package
 internal/diag/          where a problem is: family, tier file, pointer, code
 internal/oracle/        test support: the left path of the diagram a generic rendering commutes with
 internal/surface/       exported Go declarations: shared by the surface goldens and cmd/nightseam-surface
