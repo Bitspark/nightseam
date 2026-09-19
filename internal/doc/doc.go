@@ -60,9 +60,11 @@ type Type struct {
 	Fields                  []Field  // record, entity: in wire order, inherited first
 	Values                  []string // enum
 	Alias                   model.TypeExpr
-	Tag                     string    // union: the member that discriminates
-	Value                   string    // union: the member a non-object payload rides under
-	Variants                []Variant // union: by tag
+	Tag                     string          // union: the member that discriminates
+	Value                   string          // union: the member a non-object payload rides under
+	Variants                []Variant       // union: by tag
+	Example                 json.RawMessage // an example value of the type, canonical JSON
+	UsedBy                  []Reference     // where the type is used, in the order the declaration reaches it
 }
 
 // Use is one draw of a parameter at a type: "S.Envelope".
@@ -100,12 +102,16 @@ type Method struct {
 	Request           model.TypeExpr // nil: takes nothing
 	Result            model.TypeExpr
 	Errors            []string
+	Frames            Frames // the exchange on the wire
+	Weight            Weight // how much each side says
 }
 
 // Event is one notification of a side.
 type Event struct {
 	Name, Description string
 	Type              model.TypeExpr
+	Frame             json.RawMessage // the event on the wire
+	Weight            int             // how much it says
 }
 
 // Error is one public error of the family.
@@ -140,8 +146,10 @@ func Build(f *render.Family) *Family {
 		}
 		d.Parameters = append(d.Parameters, parameter)
 	}
+	x := newExampler(f)
+	used := references(f)
 	for _, t := range f.Types {
-		dt := &Type{Name: t.Name, Kind: t.Kind, Description: t.Description, Key: t.Key, Open: t.Open, Carried: t.Carried, From: t.From, Values: t.Values, Alias: t.Alias, Tag: t.Tag, Value: t.Value}
+		dt := &Type{Name: t.Name, Kind: t.Kind, Description: t.Description, Key: t.Key, Open: t.Open, Carried: t.Carried, From: t.From, Values: t.Values, Alias: t.Alias, Tag: t.Tag, Value: t.Value, Example: x.example(t).raw(), UsedBy: used[t.Name]}
 		for _, use := range t.Uses {
 			dt.Uses = append(dt.Uses, Use{Parameter: use.Parameter, Type: use.Type})
 		}
@@ -158,8 +166,8 @@ func Build(f *render.Family) *Family {
 		}
 	}
 	if f.HasProtocol() {
-		d.Server = side(f.Server)
-		d.Client = side(f.Client)
+		d.Server = side(x, "server", f.Server, f.Errors)
+		d.Client = side(x, "client", f.Client, f.Errors)
 		for _, e := range f.Errors {
 			d.Errors = append(d.Errors, Error{Code: e.Code, Description: e.Description})
 		}
@@ -173,13 +181,25 @@ func Build(f *render.Family) *Family {
 	return d
 }
 
-func side(s render.Side) Side {
+func side(x *exampler, name string, s render.Side, errors []render.Error) Side {
 	out := Side{Extends: s.Extends}
 	for _, m := range s.Methods {
-		out.Methods = append(out.Methods, Method{Name: m.Name, Description: m.Description, Request: m.Request, Result: m.Result, Errors: m.Errors})
+		frames := x.frames(name, m, errors)
+		w := Weight{}
+		if m.Request != nil {
+			w.Request = x.value(m.Request, "params", constraints{}).weight()
+		}
+		if m.Result != nil {
+			w.Result = x.value(m.Result, "result", constraints{}).weight()
+		}
+		out.Methods = append(out.Methods, Method{Name: m.Name, Description: m.Description, Request: m.Request, Result: m.Result, Errors: m.Errors, Frames: frames, Weight: w})
 	}
 	for _, e := range s.Events {
-		out.Events = append(out.Events, Event{Name: e.Name, Description: e.Description, Type: e.Type})
+		w := 0
+		if e.Type != nil {
+			w = x.value(e.Type, "data", constraints{}).weight()
+		}
+		out.Events = append(out.Events, Event{Name: e.Name, Description: e.Description, Type: e.Type, Frame: x.event(e), Weight: w})
 	}
 	return out
 }

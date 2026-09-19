@@ -11,7 +11,8 @@ import (
 )
 
 // TestWritesThePage: one page per family, under api/spec, carrying every
-// tier — the entity with its key and constraints, the sides, the errors,
+// tier — the entity with its key and constraints, an example of it and
+// where it is used, the sides with each operation on the wire, the errors,
 // the session — and nothing a target could collide with; and the writer,
 // made a target, answers what the kernel asks of one.
 func TestWritesThePage(t *testing.T) {
@@ -41,6 +42,9 @@ func TestWritesThePage(t *testing.T) {
 		"One of `on`, `off`.", "| `get` | `Account` | array of `Account` | `not_found` | Gets one " + "\\" + "| or more. |",
 		"| `changed` | reference to `Account` |", "| `not_found` | No such account. |",
 		"- **Decides**: `get`", "the id arrives in the `changed` event, at `id` of its data",
+		"For example:", `  "email": "‹email›"`, "Used by `get` (request, result), `changed` (data).",
+		"### `get` on the wire", "The client sends:", `  "method": "get",`, `  "id": "c:1",`, "The server answers:",
+		"Or refuses with `not_found`:", `    "message": "No such account."`, "### `changed` on the wire", "The server emits:", `  "event": "changed",`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the page lacks %q:\n%s", want, text)

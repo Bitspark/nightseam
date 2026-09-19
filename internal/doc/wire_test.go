@@ -1,0 +1,182 @@
+package doc
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/Bitspark/nightseam/internal/analysis"
+	"github.com/Bitspark/nightseam/internal/model/modeltest"
+	"github.com/Bitspark/nightseam/internal/render"
+)
+
+// proof documents the proof family of cmd/nightseam/testdata/proof: one
+// contract using every form of the settled type language at once, which
+// the targets refuse until their render lanes land and the document does
+// not, since a document of a form is what its example shows.
+func proof(t *testing.T) *Family {
+	t.Helper()
+	root := filepath.Join("..", "..", "cmd", "nightseam", "testdata", "proof")
+	families := map[string]map[string]string{}
+	for _, name := range []string{"probe", "proof"} {
+		entries, err := os.ReadDir(filepath.Join(root, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		families[name] = map[string]string{}
+		for _, entry := range entries {
+			data, err := os.ReadFile(filepath.Join(root, name, entry.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			families[name][entry.Name()] = string(data)
+		}
+	}
+	return Build(render.Build(analysis.Resolve(analysis.World(modeltest.World(families)), "proof")))
+}
+
+func typed(f *Family, name string) *Type {
+	for _, t := range f.Types {
+		if t.Name == name {
+			return t
+		}
+	}
+	return nil
+}
+
+// TestExamplesOfEveryForm: an example of each form of the type language is
+// what the wire carries — a union at its first variant by tag, the tag
+// alone where the variant carries an empty shape, the tag among an object
+// payload's members and a payload that is no object under the value
+// member, a literal as its value, a nullable as a value, a shape
+// written inline as its fields, a generic type as its filler fills it,
+// a draw through a parameter and a type parameter as placeholders, a
+// length as padding, an enum as its first value — deterministically.
+func TestExamplesOfEveryForm(t *testing.T) {
+	f := proof(t)
+	for name, want := range map[string]string{
+		"Part":     `{"type":"count","value":0}`,
+		"RichPart": `{"type":"table","rows":["‹rows›"]}`,
+		"TextPart": `{"type":"text","body":"‹body›"}`,
+		"Option":   `{"kind":"none"}`,
+		"Result":   `{"kind":"err","value":"‹E›"}`,
+		"Page":     `{"items":["‹T›"],"next":"‹next›"}`,
+		"Parts":    `{"items":[{"type":"count","value":0}],"next":"‹next›"}`,
+		"Carried":  `{"message":"‹S.Envelope›","back":"‹S.Handle›","page":{"items":["‹Item›"],"next":"‹next›"}}`,
+	} {
+		tt := typed(f, name)
+		if tt == nil {
+			t.Fatalf("no type %s", name)
+		}
+		if got := string(tt.Example); got != want {
+			t.Errorf("%s: %s\n   want %s", name, got, want)
+		}
+	}
+	again := proof(t)
+	for i := range f.Types {
+		if string(f.Types[i].Example) != string(again.Types[i].Example) {
+			t.Errorf("%s: the example is not deterministic", f.Types[i].Name)
+		}
+	}
+}
+
+// TestFramesAreTheProfiles: a method's exchange is the request and the
+// response of the profile with the side's ids — c:1 for a method of the
+// server, which the client calls — params an object and result an example
+// of the declared result, an application of a generic union included; an
+// event is its frame with its data; and the weight of each is what its
+// example carries.
+func TestFramesAreTheProfiles(t *testing.T) {
+	f := proof(t)
+	var parts, relay *Method
+	for i := range f.Server.Methods {
+		switch f.Server.Methods[i].Name {
+		case "parts":
+			parts = &f.Server.Methods[i]
+		case "relay":
+			relay = &f.Server.Methods[i]
+		}
+	}
+	if parts == nil || relay == nil {
+		t.Fatal("the proof family's methods are missing")
+	}
+	if got := string(parts.Frames.Request); got != `{"version":1,"kind":"request","id":"c:1","method":"parts","params":{"after":"‹after›"}}` {
+		t.Errorf("parts request: %s", got)
+	}
+	if got := string(parts.Frames.Response); got != `{"version":1,"kind":"response","id":"c:1","result":{"kind":"err","value":"‹err›"}}` {
+		t.Errorf("parts response: %s", got)
+	}
+	if parts.Weight != (Weight{Request: 1, Result: 2}) {
+		t.Errorf("parts weighs %+v", parts.Weight)
+	}
+	if got := string(relay.Frames.Response); got != `{"version":1,"kind":"response","id":"c:1","result":{"kind":"none"}}` {
+		t.Errorf("relay response: %s", got)
+	}
+	if len(f.Server.Events) != 1 || string(f.Server.Events[0].Frame) != `{"version":1,"kind":"event","event":"part.added","data":{"type":"table","rows":["‹rows›"]}}` || f.Server.Events[0].Weight != 2 {
+		t.Errorf("the event is %+v", f.Server.Events)
+	}
+	for _, m := range append(f.Server.Methods, f.Client.Methods...) {
+		for _, frame := range append([]json.RawMessage{m.Frames.Request, m.Frames.Response}, refusals(m)...) {
+			if !json.Valid(frame) {
+				t.Errorf("%s: %s is not JSON", m.Name, frame)
+			}
+		}
+	}
+}
+
+func refusals(m Method) []json.RawMessage {
+	var out []json.RawMessage
+	for _, r := range m.Frames.Refusals {
+		out = append(out, r.Frame)
+	}
+	return out
+}
+
+// TestRefusalsAndReferences: a method that declares errors has a refusal
+// per error carrying the error's description as its message, or its code
+// where it has none; a method of the client is called by the server, s:1;
+// and every type knows where it is used, by operations at their request,
+// result or data and by other types at their fields.
+func TestRefusalsAndReferences(t *testing.T) {
+	world := analysis.World(modeltest.World(map[string]map[string]string{
+		"x": {
+			"model.json":    `{"nightseam": 2, "types": {"Account": {"kind": "entity", "key": "id", "fields": [{"name": "id", "type": "string"}, {"name": "age", "type": "integer", "min": 18}]}, "Status": {"kind": "enum", "values": ["on", "off"]}, "Holder": {"kind": "record", "fields": [{"name": "account", "type": {"ref": "Account"}}, {"name": "status", "type": "Status"}]}}}`,
+			"protocol.json": modeltest.Protocol(`"server": {"methods": {"get": {"request": "Account", "result": {"array": "Account"}, "errors": ["not_found", "denied"]}}, "events": {"changed": {"type": {"ref": "Account"}}}}, "client": {"methods": {"confirm": {"request": "Holder", "result": "Status"}}}, "errors": {"not_found": "No such account.", "denied": ""}`),
+		},
+	}))
+	f := Build(render.Build(analysis.Resolve(world, "x")))
+	get := f.Server.Methods[0]
+	if len(get.Frames.Refusals) != 2 || get.Frames.Refusals[0].Code != "not_found" || string(get.Frames.Refusals[0].Frame) != `{"version":1,"kind":"response","id":"c:1","error":{"code":"not_found","message":"No such account."}}` {
+		t.Errorf("get's refusals are %+v", get.Frames.Refusals)
+	}
+	if string(get.Frames.Refusals[1].Frame) != `{"version":1,"kind":"response","id":"c:1","error":{"code":"denied","message":"denied"}}` {
+		t.Errorf("an error with no description is not refused with its code: %s", get.Frames.Refusals[1].Frame)
+	}
+	if got := string(get.Frames.Response); got != `{"version":1,"kind":"response","id":"c:1","result":[{"id":"‹id›","age":18}]}` {
+		t.Errorf("get's response does not hold the bound: %s", got)
+	}
+	confirm := f.Client.Methods[0]
+	if !strings.Contains(string(confirm.Frames.Request), `"id":"s:1"`) || string(confirm.Frames.Response) != `{"version":1,"kind":"response","id":"s:1","result":"on"}` {
+		t.Errorf("a method of the client is not the server's to call: %s %s", confirm.Frames.Request, confirm.Frames.Response)
+	}
+	if got := string(typed(f, "Holder").Example); got != `{"account":"‹id›","status":"on"}` {
+		t.Errorf("a reference is not the key's value: %s", got)
+	}
+	if got := typed(f, "Account").UsedBy; !reflect.DeepEqual(got, []Reference{
+		{Kind: "type", Name: "Holder", At: "account"},
+		{Side: "server", Kind: "method", Name: "get", At: "request"},
+		{Side: "server", Kind: "method", Name: "get", At: "result"},
+		{Side: "server", Kind: "event", Name: "changed", At: "data"},
+	}) {
+		t.Errorf("Account is used by %+v", got)
+	}
+	if got := typed(f, "Status").UsedBy; !reflect.DeepEqual(got, []Reference{
+		{Kind: "type", Name: "Holder", At: "status"},
+		{Side: "client", Kind: "method", Name: "confirm", At: "result"},
+	}) {
+		t.Errorf("Status is used by %+v", got)
+	}
+}

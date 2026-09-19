@@ -9,6 +9,8 @@
 package markdown
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"path"
 	"sort"
@@ -206,7 +208,7 @@ func (p *page) declarations(types []*doc.Type) {
 		switch t.Kind {
 		case "record", "entity":
 			if len(t.Fields) == 0 {
-				continue
+				break
 			}
 			p.line("")
 			p.line("| Field | Type | Presence | Constraints | Description |")
@@ -236,7 +238,62 @@ func (p *page) declarations(types []*doc.Type) {
 			p.line("")
 			p.linef("An alias of %s.", spell(t.Alias))
 		}
+		p.example(t)
 	}
+}
+
+// example writes a type's example value and where the type is used. A
+// carried type is the profile's, whose frames the operations show as they
+// are on the wire; an example of its declaration alone would show a frame
+// that is none, so it has none here.
+func (p *page) example(t *doc.Type) {
+	if t.Carried {
+		return
+	}
+	p.line("")
+	p.line("For example:")
+	p.json(t.Example)
+	if len(t.UsedBy) == 0 {
+		return
+	}
+	// An operation using the type at more than one place is named once,
+	// with its places: `echo` (request, result).
+	var uses []string
+	at := map[string]int{}
+	for _, use := range t.UsedBy {
+		if use.Kind == "type" {
+			if use.At == "alias" {
+				uses = append(uses, "`"+use.Name+"` (alias)")
+			} else {
+				uses = append(uses, "`"+use.Name+"."+use.At+"`")
+			}
+			continue
+		}
+		key := use.Kind + " " + use.Name
+		if i, seen := at[key]; seen {
+			uses[i] = strings.TrimSuffix(uses[i], ")") + ", " + use.At + ")"
+			continue
+		}
+		at[key] = len(uses)
+		uses = append(uses, "`"+use.Name+"` ("+use.At+")")
+	}
+	p.line("")
+	p.linef("Used by %s.", strings.Join(uses, ", "))
+}
+
+// json writes a value as a fenced block, indented for a reader.
+func (p *page) json(value json.RawMessage) {
+	var b bytes.Buffer
+	if err := json.Indent(&b, value, "", "  "); err != nil {
+		b.Reset()
+		b.Write(value)
+	}
+	p.line("")
+	p.line("```json")
+	for _, line := range strings.Split(b.String(), "\n") {
+		p.line(line)
+	}
+	p.line("```")
 }
 
 func (p *page) side(name, intro string, side doc.Side) {
@@ -266,6 +323,32 @@ func (p *page) side(name, intro string, side doc.Side) {
 		for _, e := range side.Events {
 			p.linef("| `%s` | %s | %s |", e.Name, spell(e.Type), cell(e.Description))
 		}
+	}
+	caller, callee := "client", "server"
+	if name == "Client" {
+		caller, callee = "server", "client"
+	}
+	for _, m := range side.Methods {
+		p.line("")
+		p.linef("### `%s` on the wire", m.Name)
+		p.line("")
+		p.linef("The %s sends:", caller)
+		p.json(m.Frames.Request)
+		p.line("")
+		p.linef("The %s answers:", callee)
+		p.json(m.Frames.Response)
+		for _, refusal := range m.Frames.Refusals {
+			p.line("")
+			p.linef("Or refuses with `%s`:", refusal.Code)
+			p.json(refusal.Frame)
+		}
+	}
+	for _, e := range side.Events {
+		p.line("")
+		p.linef("### `%s` on the wire", e.Name)
+		p.line("")
+		p.linef("The %s emits:", callee)
+		p.json(e.Frame)
 	}
 }
 

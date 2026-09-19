@@ -37,6 +37,7 @@ type Family struct {
 	overrides       map[string]model.Overrides
 	f               *analysis.Family
 	types           map[string]*Type
+	imported        map[string]*Family
 }
 
 // Parameter is one parameter of a generic family with the types it is
@@ -214,6 +215,28 @@ func union(sets ...[]Use) []Use {
 
 // Type finds a type by name.
 func (r *Family) Type(name string) *Type { return r.types[name] }
+
+// Imported is an imported family, ready to render, or nil where the world
+// lacks it: what a rendering that reaches into an imported type's shape —
+// an example of it, say — reads it through.
+func (r *Family) Imported(family string) *Family {
+	if imported, ok := r.imported[family]; ok {
+		return imported
+	}
+	if r.imported == nil {
+		r.imported = map[string]*Family{}
+	}
+	var imported *Family
+	if other, ok := r.f.Imported[family]; ok {
+		imported = Build(other)
+	}
+	r.imported[family] = imported
+	return imported
+}
+
+// IsParameter reports whether a plain name in an expression names a
+// parameter of the family rather than a type of it.
+func (r *Family) IsParameter(name string) bool { return r.f.HasParameter(name) }
 
 // HasProtocol reports whether the family has a protocol tier.
 func (r *Family) HasProtocol() bool { return r.f.Protocol != nil }
