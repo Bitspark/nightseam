@@ -21,7 +21,7 @@ type Account struct {
 
 func (v Account) MarshalJSON() ([]byte, error) {
 	type wire Account
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ type Envelope struct {
 
 func (v Envelope) MarshalJSON() ([]byte, error) {
 	type wire Envelope
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ type Handle struct {
 
 func (v Handle) MarshalJSON() ([]byte, error) {
 	type wire Handle
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ type Transfer struct {
 
 func (v Transfer) MarshalJSON() ([]byte, error) {
 	type wire Transfer
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}

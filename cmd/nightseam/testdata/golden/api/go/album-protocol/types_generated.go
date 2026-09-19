@@ -17,7 +17,7 @@ type Borrowed[BEnvelope any] struct {
 }
 
 func (v Borrowed[BEnvelope]) MarshalJSON() ([]byte, error) {
-	data, err := json.Marshal((struct {
+	data, err := runtime.MarshalJSON((struct {
 		Frame carrierprotocol.Frame[BEnvelope] `json:"frame"`
 	})(v))
 	if err != nil {
@@ -54,7 +54,7 @@ type Both[AEnvelope, BEnvelope any] struct {
 }
 
 func (v Both[AEnvelope, BEnvelope]) MarshalJSON() ([]byte, error) {
-	data, err := json.Marshal((struct {
+	data, err := runtime.MarshalJSON((struct {
 		Mine     Mine[AEnvelope]              `json:"mine"`
 		Borrowed Borrowed[BEnvelope]          `json:"borrowed"`
 		Fixed    Fixed                        `json:"fixed"`
@@ -107,7 +107,7 @@ type Envelope struct {
 
 func (v Envelope) MarshalJSON() ([]byte, error) {
 	type wire Envelope
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ type Fixed struct {
 
 func (v Fixed) MarshalJSON() ([]byte, error) {
 	type wire Fixed
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ type Handle struct {
 
 func (v Handle) MarshalJSON() ([]byte, error) {
 	type wire Handle
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +205,7 @@ type Mine[AEnvelope any] struct {
 }
 
 func (v Mine[AEnvelope]) MarshalJSON() ([]byte, error) {
-	data, err := json.Marshal((struct {
+	data, err := runtime.MarshalJSON((struct {
 		Held AEnvelope `json:"held"`
 	})(v))
 	if err != nil {
