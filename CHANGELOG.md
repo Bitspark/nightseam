@@ -68,9 +68,6 @@ are one number. Entries are in the words of the commits that landed them.
   history: the deadline scenario no longer consumes request events before
   the cancel arrives, and the scenario loader refuses such polling without
   `drain: false`.
-- Request observers in Go and TypeScript report `request_timeout` for local
-  deadlines and `cancelled` for local cancellation, in both directions, and
-  observe the request ending before its best-effort cancel is sent.
 - A replay hands a consumer the machine's events alone, where it handed it
   every frame the log held: a consumer attaching after another had decided
   anything was replayed that other consumer's requests, which carry an id the
@@ -96,6 +93,9 @@ are one number. Entries are in the words of the commits that landed them.
 - The release round trip waits up to two minutes with backoff for npm and
   Go module propagation before installing, names unavailable packages on
   timeout, and has the workflow permission to file an issue on failure.
+- Request observers in Go and TypeScript report `request_timeout` for local
+  deadlines and `cancelled` for local cancellation, in both directions, and
+  observe the request ending before its best-effort cancel is sent.
 
 ## 0.3.0
 
