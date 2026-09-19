@@ -14,95 +14,106 @@ import (
 // Compile translates Nightseam's regular subset of ECMAScript Unicode
 // patterns to Go's code-point engine. Parsing first excludes Go-only
 // escapes, permissive identity escapes and invalid class range endpoints.
-func Compile(source string) (*regexp.Regexp, error) {
+func Compile(source string) (*Regexp, error) {
 	p := parser{source: source}
 	translated, err := p.disjunction(false)
 	if err != nil {
 		return nil, fmt.Errorf("it is not a Nightseam Unicode regular expression: %w", err)
 	}
 	compiled, err := regexp.Compile(translated)
-	if parseError, ok := err.(*syntax.Error); ok && parseError.Code == syntax.ErrInvalidRepeatSize {
-		// ECMAScript has no RE2 1000-repetition ceiling. Expand counted
-		// repeats only when that implementation limit prevents compilation.
-		p = parser{source: source, expandCounts: true}
-		translated, err = p.disjunction(false)
-		if err == nil {
-			compiled, err = regexp.Compile(translated)
-		}
+	if parseError, ok := err.(*syntax.Error); ok && (parseError.Code == syntax.ErrInvalidRepeatSize || parseError.Code == syntax.ErrLarge) {
+		// ECMAScript has no RE2 counted-repetition ceiling. The parsed
+		// expression matches directly when native expansion is too large.
+		return &Regexp{tree: p.tree}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("it is not a regular expression: %w", err)
 	}
-	return compiled, nil
+	return &Regexp{native: compiled, tree: p.tree}, nil
 }
 
 type parser struct {
-	source       string
-	pos          int
-	expandCounts bool
+	source string
+	pos    int
+	tree   *node
 }
 
 func (p *parser) fail(message string) error { return fmt.Errorf("%s at byte %d", message, p.pos) }
 
 func (p *parser) disjunction(group bool) (string, error) {
 	var out strings.Builder
+	var branches, sequence []*node
+	finish := func() { p.tree = joinNode('|', append(branches, joinNode('s', sequence))) }
 	for p.pos < len(p.source) {
 		if p.source[p.pos] == ')' {
 			if !group {
 				return "", p.fail("unmatched closing parenthesis")
 			}
 			p.pos++
+			finish()
 			return out.String(), nil
 		}
 		if p.source[p.pos] == '|' {
 			out.WriteByte('|')
 			p.pos++
+			branches = append(branches, joinNode('s', sequence))
+			sequence = nil
 			continue
 		}
 		atom, assertion, err := p.atom()
 		if err != nil {
 			return "", err
 		}
+		atomTree := p.tree
 		if p.pos == len(p.source) {
 			out.WriteString(atom)
+			sequence = append(sequence, atomTree)
 			continue
 		}
 		start := p.pos
-		min, max := -1, -1
+		var minimum, maximum uint64
+		var lowerText, upperText string
+		unlimited, counted := false, false
 		switch p.source[p.pos] {
 		case '*', '+', '?':
+			unlimited = p.source[p.pos] != '?'
+			maximum = 1
+			if p.source[p.pos] == '+' {
+				minimum = 1
+			}
 			p.pos++
 		case '{':
+			counted = true
 			p.pos++
 			lower := p.pos
 			if !p.digits() {
 				return "", p.fail("a repetition requires a lower bound")
 			}
-			min, err = strconv.Atoi(p.source[lower:p.pos])
-			if err != nil {
-				return "", p.fail("repetition exceeds engine capacity")
-			}
-			max = min
+			lowerText = decimal(p.source[lower:p.pos])
+			upperText = lowerText
 			if p.pos < len(p.source) && p.source[p.pos] == ',' {
 				p.pos++
 				upper := p.pos
-				max = -1
+				unlimited = true
 				if p.digits() {
-					max, err = strconv.Atoi(p.source[upper:p.pos])
-					if err != nil {
-						return "", p.fail("repetition exceeds engine capacity")
-					}
+					upperText = decimal(p.source[upper:p.pos])
+					unlimited = false
 				}
 			}
 			if p.pos == len(p.source) || p.source[p.pos] != '}' {
 				return "", p.fail("invalid repetition")
 			}
 			p.pos++
-			if max >= 0 && max < min {
+			if !unlimited && (len(upperText) < len(lowerText) || len(upperText) == len(lowerText) && upperText < lowerText) {
 				return "", p.fail("repetition bounds are reversed")
 			}
+			// Saturating bounds retain the answer for any Go string without
+			// allocating or iterating once per declared repetition.
+			minimum, _ = strconv.ParseUint(lowerText, 10, 64)
+			maximum, _ = strconv.ParseUint(upperText, 10, 64)
 		default:
 			out.WriteString(atom)
+			sequence = append(sequence, atomTree)
 			continue
 		}
 		if assertion {
@@ -112,43 +123,35 @@ func (p *parser) disjunction(group bool) (string, error) {
 		if lazy {
 			p.pos++
 		}
-		if min < 0 {
-			out.WriteString(atom)
+		sequence = append(sequence, repeatNode(atomTree, minimum, maximum, unlimited))
+		out.WriteString(atom)
+		if !counted {
 			out.WriteString(p.source[start:p.pos])
 			continue
 		}
-		if p.expandCounts {
-			copies := min
-			if max >= 0 {
-				copies = max
-			}
-			if len(atom) > 0 && copies > (1<<20)/len(atom) {
-				return "", p.fail("repetition exceeds engine capacity")
-			}
-			out.WriteString(strings.Repeat(atom, min))
-			if max < 0 {
-				out.WriteString(atom + "*")
-			} else {
-				out.WriteString(strings.Repeat("(?:"+atom+")?", max-min))
-			}
+		if unlimited {
+			fmt.Fprintf(&out, "{%s,}", lowerText)
+		} else if upperText == lowerText {
+			fmt.Fprintf(&out, "{%s}", lowerText)
 		} else {
-			out.WriteString(atom)
-			if max == min {
-				fmt.Fprintf(&out, "{%d}", min)
-			} else if max < 0 {
-				fmt.Fprintf(&out, "{%d,}", min)
-			} else {
-				fmt.Fprintf(&out, "{%d,%d}", min, max)
-			}
-			if lazy {
-				out.WriteByte('?')
-			}
+			fmt.Fprintf(&out, "{%s,%s}", lowerText, upperText)
+		}
+		if lazy {
+			out.WriteByte('?')
 		}
 	}
 	if group {
 		return "", p.fail("unclosed group")
 	}
+	finish()
 	return out.String(), nil
+}
+
+func decimal(value string) string {
+	if value = strings.TrimLeft(value, "0"); value == "" {
+		return "0"
+	}
+	return value
 }
 
 func (p *parser) digits() bool {
@@ -168,8 +171,10 @@ func (p *parser) atom() (string, bool, error) {
 	p.pos += size
 	switch c {
 	case '^', '$':
+		p.tree = &node{kind: byte(c)}
 		return string(c), true, nil
 	case '.':
+		p.tree = setNode(characters{{10, 10}, {13, 13}, {0x2028, 0x2029}}.complement())
 		return `[^\x{a}\x{d}\x{2028}\x{2029}]`, false, nil
 	case '(':
 		if p.pos < len(p.source) && p.source[p.pos] == '?' {
@@ -182,16 +187,20 @@ func (p *parser) atom() (string, bool, error) {
 		return "(?:" + inner + ")", false, err
 	case '[':
 		set, err := p.class()
+		p.tree = setNode(set)
 		return set.pattern(), false, err
 	case '\\':
 		set, assertion, err := p.escape(false)
 		if assertion != "" {
+			p.tree = &node{kind: assertion[1]}
 			return assertion, true, err
 		}
+		p.tree = setNode(set)
 		return set.pattern(), false, err
 	case '*', '+', '?', '{', '}', ']':
 		return "", false, p.fail("unescaped syntax character")
 	default:
+		p.tree = setNode(character(c))
 		return character(c).pattern(), false, nil
 	}
 }
