@@ -32,6 +32,7 @@ type Config struct {
 	Runtime string
 	Seam    string
 	Tunnel  string
+	Live    string
 	Layout  Layout
 	// Place puts named families elsewhere than the layout says, each at
 	// its own layout; a family that refers to one finds it there too.
@@ -54,6 +55,7 @@ const (
 	DefaultRuntime = "github.com/Bitspark/nightseam/runtime/go"
 	DefaultSeam    = "github.com/Bitspark/nightseam/duplex/go"
 	DefaultTunnel  = "github.com/Bitspark/nightseam/tunnel/go"
+	DefaultLive    = "github.com/Bitspark/nightseam/live/go"
 )
 
 // DefaultLayout is api/go/<family>-protocol, -binding and -client.
@@ -77,6 +79,9 @@ func (c Config) settled() Config {
 	if c.Tunnel == "" {
 		c.Tunnel = DefaultTunnel
 	}
+	if c.Live == "" {
+		c.Live = DefaultLive
+	}
 	if c.Layout.Protocol == "" {
 		c.Layout.Protocol = DefaultLayout.Protocol
 	}
@@ -99,7 +104,7 @@ func (c Config) Validate() error {
 	if c.Module == "" {
 		return fmt.Errorf("a Go module path is required to root the generated packages")
 	}
-	for _, s := range []string{c.Module, c.Runtime, c.Seam, c.Tunnel} {
+	for _, s := range []string{c.Module, c.Runtime, c.Seam, c.Tunnel, c.Live} {
 		if !importPattern.MatchString(s) || strings.HasPrefix(s, "/") || strings.HasSuffix(s, "/") || strings.Contains(s, "{") {
 			return fmt.Errorf("invalid Go import path %q", s)
 		}

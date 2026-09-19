@@ -454,6 +454,11 @@ func Unrendered(f *Family, target string) []diag.Diagnostic {
 	return diagnostics
 }
 
+// IsLive reports whether values of an expression carry a callable, in this
+// family's scope: what a target asks to know whether a position needs
+// conversion at the boundary.
+func (r *Family) IsLive(e model.TypeExpr) bool { return r.f.IsLive(e) }
+
 // Contract is the identity a reference to a callable carries: the
 // declaration that a value of the type implements, as `family/Type`.
 //

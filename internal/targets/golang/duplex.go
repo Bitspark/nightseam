@@ -43,6 +43,7 @@ func emitBinding(f *file) {
 		}
 		f.line("options.Handlers = handlers")
 		f.labels()
+		f.liveScope(nil)
 		f.line("return nil")
 	})
 	f.linef("// %s serves the family at a WebSocket endpoint; it requires explicit authentication and origin policy through options.", identNewHandler)
@@ -106,6 +107,7 @@ func emitClient(f *file) {
 		f.labels()
 		f.line("prepare := options.Prepare")
 		f.w.Block(fmt.Sprintf("options.Prepare = func(peer *%s.Peer) error {", runtime), "}", func() {
+			f.liveOver()
 			if len(fam.Server.Events) > 0 {
 				f.linef("client := &%s%s{%s: peer}", identClient, args, identPeer)
 			}
@@ -152,7 +154,15 @@ func (f *file) registration(m render.Method, handler, remote string) {
 	f.linef("if _, exists := handlers[%q]; exists { return %s.Errorf(\"duplicate handler %%s\", %q) }", m.Name, f.std("fmt"), m.Name)
 	f.w.Block(fmt.Sprintf("handlers[%q] = func(ctx %s.Context, peer *%s.Peer, raw %s.RawMessage) (any, error) {", m.Name, f.std("context"), runtime, json), "}", func() {
 		params := ""
-		if m.Request != nil {
+		if m.Request != nil && f.family.IsLive(m.Request) {
+			// A live request is imported rather than unmarshalled: the
+			// handler is given native functions, and never a reference.
+			f.linef("scope, ok := %s.ScopeOf(peer)", f.live())
+			f.linef("if !ok { return nil, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", runtime, f.live())
+			f.linef("params, err := %s(scope, raw)", f.liveCall(m.Request, false))
+			f.linef("if err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", runtime)
+			params = ", params"
+		} else if m.Request != nil {
 			f.linef("var params %s", f.spell(m.Request))
 			f.linef("if err := %s.%s(%s%s(%s), raw); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", f.boundSchema(f.uses), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(m.Request), runtime)
 			f.linef("if err := %s.Unmarshal(raw, &params); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", json, runtime)
@@ -160,8 +170,18 @@ func (f *file) registration(m render.Method, handler, remote string) {
 		} else {
 			f.linef("if err := %s.%s(map[string]any{\"empty\": true}, raw); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", f.boundSchema(f.uses), identValidateExpressionRaw, runtime)
 		}
+		// := stays even when err is already declared: result is new, which
+		// is what a short declaration needs.
 		f.linef("result, err := %s.%s(ctx, %s%s)", handler, p.operations[m.Name], remote, params)
 		f.line("if err != nil { return nil, err }")
+		if f.family.IsLive(m.Result) {
+			if params == "" || !f.family.IsLive(m.Request) {
+				f.linef("scope, ok := %s.ScopeOf(peer)", f.live())
+				f.linef("if !ok { return nil, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", runtime, f.live())
+			}
+			f.linef("return %s(scope, result)", f.liveCall(m.Result, true))
+			return
+		}
 		f.linef("if err = %s.%s(%s%s(%s), result); err != nil { return nil, err }", f.boundSchema(f.uses), identValidateValue, f.proto(), identMustTypeExpression, expression(m.Result))
 		f.line("return result, nil")
 	})
@@ -210,11 +230,26 @@ func (f *file) caller(m render.Method, receiver string) {
 	}
 	f.w.Block(fmt.Sprintf("func (c *%s) %s(ctx %s.Context%s) (%s, error) {", receiver, p.operations[m.Name], f.std("context"), f.request(m), result), "}", func() {
 		f.linef("var result %s", result)
-		if m.Request != nil {
+		live := (m.Request != nil && f.family.IsLive(m.Request)) || f.family.IsLive(m.Result)
+		argument := argument(m)
+		if live {
+			f.linef("scope, ok := %s.ScopeOf(c.%s)", f.live(), identPeer)
+			f.linef("if !ok { return result, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", f.runtime(), f.live())
+		}
+		switch {
+		case m.Request != nil && f.family.IsLive(m.Request):
+			f.linef("sent, err := %s(scope, params)", f.liveCall(m.Request, true))
+			f.line("if err != nil { return result, err }")
+			argument = "sent"
+		case m.Request != nil:
 			f.linef("if err := %s.%s(%s%s(%s), params); err != nil { return result, err }", f.boundSchema(f.uses), identValidateValue, f.proto(), identMustTypeExpression, expression(m.Request))
 		}
 		f.linef("var raw %s.RawMessage", json)
-		f.linef("if err := c.%s.Call(ctx, %q, %s, &raw); err != nil { return result, err }", identPeer, m.Name, argument(m))
+		f.linef("if err := c.%s.Call(ctx, %q, %s, &raw); err != nil { return result, err }", identPeer, m.Name, argument)
+		if f.family.IsLive(m.Result) {
+			f.linef("return %s(scope, raw)", f.liveCall(m.Result, false))
+			return
+		}
 		f.linef("if err := %s.%s(%s%s(%s), raw); err != nil { return result, err }", f.boundSchema(f.uses), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(m.Result))
 		f.linef("if err := %s.Unmarshal(raw, &result); err != nil { return result, err }", json)
 		f.line("return result, nil")
@@ -227,6 +262,16 @@ func (f *file) events(receiver string, received, sent []render.Event) {
 	p := f.plan
 	for _, e := range sent {
 		ctx := f.std("context")
+		if f.family.IsLive(e.Type) {
+			f.w.Block(fmt.Sprintf("func (c *%s) %s%s(ctx %s.Context, data %s) error {", receiver, identEmit, p.operations[e.Name], ctx, f.spell(e.Type)), "}", func() {
+				f.linef("scope, ok := %s.ScopeOf(c.%s)", f.live(), identPeer)
+				f.linef("if !ok { return &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", f.runtime(), f.live())
+				f.linef("sent, err := %s(scope, data)", f.liveCall(e.Type, true))
+				f.line("if err != nil { return err }")
+				f.linef("return c.%s.Emit(ctx, %q, sent)", identPeer, e.Name)
+			})
+			continue
+		}
 		f.linef("func (c *%s) %s%s(ctx %s.Context, data %s) error { if err := %s.%s(%s%s(%s), data); err != nil { return err }; return c.%s.Emit(ctx, %q, data) }", receiver, identEmit, p.operations[e.Name], ctx, f.spell(e.Type), f.boundSchema(f.uses), identValidateValue, f.proto(), identMustTypeExpression, expression(e.Type), identPeer, e.Name)
 	}
 	for _, e := range received {
@@ -244,9 +289,49 @@ func (f *file) events(receiver string, received, sent []render.Event) {
 // user callbacks, retaining the payload's declaring family.
 func (f *file) eventHandler(e render.Event, callback func()) {
 	f.w.Block(fmt.Sprintf("return c.%s.HandleEvent(%q, func(ctx %s.Context, peer *%s.Peer, raw %s.RawMessage) {", identPeer, e.Name, f.std("context"), f.runtime(), f.std("json")), "})", func() {
+		if f.family.IsLive(e.Type) {
+			f.linef("scope, ok := %s.ScopeOf(peer)", f.live())
+			f.line("if !ok { _ = peer.Close(); return }")
+			f.linef("data, err := %s(scope, raw)", f.liveCall(e.Type, false))
+			f.line("if err != nil { _ = peer.Close(); return }")
+			callback()
+			return
+		}
 		f.linef("if err := %s.%s(%s%s(%s), raw); err != nil { _ = peer.Close(); return }", f.boundSchema(f.uses), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(e.Type))
 		f.linef("var data %s", f.spell(e.Type))
 		f.linef("if err := %s.Unmarshal(raw, &data); err != nil { _ = peer.Close(); return }", f.std("json"))
 		callback()
 	})
+}
+
+// liveScope installs the live layer on the options a peer is made with, in
+// Prepare, exactly as a tunnel is made: a peer already reading would answer
+// the other side's first live.invoke method_not_found before the handler is
+// there. A family with no live tier installs nothing, which is what keeps an
+// ordinary data or RPC checkout free of the live package.
+func (f *file) liveScope(inner func()) {
+	if !f.family.Live {
+		if inner != nil {
+			inner()
+		}
+		return
+	}
+	f.line("prepare := options.Prepare")
+	f.w.Block(fmt.Sprintf("options.Prepare = func(peer *%s.Peer) error {", f.runtime()), "}", func() {
+		f.liveOver()
+		if inner != nil {
+			inner()
+		}
+		f.line("if prepare != nil { return prepare(peer) }")
+		f.line("return nil")
+	})
+}
+
+// liveOver is the one statement that makes the scope, written inside a
+// Prepare the caller already had.
+func (f *file) liveOver() {
+	if !f.family.Live {
+		return
+	}
+	f.linef("if _, err := %s.Over(peer, %s.Options{}); err != nil { return err }", f.live(), f.live())
 }

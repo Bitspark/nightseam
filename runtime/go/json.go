@@ -23,6 +23,39 @@ var wireMarshalers = jsonv2.MarshalToFunc(func(encoder *jsontext.Encoder, value 
 	return jsonv2.MarshalEncode(encoder, jsonv1.Number(value), jsonv2.WithMarshalers(nil))
 })
 
+// MarshalObject writes an object whose members are already encoded, in the
+// order given. It is what a generated live codec builds its value with: a
+// live value is assembled member by member, because each callable in it has
+// to become a binding first, and a map would write the members in another
+// order than the record declares them.
+func MarshalObject(order []string, members map[string]json.RawMessage) ([]byte, error) {
+	var out []byte
+	out = append(out, '{')
+	first := true
+	for _, name := range order {
+		member, present := members[name]
+		if !present {
+			continue
+		}
+		if !first {
+			out = append(out, ',')
+		}
+		first = false
+		key, err := MarshalJSON(name)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, key...)
+		out = append(out, ':')
+		out = append(out, member...)
+	}
+	out = append(out, '}')
+	if err := ValidateUnicodeJSON(out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MarshalJSON encodes a wire value without replacing malformed Unicode.
 // Generated codecs use it before validation, while invalid UTF-8 in Go
 // strings and unpaired surrogate escapes in raw encodings are still visible.
