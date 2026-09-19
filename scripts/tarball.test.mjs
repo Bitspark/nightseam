@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { holdTarball } from "./tarball.mjs";
+import { holdTarball, tar } from "./tarball.mjs";
 
 const required = ["dist/index.js", "dist/index.d.ts", "README.md", "LICENSE", "NOTICE"];
 for (const omitted of [undefined, ...required]) {
@@ -17,7 +16,10 @@ for (const omitted of [undefined, ...required]) {
       writeFileSync(path, "fixture\n");
     }
     const tarball = join(scratch, "fixture.tgz");
-    execFileSync("tar", ["-czf", tarball, "-C", scratch, "package"]);
+    // Written through the same helper that reads it: an absolute `-f` operand
+    // is what GNU tar takes for a remote host, so neither end of this test
+    // hands tar a path with a drive letter in it.
+    tar(scratch, ["-czf", "fixture.tgz", "-C", ".", "package"]);
     if (omitted) assert.throws(() => holdTarball(tarball), error => error.message.includes(omitted));
     else assert.doesNotThrow(() => holdTarball(tarball));
   });
