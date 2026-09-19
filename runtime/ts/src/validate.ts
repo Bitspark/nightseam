@@ -1,39 +1,27 @@
-// The wire validator every generated client carries: a family's types as
-// the generator describes them — a record's fields with their presence,
-// nullness and constraints, its parents, an enum's values, an alias's
-// target — validated against JSON values. A generated client embeds its
-// family's description and makes one validator of it; a type of another
-// family is validated by that family's validator, handed over by name; a
-// type drawn from a parameter by the binding of the family that fills it,
-// passed in at the call, since that family is chosen where the client is
-// instantiated. (The Go runtime, whose generated codecs validate what fills
-// a slot where the generic type is instantiated, passes such a value
-// through instead.)
-//
-// A type expression is read as the contract writes it: a primitive, a type
-// of the family, "family.Type" for an imported family's, "S.Type" for a
-// parameter's, {array: T}, {map: T}, {ref: "Entity"} for the entity's key,
-// {apply: "family.Type", with: {...}} for an imported generic type, and
-// {empty: true} for a request that takes nothing.
-//
-// A refusal is one string: a JSON pointer naming the member that was wrong,
-// then the fact about it — "$.count: required field missing", "$.note: null
-// is not permitted", "$.zzz: unknown field". The Go runtime prints the same
-// string for the same value, word for word, and
-// conformance/tables/validator.json holds both to it, so a consumer whose
-// server is in one language and client in the other reads one spelling of
-// one refusal.
-
-/** A type as the embedded descriptor spells it: a primitive or named type, an array, a map, a reference, or an application of a generic type. */
+// The runtime interpreter reads the declaration's own expressions from a
+// family descriptor. Imports and type arguments retain the family where
+// they were declared, including through nested generic applications.
+// Go and TypeScript share the acceptance and diagnostic cases in
+// conformance/tables/validator.json. TypeScript's runtime slots supply the
+// bindings that generated Go codecs also carry in their instantiated types.
+/** An expression as the declaration writes it, including unnamed shapes. */
 export type TypeExpression =
   | string
   | { array: TypeExpression }
   | { map: TypeExpression }
+  | { nullable: TypeExpression }
+  | { literal: string | number | boolean }
   | { ref: string }
-  | { apply: string; with: Record<string, string> }
-  | { empty: true };
+  | { apply: string; with: Record<string, TypeExpression> }
+  | { empty: true }
+  | WireType;
 
-/** One member of a record in the descriptor: its wire name, its type, whether it must be present, and the constraints the validator holds it to. */
+export interface WireParameter {
+  name: string;
+  of?: string;
+}
+
+/** One record member, with presence independent of nullness. */
 export interface WireField {
   name: string;
   type: TypeExpression;
@@ -46,7 +34,7 @@ export interface WireField {
   pattern?: string;
 }
 
-/** One type of the descriptor — a record, entity, enum or alias — as the validator reads it. */
+/** A declaration's own fields and variants, before inheritance is expanded. */
 export interface WireType {
   kind: string;
   key?: string;
@@ -55,27 +43,59 @@ export interface WireType {
   open?: boolean;
   values?: string[];
   type?: TypeExpression;
+  parameters?: WireParameter[];
+  tag?: string;
+  value?: string;
+  variants?: Record<string, TypeExpression>;
 }
 
-/** What a slot of the session role is filled with: any family. */
+/** A family's declarations and the parameters in their enclosing scope. */
+export interface WireFamily {
+  types: Record<string, WireType>;
+  parameters?: WireParameter[];
+}
+
 export interface AnyFamily {
   readonly name: string;
   Envelope: unknown;
   Handle: unknown;
 }
 
-/** A family bound at runtime: its name and its validator, which validates what fills a slot of it. */
+/** A family bound to a parameter, retaining its descriptor for nested applications. */
 export interface FamilyBinding<F extends AnyFamily> {
   readonly name: F['name'];
-  validate(type: TypeExpression, value: unknown, location?: string): void;
+  readonly validate: Validator;
 }
 
-/** The families bound to the parameters a value's slots name. */
-export type Slots = { readonly [parameter: string]: FamilyBinding<AnyFamily> };
+/** A type argument interpreted in the family whose validator is supplied. */
+export interface TypeBinding {
+  readonly type: TypeExpression;
+  readonly validate: Validator;
+}
 
-/** A validator: of a type expression's value, at a location, with the bindings of the parameters. */
-export type Validator = (type: TypeExpression, value: unknown, location?: string, slots?: Slots) => void;
+export type Slots = { readonly [parameter: string]: FamilyBinding<AnyFamily> | TypeBinding };
 
+const descriptor = Symbol('validator descriptor');
+interface Schema {
+  family: WireFamily;
+  imported: Record<string, Validator>;
+}
+type Scope = Record<string, { type: Expression } | { family: Schema }>;
+interface Expression {
+  schema: Schema;
+  value: TypeExpression;
+  scope: Scope;
+}
+interface Resolved extends Expression {
+  definition?: WireType;
+  name?: string;
+}
+
+/** A callable validator carrying the declaration context needed by its importers. */
+export interface Validator {
+  (type: TypeExpression, value: unknown, location?: string, slots?: Slots): void;
+  readonly [descriptor]: Schema;
+}
 function timestamp(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)(?:\.\d+)?(?:Z|([+-])(\d\d):(\d\d))$/.exec(value);
@@ -112,7 +132,8 @@ function jsonValue(value: unknown, location: string, seen = new Set<object>()): 
   } else {
     if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)
       throw new Error(location + ': expected plain JSON object');
-    for (const [key, child] of Object.entries(value)) jsonValue(child, location + '.' + key, seen);
+    for (const key of Object.keys(value).sort())
+      jsonValue((value as Record<string, unknown>)[key], location + '.' + key, seen);
   }
   seen.delete(value);
 }
@@ -153,137 +174,371 @@ function constrain(field: WireField, value: unknown, location: string): void {
   }
 }
 
-/**
- * Makes a family's validator of its wire description and the validators of
- * the families it refers to. Runtime validation applies equally to calls,
- * replies, reverse calls and events.
- */
-export function createValidator(types: Record<string, WireType>, imported: Record<string, Validator> = {}): Validator {
-  const fields = (name: string): WireField[] => {
-    const type = types[name]!;
-    return [...(type.extends ?? []).flatMap(fields), ...(type.fields ?? [])];
+function bad(location: string, want: string): never {
+  throw new Error(location + ': expected ' + want);
+}
+
+function child(expression: Expression, value: TypeExpression): Expression {
+  return { schema: expression.schema, scope: expression.scope, value };
+}
+
+function singleFamilyParameter(schema: Schema): WireParameter | undefined {
+  const parameters = schema.family.parameters?.filter((parameter) => parameter.of);
+  return parameters?.length === 1 ? parameters[0] : undefined;
+}
+
+function freeParameters(schema: Schema, type: WireType | undefined, seen = new Set<WireType>()): WireParameter[] {
+  if (!type || seen.has(type)) return [];
+  seen.add(type);
+  const used = new Set<string>();
+  const inherit = (type: WireType | undefined): void => {
+    for (const parameter of freeParameters(schema, type, seen)) used.add(parameter.name);
   };
-  const foreign = (reference: string, value: unknown, location: string, slots?: Slots): void => {
-    const at = reference.indexOf('.');
-    const validate = imported[reference.slice(0, at)];
-    if (!validate) throw new Error(location + ': expected known family');
-    validate(reference.slice(at + 1), value, location, slots);
+  const walk = (value: TypeExpression | undefined): void => {
+    if (typeof value === 'string') {
+      const dot = value.indexOf('.'),
+        prefix = dot < 0 ? value : value.slice(0, dot);
+      if (schema.family.parameters?.some((parameter) => parameter.name === prefix)) {
+        used.add(prefix);
+        return;
+      }
+      if (dot < 0) {
+        inherit(schema.family.types[value]);
+        return;
+      }
+      const imported = schema.imported[prefix]?.[descriptor];
+      const target = imported?.family.types[value.slice(dot + 1)];
+      if (imported && target) {
+        const needed = [...freeParameters(imported, target, seen), ...(target.parameters ?? [])];
+        const source = singleFamilyParameter(schema);
+        if (source && needed.some((parameter) => parameter.of)) used.add(source.name);
+      }
+    } else if (value && typeof value === 'object') {
+      if ('array' in value) walk(value.array);
+      else if ('map' in value) walk(value.map);
+      else if ('nullable' in value) walk(value.nullable);
+      else if ('apply' in value) {
+        if (!value.apply.includes('.')) inherit(schema.family.types[value.apply]);
+        for (const filler of Object.values(value.with)) walk(filler);
+      } else if ('ref' in value) {
+        const entity = schema.family.types[value.ref];
+        walk(entity?.fields?.find((field) => field.name === entity.key)?.type);
+      } else if ('kind' in value) {
+        for (const field of value.fields ?? []) walk(field.type);
+        for (const base of value.extends ?? []) walk(base);
+        for (const variant of Object.values(value.variants ?? {})) walk(variant);
+      }
+    }
   };
-  /** What fills a slot of a parameter is validated by the binding of the family that fills it; a client always passes its bindings, so a validation without one is a call that lost them. */
-  const drawn = (parameter: string, type: string, value: unknown, location: string, slots?: Slots): void => {
-    const binding = slots?.[parameter];
-    if (!binding) throw new Error(location + ': expected a binding of the parameter ' + parameter);
-    binding.validate(type, value, location);
-  };
-  /** An application binds the applied type's parameters as it says: a named family by its validator, a parameter of this family by the caller's binding of it. */
-  const applied = (fillers: Record<string, string>, slots?: Slots): Slots => {
-    const bound: Record<string, FamilyBinding<AnyFamily>> = {};
-    for (const [parameter, filler] of Object.entries(fillers)) {
-      if (/^[A-Z]/.test(filler)) {
-        if (slots?.[filler]) bound[parameter] = slots[filler];
+  walk(type.type);
+  for (const field of type.fields ?? []) walk(field.type);
+  for (const base of type.extends ?? []) walk(base);
+  for (const variant of Object.values(type.variants ?? {})) walk(variant);
+  seen.delete(type);
+  return (schema.family.parameters ?? []).filter((parameter) => used.has(parameter.name));
+}
+
+function named(expression: Expression, name: string, location: string): [Expression, WireType, string] {
+  const dot = name.indexOf('.');
+  if (dot >= 0) {
+    const caller = expression;
+    const family = name.slice(0, dot);
+    let schema: Schema | undefined;
+    if (/^[A-Z]/.test(family)) {
+      const argument = expression.scope[family];
+      schema = argument && 'family' in argument ? argument.family : undefined;
+      if (!schema) bad(location, 'a binding of the parameter ' + family);
+    } else {
+      schema = expression.schema.imported[family]?.[descriptor];
+      if (!schema) bad(location, 'known family');
+    }
+    name = name.slice(dot + 1);
+    expression = { schema, value: name, scope: {} };
+    if (/^[a-z]/.test(family)) {
+      const source = singleFamilyParameter(caller.schema),
+        target = schema.family.types[name];
+      if (source && target) {
+        const binding = caller.scope[source.name];
+        if (binding) {
+          for (const parameter of [...freeParameters(schema, target), ...(target.parameters ?? [])])
+            if (parameter.of) expression.scope[parameter.name] = binding;
+        }
+      }
+    }
+  }
+  if (!Object.hasOwn(expression.schema.family.types, name)) bad(location, 'known type');
+  return [child(expression, name), expression.schema.family.types[name]!, name];
+}
+
+function resolve(expression: Expression, location: string): Resolved {
+  const seen: { schema: Schema; scope: Scope; value: TypeExpression }[] = [];
+  const aliases = new Set<WireType>();
+  for (;;) {
+    if (
+      seen.some(
+        (old) => old.schema === expression.schema && old.scope === expression.scope && old.value === expression.value,
+      )
+    )
+      bad(location, 'acyclic type expression');
+    seen.push(expression);
+    let definition: WireType, name: string;
+    const value = expression.value;
+    if (typeof value === 'string') {
+      const argument = Object.hasOwn(expression.scope, value) ? expression.scope[value] : undefined;
+      if (argument) {
+        if (!('type' in argument)) bad(location, 'type argument');
+        expression = argument.type;
+        aliases.clear();
         continue;
       }
-      const validate = imported[filler];
-      if (validate)
-        bound[parameter] = { name: filler, validate: (type, value, location) => validate(type, value, location) };
+      if (['json', 'string', 'boolean', 'number', 'integer', 'timestamp'].includes(value)) return expression;
+      [expression, definition, name] = named(expression, value, location);
+    } else if (value !== null && typeof value === 'object') {
+      if ('apply' in value) {
+        const [target, type, targetName] = named(expression, value.apply, location);
+        if (!plainObject(value.with)) bad(location, 'application arguments');
+        const scope: Scope = { ...target.scope };
+        const parameters = [
+          ...(value.apply.includes('.') ? freeParameters(target.schema, type) : []),
+          ...(type.parameters ?? []),
+        ];
+        const allowed = new Set<string>();
+        for (const parameter of parameters) {
+          allowed.add(parameter.name);
+          if (!Object.hasOwn(value.with, parameter.name)) bad(location, 'an argument for ' + parameter.name);
+          const filler = value.with[parameter.name]!;
+          if (!parameter.of) {
+            scope[parameter.name] = { type: child(expression, filler) };
+          } else {
+            if (typeof filler !== 'string') bad(location, 'family argument for ' + parameter.name);
+            const argument = expression.scope[filler];
+            const family =
+              argument && 'family' in argument ? argument.family : expression.schema.imported[filler]?.[descriptor];
+            if (!family) bad(location, 'known family argument for ' + parameter.name);
+            scope[parameter.name] = { family };
+          }
+        }
+        for (const parameter of Object.keys(value.with).sort())
+          if (!allowed.has(parameter)) bad(location, 'known parameter ' + parameter);
+        expression = { ...target, scope };
+        definition = type;
+        name = targetName;
+      } else if ('kind' in value) {
+        definition = value;
+        name = value.kind;
+      } else return expression;
+    } else return bad(location, 'type expression');
+    if (definition.kind === 'alias') {
+      if (aliases.has(definition)) bad(location, 'acyclic type expression');
+      aliases.add(definition);
+      expression = child(expression, definition.type!);
+      continue;
     }
-    return bound;
+    return { ...expression, definition, name };
+  }
+}
+
+interface ScopedField {
+  field: WireField;
+  expression: Expression;
+}
+function fields(expression: Resolved, location: string, seen = new Set<WireType>()): ScopedField[] {
+  const definition = expression.definition;
+  if (!definition) bad(location, 'record');
+  if (seen.has(definition)) bad(location, 'acyclic inheritance');
+  seen.add(definition);
+  const result = (definition.extends ?? []).flatMap((base) =>
+    fields(resolve(child(expression, base), location), location, seen),
+  );
+  for (const field of definition.fields ?? []) result.push({ field, expression: child(expression, field.type) });
+  seen.delete(definition);
+  return result;
+}
+
+function variants(expression: Resolved, location: string, seen = new Set<WireType>()): Record<string, Expression> {
+  const definition = expression.definition;
+  if (!definition || definition.kind !== 'union') bad(location, 'union');
+  if (seen.has(definition)) bad(location, 'acyclic inheritance');
+  seen.add(definition);
+  const result: Record<string, Expression> = Object.create(null) as Record<string, Expression>;
+  for (const base of definition.extends ?? [])
+    Object.assign(result, variants(resolve(child(expression, base), location), location, seen));
+  for (const [tag, variant] of Object.entries(definition.variants ?? {})) result[tag] = child(expression, variant);
+  seen.delete(definition);
+  return result;
+}
+
+function nullable(expression: Expression, location: string): boolean {
+  const resolved = resolve(expression, location);
+  return typeof resolved.value === 'object' && resolved.value !== null && 'nullable' in resolved.value;
+}
+
+function carrier(expression: Expression, tag: string, wrapped: unknown, location: string): [boolean, boolean] {
+  const resolved = resolve(expression, location);
+  if (resolved.definition) {
+    switch (resolved.definition.kind) {
+      case 'record':
+      case 'entity':
+        return [true, fields(resolved, location).some(({ field }) => field.name === tag)];
+      case 'union':
+        return [true, resolved.definition.tag === tag];
+      default:
+        return [false, false];
+    }
+  }
+  const value = resolved.value;
+  if (typeof value === 'object') {
+    if ('nullable' in value) {
+      if (wrapped === null) return [false, false];
+      return carrier(child(resolved, value.nullable), tag, wrapped, location);
+    }
+    if ('map' in value || 'empty' in value) return [true, false];
+  }
+  return [value === 'json', false];
+}
+
+function validate(expression: Expression, value: unknown, location: string): void {
+  const resolved = resolve(expression, location);
+  const definition = resolved.definition;
+  if (definition) {
+    switch (definition.kind) {
+      case 'enum':
+        if (typeof value !== 'string' || !definition.values?.includes(value)) bad(location, resolved.name!);
+        return;
+      case 'record':
+      case 'entity': {
+        if (!plainObject(value)) bad(location, resolved.name + ' object');
+        const object = value as Record<string, unknown>;
+        const allowed = new Set<string>();
+        for (const scoped of fields(resolved, location)) {
+          const { field } = scoped;
+          allowed.add(field.name);
+          const at = location + '.' + field.name;
+          if (!Object.hasOwn(object, field.name)) {
+            if (field.required) throw new Error(at + ': required field missing');
+            continue;
+          }
+          const member = object[field.name];
+          if (member === null) {
+            if (field.nullable) continue;
+            if (!nullable(scoped.expression, at)) throw new Error(at + ': null is not permitted');
+          }
+          validate(scoped.expression, member, at);
+          if (member !== null) constrain(field, member, at);
+        }
+        for (const key of Object.keys(object).sort()) {
+          if (allowed.has(key)) continue;
+          if (!definition.open) throw new Error(location + '.' + key + ': unknown field');
+          jsonValue(object[key], location + '.' + key);
+        }
+        return;
+      }
+      case 'union': {
+        if (!plainObject(value)) bad(location, resolved.name + ' object');
+        const object = value as Record<string, unknown>,
+          tag = definition.tag!;
+        if (!Object.hasOwn(object, tag)) throw new Error(location + '.' + tag + ': required field missing');
+        const tagName = object[tag],
+          all = variants(resolved, location);
+        if (typeof tagName !== 'string' || !Object.hasOwn(all, tagName)) bad(location + '.' + tag, 'known variant');
+        const variant = all[tagName]!,
+          member = definition.value ?? 'value';
+        const probe = Object.keys(object).length === 2 ? object[member] : undefined;
+        const [objectCarrier, declaresTag] = carrier(variant, tag, probe, location);
+        if (objectCarrier) {
+          const payload = Object.fromEntries(Object.entries(object).filter(([key]) => key !== tag || declaresTag));
+          validate(variant, payload, location);
+          return;
+        }
+        if (!Object.hasOwn(object, member)) throw new Error(location + '.' + member + ': required field missing');
+        validate(variant, object[member], location + '.' + member);
+        for (const key of Object.keys(object).sort())
+          if (key !== tag && key !== member) throw new Error(location + '.' + key + ': unknown field');
+        return;
+      }
+      default:
+        bad(location, 'supported type');
+    }
+  }
+  const type = resolved.value;
+  if (typeof type === 'object') {
+    if ('nullable' in type) {
+      if (value !== null) validate(child(resolved, type.nullable), value, location);
+      return;
+    }
+    if ('literal' in type) {
+      if (value !== type.literal) bad(location, 'literal ' + JSON.stringify(type.literal));
+      return;
+    }
+    if ('array' in type) {
+      if (!Array.isArray(value)) bad(location, 'array');
+      for (let index = 0; index < value.length; index++)
+        validate(child(resolved, type.array), value[index], location + '[' + index + ']');
+      return;
+    }
+    if ('map' in type) {
+      if (!plainObject(value)) bad(location, 'object');
+      const object = value as Record<string, unknown>;
+      for (const key of Object.keys(object).sort())
+        validate(child(resolved, type.map), object[key], location + '.' + key);
+      return;
+    }
+    if ('ref' in type) {
+      let target: Expression, entity: WireType;
+      try {
+        [target, entity] = named(resolved, type.ref, location);
+      } catch {
+        return bad(location, 'known entity');
+      }
+      const key = fields(resolve(target, location), location).find(({ field }) => field.name === entity.key);
+      if (!key) bad(location, 'entity with a key');
+      validate(key.expression, value, location);
+      return;
+    }
+    if ('empty' in type) {
+      if (!plainObject(value) || Object.keys(value as object).length !== 0) bad(location, 'empty object');
+      return;
+    }
+    bad(location, 'supported type expression');
+  }
+  switch (type) {
+    case 'json':
+      jsonValue(value, location);
+      return;
+    case 'string':
+      if (typeof value !== 'string') bad(location, 'string');
+      return;
+    case 'boolean':
+      if (typeof value !== 'boolean') bad(location, 'boolean');
+      return;
+    case 'number':
+    case 'integer':
+      if (typeof value !== 'number') bad(location, type);
+      if (!Number.isFinite(value)) bad(location, 'finite number');
+      if (type === 'integer' && !Number.isSafeInteger(value)) bad(location, 'JavaScript-safe integer');
+      return;
+    case 'timestamp':
+      if (typeof value !== 'string') bad(location, 'timestamp');
+      if (!timestamp(value)) bad(location, 'RFC3339 timestamp');
+      return;
+    default:
+      bad(location, 'known type');
+  }
+}
+
+/** Creates a validator whose imports retain both values and declaration scope. */
+export function createValidator(family: WireFamily, imported: Record<string, Validator> = {}): Validator {
+  if (!family.types) throw new Error('expected family descriptor with types');
+  const schema: Schema = { family, imported };
+  const validateWire = (type: TypeExpression, value: unknown, location = '$', slots: Slots = {}): void => {
+    const scope: Scope = Object.create(null) as Scope;
+    for (const [parameter, binding] of Object.entries(slots)) {
+      scope[parameter] =
+        'type' in binding
+          ? { type: { schema: binding.validate[descriptor], value: binding.type, scope: {} } }
+          : { family: binding.validate[descriptor] };
+    }
+    validate({ schema, value: type, scope }, value, location);
   };
-  const validateWire: Validator = (type, value, location = '$', slots) => {
-    const bad = (expected: string): never => {
-      throw new Error(location + ': expected ' + expected);
-    };
-    if (typeof type === 'object') {
-      if ('array' in type) {
-        if (!Array.isArray(value)) bad('array');
-        let index = 0;
-        for (const item of value as unknown[]) validateWire(type.array, item, location + '[' + index++ + ']', slots);
-        return;
-      }
-      if ('ref' in type) {
-        const entity = types[type.ref];
-        if (!entity) bad('known entity');
-        const key = fields(type.ref).find((field) => field.name === entity!.key);
-        if (!key) bad('entity with a key');
-        validateWire(key!.type, value, location, slots);
-        return;
-      }
-      if ('apply' in type) {
-        foreign(type.apply, value, location, applied(type.with, slots));
-        return;
-      }
-      if ('map' in type) {
-        if (!plainObject(value)) bad('object');
-        for (const [key, item] of Object.entries(value as Record<string, unknown>))
-          validateWire(type.map, item, location + '.' + key, slots);
-        return;
-      }
-      if (!('empty' in type)) bad('supported type expression');
-      if (!plainObject(value) || Object.keys(value as object).length !== 0) bad('empty object');
-      return;
-    }
-    if (type.includes('.')) {
-      const at = type.indexOf('.');
-      if (/^[A-Z]/.test(type)) {
-        drawn(type.slice(0, at), type.slice(at + 1), value, location, slots);
-        return;
-      }
-      foreign(type, value, location, slots);
-      return;
-    }
-    switch (type) {
-      case 'json':
-        jsonValue(value, location);
-        return;
-      case 'string':
-        if (typeof value !== 'string') bad('string');
-        return;
-      case 'boolean':
-        if (typeof value !== 'boolean') bad('boolean');
-        return;
-      case 'number':
-      case 'integer':
-        if (typeof value !== 'number') bad(type);
-        if (!Number.isFinite(value)) bad('finite number');
-        if (type === 'integer' && !Number.isSafeInteger(value)) bad('JavaScript-safe integer');
-        return;
-      case 'timestamp':
-        if (typeof value !== 'string') bad('timestamp');
-        if (!timestamp(value)) bad('RFC3339 timestamp');
-        return;
-    }
-    const definition = types[type];
-    if (!definition) bad('known type');
-    if (definition!.kind === 'alias') {
-      validateWire(definition!.type!, value, location, slots);
-      return;
-    }
-    if (definition!.kind === 'enum') {
-      if (typeof value !== 'string' || !definition!.values!.includes(value)) bad(type);
-      return;
-    }
-    if (definition!.kind !== 'record' && definition!.kind !== 'entity') bad('supported type');
-    if (!plainObject(value)) bad(type + ' object');
-    const object = value as Record<string, unknown>,
-      allowed = new Set<string>();
-    for (const field of fields(type)) {
-      allowed.add(field.name);
-      const at = location + '.' + field.name;
-      if (!Object.hasOwn(object, field.name)) {
-        if (field.required === true) throw new Error(at + ': required field missing');
-        continue;
-      }
-      const child = object[field.name];
-      if (child === null && field.nullable) continue;
-      if (child === null) throw new Error(at + ': null is not permitted');
-      validateWire(field.type, child, at, slots);
-      constrain(field, child, at);
-    }
-    for (const key of Object.keys(object)) {
-      if (allowed.has(key)) continue;
-      if (!definition!.open) throw new Error(location + '.' + key + ': unknown field');
-      jsonValue(object[key], location + '.' + key);
-    }
-  };
-  return validateWire;
+  return Object.assign(validateWire, { [descriptor]: schema });
 }

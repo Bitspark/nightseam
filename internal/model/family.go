@@ -630,6 +630,11 @@ type wireParameter struct {
 	Of   string `json:"of,omitempty"`
 }
 
+// MarshalJSON writes a parameter in the declaration's wire spelling.
+func (p Parameter) MarshalJSON() ([]byte, error) {
+	return json.Marshal(wireParameter{Name: p.Name, Of: p.Of})
+}
+
 type wireFieldJSON struct {
 	Name     string       `json:"name"`
 	Type     TypeExpr     `json:"type"`
