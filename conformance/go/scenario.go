@@ -53,8 +53,10 @@ type Step struct {
 	Note        string
 }
 
-// Repeat says a step is sent again until an answer of one kind, at most
-// Max times; the step's expectations then hold against that answer.
+// Repeat says a step is sent again — until an answer of one kind, or
+// until its expectations match, which is a wait on what the far side of
+// the wire has yet to do — at most Max times; the step's expectations then
+// hold against the last answer.
 type Repeat struct {
 	Max   int
 	Until string

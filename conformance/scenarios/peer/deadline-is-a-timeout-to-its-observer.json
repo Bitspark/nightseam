@@ -81,7 +81,11 @@
       "assert": {
         "present": "\"kind\":\"cancel\""
       },
-      "note": "the outcome is what the two runtimes agree on, and that a cancel was sent. Two things beside it are not one rule yet and are held by nothing here rather than papered over: the error_code, which Go leaves empty where TypeScript names request_timeout, and where the cancel falls — Go sends it before the request ends, TypeScript after — which is why the cancel is asserted present rather than placed in the order"
+      "note": "the outcome is what the two runtimes agree on, and that a cancel was sent. The step repeats until its expectations hold: the caller's own answer — the call failing on its deadline — precedes the cancel frame the writer then sends, so the observer read here waits for the cancel to be written rather than asserting it already was. Two things beside it are not one rule yet and are held by nothing here rather than papered over: the error_code, which Go leaves empty where TypeScript names request_timeout, and where the cancel falls in the order — Go sends it before the request ends, TypeScript after — which is why the cancel is asserted present rather than placed",
+      "repeat": {
+        "max": 40,
+        "until": "match"
+      }
     }
   ]
 }
