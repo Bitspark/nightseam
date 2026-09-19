@@ -1,0 +1,30 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "echo": {
+        "description": "Returns the payload, its text reversed by the caller.",
+        "request": "Payload",
+        "result": "Payload"
+      }
+    },
+    "events": {
+      "changed": {
+        "description": "A payload changed.",
+        "type": "Payload"
+      }
+    }
+  },
+  "client": {
+    "methods": {
+      "reverse": {
+        "description": "Asks the client to reverse a payload.",
+        "request": "Payload",
+        "result": "Payload"
+      }
+    }
+  },
+  "errors": {
+    "denied": "The caller is denied."
+  }
+}

@@ -15,7 +15,7 @@ import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { gate, matrixFile, missing, profilesFile, readJSON, unrun } from "./matrix.mjs";
-import { modules, packages, requirement, root } from "./packages.mjs";
+import { dependency, examples, manifestsUnder, modules, packages, requirement, root } from "./packages.mjs";
 
 const flag = name => {
   const at = process.argv.indexOf(name);
@@ -45,6 +45,23 @@ for (const file of modules) {
   const required = readFileSync(join(root, file), "utf8").match(requirement)?.[2];
   if (required !== tag) problems.push(`${file} requires the root module at ${required ?? "nothing"}, the tag is ${tag}`);
 }
+// The getting-started example is the consumer both smokes install, which
+// is only worth anything if what it asks for is what this tag publishes: it
+// requires the root module and every published package at the version, with
+// no workspace link and no replace to stand in for one.
+for (const example of examples) {
+  const module = readFileSync(join(root, example, "go.mod"), "utf8");
+  const required = module.match(requirement)?.[2];
+  if (required !== tag) problems.push(`${example}/go.mod requires the root module at ${required ?? "nothing"}, the tag is ${tag}`);
+  if (/^replace\s+github\.com\/Bitspark\/nightseam/m.test(module)) problems.push(`${example}/go.mod replaces the root module; the example resolves what is published`);
+  for (const file of manifestsUnder(example)) {
+    for (const match of readFileSync(join(root, file), "utf8").matchAll(dependency)) {
+      const spec = match[0].slice(match[1].length).slice(1, -1);
+      if (spec !== version) problems.push(`${file} depends on ${match[0].split('"')[1]} at ${spec}, the tag is ${version}`);
+    }
+  }
+}
+
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
 const section = changelog.split(/^## /m).find(part => part.startsWith(version + "\n") || part.startsWith(version + " "));
 if (!section) problems.push(`CHANGELOG.md has no section "## ${version}"`);
@@ -92,7 +109,7 @@ if (dryRun) {
 }
 const against = previous ? `the matrix of ${previous.tag}` : "no previous release";
 console.log(
-  `ready: ${tag} — ${packages.join(", ")}, DefaultRuntimeVersion, ${modules.join(", ")}, CHANGELOG section` +
+  `ready: ${tag} — ${packages.join(", ")}, DefaultRuntimeVersion, ${modules.join(", ")}, ${examples.join(", ")}, CHANGELOG section` +
     `; the matrix holds against ${against}${marked.length ? `, ${marked.join("; ")}` : ""}` +
     (dryRun ? "" : "; release-notes.md written"),
 );

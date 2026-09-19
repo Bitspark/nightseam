@@ -89,6 +89,14 @@ jobs:
             exit 1
           fi
           echo "public repository and id-token: write — provenance can be minted"
+      # What is about to be published, installed from outside the workspace
+      # by the getting-started example: the tarballs by path and the Go
+      # module from a proxy laid out of this tree. It runs on a rehearsal as
+      # well as on a tag, needs no registry and no tag of its own, and is
+      # the last thing between a green tree and an upload that cannot be
+      # taken back.
+      - name: Install what is about to be published
+        run: node scripts/smoke-packed.mjs
       - name: Publish to npm
         # On a rehearsal this packs each tarball, mints the provenance
         # attestation and stops short of the upload.
@@ -101,6 +109,16 @@ jobs:
         run: gh release create "$TAG" --title "$TAG" --notes-file release-notes.md
         env:
           GH_TOKEN: ${{ github.token }}
+      # The round trip, once there is something to install: the same
+      # example, from npm and from the module proxy, with nothing laid for
+      # it and nothing overridden. Its failure fails the run and files an
+      # issue naming the tag, because by now the tag exists and the packages
+      # are on npm, and a red run on a tag nobody re-runs is silence.
+      - name: The round trip against what was published
+        if: github.event_name == 'push'
+        run: node scripts/smoke-registry.mjs "$TAG" --open-issue
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: What a rehearsal did not do
         if: github.event_name == 'workflow_dispatch'
-        run: echo "rehearsed $TAG — nothing was published and no release was created"
+        run: echo "rehearsed $TAG — nothing was published, no release was created, and the round trip against the registries did not run"

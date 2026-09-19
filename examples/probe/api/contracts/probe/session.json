@@ -1,0 +1,12 @@
+{
+  "decides": [
+    "echo"
+  ],
+  "asks": [
+    "reverse"
+  ],
+  "conversation": {
+    "event": "changed",
+    "path": "text"
+  }
+}

@@ -152,6 +152,11 @@ go tool nightseam check               # in CI: fail if the checked-in output is 
 go tool nightseam version             # which version of the tool is running
 ```
 
+The three blocks above, made to run: [examples/](examples/) — one family, a
+Go server and a TypeScript client, installed from what is published rather
+than from this tree, which is also how a release finds out whether what it
+publishes can be used.
+
 ## Documentation
 
 | page | what |

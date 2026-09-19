@@ -43,6 +43,14 @@ tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
   every `*/go/go.mod`, and `TestVersionsMoveInLockstep` globs the same
   paths.
 
+Nothing under `examples/` is published. `examples/probe` is a consumer of
+what is — the getting-started of [examples/README.md](examples/README.md),
+and the consumer both smokes below install — so it names the released
+version of everything it depends on, in both languages, with no
+`workspace:*` and no `replace`. `scripts/version.mjs` moves those spellings
+with the rest, `scripts/release-prepare.mjs` holds them to the tag, and
+`TestVersionsMoveInLockstep` holds them in the fast tier.
+
 ## Cutting a release
 
 1. Be on `main`, clean, with both tiers green: `go test ./...`,
@@ -54,8 +62,11 @@ tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
    release is weighed against the matrix the tag carries. *What a release
    refuses*, below, says what a red cell does.
 2. Set the version everywhere: `node scripts/version.mjs 0.3.0`. It rewrites
-   every manifest, the generator's constant and every nested module's
-   requirement on the root module; since the constant is in
+   every manifest, the generator's constant, every nested module's
+   requirement on the root module, and what the getting-started example
+   depends on in both languages — a consumer checkout, so it names the
+   version rather than linking to the tree, and a release whose own example
+   asks for something else is not one; since the constant is in
    the generated manifests' goldens, then run
    `go test ./cmd/nightseam -short -run Golden -update` and commit the two
    together: `release: 0.3.0`, with the changelog's *Unreleased* section
@@ -73,9 +84,25 @@ tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
 4. The `release` workflow runs on `v*`, which is the first tag and not the
    second: it checks the versions and the conformance matrix against the tag,
    installs, runs both tiers and each nested module's, builds, checks what
-   provenance needs, publishes the packages with the repository's `NPM_TOKEN`
-   secret and `--provenance`, and creates the GitHub release with that
-   version's changelog section as its notes.
+   provenance needs, **installs what is about to be published** —
+   `node scripts/smoke-packed.mjs`, described under *Rehearsing one* —
+   publishes the packages with the repository's `NPM_TOKEN` secret and
+   `--provenance`, creates the GitHub release with that version's changelog
+   section as its notes, and then **makes the round trip**:
+   `node scripts/smoke-registry.mjs $TAG --open-issue` installs the same
+   example again, this time from npm and from the module proxy with nothing
+   laid for it and nothing overridden, `go get`s the root module at the tag
+   and the adapter at its own, and runs the exchange.
+
+   The round trip is the only step after the upload, and it is the only one
+   whose failure cannot be answered by fixing the tree and tagging again: the
+   tag is cut, the packages are on npm, and neither can be taken back. So its
+   failure both fails the run and opens an issue naming the tag, because a
+   red run on a tag nobody re-runs is silence, and the question it leaves —
+   whether what is published is usable and the smoke is wrong, or a patch
+   release is owed — is one somebody has to answer the next morning.
+   Exercise that path once by hand, against a version that does not exist, so
+   that the issue it opens has been seen before it is needed.
 
 ## What a release refuses
 
@@ -118,9 +145,50 @@ stops for, a tier that is red, a build that emits nothing, a repository that
 is not public, an OIDC token the job may not mint — otherwise fails a run
 that follows a tag which already exists.
 
+A rehearsal also installs what it would publish. `node scripts/smoke-packed.mjs`
+packs every published package, copies `examples/probe` — the getting-started,
+and the one consumer both smokes use — out of the workspace, and resolves it
+against the packed shape and nothing else: no `workspace:*` link, no
+`replace` to this checkout. It then type-checks it, builds it, runs the
+server and reads the client's two lines back. It is the only gate that asks
+whether what is published can be *installed*; a `files` field that omits
+`dist`, an `exports` entry naming a path the tarball does not hold, a
+dependency a link satisfied and a registry would not, a Go package that only
+ever resolved through a sibling checkout — each passes everything else here
+and is given at a consumer's install, which is after the tag. It runs on
+every pull request too, in `ci.yml`'s full job, so that a packaging change
+fails the change rather than the release that carries it.
+
+It needs no registry and no tag, which is what lets it run while this
+repository is still private. Two choices make that true, and each had an
+alternative:
+
+- **npm: a pnpm `overrides` map to the tarballs' paths**, rather than
+  `pnpm add ./scratch/*.tgz`. The published packages depend on one another,
+  so a direct install of the five would satisfy the five and then go to the
+  registry for the transitive `@nightseam/duplex` the tarballs already hold;
+  an override reaches a transitive dependency and a direct one alike. Since
+  pnpm 10 an override is a workspace setting, so the copy is given a
+  `pnpm-workspace.yaml` of one project to carry them — written into the copy,
+  never into the checkout, where what is committed names the versions a
+  consumer of the registry names.
+- **Go: a `file://` module proxy laid from the tree**, rather than a
+  temporary tag on a scratch branch. A module zip is content-addressed —
+  `go` hashes what it unpacks rather than trusting where it came from — so a
+  zip written out of the working tree is what the proxy would serve for the
+  tag, and it costs no tag to create, nothing to push and nothing to clean
+  up afterwards. A temporary tag would have to be pushed to be fetched, which
+  is the one thing a rehearsal may not do. The proxy carries Nightseam alone;
+  everything else falls through to whatever `GOPROXY` the machine has.
+
 What a rehearsal does not answer is the registry's own refusals: a name
 already taken at that version, a token expired or without publish rights on
-the scope. Those are given at the upload and nowhere before it.
+the scope. Those are given at the upload and nowhere before it, which is what
+the round trip in *Cutting a release* is for — and that one runs on a tag
+push and never on a rehearsal, since before the tag there is nothing on
+either registry to install. What the packed smoke does not answer either is
+anything about the tarball that only the registry decides: the name it is
+served under, the files it keeps, the version it resolves `^` to.
 
 By hand, and further from what CI does: `node scripts/release-prepare.mjs
 v0.3.0 --dry-run` checks every spelling of the version and the matrix
@@ -131,17 +199,28 @@ would hold. Neither mints provenance — that needs the workflow's token.
 
 ## What a consumer does
 
+What a consumer does is `examples/probe`, and it is checked rather than
+asserted: both smokes install that example and run it, so the paragraph below
+is the one the release itself walks. [examples/README.md](examples/README.md)
+is the same thing written for the consumer.
+
 - Go: `go get github.com/Bitspark/nightseam@v0.3.0` and
-  `go get -tool github.com/Bitspark/nightseam/cmd/nightseam@v0.3.0`; a
-  `replace` to a sibling checkout is for development only.
+  `go get -tool github.com/Bitspark/nightseam/cmd/nightseam@v0.3.0`. The
+  example requires the module and names the tool in its own `go.mod`, with no
+  `replace`: a `replace` to a sibling checkout is for development only, and
+  an example carrying one would be an example nobody had installed.
 - Go, the OpenTelemetry adapter:
   `go get github.com/Bitspark/nightseam/otel/go@v0.3.0`, which brings
   OpenTelemetry with it — and brings none of it to a consumer that does not
-  ask for it, which is why it is a module of its own.
+  ask for it, which is why it is a module of its own. The round trip `go
+  get`s it into a module of its own for the same reason: nothing the example
+  does would resolve the second tag, and the second tag is the step that
+  depends on the first already being fetchable.
 - npm: the generated clients depend on `@nightseam/runtime` and
   `@nightseam/tunnel` at the version the generator that rendered them
-  carries; a workspace override to a sibling checkout is for development
-  only, and comes out when the packages it stands in for exist.
+  carries; the example depends on the same two at the same version, with no
+  `workspace:*`. A workspace override to a sibling checkout is for
+  development only, and comes out when the packages it stands in for exist.
 
 ## Once, before the first release
 

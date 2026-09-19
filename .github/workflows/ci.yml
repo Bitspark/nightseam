@@ -77,6 +77,18 @@ jobs:
       # file and compared against the regenerated one, so a run that moved a
       # cell shows up here whether or not the file was committed with it.
       - run: node scripts/matrix-table.mjs --check
+      # The getting-started example's checked-in generated output, held the
+      # way a consumer's is. The example is a Go module and a pnpm project
+      # of its own, so neither `go test ./...` above nor `pnpm -r` enters it.
+      - run: go run ./cmd/nightseam --root examples/probe check
+      # The one gate that asks whether what is published can be installed:
+      # every package packed, the example installed from the tarballs and
+      # from a file:// module proxy outside the workspace, then built and
+      # run. It is here and not only at a tag so that the example is held by
+      # every pull request, and so that a packaging change fails the change
+      # rather than the release that carries it. RELEASING.md says what it
+      # does not answer.
+      - run: node scripts/smoke-packed.mjs
       - run: go vet ./...
         working-directory: otel/go
       - run: go test ./...

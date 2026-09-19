@@ -1,0 +1,21 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Payload": {
+      "kind": "record",
+      "description": "What a probe carries: some text, and how often it has been seen.",
+      "fields": [
+        {
+          "name": "text",
+          "description": "The text of the payload.",
+          "type": "string"
+        },
+        {
+          "name": "count",
+          "description": "How often the payload has been seen.",
+          "type": "integer"
+        }
+      ]
+    }
+  }
+}
