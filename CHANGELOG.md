@@ -156,6 +156,8 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Carried built-ins used as union payloads remain local to their family in
+  generated Go and TypeScript, without imports of nonexistent built-in packages.
 - Documentation examples honor array lengths and explicit family bindings,
   and synthesize checked witnesses for supported patterned strings.
 - Registry smoke consumers have their own pnpm workspace boundary, so an

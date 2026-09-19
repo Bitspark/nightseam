@@ -32,22 +32,12 @@
         }
       ]
     },
-    "Sunk": {
-      "kind": "record",
-      "description": "A reference inside a sum. The variant would be duplex.Handle itself but for #210, which refuses to render a carried built-in as a union variant; a record around it carries the reference just as transitively.",
-      "fields": [
-        {
-          "name": "at",
-          "type": "duplex.Handle"
-        }
-      ]
-    },
     "Either": {
       "kind": "union",
       "tag": "kind",
       "description": "A reference or a value, in the same sum.",
       "variants": {
-        "sink": "Sunk",
+        "sink": "duplex.Handle",
         "note": "notes.Note",
         "nothing": {
           "empty": true

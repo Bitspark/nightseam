@@ -242,7 +242,7 @@ func TestReferencesInProductsSumsAndContainers(t *testing.T) {
 		Many:   []workerprotocol.Handle{references[1], {Channel: 9999}},
 		ByName: map[string]workerprotocol.Handle{"a": references[2]},
 		Maybe:  runtime.Some(runtime.NonNull(references[3])),
-		Either: workerprotocol.Either{Sink: &workerprotocol.Sunk{At: references[4]}},
+		Either: workerprotocol.Either{Sink: &references[4]},
 		Inline: workerprotocol.HeldInline{Held: references[5], Label: "inline"},
 	}
 	counted, err := called.client.Collect(ctx, held)

@@ -146,7 +146,7 @@ func (w *theWorker) Collect(ctx context.Context, remote *workerbinding.Remote, p
 		resolve(params.Maybe.Value.Value)
 	}
 	if params.Either.Kind() == workerprotocol.EitherKindSink {
-		resolve(params.Either.Sink.At)
+		resolve(*params.Either.Sink)
 	}
 	resolve(params.Inline.Held)
 	return counted, nil

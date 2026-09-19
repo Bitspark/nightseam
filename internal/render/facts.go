@@ -179,7 +179,11 @@ func (r *Family) surfaceReferences() {
 			add(variant.Origin.Family)
 			arguments(variant.Arguments)
 			if variant.Payload != nil {
-				add(variant.Payload.Origin.Family)
+				// A carried payload is rendered by its carrying family. Its
+				// built-in origin records provenance, not a package dependency.
+				if !variant.Payload.Carried {
+					add(variant.Payload.Origin.Family)
+				}
 				arguments(variant.Payload.Arguments)
 			}
 		}
