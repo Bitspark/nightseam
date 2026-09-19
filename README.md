@@ -59,10 +59,11 @@ TypeScript, the client side:
 ```ts
 const client = await Client.dial('wss://example.test/probe', {}, {
   reverse: ({ text, count }) => ({ text: [...text].reverse().join(''), count }),
+}, {
+  changed: p => console.log('changed', p.text),
 });
 
 const payload = await client.echo({ text: 'hello', count: 1 });
-const stop = client.onChanged(p => console.log('changed', p.text));
 ```
 
 What you never write: the envelope, the correlation of a response to its

@@ -29,6 +29,7 @@ const (
 	identIsError               = "IsError"
 	identRemote                = "Remote"
 	identHandler               = "Handler"
+	identEvents                = "Events"
 	identInstall               = "install"
 	identFamilies              = "families"
 	identNewHandler            = "NewHandler"
@@ -73,7 +74,7 @@ func Reserved() []string {
 	return []string{
 		identTag, identOf, identMarshalJSON, identUnmarshalJSON, identAdditionalFields,
 		identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identErrors, identIsError,
-		identRemote, identHandler, identInstall, identNewHandler, identServe,
+		identRemote, identHandler, identEvents, identInstall, identNewHandler, identServe,
 		identClient, identCaller, identDecides, identAsks, identConversation, identDial, identAttach, identOpen,
 		identPeer, identClose,
 	}
@@ -89,7 +90,7 @@ func newPlan(f *render.Family) (*plan, []diag.Diagnostic) {
 		operations: map[string]string{}, errors: map[string]string{}, typeParams: map[render.Use]string{},
 		List: diag.List{Family: f.Name},
 	}
-	p.packages.Fix("generated declaration", identTag, identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identErrors, identIsError, identRemote, identHandler, identInstall, identNewHandler, identServe, identClient, identCaller, identDecides, identAsks, identConversation, identDial, identAttach, identOpen)
+	p.packages.Fix("generated declaration", identTag, identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identErrors, identIsError, identRemote, identHandler, identEvents, identInstall, identNewHandler, identServe, identClient, identCaller, identDecides, identAsks, identConversation, identDial, identAttach, identOpen)
 	p.client.Fix("generated client field", identPeer)
 	p.client.Fix("generated client method", identClose)
 	p.remote.Fix("generated remote field", identPeer)
