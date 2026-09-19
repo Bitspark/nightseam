@@ -18,7 +18,6 @@ import (
 	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/load"
 	"github.com/Bitspark/nightseam/internal/model"
-	"github.com/Bitspark/nightseam/internal/model/builtin"
 	"github.com/Bitspark/nightseam/internal/render"
 	"github.com/Bitspark/nightseam/internal/spi"
 )
@@ -111,9 +110,9 @@ type Result struct {
 }
 
 // Render renders one family and its built-in dependencies with every target
-// that consumes what they declare. A family with any diagnostic is refused before any target
-// renders; a rendered path outside what its target owns, or rendered
-// twice, is refused after.
+// that consumes what they declare. A family with any diagnostic is refused
+// before any target renders; a rendered path outside what its target owns,
+// or rendered twice, is refused after.
 func (k *Kernel) Render(world *World, name string) (Result, error) {
 	if diagnostics := k.Validate(world, name); len(diagnostics) != 0 {
 		return Result{}, fmt.Errorf("invalid family: %s", diagnostics[0])
@@ -159,7 +158,7 @@ func renderingFamilies(root *render.Family) []*render.Family {
 		seen[f.Name] = true
 		families = append(families, f)
 		for _, name := range f.References {
-			if source := f.ReferencedFamily(name); source != nil && strings.HasPrefix(source.Source, builtin.Prefix) {
+			if source := f.ReferencedFamily(name); source != nil && source.Builtin {
 				visit(source)
 			}
 		}

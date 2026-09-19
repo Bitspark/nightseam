@@ -23,6 +23,7 @@ type Use = analysis.Use
 type Family struct {
 	Name            string
 	Source          string      // original declaration directory, including a built-in's distinct namespace
+	Builtin         bool        // the source belongs to the embedded built-in namespace
 	Files           []string    // the tier files present
 	Generic         bool        // whether any type or operation draws on a parameter
 	Parameters      []Parameter // in declaration order
@@ -202,7 +203,7 @@ func (b *builder) build(f *analysis.Family) *Family {
 	if r := b.families[f]; r != nil {
 		return r
 	}
-	r := &Family{Name: f.Name, Source: f.Source, Files: f.Files, overrides: map[string]model.Overrides{}, f: f, types: map[string]*Type{}, builder: b, inlines: map[*model.Type]*Type{}}
+	r := &Family{Name: f.Name, Source: f.Source, Builtin: f.IsBuiltin(), Files: f.Files, overrides: map[string]model.Overrides{}, f: f, types: map[string]*Type{}, builder: b, inlines: map[*model.Type]*Type{}}
 	b.families[f] = r
 	for _, p := range f.Parameters() {
 		r.Parameters = append(r.Parameters, Parameter{Name: p.Name, Of: p.Of, Description: p.Description, At: p.At})

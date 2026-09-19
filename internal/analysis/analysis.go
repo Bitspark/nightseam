@@ -141,6 +141,9 @@ func (f *Family) IsCarried(typeName string) bool {
 // for a type this family declares.
 func (f *Family) CarriedFrom(typeName string) string { return f.from[typeName] }
 
+// IsBuiltin distinguishes embedded source declarations from a checkout's.
+func (f *Family) IsBuiltin() bool { return strings.HasPrefix(f.Source, builtin.Prefix) }
+
 // DeclaredByBuiltin is the built-in family that declares a type of this
 // name among the ones this family carries, empty when none does: what a
 // family may not declare itself, because it already has it.
