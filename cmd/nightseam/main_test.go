@@ -129,7 +129,14 @@ func copyFixtureTree(t *testing.T, source, destination string) {
 			}
 			return nil
 		}
-		if strings.HasSuffix(p, "_test.go") || strings.HasSuffix(p, ".test.ts") {
+		// A package's own test support is not what the fixture compiles: it
+		// checks the generated code against the packages it binds to, and a
+		// suite or a type-level check is reached by nothing it builds. They
+		// are left behind because they import node's built-in modules, for
+		// which the fixture installs no types — the fixture has no
+		// node_modules at all, the packages reaching it through paths.
+		if strings.HasSuffix(p, "_test.go") || strings.HasSuffix(p, ".test.ts") ||
+			strings.HasSuffix(p, ".check.ts") || filepath.Base(p) == "conformance.ts" {
 			return nil
 		}
 		relative, err := filepath.Rel(source, p)
