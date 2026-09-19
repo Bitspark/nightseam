@@ -77,6 +77,9 @@ are one number. Entries are in the words of the commits that landed them.
   history: the deadline scenario no longer consumes request events before
   the cancel arrives, and the scenario loader refuses such polling without
   `drain: false`.
+- Packed-smoke Go modules use a distinct rehearsal version and an isolated,
+  removable module cache, so a rehearsal cannot poison a consumer's release
+  cache. The release workflow refuses a remote tag naming another commit.
 - A replay hands a consumer the machine's events alone, where it handed it
   every frame the log held: a consumer attaching after another had decided
   anything was replayed that other consumer's requests, which carry an id the

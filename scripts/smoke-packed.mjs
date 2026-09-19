@@ -28,10 +28,9 @@ import { connect, createServer } from "node:net";
 import { setTimeout as after } from "node:timers/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { pathToFileURL } from "node:url";
 import { examples, packages, root } from "./packages.mjs";
-import { layProxy } from "./modzip.mjs";
 import { holdTarball } from "./tarball.mjs";
+import { prepareGoRehearsal } from "./rehearsal.mjs";
 
 const keep = process.argv.includes("--keep");
 const manifest = directory => JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
@@ -128,20 +127,9 @@ async function smoke() {
   // Go, from a proxy carrying one module: what is not Nightseam falls
   // through to whatever GOPROXY the machine already has, and Nightseam
   // itself is served from here or from nowhere.
-  step(`laying a file:// module proxy for ${module}@v${version}`);
-  const proxy = layProxy({ root, directory: join(scratch, "goproxy"), module, version: "v" + version });
-  const go = {
-    GOWORK: "off",
-    // The example carries no go.sum: the hash of a version nobody has
-    // tagged is not knowable, so the consumer writes one here.
-    GOFLAGS: "-mod=mod",
-    GOSUMDB: "off",
-    // A checkout of this repository is often GOPRIVATE, which would send
-    // the module to a VCS rather than to the proxy laid above.
-    GOPRIVATE: "none",
-    GONOPROXY: "none",
-    GOPROXY: [pathToFileURL(proxy).href, process.env.GOPROXY || "https://proxy.golang.org,direct"].join(","),
-  };
+  const rehearsal = prepareGoRehearsal({ root, scratch, consumer, module, version });
+  const go = rehearsal.env;
+  step(`laid a file:// module proxy for ${module}@${rehearsal.version}, with an isolated module cache`);
   step("go mod download all");
   run("go", ["mod", "download", "all"], { cwd: consumer, env: go, stdio: ["ignore", "inherit", "inherit"] });
   // The generator the example names as a tool, built from the packed
@@ -172,7 +160,7 @@ async function smoke() {
   for (const line of ["echo    -> olleh", "changed -> hello"]) {
     if (!out.includes(line)) throw new Error(`the example printed no ${JSON.stringify(line)}:\n${out}`);
   }
-  console.log(`smoke: ${Object.keys(packed).length} packages and ${module}@v${version} installed from outside the workspace, and ${examples[0]} ran against them`);
+  console.log(`smoke: ${Object.keys(packed).length} packages and ${module}@${rehearsal.version} installed from outside the workspace, and ${examples[0]} ran against them`);
 }
 
 /**
