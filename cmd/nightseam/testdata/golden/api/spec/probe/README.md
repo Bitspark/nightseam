@@ -34,6 +34,8 @@ A record, open: fields beyond the declared ones are kept. A record that keeps th
 
 A record. A payload: a base with a count and a note that may be absent or null.
 
+Extends `Base`.
+
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `text` | `string` | required | — | inherited from `Base`. The text of the payload. |
