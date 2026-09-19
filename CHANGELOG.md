@@ -16,6 +16,12 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- Session families expose typed `session.control` and `session.cursor`
+  callbacks through the built-in family's ordinary protocol side. Initial
+  control is available before replay through construction-time events;
+  later callbacks observe transfers and releases. Generation includes the
+  shared session payload package, and the checker reserves `session.` for
+  the layer's own operations in every consumer family.
 - Both runtime validators read literals, nullable and inline shapes, scoped
   type and family applications, explicit generic inheritance and adjacent
   union payloads. Family descriptors retain parameter and import ownership;

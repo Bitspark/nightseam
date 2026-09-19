@@ -1,0 +1,21 @@
+func (*Control) UnmarshalJSON(data []byte) error
+func (*Cursor) UnmarshalJSON(data []byte) error
+func (*Envelope) UnmarshalJSON(data []byte) error
+func (*Handle) UnmarshalJSON(data []byte) error
+func (Control) MarshalJSON() ([]byte, error)
+func (Control) Of() Tag
+func (Control) WireType() runtime.TypeBinding
+func (Cursor) MarshalJSON() ([]byte, error)
+func (Cursor) Of() Tag
+func (Cursor) WireType() runtime.TypeBinding
+func (Envelope) MarshalJSON() ([]byte, error)
+func (Envelope) Of() Tag
+func (Envelope) WireType() runtime.TypeBinding
+func (Handle) MarshalJSON() ([]byte, error)
+func (Handle) Of() Tag
+func (Handle) WireType() runtime.TypeBinding
+type Control struct{Holder runtime.Nullable[string] `json:"holder"`}
+type Cursor struct{Sequence int64 `json:"sequence"`}
+type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`; Traceparent runtime.Optional[string] `json:"traceparent,omitzero"`; Tracestate runtime.Optional[string] `json:"tracestate,omitzero"`; Meta runtime.Optional[map[string]string] `json:"meta,omitzero"`}
+type Handle struct{Channel int64 `json:"channel"`}
+type Tag struct{}

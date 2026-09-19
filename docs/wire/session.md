@@ -127,10 +127,11 @@ logged](../decisions/the-sessions-vocabulary-is-not-logged.md)):
 - **Neither is logged.** The log holds the family's frames and nothing else,
   so a replay never gives a stale holder or a stale cursor: a consumer
   that reattaches is told both afresh, by the relay, where it now stands.
-- **Neither is a family event.** No family declares them, so a generated
-  client sees an event it has no listener for and drops it, which is what
-  the profile says a peer does with any event it did not declare. A consumer
-  that wants them today listens on the name.
+- **Both belong to the built-in session family.** A family with a session
+  tier gains that family's side implicitly, and its generated client can
+  register typed control and cursor callbacks. Consumer declarations under
+  `session.` are refused. A family without the tier gains neither callback.
+  The profile still drops an event when no listener is registered for it.
 - **The machine never sends one.** The vocabulary is the relay's to produce;
   a machine that sends any `session.*` frame speaks for the layer above it,
   and its connection is ended with 1002 and a reason naming the frame —
@@ -156,12 +157,15 @@ of resumption on the consumer's side: attaching again after the last cursor
 it was told gives it exactly what came after the last frame it was
 delivered, and nothing it already holds.
 
-Two things of this vocabulary do not exist yet, and nothing above is undone
-by them: `session.subscribe` and `session.unsubscribe`, by which a consumer
-narrows which of the family's events reach it (#51), and the typed surface
-by which these operations reach a family's generated code as operations no
-family declares, with the generator refusing a family a method or an event
-under the `session.` prefix (#50, #45).
+The generated client's construction-time `Events` value installs the typed
+control callback before reading begins, so it receives initial control
+before replay. Later registration receives subsequent changes and cannot
+recover the initial event. [The generated surface](../declaration/generated.md#session-control)
+names both language APIs.
+
+Automatic cursor state on a generated client remains the next lane (#45).
+`session.subscribe` and `session.unsubscribe`, by which a consumer narrows
+which application events reach it, follow in #51.
 
 ## The log
 

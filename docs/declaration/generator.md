@@ -124,3 +124,9 @@ The same target renders the complete [built-in family references](builtins/READM
 including each family's operations and types. Their generated headers name the
 embedded `nightseam:` source, and the fast test tier holds the documents to
 those declarations. The reference index names the regeneration command.
+
+Rendering a session family also renders its implicit built-in session
+dependency through each target, including the shared payload package its
+typed callbacks import. Generating a different family alone preserves that
+dependency while any family still needs it; removing the last session tier
+makes the unused built-in output stale like any other generated package.

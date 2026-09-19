@@ -59,10 +59,10 @@ A layer that speaks on the wire does it as the tunnel does:
 
 - **A reserved prefix**, one per layer: `channel.` for the tunnel,
   `session.` for the session. The namespace is the layer's, so that it is
-  never contested; today the generator does not yet refuse a family that
-  declares a method or an event under a reserved prefix (#50) — it holds
-  each target's own identifiers under `cmd/nightseam/testdata/reserved`,
-  not yet the prefixes.
+  never contested. The generator refuses consumer methods and events under
+  `session.`, including in families without a session tier. The built-in
+  family owns that namespace. Each target also holds its own identifiers
+  under `cmd/nightseam/testdata/reserved`.
 - **Ordinary frames of the profile.** A layer's request is a request, its
   event an event, minted, correlated and cancelled by the peer like any
   other. The layer registers its handlers on the peer it runs over (the

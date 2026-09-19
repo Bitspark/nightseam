@@ -415,17 +415,20 @@ in `testee.json` before the `generated` scenarios run.
 
 | op | arguments | answer |
 |---|---|---|
-| `gen.serve` | `behaviors` | `{"handle", "url"}` — the binding served at `url` with the canned handler set below |
-| `gen.dial` | **`url`**, `options` | `{"handle"}` a generated client, its reverse-call handler canned |
+| `gen.serve` | `behaviors`, `session` | `{"handle", "url"}` — the binding served at `url` with the canned handler set below; `session: true` places a relay before it |
+| `gen.dial` | **`url`**, `options`, `control` | `{"handle"}` a generated client, its reverse-call handler canned; `control: false` omits the construction-time control callback |
 | `client.echo` | **`on`**, **`params`** | `{"result"}` or `{"error"}` as the typed call ended |
 | `client.no_args` | **`on`** | the same |
 | `client.seen` | **`on`**, **`params`** | the same |
 | `client.emit_noticed` | **`on`**, **`data`** | `{}` |
 | `client.await_changed` | **`on`**, `within_ms` | `{"data"}` |
+| `client.await_notification` | **`on`**, `within_ms` | `{"event", "data"}` — the next typed `changed` or `session.control` callback, in delivery order |
+| `client.on_control` | **`on`** | `{}` — installs the generated control callback after construction |
 | `client.close` | **`on`** | `{}` |
 | `server.reverse` | **`on`** the served handle, **`params`** | `{"result"}` or `{"error"}` — the binding calls the connected client's `reverse` |
 | `server.emit_changed` | **`on`**, **`data`** | `{}` |
 | `server.await_noticed` | **`on`**, `within_ms` | `{"data"}` |
+| `server.control` | **`on`** the served handle, `origin` | `{}` — gives the session's control to that consumer, or releases it when null |
 | `gen.validate` | **`type`**, **`value`** | `{"valid": true}` or `{"valid": false, "message"}` — the protocol package's validator on a type expression |
 | `gen.decides` / `gen.asks` | **`method`** | `{"value": bool}` |
 | `gen.conversation` | | `{"event", "path"}` |
@@ -438,6 +441,16 @@ answers the payload with `text` prefixed by the language's name and a colon,
 `"go:"`, `"typescript:"`; a `changed` event is held for `client.await_changed`
 and a `noticed` event for `server.await_noticed`. A scenario does not know
 which language is on each side, so it holds the prefix with a pattern.
+
+With `session: true`, the server binds that machine behind a real session
+relay whose log begins with one `changed` event, `{text:"replay",count:1}`.
+Consumers are named `consumer1`, `consumer2`, and so on in connection order.
+The generated client's typed `session.control` callback is installed during
+construction by default; `control: false` allows a scenario to exercise
+later registration through `client.on_control`. The ordered notification
+queue holds initial control before replay and subsequent transfer/release,
+independently of `client.await_changed`'s existing queue. A language without
+a binding answers `gen.serve` with `unsupported`, as for the ordinary server.
 
 The generated testee lies under `conformance/<lang>/generated/`, and the
 runner lays those files beside the probe rendering in `{rendered}` before
