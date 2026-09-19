@@ -27,6 +27,7 @@ jobs:
       # Formatting is a gate and not a convention: .gitattributes keeps every
       # checkout at LF so that this answer is the same on every platform.
       - name: gofmt
+        shell: bash
         run: |
           unformatted=$(gofmt -l $(git ls-files '*.go'))
           if [ -n "$unformatted" ]; then echo "$unformatted"; exit 1; fi
