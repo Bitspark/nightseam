@@ -1,0 +1,2 @@
+x/model.json#/types/Result/variants/ok: Variant ok of union Result is "remote.Payload", which declares the member kind the union discriminates on; a variant that carries its own tag declares it as {"literal": "ok"}, and any other declaration of it is two readings of one frame. [tag_member]
+error: 1 problems

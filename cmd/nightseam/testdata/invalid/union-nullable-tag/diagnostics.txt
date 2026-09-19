@@ -1,0 +1,2 @@
+x/model.json#/types/Result/variants/ok: Variant ok of union Result declares kind nullable; the discriminator must be the non-null literal "ok". [tag_member]
+error: 1 problems
