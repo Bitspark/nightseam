@@ -96,12 +96,16 @@ func (r *Family) transform(e model.TypeExpr, source *Family, bindings map[string
 		if filler, ok := bindings[x.Name]; ok && filler.Type != nil {
 			return r.transform(filler.Type, r, nil, scope, preserveReferences)
 		}
-		if source != r {
-			if t := source.Type(x.Name); t != nil {
-				with := capturedArguments(t, bindings, nil)
-				if len(with) != 0 {
-					return model.Apply{Family: source.Name, Name: x.Name, With: with}
-				}
+		if t := source.Type(x.Name); t != nil {
+			family := ""
+			if source != r {
+				family = source.Name
+			}
+			with := capturedArguments(t, bindings, nil)
+			if len(with) != 0 {
+				return model.Apply{Family: family, Name: x.Name, With: with}
+			}
+			if source != r {
 				return model.Imported{Family: source.Name, Name: x.Name}
 			}
 		}
@@ -143,8 +147,10 @@ func (r *Family) transform(e model.TypeExpr, source *Family, bindings map[string
 			with[name] = filler
 		}
 		family := x.Family
-		if family == "" && source != r {
-			family = source.Name
+		if family == "" {
+			if source != r {
+				family = source.Name
+			}
 			with = capturedArguments(source.Type(x.Name), bindings, with)
 		}
 		return model.Apply{Family: family, Name: x.Name, With: with}

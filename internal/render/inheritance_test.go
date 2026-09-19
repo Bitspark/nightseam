@@ -132,3 +132,25 @@ func TestInheritedReferencesRetainTheArgumentOwner(t *testing.T) {
 		t.Fatal("event argument captured by the base's entity")
 	}
 }
+
+func TestLocalInheritanceBindsNestedFamilyCaptures(t *testing.T) {
+	world := analysis.World(modeltest.World(map[string]map[string]string{
+		"x": {"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"parameters":[{"name":"T"}],"types":{
+          "Nested":{"kind":"record","fields":[{"name":"item","type":"T"}]},
+          "Base":{"kind":"record","fields":[{"name":"nested","type":"Nested"}]},
+          "Child":{"kind":"record","extends":[{"apply":"Base","with":{"T":"string"}}],"fields":[]}
+        }`)},
+	}))
+	f := analysis.Resolve(world, "x")
+	r := Build(f)
+	for _, expression := range []model.TypeExpr{r.Type("Child").Fields[0].Type, f.FlattenedFields("Child")[0].Type} {
+		application, ok := expression.(model.Apply)
+		if !ok || application.Name != "Nested" || model.String(application.With["T"].Type) != `"string"` {
+			t.Fatalf("nested local capture = %s", model.String(expression))
+		}
+		view, ok := r.Apply(application, nil)
+		if !ok || model.String(view.Fields[0].Type) != `"string"` || len(view.Uses) != 0 {
+			t.Fatalf("bound nested view = %+v", view)
+		}
+	}
+}

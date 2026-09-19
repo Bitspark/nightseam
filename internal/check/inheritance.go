@@ -1,6 +1,8 @@
 package check
 
 import (
+	"reflect"
+
 	"github.com/Bitspark/nightseam/internal/analysis"
 	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/model"
@@ -81,7 +83,7 @@ func reachesType(source *analysis.Family, from, target *model.Type, seen map[*mo
 func (c *checker) inheritedVariantCollisions(t *model.Type) {
 	type origin struct {
 		declaration *model.Type
-		payload     string
+		payload     model.TypeExpr
 	}
 	seen := map[string]origin{}
 	var walk func(*analysis.Family, *model.Type, map[string]model.Filler, diag.Location, map[*model.Type]bool)
@@ -97,8 +99,8 @@ func (c *checker) inheritedVariantCollisions(t *model.Type) {
 			}
 		}
 		for _, variant := range base.Variants {
-			payload := model.String(c.f.BindExpression(variant.Type, source, bindings))
-			if previous, exists := seen[variant.Tag]; exists && (previous.declaration != base || previous.payload != payload) {
+			payload := c.f.BindExpression(variant.Type, source, bindings)
+			if previous, exists := seen[variant.Tag]; exists && (previous.declaration != base || !reflect.DeepEqual(previous.payload, payload)) {
 				c.Addf(at, "variant_collision", "Union %s inherits variant %s from both %s and %s; an inherited tag has one declaration and binding.", t.Name, variant.Tag, previous.declaration.Name, base.Name)
 			} else {
 				seen[variant.Tag] = origin{base, payload}

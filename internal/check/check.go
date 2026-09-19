@@ -7,6 +7,7 @@
 package check
 
 import (
+	"reflect"
 	"sort"
 	"strings"
 
@@ -739,8 +740,8 @@ func Protocol(f *analysis.Family) []diag.Diagnostic {
 // to it — so a name may not mean two things across the join.
 func (c *checker) extendedSide(side *model.Side, server bool, label string, operation func(string, string, diag.Location), calls, notifies string) {
 	f := c.f
-	seenMethods := map[*model.Method]string{}
-	seenEvents := map[*model.Event]string{}
+	seenMethods := map[*model.Method][2]model.TypeExpr{}
+	seenEvents := map[*model.Event]model.TypeExpr{}
 	var walk func(*analysis.Family, map[string]model.Filler, diag.Location, map[*analysis.Family]bool)
 	walk = func(source *analysis.Family, bindings map[string]model.Filler, at diag.Location, stack map[*analysis.Family]bool) {
 		if source == nil || source.Protocol == nil || stack[source] {
@@ -757,16 +758,16 @@ func (c *checker) extendedSide(side *model.Side, server bool, label string, oper
 		}
 		for i := range inherited.Methods {
 			m := &inherited.Methods[i]
-			signature := model.String(f.BindExpression(m.Request, source, bindings)) + ":" + model.String(f.BindExpression(m.Result, source, bindings))
-			if previous, seen := seenMethods[m]; !seen || previous != signature {
+			signature := [2]model.TypeExpr{f.BindExpression(m.Request, source, bindings), f.BindExpression(m.Result, source, bindings)}
+			if previous, seen := seenMethods[m]; !seen || !reflect.DeepEqual(previous, signature) {
 				operation(calls, m.Name, at)
 				seenMethods[m] = signature
 			}
 		}
 		for i := range inherited.Events {
 			e := &inherited.Events[i]
-			signature := model.String(f.BindExpression(e.Type, source, bindings))
-			if previous, seen := seenEvents[e]; !seen || previous != signature {
+			signature := f.BindExpression(e.Type, source, bindings)
+			if previous, seen := seenEvents[e]; !seen || !reflect.DeepEqual(previous, signature) {
 				operation(notifies, e.Name, at)
 				seenEvents[e] = signature
 			}

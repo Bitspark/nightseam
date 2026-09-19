@@ -114,3 +114,26 @@ func TestLocalInheritanceExplicitlyBindsCapturedFamilyParameters(t *testing.T) {
 		}
 	}
 }
+
+func TestInheritedReferenceBindingsKeepTheirFamilyIdentity(t *testing.T) {
+	files := fstest.MapFS{
+		"contracts/base/model.json":     {Data: []byte(`{"nightseam":2,"types":{"Choice":{"kind":"union","tag":"kind","parameters":[{"name":"T"}],"variants":{"chosen":"T"}}}}`)},
+		"contracts/base/protocol.json":  {Data: []byte(`{"profile":"nightseam.duplex/1","parameters":[{"name":"Item"}],"server":{"methods":{"read":{"result":"Item"}}}}`)},
+		"contracts/child/model.json":    {Data: []byte(`{"nightseam":2,"imports":["left","right"],"types":{"Choice":{"kind":"union","tag":"kind","extends":["left.Choice","right.Choice"],"variants":{}}}}`)},
+		"contracts/child/protocol.json": {Data: []byte(`{"profile":"nightseam.duplex/1","server":{"extends":["left","right"]}}`)},
+	}
+	for _, name := range []string{"left", "right"} {
+		files["contracts/"+name+"/model.json"] = &fstest.MapFile{Data: []byte(`{"nightseam":2,"imports":["base"],"types":{"Entity":{"kind":"entity","key":"id","fields":[{"name":"id","type":"string"}]},"Choice":{"kind":"union","tag":"kind","extends":[{"apply":"base.Choice","with":{"T":{"ref":"Entity"}}}],"variants":{}}}}`)}
+		files["contracts/"+name+"/protocol.json"] = &fstest.MapFile{Data: []byte(`{"profile":"nightseam.duplex/1","server":{"extends":[{"apply":"base","with":{"Item":{"ref":"Entity"}}}]}}`)}
+	}
+	world := Load(files, "contracts", nil)
+	for name, problems := range world.Problems {
+		if len(problems) != 0 {
+			t.Fatalf("%s: %v", name, problems)
+		}
+	}
+	problems := Validate(world, "child")
+	if len(problems) != 2 || problems[0].Code != "variant_collision" || problems[1].Code != "operation_collision" {
+		t.Fatalf("references to separate same-named entities must collide: %v", problems)
+	}
+}

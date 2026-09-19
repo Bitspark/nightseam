@@ -53,9 +53,9 @@ func (f *Family) BindExpression(e model.TypeExpr, source *Family, with map[strin
 	switch x := e.(type) {
 	case model.Named:
 		if filler, ok := with[x.Name]; ok && filler.Type != nil {
-			return filler.Type
+			return f.BindExpression(filler.Type, f, nil)
 		}
-		if source != f && source.Types[x.Name] != nil {
+		if source.Types[x.Name] != nil {
 			bindings := map[string]model.Filler{}
 			for _, use := range source.Generics().Types[x.Name] {
 				if filler, ok := with[use.Parameter]; ok {
@@ -63,9 +63,15 @@ func (f *Family) BindExpression(e model.TypeExpr, source *Family, with map[strin
 				}
 			}
 			if len(bindings) > 0 {
-				return model.Apply{Family: source.Name, Name: x.Name, With: bindings}
+				family := ""
+				if source != f {
+					family = source.Name
+				}
+				return model.Apply{Family: family, Name: x.Name, With: bindings}
 			}
-			return model.Imported{Family: source.Name, Name: x.Name}
+			if source != f {
+				return model.Imported{Family: source.Name, Name: x.Name}
+			}
 		}
 	case model.Drawn:
 		if filler, ok := with[x.Parameter]; ok {
@@ -76,6 +82,11 @@ func (f *Family) BindExpression(e model.TypeExpr, source *Family, with map[strin
 				return model.Drawn{Parameter: name, Name: x.Name}
 			}
 		}
+	case model.Ref:
+		if x.Family == "" {
+			x.Family = source.Name
+		}
+		return x
 	case model.Array:
 		return model.Array{Elem: f.BindExpression(x.Elem, source, with)}
 	case model.Map:
@@ -84,8 +95,10 @@ func (f *Family) BindExpression(e model.TypeExpr, source *Family, with map[strin
 		return model.Nullable{Elem: f.BindExpression(x.Elem, source, with)}
 	case model.Apply:
 		bindings := f.BindArguments(x.With, source, with)
-		if x.Family == "" && source != f {
-			x.Family = source.Name
+		if x.Family == "" {
+			if source != f {
+				x.Family = source.Name
+			}
 			for _, use := range source.Generics().Types[x.Name] {
 				if _, supplied := bindings[use.Parameter]; supplied {
 					continue
