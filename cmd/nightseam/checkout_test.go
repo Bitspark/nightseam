@@ -14,8 +14,7 @@ import (
 )
 
 // roster is a writer of one page of the checkout as a whole: every family's
-// name, one per line — what a page across families is to the tool, which
-// has no such writer of its own yet.
+// name, one per line — the smallest page across families.
 type roster struct{}
 
 func (roster) Name() string                           { return "roster" }

@@ -140,6 +140,8 @@ descriptions; the URL fragment links to a family, exchange, type or error.
 The type drawer follows references with breadcrumbs. A name lens and code
 blocks appear for the language metadata available in the document; without
 it the page shows wire names. No language spelling is derived in the page.
+Referenced built-in families appear once in the checkout document, so an
+inherited session operation's payload links to its complete definition.
 
 The atlas uses local fonts and makes no network requests by default. Its
 checkout config sets a title, enables optional Newsreader and IBM Plex Mono
