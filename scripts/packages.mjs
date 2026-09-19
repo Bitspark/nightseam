@@ -5,7 +5,7 @@
 // beside the others is versioned and released with them without anyone
 // remembering to name it in three places. The Go side of the same rule is
 // TestVersionsMoveInLockstep, which globs the same paths.
-import { copyFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,6 +27,15 @@ export function copyNotices() {
   for (const directory of packages) {
     for (const name of ["LICENSE", "NOTICE"]) copyFileSync(join(root, name), join(root, directory, name));
   }
+}
+
+/** Copy the registry's consumer with its own workspace and unchanged release manifests. */
+export function copyRegistryConsumer(source, destination) {
+  cpSync(source, destination, { recursive: true, filter: path => !/[\\/](node_modules|dist)$/.test(path) });
+  // Temp directories may live beneath a user's workspace. A boundary in
+  // the copy stops pnpm from installing or changing that ancestor project.
+  const workspace = join(destination, "pnpm-workspace.yaml");
+  if (!existsSync(workspace)) writeFileSync(workspace, "packages: []\n");
 }
 
 /**

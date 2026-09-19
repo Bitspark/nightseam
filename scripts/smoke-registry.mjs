@@ -16,13 +16,13 @@
 // naming the tag. By then the tag exists and the packages are on npm, so
 // nothing can be taken back and nobody re-runs a red job on a tag: an
 // issue is what is left of the failure the next morning.
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync, execSync, spawn } from "node:child_process";
 import { connect, createServer } from "node:net";
 import { setTimeout as after } from "node:timers/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { examples, root } from "./packages.mjs";
+import { copyRegistryConsumer, examples, root } from "./packages.mjs";
 import { waitForRegistries } from "./registry.mjs";
 
 const tag = process.argv[2];
@@ -68,7 +68,7 @@ async function roundTrip() {
   await waitForRegistries(tag, { log: step });
   const consumer = join(scratch, "consumer");
   step(`copying ${examples[0]} to a consumer outside the workspace`);
-  cpSync(join(root, examples[0]), consumer, { recursive: true, filter: source => !/[\\/](node_modules|dist)$/.test(source) });
+  copyRegistryConsumer(join(root, examples[0]), consumer);
 
   // Nothing is overridden and no proxy is laid: the manifest asks for the
   // version and the registry answers, or this is where the release is
