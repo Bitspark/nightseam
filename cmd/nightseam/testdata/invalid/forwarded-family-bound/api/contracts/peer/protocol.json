@@ -1,0 +1,7 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [{"name": "P", "of": "session"}],
+  "types": {
+    "Box": {"kind": "record", "fields": [{"name": "frame", "type": "P.Envelope"}]}
+  }
+}
