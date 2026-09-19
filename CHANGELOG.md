@@ -11,6 +11,8 @@ are one number. Entries are in the words of the commits that landed them.
 - Release verification waits up to thirty minutes for registry propagation,
   with retry backoff capped at thirty seconds, so cached Go proxy misses
   have time to expire after a tag is published.
+- `nightseam init` skips Go handler scaffolds for model-only families,
+  which have no generated binding package to implement.
 
 ### Changed
 
@@ -34,11 +36,6 @@ are one number. Entries are in the words of the commits that landed them.
   scoped runtime bindings. Model-only families emit types and a validator;
   the proof family and built-ins compile, and executable fixtures hold
   inherited calls, events, reverse calls and lossless union payloads.
-
-### Fixed
-
-- `nightseam init` skips Go handler scaffolds for model-only families,
-  which have no generated binding package to implement.
 
 ## 0.4.0 - 2026-09-19
 
