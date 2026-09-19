@@ -116,6 +116,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Checkout families named `duplex`, `tunnel` or `session` are refused at
+  their declaration with a rename path; imports explain the collision and
+  locate each entry in its original tier file.
+
 - Explicit generic applications resolve forwarded family parameters in
   their declaration scope and require their bounds to guarantee the
   destination tier, including through inline and nested applications.

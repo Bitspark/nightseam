@@ -98,7 +98,7 @@ type World struct {
 // the top of the directory is reported rather than passed over, since a
 // family is a directory of tier files and a file there is one somebody
 // meant to be a family. The targets name the override files a family may
-// carry.
+// carry. Built-in family names are reserved for Nightseam's declarations.
 func Checkout(fsys fs.FS, contracts string, targets []string) (*World, []diag.Diagnostic) {
 	world := &World{Families: map[string]*model.Family{}}
 	entries, err := fs.ReadDir(fsys, contracts)
@@ -160,6 +160,9 @@ func Family(fsys fs.FS, dir, name string, targets []string) (*model.Family, []di
 		problems.Add(diag.Location{}, "unreadable", err.Error())
 		return nil, problems.Diagnostics
 	}
+	if _, reserved := builtin.Family(name); reserved {
+		problems.Addf(diag.Location{File: model.ModelFile}, "builtin_name", "Family name %q is reserved for the built-in family at %s; rename the checkout directory %s and update imports and qualified references.", name, builtin.Locate(name, model.ModelFile), dir)
+	}
 	present := map[string]bool{}
 	for _, entry := range entries {
 		file := entry.Name()
@@ -178,7 +181,7 @@ func Family(fsys fs.FS, dir, name string, targets []string) (*model.Family, []di
 		}
 		problems.Add(diag.Location{File: file}, "unknown_file", fmt.Sprintf("A family directory holds tier files — %s — and a target's override file — %s — not %s.", tierFiles(), overrideFiles(targets), file))
 	}
-	imports := map[string]bool{}
+	imports := map[string][]diag.Location{}
 	for _, tier := range model.Tiers {
 		if !present[tier.File] {
 			if tier.Rank == 0 {
@@ -211,8 +214,19 @@ func Family(fsys fs.FS, dir, name string, targets []string) (*model.Family, []di
 		}
 		family.Overrides[target] = json.RawMessage(data)
 	}
-	for imported := range imports {
+	for imported, locations := range imports {
 		family.Imports = append(family.Imports, imported)
+		if _, isBuiltin := builtin.Family(imported); !isBuiltin {
+			continue
+		}
+		message := fmt.Sprintf("Family %s is built in and is imported by the tier that brings it, with no imports line.", imported)
+		other := path.Join(path.Dir(dir), imported)
+		if entry, err := fs.Stat(fsys, other); err == nil && entry.IsDir() {
+			message = fmt.Sprintf("The checkout family at %s uses the reserved built-in name %q; rename its directory and update imports and qualified references. %s", path.Join(other, model.ModelFile), imported, message)
+		}
+		for _, at := range locations {
+			problems.Add(at, "implicit_import", message)
+		}
 	}
 	sort.Strings(family.Imports)
 	implicit(family, &problems)
@@ -220,9 +234,8 @@ func Family(fsys fs.FS, dir, name string, targets []string) (*model.Family, []di
 	return family, problems.Diagnostics
 }
 
-// implicit settles what the tiers a family has bring it. A tier's built-in
-// family is imported with no imports line, so naming one there is refused;
-// a type it carries is the family's own and is written with the built-in
+// implicit settles what the tiers a family has bring it. A type a tier's
+// built-in family carries is the family's own and is written with the built-in
 // that declares it, duplex.Envelope, which is rewritten here to the plain
 // name the family carries it under — the one import code path, taken
 // before anything resolves.
@@ -231,11 +244,6 @@ func implicit(family *model.Family, problems *diag.List) {
 	for _, name := range builtin.Carried(family.Files) {
 		if b, ok := builtin.Family(name); ok {
 			carried[name] = b
-		}
-	}
-	for i, name := range family.Imports {
-		if _, isBuiltin := builtin.Family(name); isBuiltin {
-			problems.Addf(diag.Location{File: model.ModelFile}.Sub("imports", i), "implicit_import", "Family %s is built in and is imported by the tier that brings it, with no imports line.", name)
 		}
 	}
 	family.Expressions(func(site model.ExprAt) {
@@ -280,7 +288,7 @@ func sortedFamilies(m map[string]*model.Family) []string {
 
 // readTier shape-checks one tier file and decodes its sections into the
 // family: the imports and types every tier carries, then the tier's own.
-func readTier(tier model.Tier, data []byte, family *model.Family, imports map[string]bool, problems *diag.List) {
+func readTier(tier model.Tier, data []byte, family *model.Family, imports map[string][]diag.Location, problems *diag.List) {
 	sections := shape(tier.File, schemas[tier.Name], data, problems)
 	if sections == nil {
 		return
@@ -288,8 +296,8 @@ func readTier(tier model.Tier, data []byte, family *model.Family, imports map[st
 	if raw, ok := sections["imports"]; ok {
 		var names []string
 		if err := json.Unmarshal(raw, &names); err == nil {
-			for _, name := range names {
-				imports[name] = true
+			for i, name := range names {
+				imports[name] = append(imports[name], diag.Location{File: tier.File}.Sub("imports", i))
 			}
 		}
 	}
