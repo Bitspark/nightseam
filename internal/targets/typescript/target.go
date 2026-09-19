@@ -198,6 +198,16 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 	if protocol {
 		emitClient(client)
 		dependencies[t.config.Tunnel] = t.config.RuntimeVersion
+		if f.Live {
+			// A family with a live tier renders a module that imports the live
+			// layer, so the package declares it. Everywhere the generated
+			// output has run so far it resolved by where the package happens
+			// to sit — up out of the workspace here, out into a consumer's own
+			// node_modules there — which is resolution by directory layout
+			// rather than by declaration, and the one thing the packed smoke
+			// exists to refuse.
+			dependencies[t.config.Live] = t.config.RuntimeVersion
+		}
 	} else {
 		client.line("export * from './types.ts';")
 	}
