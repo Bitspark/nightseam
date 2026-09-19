@@ -1,7 +1,18 @@
 /** The tunnel under control: channels as connections, lazily read by default. */
 import { Channel, Tunnel, type TunnelOptions } from '@nightseam/tunnel';
 import { DuplexError } from '@nightseam/runtime';
-import { fail, invalid, unsupported, intOf, stringOf, withinOf, within, type Args, type Op, type Testee } from './testee.ts';
+import {
+  fail,
+  invalid,
+  unsupported,
+  intOf,
+  stringOf,
+  withinOf,
+  within,
+  type Args,
+  type Op,
+  type Testee,
+} from './testee.ts';
 import { Conn } from './seam.ts';
 import { isPeer } from './peer.ts';
 
@@ -10,7 +21,9 @@ class TunnelOn {
   constructor(tunnel: Tunnel) {
     this.tunnel = tunnel;
   }
-  shutdown(): void { /* Its peer's close ends it. */ }
+  shutdown(): void {
+    /* Its peer's close ends it. */
+  }
 }
 
 export const isTunnel = (object: unknown): object is TunnelOn => object instanceof TunnelOn;
@@ -44,7 +57,7 @@ const tunnelError = (error: unknown) => {
 
 export function tunnelOps(t: Testee): Record<string, Op> {
   return {
-    'tunnel.over': args => {
+    'tunnel.over': (args) => {
       const p = t.lookup(args.on, isPeer, 'a peer');
       const options: TunnelOptions = {};
       const raw = args.options;
@@ -53,16 +66,23 @@ export function tunnelOps(t: Testee): Record<string, Op> {
         for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
           if (typeof value !== 'number') throw invalid(`options.${key} is an integer`);
           switch (key) {
-            case 'window': options.window = value; break;
-            case 'max_frame_bytes': options.maxFrameBytes = value; break;
-            case 'accept_capacity': options.acceptCapacity = value; break;
-            default: throw unsupported(`tunnel option ${key}`);
+            case 'window':
+              options.window = value;
+              break;
+            case 'max_frame_bytes':
+              options.maxFrameBytes = value;
+              break;
+            case 'accept_capacity':
+              options.acceptCapacity = value;
+              break;
+            default:
+              throw unsupported(`tunnel option ${key}`);
           }
         }
       }
       return { handle: t.mint('t', new TunnelOn(new Tunnel(p.peer, options))) };
     },
-    'tunnel.open': async args => {
+    'tunnel.open': async (args) => {
       const tn = t.lookup(args.on, isTunnel, 'a tunnel');
       const family = stringOf(args, 'family', true);
       const after = intOf(args, 'after', 0);
@@ -75,7 +95,7 @@ export function tunnelOps(t: Testee): Record<string, Op> {
       }
       return { handle: t.mint('ch', new ChannelConn(channel, lazy)), id: channel.id };
     },
-    'tunnel.accept': async args => {
+    'tunnel.accept': async (args) => {
       const tn = t.lookup(args.on, isTunnel, 'a tunnel');
       const lazy = lazyChannel(args);
       let channel: Channel;
@@ -84,7 +104,12 @@ export function tunnelOps(t: Testee): Record<string, Op> {
       } catch (error) {
         throw tunnelError(error);
       }
-      return { handle: t.mint('ch', new ChannelConn(channel, lazy)), id: channel.id, family: channel.family, after: channel.after };
+      return {
+        handle: t.mint('ch', new ChannelConn(channel, lazy)),
+        id: channel.id,
+        family: channel.family,
+        after: channel.after,
+      };
     },
   };
 }

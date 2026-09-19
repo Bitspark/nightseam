@@ -1,4 +1,10 @@
-import { ROOT_CONTEXT, context as activeContext, defaultTextMapGetter, defaultTextMapSetter, type TextMapPropagator } from '@opentelemetry/api';
+import {
+  ROOT_CONTEXT,
+  context as activeContext,
+  defaultTextMapGetter,
+  defaultTextMapSetter,
+  type TextMapPropagator,
+} from '@opentelemetry/api';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import type { Propagator, Trace } from '@nightseam/runtime';
 import { contextOf, mark } from './context.ts';

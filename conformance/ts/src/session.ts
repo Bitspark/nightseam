@@ -1,7 +1,27 @@
 /** The session component under control: a registry, its attachments, and every change it made. */
-import { Attachment, Registry, memoryLog, type Change, type Governance, type RegistryOptions, type Role } from '@nightseam/session';
+import {
+  Attachment,
+  Registry,
+  memoryLog,
+  type Change,
+  type Governance,
+  type RegistryOptions,
+  type Role,
+} from '@nightseam/session';
 import { DuplexError, type Trace } from '@nightseam/runtime';
-import { Inbox, fail, invalid, unsupported, boolOf, intOf, stringOf, withinOf, type Args, type Op, type Testee } from './testee.ts';
+import {
+  Inbox,
+  fail,
+  invalid,
+  unsupported,
+  boolOf,
+  intOf,
+  stringOf,
+  withinOf,
+  type Args,
+  type Op,
+  type Testee,
+} from './testee.ts';
 import { isChannelConn } from './tunnel.ts';
 
 class RegistryOn {
@@ -11,9 +31,11 @@ class RegistryOn {
   readonly handles = new Map<Attachment, string>();
   constructor(registry: Registry) {
     this.registry = registry;
-    this.stop = registry.onChange(change => this.changes.put(change));
+    this.stop = registry.onChange((change) => this.changes.put(change));
   }
-  shutdown(): void { this.stop(); }
+  shutdown(): void {
+    this.stop();
+  }
 }
 
 const isRegistry = (object: unknown): object is RegistryOn => object instanceof RegistryOn;
@@ -23,7 +45,13 @@ class AttachmentOn {
   constructor(attachment: Attachment) {
     this.attachment = attachment;
   }
-  shutdown(): void { try { this.attachment.detach(); } catch { /* Gone with its session. */ } }
+  shutdown(): void {
+    try {
+      this.attachment.detach();
+    } catch {
+      /* Gone with its session. */
+    }
+  }
 }
 
 const isAttachment = (object: unknown): object is AttachmentOn => object instanceof AttachmentOn;
@@ -68,7 +96,7 @@ export function sessionOps(t: Testee): Record<string, Op> {
     return c.channel;
   };
   return {
-    'session.new': args => {
+    'session.new': (args) => {
       const options: RegistryOptions = {};
       const raw = args.options;
       if (raw !== undefined) {
@@ -76,15 +104,20 @@ export function sessionOps(t: Testee): Record<string, Op> {
         for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
           if (typeof value !== 'number') throw invalid(`options.${key} is an integer`);
           switch (key) {
-            case 'max_attachments': options.maxAttachments = value; break;
-            case 'max_inflight': options.maxInflight = value; break;
-            default: throw unsupported(`session option ${key}`);
+            case 'max_attachments':
+              options.maxAttachments = value;
+              break;
+            case 'max_inflight':
+              options.maxInflight = value;
+              break;
+            default:
+              throw unsupported(`session option ${key}`);
           }
         }
       }
       return { handle: t.mint('reg', new RegistryOn(new Registry(options))) };
     },
-    'session.bind': async args => {
+    'session.bind': async (args) => {
       const reg = registryOf(args);
       const id = stringOf(args, 'session', true);
       const up = channelOf(args);
@@ -93,7 +126,7 @@ export function sessionOps(t: Testee): Record<string, Op> {
       const { decides = [], asks = [] } = raw as { decides?: string[]; asks?: string[] };
       const deciding = new Set(decides);
       const asking = new Set(asks);
-      const governance: Governance = { decides: m => deciding.has(m), asks: m => asking.has(m) };
+      const governance: Governance = { decides: (m) => deciding.has(m), asks: (m) => asking.has(m) };
       const options = (args.log ?? {}) as Record<string, unknown>;
       const bound = typeof options.max_frame_bytes === 'number' ? options.max_frame_bytes : 1 << 20;
       const log = memoryLog(bound);
@@ -108,7 +141,11 @@ export function sessionOps(t: Testee): Record<string, Op> {
           if (direction !== 'up' && direction !== 'down') throw invalid('log.prefill direction is up or down');
           if (typeof entry.text !== 'string') throw invalid('log.prefill names each frame by its message, as text');
           let message: unknown;
-          try { message = JSON.parse(entry.text); } catch { throw invalid('log.prefill names each frame by its message, as text'); }
+          try {
+            message = JSON.parse(entry.text);
+          } catch {
+            throw invalid('log.prefill names each frame by its message, as text');
+          }
           const origin = typeof entry.origin === 'string' ? entry.origin : '';
           await log.append({ sequence: 0, direction, origin, at: new Date(), message, truncated: false });
         }
@@ -120,7 +157,7 @@ export function sessionOps(t: Testee): Record<string, Op> {
       }
       return {};
     },
-    'session.attach': args => {
+    'session.attach': (args) => {
       const reg = registryOf(args);
       const id = stringOf(args, 'session', true);
       const down = channelOf(args);
@@ -140,7 +177,7 @@ export function sessionOps(t: Testee): Record<string, Op> {
       reg.handles.set(attachment, handle);
       return { handle };
     },
-    'session.control': args => {
+    'session.control': (args) => {
       const reg = registryOf(args);
       const id = stringOf(args, 'session', true);
       let holder: Attachment | null = null;
@@ -154,16 +191,16 @@ export function sessionOps(t: Testee): Record<string, Op> {
       }
       return {};
     },
-    'session.attention': args => registryOf(args).registry.attention(),
-    'session.changes': args => {
+    'session.attention': (args) => registryOf(args).registry.attention(),
+    'session.changes': (args) => {
       const reg = registryOf(args);
       const withTrace = boolOf(args, 'trace');
-      return reg.changes.drain(boolOf(args, 'drain', true)).map(c => normalizeChange(reg, c, withTrace));
+      return reg.changes.drain(boolOf(args, 'drain', true)).map((c) => normalizeChange(reg, c, withTrace));
     },
-    'session.await_change': async args => {
+    'session.await_change': async (args) => {
       const reg = registryOf(args);
       const kind = stringOf(args, 'kind', true);
-      const { item } = await reg.changes.await(withinOf(args), c => c.kind === kind);
+      const { item } = await reg.changes.await(withinOf(args), (c) => c.kind === kind);
       if (!item) throw fail('timeout', `no ${kind}`);
       return normalizeChange(reg, item, boolOf(args, 'trace'));
     },
@@ -171,11 +208,11 @@ export function sessionOps(t: Testee): Record<string, Op> {
     // session's own vocabulary: who holds control, and where in the log it
     // stands. A testee reports it so that a scenario can hold the
     // attachment's state and the frames on the wire to each other.
-    'attachment.state': args => {
+    'attachment.state': (args) => {
       const { attachment } = t.lookup(args.on, isAttachment, 'an attachment');
       return { holder: attachment.holder, sequence: attachment.sequence };
     },
-    'attachment.detach': args => {
+    'attachment.detach': (args) => {
       t.lookup(args.on, isAttachment, 'an attachment').attachment.detach();
       return {};
     },

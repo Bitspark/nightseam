@@ -1,4 +1,11 @@
-import { SpanKind, SpanStatusCode, trace as traceApi, type Attributes, type Span, type Tracer } from '@opentelemetry/api';
+import {
+  SpanKind,
+  SpanStatusCode,
+  trace as traceApi,
+  type Attributes,
+  type Span,
+  type Tracer,
+} from '@opentelemetry/api';
 import type { Observer, ObserverEvent, Trace } from '@nightseam/runtime';
 import { contextOf, mark } from './context.ts';
 import { spanIdOf, wireContext } from './wire.ts';
@@ -39,11 +46,15 @@ export function observer(tracer: Tracer): Observer {
           // the parent is the span the call was made under; incoming, nothing
           // has marked it yet and the parent is what the frame names.
           const parent = contextOf(event.trace) ?? wireContext(event.trace);
-          const span = tracer.startSpan(event.method, {
-            kind: event.incoming ? SpanKind.SERVER : SpanKind.CLIENT,
-            attributes: attributes(fields),
-            startTime: at,
-          }, parent);
+          const span = tracer.startSpan(
+            event.method,
+            {
+              kind: event.incoming ? SpanKind.SERVER : SpanKind.CLIENT,
+              attributes: attributes(fields),
+              startTime: at,
+            },
+            parent,
+          );
           byRequest.set(event.id, span);
           bySpan.set(span.spanContext().spanId, span);
           // What the handler calls is a child of the handler's span: the
@@ -55,9 +66,11 @@ export function observer(tracer: Tracer): Observer {
           const span = byRequest.get(event.id);
           if (!span) return;
           span.setAttributes(attributes(fields));
-          span.setStatus(event.outcome === 'ok'
-            ? { code: SpanStatusCode.OK }
-            : { code: SpanStatusCode.ERROR, message: event.errorCode ?? event.outcome });
+          span.setStatus(
+            event.outcome === 'ok'
+              ? { code: SpanStatusCode.OK }
+              : { code: SpanStatusCode.ERROR, message: event.errorCode ?? event.outcome },
+          );
           span.end(at);
           byRequest.delete(event.id);
           bySpan.delete(span.spanContext().spanId);
@@ -99,7 +112,8 @@ function attributes(fields: Record<string, unknown>): Attributes {
   const carried: Attributes = {};
   for (const [key, value] of Object.entries(fields)) {
     if (key === 'type' || key === 'at') continue;
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') carried[`nightseam.${key}`] = value;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
+      carried[`nightseam.${key}`] = value;
   }
   return carried;
 }

@@ -15,5 +15,12 @@ run('a tunnel channel', async () => {
   await Promise.all([client.attach(left), server.attach(right)]);
   const accepted = new Tunnel(server).accept();
   const opened = await new Tunnel(client).open('probe');
-  return { a: opened, b: await accepted, end: () => { client.close(); server.close(); } };
+  return {
+    a: opened,
+    b: await accepted,
+    end: () => {
+      client.close();
+      server.close();
+    },
+  };
 });

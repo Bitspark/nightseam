@@ -72,7 +72,8 @@ export function run(what: string, connect: Connect, keeps: Keeps = {}): void {
       const sent: Frame[] = [];
       for (let i = 0; i < 64; i++) {
         const text = `frame ${String(i).padStart(2, '0')}`;
-        const frame: Frame = i % 3 === 0 ? { kind: 'binary', data: new TextEncoder().encode(text) } : { kind: 'text', data: text };
+        const frame: Frame =
+          i % 3 === 0 ? { kind: 'binary', data: new TextEncoder().encode(text) } : { kind: 'text', data: text };
         sent.push(frame);
         pair.a.send(frame);
       }
@@ -114,8 +115,16 @@ export function run(what: string, connect: Connect, keeps: Keeps = {}): void {
         pair.b.send({ kind: 'text', data: `b to a ${i}` });
       }
       await eventually('three frames arrive each way', () => atA.frames.length >= 3 && atB.frames.length >= 3);
-      assert.deepEqual(atB.frames, [0, 1, 2].map(i => ({ kind: 'text', data: `a to b ${i}` })), 'what b was given');
-      assert.deepEqual(atA.frames, [0, 1, 2].map(i => ({ kind: 'text', data: `b to a ${i}` })), 'what a was given');
+      assert.deepEqual(
+        atB.frames,
+        [0, 1, 2].map((i) => ({ kind: 'text', data: `a to b ${i}` })),
+        'what b was given',
+      );
+      assert.deepEqual(
+        atA.frames,
+        [0, 1, 2].map((i) => ({ kind: 'text', data: `b to a ${i}` })),
+        'what a was given',
+      );
     } finally {
       pair.end();
     }
@@ -126,15 +135,30 @@ export function run(what: string, connect: Connect, keeps: Keeps = {}): void {
     try {
       const first: Frame[] = [];
       const second: Frame[] = [];
-      const detach = pair.b.listen({ frame: frame => { first.push(frame); } });
-      pair.b.listen({ frame: frame => { second.push(frame); } });
+      const detach = pair.b.listen({
+        frame: (frame) => {
+          first.push(frame);
+        },
+      });
+      pair.b.listen({
+        frame: (frame) => {
+          second.push(frame);
+        },
+      });
       pair.a.send({ kind: 'text', data: 'to both' });
       await eventually('the frame reaches both listeners', () => first.length >= 1 && second.length >= 1);
       detach();
       pair.a.send({ kind: 'text', data: 'to the one still listening' });
       await eventually('the second frame reaches the listener that stayed', () => second.length >= 2);
-      assert.deepEqual(second.map(frame => frame.data), ['to both', 'to the one still listening']);
-      assert.deepEqual(first.map(frame => frame.data), ['to both'], 'a detached listener was given a frame');
+      assert.deepEqual(
+        second.map((frame) => frame.data),
+        ['to both', 'to the one still listening'],
+      );
+      assert.deepEqual(
+        first.map((frame) => frame.data),
+        ['to both'],
+        'a detached listener was given a frame',
+      );
     } finally {
       pair.end();
     }
@@ -219,10 +243,19 @@ function collect(connection: FrameConnection) {
   const frames: Frame[] = [];
   let closed: { code: number; reason: string } | undefined;
   connection.listen({
-    frame: frame => { frames.push(frame); },
-    close: (code, reason) => { closed = { code, reason }; },
+    frame: (frame) => {
+      frames.push(frame);
+    },
+    close: (code, reason) => {
+      closed = { code, reason };
+    },
   });
-  return { frames, get closed() { return closed; } };
+  return {
+    frames,
+    get closed() {
+      return closed;
+    },
+  };
 }
 
 /** Waits for what the seam promises, and fails naming it where it does not happen. */
@@ -230,20 +263,26 @@ async function eventually(what: string, ready: () => boolean): Promise<void> {
   const deadline = Date.now() + DEADLINE;
   while (!ready()) {
     if (Date.now() > deadline) assert.fail(`${what}: not within ${DEADLINE}ms`);
-    await new Promise(resolve => { setTimeout(resolve, 1); });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 1);
+    });
   }
 }
 
 /** Gives a transport every turn it could need to deliver what it should not. */
 async function settled(): Promise<void> {
-  for (let i = 0; i < 5; i++) await new Promise(resolve => { setTimeout(resolve, 2); });
+  for (let i = 0; i < 5; i++)
+    await new Promise((resolve) => {
+      setTimeout(resolve, 2);
+    });
 }
 
 /** Holds a frame to the one that was sent: the kind, and the string or the bytes. */
 function same(got: Frame, want: Frame, at: string): void {
   assert.equal(got.kind, want.kind, `${at} arrived as a ${got.kind} frame`);
   if (got.kind === 'text' && want.kind === 'text') assert.equal(got.data, want.data, `${at} arrived as ${got.data}`);
-  else if (got.kind === 'binary' && want.kind === 'binary') assert.deepEqual(bytes(got.data), bytes(want.data), `${at} arrived as other bytes`);
+  else if (got.kind === 'binary' && want.kind === 'binary')
+    assert.deepEqual(bytes(got.data), bytes(want.data), `${at} arrived as other bytes`);
 }
 
 /** The bytes of a binary frame, whichever of the two shapes a transport delivers. */

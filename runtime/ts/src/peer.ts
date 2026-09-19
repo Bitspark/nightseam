@@ -43,9 +43,17 @@ export type PeerStatus = 'disconnected' | 'connecting' | 'connected';
  */
 export type Meta = Record<string, string>;
 /** What a call may carry: a signal that withdraws it, a deadline of its own, the context it is made under (so its trace parents on the request being served), and its meta. */
-export interface CallOptions { signal?: AbortSignal; timeoutMs?: number; context?: RequestContext; meta?: Meta }
+export interface CallOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  context?: RequestContext;
+  meta?: Meta;
+}
 /** What an emit may carry: the context it is made under, and its meta. */
-export interface EmitOptions { context?: RequestContext; meta?: Meta }
+export interface EmitOptions {
+  context?: RequestContext;
+  meta?: Meta;
+}
 /** What a handler is given beside the params: a signal that fires when the caller withdraws the request or its deadline passes, the peer it arrived on, the request's id, and the trace and meta the frame brought. */
 export interface RequestContext {
   signal: AbortSignal;
@@ -132,7 +140,13 @@ interface Outgoing {
   /** What the observer is told of this frame, called by the writer just before the bytes leave. */
   observeSent?: () => void;
 }
-interface QueuedEvent { name: string; data: unknown; bytes: number; trace?: Trace; meta?: Meta }
+interface QueuedEvent {
+  name: string;
+  data: unknown;
+  bytes: number;
+  trace?: Trace;
+  meta?: Meta;
+}
 
 /**
  * A bounded full-duplex peer. Message routing never awaits application handlers.
@@ -189,33 +203,44 @@ export class DuplexPeer {
   }
 
   /** Where the peer is now; `connected` is the only status in which a call or an event travels. */
-  get status(): PeerStatus { return this.state; }
+  get status(): PeerStatus {
+    return this.state;
+  }
 
   /** The side of the connection this peer is; a tunnel over it chooses channel ids by it. */
-  get role(): 'client' | 'server' { return this.options.role ?? 'client'; }
+  get role(): 'client' | 'server' {
+    return this.options.role ?? 'client';
+  }
 
   /**
    * What the WebSocket handshake beneath this peer selected, and '' when it
    * selected none or the peer does not run over a WebSocket. The profile
    * reads nothing into it.
    */
-  get subprotocol(): string { return this.negotiated; }
+  get subprotocol(): string {
+    return this.negotiated;
+  }
 
   /** Absolute ws/wss URLs are required. Factories may supply platform-specific auth. */
   connect(url: string): Promise<void> {
     if (this.connection) return Promise.reject(new DuplexError('already_connected', 'Peer already has a connection.'));
     let endpoint: URL;
-    try { endpoint = new URL(url); } catch {
+    try {
+      endpoint = new URL(url);
+    } catch {
       return Promise.reject(new DuplexError('invalid_url', 'An absolute WebSocket URL is required.'));
     }
     if (!['ws:', 'wss:'].includes(endpoint.protocol) || endpoint.hash || endpoint.username || endpoint.password) {
-      return Promise.reject(new DuplexError('invalid_url', 'Use an absolute ws/wss URL without credentials or a fragment.'));
+      return Promise.reject(
+        new DuplexError('invalid_url', 'Use an absolute ws/wss URL without credentials or a fragment.'),
+      );
     }
     let socket: WebSocketLike;
     const protocols = this.options.subprotocols;
     try {
-      socket = this.options.webSocketFactory?.(endpoint.href, protocols)
-        ?? (protocols ? new WebSocket(endpoint.href, protocols) : new WebSocket(endpoint.href));
+      socket =
+        this.options.webSocketFactory?.(endpoint.href, protocols) ??
+        (protocols ? new WebSocket(endpoint.href, protocols) : new WebSocket(endpoint.href));
     } catch {
       return Promise.reject(new DuplexError('connection_failed', 'Unable to create WebSocket.'));
     }
@@ -238,7 +263,8 @@ export class DuplexPeer {
     this.state = frames.state === 'open' ? 'connected' : 'connecting';
     // The handshake has selected by the time the socket opens, and not before.
     this.negotiated = this.state === 'connected' ? subprotocolOf(socket) : '';
-    if (this.observer && this.state === 'connected') this.observe({ type: 'connection.opened', at: new Date(), role: this.role });
+    if (this.observer && this.state === 'connected')
+      this.observe({ type: 'connection.opened', at: new Date(), role: this.role });
     const current = () => this.connection === frames;
     this.detach = frames.listen({
       open: () => {
@@ -252,9 +278,17 @@ export class DuplexPeer {
           this.opening = undefined;
         }
       },
-      frame: frame => { if (current()) this.receive(frame); },
+      frame: (frame) => {
+        if (current()) this.receive(frame);
+      },
       close: (code, reason) => {
-        if (current()) this.fail(new DuplexError('disconnected', 'Connection closed; outstanding call outcomes may be unknown.'), false, code, reason);
+        if (current())
+          this.fail(
+            new DuplexError('disconnected', 'Connection closed; outstanding call outcomes may be unknown.'),
+            false,
+            code,
+            reason,
+          );
       },
       error: () => {
         if (current()) this.fail(new DuplexError('connection_failed', 'WebSocket connection failed.'));
@@ -262,18 +296,25 @@ export class DuplexPeer {
     });
     if (this.state === 'connected') return Promise.resolve();
     return new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => this.fail(new DuplexError('connect_timeout', 'Connection timed out.')), this.limits.connectTimeoutMs);
+      const timer = setTimeout(
+        () => this.fail(new DuplexError('connect_timeout', 'Connection timed out.')),
+        this.limits.connectTimeoutMs,
+      );
       this.opening = { resolve, reject, timer };
     });
   }
 
   /** Ends the connection with a normal close; every pending call rejects with `disconnected`. */
-  close(): void { this.fail(new DuplexError('disconnected', 'Connection closed by caller.'), true, 1000); }
+  close(): void {
+    this.fail(new DuplexError('disconnected', 'Connection closed by caller.'), true, 1000);
+  }
 
   /** Tells the listener once, when the peer ends, why it ended; returns what removes the listener. */
   onClose(listener: (error: DuplexError) => void): () => void {
     this.closedListeners.add(listener);
-    return () => { this.closedListeners.delete(listener); };
+    return () => {
+      this.closedListeners.delete(listener);
+    };
   }
 
   /**
@@ -282,25 +323,35 @@ export class DuplexPeer {
    */
   handle(method: string, handler: RequestHandler): () => void {
     requireName(method, 'method');
-    if (this.handlers.has(method)) throw new DuplexError('duplicate_handler', `Handler already registered for ${method}.`);
+    if (this.handlers.has(method))
+      throw new DuplexError('duplicate_handler', `Handler already registered for ${method}.`);
     this.handlers.set(method, handler);
-    return () => { if (this.handlers.get(method) === handler) this.handlers.delete(method); };
+    return () => {
+      if (this.handlers.get(method) === handler) this.handlers.delete(method);
+    };
   }
 
   /** Listens to every event the remote emits, or to one by name; returns what removes the listener. */
   onEvent(listener: EventListener): () => void;
   onEvent(event: string, listener: (data: unknown, context: EventContext) => void | Promise<void>): () => void;
-  onEvent(eventOrListener: string | EventListener, listener?: (data: unknown, context: EventContext) => void | Promise<void>): () => void {
+  onEvent(
+    eventOrListener: string | EventListener,
+    listener?: (data: unknown, context: EventContext) => void | Promise<void>,
+  ): () => void {
     let callback: EventListener;
     if (typeof eventOrListener === 'string') {
       requireName(eventOrListener, 'event');
       if (!listener) throw new DuplexError('invalid_listener', 'An event listener is required.');
-      callback = (event, data, context) => { if (event === eventOrListener) return listener(data, context); };
+      callback = (event, data, context) => {
+        if (event === eventOrListener) return listener(data, context);
+      };
     } else {
       callback = eventOrListener;
     }
     this.listeners.add(callback);
-    return () => { this.listeners.delete(callback); };
+    return () => {
+      this.listeners.delete(callback);
+    };
   }
 
   /**
@@ -313,9 +364,12 @@ export class DuplexPeer {
     try {
       requireName(method, 'method');
       if (options.timeoutMs !== undefined) positiveInteger(options.timeoutMs, 'timeoutMs', true);
-    } catch (error) { return Promise.reject(error); }
+    } catch (error) {
+      return Promise.reject(error);
+    }
     if (!this.isOpen()) return Promise.reject(new DuplexError('not_connected', 'Peer is not connected.'));
-    if (options.signal?.aborted) return Promise.reject(new DuplexError('cancelled', 'Call was cancelled before sending.'));
+    if (options.signal?.aborted)
+      return Promise.reject(new DuplexError('cancelled', 'Call was cancelled before sending.'));
     if (this.pending.size >= this.limits.maxPendingRequests) {
       return Promise.reject(new DuplexError('busy', 'Outstanding call limit reached.'));
     }
@@ -326,7 +380,7 @@ export class DuplexPeer {
     // One trace for the exchange: the request carries it and its cancel repeats it.
     const trace = this.propagator.inject(options.context);
     return new Promise<T>((resolve, reject) => {
-      const pending: Pending = { resolve: value => resolve(value as T), reject, method, started: Date.now(), trace };
+      const pending: Pending = { resolve: (value) => resolve(value as T), reject, method, started: Date.now(), trace };
       this.pending.set(id, pending);
       const cancel = (error: DuplexError, outcome: Outcome) => {
         if (!this.takePending(id)) return;
@@ -334,14 +388,34 @@ export class DuplexPeer {
         reject(error);
         void this.send(traced({ version: 1, kind: 'cancel', id }, trace), method).catch(() => {});
       };
-      if (this.observer) this.observe({ type: 'request.started', at: new Date(), id, method, incoming: false, trace, family: this.family(method) });
-      pending.timer = setTimeout(() => cancel(new DuplexError('request_timeout', `Call ${method} timed out; its outcome may be unknown.`), 'timeout'), options.timeoutMs ?? this.limits.requestTimeoutMs);
+      if (this.observer)
+        this.observe({
+          type: 'request.started',
+          at: new Date(),
+          id,
+          method,
+          incoming: false,
+          trace,
+          family: this.family(method),
+        });
+      pending.timer = setTimeout(
+        () =>
+          cancel(
+            new DuplexError('request_timeout', `Call ${method} timed out; its outcome may be unknown.`),
+            'timeout',
+          ),
+        options.timeoutMs ?? this.limits.requestTimeoutMs,
+      );
       if (options.signal) {
-        const abort = () => cancel(new DuplexError('cancelled', 'Call was cancelled; its outcome may be unknown.'), 'cancelled');
+        const abort = () =>
+          cancel(new DuplexError('cancelled', 'Call was cancelled; its outcome may be unknown.'), 'cancelled');
         options.signal.addEventListener('abort', abort, { once: true });
         pending.removeAbort = () => options.signal!.removeEventListener('abort', abort);
       }
-      void this.send(carrying(traced({ version: 1, kind: 'request', id, method, params }, trace), options.meta), method).catch(failure => {
+      void this.send(
+        carrying(traced({ version: 1, kind: 'request', id, method, params }, trace), options.meta),
+        method,
+      ).catch((failure) => {
         const unsent = this.takePending(id);
         if (!unsent) return;
         const error = asError(failure, 'send_failed');
@@ -357,11 +431,23 @@ export class DuplexPeer {
    * has a call. The queue's own deadline continues behind it and ends a connection that never drains.
    */
   emit(event: string, data: unknown = null, options: EmitOptions = {}): Promise<void> {
-    try { requireName(event, 'event'); } catch (error) { return Promise.reject(error); }
-    return this.send(carrying(traced({ version: 1, kind: 'event', event, data }, this.propagator.inject(options.context)), options.meta), event);
+    try {
+      requireName(event, 'event');
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    return this.send(
+      carrying(
+        traced({ version: 1, kind: 'event', event, data }, this.propagator.inject(options.context)),
+        options.meta,
+      ),
+      event,
+    );
   }
 
-  private isOpen(): boolean { return this.state === 'connected' && this.connection?.state === 'open'; }
+  private isOpen(): boolean {
+    return this.state === 'connected' && this.connection?.state === 'open';
+  }
 
   private takePending(id: string): Pending | undefined {
     const pending = this.pending.get(id);
@@ -377,7 +463,11 @@ export class DuplexPeer {
     let text: string;
     try {
       text = JSON.stringify(envelope, (_key, value: unknown) => {
-        if (typeof value === 'function' || typeof value === 'symbol' || (typeof value === 'number' && !Number.isFinite(value))) {
+        if (
+          typeof value === 'function' ||
+          typeof value === 'symbol' ||
+          (typeof value === 'number' && !Number.isFinite(value))
+        ) {
           throw new Error('Not a JSON value.');
         }
         return value;
@@ -406,8 +496,12 @@ export class DuplexPeer {
         paced = true;
         if (this.observer) this.pressure(this.outgoing.length, false);
       }
-      const room = await new Promise<boolean>(resolve => {
-        const wake = (value: boolean) => { clearTimeout(timer); this.waitingForRoom.delete(wake); resolve(value); };
+      const room = await new Promise<boolean>((resolve) => {
+        const wake = (value: boolean) => {
+          clearTimeout(timer);
+          this.waitingForRoom.delete(wake);
+          resolve(value);
+        };
         const timer = setTimeout(() => wake(false), this.limits.writeTimeoutMs);
         this.waitingForRoom.add(wake);
       });
@@ -426,9 +520,20 @@ export class DuplexPeer {
     // itself is observed by the writer, immediately before the bytes leave —
     // one serialization point per peer, so that nothing a frame draws can be
     // observed received ahead of it (docs/runtime/observer.md).
-    if (this.observer && kind === 'event') this.observe({ type: 'event.emitted', at: new Date(), name, bytes, trace, family });
+    if (this.observer && kind === 'event')
+      this.observe({ type: 'event.emitted', at: new Date(), name, bytes, trace, family });
     const observeSent = this.observer
-      ? () => this.observe({ type: 'frame.sent', at: new Date(), kind, name, bytes, id: envelope.id as string | undefined, trace, family })
+      ? () =>
+          this.observe({
+            type: 'frame.sent',
+            at: new Date(),
+            kind,
+            name,
+            bytes,
+            id: envelope.id as string | undefined,
+            trace,
+            family,
+          })
       : undefined;
     // Accepted for sending is queued, as the profile says and as the Go peer
     // returns: what the transport does with the frame after that is the
@@ -451,7 +556,10 @@ export class DuplexPeer {
       }
       if (!item.sent && connection.buffered === 0) {
         item.observeSent?.();
-        try { connection.send({ kind: 'text', data: item.text }); item.sent = true; } catch {
+        try {
+          connection.send({ kind: 'text', data: item.text });
+          item.sent = true;
+        } catch {
           this.fail(new DuplexError('send_failed', 'WebSocket send failed.'));
           return;
         }
@@ -461,7 +569,10 @@ export class DuplexPeer {
         this.makeRoom();
       } else {
         item.waited = true;
-        this.writeTimer = setTimeout(() => { this.writeTimer = undefined; this.flush(); }, 5);
+        this.writeTimer = setTimeout(() => {
+          this.writeTimer = undefined;
+          this.flush();
+        }, 5);
         return;
       }
     }
@@ -495,7 +606,16 @@ export class DuplexPeer {
     const trace = traceOf(frame);
     if (this.observer) {
       const name = this.nameOf(frame);
-      this.observe({ type: 'frame.received', at: new Date(), kind: frame.kind as string, name, bytes, id: frame.id as string | undefined, trace, family: this.family(name) });
+      this.observe({
+        type: 'frame.received',
+        at: new Date(),
+        kind: frame.kind as string,
+        name,
+        bytes,
+        id: frame.id as string | undefined,
+        trace,
+        family: this.family(name),
+      });
     }
     switch (frame.kind) {
       case 'response': {
@@ -521,8 +641,12 @@ export class DuplexPeer {
         this.incoming.get(frame.id as string)?.controller.abort();
         break;
       }
-      case 'request': this.request(frame.id as string, frame.method as string, frame.params, trace, frame.meta as Meta | undefined); break;
-      case 'event': this.event(frame.event as string, frame.data, bytes, trace, frame.meta as Meta | undefined); break;
+      case 'request':
+        this.request(frame.id as string, frame.method as string, frame.params, trace, frame.meta as Meta | undefined);
+        break;
+      case 'event':
+        this.event(frame.event as string, frame.data, bytes, trace, frame.meta as Meta | undefined);
+        break;
     }
   }
 
@@ -532,7 +656,13 @@ export class DuplexPeer {
       return;
     }
     if (this.incoming.size >= this.limits.maxConcurrentHandlers) {
-      void this.send(traced({ version: 1, kind: 'response', id, error: { code: 'busy', message: 'Incoming request limit reached.' } }, trace), method).catch(error => this.fail(asError(error)));
+      void this.send(
+        traced(
+          { version: 1, kind: 'response', id, error: { code: 'busy', message: 'Incoming request limit reached.' } },
+          trace,
+        ),
+        method,
+      ).catch((error) => this.fail(asError(error)));
       return;
     }
     const controller = new AbortController();
@@ -552,30 +682,54 @@ export class DuplexPeer {
       }, this.limits.requestTimeoutMs),
     };
     this.incoming.set(id, incoming);
-    if (this.observer) this.observe({ type: 'request.started', at: new Date(), id, method, incoming: true, trace, family: this.family(method) });
+    if (this.observer)
+      this.observe({
+        type: 'request.started',
+        at: new Date(),
+        id,
+        method,
+        incoming: true,
+        trace,
+        family: this.family(method),
+      });
     const context: RequestContext = { peer: this, signal: controller.signal, requestId: id };
     if (meta) context.meta = meta;
     this.propagator.extract(context, trace);
-    void Promise.resolve().then(() => {
-      // The peer can close or cancel before the handler's first microtask.
-      if (controller.signal.aborted) throw new DuplexError('cancelled', 'Request was cancelled.');
-      const handler = this.handlers.get(method);
-      if (handler) return handler(params, context);
-      if (this.options.dispatch) return this.options.dispatch(method, params, context);
-      throw new DuplexError('method_not_found', `Unknown method ${method}.`);
-    }).then(
-      result => this.respond(id, incoming, result === undefined ? null : result),
-      (error: unknown) => {
-        // Anything a handler threw but a public error is this runtime's panic.
-        if (this.observer && !(error instanceof DuplexError)) {
-          this.observe({ type: 'handler.panic', at: new Date(), method, value: describe(error), trace, family: this.family(method) });
-        }
-        this.respond(id, incoming, undefined, error instanceof DuplexError ? error : new DuplexError('internal', 'Request handler failed.'));
-      },
-    ).finally(() => {
-      clearTimeout(incoming.timer);
-      if (this.incoming.get(id) === incoming) this.incoming.delete(id);
-    });
+    void Promise.resolve()
+      .then(() => {
+        // The peer can close or cancel before the handler's first microtask.
+        if (controller.signal.aborted) throw new DuplexError('cancelled', 'Request was cancelled.');
+        const handler = this.handlers.get(method);
+        if (handler) return handler(params, context);
+        if (this.options.dispatch) return this.options.dispatch(method, params, context);
+        throw new DuplexError('method_not_found', `Unknown method ${method}.`);
+      })
+      .then(
+        (result) => this.respond(id, incoming, result === undefined ? null : result),
+        (error: unknown) => {
+          // Anything a handler threw but a public error is this runtime's panic.
+          if (this.observer && !(error instanceof DuplexError)) {
+            this.observe({
+              type: 'handler.panic',
+              at: new Date(),
+              method,
+              value: describe(error),
+              trace,
+              family: this.family(method),
+            });
+          }
+          this.respond(
+            id,
+            incoming,
+            undefined,
+            error instanceof DuplexError ? error : new DuplexError('internal', 'Request handler failed.'),
+          );
+        },
+      )
+      .finally(() => {
+        clearTimeout(incoming.timer);
+        if (this.incoming.get(id) === incoming) this.incoming.delete(id);
+      });
   }
 
   private respond(id: string, incoming: Incoming, result?: unknown, error?: DuplexError, outcome?: Outcome): void {
@@ -588,15 +742,31 @@ export class DuplexPeer {
     incoming.responded = true;
     clearTimeout(incoming.timer);
     const frame: Envelope = { version: 1, kind: 'response', id };
-    if (error) frame.error = { code: error.code, message: error.message, ...(error.data === undefined ? {} : { data: error.data }) };
+    if (error)
+      frame.error = {
+        code: error.code,
+        message: error.message,
+        ...(error.data === undefined ? {} : { data: error.data }),
+      };
     else frame.result = result;
     // The request ends before its response is sent, as the Go peer tells it;
     // a response carries its request's trace, mints none of its own, and is
     // named by nothing — its id says which request it answers.
     if (this.observer) {
-      this.observe({ type: 'request.ended', at: new Date(), id, method: incoming.method, incoming: true, durationMs: Date.now() - incoming.started, outcome, errorCode: error?.code, trace: incoming.trace, family: this.family(incoming.method) });
+      this.observe({
+        type: 'request.ended',
+        at: new Date(),
+        id,
+        method: incoming.method,
+        incoming: true,
+        durationMs: Date.now() - incoming.started,
+        outcome,
+        errorCode: error?.code,
+        trace: incoming.trace,
+        family: this.family(incoming.method),
+      });
     }
-    void this.send(traced(frame, incoming.trace), '').catch(error => this.fail(asError(error)));
+    void this.send(traced(frame, incoming.trace), '').catch((error) => this.fail(asError(error)));
   }
 
   private event(name: string, data: unknown, bytes: number, trace?: Trace, meta?: Meta): void {
@@ -632,7 +802,15 @@ export class DuplexPeer {
     if (!event) return;
     this.eventActive = true;
     // Delivered when it reaches the listeners, not when its frame arrived.
-    if (this.observer) this.observe({ type: 'event.delivered', at: new Date(), name: event.name, bytes: event.bytes, trace: event.trace, family: this.family(event.name) });
+    if (this.observer)
+      this.observe({
+        type: 'event.delivered',
+        at: new Date(),
+        name: event.name,
+        bytes: event.bytes,
+        trace: event.trace,
+        family: this.family(event.name),
+      });
     const generation = this.generation;
     this.eventTimer = setTimeout(() => {
       if (this.observer) this.pressure(this.events.length, true);
@@ -712,7 +890,18 @@ export class DuplexPeer {
       clearTimeout(request.timer);
       request.controller.abort();
       if (this.observer && !request.responded) {
-        this.observe({ type: 'request.ended', at: new Date(), id, method: request.method, incoming: true, durationMs: Date.now() - request.started, outcome: 'error', errorCode: error.code, trace: request.trace, family: this.family(request.method) });
+        this.observe({
+          type: 'request.ended',
+          at: new Date(),
+          id,
+          method: request.method,
+          incoming: true,
+          durationMs: Date.now() - request.started,
+          outcome: 'error',
+          errorCode: error.code,
+          trace: request.trace,
+          family: this.family(request.method),
+        });
       }
     }
     this.incoming.clear();
@@ -720,14 +909,23 @@ export class DuplexPeer {
     this.outgoing.length = 0;
     if (closeConnection) {
       // Browser close() restricts application codes to 3000–4999 (or 1000).
-      try { connection.close(code, reason); } catch { /* Already closed. */ }
+      try {
+        connection.close(code, reason);
+      } catch {
+        /* Already closed. */
+      }
     }
     // Reported once everything it ended has been. The peer closes the
     // connection exactly when the close is its own.
-    if (this.observer) this.observe({ type: 'connection.closed', at: new Date(), code, reason, local: closeConnection });
+    if (this.observer)
+      this.observe({ type: 'connection.closed', at: new Date(), code, reason, local: closeConnection });
     this.notifyError(error);
     for (const listener of this.closedListeners) {
-      try { listener(error); } catch { /* Observers cannot interrupt cleanup. */ }
+      try {
+        listener(error);
+      } catch {
+        /* Observers cannot interrupt cleanup. */
+      }
     }
   }
 
@@ -738,7 +936,11 @@ export class DuplexPeer {
    * observer that is absent costs nothing, and one that throws interrupts nothing.
    */
   observe(event: ObserverEvent): void {
-    try { this.observer?.observe(event); } catch { /* Observers cannot interrupt routing. */ }
+    try {
+      this.observer?.observe(event);
+    } catch {
+      /* Observers cannot interrupt routing. */
+    }
   }
 
   private pressure(queued: number, stalled: boolean): void {
@@ -748,15 +950,29 @@ export class DuplexPeer {
   /** Every outgoing call ends once, wherever it settles. */
   private ended(id: string, pending: Pending, outcome: Outcome, errorCode?: string): void {
     if (!this.observer) return;
-    this.observe({ type: 'request.ended', at: new Date(), id, method: pending.method, incoming: false, durationMs: Date.now() - pending.started, outcome, errorCode, trace: pending.trace, family: this.family(pending.method) });
+    this.observe({
+      type: 'request.ended',
+      at: new Date(),
+      id,
+      method: pending.method,
+      incoming: false,
+      durationMs: Date.now() - pending.started,
+      outcome,
+      errorCode,
+      trace: pending.trace,
+      family: this.family(pending.method),
+    });
   }
 
   /** What a frame is named on the wire: a request its method, an event its event; a response or a cancel nothing, its id says which request it concerns. */
   private nameOf(frame: Envelope): string {
     switch (frame.kind) {
-      case 'request': return frame.method as string;
-      case 'event': return frame.event as string;
-      default: return '';
+      case 'request':
+        return frame.method as string;
+      case 'event':
+        return frame.event as string;
+      default:
+        return '';
     }
   }
 
@@ -767,7 +983,11 @@ export class DuplexPeer {
   }
 
   private notifyError(error: DuplexError): void {
-    try { this.options.onError?.(error); } catch { /* Observers cannot interrupt routing. */ }
+    try {
+      this.options.onError?.(error);
+    } catch {
+      /* Observers cannot interrupt routing. */
+    }
   }
 }
 
@@ -812,7 +1032,8 @@ export function decodeEnvelope(data: string, localPrefix: string, remotePrefix: 
       requireName(frame.event, 'event');
       if (!Object.hasOwn(frame, 'data')) throw new Error();
       break;
-    default: throw new Error();
+    default:
+      throw new Error();
   }
   trace(frame);
   carriage(frame);
@@ -846,13 +1067,18 @@ function topLevelMembers(text: string): number {
     switch (c) {
       case '"':
         inString = true;
-        if (depth === 1 && expectKey) { members++; expectKey = false; }
+        if (depth === 1 && expectKey) {
+          members++;
+          expectKey = false;
+        }
         break;
-      case '{': case '[':
+      case '{':
+      case '[':
         depth++;
         if (depth === 1) expectKey = true;
         break;
-      case '}': case ']':
+      case '}':
+      case ']':
         depth--;
         break;
       case ',':
@@ -863,13 +1089,17 @@ function topLevelMembers(text: string): number {
   return members;
 }
 function keys(frame: Envelope, allowed: string[]): void {
-  if (Object.keys(frame).some(key => !allowed.includes(key))) throw new Error('Unknown frame property.');
+  if (Object.keys(frame).some((key) => !allowed.includes(key))) throw new Error('Unknown frame property.');
 }
 /** The reason a peer gives for a close of its own. */
 const CLOSE_REASON = 'Duplex connection closed';
 /** What a handler threw, as a string: never its params, and never a payload. */
 function describe(value: unknown): string {
-  try { return String(value); } catch { return '[unprintable value]'; }
+  try {
+    return String(value);
+  } catch {
+    return '[unprintable value]';
+  }
 }
 /**
  * The meta keys the profile and its components keep for themselves — a
@@ -881,10 +1111,14 @@ const META_RESERVED = 'nightseam.';
 const TRACE = ['traceparent', 'tracestate'];
 const TRACEPARENT = /^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/;
 function trace(frame: Envelope): void {
-  if (Object.hasOwn(frame, 'traceparent') && (typeof frame.traceparent !== 'string' || !TRACEPARENT.test(frame.traceparent))) {
+  if (
+    Object.hasOwn(frame, 'traceparent') &&
+    (typeof frame.traceparent !== 'string' || !TRACEPARENT.test(frame.traceparent))
+  ) {
     throw new Error('Invalid traceparent.');
   }
-  if (Object.hasOwn(frame, 'tracestate') && typeof frame.tracestate !== 'string') throw new Error('Invalid tracestate.');
+  if (Object.hasOwn(frame, 'tracestate') && typeof frame.tracestate !== 'string')
+    throw new Error('Invalid tracestate.');
 }
 /**
  * What a frame sent from here carries. The map is copied, so a later write to
@@ -917,10 +1151,12 @@ function carriage(frame: Envelope): void {
   }
 }
 function requireName(value: unknown, field: string): asserts value is string {
-  if (typeof value !== 'string' || value.length === 0) throw new DuplexError('invalid_message', `${field} must be a nonempty string.`);
+  if (typeof value !== 'string' || value.length === 0)
+    throw new DuplexError('invalid_message', `${field} must be a nonempty string.`);
 }
 function requestID(value: unknown, prefix: string): void {
-  if (typeof value !== 'string' || !value.startsWith(prefix) || !/^[1-9][0-9]{0,19}$/.test(value.slice(prefix.length))) throw new Error('Invalid request ID.');
+  if (typeof value !== 'string' || !value.startsWith(prefix) || !/^[1-9][0-9]{0,19}$/.test(value.slice(prefix.length)))
+    throw new Error('Invalid request ID.');
 }
 /** Validates a component limit, returning it or throwing invalid_options; safe also requires exact integer representation. */
 export function positiveInteger(value: unknown, name: string, safe = false): number {

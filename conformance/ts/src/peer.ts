@@ -1,12 +1,40 @@
 /** The peer under control: DuplexPeer, its canned handlers, its observer. */
 import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
-import { DuplexError, DuplexPeer, type EventContext, type Meta, type Observer, type ObserverEvent, type PeerOptions, type RequestContext, type Trace } from '@nightseam/runtime';
-import { Inbox, fail, invalid, unsupported, boolOf, intOf, stringOf, withinOf, type Args, type Op, type Testee } from './testee.ts';
+import {
+  DuplexError,
+  DuplexPeer,
+  type EventContext,
+  type Meta,
+  type Observer,
+  type ObserverEvent,
+  type PeerOptions,
+  type RequestContext,
+  type Trace,
+} from '@nightseam/runtime';
+import {
+  Inbox,
+  fail,
+  invalid,
+  unsupported,
+  boolOf,
+  intOf,
+  stringOf,
+  withinOf,
+  type Args,
+  type Op,
+  type Testee,
+} from './testee.ts';
 import { Conn, asLike, isConn } from './seam.ts';
 
 /** One phase of one request a canned handler served, and what it carried. */
-interface Lifecycle { id: string; method: string; phase: 'started' | 'ended'; outcome?: string; meta?: Meta }
+interface Lifecycle {
+  id: string;
+  method: string;
+  phase: 'started' | 'ended';
+  outcome?: string;
+  meta?: Meta;
+}
 
 /** An observer that keeps what it is told, for peer.observed. */
 export class Recorder implements Observer {
@@ -22,13 +50,16 @@ export class Recorder implements Observer {
   }
   whenClosed(withinMs: number): Promise<boolean> {
     if (this.closed) return Promise.resolve(true);
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       const timer = setTimeout(() => resolve(false), withinMs);
-      this.closedWaiters.push(() => { clearTimeout(timer); resolve(true); });
+      this.closedWaiters.push(() => {
+        clearTimeout(timer);
+        resolve(true);
+      });
     });
   }
   report(withTrace: boolean, drain: boolean): Record<string, unknown>[] {
-    const out = this.events.map(event => normalize(event, withTrace));
+    const out = this.events.map((event) => normalize(event, withTrace));
     if (drain) this.events = [];
     return out;
   }
@@ -86,10 +117,17 @@ export class Peer {
     this.peer = peer;
     this.recorder = recorder;
     this.observable = observable;
-    peer.onEvent((name, data, context: EventContext) => { this.events.put({ name, data, ...(context.meta ? { meta: context.meta } : {}) }); });
-    peer.onClose(() => { this.events.close(); this.requests.close(); });
+    peer.onEvent((name, data, context: EventContext) => {
+      this.events.put({ name, data, ...(context.meta ? { meta: context.meta } : {}) });
+    });
+    peer.onClose(() => {
+      this.events.close();
+      this.requests.close();
+    });
   }
-  shutdown(): void { this.peer.close(); }
+  shutdown(): void {
+    this.peer.close();
+  }
 }
 
 export const isPeer = (object: unknown): object is Peer => object instanceof Peer;
@@ -101,7 +139,9 @@ class PeerListener {
   constructor(close: () => void) {
     this.close = close;
   }
-  shutdown(): void { this.close(); }
+  shutdown(): void {
+    this.close();
+  }
 }
 
 const isPeerListener = (object: unknown): object is PeerListener => object instanceof PeerListener;
@@ -115,7 +155,9 @@ class Call {
     this.peer = peer;
     this.promise = promise;
     this.controller = controller;
-    promise.catch(() => { /* Awaited by call.await, or never. */ });
+    promise.catch(() => {
+      /* Awaited by call.await, or never. */
+    });
   }
 }
 
@@ -139,7 +181,18 @@ const callError = (error: DuplexError, peer: Peer): Record<string, unknown> => {
   return out;
 };
 
-interface Behavior { kind: string; value?: unknown; code?: string; message?: string; data?: unknown; method?: string; params?: unknown; event?: string; then?: unknown; until?: string }
+interface Behavior {
+  kind: string;
+  value?: unknown;
+  code?: string;
+  message?: string;
+  data?: unknown;
+  method?: string;
+  params?: unknown;
+  event?: string;
+  then?: unknown;
+  until?: string;
+}
 
 const behaviorOf = (args: Args): Behavior => {
   const raw = args.behavior;
@@ -163,57 +216,71 @@ const metaOf = (args: Args): Meta | undefined => {
 };
 
 /** A handler that does what its behaviour says and records its lifecycle. */
-const canned = (p: Peer, method: string, b: Behavior) => async (params: unknown, context: RequestContext): Promise<unknown> => {
-  p.requests.put({ id: context.requestId, method, phase: 'started', ...(context.meta ? { meta: context.meta } : {}) });
-  const ended = (outcome: string) => p.requests.put({ id: context.requestId, method, phase: 'ended', outcome });
-  try {
-    let result: unknown;
-    switch (b.kind) {
-      case 'echo':
-        result = params;
-        break;
-      case 'return':
-        result = b.value ?? null;
-        break;
-      case 'fail':
-        throw new DuplexError(b.code ?? 'internal', b.message ?? '', b.data);
-      case 'wait':
-        await new Promise<never>((_, reject) => {
-          if (context.signal.aborted) reject(new DuplexError('cancelled', 'cancelled'));
-          context.signal.addEventListener('abort', () => reject(new DuplexError('cancelled', 'cancelled')), { once: true });
-        });
-        break;
-      case 'hold':
-        // The one handler that does not stop when it is told to: it holds the
-        // request until the remote emits what releases it, cancelled or not,
-        // which is how a scenario holds when a withdrawn request is answered.
-        await new Promise<void>(resolve => {
-          const released = () => { off(); ended(); resolve(); };
-          const off = context.peer.onEvent(b.until ?? '', released);
-          const ended = context.peer.onClose(released);
-        });
-        result = b.value ?? null;
-        break;
-      case 'panic':
-        throw new Error(typeof b.value === 'string' ? b.value : JSON.stringify(b.value ?? 'the handler gave up'));
-      case 'reverse':
-        result = await context.peer.call(b.method ?? '', b.params ?? params, { context });
-        break;
-      case 'emit':
-        await context.peer.emit(b.event ?? '', b.data ?? null, { context });
-        result = b.then ?? null;
-        break;
-      default:
-        throw new DuplexError('internal', `no such behaviour: ${b.kind}`);
+const canned =
+  (p: Peer, method: string, b: Behavior) =>
+  async (params: unknown, context: RequestContext): Promise<unknown> => {
+    p.requests.put({
+      id: context.requestId,
+      method,
+      phase: 'started',
+      ...(context.meta ? { meta: context.meta } : {}),
+    });
+    const ended = (outcome: string) => p.requests.put({ id: context.requestId, method, phase: 'ended', outcome });
+    try {
+      let result: unknown;
+      switch (b.kind) {
+        case 'echo':
+          result = params;
+          break;
+        case 'return':
+          result = b.value ?? null;
+          break;
+        case 'fail':
+          throw new DuplexError(b.code ?? 'internal', b.message ?? '', b.data);
+        case 'wait':
+          await new Promise<never>((_, reject) => {
+            if (context.signal.aborted) reject(new DuplexError('cancelled', 'cancelled'));
+            context.signal.addEventListener('abort', () => reject(new DuplexError('cancelled', 'cancelled')), {
+              once: true,
+            });
+          });
+          break;
+        case 'hold':
+          // The one handler that does not stop when it is told to: it holds the
+          // request until the remote emits what releases it, cancelled or not,
+          // which is how a scenario holds when a withdrawn request is answered.
+          await new Promise<void>((resolve) => {
+            const released = () => {
+              off();
+              ended();
+              resolve();
+            };
+            const off = context.peer.onEvent(b.until ?? '', released);
+            const ended = context.peer.onClose(released);
+          });
+          result = b.value ?? null;
+          break;
+        case 'panic':
+          throw new Error(typeof b.value === 'string' ? b.value : JSON.stringify(b.value ?? 'the handler gave up'));
+        case 'reverse':
+          result = await context.peer.call(b.method ?? '', b.params ?? params, { context });
+          break;
+        case 'emit':
+          await context.peer.emit(b.event ?? '', b.data ?? null, { context });
+          result = b.then ?? null;
+          break;
+        default:
+          throw new DuplexError('internal', `no such behaviour: ${b.kind}`);
+      }
+      ended('ok');
+      return result;
+    } catch (error) {
+      if (error instanceof DuplexError)
+        ended(context.signal.aborted || error.code === 'cancelled' ? 'cancelled' : 'error');
+      else ended('panic');
+      throw error;
     }
-    ended('ok');
-    return result;
-  } catch (error) {
-    if (error instanceof DuplexError) ended(context.signal.aborted || error.code === 'cancelled' ? 'cancelled' : 'error');
-    else ended('panic');
-    throw error;
-  }
-};
+  };
 
 /**
  * What a peer.listen selects from or a peer.dial offers at the handshake;
@@ -222,7 +289,8 @@ const canned = (p: Peer, method: string, b: Behavior) => async (params: unknown,
 const subprotocolsOf = (args: Args): string[] => {
   const value = args.subprotocols;
   if (value === undefined) return [];
-  if (!Array.isArray(value) || value.some(token => typeof token !== 'string')) throw invalid('subprotocols is an array of strings');
+  if (!Array.isArray(value) || value.some((token) => typeof token !== 'string'))
+    throw invalid('subprotocols is an array of strings');
   return value as string[];
 };
 
@@ -235,15 +303,31 @@ const optionsOf = (args: Args): { options: PeerOptions; recorder: Recorder; obse
   if (typeof raw !== 'object' || raw === null) throw invalid('options is an object');
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     switch (key) {
-      case 'max_frame_bytes': options.maxFrameBytes = value as number; break;
-      case 'max_pending_requests': options.maxPendingRequests = value as number; break;
-      case 'queue_capacity': options.queueCapacity = value as number; break;
-      case 'request_timeout_ms': options.requestTimeoutMs = value as number; break;
-      case 'write_timeout_ms': options.writeTimeoutMs = value as number; break;
-      case 'families': options.families = value as Record<string, string>; break;
-      case 'observe': observable = value === true; break;
-      case 'propagate': break;
-      default: throw unsupported(`option ${key}`);
+      case 'max_frame_bytes':
+        options.maxFrameBytes = value as number;
+        break;
+      case 'max_pending_requests':
+        options.maxPendingRequests = value as number;
+        break;
+      case 'queue_capacity':
+        options.queueCapacity = value as number;
+        break;
+      case 'request_timeout_ms':
+        options.requestTimeoutMs = value as number;
+        break;
+      case 'write_timeout_ms':
+        options.writeTimeoutMs = value as number;
+        break;
+      case 'families':
+        options.families = value as Record<string, string>;
+        break;
+      case 'observe':
+        observable = value === true;
+        break;
+      case 'propagate':
+        break;
+      default:
+        throw unsupported(`option ${key}`);
     }
   }
   return { options, recorder, observable };
@@ -252,60 +336,82 @@ const optionsOf = (args: Args): { options: PeerOptions; recorder: Recorder; obse
 export function peerOps(t: Testee): Record<string, Op> {
   const peerOf = (args: Args, name = 'on') => t.lookup(args[name], isPeer, 'a peer');
   return {
-    'peer.listen': args => new Promise((resolve, reject) => {
-      const { options, recorder, observable } = optionsOf(args);
-      const offered = subprotocolsOf(args);
-      const server = createServer();
-      // The selection is the server's, in its own order of preference, and
-      // none where the lists do not meet — ws would otherwise echo the
-      // client's first offer back, which is not what a runtime naming none
-      // does. The reference testee selects none by default; this one too.
-      const handleProtocols = (protocols: Set<string>): string | false => offered.find(token => protocols.has(token)) ?? false;
-      const sockets = new WebSocketServer({ server, maxPayload: options.maxFrameBytes ?? 1 << 20, handleProtocols });
-      const listener = new PeerListener(() => { sockets.close(); server.close(); });
-      let first = true;
-      sockets.on('connection', socket => {
-        if (!first) { socket.close(1008, 'one connection is accepted'); return; }
-        first = false;
-        const peer = new DuplexPeer({ ...options, role: 'server' });
-        const wrapped = new Peer(peer, recorder, observable);
-        // The socket itself, not a connection already wrapped around it: the
-        // peer wraps it the same way and reads the selected subprotocol off it.
-        peer.attach(asLike(socket)).then(() => listener.accepted.put(wrapped), () => socket.terminate());
-      });
-      server.on('error', reject);
-      server.listen(0, '127.0.0.1', () => {
-        const address = server.address();
-        if (!address || typeof address === 'string') { reject(new Error('no address')); return; }
-        listener.url = `ws://127.0.0.1:${address.port}`;
-        resolve({ handle: t.mint('pl', listener), url: listener.url });
-      });
-    }),
-    'peer.accept': async args => {
+    'peer.listen': (args) =>
+      new Promise((resolve, reject) => {
+        const { options, recorder, observable } = optionsOf(args);
+        const offered = subprotocolsOf(args);
+        const server = createServer();
+        // The selection is the server's, in its own order of preference, and
+        // none where the lists do not meet — ws would otherwise echo the
+        // client's first offer back, which is not what a runtime naming none
+        // does. The reference testee selects none by default; this one too.
+        const handleProtocols = (protocols: Set<string>): string | false =>
+          offered.find((token) => protocols.has(token)) ?? false;
+        const sockets = new WebSocketServer({ server, maxPayload: options.maxFrameBytes ?? 1 << 20, handleProtocols });
+        const listener = new PeerListener(() => {
+          sockets.close();
+          server.close();
+        });
+        let first = true;
+        sockets.on('connection', (socket) => {
+          if (!first) {
+            socket.close(1008, 'one connection is accepted');
+            return;
+          }
+          first = false;
+          const peer = new DuplexPeer({ ...options, role: 'server' });
+          const wrapped = new Peer(peer, recorder, observable);
+          // The socket itself, not a connection already wrapped around it: the
+          // peer wraps it the same way and reads the selected subprotocol off it.
+          peer.attach(asLike(socket)).then(
+            () => listener.accepted.put(wrapped),
+            () => socket.terminate(),
+          );
+        });
+        server.on('error', reject);
+        server.listen(0, '127.0.0.1', () => {
+          const address = server.address();
+          if (!address || typeof address === 'string') {
+            reject(new Error('no address'));
+            return;
+          }
+          listener.url = `ws://127.0.0.1:${address.port}`;
+          resolve({ handle: t.mint('pl', listener), url: listener.url });
+        });
+      }),
+    'peer.accept': async (args) => {
       const l = t.lookup(args.on, isPeerListener, 'a peer listener');
       const { item } = await l.accepted.await(withinOf(args), () => true);
       if (!item) throw fail('timeout', 'nobody connected');
       return { handle: t.mint('p', item), subprotocol: item.peer.subprotocol };
     },
-    'peer.dial': async args => {
+    'peer.dial': async (args) => {
       const { options, recorder, observable } = optionsOf(args);
       const offered = subprotocolsOf(args);
-      const peer = new DuplexPeer({ ...options, role: 'client', ...(offered.length > 0 ? { subprotocols: offered } : {}) });
+      const peer = new DuplexPeer({
+        ...options,
+        role: 'client',
+        ...(offered.length > 0 ? { subprotocols: offered } : {}),
+      });
       const wrapped = new Peer(peer, recorder, observable);
-      await peer.connect(stringOf(args, 'url', true)).catch(error => { throw fail('failed', String(error)); });
+      await peer.connect(stringOf(args, 'url', true)).catch((error) => {
+        throw fail('failed', String(error));
+      });
       return { handle: t.mint('p', wrapped), subprotocol: peer.subprotocol };
     },
-    'peer.over': async args => {
+    'peer.over': async (args) => {
       const c = t.lookup(args.on, isConn, 'a connection');
       const role = stringOf(args, 'role', true);
       if (role !== 'client' && role !== 'server') throw invalid('role is client or server');
       const { options, recorder, observable } = optionsOf(args);
       const peer = new DuplexPeer({ ...options, role });
       const wrapped = new Peer(peer, recorder, observable);
-      await peer.attach(c.release()).catch(error => { throw fail('failed', String(error)); });
+      await peer.attach(c.release()).catch((error) => {
+        throw fail('failed', String(error));
+      });
       return { handle: t.mint('p', wrapped) };
     },
-    'peer.handle': args => {
+    'peer.handle': (args) => {
       const p = peerOf(args);
       const method = stringOf(args, 'method', true);
       try {
@@ -315,7 +421,7 @@ export function peerOps(t: Testee): Record<string, Op> {
       }
       return {};
     },
-    'peer.on_event': args => {
+    'peer.on_event': (args) => {
       const p = peerOf(args);
       const name = stringOf(args, 'name', true);
       const b = behaviorOf(args);
@@ -324,75 +430,93 @@ export function peerOps(t: Testee): Record<string, Op> {
         case 'record':
           return {};
         case 'block':
-          p.peer.onEvent(name, () => new Promise<void>(() => { /* never */ }));
+          p.peer.onEvent(
+            name,
+            () =>
+              new Promise<void>(() => {
+                /* never */
+              }),
+          );
           return {};
         case 'panic':
-          p.peer.onEvent(name, () => { throw new Error(typeof b.value === 'string' ? b.value : 'the handler gave up'); });
+          p.peer.onEvent(name, () => {
+            throw new Error(typeof b.value === 'string' ? b.value : 'the handler gave up');
+          });
           return {};
       }
       throw invalid('an event handler records, blocks or panics');
     },
-    'peer.call': args => {
+    'peer.call': (args) => {
       const p = peerOf(args);
       const method = stringOf(args, 'method', true);
       const timeout = intOf(args, 'timeout_ms', 0);
       const controller = new AbortController();
       const meta = metaOf(args);
-      const promise = p.peer.call(method, args.params ?? null, { signal: controller.signal, ...(timeout > 0 ? { timeoutMs: timeout } : {}), ...(meta ? { meta } : {}) });
+      const promise = p.peer.call(method, args.params ?? null, {
+        signal: controller.signal,
+        ...(timeout > 0 ? { timeoutMs: timeout } : {}),
+        ...(meta ? { meta } : {}),
+      });
       return { handle: t.mint('call', new Call(p, promise, controller)) };
     },
-    'call.await': async args => {
+    'call.await': async (args) => {
       const c = t.lookup(args.on, isCall, 'a call');
       const settled = await Promise.race([
-        c.promise.then(result => ({ result }), (error: DuplexError) => ({ error })),
-        new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), withinOf(args))),
+        c.promise.then(
+          (result) => ({ result }),
+          (error: DuplexError) => ({ error }),
+        ),
+        new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), withinOf(args))),
       ]);
       if (settled === undefined) throw fail('timeout', 'no response');
       if ('error' in settled) return { error: callError(settled.error, c.peer) };
       return { result: settled.result ?? null };
     },
-    'call.cancel': args => {
+    'call.cancel': (args) => {
       const c = t.lookup(args.on, isCall, 'a call');
       c.controller.abort();
       return {};
     },
-    'peer.emit': async args => {
+    'peer.emit': async (args) => {
       const p = peerOf(args);
       const event = stringOf(args, 'event', true);
       const settled = await Promise.race([
-        p.peer.emit(event, args.data ?? null, { ...(metaOf(args) ? { meta: metaOf(args) as Meta } : {}) }).then(() => 'ok' as const, (error: DuplexError) => error),
-        new Promise<'late'>(resolve => setTimeout(() => resolve('late'), withinOf(args))),
+        p.peer.emit(event, args.data ?? null, { ...(metaOf(args) ? { meta: metaOf(args) as Meta } : {}) }).then(
+          () => 'ok' as const,
+          (error: DuplexError) => error,
+        ),
+        new Promise<'late'>((resolve) => setTimeout(() => resolve('late'), withinOf(args))),
       ]);
       if (settled === 'late') throw fail('timeout', 'the event was not sent');
       if (settled !== 'ok') throw fail('disconnected', settled.message);
       return {};
     },
-    'peer.await_event': async args => {
+    'peer.await_event': async (args) => {
       const p = peerOf(args);
       const name = stringOf(args, 'name', true);
-      const { item, ended } = await p.events.await(withinOf(args), e => e.name === name);
+      const { item, ended } = await p.events.await(withinOf(args), (e) => e.name === name);
       if (ended && !item) throw fail('disconnected', `the peer ended before ${name} arrived`);
       if (!item) throw fail('timeout', `no ${name}`);
       return { data: item.data ?? null, ...(item.meta ? { meta: item.meta } : {}) };
     },
-    'peer.await_request': async args => {
+    'peer.await_request': async (args) => {
       const p = peerOf(args);
       const method = stringOf(args, 'method', true);
       const phase = stringOf(args, 'phase', true);
-      const { item } = await p.requests.await(withinOf(args), l => l.method === method && l.phase === phase);
+      const { item } = await p.requests.await(withinOf(args), (l) => l.method === method && l.phase === phase);
       if (!item) throw fail('timeout', `no ${method} ${phase}`);
       return item;
     },
-    'peer.observed': args => {
+    'peer.observed': (args) => {
       const p = peerOf(args);
       if (!p.observable) throw invalid('the peer was made without observe');
       return p.recorder.report(boolOf(args, 'trace'), boolOf(args, 'drain', true));
     },
-    'peer.close': args => {
+    'peer.close': (args) => {
       peerOf(args).peer.close();
       return {};
     },
-    'peer.await_close': async args => {
+    'peer.await_close': async (args) => {
       const p = peerOf(args);
       if (!(await p.recorder.whenClosed(withinOf(args)))) throw fail('timeout', 'the peer did not end');
       // Clean is a close somebody chose, whichever side: a peer closes with

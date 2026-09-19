@@ -59,7 +59,10 @@ export interface TunnelOptions {
   acceptCapacity?: number;
 }
 
-interface Acceptor { resolve: (channel: Channel) => void; reject: (error: DuplexError) => void }
+interface Acceptor {
+  resolve: (channel: Channel) => void;
+  reject: (error: DuplexError) => void;
+}
 
 /** The channels of one outer peer. */
 export class Tunnel {
@@ -82,14 +85,16 @@ export class Tunnel {
     };
     this.parity = peer.role === 'server' ? 0 : 1;
     this.next = this.parity === 0 ? 2 : 1;
-    peer.handle(OPEN_METHOD, params => this.onOpen(params));
-    peer.onEvent(FRAME_EVENT, data => this.onFrame(data));
-    peer.onEvent(CREDIT_EVENT, data => this.onCredit(data));
-    peer.onEvent(CLOSE_EVENT, data => this.onClose(data));
+    peer.handle(OPEN_METHOD, (params) => this.onOpen(params));
+    peer.onEvent(FRAME_EVENT, (data) => this.onFrame(data));
+    peer.onEvent(CREDIT_EVENT, (data) => this.onCredit(data));
+    peer.onEvent(CLOSE_EVENT, (data) => this.onClose(data));
     peer.onClose(() => this.onOuterClose());
   }
 
-  get limits(): Readonly<Required<TunnelOptions>> { return this.options; }
+  get limits(): Readonly<Required<TunnelOptions>> {
+    return this.options;
+  }
 
   /** Opens a channel to the other side, saying what family it speaks and the last sequence this side holds; resolves once the other side accepted it. */
   async open(family: string, after = 0): Promise<Channel> {
@@ -135,8 +140,11 @@ export class Tunnel {
       this.accepted(next);
       return Promise.resolve(next);
     }
-    if (this.closed) return Promise.reject(new DuplexError('disconnected', 'The connection carrying the channels closed.'));
-    return new Promise((resolve, reject) => { this.acceptors.push({ resolve, reject }); });
+    if (this.closed)
+      return Promise.reject(new DuplexError('disconnected', 'The connection carrying the channels closed.'));
+    return new Promise((resolve, reject) => {
+      this.acceptors.push({ resolve, reject });
+    });
   }
 
   /** Resolves an id to the channel it names, whichever side opened it; a channel the other side opened counts as taken. */
@@ -162,10 +170,14 @@ export class Tunnel {
   }
 
   /** @internal */
-  emit(event: string, data: unknown): Promise<void> { return this.peer.emit(event, data); }
+  emit(event: string, data: unknown): Promise<void> {
+    return this.peer.emit(event, data);
+  }
 
   /** @internal What a tunnel observes through: the observer of the peer it runs over, or none. */
-  observe(event: ObserverEvent): void { this.peer.observe(event); }
+  observe(event: ObserverEvent): void {
+    this.peer.observe(event);
+  }
 
   /** An open that became no channel, wherever it was refused. */
   private refused(family: string, reason: string): void {
@@ -174,18 +186,44 @@ export class Tunnel {
 
   /** A channel the other side opened, taken here rather than left pending. */
   private accepted(channel: Channel): void {
-    this.observe({ type: 'channel.accepted', at: new Date(), family: channel.family, id: channel.id, after: channel.after });
+    this.observe({
+      type: 'channel.accepted',
+      at: new Date(),
+      family: channel.family,
+      id: channel.id,
+      after: channel.after,
+    });
   }
 
   private onOpen(params: unknown): { window: number } {
     const p = params as Partial<Record<'channel' | 'family' | 'after' | 'window', unknown>> | null;
-    if (!p || typeof p !== 'object' || typeof p.channel !== 'number' || !Number.isInteger(p.channel) || p.channel <= 0 || typeof p.family !== 'string' || p.family === '' || typeof p.after !== 'number' || !Number.isInteger(p.after) || p.after < 0 || typeof p.window !== 'number' || !Number.isInteger(p.window) || p.window <= 0) {
-      this.refused(typeof p?.family === 'string' ? p.family : '', 'an open naming no channel, family, sequence and window');
-      throw new DuplexError(CHANNEL_INVALID, 'channel.open needs a positive channel id of the opener\'s parity, a family, a sequence and a window.');
+    if (
+      !p ||
+      typeof p !== 'object' ||
+      typeof p.channel !== 'number' ||
+      !Number.isInteger(p.channel) ||
+      p.channel <= 0 ||
+      typeof p.family !== 'string' ||
+      p.family === '' ||
+      typeof p.after !== 'number' ||
+      !Number.isInteger(p.after) ||
+      p.after < 0 ||
+      typeof p.window !== 'number' ||
+      !Number.isInteger(p.window) ||
+      p.window <= 0
+    ) {
+      this.refused(
+        typeof p?.family === 'string' ? p.family : '',
+        'an open naming no channel, family, sequence and window',
+      );
+      throw new DuplexError(
+        CHANNEL_INVALID,
+        "channel.open needs a positive channel id of the opener's parity, a family, a sequence and a window.",
+      );
     }
     if (p.channel % 2 === this.parity) {
-      this.refused(p.family, 'the channel id is of this side\'s parity');
-      throw new DuplexError(CHANNEL_INVALID, 'The channel id is of this side\'s parity.');
+      this.refused(p.family, "the channel id is of this side's parity");
+      throw new DuplexError(CHANNEL_INVALID, "The channel id is of this side's parity.");
     }
     if (this.table.has(p.channel)) {
       this.refused(p.family, `channel ${p.channel} is open`);
@@ -197,7 +235,14 @@ export class Tunnel {
     }
     const channel = new Channel(this, p.channel, p.family, p.after, p.window);
     this.table.set(p.channel, channel);
-    this.observe({ type: 'channel.opened', at: new Date(), family: p.family, id: p.channel, after: p.after, opener: false });
+    this.observe({
+      type: 'channel.opened',
+      at: new Date(),
+      family: p.family,
+      id: p.channel,
+      after: p.after,
+      opener: false,
+    });
     const acceptor = this.acceptors.shift();
     if (acceptor) {
       this.accepted(channel);
@@ -218,7 +263,9 @@ export class Tunnel {
       size = new TextEncoder().encode(payload.text).byteLength;
     } else if (typeof payload.binary === 'string' && payload.text === undefined) {
       let bytes: Uint8Array;
-      try { bytes = decodeBase64(payload.binary); } catch {
+      try {
+        bytes = decodeBase64(payload.binary);
+      } catch {
         channel.fail(1002, 'a binary frame that is not base64');
         return;
       }
@@ -237,7 +284,15 @@ export class Tunnel {
 
   private onCredit(data: unknown): void {
     const payload = data as Partial<Record<'channel' | 'frames', unknown>> | null;
-    if (!payload || typeof payload !== 'object' || typeof payload.channel !== 'number' || typeof payload.frames !== 'number' || !Number.isInteger(payload.frames) || payload.frames <= 0) return;
+    if (
+      !payload ||
+      typeof payload !== 'object' ||
+      typeof payload.channel !== 'number' ||
+      typeof payload.frames !== 'number' ||
+      !Number.isInteger(payload.frames) ||
+      payload.frames <= 0
+    )
+      return;
     this.table.get(payload.channel)?.grant(payload.frames);
   }
 
@@ -247,7 +302,10 @@ export class Tunnel {
     const channel = this.table.get(payload.channel);
     if (!channel) return;
     this.remove(payload.channel);
-    channel.endRemote(typeof payload.code === 'number' ? payload.code : NO_STATUS, typeof payload.reason === 'string' ? payload.reason : '');
+    channel.endRemote(
+      typeof payload.code === 'number' ? payload.code : NO_STATUS,
+      typeof payload.reason === 'string' ? payload.reason : '',
+    );
   }
 
   private onOuterClose(): void {
@@ -256,7 +314,8 @@ export class Tunnel {
     this.table.clear();
     this.pending.length = 0;
     for (const channel of channels) channel.endRemote(1001, 'the connection carrying the channel closed');
-    for (const acceptor of this.acceptors.splice(0)) acceptor.reject(new DuplexError('disconnected', 'The connection carrying the channels closed.'));
+    for (const acceptor of this.acceptors.splice(0))
+      acceptor.reject(new DuplexError('disconnected', 'The connection carrying the channels closed.'));
   }
 }
 
@@ -290,8 +349,12 @@ export class Channel implements FrameConnection {
     this.credit = credit;
   }
 
-  get state(): ConnectionState { return this.current; }
-  get buffered(): number { return this.queued.length; }
+  get state(): ConnectionState {
+    return this.current;
+  }
+  get buffered(): number {
+    return this.queued.length;
+  }
 
   send(frame: Frame): void {
     if (this.current !== 'open') throw new Error('Channel is not open.');
@@ -302,7 +365,13 @@ export class Channel implements FrameConnection {
       // The other side's window is exhausted; the frame waits in the channel
       // rather than on the outer connection, and the observer is told how much does.
       this.queued.push(frame);
-      this.tunnel.observe({ type: 'credit.stall', at: new Date(), family: this.family, id: this.id, waiting: this.queued.length });
+      this.tunnel.observe({
+        type: 'credit.stall',
+        at: new Date(),
+        family: this.family,
+        id: this.id,
+        waiting: this.queued.length,
+      });
     }
   }
 
@@ -312,7 +381,9 @@ export class Channel implements FrameConnection {
     this.closing(code, reason);
     this.queued.length = 0;
     this.tunnel.remove(this.id);
-    void this.tunnel.emit(CLOSE_EVENT, { channel: this.id, code, reason }).catch(() => { /* The outer peer reports its own failure. */ });
+    void this.tunnel.emit(CLOSE_EVENT, { channel: this.id, code, reason }).catch(() => {
+      /* The outer peer reports its own failure. */
+    });
     this.ended(code, reason);
   }
 
@@ -326,12 +397,19 @@ export class Channel implements FrameConnection {
       this.heldClose = undefined;
       this.ended(code, reason);
     }
-    return () => { this.listeners.delete(handlers); };
+    return () => {
+      this.listeners.delete(handlers);
+    };
   }
 
   private transmit(frame: Frame): void {
-    const payload = frame.kind === 'text' ? { channel: this.id, text: frame.data } : { channel: this.id, binary: encodeBase64(frame.data) };
-    void this.tunnel.emit(FRAME_EVENT, payload).catch(() => { /* The outer peer reports its own failure; the channel ends with it. */ });
+    const payload =
+      frame.kind === 'text'
+        ? { channel: this.id, text: frame.data }
+        : { channel: this.id, binary: encodeBase64(frame.data) };
+    void this.tunnel.emit(FRAME_EVENT, payload).catch(() => {
+      /* The outer peer reports its own failure; the channel ends with it. */
+    });
   }
 
   /** @internal */
@@ -368,7 +446,9 @@ export class Channel implements FrameConnection {
     if (this.taken >= Math.max(Math.floor(this.tunnel.limits.window / 2), 1)) {
       const frames = this.taken;
       this.taken = 0;
-      void this.tunnel.emit(CREDIT_EVENT, { channel: this.id, frames }).catch(() => { /* The outer peer reports its own failure. */ });
+      void this.tunnel.emit(CREDIT_EVENT, { channel: this.id, frames }).catch(() => {
+        /* The outer peer reports its own failure. */
+      });
     }
     for (const handlers of [...this.listeners]) handlers.frame?.(frame);
   }
@@ -400,7 +480,9 @@ export class Channel implements FrameConnection {
     this.closing(code, reason);
     this.queued.length = 0;
     this.tunnel.remove(this.id);
-    void this.tunnel.emit(CLOSE_EVENT, { channel: this.id, code, reason }).catch(() => { /* The outer peer reports its own failure. */ });
+    void this.tunnel.emit(CLOSE_EVENT, { channel: this.id, code, reason }).catch(() => {
+      /* The outer peer reports its own failure. */
+    });
     // What was held is still delivered, and the refusal comes behind it, as a
     // close from the other side does: a channel refused while nobody listened
     // tells the first listener why it ended rather than ending silently.
@@ -418,7 +500,9 @@ export class Channel implements FrameConnection {
    * it emits its events without an observer option of its own — the same way
    * the tunnel emits its own, one step further down.
    */
-  observe(event: ObserverEvent): void { this.tunnel.observe(event); }
+  observe(event: ObserverEvent): void {
+    this.tunnel.observe(event);
+  }
 
   /** The channel is over, observed where it ends rather than where the close reaches its listeners, which a held frame delays. */
   private closing(code: number, reason: string): void {

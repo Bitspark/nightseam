@@ -10,8 +10,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  ROOT_CONTEXT, TraceFlags, context as activeContext, trace as traceApi,
-  type Context, type TextMapPropagator,
+  ROOT_CONTEXT,
+  TraceFlags,
+  context as activeContext,
+  trace as traceApi,
+  type Context,
+  type TextMapPropagator,
 } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
@@ -22,7 +26,10 @@ import { propagator } from './propagator.ts';
 const FORM = /^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/;
 
 /** A trace a frame arrived with. */
-const INCOMING: Trace = { traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01', tracestate: 'bitspark=1' };
+const INCOMING: Trace = {
+  traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+  tracestate: 'bitspark=1',
+};
 
 /** The span context of a span that names nothing: the all-zero ids no peer accepts. */
 const INVALID = { traceId: '0'.repeat(32), spanId: '0'.repeat(16), traceFlags: TraceFlags.NONE };
@@ -39,11 +46,14 @@ function requestContext(trace?: Trace): RequestContext {
 
 /** A context holding a span that is not recording but whose span context is valid. */
 function nonRecording(): Context {
-  return traceApi.setSpan(ROOT_CONTEXT, traceApi.wrapSpanContext({
-    traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
-    spanId: '00f067aa0ba902b7',
-    traceFlags: TraceFlags.NONE,
-  }));
+  return traceApi.setSpan(
+    ROOT_CONTEXT,
+    traceApi.wrapSpanContext({
+      traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+      spanId: '00f067aa0ba902b7',
+      traceFlags: TraceFlags.NONE,
+    }),
+  );
 }
 
 /** Every injection of the suite, held to the form before it is looked at further. */
@@ -91,10 +101,18 @@ test('an injection from a context whose span is recording carries that span', ()
 });
 
 test('a text-map propagator that writes nothing, or writes something else, is not what the frame carries', () => {
-  const silent: TextMapPropagator = { inject() { /* Writes no member at all. */ }, extract: context => context, fields: () => [] };
+  const silent: TextMapPropagator = {
+    inject() {
+      /* Writes no member at all. */
+    },
+    extract: (context) => context,
+    fields: () => [],
+  };
   const wrong: TextMapPropagator = {
-    inject(_context, carrier) { (carrier as Record<string, string>).traceparent = 'not-a-traceparent'; },
-    extract: context => context,
+    inject(_context, carrier) {
+      (carrier as Record<string, string>).traceparent = 'not-a-traceparent';
+    },
+    extract: (context) => context,
     fields: () => ['traceparent'],
   };
   for (const textMap of [silent, wrong]) {
@@ -106,7 +124,7 @@ test('a text-map propagator that writes nothing, or writes something else, is no
   }
 });
 
-test('a frame\'s trace reaches the handler\'s context, and the call it makes is a child of it', () => {
+test("a frame's trace reaches the handler's context, and the call it makes is a child of it", () => {
   const hook = propagator();
   const context = requestContext();
   hook.extract(context, INCOMING);

@@ -21,10 +21,15 @@ class Socket extends EventTarget implements WebSocketLike {
   send(text: string): void {
     this.sent.push(JSON.parse(text));
     const partner = this.partner;
-    if (partner) queueMicrotask(() => { if (partner.readyState === 1) partner.receive(text); });
+    if (partner)
+      queueMicrotask(() => {
+        if (partner.readyState === 1) partner.receive(text);
+      });
   }
   receive(frame: unknown): void {
-    this.dispatchEvent(new MessageEvent('message', { data: typeof frame === 'string' ? frame : JSON.stringify(frame) }));
+    this.dispatchEvent(
+      new MessageEvent('message', { data: typeof frame === 'string' ? frame : JSON.stringify(frame) }),
+    );
   }
   close(code?: number, reason?: string): void {
     this.closed ??= { code: code ?? 1005, reason: reason ?? '' };
@@ -85,7 +90,9 @@ test('meta is refused on a response and a cancel, in any other form, and under t
 });
 
 test('every row of the conformance table is judged as the table judges it', () => {
-  const table = JSON.parse(readFileSync(new URL('../../../conformance/tables/frames.json', import.meta.url), 'utf8')) as {
+  const table = JSON.parse(
+    readFileSync(new URL('../../../conformance/tables/frames.json', import.meta.url), 'utf8'),
+  ) as {
     rows: { name: string; to: string; frame: string; valid: boolean }[];
   };
   let carriages = 0;
@@ -94,13 +101,24 @@ test('every row of the conformance table is judged as the table judges it', () =
     // server's; one addressed to either is read as a server's.
     const [local, remote] = row.to === 'client' ? ['c:', 's:'] : ['s:', 'c:'];
     let accepted = true;
-    try { decodeEnvelope(row.frame, local, remote); } catch { accepted = false; }
+    try {
+      decodeEnvelope(row.frame, local, remote);
+    } catch {
+      accepted = false;
+    }
     assert.equal(accepted, row.valid, row.name);
     let members: unknown;
-    try { members = JSON.parse(row.frame); } catch { continue; }
+    try {
+      members = JSON.parse(row.frame);
+    } catch {
+      continue;
+    }
     if (typeof members === 'object' && members !== null && Object.hasOwn(members, 'meta')) carriages++;
   }
-  assert.ok(table.rows.length >= 70 && carriages >= 12, `the table holds ${table.rows.length} rows and names meta in ${carriages}; the wire is held by more than that`);
+  assert.ok(
+    table.rows.length >= 70 && carriages >= 12,
+    `the table holds ${table.rows.length} rows and names meta in ${carriages}; the wire is held by more than that`,
+  );
 });
 
 test('a frame with a refused meta closes the connection with 4011', async () => {
@@ -125,9 +143,12 @@ async function pair() {
   return { client, server, clientSocket };
 }
 
-test('a call and an event carry the meta their options gave, and a bare one carries none', async t => {
+test('a call and an event carry the meta their options gave, and a bare one carries none', async (t) => {
   const { client, server, clientSocket } = await pair();
-  t.after(() => { client.close(); server.close(); });
+  t.after(() => {
+    client.close();
+    server.close();
+  });
   server.handle('read', () => 1);
   const carried = { tenant: 'acme', idempotency: 'k-1' };
   await client.call('read', {}, { meta: carried });
@@ -137,23 +158,29 @@ test('a call and an event carry the meta their options gave, and a bare one carr
   // than sending a frame the far peer would refuse.
   await client.emit('updated', 1, { meta: { 'nightseam.cause': 'nightly', tenant: 'acme' } });
   const sent = clientSocket.sent;
-  assert.deepEqual(sent.find(frame => frame.kind === 'request')?.meta, carried);
-  const events = sent.filter(frame => frame.kind === 'event');
+  assert.deepEqual(sent.find((frame) => frame.kind === 'request')?.meta, carried);
+  const events = sent.filter((frame) => frame.kind === 'event');
   assert.deepEqual(events[0]?.meta, { cause: 'nightly' });
   assert.equal(Object.hasOwn(events[1] ?? {}, 'meta'), false, 'a bare event carries the member nowhere');
   assert.deepEqual(events[2]?.meta, { tenant: 'acme' });
   // A carriage left with nothing in it is not sent at all.
   await client.emit('updated', 1, { meta: { 'nightseam.cause': 'nightly' } });
-  const last = sent.filter(frame => frame.kind === 'event').at(-1);
+  const last = sent.filter((frame) => frame.kind === 'event').at(-1);
   assert.equal(Object.hasOwn(last ?? {}, 'meta'), false);
 });
 
-test('a handler reads the meta of its frame and forwards nothing of itself', async t => {
+test('a handler reads the meta of its frame and forwards nothing of itself', async (t) => {
   const { client, server } = await pair();
-  t.after(() => { client.close(); server.close(); });
+  t.after(() => {
+    client.close();
+    server.close();
+  });
   const nested: (Meta | undefined)[] = [];
   const delivered: (Meta | undefined)[] = [];
-  client.handle('reverse', (_params, context: RequestContext) => { nested.push(context.meta); return 'back'; });
+  client.handle('reverse', (_params, context: RequestContext) => {
+    nested.push(context.meta);
+    return 'back';
+  });
   // Reads its own meta, then calls back without saying to forward it.
   server.handle('read', async (_params, context: RequestContext) => {
     await context.peer.call('reverse');
@@ -164,11 +191,13 @@ test('a handler reads the meta of its frame and forwards nothing of itself', asy
     await context.peer.call('reverse', {}, { meta: context.meta });
     return null;
   });
-  server.onEvent('updated', (_data, context: EventContext) => { delivered.push(context.meta); });
+  server.onEvent('updated', (_data, context: EventContext) => {
+    delivered.push(context.meta);
+  });
 
   const carried = { tenant: 'acme' };
   assert.deepEqual(await client.call('read', {}, { meta: carried }), carried);
-  assert.equal(nested.at(-1), undefined, 'a call from the handler carried the caller\'s meta of its own accord');
+  assert.equal(nested.at(-1), undefined, "a call from the handler carried the caller's meta of its own accord");
   await client.call('relay', {}, { meta: carried });
   assert.deepEqual(nested.at(-1), carried);
 
@@ -180,9 +209,11 @@ test('a handler reads the meta of its frame and forwards nothing of itself', asy
   assert.equal(delivered.at(-1), undefined, 'a listener of a bare event reads none');
 });
 
-function tick(): Promise<void> { return new Promise(resolve => setTimeout(resolve, 0)); }
+function tick(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
 
-test('no meta value reaches an observer, by any path', async t => {
+test('no meta value reaches an observer, by any path', async (t) => {
   // The carriage may hold a credential, so it is held to the rule the payloads
   // are: an observer is told names, ids, sizes and outcomes, and nothing of
   // what a frame carried.
@@ -192,11 +223,28 @@ test('no meta value reaches an observer, by any path', async t => {
   const serverSocket = new Socket();
   clientSocket.partner = serverSocket;
   serverSocket.partner = clientSocket;
-  const client = new DuplexPeer({ role: 'client', observer: { observe: event => { seen.push(event); } } });
-  const server = new DuplexPeer({ role: 'server', observer: { observe: event => { seen.push(event); } } });
+  const client = new DuplexPeer({
+    role: 'client',
+    observer: {
+      observe: (event) => {
+        seen.push(event);
+      },
+    },
+  });
+  const server = new DuplexPeer({
+    role: 'server',
+    observer: {
+      observe: (event) => {
+        seen.push(event);
+      },
+    },
+  });
   await client.attach(clientSocket);
   await server.attach(serverSocket);
-  t.after(() => { client.close(); server.close(); });
+  t.after(() => {
+    client.close();
+    server.close();
+  });
   server.handle('echo', (params: unknown) => params);
   server.onEvent('told', () => {});
   const carried = { secret: sentinel };
@@ -205,7 +253,7 @@ test('no meta value reaches an observer, by any path', async t => {
   await tick();
   // The carriage did travel: the frames carried it, so this is about what the
   // observers were spared and not about an idle connection.
-  assert.ok(clientSocket.sent.some(frame => JSON.stringify(frame.meta) === JSON.stringify(carried)));
+  assert.ok(clientSocket.sent.some((frame) => JSON.stringify(frame.meta) === JSON.stringify(carried)));
   assert.ok(seen.length > 0);
   for (const event of seen) {
     assert.equal(JSON.stringify(event).includes(sentinel), false, event.type);

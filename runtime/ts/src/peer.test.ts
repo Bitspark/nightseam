@@ -37,10 +37,15 @@ class Socket extends EventTarget implements WebSocketLike {
     if (this.readyState !== 1) throw new Error('Closed');
     this.sent.push(JSON.parse(text));
     const partner = this.partner;
-    if (partner) queueMicrotask(() => { if (partner.readyState === 1) partner.receive(text); });
+    if (partner)
+      queueMicrotask(() => {
+        if (partner.readyState === 1) partner.receive(text);
+      });
   }
   receive(frame: unknown): void {
-    this.dispatchEvent(new MessageEvent('message', { data: typeof frame === 'string' ? frame : JSON.stringify(frame) }));
+    this.dispatchEvent(
+      new MessageEvent('message', { data: typeof frame === 'string' ? frame : JSON.stringify(frame) }),
+    );
   }
   close(): void {
     this.closeCount++;
@@ -81,7 +86,9 @@ class Pipe implements FrameConnection {
   }
   listen(handlers: ConnectionHandlers): () => void {
     this.listeners.add(handlers);
-    return () => { this.listeners.delete(handlers); };
+    return () => {
+      this.listeners.delete(handlers);
+    };
   }
 }
 
@@ -98,27 +105,31 @@ async function paired(clientOptions: PeerOptions = {}, serverOptions: PeerOption
 
 function deferred<T = void>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
-  const promise = new Promise<T>(accept => { resolve = accept; });
+  const promise = new Promise<T>((accept) => {
+    resolve = accept;
+  });
   return { promise, resolve };
 }
 
 /** Lets whatever a frame set going run: the handlers, the queues, the writer. */
 function settled(): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, 10));
+  return new Promise((resolve) => setTimeout(resolve, 10));
 }
 
-test('duplex routing permits reverse calls during an outstanding request', async t => {
+test('duplex routing permits reverse calls during an outstanding request', async (t) => {
   const { client, server, left, right } = await paired();
   t.after(() => client.close());
-  client.handle('multiply', params => (params as { value: number }).value * 3);
-  server.handle('roundtrip', async (_params, context) => ({ value: await context.peer.call('multiply', { value: 7 }) }));
+  client.handle('multiply', (params) => (params as { value: number }).value * 3);
+  server.handle('roundtrip', async (_params, context) => ({
+    value: await context.peer.call('multiply', { value: 7 }),
+  }));
   assert.deepEqual(await client.call('roundtrip'), { value: 21 });
   assert.equal(left.sent[0].id, 'c:1');
   assert.equal(right.sent[0].id, 's:1');
   assert.equal(left.sent[1].kind, 'response');
 });
 
-test('responses correlate out of order while events run independently', async t => {
+test('responses correlate out of order while events run independently', async (t) => {
   const { client, server } = await paired();
   t.after(() => client.close());
   const first = deferred<number>();
@@ -126,7 +137,10 @@ test('responses correlate out of order while events run independently', async t 
   const eventStarted = deferred();
   server.handle('first', () => first.promise);
   server.handle('second', () => 2);
-  client.onEvent('notice', async () => { eventStarted.resolve(); await blockEvent.promise; });
+  client.onEvent('notice', async () => {
+    eventStarted.resolve();
+    await blockEvent.promise;
+  });
   const one = client.call('first');
   await server.emit('notice', { value: 1 });
   await eventStarted.promise;
@@ -136,25 +150,40 @@ test('responses correlate out of order while events run independently', async t 
   blockEvent.resolve();
 });
 
-test('public handler errors survive and unexpected errors remain private', async t => {
+test('public handler errors survive and unexpected errors remain private', async (t) => {
   const { client, server } = await paired();
   t.after(() => client.close());
-  server.handle('public', () => { throw new DuplexError('denied', 'Access denied', { field: 'project' }); });
-  server.handle('private', () => { throw new Error('Database password: secret'); });
+  server.handle('public', () => {
+    throw new DuplexError('denied', 'Access denied', { field: 'project' });
+  });
+  server.handle('private', () => {
+    throw new Error('Database password: secret');
+  });
   await assert.rejects(client.call('public'), { code: 'denied', message: 'Access denied', data: { field: 'project' } });
   await assert.rejects(client.call('private'), { code: 'internal', message: 'Request handler failed.' });
   await assert.rejects(client.call('missing'), { code: 'method_not_found' });
 });
 
-test('AbortSignal sends cancellation and aborts the remote handler', async t => {
+test('AbortSignal sends cancellation and aborts the remote handler', async (t) => {
   const { client, server, left } = await paired();
   t.after(() => client.close());
   const started = deferred();
   const aborted = deferred();
-  server.handle('wait', (_params, context) => new Promise(resolve => {
-    context.signal.addEventListener('abort', () => { aborted.resolve(); resolve('ignored late result'); }, { once: true });
-    started.resolve();
-  }));
+  server.handle(
+    'wait',
+    (_params, context) =>
+      new Promise((resolve) => {
+        context.signal.addEventListener(
+          'abort',
+          () => {
+            aborted.resolve();
+            resolve('ignored late result');
+          },
+          { once: true },
+        );
+        started.resolve();
+      }),
+  );
   const controller = new AbortController();
   const call = client.call('wait', {}, { signal: controller.signal });
   const failure = assert.rejects(call, { code: 'cancelled' });
@@ -166,16 +195,22 @@ test('AbortSignal sends cancellation and aborts the remote handler', async t => 
   assert.equal(client.status, 'connected');
 });
 
-test('a cancel answers nothing itself: the response is the handler returning, and it is cancelled', async t => {
+test('a cancel answers nothing itself: the response is the handler returning, and it is cancelled', async (t) => {
   const watching = recorder();
   const { client, server, right } = await paired({}, { observer: watching });
-  t.after(() => { client.close(); server.close(); });
+  t.after(() => {
+    client.close();
+    server.close();
+  });
   const started = deferred();
   const release = deferred<string>();
   // A handler that ignores its signal. The cancel withdraws the request; what
   // answers it is this returning, whenever it does, as the profile says and
   // the Go peer does.
-  server.handle('deaf', () => { started.resolve(); return release.promise; });
+  server.handle('deaf', () => {
+    started.resolve();
+    return release.promise;
+  });
   const controller = new AbortController();
   const call = assert.rejects(client.call('deaf', {}, { signal: controller.signal }), { code: 'cancelled' });
   await started.promise;
@@ -185,18 +220,27 @@ test('a cancel answers nothing itself: the response is the handler returning, an
   // The caller has given up and nothing has answered the request, because
   // nothing has finished it: where the cancel answered at once, a response
   // stood here and the request had ended.
-  assert.deepEqual(right.sent.filter(frame => frame.kind === 'response'), []);
-  assert.equal(watching.events.some(event => event.type === 'request.ended'), false);
+  assert.deepEqual(
+    right.sent.filter((frame) => frame.kind === 'response'),
+    [],
+  );
+  assert.equal(
+    watching.events.some((event) => event.type === 'request.ended'),
+    false,
+  );
   release.resolve('a result nobody is waiting for');
   await settled();
-  const responses = right.sent.filter(frame => frame.kind === 'response');
+  const responses = right.sent.filter((frame) => frame.kind === 'response');
   assert.equal(responses.length, 1);
   assert.equal(responses[0].id, 'c:1');
   assert.deepEqual(responses[0].error, { code: 'cancelled', message: 'Request was cancelled.' });
-  assert.deepEqual(watching.events.filter(event => event.type === 'request.ended').map(event => event.outcome), ['cancelled']);
+  assert.deepEqual(
+    watching.events.filter((event) => event.type === 'request.ended').map((event) => event.outcome),
+    ['cancelled'],
+  );
 });
 
-test('pre-aborted calls and outstanding capacity do not send extra requests', async t => {
+test('pre-aborted calls and outstanding capacity do not send extra requests', async (t) => {
   const { client, server, left } = await paired({ maxPendingRequests: 1 });
   t.after(() => client.close());
   const blocked = deferred();
@@ -213,22 +257,32 @@ test('pre-aborted calls and outstanding capacity do not send extra requests', as
   await failed;
 });
 
-test('local request deadline cancels remotely without retrying', async t => {
+test('local request deadline cancels remotely without retrying', async (t) => {
   const { client, server, left } = await paired();
   t.after(() => client.close());
-  server.handle('wait', (_params, context) => new Promise(resolve => {
-    context.signal.addEventListener('abort', () => resolve(null), { once: true });
-  }));
+  server.handle(
+    'wait',
+    (_params, context) =>
+      new Promise((resolve) => {
+        context.signal.addEventListener('abort', () => resolve(null), { once: true });
+      }),
+  );
   await assert.rejects(client.call('wait', {}, { timeoutMs: 10 }), { code: 'request_timeout' });
-  assert.deepEqual(left.sent.map(frame => frame.kind), ['request', 'cancel']);
+  assert.deepEqual(
+    left.sent.map((frame) => frame.kind),
+    ['request', 'cancel'],
+  );
 });
 
-test('incoming deadlines abort handlers and retain occupied slots until completion', async t => {
+test('incoming deadlines abort handlers and retain occupied slots until completion', async (t) => {
   const { client, server } = await paired({}, { maxConcurrentHandlers: 1, requestTimeoutMs: 10 });
   t.after(() => client.close());
   const blocked = deferred();
   let signal: AbortSignal | undefined;
-  server.handle('wait', (_params, context) => { signal = context.signal; return blocked.promise; });
+  server.handle('wait', (_params, context) => {
+    signal = context.signal;
+    return blocked.promise;
+  });
   // The receiver's own deadline abandons the request, and `cancelled` is what
   // it answers: `request_timeout` is a caller's own error and never a frame.
   await assert.rejects(client.call('wait'), { code: 'cancelled' });
@@ -241,10 +295,21 @@ test('disconnect cancels handlers and rejects pending calls without reconnecting
   const { client, server, left } = await paired();
   const started = deferred();
   const aborted = deferred();
-  server.handle('wait', (_params, context) => new Promise(resolve => {
-    context.signal.addEventListener('abort', () => { aborted.resolve(); resolve(1); }, { once: true });
-    started.resolve();
-  }));
+  server.handle(
+    'wait',
+    (_params, context) =>
+      new Promise((resolve) => {
+        context.signal.addEventListener(
+          'abort',
+          () => {
+            aborted.resolve();
+            resolve(1);
+          },
+          { once: true },
+        );
+        started.resolve();
+      }),
+  );
   const waiting = client.call('wait');
   const failed = assert.rejects(waiting, { code: 'disconnected' });
   await started.promise;
@@ -252,16 +317,19 @@ test('disconnect cancels handlers and rejects pending calls without reconnecting
   await Promise.all([failed, aborted.promise]);
   assert.equal(client.status, 'disconnected');
   assert.equal(server.status, 'disconnected');
-  assert.equal(left.sent.filter(frame => frame.kind === 'request').length, 1);
+  assert.equal(left.sent.filter((frame) => frame.kind === 'request').length, 1);
   await assert.rejects(client.call('another'), { code: 'not_connected' });
 });
 
-test('incoming saturation responds busy without blocking responses', async t => {
+test('incoming saturation responds busy without blocking responses', async (t) => {
   const { client, server } = await paired({}, { maxConcurrentHandlers: 1 });
   t.after(() => client.close());
   const occupied = deferred();
   const started = deferred();
-  server.handle('wait', () => { started.resolve(); return occupied.promise; });
+  server.handle('wait', () => {
+    started.resolve();
+    return occupied.promise;
+  });
   client.handle('ping', () => 'pong');
   const first = client.call('wait');
   await started.promise;
@@ -296,7 +364,10 @@ test('an outgoing burst that drains within the deadline is paced, not disconnect
   socket.bufferedAmount = 0;
   await Promise.all([first, second]);
   assert.equal(peer.status, 'connected');
-  assert.deepEqual(socket.sent.map(frame => frame.event), ['first', 'second']);
+  assert.deepEqual(
+    socket.sent.map((frame) => frame.event),
+    ['first', 'second'],
+  );
 });
 
 test('an emit over a transport that never drains resolves anyway, and the write deadline still ends the connection', async () => {
@@ -345,7 +416,7 @@ test('a producer that outruns its consumer for a whole deadline is a stalled con
   // Every listener returns well inside its own deadline, so nothing here is a
   // stalled listener; what passes the deadline is the backlog, which never
   // comes under capacity because the events keep arriving.
-  peer.onEvent(() => new Promise<void>(resolve => setTimeout(resolve, 10)));
+  peer.onEvent(() => new Promise<void>((resolve) => setTimeout(resolve, 10)));
   for (let i = 0; i < 20; i++) socket.receive({ version: 1, kind: 'event', event: `burst-${i}`, data: {} });
   assert.equal((await closed.promise).code, 'busy');
 });
@@ -356,13 +427,16 @@ test('an event burst that drains within the deadline is paced, not disconnected'
   await peer.attach(socket);
   const held = deferred();
   const delivered: string[] = [];
-  peer.onEvent(async name => { await held.promise; delivered.push(name); });
+  peer.onEvent(async (name) => {
+    await held.promise;
+    delivered.push(name);
+  });
   socket.receive({ version: 1, kind: 'event', event: 'one', data: {} });
   socket.receive({ version: 1, kind: 'event', event: 'two', data: {} });
   held.resolve();
   // The backlog clears inside the deadline, so the burst was a burst: both
   // events arrive in order and the connection is whole.
-  await new Promise(resolve => setTimeout(resolve, 20));
+  await new Promise((resolve) => setTimeout(resolve, 20));
   assert.deepEqual(delivered, ['one', 'two']);
   assert.equal(peer.status, 'connected');
 });
@@ -380,28 +454,38 @@ test('stalled asynchronous event listener closes the peer', async () => {
   blocked.resolve();
 });
 
-test('large replay bursts do not queue already completed synchronous listeners', async t => {
+test('large replay bursts do not queue already completed synchronous listeners', async (t) => {
   const socket = new Socket();
   const peer = new DuplexPeer();
   await peer.attach(socket);
   t.after(() => peer.close());
   const received: number[] = [];
-  peer.onEvent('replay', value => { received.push(value as number); });
+  peer.onEvent('replay', (value) => {
+    received.push(value as number);
+  });
   for (let sequence = 1; sequence <= 300; sequence++) {
     socket.receive({ version: 1, kind: 'event', event: 'replay', data: sequence });
   }
   assert.equal(peer.status, 'connected');
-  assert.deepEqual(received, Array.from({ length: 300 }, (_, index) => index + 1));
+  assert.deepEqual(
+    received,
+    Array.from({ length: 300 }, (_, index) => index + 1),
+  );
 });
 
-test('event subscriptions preserve order, isolate failures, and unsubscribe', async t => {
+test('event subscriptions preserve order, isolate failures, and unsubscribe', async (t) => {
   const errors: string[] = [];
-  const { client, server } = await paired({ onError: error => errors.push(error.code) });
+  const { client, server } = await paired({ onError: (error) => errors.push(error.code) });
   t.after(() => client.close());
   const observed: unknown[] = [];
   const done = deferred();
-  client.onEvent('notice', () => { throw new Error('listener failure'); });
-  const off = client.onEvent('notice', value => { observed.push(value); if (observed.length === 2) done.resolve(); });
+  client.onEvent('notice', () => {
+    throw new Error('listener failure');
+  });
+  const off = client.onEvent('notice', (value) => {
+    observed.push(value);
+    if (observed.length === 2) done.resolve();
+  });
   await server.emit('notice', 1);
   await server.emit('notice', 2);
   await done.promise;
@@ -413,7 +497,10 @@ test('event subscriptions preserve order, isolate failures, and unsubscribe', as
 
 test('malformed envelopes, binary messages, opposite IDs, and oversize frames close the peer', async () => {
   const invalid: unknown[] = [
-    '{}', '{bad', '{"version":1,"version":1,"kind":"cancel","id":"c:1"}', { version: 2, kind: 'event', event: 'notice', data: null },
+    '{}',
+    '{bad',
+    '{"version":1,"version":1,"kind":"cancel","id":"c:1"}',
+    { version: 2, kind: 'event', event: 'notice', data: null },
     { version: 1, kind: 'request', id: 'c:1', method: 'x', params: {} },
     { version: 1, kind: 'response', id: 'c:1', result: 1, error: { code: 'bad', message: 'bad' } },
     { version: 1, kind: 'event', event: 'x', data: 1, extra: true },
@@ -441,24 +528,32 @@ test('malformed envelopes, binary messages, opposite IDs, and oversize frames cl
   assert.equal(binaryPeer.status, 'disconnected');
 });
 
-test('outgoing oversize or unserializable values reject without sending', async t => {
+test('outgoing oversize or unserializable values reject without sending', async (t) => {
   const socket = new Socket();
   const peer = new DuplexPeer({ maxFrameBytes: 100 });
   await peer.attach(socket);
   t.after(() => peer.close());
   await assert.rejects(peer.emit('large', 'é'.repeat(100)), { code: 'frame_too_large' });
   await assert.rejects(peer.call('bigint', 1n), { code: 'invalid_message' });
-  await assert.rejects(peer.call('function', () => 1), { code: 'invalid_message' });
+  await assert.rejects(
+    peer.call('function', () => 1),
+    { code: 'invalid_message' },
+  );
   await assert.rejects(peer.emit('nan', Number.NaN), { code: 'invalid_message' });
   assert.equal(socket.sent.length, 0);
   assert.equal(peer.status, 'connected');
 });
 
-test('connection requires an explicit ws/wss endpoint and never sets browser headers', async t => {
+test('connection requires an explicit ws/wss endpoint and never sets browser headers', async (t) => {
   const socket = new Socket();
   socket.readyState = 0;
   let observedURL = '';
-  const peer = new DuplexPeer({ webSocketFactory: url => { observedURL = url; return socket; } });
+  const peer = new DuplexPeer({
+    webSocketFactory: (url) => {
+      observedURL = url;
+      return socket;
+    },
+  });
   t.after(() => peer.close());
   await assert.rejects(peer.connect('/api'), { code: 'invalid_url' });
   await assert.rejects(peer.connect('https://localhost/api'), { code: 'invalid_url' });
@@ -472,11 +567,17 @@ test('connection requires an explicit ws/wss endpoint and never sets browser hea
   await assert.rejects(peer.connect('ws://localhost/api'), { code: 'already_connected' });
 });
 
-test('connection timeout closes the socket; manual reconnection remains explicit', async t => {
+test('connection timeout closes the socket; manual reconnection remains explicit', async (t) => {
   const socket = new Socket();
   socket.readyState = 0;
   let created = 0;
-  const peer = new DuplexPeer({ connectTimeoutMs: 10, webSocketFactory: () => { created++; return socket; } });
+  const peer = new DuplexPeer({
+    connectTimeoutMs: 10,
+    webSocketFactory: () => {
+      created++;
+      return socket;
+    },
+  });
   await assert.rejects(peer.connect('ws://localhost/api'), { code: 'connect_timeout' });
   assert.equal(socket.readyState, 3);
   assert.equal(created, 1);
@@ -485,12 +586,15 @@ test('connection timeout closes the socket; manual reconnection remains explicit
   assert.equal(peer.status, 'connected');
 });
 
-test('late work from an old connection cannot answer a new connection', async t => {
+test('late work from an old connection cannot answer a new connection', async (t) => {
   const peer = new DuplexPeer();
   const old = new Socket();
   const gate = deferred<string>();
   const started = deferred();
-  peer.handle('wait', () => { started.resolve(); return gate.promise; });
+  peer.handle('wait', () => {
+    started.resolve();
+    return gate.promise;
+  });
   await peer.attach(old);
   old.receive({ version: 1, kind: 'request', id: 's:1', method: 'wait', params: {} });
   await started.promise;
@@ -500,11 +604,11 @@ test('late work from an old connection cannot answer a new connection', async t 
   t.after(() => peer.close());
   gate.resolve('old');
   await gate.promise;
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(current.sent, []);
 });
 
-test('handler registration is explicit, removable, and rejects duplicates', async t => {
+test('handler registration is explicit, removable, and rejects duplicates', async (t) => {
   const { client, server } = await paired();
   t.after(() => client.close());
   const remove = server.handle('x', () => 1);
@@ -514,7 +618,7 @@ test('handler registration is explicit, removable, and rejects duplicates', asyn
   await assert.rejects(client.call('x'), { code: 'method_not_found' });
 });
 
-test('two peers complete a call, an event and a cancel over an in-memory frame pipe', async t => {
+test('two peers complete a call, an event and a cancel over an in-memory frame pipe', async (t) => {
   const [left, right] = Pipe.pair();
   const client = new DuplexPeer();
   const server = new DuplexPeer({ role: 'server' });
@@ -523,12 +627,28 @@ test('two peers complete a call, an event and a cancel over an in-memory frame p
   const notice = deferred<unknown>();
   const started = deferred();
   const aborted = deferred();
-  server.handle('add', params => { const { a, b } = params as { a: number; b: number }; return a + b; });
-  server.handle('wait', (_params, context) => new Promise(resolve => {
-    context.signal.addEventListener('abort', () => { aborted.resolve(); resolve(null); }, { once: true });
-    started.resolve();
-  }));
-  client.onEvent('notice', data => { notice.resolve(data); });
+  server.handle('add', (params) => {
+    const { a, b } = params as { a: number; b: number };
+    return a + b;
+  });
+  server.handle(
+    'wait',
+    (_params, context) =>
+      new Promise((resolve) => {
+        context.signal.addEventListener(
+          'abort',
+          () => {
+            aborted.resolve();
+            resolve(null);
+          },
+          { once: true },
+        );
+        started.resolve();
+      }),
+  );
+  client.onEvent('notice', (data) => {
+    notice.resolve(data);
+  });
   assert.equal(await client.call('add', { a: 2, b: 3 }), 5);
   await server.emit('notice', { value: 1 });
   assert.deepEqual(await notice.promise, { value: 1 });
@@ -539,9 +659,18 @@ test('two peers complete a call, an event and a cancel over an in-memory frame p
   await Promise.all([cancelled, aborted.promise]);
   assert.equal(client.status, 'connected');
   assert.equal(server.status, 'connected');
-  assert.deepEqual(left.frames.map(frame => frame.kind), ['text', 'text', 'text']);
-  assert.deepEqual(left.frames.map(frame => JSON.parse(frame.data as string).kind), ['request', 'request', 'cancel']);
-  assert.deepEqual(right.frames.map(frame => JSON.parse(frame.data as string).kind), ['response', 'event', 'response']);
+  assert.deepEqual(
+    left.frames.map((frame) => frame.kind),
+    ['text', 'text', 'text'],
+  );
+  assert.deepEqual(
+    left.frames.map((frame) => JSON.parse(frame.data as string).kind),
+    ['request', 'request', 'cancel'],
+  );
+  assert.deepEqual(
+    right.frames.map((frame) => JSON.parse(frame.data as string).kind),
+    ['response', 'event', 'response'],
+  );
 });
 
 /** One W3C traceparent, the example of the specification, and a vendor's state beside it. */
@@ -569,7 +698,7 @@ test('trace context is kept on the decoded envelope of every kind, and tracestat
   }
 });
 
-test("a traced frame of every kind routes as before, and a response carries its request's trace", async t => {
+test("a traced frame of every kind routes as before, and a response carries its request's trace", async (t) => {
   const socket = new Socket();
   const peer = new DuplexPeer();
   await peer.attach(socket);
@@ -578,12 +707,25 @@ test("a traced frame of every kind routes as before, and a response carries its 
   const notice = deferred<unknown>();
   const started = deferred();
   const aborted = deferred();
-  peer.onEvent('notice', data => { notice.resolve(data); });
-  peer.handle('echo', params => params);
-  peer.handle('wait', (_params, context) => new Promise(resolve => {
-    context.signal.addEventListener('abort', () => { aborted.resolve(); resolve(null); }, { once: true });
-    started.resolve();
-  }));
+  peer.onEvent('notice', (data) => {
+    notice.resolve(data);
+  });
+  peer.handle('echo', (params) => params);
+  peer.handle(
+    'wait',
+    (_params, context) =>
+      new Promise((resolve) => {
+        context.signal.addEventListener(
+          'abort',
+          () => {
+            aborted.resolve();
+            resolve(null);
+          },
+          { once: true },
+        );
+        started.resolve();
+      }),
+  );
   const pending = peer.call('ping');
   socket.receive({ version: 1, kind: 'response', id: 'c:1', result: 'pong', ...trace });
   assert.equal(await pending, 'pong');
@@ -594,13 +736,16 @@ test("a traced frame of every kind routes as before, and a response carries its 
   await started.promise;
   socket.receive({ version: 1, kind: 'cancel', id: 's:2', ...trace });
   await aborted.promise;
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(peer.status, 'connected');
-  assert.deepEqual(socket.sent.map(frame => frame.id), ['c:1', 's:1', 's:2']);
-  assert.deepEqual(socket.sent.find(frame => frame.id === 's:1')?.result, { value: 2 });
+  assert.deepEqual(
+    socket.sent.map((frame) => frame.id),
+    ['c:1', 's:1', 's:2'],
+  );
+  assert.deepEqual(socket.sent.find((frame) => frame.id === 's:1')?.result, { value: 2 });
   // Each response repeats the members of the request it answers; trace.test.ts holds the rest.
   for (const id of ['s:1', 's:2']) {
-    const response = socket.sent.find(frame => frame.id === id);
+    const response = socket.sent.find((frame) => frame.id === id);
     assert.equal(response?.traceparent, TRACEPARENT, id);
     assert.equal(response?.tracestate, TRACESTATE, id);
   }
@@ -645,19 +790,31 @@ test('the WebSocket adapter maps state, buffered bytes, frames, and the close co
   assert.deepEqual(socket.sent, [{ a: 1 }]);
   const frames: Frame[] = [];
   let closed: [number, string] | undefined;
-  const off = connection.listen({ frame: frame => { frames.push(frame); }, close: (code, reason) => { closed = [code, reason]; } });
+  const off = connection.listen({
+    frame: (frame) => {
+      frames.push(frame);
+    },
+    close: (code, reason) => {
+      closed = [code, reason];
+    },
+  });
   socket.receive('"text"');
   socket.dispatchEvent(new MessageEvent('message', { data: new Uint8Array([1, 2]) }));
   socket.dispatchEvent(new MessageEvent('message', { data: new ArrayBuffer(3) }));
   assert.deepEqual(frames, [
-    { kind: 'text', data: '"text"' }, { kind: 'binary', data: new Uint8Array([1, 2]) }, { kind: 'binary', data: new ArrayBuffer(3) },
+    { kind: 'text', data: '"text"' },
+    { kind: 'binary', data: new Uint8Array([1, 2]) },
+    { kind: 'binary', data: new ArrayBuffer(3) },
   ]);
   // A Blob is read asynchronously; a text frame behind it keeps its place.
   socket.dispatchEvent(new MessageEvent('message', { data: new Blob([new Uint8Array([9])]) }));
   socket.receive('"after"');
   assert.equal(frames.length, 3);
-  await new Promise(resolve => setTimeout(resolve, 0));
-  assert.deepEqual(frames.slice(3), [{ kind: 'binary', data: new Uint8Array([9]).buffer }, { kind: 'text', data: '"after"' }]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(frames.slice(3), [
+    { kind: 'binary', data: new Uint8Array([9]).buffer },
+    { kind: 'text', data: '"after"' },
+  ]);
   socket.readyState = 2;
   assert.equal(connection.state, 'closing');
   assert.throws(() => connection.send({ kind: 'text', data: 'late' }));
@@ -686,7 +843,11 @@ test('a close from the far side surfaces its code and reason to the close handle
   const server = new DuplexPeer({ role: 'server' });
   await Promise.all([client.attach(left), server.attach(right)]);
   let observed: [number, string] | undefined;
-  left.listen({ close: (code, reason) => { observed = [code, reason]; } });
+  left.listen({
+    close: (code, reason) => {
+      observed = [code, reason];
+    },
+  });
   const closed = deferred<DuplexError>();
   client.onClose(closed.resolve);
   server.close();
@@ -699,7 +860,11 @@ test('a close from the far side surfaces its code and reason to the close handle
   const peer = new DuplexPeer();
   await peer.attach(connection);
   let seen: [number, string] | undefined;
-  connection.listen({ close: (code, reason) => { seen = [code, reason]; } });
+  connection.listen({
+    close: (code, reason) => {
+      seen = [code, reason];
+    },
+  });
   const failure = deferred<DuplexError>();
   peer.onClose(failure.resolve);
   socket.readyState = 3;
@@ -715,7 +880,12 @@ const SENTINEL = 'sentinel-6d9f2c-payload';
 /** An observer that keeps what it saw, which is all an observer is asked to do. */
 function recorder(): Observer & { events: ObserverEvent[] } {
   const events: ObserverEvent[] = [];
-  return { events, observe(event) { events.push(event); } };
+  return {
+    events,
+    observe(event) {
+      events.push(event);
+    },
+  };
 }
 
 /**
@@ -724,7 +894,8 @@ function recorder(): Observer & { events: ObserverEvent[] } {
  */
 function shape(event: ObserverEvent): Record<string, unknown> {
   const { at, trace, bytes, durationMs, ...rest } = event as unknown as Record<string, unknown>;
-  void at; void trace;
+  void at;
+  void trace;
   if (typeof bytes === 'number') rest.bytes = bytes > 0;
   if (typeof durationMs === 'number') rest.durationMs = durationMs >= 0;
   for (const [key, value] of Object.entries(rest)) if (value === undefined) delete rest[key];
@@ -736,7 +907,7 @@ function traceparent(event: ObserverEvent): unknown {
 }
 
 function backpressure(events: ObserverEvent[]): Record<string, unknown>[] {
-  return events.filter(event => event.type === 'backpressure').map(shape);
+  return events.filter((event) => event.type === 'backpressure').map(shape);
 }
 
 test('no payload reaches an observer: not params, not a result, not an error, not an event', async () => {
@@ -744,10 +915,16 @@ test('no payload reaches an observer: not params, not a result, not an error, no
   const machine = recorder();
   const { client, server } = await paired({ observer: consumer }, { observer: machine });
   const delivered = deferred();
-  client.onEvent('notice', () => { delivered.resolve(); });
-  server.handle('read', params => ({ echoed: params, secret: SENTINEL }));
-  server.handle('deny', () => { throw new DuplexError('denied', 'Access denied', { secret: SENTINEL }); });
-  server.handle('boom', () => { throw new Error('handler failed'); });
+  client.onEvent('notice', () => {
+    delivered.resolve();
+  });
+  server.handle('read', (params) => ({ echoed: params, secret: SENTINEL }));
+  server.handle('deny', () => {
+    throw new DuplexError('denied', 'Access denied', { secret: SENTINEL });
+  });
+  server.handle('boom', () => {
+    throw new Error('handler failed');
+  });
   assert.deepEqual(await client.call('read', { secret: SENTINEL }), { echoed: { secret: SENTINEL }, secret: SENTINEL });
   await assert.rejects(client.call('deny', { secret: SENTINEL }), { code: 'denied', data: { secret: SENTINEL } });
   await assert.rejects(client.call('boom', { secret: SENTINEL }), { code: 'internal' });
@@ -760,11 +937,11 @@ test('no payload reaches an observer: not params, not a result, not an error, no
     assert.equal(JSON.stringify(observed).includes(SENTINEL), false);
   }
   // The paths that carried it were the observed ones, not some other traffic.
-  assert.deepEqual(machine.events.filter(event => event.type === 'handler.panic').map(shape), [
+  assert.deepEqual(machine.events.filter((event) => event.type === 'handler.panic').map(shape), [
     { type: 'handler.panic', method: 'boom', value: 'Error: handler failed', family: '' },
   ]);
-  assert.ok(consumer.events.some(event => event.type === 'event.delivered'));
-  assert.ok(consumer.events.some(event => event.type === 'request.ended' && event.outcome === 'error'));
+  assert.ok(consumer.events.some((event) => event.type === 'event.delivered'));
+  assert.ok(consumer.events.some((event) => event.type === 'request.ended' && event.outcome === 'error'));
 });
 
 test('for one call, one event and one close an observer sees the events in order, in both directions', async () => {
@@ -776,7 +953,9 @@ test('for one call, one event and one close an observer sees the events in order
   const server = new DuplexPeer({ role: 'server', observer: machine, families });
   await Promise.all([client.attach(left), server.attach(right)]);
   const delivered = deferred();
-  client.onEvent('notice', () => { delivered.resolve(); });
+  client.onEvent('notice', () => {
+    delivered.resolve();
+  });
   server.handle('work.read', () => ({ ok: true }));
   assert.deepEqual(await client.call('work.read', { id: 'w1' }), { ok: true });
   await server.emit('notice', { value: 1 });
@@ -787,7 +966,15 @@ test('for one call, one event and one close an observer sees the events in order
     { type: 'request.started', id: 'c:1', method: 'work.read', incoming: false, family: 'work' },
     { type: 'frame.sent', kind: 'request', name: 'work.read', bytes: true, id: 'c:1', family: 'work' },
     { type: 'frame.received', kind: 'response', name: '', bytes: true, id: 'c:1', family: '' },
-    { type: 'request.ended', id: 'c:1', method: 'work.read', incoming: false, durationMs: true, outcome: 'ok', family: 'work' },
+    {
+      type: 'request.ended',
+      id: 'c:1',
+      method: 'work.read',
+      incoming: false,
+      durationMs: true,
+      outcome: 'ok',
+      family: 'work',
+    },
     { type: 'frame.received', kind: 'event', name: 'notice', bytes: true, family: '' },
     { type: 'event.delivered', name: 'notice', bytes: true, family: '' },
     { type: 'connection.closed', code: 1000, reason: 'Duplex connection closed', local: true },
@@ -796,7 +983,15 @@ test('for one call, one event and one close an observer sees the events in order
     { type: 'connection.opened', role: 'server' },
     { type: 'frame.received', kind: 'request', name: 'work.read', bytes: true, id: 'c:1', family: 'work' },
     { type: 'request.started', id: 'c:1', method: 'work.read', incoming: true, family: 'work' },
-    { type: 'request.ended', id: 'c:1', method: 'work.read', incoming: true, durationMs: true, outcome: 'ok', family: 'work' },
+    {
+      type: 'request.ended',
+      id: 'c:1',
+      method: 'work.read',
+      incoming: true,
+      durationMs: true,
+      outcome: 'ok',
+      family: 'work',
+    },
     { type: 'frame.sent', kind: 'response', name: '', bytes: true, id: 'c:1', family: '' },
     { type: 'event.emitted', name: 'notice', bytes: true, family: '' },
     { type: 'frame.sent', kind: 'event', name: 'notice', bytes: true, family: '' },
@@ -812,21 +1007,43 @@ test('for one call, one event and one close an observer sees the events in order
   assert.equal(traceparent(consumer.events[7]), undefined);
 });
 
-test('a handler that throws yields handler.panic with the value, never its params', async t => {
+test('a handler that throws yields handler.panic with the value, never its params', async (t) => {
   const machine = recorder();
   const { client, server } = await paired({}, { observer: machine, families: { boom: 'work' } });
   t.after(() => client.close());
-  server.handle('boom', () => { throw new Error('handler exploded'); });
-  server.handle('deny', () => { throw new DuplexError('denied', 'Access denied'); });
+  server.handle('boom', () => {
+    throw new Error('handler exploded');
+  });
+  server.handle('deny', () => {
+    throw new DuplexError('denied', 'Access denied');
+  });
   await assert.rejects(client.call('boom', { secret: SENTINEL }), { code: 'internal' });
   await assert.rejects(client.call('deny', { secret: SENTINEL }), { code: 'denied' });
   // A public error is the handler answering, not the runtime's panic.
-  assert.deepEqual(machine.events.filter(event => event.type === 'handler.panic').map(shape), [
+  assert.deepEqual(machine.events.filter((event) => event.type === 'handler.panic').map(shape), [
     { type: 'handler.panic', method: 'boom', value: 'Error: handler exploded', family: 'work' },
   ]);
-  assert.deepEqual(machine.events.filter(event => event.type === 'request.ended').map(shape), [
-    { type: 'request.ended', id: 'c:1', method: 'boom', incoming: true, durationMs: true, outcome: 'error', errorCode: 'internal', family: 'work' },
-    { type: 'request.ended', id: 'c:2', method: 'deny', incoming: true, durationMs: true, outcome: 'error', errorCode: 'denied', family: '' },
+  assert.deepEqual(machine.events.filter((event) => event.type === 'request.ended').map(shape), [
+    {
+      type: 'request.ended',
+      id: 'c:1',
+      method: 'boom',
+      incoming: true,
+      durationMs: true,
+      outcome: 'error',
+      errorCode: 'internal',
+      family: 'work',
+    },
+    {
+      type: 'request.ended',
+      id: 'c:2',
+      method: 'deny',
+      incoming: true,
+      durationMs: true,
+      outcome: 'error',
+      errorCode: 'denied',
+      family: '',
+    },
   ]);
   assert.equal(JSON.stringify(machine.events).includes(SENTINEL), false);
 });
@@ -834,10 +1051,16 @@ test('a handler that throws yields handler.panic with the value, never its param
 test('an outcome is what ended the call: an error code, a cancellation, a deadline, a disconnect', async () => {
   const consumer = recorder();
   const { client, server } = await paired({ observer: consumer });
-  server.handle('deny', () => { throw new DuplexError('denied', 'Access denied'); });
-  server.handle('wait', (_params, context) => new Promise(resolve => {
-    context.signal.addEventListener('abort', () => resolve(null), { once: true });
-  }));
+  server.handle('deny', () => {
+    throw new DuplexError('denied', 'Access denied');
+  });
+  server.handle(
+    'wait',
+    (_params, context) =>
+      new Promise((resolve) => {
+        context.signal.addEventListener('abort', () => resolve(null), { once: true });
+      }),
+  );
   await assert.rejects(client.call('deny'), { code: 'denied' });
   const controller = new AbortController();
   const cancelled = assert.rejects(client.call('wait', {}, { signal: controller.signal }), { code: 'cancelled' });
@@ -847,11 +1070,47 @@ test('an outcome is what ended the call: an error code, a cancellation, a deadli
   const outstanding = assert.rejects(client.call('wait'), { code: 'disconnected' });
   client.close();
   await outstanding;
-  assert.deepEqual(consumer.events.filter(event => event.type === 'request.ended').map(shape), [
-    { type: 'request.ended', id: 'c:1', method: 'deny', incoming: false, durationMs: true, outcome: 'error', errorCode: 'denied', family: '' },
-    { type: 'request.ended', id: 'c:2', method: 'wait', incoming: false, durationMs: true, outcome: 'cancelled', errorCode: 'cancelled', family: '' },
-    { type: 'request.ended', id: 'c:3', method: 'wait', incoming: false, durationMs: true, outcome: 'timeout', errorCode: 'request_timeout', family: '' },
-    { type: 'request.ended', id: 'c:4', method: 'wait', incoming: false, durationMs: true, outcome: 'error', errorCode: 'disconnected', family: '' },
+  assert.deepEqual(consumer.events.filter((event) => event.type === 'request.ended').map(shape), [
+    {
+      type: 'request.ended',
+      id: 'c:1',
+      method: 'deny',
+      incoming: false,
+      durationMs: true,
+      outcome: 'error',
+      errorCode: 'denied',
+      family: '',
+    },
+    {
+      type: 'request.ended',
+      id: 'c:2',
+      method: 'wait',
+      incoming: false,
+      durationMs: true,
+      outcome: 'cancelled',
+      errorCode: 'cancelled',
+      family: '',
+    },
+    {
+      type: 'request.ended',
+      id: 'c:3',
+      method: 'wait',
+      incoming: false,
+      durationMs: true,
+      outcome: 'timeout',
+      errorCode: 'request_timeout',
+      family: '',
+    },
+    {
+      type: 'request.ended',
+      id: 'c:4',
+      method: 'wait',
+      incoming: false,
+      durationMs: true,
+      outcome: 'error',
+      errorCode: 'disconnected',
+      family: '',
+    },
   ]);
 });
 
@@ -887,9 +1146,7 @@ test('backpressure is observed where the queue fills and where the deadline pass
   // is what passes it.
   await blocked.emit('blocked');
   assert.equal((await gaveOut.promise).code, 'write_timeout');
-  assert.deepEqual(backpressure(missed.events), [
-    { type: 'backpressure', queued: 1, stalled: true, deadlineMs: 10 },
-  ]);
+  assert.deepEqual(backpressure(missed.events), [{ type: 'backpressure', queued: 1, stalled: true, deadlineMs: 10 }]);
 
   // The event queue is the other side of the same limit.
   const listening = new Socket();
@@ -911,25 +1168,37 @@ test('backpressure is observed where the queue fills and where the deadline pass
   ]);
   // Both are delivered, in order: the second was held while the first was in
   // hand and went the moment it was free, which is what pacing is for.
-  assert.deepEqual(queued.events.filter(event => event.type === 'event.delivered').map(shape), [
+  assert.deepEqual(queued.events.filter((event) => event.type === 'event.delivered').map(shape), [
     { type: 'event.delivered', name: 'one', bytes: true, family: '' },
     { type: 'event.delivered', name: 'two', bytes: true, family: '' },
   ]);
 });
 
-test('an observer that throws interrupts no routing', async t => {
-  const { client, server } = await paired({ observer: { observe() { throw new Error('observer failed'); } } });
+test('an observer that throws interrupts no routing', async (t) => {
+  const { client, server } = await paired({
+    observer: {
+      observe() {
+        throw new Error('observer failed');
+      },
+    },
+  });
   t.after(() => client.close());
   server.handle('ping', () => 'pong');
   assert.equal(await client.call('ping'), 'pong');
   assert.equal(client.status, 'connected');
 });
 
-test('a subprotocol is offered at the handshake and the selection is what the peer reports', async t => {
+test('a subprotocol is offered at the handshake and the selection is what the peer reports', async (t) => {
   const socket = new Socket();
   socket.readyState = 0;
   let offered: string[] | undefined;
-  const peer = new DuplexPeer({ subprotocols: ['a', 'b'], webSocketFactory: (_url, protocols) => { offered = protocols; return socket; } });
+  const peer = new DuplexPeer({
+    subprotocols: ['a', 'b'],
+    webSocketFactory: (_url, protocols) => {
+      offered = protocols;
+      return socket;
+    },
+  });
   t.after(() => peer.close());
   const connecting = peer.connect('ws://localhost/api');
   assert.deepEqual(offered, ['a', 'b'], 'the factory is handed what to offer, so a custom one honours it');
@@ -943,7 +1212,7 @@ test('a subprotocol is offered at the handshake and the selection is what the pe
   assert.equal(peer.subprotocol, '', 'a peer with no connection negotiated nothing');
 });
 
-test('an offer the server selected none of leaves the peer with none, and the profile is spoken anyway', async t => {
+test('an offer the server selected none of leaves the peer with none, and the profile is spoken anyway', async (t) => {
   const socket = new Socket();
   const peer = new DuplexPeer({ subprotocols: ['c'], webSocketFactory: () => socket });
   t.after(() => peer.close());
@@ -955,21 +1224,29 @@ test('an offer the server selected none of leaves the peer with none, and the pr
   assert.deepEqual({ version, kind, event, data }, { version: 1, kind: 'event', event: 'progress', data: 1 });
 });
 
-test('a peer that offers no subprotocol offers nothing at all', async t => {
+test('a peer that offers no subprotocol offers nothing at all', async (t) => {
   const socket = new Socket();
   let offered: string[] | undefined = ['unasked'];
-  const peer = new DuplexPeer({ webSocketFactory: (_url, protocols) => { offered = protocols; return socket; } });
+  const peer = new DuplexPeer({
+    webSocketFactory: (_url, protocols) => {
+      offered = protocols;
+      return socket;
+    },
+  });
   t.after(() => peer.close());
   await peer.connect('ws://localhost/api');
   assert.equal(offered, undefined);
   assert.equal(peer.subprotocol, '');
 });
 
-test('a peer over a connection that is no WebSocket negotiated nothing', async t => {
+test('a peer over a connection that is no WebSocket negotiated nothing', async (t) => {
   const [near, far] = Pipe.pair();
   const peer = new DuplexPeer();
   const other = new DuplexPeer({ role: 'server' });
-  t.after(() => { peer.close(); other.close(); });
+  t.after(() => {
+    peer.close();
+    other.close();
+  });
   await peer.attach(near);
   await other.attach(far);
   assert.equal(peer.subprotocol, '');
@@ -985,9 +1262,16 @@ test('a frame is observed sent immediately before its bytes reach the transport'
   const order: string[] = [];
   const socket = new Socket();
   const write = socket.send.bind(socket);
-  socket.send = (text: string) => { order.push(`wire ${(JSON.parse(text) as { event: string }).event}`); write(text); };
+  socket.send = (text: string) => {
+    order.push(`wire ${(JSON.parse(text) as { event: string }).event}`);
+    write(text);
+  };
   const peer = new DuplexPeer({
-    observer: { observe(event) { if (event.type === 'frame.sent') order.push(`sent ${event.name}`); } },
+    observer: {
+      observe(event) {
+        if (event.type === 'frame.sent') order.push(`sent ${event.name}`);
+      },
+    },
   });
   await peer.attach(socket);
 
@@ -997,7 +1281,8 @@ test('a frame is observed sent immediately before its bytes reach the transport'
   await peer.emit('one');
   await peer.emit('two');
   socket.bufferedAmount = 0;
-  for (let waited = 0; waited < 50 && socket.sent.length < 2; waited++) await new Promise(resolve => setTimeout(resolve, 5));
+  for (let waited = 0; waited < 50 && socket.sent.length < 2; waited++)
+    await new Promise((resolve) => setTimeout(resolve, 5));
 
   assert.deepEqual(order, ['sent one', 'wire one', 'sent two', 'wire two']);
 });

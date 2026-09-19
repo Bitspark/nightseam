@@ -1,7 +1,15 @@
 export { DuplexPeer, DuplexError, positiveInteger, DUPLEX_PROFILE, DUPLEX_DEFAULTS } from './peer.ts';
 export type {
-  PeerOptions, CallOptions, EmitOptions, RequestContext, EventContext, Meta, RequestHandler, Dispatcher,
-  EventListener, PeerStatus,
+  PeerOptions,
+  CallOptions,
+  EmitOptions,
+  RequestContext,
+  EventContext,
+  Meta,
+  RequestHandler,
+  Dispatcher,
+  EventListener,
+  PeerStatus,
 } from './peer.ts';
 export { NO_OBSERVER } from './observer.ts';
 export type { Observer, ObserverEvent, ObserverEvents } from './observer.ts';
