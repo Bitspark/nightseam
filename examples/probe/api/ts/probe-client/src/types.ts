@@ -72,7 +72,8 @@ export const contractNotice = "probe/Notice";
 export function exportNotice(scope: LiveScope, value: Notice): unknown {
   const reference = scope.export(contractNotice, async (request, options) => {
     validateWire("Payload", request);
-    await value(request as Payload, options);
+    const argument = request as Payload;
+    await value(argument, options);
     return undefined;
   });
   return reference.toJSON();
@@ -81,8 +82,9 @@ export function exportNotice(scope: LiveScope, value: Notice): unknown {
 export function importNotice(scope: LiveScope, raw: unknown): Notice {
   const invoke = scope.import(scope.decode(raw), contractNotice);
   return async (request: Payload, options?: { signal?: AbortSignal }) => {
-    validateWire("Payload", request);
-    await invoke(request, options);
+    const sent = request;
+    validateWire("Payload", sent);
+    await invoke(sent, options);
     return;
   };
 }

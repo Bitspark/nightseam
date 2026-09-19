@@ -509,10 +509,10 @@ func ExportRename(scope *live.Scope, v Rename) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Rename: no implementation to export")
 	}
 	reference, err := scope.Export(ContractRename, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-		var argument Ticket
 		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), request); err != nil {
 			return nil, err
 		}
+		var argument Ticket
 		if err := json.Unmarshal(request, &argument); err != nil {
 			return nil, err
 		}
@@ -588,10 +588,10 @@ func ExportReport(scope *live.Scope, v Report) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Report: no implementation to export")
 	}
 	reference, err := scope.Export(ContractReport, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-		var argument Percent
 		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Percent\""), request); err != nil {
 			return nil, err
 		}
+		var argument Percent
 		if err := json.Unmarshal(request, &argument); err != nil {
 			return nil, err
 		}
