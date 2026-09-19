@@ -56,7 +56,7 @@ var loaded = sync.OnceValues(func() (map[string]*model.Family, error) {
 })
 
 func read(name string) (*model.Family, error) {
-	f := &model.Family{Name: name, Types: map[string]*model.Type{}, Overrides: map[string]json.RawMessage{}}
+	f := &model.Family{Name: name, Source: Prefix + name, Types: map[string]*model.Type{}, Overrides: map[string]json.RawMessage{}}
 	imports := map[string]bool{}
 	for _, tier := range model.Tiers {
 		data, err := fs.ReadFile(files, path.Join(name, tier.File))

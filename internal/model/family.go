@@ -25,6 +25,7 @@ const Version = 2
 // tier's declarations where the tier file exists.
 type Family struct {
 	Name      string
+	Source    string                     // directory in the checkout, or nightseam:<name> for a built-in
 	Imports   []string                   // the union of every tier's imports, sorted
 	Types     map[string]*Type           // every tier's types by name; At.File says which tier declared each
 	Protocol  *Protocol                  // nil without protocol.json
