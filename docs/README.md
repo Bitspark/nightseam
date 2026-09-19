@@ -3,6 +3,29 @@
 The [README](../README.md) is the short path: what Nightseam is, how it is
 installed and what a family looks like. The reference is here, in sets by
 who reads it — each page one kind of thing, and each kind in one place.
+Three of the sets stand in one relation: the **goals** say where the tree
+is going, the **state** pages (`wire/`, `runtime/`, `declaration/`,
+`languages/`) say what it is, and the **decisions** say what it was chosen
+over and why.
+
+## Where it is going — `goals/`
+
+The north stars, abstract and never done: what Nightseam is for, in one
+respect each, at the limit — so that a reviewer can take one page and the
+tree at any point and say where the tree falls short and how to get closer.
+[goals/README.md](goals/README.md) says what a goal page is, the two tests
+that keep it abstract, and how a review is asked for and what it returns.
+
+| page | at the limit |
+| --- | --- |
+| [boundary.md](goals/boundary.md) | Nightseam holds exactly what is the same for every consumer; every policy calls in from outside |
+| [layering.md](goals/layering.md) | each layer speaks the one beneath and knows nothing of those above |
+| [composability.md](goals/composability.md) | every part is usable alone, stacks on any part beneath, and is replaced without any part beside it knowing |
+| [agnosticism.md](goals/agnosticism.md) | of no host, no transport, no backend and no language; each language one realization of a thing defined outside all of them |
+| [declarative.md](goals/declarative.md) | what two of anything would each hold a copy of is stated once as data, and a stale derivation is a failure |
+| [configurability.md](goals/configurability.md) | every bound is the consumer's to set under one name everywhere; nothing that decides a policy is a setting |
+| [extensibility.md](goals/extensibility.md) | a language, a target, a transport, a layer, an adapter joins at one named point, and nothing that exists moves |
+| [observability.md](goals/observability.md) | any question about what a peer did can be answered after the fact, at every layer, in one order, from one place, without seeing what was said |
 
 ## What crosses the wire — `wire/`
 

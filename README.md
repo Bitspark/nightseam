@@ -169,6 +169,7 @@ who reads it:
 
 | set | for | what |
 | --- | --- | --- |
+| [docs/goals/](docs/goals/) | a reviewer, a designer | the north stars: what Nightseam is for, in eight respects, at the limit — abstract, never done, and what a review measures the tree against |
 | [docs/wire/](docs/wire/) | a runtime in any language | what crosses the wire: the profile `nightseam.duplex/1`, the tunnel's operations, the session's rules and vocabulary, and the test that says where something new on the wire belongs |
 | [docs/runtime/](docs/runtime/) | a consumer of the packages | the surface of the peer, the tunnel, the session and the observer, Go and TypeScript side by side |
 | [docs/declaration/](docs/declaration/) | a consumer declaring a family | the tier files, a family generic in others, the generator's commands, what the generated packages export, and the pipeline for whoever changes it |

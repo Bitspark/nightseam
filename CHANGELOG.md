@@ -34,6 +34,17 @@ are one number. Entries are in the words of the commits that landed them.
   alternative finds the reason rather than repeats the afternoon; the state
   pages keep the rule and one sentence of why and point at the record for
   the argument.
+- `docs/goals/` is the north stars — boundary, layering, composability,
+  agnosticism, declarative, configurability, extensibility, observability
+  — each a page that says what Nightseam is for in that respect at the
+  limit, the dimensions along which the tree can have more or less of it,
+  what it yields to and what it is not, naming nothing in the tree, so that
+  a reviewer can take one page and the tree at any point and say where the
+  tree falls short and how to get closer; `goals/README.md` has the two
+  tests that keep a page abstract and the review protocol, whose output
+  lands as design issues with the goal as provenance. COLLABORATION.md's
+  boundary rule and parity point at the goals they are the contributor's
+  form of.
 
 ### Fixed
 

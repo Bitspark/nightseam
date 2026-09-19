@@ -24,13 +24,15 @@ What a consumer calls is [the session's surface](../runtime/session.md).
 
 ## The boundary rule
 
-Nightseam owns what can be stated in terms of the profile and the session
-tier and is the same for every consumer — mechanism. A consumer owns what
-names a concept of its own or decides a policy. So the relay routes a frame
-by its kind and its method, mints the ids two consumers would collide on
-and maps the responses back, holds who has control and re-routes the open
-ask when it moves, and states what a log is. It has **no authentication, no
-rule about who may take control or for how long, no durable store, and no
+The session is where [the boundary](../goals/boundary.md) is most often
+asked about, so it is stated here in the session's terms: Nightseam owns
+what can be stated in terms of the profile and the session tier and is the
+same for every consumer — mechanism — and a consumer owns what names a
+concept of its own or decides a policy. So the relay routes a frame by its
+kind and its method, mints the ids two consumers would collide on and maps
+the responses back, holds who has control and re-routes the open ask when
+it moves, and states what a log is. It has **no authentication, no rule
+about who may take control or for how long, no durable store, and no
 lifecycle of its own**: a consumer decides those and calls in.
 
 ## The roles
