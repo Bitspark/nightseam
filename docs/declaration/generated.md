@@ -172,6 +172,10 @@ follow the source family's overrides; associated-type keys retain their
 declaration names. Extended sides retain their source operation names and
 validate their fixed or forwarded parameter bindings on calls and events.
 
+`nightseam init` writes a handler whose method types come from its `Handler`
+annotation. For a generic family, choose concrete arguments on that annotation
+when implementing the handler; the initial stub uses the interface's defaults.
+
 `index.ts` re-exports the types and `DuplexError`, and declares:
 
 ```ts

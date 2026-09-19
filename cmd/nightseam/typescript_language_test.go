@@ -12,6 +12,7 @@ import (
 	"github.com/Bitspark/nightseam/internal/model/builtin"
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
 	"github.com/Bitspark/nightseam/internal/render"
+	"github.com/Bitspark/nightseam/internal/spi"
 	"github.com/Bitspark/nightseam/internal/targets/typescript"
 )
 
@@ -48,13 +49,20 @@ func typescriptLanguageFixture(t *testing.T, world analysis.World, source, scrip
 		for _, file := range files {
 			writeFixture(t, directory, file.Path, file.Data)
 		}
+		stubs, err := target.(spi.Scaffolder).Scaffold(facts, "handlers/"+name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, file := range stubs {
+			writeFixture(t, directory, file.Path, file.Data)
+		}
 		entry := "./api/ts/" + name + "-client/src/index.ts"
 		paths["@example/"+name+"-client"] = []string{entry}
 		modules["@example/"+name+"-client"] = entry
 	}
 	config, _ := json.Marshal(map[string]any{
 		"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": paths},
-		"include":         []string{"api/ts/**/*.ts", "consumer.ts"},
+		"include":         []string{"api/ts/**/*.ts", "handlers/**/*.ts", "consumer.ts"},
 	})
 	writeFixture(t, directory, "tsconfig.json", config)
 	writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))
@@ -105,6 +113,7 @@ assert.throws(() => duplex.validateWire('Envelope', {version:1}));
 // The inherited names come from the source family's overrides on both paths.
 func TestTypeScriptAppliedInheritance(t *testing.T) {
 	world := analysis.World(modeltest.World(map[string]map[string]string{
+		"typed": {"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"parameters":[{"name":"T"}],"types":{"Input":{"kind":"record","fields":[{"name":"item","type":"T"}]}},"client":{"methods":{"echo":{"request":"Input","result":"T"}}}`)},
 		"probe": {"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol("")},
 		"catalog": {"model.json": `{"nightseam":2,"types":{
 		 "Entry":{"kind":"entity","key":"id","fields":[{"name":"id","type":"string"}]},
@@ -168,6 +177,7 @@ const badEmpty: catalog.Outcome<string> = {tag:'none',body:{}};
 
 const tsInheritanceValues = `
 import assert from 'node:assert/strict';
+import {handler as scaffolded} from './handlers/child/handler.ts';
 import * as child from '@example/child-client';
 import * as fixed from '@example/fixed-client';
 import * as probe from '@example/probe-client';
@@ -176,6 +186,7 @@ import {pipe} from '@nightseam/duplex';
 const binding = {type:'string', validate:probe.validateWire};
 const slots = {F:probe.family,Value:binding};
 const value = {message:{version:1,kind:'event',event:'changed',data:{}},handle:null,values:{first:['hello',null]}};
+await assert.rejects(scaffolded.reverse(value,{}), /reverse is not implemented/);
 child.validateWire('Inherited',{...value,note:'extended'},'$',slots);
 assert.throws(() => child.validateWire('Inherited',{...value,note:'wrong'},'$',slots));
 assert.throws(() => child.validateWire('Inherited',{...value,note:'extended',values:{first:[1]}},'$',slots));
