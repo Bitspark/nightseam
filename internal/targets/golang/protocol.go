@@ -61,7 +61,7 @@ func emitTypes(f *file) {
 				if local != "" {
 					f.line(local)
 				}
-				f.linef("data, err := %s.Marshal(%s(v))", json, wire)
+				f.linef("data, err := %s.MarshalJSON(%s(v))", f.runtime(), wire)
 				f.line("if err != nil { return nil, err }")
 				if t.Open {
 					f.linef("var obj map[string]%s.RawMessage", json)
@@ -72,7 +72,7 @@ func emitTypes(f *file) {
 					f.linef("\tif declared[key] { return nil, %s.Errorf(\"additional field overlaps declared field %%s\", key) }", f.std("fmt"))
 					f.line("\tobj[key] = value")
 					f.line("}")
-					f.linef("if data, err = %s.Marshal(obj); err != nil { return nil, err }", json)
+					f.linef("if data, err = %s.MarshalJSON(obj); err != nil { return nil, err }", f.runtime())
 				}
 				f.linef("if err = %s; err != nil { return nil, err }", f.validateType(t, "data"))
 				f.line("return data, nil")

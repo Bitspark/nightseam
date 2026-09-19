@@ -1269,6 +1269,8 @@ func Run(t *testing.T, connect Connect) {
 		// malformed inside among them, where a decoder's own words for a
 		// syntax error would be one runtime's prose on the wire.
 		for _, malformed := range []struct{ what, sent, said string }{
+			{"an unpaired surrogate in a payload", `{"version":1,"kind":"event","event":"changed","data":{"text":"\uD800"}}`, "invalid Unicode: expected Unicode scalar strings"},
+			{"an unpaired surrogate in a key", `{"version":1,"kind":"event","event":"changed","data":{"\uDC00":1}}`, "invalid Unicode: expected Unicode scalar strings"},
 			{"text that is no JSON at all", `not json`, "a session frame must be a JSON object"},
 			{"a JSON array", `["version",1]`, "a session frame must be a JSON object"},
 			{"an object malformed inside", `{"version":1,"kind":}`, "a session frame must be a JSON object"},

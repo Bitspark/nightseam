@@ -13,6 +13,7 @@ import (
 	"unicode/utf16"
 
 	"github.com/Bitspark/nightseam/internal/pattern"
+	"github.com/Bitspark/nightseam/internal/scalarjson"
 )
 
 // Schema validates a family's descriptor: {"types": {...}, "parameters":
@@ -82,6 +83,12 @@ type wireField struct {
 // NewSchema reads a family's wire description; imported maps each family
 // it refers to to that family's Schema.
 func NewSchema(wire []byte, imported map[string]*Schema) (*Schema, error) {
+	if err := scalarjson.Value(imported); err != nil {
+		return nil, err
+	}
+	if err := scalarjson.Raw(wire); err != nil {
+		return nil, err
+	}
 	s := &Schema{imported: imported}
 	decoder := json.NewDecoder(bytes.NewReader(wire))
 	decoder.UseNumber()
@@ -122,6 +129,9 @@ func MustSchema(wire string, imported map[string]*Schema) *Schema {
 // bug and not a consumer's error. A hand-written expression is decoded with
 // json.Unmarshal.
 func MustTypeExpression(encoded string) any {
+	if err := scalarjson.Raw([]byte(encoded)); err != nil {
+		panic(err)
+	}
 	var value any
 	decoder := json.NewDecoder(strings.NewReader(encoded))
 	decoder.UseNumber()
@@ -141,11 +151,23 @@ func (s *Schema) ValidateRaw(name string, data []byte, at ...string) error {
 // ValidateExpressionRaw verifies a type expression's value and rejects
 // trailing values. at roots the diagnostic, as ValidateRaw's does.
 func (s *Schema) ValidateExpressionRaw(expression any, data []byte, at ...string) error {
+	if err := scalarjson.Raw(data); err != nil {
+		return err
+	}
+	if err := scalarjson.Value(expression); err != nil {
+		return err
+	}
 	if err := checkPatterns(expression); err != nil {
 		return err
 	}
 	for _, name := range sortedKeys(s.scope) {
+		if err := scalarjson.Value(name); err != nil {
+			return err
+		}
 		if argument := s.scope[name].typeExpression; argument != nil {
+			if err := scalarjson.Value(argument.value); err != nil {
+				return err
+			}
 			if err := checkPatterns(argument.value); err != nil {
 				return err
 			}
@@ -267,7 +289,7 @@ func (s *Schema) Bind(types map[string]any, families map[string]*Schema) *Schema
 
 // ValidateValue validates a typed value before publishing it on the wire.
 func (s *Schema) ValidateValue(expression any, value any) error {
-	data, err := json.Marshal(value)
+	data, err := MarshalJSON(value)
 	if err != nil {
 		return err
 	}

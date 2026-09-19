@@ -162,7 +162,7 @@ neighbours in Go.
 | `no_session` | no session is bound under that id, or the one that was has ended: `Attach` and `Control` both |
 | `not_attached` | control given to a consumer that is not attached to this session, one of another's or one that has left |
 | `not_controlling` | control given to an observer — and, on the wire, a deciding frame from a consumer that does not hold control |
-| `origin_invalid` | an origin that is not text; TypeScript only, an origin being a `string` in Go and unable to be anything else |
+| `origin_invalid` | an origin that is not Unicode scalar text, including malformed UTF-8 in Go or an unpaired surrogate in TypeScript |
 | `role_invalid` | a consumer attaching as something that is neither participant nor observer |
 | `sequence_invalid` | an `after` that is no sequence |
 | `session_exists` | a bind under an id already bound |

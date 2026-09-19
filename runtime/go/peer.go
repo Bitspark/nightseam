@@ -22,6 +22,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/internal/scalarjson"
 )
 
 // Profile names what this package speaks: JSON text frames carrying requests,
@@ -437,7 +438,7 @@ func (p *Peer) Call(ctx context.Context, method string, params, result any) erro
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	data, err := json.Marshal(params)
+	data, err := MarshalJSON(params)
 	if err != nil {
 		return err
 	}
@@ -501,7 +502,7 @@ func (p *Peer) await(ctx context.Context, reply <-chan pendingResult, request fr
 // caller's already-expired deadline while waiting to send its cancellation.
 func (p *Peer) cancelRequest(id string, trace Trace) {
 	f := frame{Version: 1, Kind: "cancel", ID: id, Traceparent: trace.Parent, Tracestate: trace.State}
-	data, err := json.Marshal(f)
+	data, err := MarshalJSON(f)
 	if err != nil || int64(len(data)) > p.options.MaxFrameBytes {
 		return
 	}
@@ -522,7 +523,7 @@ func (p *Peer) Emit(ctx context.Context, event string, data any) error {
 	if ctx == nil || event == "" {
 		return errors.New("duplex event requires context and name")
 	}
-	encoded, err := json.Marshal(data)
+	encoded, err := MarshalJSON(data)
 	if err != nil {
 		return err
 	}
@@ -539,7 +540,7 @@ func (p *Peer) enqueue(ctx context.Context, f frame) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	data, err := json.Marshal(f)
+	data, err := MarshalJSON(f)
 	if err != nil {
 		return err
 	}
@@ -776,7 +777,7 @@ func (p *Peer) startRequest(f frame) {
 func (p *Peer) rejectRequest(id string, trace Trace, public *PublicError) {
 	f := frame{Version: 1, Kind: "response", ID: id, Error: public,
 		Traceparent: trace.Parent, Tracestate: trace.State}
-	data, err := json.Marshal(f)
+	data, err := MarshalJSON(f)
 	if err != nil || int64(len(data)) > p.options.MaxFrameBytes {
 		p.fail(errors.New("duplex rejection exceeds frame limit"))
 		return
@@ -822,7 +823,7 @@ func (p *Peer) respond(id string, trace Trace, result any, err error) {
 			f.Error = &PublicError{Code: "internal", Message: "Internal error"}
 		}
 	} else {
-		f.Result, err = json.Marshal(result)
+		f.Result, err = MarshalJSON(result)
 		if err != nil {
 			f.Error = &PublicError{Code: "internal", Message: "Internal error"}
 			f.Result = nil
@@ -873,6 +874,9 @@ func (p *Peer) eventLoop() {
 
 func decodeFrame(data []byte) (frame, error) {
 	var f frame
+	if err := scalarjson.Raw(data); err != nil {
+		return f, err
+	}
 	// Validate members separately so duplicate fields and explicit members from
 	// another frame kind cannot disappear into Go zero values while decoding.
 	fields, err := frameMembers(data)

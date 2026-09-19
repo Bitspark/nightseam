@@ -22,7 +22,7 @@
  * it forwards verbatim, by construction rather than by enumeration.
  */
 import type { FrameConnection } from '@nightseam/duplex';
-import { positiveInteger, DuplexError } from '@nightseam/runtime';
+import { positiveInteger, DuplexError, validateUnicodeJSON } from '@nightseam/runtime';
 import type { Observer, ObserverEvent, Trace } from '@nightseam/runtime';
 
 /**
@@ -336,6 +336,11 @@ export class Registry {
       throw new DuplexError('role_invalid', 'A consumer attaches as a participant or an observer.');
     if (typeof origin !== 'string')
       throw new DuplexError('origin_invalid', "An origin is the caller's fact about the consumer, as text.");
+    try {
+      validateUnicodeJSON(JSON.stringify(origin));
+    } catch {
+      throw new DuplexError('origin_invalid', 'An origin contains Unicode scalar values.');
+    }
     if (!Number.isInteger(after) || after < 0) throw new DuplexError('sequence_invalid', 'after must be a sequence.');
     return this.relay(id).attach(down, role, origin, after);
   }
@@ -1028,7 +1033,9 @@ class Relay {
   /** write hands a message to a connection; one that refuses it has closed, and its own close detaches it. */
   private write(channel: FrameConnection, message: unknown): void {
     try {
-      channel.send({ kind: 'text', data: JSON.stringify(message) });
+      const text = JSON.stringify(message);
+      validateUnicodeJSON(text);
+      channel.send({ kind: 'text', data: text });
     } catch {
       /* The channel's close is what detaches it. */
     }
@@ -1116,6 +1123,11 @@ const duplicateMember = (name: string): string => `duplicate session frame membe
 function read(frame: Wire): Envelope | string {
   if (frame.kind !== 'text') return NOT_AN_OBJECT;
   const text = frame.data;
+  try {
+    validateUnicodeJSON(text);
+  } catch (error) {
+    return error instanceof SyntaxError ? NOT_AN_OBJECT : (error as Error).message;
+  }
   const object = scan(text);
   if (typeof object === 'string') return object;
   let value: unknown;

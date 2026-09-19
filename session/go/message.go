@@ -38,6 +38,9 @@ const (
 // frame arrived on is closed with, a protocol error, which is why it
 // carries no code of the session's vocabulary.
 func decodeMessage(data []byte) (*message, error) {
+	if err := runtime.ValidateUnicodeJSON(data); err != nil {
+		return nil, err
+	}
 	d := json.NewDecoder(bytes.NewReader(data))
 	token, err := d.Token()
 	if err != nil || token != json.Delim('{') {
@@ -109,7 +112,7 @@ func (m *message) trace() runtime.Trace {
 // withID writes the frame again with its id replaced and every other member
 // verbatim, in its place; a frame that carried none gains it at the end.
 func (m *message) withID(id string) []byte {
-	encoded, err := json.Marshal(id)
+	encoded, err := runtime.MarshalJSON(id)
 	if err != nil {
 		return nil
 	}
@@ -123,7 +126,7 @@ func (m *message) withID(id string) []byte {
 		if i > 0 {
 			out.WriteByte(',')
 		}
-		key, err := json.Marshal(name)
+		key, err := runtime.MarshalJSON(name)
 		if err != nil {
 			return nil
 		}

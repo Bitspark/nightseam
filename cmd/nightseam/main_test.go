@@ -169,7 +169,7 @@ func copyFixtureTree(t *testing.T, source, destination string) {
 // compiles generated code.
 func fixtureModule(t *testing.T, directory, root string) {
 	t.Helper()
-	writeFixture(t, directory, "go.mod", []byte("module example.test/generated\n\ngo "+goDirective(t, root)+"\n\nrequire (\n\tgithub.com/Bitspark/nightseam v0.0.0\n\tgithub.com/coder/websocket v1.8.15\n)\n\nreplace github.com/Bitspark/nightseam => "+filepath.ToSlash(root)+"\n"))
+	writeFixture(t, directory, "go.mod", []byte("module example.test/generated\n\ngo "+goDirective(t, root)+"\n\nrequire (\n\tgithub.com/Bitspark/nightseam v0.0.0\n\tgithub.com/coder/websocket v1.8.15\n\tgithub.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3\n)\n\nreplace github.com/Bitspark/nightseam => "+filepath.ToSlash(root)+"\n"))
 	sum, err := os.ReadFile(filepath.Join(root, "go.sum"))
 	if err != nil {
 		t.Fatal(err)
@@ -371,10 +371,11 @@ func TestImportDirection(t *testing.T) {
 		"diag":               {},
 		"naming":             {},
 		"pattern":            {},
-		"model":              {"diag": true},
+		"scalarjson":         {},
+		"model":              {"diag": true, "scalarjson": true},
 		"model/builtin":      {"model": true},
 		"model/modeltest":    {"model": true},
-		"load":               {"diag": true, "model": true, "model/builtin": true},
+		"load":               {"diag": true, "model": true, "model/builtin": true, "scalarjson": true},
 		"analysis":           {"diag": true, "model": true, "model/builtin": true, "naming": true},
 		"check":              {"diag": true, "model": true, "analysis": true, "pattern": true},
 		"render":             {"diag": true, "model": true, "analysis": true},

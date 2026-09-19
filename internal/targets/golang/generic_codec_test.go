@@ -82,6 +82,20 @@ func TestStrings(t *testing.T) {
  var valid Box[string]
  if err:=json.Unmarshal([]byte("{\"item\":\"hello\"}"),&valid); err!=nil || valid.Item!="hello" { t.Fatalf("valid generic refused: %v",err) }
 }
+func TestMalformedUnicodeIsNotEncodedAsReplacement(t *testing.T) {
+ bad:=string([]byte{0xff})
+ for _,value:=range []any{Box[string]{Item:bad},Bound{Item:bad},Box[map[string]string]{Item:map[string]string{"key":bad}}} {
+  if _,err:=json.Marshal(value); err==nil { t.Fatalf("encoded malformed string in %T",value) }
+ }
+ valid:=Box[string]{Item:"😀�"}
+ encoded,err:=json.Marshal(valid); if err!=nil { t.Fatal(err) }
+ var decoded Box[string]
+ if err:=json.Unmarshal(encoded,&decoded); err!=nil || decoded.Item!=valid.Item { t.Fatalf("valid Unicode changed: %q, %v",decoded.Item,err) }
+ for _,raw:=range []string{"{\"item\":\"\\uD800\"}","{\"item\":\"\\uDC00\"}"} {
+  original:=Box[string]{Item:"unchanged"}
+  if err:=json.Unmarshal([]byte(raw),&original); err==nil || original.Item!="unchanged" { t.Fatalf("malformed decode changed receiver: %s",raw) }
+ }
+}
 func TestNilMapsAndNullable(t *testing.T) {
  if _,err:=json.Marshal(Box[map[string]string]{}); err==nil { t.Fatal("nil generic map accepted") }
  if _,err:=json.Marshal(BoundMap{}); err==nil { t.Fatal("nil bound map accepted") }

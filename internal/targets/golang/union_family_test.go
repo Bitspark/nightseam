@@ -160,6 +160,17 @@ func TestInvalidSelectionsAndPayloads(t *testing.T) {
   if value.Nothing==nil { t.Fatal("failed decode changed selection") }
  }
 }
+func TestUnionAndOpenRecordRefuseMalformedUnicode(t *testing.T) {
+ bad:=string([]byte{0xff})
+ for _,value:=range []any{
+  base.Pick[string]{Some:&base.PickSomeValue[string]{Value:bad}},
+  child.Part{JSON:&child.PartJSONValue{Value:map[string]any{bad:1}}},
+ } { if _,err:=json.Marshal(value); err==nil { t.Fatalf("encoded malformed Unicode in %T",value) } }
+ var open child.OpenInline
+ if err:=json.Unmarshal([]byte("{\"body\":{\"value\":\"ok\"}}"),&open); err!=nil { t.Fatal(err) }
+ open.Body.AdditionalFields=map[string]json.RawMessage{bad:json.RawMessage("1")}
+ if _,err:=json.Marshal(open); err==nil { t.Fatal("encoded malformed additional-field name") }
+}
 func TestInheritedAndOpenInlineRecords(t *testing.T) {
  var inherited child.InheritedRecord
  if err:=json.Unmarshal([]byte("{\"value\":3,\"label\":\"ok\"}"),&inherited); err!=nil || inherited.Amount.Value!=3 { t.Fatalf("inherited field override: %#v %v",inherited,err) }

@@ -19,7 +19,7 @@ func (f *file) emitLiterals() {
 		f.linef("func (%s) %s() %s { return %s{} }", literal.name, identOf, identTag, identTag)
 		f.w.Block(fmt.Sprintf("func (v %s) %s() ([]byte, error) {", literal.name, identMarshalJSON), "}", func() {
 			f.linef("if v != %s { return nil, %s.Errorf(%q) }", literal.constant, f.std("fmt"), "expected literal "+quote(value))
-			f.linef("return %s.Marshal(string(v))", f.std("json"))
+			f.linef("return %s.MarshalJSON(string(v))", f.runtime())
 		})
 		f.w.Block(fmt.Sprintf("func (v *%s) %s(data []byte) error {", literal.name, identUnmarshalJSON), "}", func() {
 			f.linef("if err := schema.%s(map[string]any{\"literal\": %q}, data); err != nil { return err }", identValidateExpressionRaw, value)

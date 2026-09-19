@@ -159,6 +159,9 @@ func TestAttachAndControlNameASession(t *testing.T) {
 	if _, err := registry.Attach("s", down, session.Role(7), "one", 0); err == nil {
 		t.Fatal("a consumer attached in a role the package does not know")
 	}
+	if _, err := registry.Attach("s", down, session.Participant, string([]byte{0xff}), 0); err == nil {
+		t.Fatal("a consumer attached under malformed Unicode that control would publish")
+	}
 	one, err := registry.Attach("s", down, session.Participant, "one", 0)
 	if err != nil {
 		t.Fatal(err)

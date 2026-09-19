@@ -9,10 +9,6 @@ import "fmt"
 // carrying one; ErrorNotControlling and ErrorBusy are also what the relay
 // answers a consumer's frame with on the wire, which is why they are the two
 // a consumer meets as the profile's error object rather than as a return.
-//
-// ErrorOriginInvalid is the one no Go call can reach, because an origin is
-// a string here and cannot be anything else. It is here because the
-// vocabulary is one list and not one per language.
 const (
 	// ErrorInvalidOptions: what a call was given is not what it takes — a
 	// limit that is not a limit, a replay with nowhere to deliver.
@@ -27,7 +23,7 @@ const (
 	// a deciding frame came from a consumer that does not hold it.
 	ErrorNotControlling = "not_controlling"
 	// ErrorOriginInvalid: an origin is the caller's fact about the consumer,
-	// as text. No Go call reaches it; see above.
+	// as Unicode scalar text.
 	ErrorOriginInvalid = "origin_invalid"
 	// ErrorRoleInvalid: a consumer attaches as a participant or an observer,
 	// and as nothing else.

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Bitspark/nightseam/internal/diag"
+	"github.com/Bitspark/nightseam/internal/scalarjson"
 )
 
 // TypeExpr is a type expression: one of the forms a declaration names a
@@ -179,6 +180,9 @@ func Decode(raw json.RawMessage) (TypeExpr, error) { return DecodeAt(raw, diag.L
 // qualifier is a parameter (upper camel) or a family (lower); an object
 // holds exactly one form.
 func DecodeAt(raw json.RawMessage, at diag.Location) (TypeExpr, error) {
+	if err := scalarjson.Raw(raw); err != nil {
+		return nil, err
+	}
 	trimmed := strings.TrimSpace(string(raw))
 	if trimmed == "" || trimmed == "null" {
 		return nil, fmt.Errorf("a type expression is required")

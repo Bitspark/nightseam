@@ -66,7 +66,7 @@ func (f *file) emitUnion(t *render.Type, variants []unionVariant) {
 				f.linef("envelope[%q] = %s", t.Value, payload)
 			}
 		})
-		f.linef("data, err := %s.Marshal(envelope)", json)
+		f.linef("data, err := %s.MarshalJSON(envelope)", f.runtime())
 		f.line("if err != nil { return nil, err }")
 		f.linef("if err = %s; err != nil { return nil, err }", f.validateType(t, "data"))
 		f.line("return data, nil")
