@@ -26,7 +26,7 @@ import (
 func TestLanguageCallsCompile(t *testing.T) {
 	root := repositoryRoot(t)
 	tsc := fixture(t, root, "go", "node", "tsc")
-	for _, corpus := range []string{"corpus/api/contracts", "families/api/contracts", "proof"} {
+	for _, corpus := range []string{"corpus/api/contracts", "families/api/contracts"} {
 		t.Run(corpus, func(t *testing.T) {
 			directory := t.TempDir()
 			targets := []spi.Target{golang.New(golang.Config{Module: module}), typescript.New(typescript.Config{Scope: scope})}

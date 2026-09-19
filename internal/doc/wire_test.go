@@ -13,13 +13,12 @@ import (
 	"github.com/Bitspark/nightseam/internal/render"
 )
 
-// proof documents the proof family of cmd/nightseam/testdata/proof: one
+// proof documents the proof family of cmd/nightseam/testdata/families: one
 // contract using every form of the settled type language at once, which
-// the targets refuse until their render lanes land and the document does
-// not, since a document of a form is what its example shows.
+// the language targets render and the document describes with example values.
 func proof(t *testing.T) *Family {
 	t.Helper()
-	root := filepath.Join("..", "..", "cmd", "nightseam", "testdata", "proof")
+	root := filepath.Join("..", "..", "cmd", "nightseam", "testdata", "families", "api", "contracts")
 	families := map[string]map[string]string{}
 	for _, name := range []string{"probe", "proof"} {
 		entries, err := os.ReadDir(filepath.Join(root, name))

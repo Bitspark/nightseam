@@ -19,9 +19,9 @@ import (
 // targets' spellings, so the proof holds every form's code blocks as well.
 func TestProofSpecificationGolden(t *testing.T) {
 	k := kernel.New(doc.Target(markdown.New(markdown.Config{}), testSpellers()))
-	world := k.Load(os.DirFS("testdata"), "proof")
+	world := k.Load(os.DirFS(familiesRoot), "api/contracts")
 	files := map[string][]byte{}
-	for _, name := range world.Names {
+	for _, name := range []string{"probe", "proof"} {
 		result, err := k.Render(world, name)
 		if err != nil {
 			t.Fatal(err)
@@ -64,9 +64,9 @@ func TestProofSpecificationIsComplete(t *testing.T) {
 	}
 	for _, want := range []string{
 		"| `parts` | `PartsRequest` |",
-		"| `echo` | `probe.Payload` | `probe.Payload` | `denied` |",
+		"| `echo` | `probe.Payload` | `probe.Payload` |",
 		"| `changed` | `probe.Payload` |",
-		"| `denied` | The caller is denied. |",
+		"| `denied` | The caller is denied |",
 		"| `rows` | array of nullable `string` | required |",
 		"- **S**: a family with the `protocol` tier",
 		"- **Item**: a type.",

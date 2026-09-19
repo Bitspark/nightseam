@@ -307,3 +307,12 @@ members, such as `toString`: otherwise an empty events object supplies a
 built-in method as a callback and can fail the interface's type check. A
 TypeScript override such as `{"names":{"to_string":"textChanged"}}`
 keeps the wire event `to_string` while giving its callback a safe field name.
+
+## Findings from the proof family
+
+The settled forms are combined in one family in the shared corpus and
+driven through generated clients and bindings. [The proof findings](proof-findings.md)
+record the native forms in each language, the mixed-parameter equivalence,
+the measured rename when an inline shape moves, and what side inheritance
+means for a binding and session governance. Each finding links to the
+fixture or cross-wire scenario that holds it.

@@ -15,18 +15,18 @@ import (
 	"github.com/Bitspark/nightseam/internal/targets/golang"
 )
 
-// proofWorld reads the proof checkout: one contract using every form the
+// proofWorld selects the proof from the shared corpus: one contract using every form the
 // type language gained at once, beside the family whose side it extends.
 func proofWorld(t *testing.T) analysis.World {
 	t.Helper()
-	world, diagnostics := load.Checkout(os.DirFS("testdata"), "proof", []string{"go", "typescript", "markdown"})
+	world, diagnostics := load.Checkout(os.DirFS(familiesRoot), "api/contracts", []string{"go", "typescript", "markdown"})
 	for _, d := range diagnostics {
 		t.Errorf("loading the proof checkout: %s", d)
 	}
 	if len(world.Names) == 0 {
 		t.Fatal("the proof checkout holds no families")
 	}
-	return analysis.World(world.Families)
+	return analysis.World{"proof": world.Families["proof"], "probe": world.Families["probe"]}
 }
 
 // TestProofFamilyIsAccepted: the proof contract — a generic union, a union
@@ -101,8 +101,8 @@ func TestEveryTargetAcceptsSettledLanguage(t *testing.T) {
 	}
 }
 
-// The Go half holds the new forms and their exported names before the
-// cross-language gate admits the proof into the shared corpus.
+// The focused Go surface fixture complements the shared corpus output and
+// cross-language scenarios with an explicit record of exported names.
 func TestGoProofRenderingAndSurfaceGolden(t *testing.T) {
 	family := render.Build(analysis.Resolve(proofWorld(t), "proof"))
 	target := golang.New(golang.Config{Module: module})

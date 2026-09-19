@@ -469,6 +469,32 @@ file, and a file named `go.sum.checkout` is replaced by the checkout's
 `go.sum`. The rendering is rooted at module `example.test/generated` and
 scope `@example`.
 
+### The type-language proof
+
+The runner also renders the shared corpus's `proof` family beside `probe`.
+Its generated handlers live in separate testee files. The TypeScript recipe
+compiles the testee and generated packages before running them.
+
+| op | arguments | result |
+|---|---|---|
+| `gen.proof_serve` | | `{"handle", "url"}` — a Go generated binding; unsupported in a target without bindings |
+| `gen.proof_dial` | **`url`** | `{"handle"}` — a generated proof client bound to the probe family and string item type |
+| `client.proof_call` | **`on`**, **`method`**, **`params`**, `raw`, `within_ms` | `{"result"}` or `{"error"}`; methods are `classify`, `classify_rich`, `parts`, and `relay`; `raw: true` bypasses the client codec to exercise the binding's refusal |
+| `server.proof_emit` | **`on`**, **`data`**, `within_ms` | `{}` — emits the generated `part.added` event |
+| `client.proof_event` | **`on`**, `within_ms` | `{"data", "kind"}` — a generated callback's value, dispatched by its native discriminator |
+| `gen.proof_names` | | the sorted inline type names referenced by the compiled testee |
+| `gen.proof_validate` | **`type`**, **`value`** or **`text`** | `{"valid": true}` or `{"valid": false, "code": "invalid", "message"}` |
+
+`type` is a type expression encoded as a JSON string, as in `gen.validate`.
+`text` supplies original JSON source for a malformed-Unicode case, which
+must be checked before decoding; it replaces `value`. The `invalid` code
+is the driver's argument-refusal code, not a new exported validator error.
+The canned proof binding dispatches unions to a kind-prefixed string,
+returns a page of three parts, and relays a typed envelope in `Option`.
+Its inherited echo returns the payload unchanged. Mirrored wire scenarios
+hold both ordered language pairings; the matrix records the unsupported
+TypeScript binding role separately from the generated client runs.
+
 ## `testee.json`
 
 A language joins the suite with `conformance/<lang>/testee.json`:
@@ -492,7 +518,7 @@ one fails the suite rather than skipping it, as every fixture in this
 repository does. `build` is a list of commands run once, in order; `run` is
 how a testee process starts. `{self}` is the directory of `testee.json`,
 `{checkout}` the repository root, `{rendered}` where the runner renders the
-probe family for the generated testee, `{out}` a scratch directory of this
+probe and proof families for the generated testee, `{out}` a scratch directory of this
 run's own under `conformance/.out`, removed when the run ends, `{exe}` the
 platform's executable suffix. A rendering placed under `{out}` lies inside
 the checkout, where a TypeScript package resolves `@nightseam/*` through

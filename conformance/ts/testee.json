@@ -1,11 +1,40 @@
 {
   "language": "typescript",
-  "toolchains": ["node"],
+  "toolchains": [
+    "node"
+  ],
   "build": [],
-  "run": {"argv": ["node", "--experimental-strip-types", "--no-warnings=ExperimentalWarning", "{self}/src/testee.ts"]},
+  "run": {
+    "argv": [
+      "node",
+      "--experimental-strip-types",
+      "--no-warnings=ExperimentalWarning",
+      "{self}/src/testee.ts"
+    ]
+  },
   "generated": {
     "rendered": "{out}/ts-generated",
-    "build": [],
-    "run": {"cwd":"{rendered}","argv": ["node", "--experimental-strip-types", "--no-warnings=ExperimentalWarning", "--loader", "./loader.mjs", "./testee.ts"]}
+    "build": [
+      {
+        "argv": [
+          "node",
+          "{checkout}/node_modules/typescript/bin/tsc",
+          "--project",
+          "tsconfig.json"
+        ],
+        "cwd": "{rendered}"
+      }
+    ],
+    "run": {
+      "cwd": "{rendered}",
+      "argv": [
+        "node",
+        "--experimental-strip-types",
+        "--no-warnings=ExperimentalWarning",
+        "--loader",
+        "./loader.mjs",
+        "./testee.ts"
+      ]
+    }
   }
 }

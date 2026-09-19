@@ -1,0 +1,347 @@
+{
+  "name": "proof unions cross the wire with tag dispatch, scalar payloads and directional widening",
+  "layer": "generated",
+  "needs": [
+    "generated"
+  ],
+  "mirror": true,
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.proof_serve",
+      "bind": {
+        "handle": "srv",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.proof_dial",
+      "args": {
+        "url": "$url"
+      },
+      "bind": "cl"
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "classify",
+        "params": {
+          "type": "text",
+          "value": {
+            "type": "text",
+            "body": "hello 😀 �"
+          }
+        }
+      },
+      "expect": {
+        "result": "text:hello 😀 �"
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "classify_rich",
+        "params": {
+          "type": "text",
+          "value": {
+            "type": "text",
+            "body": "hello 😀 �"
+          }
+        }
+      },
+      "expect": {
+        "result": "text:hello 😀 �"
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "classify",
+        "params": {
+          "type": "image",
+          "value": {
+            "url": "https://example.org/image",
+            "alt": null
+          }
+        }
+      },
+      "expect": {
+        "result": "image:https://example.org/image"
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "classify_rich",
+        "params": {
+          "type": "image",
+          "value": {
+            "url": "https://example.org/image",
+            "alt": null
+          }
+        }
+      },
+      "expect": {
+        "result": "image:https://example.org/image"
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "classify",
+        "params": {
+          "type": "count",
+          "value": 7
+        }
+      },
+      "expect": {
+        "result": "count:7"
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "classify_rich",
+        "params": {
+          "type": "count",
+          "value": 7
+        }
+      },
+      "expect": {
+        "result": "count:7"
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "classify_rich",
+        "params": {
+          "type": "table",
+          "value": {
+            "rows": [
+              "one",
+              null,
+              "three"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "result": "table:3"
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "classify",
+        "params": {
+          "type": "table",
+          "value": {
+            "rows": [
+              "one",
+              null,
+              "three"
+            ]
+          }
+        },
+        "raw": true
+      },
+      "expect": {
+        "error": {
+          "code": "invalid_params"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "classify",
+        "params": {
+          "type": "count"
+        },
+        "raw": true
+      },
+      "expect": {
+        "error": {
+          "code": "invalid_params"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "classify",
+        "params": {
+          "type": "text",
+          "body": "flat"
+        },
+        "raw": true
+      },
+      "expect": {
+        "error": {
+          "code": "invalid_params"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "server.proof_emit",
+      "args": {
+        "on": "$srv",
+        "data": {
+          "type": "text",
+          "value": {
+            "type": "text",
+            "body": "hello 😀 �"
+          }
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_event",
+      "args": {
+        "on": "$cl"
+      },
+      "expect": {
+        "kind": "text",
+        "data": {
+          "type": "text",
+          "value": {
+            "type": "text",
+            "body": "hello 😀 �"
+          }
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "server.proof_emit",
+      "args": {
+        "on": "$srv",
+        "data": {
+          "type": "image",
+          "value": {
+            "url": "https://example.org/image",
+            "alt": null
+          }
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_event",
+      "args": {
+        "on": "$cl"
+      },
+      "expect": {
+        "kind": "image",
+        "data": {
+          "type": "image",
+          "value": {
+            "url": "https://example.org/image",
+            "alt": null
+          }
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "server.proof_emit",
+      "args": {
+        "on": "$srv",
+        "data": {
+          "type": "count",
+          "value": 7
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_event",
+      "args": {
+        "on": "$cl"
+      },
+      "expect": {
+        "kind": "count",
+        "data": {
+          "type": "count",
+          "value": 7
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "server.proof_emit",
+      "args": {
+        "on": "$srv",
+        "data": {
+          "type": "table",
+          "value": {
+            "rows": [
+              "one",
+              null,
+              "three"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_event",
+      "args": {
+        "on": "$cl"
+      },
+      "expect": {
+        "kind": "table",
+        "data": {
+          "type": "table",
+          "value": {
+            "rows": [
+              "one",
+              null,
+              "three"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "classify",
+        "params": {
+          "type": "count",
+          "value": 7
+        }
+      },
+      "expect": {
+        "result": "count:7"
+      }
+    }
+  ]
+}

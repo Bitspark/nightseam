@@ -13,20 +13,18 @@ export interface Events {
   changed?: (data: Protocol.Payload, context: EventContext) => void | Promise<void>;
 }
 export interface Handler {
-  /** Asks the client to reverse a payload. */
   reverse(params: Protocol.Payload, context: RequestContext): Protocol.Payload | Promise<Protocol.Payload>;
 }
 export interface Caller {
   echo(params: Protocol.Payload, options?: CallOptions): Promise<Protocol.Payload>;
+  noArgs(options?: CallOptions): Promise<string>;
 }
 /** The methods that need control to send. */
-export const decides: ReadonlySet<string> = new Set(["echo"]);
+export const decides: ReadonlySet<string> = new Set([]);
 /** The methods the server sends that raise a request the holder of control must answer. */
-export const asks: ReadonlySet<string> = new Set(["reverse"]);
-/** Where the agent's own conversation id arrives: the event, and the path to the id in its data. */
-export const conversation = { event: "changed", path: "text" } as const;
+export const asks: ReadonlySet<string> = new Set([]);
 /** The public errors of the family: what the code of a DuplexError a call rejects with may be. */
-export const errors = { /** The caller is denied. */ denied: "denied" } as const;
+export const errors = { /** The caller is denied */ denied: "denied" } as const;
 /** One of the family's public error codes. */
 export type ErrorCode = (typeof errors)[keyof typeof errors];
 export class Client implements Caller {
@@ -44,14 +42,14 @@ export class Client implements Caller {
     if (events.changed) this.onChanged(events.changed);
   }
   /** Connects to a WebSocket endpoint and speaks the family over it. */
-  static async dial(url: string, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "echo": "probe", "reverse": "probe", "session.control": "probe", "session.cursor": "probe", "changed": "probe" } }); const client = new Client(peer, handler, events); await peer.connect(url); return client; }
+  static async dial(url: string, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "echo": "probe", "no_args": "probe", "reverse": "probe", "session.control": "probe", "session.cursor": "probe", "changed": "probe" } }); const client = new Client(peer, handler, events); await peer.connect(url); return client; }
   /** Speaks the family over a connection of the seam — a tunnel channel, a pipe, an open socket — as the client side of it. */
-  static async attach(connection: FrameConnection, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "echo": "probe", "reverse": "probe", "session.control": "probe", "session.cursor": "probe", "changed": "probe" } }); const client = new Client(peer, handler, events); await peer.attach(connection); return client; }
+  static async attach(connection: FrameConnection, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "echo": "probe", "no_args": "probe", "reverse": "probe", "session.control": "probe", "session.cursor": "probe", "changed": "probe" } }); const client = new Client(peer, handler, events); await peer.attach(connection); return client; }
   /** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */
   static async open(tunnel: Tunnel, handle: Protocol.Handle, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach(channel, options, handler, events); }
   close(): void { this.peer.close(); }
-  /** Returns the payload. */
   async echo(params: Protocol.Payload, options?: CallOptions): Promise<Protocol.Payload> { validateWire("Payload", params); const result = await this.peer.call<Protocol.Payload>("echo", params, options); validateWire("Payload", result); return result; }
+  async noArgs(options?: CallOptions): Promise<string> { const params = {}; validateWire({ empty: true }, params); const result = await this.peer.call<string>("no_args", params, options); validateWire("string", result); return result; }
   onSessionControl(handler: (data: session.Control, context: EventContext) => void | Promise<void>): () => void { return this.peer.onEvent("session.control", (data, context) => { try { validateWire("session.Control", data); } catch(error) { this.peer.close(); throw error; } return handler(data as session.Control, context); }); }
   onSessionCursor(handler: (data: session.Cursor, context: EventContext) => void | Promise<void>): () => void { return this.peer.onEvent("session.cursor", (data, context) => { try { validateWire("session.Cursor", data); } catch(error) { this.peer.close(); throw error; } return handler(data as session.Cursor, context); }); }
   onChanged(handler: (data: Protocol.Payload, context: EventContext) => void | Promise<void>): () => void { return this.peer.onEvent("changed", (data, context) => { try { validateWire("Payload", data); } catch(error) { this.peer.close(); throw error; } return handler(data as Protocol.Payload, context); }); }

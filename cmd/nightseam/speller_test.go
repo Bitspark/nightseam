@@ -19,7 +19,7 @@ import (
 // Documents cannot invent a declaration or an implementation signature:
 // every displayed fragment must occur in the package or init's stub.
 func TestLanguageSnippetsComeFromGeneratedCode(t *testing.T) {
-	for _, corpus := range []string{"corpus/api/contracts", "families/api/contracts", "proof"} {
+	for _, corpus := range []string{"corpus/api/contracts", "families/api/contracts"} {
 		world, diagnostics := load.Checkout(os.DirFS("testdata"), corpus, []string{"go", "typescript"})
 		if len(diagnostics) != 0 {
 			t.Fatal(diagnostics)

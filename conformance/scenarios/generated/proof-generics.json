@@ -1,0 +1,160 @@
+{
+  "name": "proof mixes a family argument with a type argument and applies Page to parts and strings",
+  "layer": "generated",
+  "needs": [
+    "generated"
+  ],
+  "mirror": true,
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.proof_serve",
+      "bind": {
+        "handle": "srv",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.proof_dial",
+      "args": {
+        "url": "$url"
+      },
+      "bind": "cl"
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "relay",
+        "params": {
+          "message": {
+            "version": 1,
+            "kind": "event",
+            "event": "changed",
+            "data": {
+              "text": "carried"
+            }
+          },
+          "back": null,
+          "page": {
+            "items": [
+              "one",
+              "two"
+            ],
+            "next": null
+          }
+        }
+      },
+      "expect": {
+        "result": {
+          "kind": "some",
+          "value": {
+            "version": 1,
+            "kind": "event",
+            "event": "changed",
+            "data": {
+              "text": "carried"
+            }
+          }
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "parts",
+        "params": {
+          "after": null
+        }
+      },
+      "expect": {
+        "result": {
+          "kind": "ok",
+          "value": {
+            "items": [
+              {
+                "type": "text",
+                "value": {
+                  "type": "text",
+                  "body": "hello 😀 �"
+                }
+              },
+              {
+                "type": "count",
+                "value": 7
+              },
+              {
+                "type": "image",
+                "value": {
+                  "url": "https://example.org/image",
+                  "alt": null
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "relay",
+        "params": {
+          "message": {
+            "version": 1,
+            "kind": "event",
+            "event": "changed",
+            "data": {
+              "text": "carried"
+            }
+          },
+          "back": null,
+          "page": {
+            "items": [
+              7
+            ]
+          }
+        },
+        "raw": true
+      },
+      "expect": {
+        "error": {
+          "code": "invalid_params"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.proof_call",
+      "args": {
+        "on": "$cl",
+        "method": "relay",
+        "params": {
+          "message": {
+            "version": 1
+          },
+          "back": null,
+          "page": {
+            "items": [
+              "one",
+              "two"
+            ],
+            "next": null
+          }
+        },
+        "raw": true
+      },
+      "expect": {
+        "error": {
+          "code": "invalid_params"
+        }
+      }
+    }
+  ]
+}

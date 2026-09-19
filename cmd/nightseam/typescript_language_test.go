@@ -72,9 +72,9 @@ func TestTypeScriptSettledLanguageProof(t *testing.T) {
 
 func TestTypeScriptProofGolden(t *testing.T) {
 	k := kernel.New(typescript.New(typescript.Config{Scope: "@example"}))
-	world := k.Load(os.DirFS("testdata"), "proof")
+	world := k.Load(os.DirFS(familiesRoot), "api/contracts")
 	files := map[string][]byte{}
-	for _, name := range world.Names {
+	for _, name := range []string{"probe", "proof"} {
 		result, err := k.Render(world, name)
 		if err != nil {
 			t.Fatal(err)
