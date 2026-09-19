@@ -393,11 +393,11 @@ A language joins the suite with `conformance/<lang>/testee.json`:
   "language": "typescript",
   "toolchains": ["node"],
   "build": [],
-  "run": {"argv": ["node", "--experimental-strip-types", "{self}/src/testee.ts"]},
+  "run": {"argv": ["node", "--experimental-strip-types", "--no-warnings=ExperimentalWarning", "{self}/src/testee.ts"]},
   "generated": {
-    "rendered": "{self}/.generated",
+    "rendered": "{out}/ts-generated",
     "build": [],
-    "run": {"argv": ["node", "--experimental-strip-types", "{rendered}/testee.ts"]}
+    "run": {"argv": ["node", "--experimental-strip-types", "--no-warnings=ExperimentalWarning", "{rendered}/testee.ts"]}
   }
 }
 ```
