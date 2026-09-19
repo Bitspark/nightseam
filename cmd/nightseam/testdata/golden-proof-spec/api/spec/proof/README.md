@@ -61,7 +61,7 @@ A record, generic in `T`. A page of anything: a type parameter filled by a type 
 
 ### Part
 
-A union. One part of a message: a record that carries its own tag, a shape written inline, and a payload that is not an object.
+A union. One part of a message: a record with a literal field, a shape written inline, and a scalar payload.
 
 The `type` member identifies the variant. The complete payload is carried in `value` beside the tag, including records, maps, JSON and null. A record's own literal tag remains inside its payload. A variant without a payload has only the tag; `value` is absent.
 
@@ -141,11 +141,11 @@ Declared inline; its name is derived from its declaration path.
 
 ### TextPart
 
-A record. A part that carries its own tag, so it is a variant without a wrapper.
+A record. A part with its own literal type field, retained inside the union payload.
 
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
-| `type` | the literal `"text"` | required | — | The discriminator, declared as the literal of this variant. |
+| `type` | the literal `"text"` | required | — | A literal field of the payload; the union has its own discriminator. |
 | `body` | `string` | required | length ≥ 1 |  |
 
 ## Carried types
