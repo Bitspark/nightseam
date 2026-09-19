@@ -247,6 +247,9 @@ importers:
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:../../duplex/ts
+      '@nightseam/live':
+        specifier: workspace:*
+        version: link:../../live/ts
       '@nightseam/tunnel':
         specifier: workspace:*
         version: link:../../tunnel/ts

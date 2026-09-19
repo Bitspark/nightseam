@@ -19,7 +19,7 @@ import type { ObserverEvent } from '@nightseam/runtime';
 import { EVENTS } from './observer.check.ts';
 import { observer } from './observer.ts';
 
-/** A string that stands for a payload; no event of the two layers declares a member one could arrive in. */
+/** A string that stands for a payload; no event of any layer declares a member one could arrive in. */
 const SENTINEL = 'sentinel-6d9f2c-payload';
 /** The instant every stated event carries, and the trace of one frame. */
 const at = new Date('2026-09-18T09:00:00.000Z');
@@ -230,7 +230,7 @@ test('the tunnel reaches a span by the same two rules as the runtime', () => {
   });
 });
 
-test('no payload reaches a span: every event of the two layers, and a structure smuggled into each', () => {
+test('no payload reaches a span: every event of every layer, and a structure smuggled into each', () => {
   const watch = watching();
   watch.tell({
     type: 'request.started',

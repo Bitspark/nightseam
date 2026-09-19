@@ -44,10 +44,21 @@ func exported(t *testing.T) (trace.Tracer, *tracetest.InMemoryExporter) {
 }
 
 // channelOpened stands for an event of a layer running over the peer — a
-// tunnel's, a later profile's — which reaches this adapter
+// tunnel's, a live scope's, a later profile's — which reaches this adapter
 // through the peer's observer before this package has a case for it. Its
 // fields are of every kind the general path renders, and one of a kind it
 // renders not at all.
+//
+// It stands for them rather than enumerating them, and that is the whole of
+// this module's coverage of every layer above the runtime: the adapter has no
+// case for any of them and reflects over all of them by one path, so one event
+// holds that path and a second would hold nothing further. TypeScript's
+// observer.check.ts must name each layer instead, because its check is the
+// compiler narrowing a registry that only holds what the file imports — a
+// difference between the two languages that follows from the two mechanisms
+// and is not a gap in this one. Importing live/go here to add a case would
+// add an import to a module whose whole point is importing nothing but the
+// runtime, and would add no guarantee (#220).
 type channelOpened struct {
 	At      time.Time
 	Family  string
