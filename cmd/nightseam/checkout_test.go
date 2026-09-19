@@ -92,7 +92,7 @@ func TestTheCheckoutsConfigShapesTheTool(t *testing.T) {
 	root := t.TempDir()
 	writeFamily(t, root, "probe")
 	writeFixture(t, root, "api/contracts/nightseam.json", []byte(`{"targets": {"markdown": {"layout": "docs/{family}"}}}`))
-	if out, _, err := run(t, root, "generate"); err != nil || !strings.Contains(out, "generated docs/probe/README.md") || strings.Contains(out, "api/spec") {
+	if out, _, err := run(t, root, "generate"); err != nil || !strings.Contains(out, "generated docs/probe/README.md") || strings.Contains(out, "api/spec/probe/README.md") {
 		t.Fatalf("the section did not move the pages: %v\n%s", err, out)
 	}
 	// Disabled, the writer renders nothing, and what it rendered before is

@@ -21,6 +21,7 @@ var named = map[string]string{
 	"go":         "Go",
 	"typescript": "TypeScript",
 	"markdown":   "Markdown",
+	"atlas":      "HTML atlas",
 }
 
 func TestHelpNamesEveryComposedTarget(t *testing.T) {

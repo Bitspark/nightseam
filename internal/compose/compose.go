@@ -19,6 +19,7 @@ import (
 	"github.com/Bitspark/nightseam/internal/kernel"
 	"github.com/Bitspark/nightseam/internal/load"
 	"github.com/Bitspark/nightseam/internal/spi"
+	"github.com/Bitspark/nightseam/internal/targets/atlas"
 	"github.com/Bitspark/nightseam/internal/targets/golang"
 	"github.com/Bitspark/nightseam/internal/targets/markdown"
 	"github.com/Bitspark/nightseam/internal/targets/typescript"
@@ -80,6 +81,11 @@ func Configure(c load.Config, module, scope, sibling string) ([]spi.Target, []di
 	report(markdown.Name, markdown.New(md).Layout().Validate())
 	compose(markdown.Name, func() spi.Target { return doc.Target(markdown.New(md), spellers) })
 
+	var a atlas.Config
+	report(atlas.Name, section(c, atlas.Name, &a))
+	report(atlas.Name, a.Validate())
+	compose(atlas.Name, func() spi.Target { return doc.Target(atlas.New(a)) })
+
 	return targets, diagnostics
 }
 
@@ -110,7 +116,7 @@ func flagged(set bool, member, flag string) error {
 // answers without a module or a scope, which loading a checkout does not
 // need, and names a disabled target too, whose override file is still its
 // own.
-func Names() []string { return []string{golang.Name, typescript.Name, markdown.Name} }
+func Names() []string { return []string{golang.Name, typescript.Name, markdown.Name, atlas.Name} }
 
 // Kernel is the pipeline composed with the targets and their defaults.
 func Kernel(module, scope, sibling string) *kernel.Kernel {
