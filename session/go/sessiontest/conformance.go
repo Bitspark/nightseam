@@ -342,6 +342,18 @@ func Run(t *testing.T, connect Connect) {
 				t.Fatalf("%s saw %s", consumer.name, received.raw)
 			}
 		}
+		// The log keeps each message whole, so a consumer that was not there is
+		// replayed the carriage with it — the request the relay recorded on its
+		// way to the machine and then the event — which is why a meta that holds
+		// a credential wants a Log that redacts, as docs/session.md says.
+		_, late := attach(t, registry, "s", "late", session.Observer, 0)
+		replayed := []string{string(late.take(t).raw), string(late.take(t).raw)}
+		if !strings.Contains(replayed[0], `"meta":{"tenant":"acme","idempotency":"k-1"}`) {
+			t.Fatalf("the log replayed the request as %s", replayed[0])
+		}
+		if replayed[1] != emitted {
+			t.Fatalf("the log replayed the event as %s", replayed[1])
+		}
 	})
 
 	t.Run("the machine's channel ends every consumer, a consumer's only itself", func(t *testing.T) {
