@@ -18,8 +18,8 @@
     "format:check": "prettier --check \"*/ts/src/**/*.ts\""
   },
   "devDependencies": {
-    "@example/session-client": "link:./cmd/nightseam/testdata/golden/api/ts/session-client",
     "@nightseam/duplex": "workspace:*",
+    "@nightseam/live": "workspace:*",
     "@nightseam/runtime": "workspace:*",
     "@nightseam/tunnel": "workspace:*",
     "typescript": "^7.0.2",

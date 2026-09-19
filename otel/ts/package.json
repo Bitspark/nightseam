@@ -51,7 +51,6 @@
   },
   "devDependencies": {
     "@nightseam/duplex": "workspace:*",
-    "@nightseam/session": "workspace:*",
     "@nightseam/tunnel": "workspace:*",
     "@opentelemetry/context-async-hooks": "^2.0.0",
     "@opentelemetry/sdk-trace-base": "^2.0.0",

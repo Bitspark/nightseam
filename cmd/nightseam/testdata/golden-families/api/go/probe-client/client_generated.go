@@ -5,28 +5,17 @@ import (
 	context "context"
 	json "encoding/json"
 	protocol "example.test/generated/api/go/probe-protocol"
-	sessionprotocol "example.test/generated/api/go/session-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 	tunnel "github.com/Bitspark/nightseam/tunnel/go"
-	atomic "sync/atomic"
 )
 
-type Client struct {
-	Peer          *runtime.Peer
-	sequence      atomic.Int64
-	cursorHandler atomic.Pointer[func(context.Context, sessionprotocol.Cursor)]
-}
+type Client struct{ Peer *runtime.Peer }
 
-// Sequence is the latest relay cursor processed by this client, initially zero.
-func (c *Client) Sequence() int64 { return c.sequence.Load() }
-
-// Events installs typed user callbacks before the client reads its first frame; cursor tracking is always installed.
+// Events installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.
 type Events struct {
-	SessionControl func(context.Context, sessionprotocol.Control)
-	SessionCursor  func(context.Context, sessionprotocol.Cursor)
-	Changed        func(context.Context, protocol.Payload)
+	Changed func(context.Context, protocol.Payload)
 }
 type Handler interface {
 	Reverse(ctx context.Context, client *Client, params protocol.Payload) (protocol.Payload, error)
@@ -40,14 +29,8 @@ type Caller interface {
 
 var _ Caller = (*Client)(nil)
 
-// Decides reports whether a method needs control to send: an observer's is refused.
-func Decides(method string) bool { return false }
-
-// Asks reports whether a method the server sends raises a request the holder of control must answer.
-func Asks(method string) bool { return false }
-
 // install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
-func install(client *Client, handler Handler, events Events, options *runtime.Options) error {
+func install(handler Handler, events Events, options *runtime.Options) error {
 	if handler == nil {
 		return fmt.Errorf("reverse-call handler is required")
 	}
@@ -66,7 +49,7 @@ func install(client *Client, handler Handler, events Events, options *runtime.Op
 		if err := json.Unmarshal(raw, &params); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
-		result, err := handler.Reverse(ctx, client, params)
+		result, err := handler.Reverse(ctx, &Client{Peer: peer}, params)
 		if err != nil {
 			return nil, err
 		}
@@ -83,26 +66,11 @@ func install(client *Client, handler Handler, events Events, options *runtime.Op
 	families["echo"] = "probe"
 	families["no_args"] = "probe"
 	families["reverse"] = "probe"
-	families["session.control"] = "probe"
-	families["session.cursor"] = "probe"
 	families["changed"] = "probe"
 	options.Families = families
 	prepare := options.Prepare
 	options.Prepare = func(peer *runtime.Peer) error {
-		client.Peer = peer
-		if err := client.trackCursor(); err != nil {
-			return err
-		}
-		if events.SessionControl != nil {
-			if err := client.OnSessionControl(events.SessionControl); err != nil {
-				return err
-			}
-		}
-		if events.SessionCursor != nil {
-			if err := client.OnSessionCursor(events.SessionCursor); err != nil {
-				return err
-			}
-		}
+		client := &Client{Peer: peer}
 		if events.Changed != nil {
 			if err := client.OnChanged(events.Changed); err != nil {
 				return err
@@ -118,31 +86,29 @@ func install(client *Client, handler Handler, events Events, options *runtime.Op
 
 // Dial connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.
 func Dial(ctx context.Context, url string, options runtime.DialOptions, handler Handler, events Events) (*Client, error) {
-	client := &Client{}
-	if err := install(client, handler, events, &options.Options); err != nil {
+	if err := install(handler, events, &options.Options); err != nil {
 		return nil, err
 	}
-	_, response, err := runtime.Dial(ctx, url, options)
+	peer, response, err := runtime.Dial(ctx, url, options)
 	if err != nil {
 		if response != nil && response.Body != nil {
 			_ = response.Body.Close()
 		}
 		return nil, err
 	}
-	return client, nil
+	return &Client{Peer: peer}, nil
 }
 
 // Attach speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.
 func Attach(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler, events Events) (*Client, error) {
-	client := &Client{}
-	if err := install(client, handler, events, &options); err != nil {
+	if err := install(handler, events, &options); err != nil {
 		return nil, err
 	}
-	_, err := runtime.NewPeer(ctx, conn, runtime.ClientRole, options)
+	peer, err := runtime.NewPeer(ctx, conn, runtime.ClientRole, options)
 	if err != nil {
 		return nil, err
 	}
-	return client, nil
+	return &Client{Peer: peer}, nil
 }
 
 // Open resolves a handle to the channel it names on a tunnel and speaks the family over it.
@@ -184,49 +150,6 @@ func (c *Client) NoArgs(ctx context.Context) (string, error) {
 		return result, err
 	}
 	return result, nil
-}
-func (c *Client) OnSessionControl(handler func(context.Context, sessionprotocol.Control)) error {
-	return c.Peer.HandleEvent("session.control", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"session.Control\""), raw); err != nil {
-			_ = peer.Close()
-			return
-		}
-		var data sessionprotocol.Control
-		if err := json.Unmarshal(raw, &data); err != nil {
-			_ = peer.Close()
-			return
-		}
-		handler(ctx, data)
-	})
-}
-func (c *Client) OnSessionCursor(handler func(context.Context, sessionprotocol.Cursor)) error {
-	if handler == nil {
-		return fmt.Errorf("invalid duplex event handler")
-	}
-	if err := c.Peer.Err(); err != nil {
-		return err
-	}
-	if !c.cursorHandler.CompareAndSwap(nil, &handler) {
-		return fmt.Errorf("event %q already registered", "session.cursor")
-	}
-	return nil
-}
-func (c *Client) trackCursor() error {
-	return c.Peer.HandleEvent("session.cursor", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"session.Cursor\""), raw); err != nil {
-			_ = peer.Close()
-			return
-		}
-		var data sessionprotocol.Cursor
-		if err := json.Unmarshal(raw, &data); err != nil {
-			_ = peer.Close()
-			return
-		}
-		c.sequence.Store(data.Sequence)
-		if handler := c.cursorHandler.Load(); handler != nil {
-			(*handler)(ctx, data)
-		}
-	})
 }
 func (c *Client) OnChanged(handler func(context.Context, protocol.Payload)) error {
 	return c.Peer.HandleEvent("changed", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {

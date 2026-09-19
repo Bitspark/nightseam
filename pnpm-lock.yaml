@@ -166,12 +166,12 @@ importers:
 
   .:
     devDependencies:
-      '@example/session-client':
-        specifier: link:./cmd/nightseam/testdata/golden/api/ts/session-client
-        version: link:cmd/nightseam/testdata/golden/api/ts/session-client
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:duplex/ts
+      '@nightseam/live':
+        specifier: workspace:*
+        version: link:live/ts
       '@nightseam/runtime':
         specifier: workspace:*
         version: link:runtime/ts
@@ -196,9 +196,6 @@ importers:
       '@nightseam/runtime':
         specifier: workspace:*
         version: link:../../runtime/ts
-      '@nightseam/session':
-        specifier: workspace:*
-        version: link:../../session/ts
       '@nightseam/tunnel':
         specifier: workspace:*
         version: link:../../tunnel/ts
@@ -250,9 +247,6 @@ importers:
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:../../duplex/ts
-      '@nightseam/session':
-        specifier: workspace:*
-        version: link:../../session/ts
       '@nightseam/tunnel':
         specifier: workspace:*
         version: link:../../tunnel/ts
@@ -271,22 +265,6 @@ importers:
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:../../duplex/ts
-    devDependencies:
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-
-  session/ts:
-    dependencies:
-      '@nightseam/duplex':
-        specifier: workspace:*
-        version: link:../../duplex/ts
-      '@nightseam/runtime':
-        specifier: workspace:*
-        version: link:../../runtime/ts
-      '@nightseam/tunnel':
-        specifier: workspace:*
-        version: link:../../tunnel/ts
     devDependencies:
       typescript:
         specifier: ^7.0.2

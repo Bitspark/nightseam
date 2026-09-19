@@ -1,0 +1,11 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "shift": {"description": "Ordinary RPC that needs no live runtime.", "request": "Shift", "result": "string"}
+    }
+  },
+  "errors": {
+    "refused": "The supervisor refuses."
+  }
+}

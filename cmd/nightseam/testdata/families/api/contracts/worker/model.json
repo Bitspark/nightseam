@@ -1,0 +1,19 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Percent": {
+      "kind": "alias",
+      "description": "How far along a job is, from 0 to 100.",
+      "type": "integer"
+    },
+    "Ticket": {
+      "kind": "entity",
+      "description": "A job as the application records it; its key is data and identifies a row, never a binding.",
+      "key": "id",
+      "fields": [
+        {"name": "id", "type": "string"},
+        {"name": "label", "type": "string"}
+      ]
+    }
+  }
+}

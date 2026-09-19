@@ -341,11 +341,15 @@ func (f *file) liveExpr(e model.TypeExpr, src, dst string, export bool, fail str
 	switch x := e.(type) {
 	case model.Array:
 		if export {
-			f.linef("%s := make([]%s.RawMessage, 0, len(%s))", dst, json, src)
+			// Every export answers one json.RawMessage, so a container is
+			// built as a list of them and then written as one value.
+			f.linef("%sItems := make([]%s.RawMessage, 0, len(%s))", dst, json, src)
 			f.w.Block(fmt.Sprintf("for _, item := range %s {", src), "}", func() {
 				f.liveExpr(x.Elem, "item", "element", true, fail)
-				f.linef("%s = append(%s, element)", dst, dst)
+				f.linef("%sItems = append(%sItems, element)", dst, dst)
 			})
+			f.linef("%s, err := %s.MarshalJSON(%sItems)", dst, f.runtime(), dst)
+			f.linef("if err != nil { return %s }", failure())
 			return
 		}
 		f.linef("var %sRaw []%s.RawMessage", dst, json)
@@ -357,11 +361,13 @@ func (f *file) liveExpr(e model.TypeExpr, src, dst string, export bool, fail str
 		})
 	case model.Map:
 		if export {
-			f.linef("%s := make(map[string]%s.RawMessage, len(%s))", dst, json, src)
+			f.linef("%sMembers := make(map[string]%s.RawMessage, len(%s))", dst, json, src)
 			f.w.Block(fmt.Sprintf("for key, item := range %s {", src), "}", func() {
 				f.liveExpr(x.Elem, "item", "element", true, fail)
-				f.linef("%s[key] = element", dst)
+				f.linef("%sMembers[key] = element", dst)
 			})
+			f.linef("%s, err := %s.MarshalJSON(%sMembers)", dst, f.runtime(), dst)
+			f.linef("if err != nil { return %s }", failure())
 			return
 		}
 		f.linef("var %sRaw map[string]%s.RawMessage", dst, json)

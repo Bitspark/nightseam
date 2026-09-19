@@ -2,23 +2,22 @@
 import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection } from "@nightseam/runtime";
 import type { Tunnel } from "@nightseam/tunnel";
 import { validateWire } from './types.ts';
-import type { AnyFamily, FamilyBinding, TypeBinding, SessionFamily, Slots } from './types.ts';
+import type { AnyFamily, FamilyBinding, TypeBinding, Slots } from './types.ts';
 import type * as Protocol from './types.ts';
-import type * as codex from "@example/codex-client";
 import type * as probe from "@example/probe-client";
 export * from './types.ts';
 export { DuplexError };
 /** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */
-export interface Events<S extends AnyFamily = SessionFamily> {
+export interface Events<S extends AnyFamily = AnyFamily> {
   frameRelayed?: (data: Protocol.Frame<S>, context: EventContext) => void | Promise<void>;
 }
-export interface Handler<S extends AnyFamily = SessionFamily> {
+export interface Handler<S extends AnyFamily = AnyFamily> {
 }
-export interface Caller<S extends AnyFamily = SessionFamily> {
+export interface Caller<S extends AnyFamily = AnyFamily> {
   attach(params: Protocol.AttachParams, options?: CallOptions): Promise<Protocol.Attachment<S>>;
   relay(params: Protocol.Frame<S>, options?: CallOptions): Promise<probe.Envelope>;
 }
-export class Client<S extends AnyFamily = SessionFamily> implements Caller<S> {
+export class Client<S extends AnyFamily = AnyFamily> implements Caller<S> {
   readonly peer: DuplexPeer;
   /** The argument bound to S validates values in its declaration scope. */
   readonly s: FamilyBinding<S>;
@@ -30,11 +29,11 @@ export class Client<S extends AnyFamily = SessionFamily> implements Caller<S> {
     if (events.frameRelayed) this.onFrameRelayed(events.frameRelayed);
   }
   /** Connects to a WebSocket endpoint and speaks the family over it. */
-  static async dial<S extends AnyFamily = SessionFamily>(url: string, s: FamilyBinding<S>, options: PeerOptions, handler: Handler<S> | undefined, events: Events<S>): Promise<Client<S>> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "attach": "carrier", "relay": "carrier", "frame.relayed": "carrier" } }); const client = new Client<S>(peer, s, handler, events); await peer.connect(url); return client; }
+  static async dial<S extends AnyFamily = AnyFamily>(url: string, s: FamilyBinding<S>, options: PeerOptions, handler: Handler<S> | undefined, events: Events<S>): Promise<Client<S>> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "attach": "carrier", "relay": "carrier", "frame.relayed": "carrier" } }); const client = new Client<S>(peer, s, handler, events); await peer.connect(url); return client; }
   /** Speaks the family over a connection of the seam — a tunnel channel, a pipe, an open socket — as the client side of it. */
-  static async attach<S extends AnyFamily = SessionFamily>(connection: FrameConnection, s: FamilyBinding<S>, options: PeerOptions, handler: Handler<S> | undefined, events: Events<S>): Promise<Client<S>> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "attach": "carrier", "relay": "carrier", "frame.relayed": "carrier" } }); const client = new Client<S>(peer, s, handler, events); await peer.attach(connection); return client; }
+  static async attach<S extends AnyFamily = AnyFamily>(connection: FrameConnection, s: FamilyBinding<S>, options: PeerOptions, handler: Handler<S> | undefined, events: Events<S>): Promise<Client<S>> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "attach": "carrier", "relay": "carrier", "frame.relayed": "carrier" } }); const client = new Client<S>(peer, s, handler, events); await peer.attach(connection); return client; }
   /** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */
-  static async open<S extends AnyFamily = SessionFamily>(tunnel: Tunnel, handle: Protocol.Handle, s: FamilyBinding<S>, options: PeerOptions, handler: Handler<S> | undefined, events: Events<S>): Promise<Client<S>> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach<S>(channel, s, options, handler, events); }
+  static async open<S extends AnyFamily = AnyFamily>(tunnel: Tunnel, handle: Protocol.Handle, s: FamilyBinding<S>, options: PeerOptions, handler: Handler<S> | undefined, events: Events<S>): Promise<Client<S>> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach<S>(channel, s, options, handler, events); }
   close(): void { this.peer.close(); }
   async attach(params: Protocol.AttachParams, options?: CallOptions): Promise<Protocol.Attachment<S>> { validateWire("AttachParams", params, '$', this.slots); const result = await this.peer.call<Protocol.Attachment<S>>("attach", params, options); validateWire("Attachment", result, '$', this.slots); return result; }
   async relay(params: Protocol.Frame<S>, options?: CallOptions): Promise<probe.Envelope> { validateWire("Frame", params, '$', this.slots); const result = await this.peer.call<probe.Envelope>("relay", params, options); validateWire("probe.Envelope", result, '$', this.slots); return result; }

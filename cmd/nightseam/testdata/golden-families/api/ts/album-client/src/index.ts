@@ -2,22 +2,21 @@
 import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection } from "@nightseam/runtime";
 import type { Tunnel } from "@nightseam/tunnel";
 import { validateWire } from './types.ts';
-import type { AnyFamily, FamilyBinding, TypeBinding, SessionFamily, Slots } from './types.ts';
+import type { AnyFamily, FamilyBinding, TypeBinding, Slots } from './types.ts';
 import type * as Protocol from './types.ts';
 import type * as carrier from "@example/carrier-client";
-import type * as codex from "@example/codex-client";
 import type * as probe from "@example/probe-client";
 export * from './types.ts';
 export { DuplexError };
 /** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */
-export interface Events<A extends AnyFamily = SessionFamily, B extends AnyFamily = SessionFamily> {
+export interface Events<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily> {
 }
-export interface Handler<A extends AnyFamily = SessionFamily, B extends AnyFamily = SessionFamily> {
+export interface Handler<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily> {
 }
-export interface Caller<A extends AnyFamily = SessionFamily, B extends AnyFamily = SessionFamily> {
+export interface Caller<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily> {
   look(params: Protocol.Mine<A>, options?: CallOptions): Promise<Protocol.Both<A, B>>;
 }
-export class Client<A extends AnyFamily = SessionFamily, B extends AnyFamily = SessionFamily> implements Caller<A, B> {
+export class Client<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily> implements Caller<A, B> {
   readonly peer: DuplexPeer;
   /** The argument bound to A validates values in its declaration scope. */
   readonly a: FamilyBinding<A>;
@@ -31,11 +30,11 @@ export class Client<A extends AnyFamily = SessionFamily, B extends AnyFamily = S
     this.slots = { "A": a, "B": b };
   }
   /** Connects to a WebSocket endpoint and speaks the family over it. */
-  static async dial<A extends AnyFamily = SessionFamily, B extends AnyFamily = SessionFamily>(url: string, a: FamilyBinding<A>, b: FamilyBinding<B>, options: PeerOptions, handler: Handler<A, B> | undefined, events: Events<A, B>): Promise<Client<A, B>> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "look": "album" } }); const client = new Client<A, B>(peer, a, b, handler, events); await peer.connect(url); return client; }
+  static async dial<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(url: string, a: FamilyBinding<A>, b: FamilyBinding<B>, options: PeerOptions, handler: Handler<A, B> | undefined, events: Events<A, B>): Promise<Client<A, B>> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "look": "album" } }); const client = new Client<A, B>(peer, a, b, handler, events); await peer.connect(url); return client; }
   /** Speaks the family over a connection of the seam — a tunnel channel, a pipe, an open socket — as the client side of it. */
-  static async attach<A extends AnyFamily = SessionFamily, B extends AnyFamily = SessionFamily>(connection: FrameConnection, a: FamilyBinding<A>, b: FamilyBinding<B>, options: PeerOptions, handler: Handler<A, B> | undefined, events: Events<A, B>): Promise<Client<A, B>> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "look": "album" } }); const client = new Client<A, B>(peer, a, b, handler, events); await peer.attach(connection); return client; }
+  static async attach<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(connection: FrameConnection, a: FamilyBinding<A>, b: FamilyBinding<B>, options: PeerOptions, handler: Handler<A, B> | undefined, events: Events<A, B>): Promise<Client<A, B>> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "look": "album" } }); const client = new Client<A, B>(peer, a, b, handler, events); await peer.attach(connection); return client; }
   /** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */
-  static async open<A extends AnyFamily = SessionFamily, B extends AnyFamily = SessionFamily>(tunnel: Tunnel, handle: Protocol.Handle, a: FamilyBinding<A>, b: FamilyBinding<B>, options: PeerOptions, handler: Handler<A, B> | undefined, events: Events<A, B>): Promise<Client<A, B>> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach<A, B>(channel, a, b, options, handler, events); }
+  static async open<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(tunnel: Tunnel, handle: Protocol.Handle, a: FamilyBinding<A>, b: FamilyBinding<B>, options: PeerOptions, handler: Handler<A, B> | undefined, events: Events<A, B>): Promise<Client<A, B>> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach<A, B>(channel, a, b, options, handler, events); }
   close(): void { this.peer.close(); }
   async look(params: Protocol.Mine<A>, options?: CallOptions): Promise<Protocol.Both<A, B>> { validateWire("Mine", params, '$', this.slots); const result = await this.peer.call<Protocol.Both<A, B>>("look", params, options); validateWire("Both", result, '$', this.slots); return result; }
 }

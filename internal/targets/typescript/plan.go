@@ -79,6 +79,9 @@ type plan struct {
 	types      map[string]string
 	operations map[string]string // method or event name → member
 	errors     map[string]string // code → member of errors, quoted when not an identifier
+	exports    map[string]string // live type → its export function
+	imports_   map[string]string // live type → its import function
+	contracts  map[string]string // callable → its contract constant
 	diag.List
 }
 
@@ -157,6 +160,7 @@ func (p *plan) plan() {
 			p.client.Fix("binding of parameter "+parameter.Name, binding)
 		}
 	}
+	p.planLive()
 	for _, t := range f.Types {
 		for _, parameter := range t.Parameters {
 			if what, taken := p.module.Reserved(parameter.Name); taken {

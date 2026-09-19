@@ -49,6 +49,7 @@ func TestGeneratedGoFamilyCompilesAndCommunicates(t *testing.T) {
 			copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
 			copyFixtureTree(t, filepath.Join(root, "duplex/ts"), filepath.Join(directory, "duplex/ts"))
 			copyFixtureTree(t, filepath.Join(root, "tunnel/ts"), filepath.Join(directory, "tunnel/ts"))
+			copyFixtureTree(t, filepath.Join(root, "live/ts"), filepath.Join(directory, "live/ts"))
 			writeFixture(t, directory, "runtime-loader.mjs", []byte(runtimeLoader))
 			writeFixture(t, directory, "roundtrip.mjs", []byte(tsRoundtrip))
 			writeFixture(t, directory, "integration_test.go", []byte(goIntegrationFixture))
@@ -217,9 +218,10 @@ func TestGeneratedTypeScriptChecksAndValidates(t *testing.T) {
 			copyFixtureTree(t, filepath.Join(root, "runtime/ts"), filepath.Join(directory, "runtime/ts"))
 			copyFixtureTree(t, filepath.Join(root, "duplex/ts"), filepath.Join(directory, "duplex/ts"))
 			copyFixtureTree(t, filepath.Join(root, "tunnel/ts"), filepath.Join(directory, "tunnel/ts"))
+			copyFixtureTree(t, filepath.Join(root, "live/ts"), filepath.Join(directory, "live/ts"))
 			// Node refuses to strip source TypeScript inside node_modules. A paths entry
 			// gives the compiler the runtime; executable validation imports protocol types.
-			config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@example/*": []string{"./api/ts/*/src/index.ts"}, "@nightseam/runtime": []string{"./runtime/ts/src/index.ts"}, "@nightseam/duplex": []string{"./duplex/ts/src/index.ts"}, "@nightseam/tunnel": []string{"./tunnel/ts/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts", "tunnel/ts/**/*.ts"}}
+			config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@example/*": []string{"./api/ts/*/src/index.ts"}, "@nightseam/runtime": []string{"./runtime/ts/src/index.ts"}, "@nightseam/duplex": []string{"./duplex/ts/src/index.ts"}, "@nightseam/tunnel": []string{"./tunnel/ts/src/index.ts"}, "@nightseam/live": []string{"./live/ts/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts", "tunnel/ts/**/*.ts", "live/ts/**/*.ts"}}
 			data, _ := json.Marshal(config)
 			writeFixture(t, directory, "tsconfig.json", data)
 			writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))
@@ -269,7 +271,7 @@ client.close();
 
 // runtimeLoader resolves runtime and generated sibling packages to their
 // sources for Node, which does not strip types inside node_modules.
-const runtimeLoader = `export async function resolve(specifier,context,next){const map={'@nightseam/runtime':'./runtime/ts/src/index.ts','@nightseam/duplex':'./duplex/ts/src/index.ts','@nightseam/tunnel':'./tunnel/ts/src/index.ts'};const entry=map[specifier]??(specifier.startsWith('@example/')?'./api/ts/'+specifier.slice('@example/'.length)+'/src/index.ts':undefined);if(entry)return {url:new URL(entry,import.meta.url).href,shortCircuit:true};return next(specifier,context);}`
+const runtimeLoader = `export async function resolve(specifier,context,next){const map={'@nightseam/runtime':'./runtime/ts/src/index.ts','@nightseam/duplex':'./duplex/ts/src/index.ts','@nightseam/tunnel':'./tunnel/ts/src/index.ts','@nightseam/live':'./live/ts/src/index.ts'};const entry=map[specifier]??(specifier.startsWith('@example/')?'./api/ts/'+specifier.slice('@example/'.length)+'/src/index.ts':undefined);if(entry)return {url:new URL(entry,import.meta.url).href,shortCircuit:true};return next(specifier,context);}`
 
 func TestWorkbenchContractRenders(t *testing.T) {
 	files := renderTool(t, familiesRoot)
