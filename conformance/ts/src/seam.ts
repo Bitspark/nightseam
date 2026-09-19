@@ -81,7 +81,7 @@ class Listener {
 
 const isListener = (object: unknown): object is Listener => object instanceof Listener;
 
-export const listen = (limit: number): Promise<Listener> =>
+const listen = (limit: number): Promise<Listener> =>
   new Promise((resolve, reject) => {
     const server = createServer();
     const sockets = new WebSocketServer({ server, maxPayload: limit });
@@ -107,7 +107,7 @@ export const listen = (limit: number): Promise<Listener> =>
     });
   });
 
-export const dial = (url: string, limit: number): Promise<WebSocket> =>
+const dial = (url: string, limit: number): Promise<WebSocket> =>
   new Promise((resolve, reject) => {
     const socket = new WebSocket(url, { maxPayload: limit });
     socket.once('open', () => resolve(socket));

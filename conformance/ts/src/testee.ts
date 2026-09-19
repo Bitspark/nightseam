@@ -11,7 +11,7 @@ import { peerOps } from './peer.ts';
 import { tunnelOps } from './tunnel.ts';
 import { sessionOps } from './session.ts';
 
-export const DRIVER = 1;
+const DRIVER = 1;
 
 /** An error answer: the protocol's codes, or the remote's, with whatever members the op says. */
 class Failure extends Error {
