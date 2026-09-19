@@ -183,6 +183,7 @@ test(
     assert(f.Types.some((t) => t.Inline));
     const parts = f.Types.find((t) => t.Name === 'Parts');
     assert.equal(annotate(atlas, f.Name, parts.Name, parts.Example).children[0].children[0].kind, 'union');
+    assert(typeHTML(atlas, f.Name, parts.Name).includes('Alias of Page&lt;T = Part&gt;.'));
     const ids = new Set(atlas.families.flatMap((f) => familyView(atlas, f.Name).ids));
     for (const entry of finder(atlas)) assert(ids.has(entry.id), entry.id);
     for (const v of annotated.variants) assert(v.example !== undefined, v.tag);

@@ -50,6 +50,7 @@ function navigate({ force = false } = {}) {
     document.getElementById('breadcrumbs').innerHTML =
       link(route(name), name) + ' / ' + breadcrumbs.map((b) => link(b.href, b.name)).join(' / ');
     document.getElementById('type-detail').innerHTML = typeHTML(atlas, name, parts[2], lens);
+    drawer.scrollTop = 0;
     if (!drawer.open) {
       returnFocus = [...main.querySelectorAll('a')].find((a) => a.getAttribute('href') === focusHref) || main;
       drawer.showModal();

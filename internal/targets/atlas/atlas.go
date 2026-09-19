@@ -95,7 +95,7 @@ func (w *writer) Checkout(checkout *doc.Checkout) ([]spi.File, error) {
 	}
 	var overrides strings.Builder
 	if len(w.config.Tokens) > 0 {
-		overrides.WriteString(":root, :root[data-theme] {\n")
+		overrides.WriteString(":root, :root:not([data-theme]), :root[data-theme] {\n")
 		for _, token := range tokens {
 			if value, ok := w.config.Tokens[token]; ok {
 				fmt.Fprintf(&overrides, "  %s: %s;\n", token, value)
