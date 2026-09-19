@@ -51,9 +51,9 @@ type Frame struct {
 // Log is a session's frames in one order. The record's shape is the
 // profile's and belongs here; the store is the consumer's, which is why
 // this is an interface and the package ships only an in-memory one. A log
-// handed to Bind that already holds frames is bound at its head: Bind reads
-// it once, through Replay from after zero, and the session goes on from the
-// last sequence that read delivered.
+// handed to Bind that already holds frames is bound at its head: Bind asks
+// Header where available, otherwise reads Replay from after zero and takes
+// the last sequence delivered.
 type Log interface {
 	// Append records a frame and gives it its sequence, which is one more
 	// than the last it gave.
@@ -64,6 +64,14 @@ type Log interface {
 	// what makes the last sequence Bind's read is given the log's head, so a
 	// log that delivers out of order binds its session below its own end.
 	Replay(ctx context.Context, after int64, deliver func(Frame) error) error
+}
+
+// Header is the optional capability of a Log that can report its head
+// without replaying its frames. Head returns the last assigned sequence,
+// or zero for an empty log. Bind prefers it to Replay; an error fails the
+// binding rather than falling back to a read.
+type Header interface {
+	Head(ctx context.Context) (int64, error)
 }
 
 // NewMemoryLog keeps a session's frames in memory, each message bounded by
@@ -79,6 +87,15 @@ type memoryLog struct {
 	mu     sync.Mutex
 	next   int64
 	frames []Frame
+}
+
+func (l *memoryLog) Head(ctx context.Context) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.next, nil
 }
 
 func (l *memoryLog) Append(ctx context.Context, frame Frame) (int64, error) {

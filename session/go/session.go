@@ -156,11 +156,11 @@ func New(options Options) (*Registry, error) {
 // does not tells Options.Observer; and where there is neither, nothing,
 // which is the no-op an observer already means.
 //
-// The log is read once here, from its beginning, and the session goes on
-// from its head: a durable log bound with frames already in it replays them
+// The log's head is learned here through Header, or through one Replay from
+// its beginning, and the session goes on from it: a durable log replays its frames
 // to a consumer that attaches after nothing, rather than waiting for the
 // machine to speak for the session to learn where it is. A log that cannot
-// be read is not bound.
+// report its head is not bound.
 func (r *Registry) Bind(id string, up duplex.Conn, g Governance, log Log) error {
 	switch {
 	case id == "":
