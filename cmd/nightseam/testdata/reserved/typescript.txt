@@ -35,6 +35,7 @@ String
 peer
 slots
 close
+sequence
 constructor
 then
 __defineGetter__

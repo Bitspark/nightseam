@@ -27,3 +27,7 @@ Attach
 Open
 Peer
 Close
+Sequence
+sequence
+cursorHandler
+trackCursor

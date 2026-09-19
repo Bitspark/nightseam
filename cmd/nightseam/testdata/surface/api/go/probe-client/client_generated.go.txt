@@ -6,6 +6,7 @@ func (*Client) OnChanged(handler func(context.Context, protocol.Payload)) error
 func (*Client) OnSessionControl(handler func(context.Context, sessionprotocol.Control)) error
 func (*Client) OnSessionCursor(handler func(context.Context, sessionprotocol.Cursor)) error
 func (*Client) Seen(ctx context.Context, params protocol.Seen) (protocol.Payloads, error)
+func (*Client) Sequence() int64
 func Asks(method string) bool
 func Attach(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler, events Events) (*Client, error)
 func Decides(method string) bool
