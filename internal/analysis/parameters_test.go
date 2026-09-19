@@ -8,6 +8,23 @@ import (
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
 )
 
+func TestGenericAnalysisStopsAtAReferenceKeyCycle(t *testing.T) {
+	for name, types := range map[string]string{
+		"self":            `"Node":{"kind":"entity","key":"id","fields":[{"name":"id","type":{"ref":"Node"}}]}`,
+		"mutual":          `"A":{"kind":"entity","key":"id","fields":[{"name":"id","type":{"ref":"B"}}]},"B":{"kind":"entity","key":"id","fields":[{"name":"id","type":{"ref":"A"}}]}`,
+		"valid reference": `"Node":{"kind":"entity","key":"id","fields":[{"name":"id","type":"string"},{"name":"next","type":{"ref":"Node"}}]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			world := World(modeltest.World(map[string]map[string]string{
+				"x": {"model.json": `{"nightseam":2,"types":{` + types + `}}`},
+			}))
+			if got := Resolve(world, "x").Generics(); got.Generic() {
+				t.Fatalf("a reference key invented parameters: %+v", got)
+			}
+		})
+	}
+}
+
 func TestGenericUsesIncludeTypeParametersAndInlineCaptures(t *testing.T) {
 	world := World(modeltest.World(map[string]map[string]string{
 		"payload": {"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol("")},

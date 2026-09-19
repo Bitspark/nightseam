@@ -95,6 +95,14 @@ func (u *parameterUses) expression(e model.TypeExpr, scope []model.Parameter) []
 		return u.application(model.Apply{Family: x.Family, Name: x.Name}, scope)
 	case model.Ref:
 		if entity := u.family.Types[x.Entity]; entity != nil {
+			if u.walking[entity] {
+				return nil
+			}
+			if u.walking == nil {
+				u.walking = map[*model.Type]bool{}
+			}
+			u.walking[entity] = true
+			defer delete(u.walking, entity)
 			for _, field := range u.family.FlattenedFields(x.Entity) {
 				if field.Name == entity.Key {
 					return u.expression(field.Type, scope)
