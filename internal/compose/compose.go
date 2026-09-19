@@ -7,10 +7,11 @@
 package compose
 
 import (
+	"github.com/Bitspark/nightseam/internal/doc"
 	"github.com/Bitspark/nightseam/internal/kernel"
 	"github.com/Bitspark/nightseam/internal/spi"
 	"github.com/Bitspark/nightseam/internal/targets/golang"
-	"github.com/Bitspark/nightseam/internal/targets/spec"
+	"github.com/Bitspark/nightseam/internal/targets/markdown"
 	"github.com/Bitspark/nightseam/internal/targets/typescript"
 )
 
@@ -22,14 +23,14 @@ func Targets(module, scope, sibling string) []spi.Target {
 	return []spi.Target{
 		golang.New(golang.Config{Module: module}),
 		typescript.New(typescript.Config{Scope: scope, Sibling: sibling}),
-		spec.New(spec.Config{}),
+		doc.Target(markdown.New(markdown.Config{})),
 	}
 }
 
 // Names names the targets, for the override files a family may carry. It
 // answers without a module or a scope, which loading a checkout does not
 // need.
-func Names() []string { return []string{golang.Name, typescript.Name, spec.Name} }
+func Names() []string { return []string{golang.Name, typescript.Name, markdown.Name} }
 
 // Kernel is the pipeline composed with the targets.
 func Kernel(module, scope, sibling string) *kernel.Kernel {

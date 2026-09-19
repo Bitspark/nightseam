@@ -381,9 +381,10 @@ func TestImportDirection(t *testing.T) {
 		"spi":                {"diag": true, "render": true},
 		"targets/golang":     {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
 		"targets/typescript": {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
-		"targets/spec":       {"diag": true, "model": true, "render": true, "spi": true, "emit": true},
+		"doc":                {"diag": true, "model": true, "render": true, "spi": true},
+		"targets/markdown":   {"doc": true, "model": true, "spi": true, "emit": true},
 		"kernel":             {"diag": true, "model": true, "load": true, "analysis": true, "check": true, "render": true, "spi": true},
-		"compose":            {"kernel": true, "spi": true, "targets/golang": true, "targets/typescript": true, "targets/spec": true},
+		"compose":            {"kernel": true, "spi": true, "doc": true, "targets/golang": true, "targets/typescript": true, "targets/markdown": true},
 		"oracle":             {"model": true},
 		"surface":            {},
 	}

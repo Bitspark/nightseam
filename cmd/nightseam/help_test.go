@@ -9,7 +9,7 @@ import (
 
 // named is how the root command's help names each target it is composed
 // with. The help speaks a reader's words rather than the target's own —
-// golang is Go, spec is the specification it writes — so the two cannot be
+// go is Go, markdown is the specification it writes — so the two cannot be
 // compared directly, and this table is the join. A target added to
 // compose.Targets and not to this table fails the test below, which is the
 // point: the help said Go and TypeScript alone for as long as spec had been
@@ -18,7 +18,7 @@ import (
 var named = map[string]string{
 	"go":         "Go",
 	"typescript": "TypeScript",
-	"spec":       "specification",
+	"markdown":   "Markdown",
 }
 
 func TestHelpNamesEveryComposedTarget(t *testing.T) {

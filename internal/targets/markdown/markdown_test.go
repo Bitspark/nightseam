@@ -1,18 +1,20 @@
-package spec
+package markdown
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/Bitspark/nightseam/internal/analysis"
+	"github.com/Bitspark/nightseam/internal/doc"
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
 	"github.com/Bitspark/nightseam/internal/render"
 )
 
-// TestRenderWritesTheDocument: one document per family, under api/spec,
-// carrying every tier — the entity with its key and constraints, the
-// sides, the errors, the session — and nothing a target could collide with.
-func TestRenderWritesTheDocument(t *testing.T) {
+// TestWritesThePage: one page per family, under api/spec, carrying every
+// tier — the entity with its key and constraints, the sides, the errors,
+// the session — and nothing a target could collide with; and the writer,
+// made a target, answers what the kernel asks of one.
+func TestWritesThePage(t *testing.T) {
 	world := analysis.World(modeltest.World(map[string]map[string]string{
 		"x": {
 			"model.json":    `{"nightseam": 2, "types": {"Account": {"kind": "entity", "key": "id", "description": "An account.", "fields": [{"name": "id", "type": "string"}, {"name": "email", "type": "string", "unique": true, "pattern": "@"}]}, "Status": {"kind": "enum", "values": ["on", "off"]}}}`,
@@ -21,7 +23,7 @@ func TestRenderWritesTheDocument(t *testing.T) {
 		},
 	}))
 	f := render.Build(analysis.Resolve(world, "x"))
-	target := New(Config{})
+	target := doc.Target(New(Config{}))
 	if diagnostics := target.Check(f); len(diagnostics) != 0 {
 		t.Fatal(diagnostics)
 	}
@@ -41,11 +43,14 @@ func TestRenderWritesTheDocument(t *testing.T) {
 		"- **Decides**: `get`", "the id arrives in the `changed` event, at `id` of its data",
 	} {
 		if !strings.Contains(text, want) {
-			t.Errorf("the document lacks %q:\n%s", want, text)
+			t.Errorf("the page lacks %q:\n%s", want, text)
 		}
 	}
+	if target.Name() != Name {
+		t.Fatalf("the target is named %q", target.Name())
+	}
 	if family, ok := target.Family("api/spec/x/README.md"); !ok || family != "x" {
-		t.Fatal("the document is not known as x's")
+		t.Fatal("the page is not known as x's")
 	}
 	if _, ok := target.Family("api/spec/README.md"); ok {
 		t.Fatal("a file at the root is nobody's")
@@ -53,7 +58,32 @@ func TestRenderWritesTheDocument(t *testing.T) {
 	if got := target.Roots(); len(got) != 1 || got[0] != "api/spec" {
 		t.Fatalf("roots are %v", got)
 	}
+	if got := target.Owns("x"); len(got) != 1 || got[0] != "api/spec/x" {
+		t.Fatalf("owns %v", got)
+	}
 	if len(Reserved()) != 0 {
-		t.Fatal("the spec reserves a name")
+		t.Fatal("the writer reserves a name")
+	}
+}
+
+// TestPlacedFamiliesLiveWhereTheConfigSays: a family the config places is
+// found at its own pattern and nowhere else, and a pattern that names no
+// family is refused before a page is written.
+func TestPlacedFamiliesLiveWhereTheConfigSays(t *testing.T) {
+	target := doc.Target(New(Config{Place: map[string]string{"x": "docs/{family}"}}))
+	if family, ok := target.Family("docs/x/README.md"); !ok || family != "x" {
+		t.Fatal("the placed page is not known as x's")
+	}
+	if _, ok := target.Family("api/spec/x/README.md"); ok {
+		t.Fatal("a placed family is still found at the default layout")
+	}
+	if got := target.Roots(); len(got) != 2 || got[0] != "api/spec" || got[1] != "docs" {
+		t.Fatalf("roots are %v", got)
+	}
+	world := analysis.World(modeltest.World(map[string]map[string]string{"x": {"model.json": `{"nightseam": 2, "types": {}}`}}))
+	f := render.Build(analysis.Resolve(world, "x"))
+	bad := doc.Target(New(Config{Layout: "docs/spec"}))
+	if diagnostics := bad.Check(f); len(diagnostics) != 1 || diagnostics[0].Code != "invalid_config" {
+		t.Fatalf("a layout without {family} was not refused: %v", diagnostics)
 	}
 }
