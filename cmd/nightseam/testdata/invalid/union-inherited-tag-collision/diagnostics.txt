@@ -1,2 +1,2 @@
-x/model.json#/types/Result/extends/1: Union Result inherits variant same from both A and B; an inherited tag has one declaration. [variant_collision]
+x/model.json#/types/Result/extends/1: Union Result inherits variant same from both A and B; an inherited tag has one declaration and binding. [variant_collision]
 error: 1 problems
