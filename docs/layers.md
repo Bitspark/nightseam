@@ -29,8 +29,8 @@ The test, applied in order:
    ordinary frames of the profile — a request, a response, an event — with
    names in that layer's reserved prefix. The tunnel is the model:
    `channel.open` is a request, `channel.credit` an event, and the profile
-   knows nothing of channels. A session's control, its cursor and its
-   subscriptions are the same kind of thing (`docs/session.md`).
+   knows nothing of channels. A session's control and its cursor are the
+   same kind of thing (`docs/session.md`).
 3. **Is it a consumer's fact about a call, with no layer to carry it?**
    Then it is a **header**: a member on the request or event it is about,
    which the peer delivers to the handler beside the payload and reads
@@ -67,9 +67,9 @@ A layer that speaks on the wire does it as the tunnel does:
 - **Ordinary frames of the profile.** A layer's request is a request, its
   event an event, minted, correlated and cancelled by the peer like any
   other. The layer registers its handlers on the peer it runs over (the
-  tunnel's `channel.open` handler) or answers them in its own relay (the
-  session's `session.subscribe`); either way the peer dispatches by name
-  and knows nothing of what the name means.
+  tunnel's `channel.open` handler) or produces them in its own relay (the
+  session's `session.control` and `session.cursor`); either way the peer
+  dispatches by name and knows nothing of what the name means.
 - **Injected, not declared.** Where a layer's vocabulary reaches a family's
   generated code — a session family's client exposing `onControl` — it is
   because the layer's tier *injects* the operations into the family's
@@ -80,10 +80,10 @@ A layer that speaks on the wire does it as the tunnel does:
 - **Never logged as the family's.** A session's log holds the family's
   frames; the session's own frames are state, not messages, and replay
   never reports them stale.
-- **Never across the layer's boundary.** A session frame sent by a machine
-  is refused by the relay; a consumer's `session.subscribe` is answered by
-  the relay and never forwarded up. The vocabulary belongs to the layer that
-  defined it.
+- **Never across the layer's boundary.** A `session.` frame sent by a
+  machine is refused by the relay, and `session.control` and
+  `session.cursor` are produced by the relay and never forwarded up from
+  anyone. The vocabulary belongs to the layer that defined it.
 
 ## Why now, and how a change is made
 

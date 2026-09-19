@@ -26,8 +26,8 @@ are one number. Entries are in the words of the commits that landed them.
   full matrix runs nightly and a failure becomes an issue against the
   scenario. Go and TypeScript are tier 1; Python, Rust, C++ and Haskell are
   the pilot languages, planned for tier 2 and pushed to every profile first
-  — the two hardest in because they are the hardest — and Java and Swift
-  follow at 4.
+  — C++ and Haskell are in because they are the hardest — and Java and
+  Swift follow at 4.
 - A dial-only language is held in every role: a scenario no longer says who
   opens the socket but writes `pair.conns`, `pair.peers` or
   `pair.peer_and_conn` on the runner, which expands each from what the
@@ -85,8 +85,6 @@ are one number. Entries are in the words of the commits that landed them.
   cut after the root tag it requires; `RELEASING.md` says in what order, and
   `.github/dependabot.yml` names it, a `gomod` entry covering one directory
   and never a module nested in it.
-
-
 - `nightseam version` prints the module version of the running tool — what a
   consumer's `go get -tool` resolved, or `(devel)` from a checkout, a build of
   a tree being exactly what that answer should say — and `nightseam --version`

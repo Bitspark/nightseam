@@ -17,9 +17,9 @@ one file per tier:
 ```
 api/contracts/probe/model.json       tier 1: the types
 api/contracts/probe/protocol.json    tier 2: the two sides, the errors, the parameters
-api/contracts/probe/session.json     tier 2: how a session is governed
-api/contracts/probe/go.json          tier 3: what the Go rendering names otherwise than the convention does
-api/contracts/probe/typescript.json  tier 3: the same for TypeScript
+api/contracts/probe/session.json     tier 3: how a session is governed
+api/contracts/probe/go.json          not a tier: what the Go rendering names otherwise than the convention does
+api/contracts/probe/typescript.json  not a tier: the same for TypeScript
 ```
 
 The family and the tier come from the path; no file repeats them. Every
@@ -100,9 +100,10 @@ channel that speaks it.
 
 `decides` names the methods that need control to send; `asks` the client
 methods — the ones the server sends — that raise a request the holder of
-control must answer; `conversation` where the conversation id arrives. A
-family with a session tier carries the `session` role, which a parameter
-binds to.
+control must answer; `conversation` where the conversation id arrives. An
+`extensions` member is carried through for other tools and read by nothing
+here. A family with a session tier carries the `session` role, which a
+parameter binds to.
 
 ### go.json and typescript.json
 

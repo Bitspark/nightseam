@@ -56,20 +56,22 @@ tier it can hold: what each tier promises and how the suite enforces it is
 ## The two tiers of tests
 
 `go test -short ./...` is the fast tier and needs Go alone: every package's
-own tests, every target's `Check`, and the corpus under
-`cmd/nightseam/testdata` — families, what every target renders for them held
-file for file under `golden`, the exported surface of every generated Go
+own tests, every target's `Check`, and the corpora under
+`cmd/nightseam/testdata` — the families under `corpus` and `families`, what
+every target renders for them held file for file under `golden` and
+`golden-families`, the exported surface of every generated Go
 package under `surface`, what each target reserves, and one checkout per rule
 the tool refuses with what `validate` says. It runs on Linux and Windows in
 CI, since the fixtures are byte comparisons.
 
 `go test ./...` is the full tier — plus `go vet ./... && go test ./...` inside
 `otel/go`, a module of its own that the root's `./...` does not enter, in both
-tiers. It the fixtures compile and run the generated
-packages in both languages, and the conformance suite holds every language's
-testee to Go's — `go test ./conformance/go` alone runs it. They need Node 22.12 or later and the TypeScript
-compiler `pnpm install` brings — and **fail rather than skip** when one is
-missing, since a skip nobody reads is a gate nobody passes.
+tiers. In it the fixtures compile and run the generated packages in both
+languages, and the conformance suite holds every language's testee to Go's —
+`go test ./conformance/go` alone runs it. They need Node 22.12 or later and
+the TypeScript compiler `pnpm install` brings — and **fail rather than
+skip** when one is missing, since a skip nobody reads is a gate nobody
+passes.
 
 ## The golden discipline
 
@@ -149,7 +151,7 @@ under *Unreleased*, in the words of the commits.
 
 ## Asking and reporting
 
-Reports of what is wrong go in issues, in the *Bug* form; a security
+Reports of what is wrong go in issues, in the *Something is wrong* form; a security
 concern goes the way `SECURITY.md` says, not in an issue.
 
 A question whose answer is the operator's to give — which way a design

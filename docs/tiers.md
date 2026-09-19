@@ -87,8 +87,9 @@ nobody pushed. Java and Swift follow at tier 4 and rise as they hold.
 
 ## How the suite enforces it
 
-`conformance/profiles.json` names the profiles as scenario globs and the
-tiers as language lists with what each requires and the lag it allows. The
+`conformance/profiles.json` names the profiles by the layers and the
+features a scenario needs, the tiers by what each requires, the lag it
+allows and what a red cell does, and each language's tier. The
 runner reads it on every run and reports a **matrix**: one row per language,
 one column per profile, each cell passed / skipped / failed with the count,
 and the language's tier beside it. The gate is a star: every language
@@ -109,8 +110,8 @@ its own that lands alone:
 
 1. `duplex/<lang>` and `runtime/<lang>` with a testee holding `core` — the
    language enters the matrix at tier 4.
-2. `internal/targets/<lang>` with the generated testee holding `generator`
-   — tier 3.
+2. `internal/targets/<lang>` (Go's is `golang`) with the generated testee
+   holding `generator` — tier 3.
 3. `tunnel/<lang>`, then `session/<lang>`, then the observer and the shipped
    adapter, then `otel/<lang>` — the profiles of P3, one lane each, holding
    their scenarios; when all hold for a release the language may be

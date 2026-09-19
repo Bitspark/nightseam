@@ -25,7 +25,8 @@ Around the repository:
 | --- | --- |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | the short path in: what to run, how a change is cut |
 | [COLLABORATION.md](../COLLABORATION.md) | how work is organized: the boundary rule, no legacy, parity, the two tiers, goldens, lanes, one tree |
-| [../conformance/DRIVER.md](../conformance/DRIVER.md) | the conformance suite: the protocol a language's testee speaks to the runner, every op, and how a language joins |
+| [conformance/DRIVER.md](../conformance/DRIVER.md) | the conformance suite: the protocol a language's testee speaks to the runner, every op, and how a language joins |
+| [examples/README.md](../examples/README.md) | the getting-started: one family, generated and committed, a Go server and a TypeScript client a consumer installs and runs |
 | [RELEASING.md](../RELEASING.md) | what is published and how a release is cut |
 | [CHANGELOG.md](../CHANGELOG.md) | what landed, by version |
 | [SECURITY.md](../SECURITY.md) | reporting a vulnerability, and what counts as one |
