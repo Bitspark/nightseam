@@ -406,6 +406,9 @@ func (s *Schema) singleFamilyParameter() (wireParameter, bool) {
 // to the owner, while supplied arguments keep their original lexical scope.
 func (e expression) named(name, location string) (expression, *wireType, string, error) {
 	if family, member, dotted := strings.Cut(name, "."); dotted {
+		if family == "" {
+			return e, nil, "", expected(location, "known family")
+		}
 		caller := e
 		var schema *Schema
 		if family[0] >= 'A' && family[0] <= 'Z' {
@@ -842,12 +845,12 @@ func (e expression) validate(value any, location string) error {
 			return r.child(inner).validate(value, location)
 		}
 		if literal, ok := composite["literal"]; ok {
-			printable := literal
-			if number, ok := literal.(json.Number); ok {
-				printable, _ = number.Float64()
+			literal, ok := literal.(string)
+			if !ok || literal == "" {
+				return bad("nonempty string literal")
 			}
-			want, _ := json.Marshal(printable)
-			if sameLiteral(literal, value) {
+			want, _ := json.Marshal(literal)
+			if actual, ok := value.(string); ok && actual == literal {
 				return nil
 			}
 			return bad("literal " + string(want))
@@ -941,27 +944,6 @@ func (e expression) validate(value any, location string) error {
 		return bad("known type")
 	}
 	return nil
-}
-
-func sameLiteral(a, b any) bool {
-	if x, ok := a.(json.Number); ok {
-		y, ok := b.(json.Number)
-		if !ok {
-			return false
-		}
-		xn, xerr := x.Float64()
-		yn, yerr := y.Float64()
-		return xerr == nil && yerr == nil && xn == yn
-	}
-	switch x := a.(type) {
-	case string:
-		y, ok := b.(string)
-		return ok && x == y
-	case bool:
-		y, ok := b.(bool)
-		return ok && x == y
-	}
-	return false
 }
 
 func sortedKeys[V any](values map[string]V) []string {

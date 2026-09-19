@@ -186,7 +186,7 @@ declaring family, so an argument to an imported generic resolves names in
 the caller's scope. Only the family parameters used by that imported type
 need arguments; a local application fills the type's own parameters.
 
-Both validators read literals, nullable expressions, inline shapes,
+Both validators read nonempty string literals, nullable expressions, inline shapes,
 internally tagged unions and nested applications of either parameter sort.
 Object variants carry the discriminator beside their fields; other values
 use the union's `value` member. An extending union accepts its base's
