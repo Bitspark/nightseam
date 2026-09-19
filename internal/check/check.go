@@ -203,6 +203,35 @@ func (c *checker) variantCollisions(t *model.Type, at diag.Location, parent stri
 	}
 }
 
+// Each tag has one declaring union. Reaching that same declaration through
+// a diamond is harmless; two bases declaring the tag independently are not
+// one variant, even if the child adds no variant of that name itself.
+func (c *checker) inheritedVariantCollisions(t *model.Type) {
+	seen := map[string]*model.Type{}
+	visited := map[*model.Type]bool{}
+	var walk func(string, diag.Location)
+	walk = func(name string, at diag.Location) {
+		base := c.f.Types[name]
+		if base == nil || base == t || base.Kind != model.KindUnion || visited[base] {
+			return
+		}
+		visited[base] = true
+		for _, parent := range base.Extends {
+			walk(parent, at)
+		}
+		for _, variant := range base.Variants {
+			if previous := seen[variant.Tag]; previous != nil && previous != base {
+				c.Addf(at, "variant_collision", "Union %s inherits variant %s from both %s and %s; an inherited tag has one declaration.", t.Name, variant.Tag, previous.Name, base.Name)
+			} else {
+				seen[variant.Tag] = base
+			}
+		}
+	}
+	for i, parent := range t.Extends {
+		walk(parent, t.At.Sub("extends", i))
+	}
+}
+
 // union: a union declares the member that discriminates it and one type
 // expression per variant. A variant that is not an object on the wire is
 // carried under the value member beside the tag; a variant record that
@@ -211,6 +240,7 @@ func (c *checker) variantCollisions(t *model.Type, at diag.Location, parent stri
 // and is refused here rather than found in the second language.
 func (c *checker) union(t *model.Type, where site) {
 	f := c.f
+	c.inheritedVariantCollisions(t)
 	if t.Tag == "" {
 		c.Addf(t.At, "invalid_union", "Union %s declares no tag: the member that says which variant a value is.", t.Name)
 	}
@@ -228,11 +258,11 @@ func (c *checker) union(t *model.Type, where site) {
 		if len(c.Diagnostics) != before || t.Tag == "" {
 			continue
 		}
-		carrier, ok := f.Shape(variant.Type)
+		owner, carrier, ok := f.ResolveShape(variant.Type)
 		if !ok {
 			continue
 		}
-		field, declares := shapeField(f, carrier, t.Tag)
+		field, declares := shapeField(owner, carrier, t.Tag)
 		if !declares {
 			continue
 		}
@@ -244,6 +274,8 @@ func (c *checker) union(t *model.Type, where site) {
 			c.Addf(at, "tag_member", "Variant %s of union %s declares %s as the literal %q; a variant that carries its own tag declares it as its own.", variant.Tag, t.Name, t.Tag, literal.Value)
 		case !field.Required:
 			c.Addf(at, "tag_member", "Variant %s of union %s declares %s optional; the member a union discriminates on is always present.", variant.Tag, t.Name, t.Tag)
+		case field.Nullable:
+			c.Addf(at, "tag_member", "Variant %s of union %s declares %s nullable; the discriminator must be the non-null literal %q.", variant.Tag, t.Name, t.Tag, variant.Tag)
 		}
 	}
 }

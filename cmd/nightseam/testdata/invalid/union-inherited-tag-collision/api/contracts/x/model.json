@@ -1,0 +1,1 @@
+{"nightseam":2,"types":{"A":{"kind":"union","tag":"kind","variants":{"same":"string"}},"B":{"kind":"union","tag":"kind","variants":{"same":"integer"}},"Result":{"kind":"union","tag":"kind","extends":["A","B"],"variants":{"own":"boolean"}}}}

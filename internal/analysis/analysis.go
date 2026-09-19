@@ -620,28 +620,31 @@ func tierOfRole(role string) (model.Tier, bool) {
 	return model.Tier{}, false
 }
 
-// Shape is the record, entity or union a type expression denotes, with the
-// family it belongs to: what a union's variant carries, once resolved.
-// Anything that is not one of the three is not a shape.
-func (f *Family) Shape(e model.TypeExpr) (*model.Type, bool) {
+// ResolveShape finds the record, entity or union an expression denotes and
+// its declaring family. Fields and inherited names must be resolved in that
+// family, even when the caller declares a type with the same name. An
+// application identifies its declaration here; its arguments are not applied.
+func (f *Family) ResolveShape(e model.TypeExpr) (*Family, *model.Type, bool) {
 	switch x := e.(type) {
 	case model.Named:
 		t, ok := f.Types[x.Name]
-		return t, ok && isShape(t)
+		return f, t, ok && isShape(t)
 	case model.Imported:
 		other, ok := f.Imported[x.Family]
 		if !ok {
-			return nil, false
+			return nil, nil, false
 		}
 		t, ok := other.Types[x.Name]
-		return t, ok && isShape(t)
+		return other, t, ok && isShape(t)
 	case model.Inline:
-		return x.Type, isShape(x.Type)
+		return f, x.Type, isShape(x.Type)
 	case model.Apply:
-		t, ok := f.Applied(x)
-		return t, ok && isShape(t)
+		if x.Family == "" {
+			return f.ResolveShape(model.Named{Name: x.Name})
+		}
+		return f.ResolveShape(model.Imported{Family: x.Family, Name: x.Name})
 	}
-	return nil, false
+	return nil, nil, false
 }
 
 func isShape(t *model.Type) bool {

@@ -122,6 +122,9 @@ are one number. Entries are in the words of the commits that landed them.
 - TypeScript event fields that collide with inherited Object members are
   refused before generation; a name override preserves the wire event and
   keeps omitted callbacks absent from an empty `Events` object.
+- Union checks refuse nullable discriminator fields and independently
+  redeclared inherited tags, and inspect imported carrier fields in their
+  declaring family instead of a local type with the same name.
 - Go's `session.New` returns `(*Registry, error)` and refuses negative
   attachment, inflight and send-timeout limits with `invalid_options`;
   zero still selects the defaults. Both conformance testees preserve the
