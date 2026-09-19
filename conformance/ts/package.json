@@ -15,7 +15,7 @@
     "@nightseam/tunnel": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
+    "@types/node": "^26.6.1",
     "@types/ws": "^8.5.13",
     "ws": "^8.18.0"
   },
