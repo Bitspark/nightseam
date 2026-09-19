@@ -6,7 +6,7 @@ import type { Observer, ObserverEvent } from './observer.ts';
 
 export type { WebSocketLike } from '@nightseam/duplex';
 
-/** The endpoint selects this profile; it is not a WebSocket subprotocol token. */
+/** The endpoint selects this profile; it is offered as no subprotocol by default. */
 export const DUPLEX_PROFILE = 'nightseam.duplex/1';
 export const DUPLEX_DEFAULTS = Object.freeze({
   maxIncomingRequests: 64,
@@ -48,7 +48,15 @@ export type EventListener = (event: string, data: unknown) => void | Promise<voi
 export interface PeerOptions {
   role?: 'client' | 'server';
   dispatch?: Dispatcher;
-  webSocketFactory?: (url: string) => WebSocketLike;
+  webSocketFactory?: (url: string, protocols?: string[]) => WebSocketLike;
+  /**
+   * Offered to the server at the handshake, in order of preference; none by
+   * default. A server that selects none leaves the connection with none and
+   * the profile is spoken over it either way — but a browser refuses a
+   * handshake whose offer went unselected, so a client that offers must be
+   * met by a server that selects (docs/profile.md).
+   */
+  subprotocols?: string[];
   maxIncomingRequests?: number;
   maxPendingRequests?: number;
   maxQueuedMessages?: number;
@@ -126,6 +134,7 @@ export class DuplexPeer {
   private eventActive = false;
   private eventTimer?: Timer;
   private generation = 0;
+  private negotiated = '';
 
   constructor(options: PeerOptions = {}) {
     this.options = options;
@@ -152,6 +161,13 @@ export class DuplexPeer {
   /** The side of the connection this peer is; a tunnel over it chooses channel ids by it. */
   get role(): 'client' | 'server' { return this.options.role ?? 'client'; }
 
+  /**
+   * What the WebSocket handshake beneath this peer selected, and '' when it
+   * selected none or the peer does not run over a WebSocket. The profile
+   * reads nothing into it.
+   */
+  get subprotocol(): string { return this.negotiated; }
+
   /** Absolute ws/wss URLs are required. Factories may supply platform-specific auth. */
   connect(url: string): Promise<void> {
     if (this.connection) return Promise.reject(new DuplexError('already_connected', 'Peer already has a connection.'));
@@ -163,8 +179,10 @@ export class DuplexPeer {
       return Promise.reject(new DuplexError('invalid_url', 'Use an absolute ws/wss URL without credentials or a fragment.'));
     }
     let socket: WebSocketLike;
+    const protocols = this.options.subprotocols;
     try {
-      socket = this.options.webSocketFactory?.(endpoint.href) ?? new WebSocket(endpoint.href);
+      socket = this.options.webSocketFactory?.(endpoint.href, protocols)
+        ?? (protocols ? new WebSocket(endpoint.href, protocols) : new WebSocket(endpoint.href));
     } catch {
       return Promise.reject(new DuplexError('connection_failed', 'Unable to create WebSocket.'));
     }
@@ -177,19 +195,23 @@ export class DuplexPeer {
    */
   attach(connection: FrameConnection | WebSocketLike): Promise<void> {
     if (this.connection) return Promise.reject(new DuplexError('already_connected', 'Peer already has a connection.'));
-    const frames = isWebSocketLike(connection) ? webSocketConnection(connection) : connection;
+    const socket = isWebSocketLike(connection) ? connection : undefined;
+    const frames = socket === undefined ? (connection as FrameConnection) : webSocketConnection(socket);
     if (frames.state !== 'connecting' && frames.state !== 'open') {
       return Promise.reject(new DuplexError('disconnected', 'Cannot attach a closing or closed WebSocket.'));
     }
     this.connection = frames;
     this.generation++;
     this.state = frames.state === 'open' ? 'connected' : 'connecting';
+    // The handshake has selected by the time the socket opens, and not before.
+    this.negotiated = this.state === 'connected' ? subprotocolOf(socket) : '';
     if (this.observer && this.state === 'connected') this.observe({ type: 'connection.opened', at: new Date(), role: this.role });
     const current = () => this.connection === frames;
     this.detach = frames.listen({
       open: () => {
         if (!current()) return;
         this.state = 'connected';
+        this.negotiated = subprotocolOf(socket);
         if (this.observer) this.observe({ type: 'connection.opened', at: new Date(), role: this.role });
         if (this.opening) {
           clearTimeout(this.opening.timer);
@@ -541,6 +563,7 @@ export class DuplexPeer {
     this.connection = undefined;
     this.state = 'disconnected';
     this.generation++;
+    this.negotiated = '';
     this.detach?.();
     this.detach = undefined;
     clearTimeout(this.writeTimer);
@@ -672,6 +695,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 function isWebSocketLike(value: FrameConnection | WebSocketLike): value is WebSocketLike {
   return typeof (value as WebSocketLike).readyState === 'number';
+}
+/** What the handshake selected, as WebSocket.protocol spells it; '' when none. */
+function subprotocolOf(socket: WebSocketLike | undefined): string {
+  const selected = (socket as { protocol?: unknown } | undefined)?.protocol;
+  return typeof selected === 'string' ? selected : '';
 }
 /** How many members the text spells at the top level, duplicates counted. */
 function topLevelMembers(text: string): number {

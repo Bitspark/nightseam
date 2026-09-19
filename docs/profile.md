@@ -26,6 +26,37 @@ The profile sends text frames only and refuses a binary frame; a frame
 larger than the peer's limit is refused before delivery and the connection
 with it. The seam frames every frame whole; the profile never splits one.
 
+## The subprotocol
+
+A WebSocket handshake may negotiate a subprotocol, and the profile names
+itself as none: a peer offers nothing by default, selects nothing by
+default, refuses nothing on that ground, and reads nothing into what was
+selected. `nightseam.duplex/1` is what an endpoint speaks, not a token on
+the wire, and a peer that required its own name there would break every
+deployment behind a server that selects none.
+
+A consumer may nonetheless name something there, and two things want it: a
+gateway or a proxy that tells a Nightseam socket from any other before
+reading a frame — the profile's own name, or the family's service and
+contract version, as every other WebSocket protocol family does it — and a
+browser client's ticket, which has nowhere else to travel, a browser being
+unable to set a header on an upgrade. The server reads the ticket off the
+request as it reads everything else, with `Authenticate`.
+
+The surface is the transport's, on both sides: `ServerOptions.Subprotocols`
+and `DialOptions.Subprotocols` in Go, `PeerOptions.subprotocols` in
+TypeScript, and what was selected is `Peer.Subprotocol()` and
+`peer.subprotocol`, `""` when none was. A ticket is not a list, so the
+server's selection may be a function of the request:
+`ServerOptions.SelectSubprotocol` answers with the one token to select out
+of what that request offered, `""` for none, which is how a ticket comes
+back unchanged.
+
+The trap is the browser's, and it is the reason the defaults are what they
+are: a client that offers a subprotocol must be met by a server that selects
+one of them, or the browser refuses the connection. Offering and selecting
+are one decision, taken on both sides together.
+
 ## The envelope
 
 One JSON object per frame, with `version` `1` and a `kind`:

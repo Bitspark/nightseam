@@ -80,14 +80,22 @@ A layer that speaks on the wire does it as the tunnel does:
   the relay and never forwarded up. The vocabulary belongs to the layer that
   defined it.
 
-## Why now
+## Why now, and how a change is made
 
-The profile has two runtimes today and will have eight. Every member of the
-envelope is a promise every runtime keeps and every conformance table holds;
-a member added for convenience is kept forever, and a member missing is a
-version. The cost of getting the profile's boundary right is lowest before
-the six languages implement it and rises with each one — which is the
-opposite of the instinct that put `sequence` in the envelope for an
-afternoon. When a design question comes down to "cleaner" against "cheaper
-to roll out", this page's answer is cleaner: a rewrite now is cheaper than
-it will ever be again.
+Nightseam has no released consumer. That is not a caveat but the working
+condition: there is nothing to stay compatible with, so a change to the
+wire is made *directly* — both peers, both validators, the tables, the
+generator and the docs in one lane, emitting what they accept in the same
+commit — and a change to a surface changes every caller in the same commit.
+No "older runtime" is provided for, no accept-before-emit rollout is
+staged, no optional parameter is added to spare a call site. Any of those
+would be machinery for consumers that do not exist, kept forever once
+written.
+
+The same condition is why the boundary is settled now. The profile has two
+runtimes and will have eight; every member of the envelope is a promise all
+of them keep. A design is chosen here for being right, never for being
+cheap to roll out — which is the opposite of the instinct that put
+`sequence` in the envelope for an afternoon. A rewrite today is cheaper
+than it will ever be again, and this page is rewritten with the model, not
+kept stable against it.

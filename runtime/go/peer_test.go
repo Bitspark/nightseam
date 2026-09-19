@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Bitspark/nightseam/duplex/go"
 	ws "github.com/Bitspark/nightseam/runtime/go"
 	"github.com/coder/websocket"
 )
@@ -464,5 +465,96 @@ func TestTraceContextTravelsOnEveryFrameKind(t *testing.T) {
 	receive(t, cancelled)
 	if peer.Err() != nil {
 		t.Fatalf("a traced frame closed the connection: %v", peer.Err())
+	}
+}
+
+// TestSubprotocolNegotiation holds what the handshake selected against what
+// both peers report, and the profile is spoken over the connection either
+// way: nothing about it turns on a subprotocol.
+func TestSubprotocolNegotiation(t *testing.T) {
+	// The ticket case: a browser can carry one nowhere but in the offer, and
+	// accepts the handshake only if it comes back unchanged.
+	ticket := func(_ *http.Request, offered []string) string {
+		for _, token := range offered {
+			if strings.HasPrefix(token, "ticket.") {
+				return token
+			}
+		}
+		return ""
+	}
+	for _, test := range []struct {
+		name     string
+		server   ws.ServerOptions
+		offer    []string
+		selected string
+	}{
+		{name: "both name it", server: ws.ServerOptions{Subprotocols: []string{"a", "b"}}, offer: []string{"b"}, selected: "b"},
+		{name: "the offer meets none of them", server: ws.ServerOptions{Subprotocols: []string{"a", "b"}}, offer: []string{"c"}},
+		{name: "the server names none", offer: []string{"a"}},
+		{name: "neither side names one", server: ws.ServerOptions{}},
+		{name: "a ticket is selected back unchanged", server: ws.ServerOptions{SelectSubprotocol: ticket}, offer: []string{"ticket.4f9c", "a"}, selected: "ticket.4f9c"},
+		{name: "the hook selects none", server: ws.ServerOptions{Subprotocols: []string{"a"}, SelectSubprotocol: ticket}, offer: []string{"a"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			connected := make(chan *ws.Peer, 1)
+			options := test.server
+			options.Authenticate = func(r *http.Request) (context.Context, error) { return r.Context(), nil }
+			options.CheckOrigin = func(*http.Request) bool { return true }
+			options.OnConnect = func(peer *ws.Peer) { connected <- peer }
+			options.Options = ws.Options{Handlers: map[string]ws.Handler{
+				"selected": func(_ context.Context, peer *ws.Peer, _ json.RawMessage) (any, error) { return peer.Subprotocol(), nil },
+			}}
+			handler, err := ws.NewHandler(options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			server := httptest.NewServer(handler)
+			defer server.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			client, _, err := ws.Dial(ctx, server.URL, ws.DialOptions{Subprotocols: test.offer})
+			if err != nil {
+				t.Fatalf("dial offering %v: %v", test.offer, err)
+			}
+			defer client.Close()
+			remote := receive(t, connected)
+			defer remote.Close()
+			if got := client.Subprotocol(); got != test.selected {
+				t.Fatalf("client subprotocol = %q, want %q", got, test.selected)
+			}
+			if got := remote.Subprotocol(); got != test.selected {
+				t.Fatalf("server subprotocol = %q, want %q", got, test.selected)
+			}
+			// And the connection carries the profile whatever was selected,
+			// which the server reads back over it.
+			var answer string
+			if err := client.Call(ctx, "selected", nil, &answer); err != nil {
+				t.Fatalf("call over a connection negotiating %q: %v", test.selected, err)
+			}
+			if answer != test.selected {
+				t.Fatalf("subprotocol a handler read = %q, want %q", answer, test.selected)
+			}
+		})
+	}
+}
+
+// TestSubprotocolIsNoneOverAnyOtherTransport: a peer that is not over a
+// WebSocket negotiated nothing and says so.
+func TestSubprotocolIsNoneOverAnyOtherTransport(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	clientConn, serverConn := duplex.Pipe(1 << 20)
+	client, err := ws.NewPeer(ctx, clientConn, ws.ClientRole, ws.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	server, err := ws.NewPeer(ctx, serverConn, ws.ServerRole, ws.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	if client.Subprotocol() != "" || server.Subprotocol() != "" {
+		t.Fatalf("subprotocols over a pipe = %q and %q", client.Subprotocol(), server.Subprotocol())
 	}
 }

@@ -146,9 +146,9 @@ The profile: `runtime/go`'s `Peer`, `@nightseam/runtime`'s `DuplexPeer`.
 
 | op | arguments | answer |
 |---|---|---|
-| `peer.listen` | `options` | `{"handle", "url"}` — a listener accepting one peer at `url`, as the server |
-| `peer.accept` | **`on`** listener, `within_ms` | `{"handle"}` the accepted peer, with the listener's `options` |
-| `peer.dial` | **`url`**, `options` | `{"handle"}` the client peer, connected |
+| `peer.listen` | `options`, `subprotocols` | `{"handle", "url"}` — a listener accepting one peer at `url`, as the server |
+| `peer.accept` | **`on`** listener, `within_ms` | `{"handle", "subprotocol"}` the accepted peer, with the listener's `options` |
+| `peer.dial` | **`url`**, `options`, `subprotocols` | `{"handle", "subprotocol"}` the client peer, connected |
 | `peer.over` | **`on`** connection or channel, **`role`** `"client"`\|`"server"`, `options` | `{"handle"}` a peer speaking the profile over that connection |
 | `peer.handle` | **`on`**, **`method`**, **`behavior`** | `{}` — registers a canned handler, see below |
 | `peer.on_event` | **`on`**, **`name`**, `behavior` | `{}` — how an event is taken: `record` (default), `block`, `panic` |
@@ -161,6 +161,14 @@ The profile: `runtime/go`'s `Peer`, `@nightseam/runtime`'s `DuplexPeer`.
 | `peer.observed` | **`on`**, `trace` (bool), `drain` (bool, default true) | `[event, …]` what the observer was told, normalized, see below |
 | `peer.close` | **`on`** | `{}` |
 | `peer.await_close` | **`on`**, `within_ms` | `{"clean": bool}` — clean when this side or the other closed it by choice; otherwise the peer ended on an error, the transport's or its own |
+
+`subprotocols` is an array of tokens, empty or absent by default. On
+`peer.listen` it is what the server will select from, in its own order of
+preference; on `peer.dial` it is what the client offers, in its own. The
+`subprotocol` both answers carry is what the handshake selected as that side
+sees it, `""` when it selected none — which a connection over anything but a
+WebSocket always is. A testee whose transport cannot negotiate one answers
+`unsupported` and the scenario is skipped for it.
 
 `peer.await_close` reports no code: a peer that refuses a frame ends the
 connection as its language does — an abort, a close with a code of its own —

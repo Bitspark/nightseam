@@ -147,6 +147,7 @@ type Peer struct {
 	options       Options
 	prefix        string
 	remotePrefix  string
+	subprotocol   string
 	next          atomic.Uint64
 	done          chan struct{}
 	once          sync.Once
@@ -164,6 +165,13 @@ type Peer struct {
 }
 
 func NewPeer(ctx context.Context, conn duplex.Conn, role Role, options Options) (*Peer, error) {
+	return newPeer(ctx, conn, role, options, "")
+}
+
+// newPeer is NewPeer carrying what the handshake beneath selected, which only
+// Accept and Dial are in a position to know; every other connection has none.
+// It is set before the loops start, so Subprotocol is read without a lock.
+func newPeer(ctx context.Context, conn duplex.Conn, role Role, options Options, subprotocol string) (*Peer, error) {
 	if ctx == nil || conn == nil {
 		return nil, errors.New("duplex requires a context and connection")
 	}
@@ -175,7 +183,7 @@ func NewPeer(ctx context.Context, conn duplex.Conn, role Role, options Options) 
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	p := &Peer{conn: conn, ctx: ctx, cancel: cancel, options: o, prefix: "c:", remotePrefix: "s:", done: make(chan struct{}),
+	p := &Peer{conn: conn, ctx: ctx, cancel: cancel, options: o, prefix: "c:", remotePrefix: "s:", subprotocol: subprotocol, done: make(chan struct{}),
 		pending: make(map[string]chan pendingResult), incoming: make(map[string]context.CancelFunc), handlers: make(map[string]Handler),
 		eventHandlers: make(map[string]EventHandler), listeners: make(map[uint64]func(context.Context, Event)),
 		outputs: make(chan []byte, o.QueueCapacity), events: make(chan queuedEvent, o.QueueCapacity), slots: make(chan struct{}, o.MaxConcurrentHandlers)}
@@ -207,6 +215,11 @@ func (p *Peer) Role() Role {
 	}
 	return ClientRole
 }
+
+// Subprotocol is what the WebSocket handshake beneath this peer selected, and
+// "" when it selected none or the peer does not run over a WebSocket. It is
+// fixed for the peer's life; the profile reads nothing into it.
+func (p *Peer) Subprotocol() string { return p.subprotocol }
 
 // MaxFrameBytes is the largest frame this peer sends or receives.
 func (p *Peer) MaxFrameBytes() int64 { return p.options.MaxFrameBytes }

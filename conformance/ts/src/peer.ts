@@ -1,7 +1,6 @@
 /** The peer under control: DuplexPeer, its canned handlers, its observer. */
 import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
-import { webSocketConnection } from '@nightseam/duplex';
 import { DuplexError, DuplexPeer, type Observer, type ObserverEvent, type PeerOptions, type RequestContext, type Trace } from '@nightseam/runtime';
 import { Inbox, fail, invalid, unsupported, boolOf, intOf, stringOf, withinOf, type Args, type Op, type Testee } from './testee.ts';
 import { Conn, asLike, isConn } from './seam.ts';
@@ -191,6 +190,17 @@ const canned = (p: Peer, method: string, b: Behavior) => async (params: unknown,
   }
 };
 
+/**
+ * What a peer.listen selects from or a peer.dial offers at the handshake;
+ * absent, none is offered and none selected, as the runtimes default.
+ */
+const subprotocolsOf = (args: Args): string[] => {
+  const value = args.subprotocols;
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some(token => typeof token !== 'string')) throw invalid('subprotocols is an array of strings');
+  return value as string[];
+};
+
 const optionsOf = (args: Args): { options: PeerOptions; recorder: Recorder; observable: boolean } => {
   const raw = args.options;
   const recorder = new Recorder();
@@ -218,8 +228,14 @@ export function peerOps(t: Testee): Record<string, Op> {
   return {
     'peer.listen': args => new Promise((resolve, reject) => {
       const { options, recorder, observable } = optionsOf(args);
+      const offered = subprotocolsOf(args);
       const server = createServer();
-      const sockets = new WebSocketServer({ server, maxPayload: options.maxFrameBytes ?? 1 << 20 });
+      // The selection is the server's, in its own order of preference, and
+      // none where the lists do not meet — ws would otherwise echo the
+      // client's first offer back, which is not what a runtime naming none
+      // does. The reference testee selects none by default; this one too.
+      const handleProtocols = (protocols: Set<string>): string | false => offered.find(token => protocols.has(token)) ?? false;
+      const sockets = new WebSocketServer({ server, maxPayload: options.maxFrameBytes ?? 1 << 20, handleProtocols });
       const listener = new PeerListener(() => { sockets.close(); server.close(); });
       let first = true;
       sockets.on('connection', socket => {
@@ -227,7 +243,9 @@ export function peerOps(t: Testee): Record<string, Op> {
         first = false;
         const peer = new DuplexPeer({ ...options, role: 'server' });
         const wrapped = new Peer(peer, recorder, observable);
-        peer.attach(webSocketConnection(asLike(socket))).then(() => listener.accepted.put(wrapped), () => socket.terminate());
+        // The socket itself, not a connection already wrapped around it: the
+        // peer wraps it the same way and reads the selected subprotocol off it.
+        peer.attach(asLike(socket)).then(() => listener.accepted.put(wrapped), () => socket.terminate());
       });
       server.on('error', reject);
       server.listen(0, '127.0.0.1', () => {
@@ -241,14 +259,15 @@ export function peerOps(t: Testee): Record<string, Op> {
       const l = t.lookup(args.on, isPeerListener, 'a peer listener');
       const { item } = await l.accepted.await(withinOf(args), () => true);
       if (!item) throw fail('timeout', 'nobody connected');
-      return { handle: t.mint('p', item) };
+      return { handle: t.mint('p', item), subprotocol: item.peer.subprotocol };
     },
     'peer.dial': async args => {
       const { options, recorder, observable } = optionsOf(args);
-      const peer = new DuplexPeer({ ...options, role: 'client' });
+      const offered = subprotocolsOf(args);
+      const peer = new DuplexPeer({ ...options, role: 'client', ...(offered.length > 0 ? { subprotocols: offered } : {}) });
       const wrapped = new Peer(peer, recorder, observable);
       await peer.connect(stringOf(args, 'url', true)).catch(error => { throw fail('failed', String(error)); });
-      return { handle: t.mint('p', wrapped) };
+      return { handle: t.mint('p', wrapped), subprotocol: peer.subprotocol };
     },
     'peer.over': async args => {
       const c = t.lookup(args.on, isConn, 'a connection');

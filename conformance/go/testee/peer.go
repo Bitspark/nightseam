@@ -37,6 +37,21 @@ func (p *peer) shutdown() {
 }
 
 // options reads a peer's options as the driver spells them.
+// subprotocols is what a peer.listen selects from or a peer.dial offers at
+// the handshake; absent, none is offered and none selected, as the runtimes
+// default.
+func (r request) subprotocols() ([]string, error) {
+	raw, ok := r.args["subprotocols"]
+	if !ok {
+		return nil, nil
+	}
+	var tokens []string
+	if err := json.Unmarshal(raw, &tokens); err != nil {
+		return nil, invalid("subprotocols is an array of strings")
+	}
+	return tokens, nil
+}
+
 func (t *testee) options(r request) (runtime.Options, *recorder, error) {
 	raw, err := r.object("options")
 	if err != nil {
@@ -158,9 +173,14 @@ func (t *testee) peerOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
+			subprotocols, err := r.subprotocols()
+			if err != nil {
+				return nil, err
+			}
 			l := &peerListener{accepted: make(chan *runtime.Peer, 1), rec: rec}
 			handler, err := runtime.NewHandler(runtime.ServerOptions{
 				Options:      options,
+				Subprotocols: subprotocols,
 				Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 				CheckOrigin:  func(*http.Request) bool { return true },
 				OnConnect: func(p *runtime.Peer) {
@@ -199,7 +219,7 @@ func (t *testee) peerOps() map[string]func(request) (any, error) {
 			}
 			select {
 			case p := <-l.accepted:
-				return map[string]any{"handle": t.mint("p", t.adopt(p, l.rec, func() {}))}, nil
+				return map[string]any{"handle": t.mint("p", t.adopt(p, l.rec, func() {})), "subprotocol": p.Subprotocol()}, nil
 			case <-time.After(within):
 				return nil, fail("timeout", "nobody connected within %s", within)
 			}
@@ -213,13 +233,17 @@ func (t *testee) peerOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
+			subprotocols, err := r.subprotocols()
+			if err != nil {
+				return nil, err
+			}
 			ctx, cancel := context.WithCancel(context.Background())
-			p, _, err := runtime.Dial(ctx, url, runtime.DialOptions{Options: options})
+			p, _, err := runtime.Dial(ctx, url, runtime.DialOptions{Options: options, Subprotocols: subprotocols})
 			if err != nil {
 				cancel()
 				return nil, fail("failed", "%v", err)
 			}
-			return map[string]any{"handle": t.mint("p", t.adopt(p, rec, cancel))}, nil
+			return map[string]any{"handle": t.mint("p", t.adopt(p, rec, cancel)), "subprotocol": p.Subprotocol()}, nil
 		},
 		"peer.over": func(r request) (any, error) {
 			c, err := t.connOf(r)

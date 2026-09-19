@@ -13,6 +13,26 @@ consumer owns what names a concept of its own or decides a policy. Before
 adding something here, say which side of that line it is on; if it needs a
 consumer's concept to be stated, it belongs in the consumer.
 
+## No legacy, and rewrites are cheap
+
+Nightseam has no released consumer, and until it has one there is nothing
+to stay compatible with. A change is made directly and whole: a wire change
+alters both peers, both validators, the tables, the generator and the docs
+in one lane, emitting what they accept in the same commit; a surface change
+changes every caller in the same commit; a shape that turns out wrong is
+rewritten, not layered over. No accept-before-emit rollout, no "older
+runtime" clause, no optional parameter whose reason is to spare a call site
+— each is machinery for consumers that do not exist and is kept forever
+once written.
+
+The same condition decides between designs: a design is chosen for being
+right, never for being cheap to roll out. A rewrite now is cheaper than it
+will ever be again — with a release, consumers and more runtimes each one
+costs more — so the model is settled now, and the cost of settling it is
+the point of this phase. `docs/layers.md` is the test for where a thing
+on the wire belongs; it was written after this rule was learned the hard
+way in one afternoon.
+
 ## Parity
 
 Every runtime component exists in Go and in TypeScript, and the two are held

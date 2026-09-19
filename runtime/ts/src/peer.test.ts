@@ -9,6 +9,8 @@ import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from
 class Socket extends EventTarget implements WebSocketLike {
   readyState = 1;
   bufferedAmount = 0;
+  /** What the handshake selected, as a real WebSocket spells it. */
+  protocol = '';
   sent: Record<string, unknown>[] = [];
   partner?: Socket;
   closeCount = 0;
@@ -780,4 +782,55 @@ test('an observer that throws interrupts no routing', async t => {
   server.handle('ping', () => 'pong');
   assert.equal(await client.call('ping'), 'pong');
   assert.equal(client.status, 'connected');
+});
+
+test('a subprotocol is offered at the handshake and the selection is what the peer reports', async t => {
+  const socket = new Socket();
+  socket.readyState = 0;
+  let offered: string[] | undefined;
+  const peer = new DuplexPeer({ subprotocols: ['a', 'b'], webSocketFactory: (_url, protocols) => { offered = protocols; return socket; } });
+  t.after(() => peer.close());
+  const connecting = peer.connect('ws://localhost/api');
+  assert.deepEqual(offered, ['a', 'b'], 'the factory is handed what to offer, so a custom one honours it');
+  assert.equal(peer.subprotocol, '', 'nothing is selected until the handshake is done');
+  socket.protocol = 'b';
+  socket.readyState = 1;
+  socket.dispatchEvent(new Event('open'));
+  await connecting;
+  assert.equal(peer.subprotocol, 'b');
+  peer.close();
+  assert.equal(peer.subprotocol, '', 'a peer with no connection negotiated nothing');
+});
+
+test('an offer the server selected none of leaves the peer with none, and the profile is spoken anyway', async t => {
+  const socket = new Socket();
+  const peer = new DuplexPeer({ subprotocols: ['c'], webSocketFactory: () => socket });
+  t.after(() => peer.close());
+  await peer.connect('ws://localhost/api');
+  assert.equal(peer.subprotocol, '');
+  await peer.emit('progress', 1);
+  assert.equal(socket.sent.length, 1);
+  const { version, kind, event, data } = socket.sent[0] as Record<string, unknown>;
+  assert.deepEqual({ version, kind, event, data }, { version: 1, kind: 'event', event: 'progress', data: 1 });
+});
+
+test('a peer that offers no subprotocol offers nothing at all', async t => {
+  const socket = new Socket();
+  let offered: string[] | undefined = ['unasked'];
+  const peer = new DuplexPeer({ webSocketFactory: (_url, protocols) => { offered = protocols; return socket; } });
+  t.after(() => peer.close());
+  await peer.connect('ws://localhost/api');
+  assert.equal(offered, undefined);
+  assert.equal(peer.subprotocol, '');
+});
+
+test('a peer over a connection that is no WebSocket negotiated nothing', async t => {
+  const [near, far] = Pipe.pair();
+  const peer = new DuplexPeer();
+  const other = new DuplexPeer({ role: 'server' });
+  t.after(() => { peer.close(); other.close(); });
+  await peer.attach(near);
+  await other.attach(far);
+  assert.equal(peer.subprotocol, '');
+  assert.equal(other.subprotocol, '');
 });

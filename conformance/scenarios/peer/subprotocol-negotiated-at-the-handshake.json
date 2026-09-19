@@ -1,0 +1,21 @@
+{
+  "name": "a subprotocol both sides name is selected at the handshake, and a server naming one still takes a client that names none",
+  "layer": "peer",
+  "description": "What the handshake selected is what both peers report, and the profile is spoken over the connection either way: nothing about it turns on a subprotocol. The case a suite cannot hold is a client that offers meeting a server that selects none — a browser and Node's WebSocket refuse that handshake and Go's client takes it, so offering and selecting are one decision the two sides take together (docs/profile.md).",
+  "needs": ["peer", "listen"],
+  "steps": [
+    {"on": "a", "op": "peer.listen", "args": {"subprotocols": ["x.one", "x.two"]}, "bind": {"handle": "l", "url": "url"}},
+    {"on": "b", "op": "peer.dial", "args": {"url": "$url", "subprotocols": ["x.two"]}, "bind": "pb", "expect": {"subprotocol": "x.two"}, "note": "the client offered one of the two the server names, so that one was selected"},
+    {"on": "a", "op": "peer.accept", "args": {"on": "$l"}, "bind": "pa", "expect": {"subprotocol": "x.two"}, "note": "and the server reports the same token off the same handshake"},
+    {"on": "a", "op": "peer.handle", "args": {"on": "$pa", "method": "echo", "behavior": {"kind": "echo"}}},
+    {"on": "b", "op": "peer.call", "args": {"on": "$pb", "method": "echo", "params": {"text": "spoken"}}, "bind": "c1"},
+    {"on": "b", "op": "call.await", "args": {"on": "$c1"}, "expect": {"result": {"text": "spoken"}}},
+
+    {"on": "a", "op": "peer.listen", "args": {"subprotocols": ["x.one"]}, "bind": {"handle": "l2", "url": "url2"}},
+    {"on": "b", "op": "peer.dial", "args": {"url": "$url2"}, "bind": "pb2", "expect": {"subprotocol": ""}, "note": "a client that names none is met by a server that names some: none is selected, so a server may start naming subprotocols without breaking a client that never will"},
+    {"on": "a", "op": "peer.accept", "args": {"on": "$l2"}, "bind": "pa2", "expect": {"subprotocol": ""}},
+    {"on": "a", "op": "peer.handle", "args": {"on": "$pa2", "method": "echo", "behavior": {"kind": "echo"}}},
+    {"on": "b", "op": "peer.call", "args": {"on": "$pb2", "method": "echo", "params": {"text": "spoken anyway"}}, "bind": "c2"},
+    {"on": "b", "op": "call.await", "args": {"on": "$c2"}, "expect": {"result": {"text": "spoken anyway"}}, "note": "a peer refuses nothing on the ground that no subprotocol was negotiated"}
+  ]
+}
