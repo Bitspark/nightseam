@@ -20,42 +20,54 @@ type message struct {
 	values map[string]json.RawMessage
 }
 
+// The reasons text that is no message of the profile is refused with. They
+// are a closed set rather than a wording: the connection the frame arrived
+// on is closed with one of them and a consumer reads it off the close, so
+// both runtimes name the same fault in the same words — which an error in
+// encoding/json's own, for a frame malformed inside, would not be.
+const (
+	notAnObject     = "a session frame must be a JSON object"
+	trailingContent = "invalid trailing session frame content"
+	repeatedMember  = "duplicate session frame member %q"
+)
+
 // decodeMessage reads a frame's members in the order they were written; a
-// frame that is not an object, or repeats a member, is no frame. What it
-// refuses with is internal and reaches no caller of this package: it is the
-// reason the connection the frame arrived on is closed with, a protocol
-// error, which is why it carries no code of the session's vocabulary.
+// frame that is not an object, or repeats a member, or carries anything
+// after the object, is no frame. What it refuses with is internal and
+// reaches no caller of this package: it is the reason the connection the
+// frame arrived on is closed with, a protocol error, which is why it
+// carries no code of the session's vocabulary.
 func decodeMessage(data []byte) (*message, error) {
 	d := json.NewDecoder(bytes.NewReader(data))
 	token, err := d.Token()
 	if err != nil || token != json.Delim('{') {
-		return nil, errors.New("a session frame must be a JSON object")
+		return nil, errors.New(notAnObject)
 	}
 	m := &message{values: map[string]json.RawMessage{}}
 	for d.More() {
 		key, err := d.Token()
 		if err != nil {
-			return nil, err
+			return nil, errors.New(notAnObject)
 		}
 		name, ok := key.(string)
 		if !ok {
-			return nil, errors.New("invalid session frame member name")
+			return nil, errors.New(notAnObject)
 		}
 		if _, exists := m.values[name]; exists {
-			return nil, fmt.Errorf("duplicate session frame member %q", name)
+			return nil, fmt.Errorf(repeatedMember, name)
 		}
 		var value json.RawMessage
 		if err := d.Decode(&value); err != nil {
-			return nil, err
+			return nil, errors.New(notAnObject)
 		}
 		m.names = append(m.names, name)
 		m.values[name] = value
 	}
 	if _, err := d.Token(); err != nil {
-		return nil, err
+		return nil, errors.New(notAnObject)
 	}
 	if err := d.Decode(new(any)); err != io.EOF {
-		return nil, errors.New("invalid trailing session frame content")
+		return nil, errors.New(trailingContent)
 	}
 	return m, nil
 }

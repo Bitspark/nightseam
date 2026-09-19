@@ -914,4 +914,44 @@ export function run(connect: Connect): void {
     assert.deepEqual(two.at.closed, { code: 1003, reason: said });
     wire.close();
   });
+
+  test('text that is no message of the profile ends the connection as a protocol error', async () => {
+    // Text is where a message of the profile would be, so what is wrong is
+    // the message and not the frame: a protocol error — 1002 — under a
+    // reason naming the fault, where a frame of the wrong kind is
+    // unsupported data. The reasons are the closed set the relay gives and
+    // are the same in both languages, a consumer reading one off the close
+    // being unable to ask which runtime wrote the relay — an object
+    // malformed inside among them, where a parser's own words for a syntax
+    // error would be one runtime's prose on the wire.
+    const malformed = [
+      { what: 'text that is no JSON at all', sent: 'not json', said: 'a session frame must be a JSON object' },
+      { what: 'a JSON array', sent: '["version",1]', said: 'a session frame must be a JSON object' },
+      { what: 'an object malformed inside', sent: '{"version":1,"kind":}', said: 'a session frame must be a JSON object' },
+      { what: 'a member named twice', sent: '{"version":1,"kind":"request","id":"c:1","id":"c:2","method":"no_args","params":{}}', said: 'duplicate session frame member "id"' },
+      { what: 'content after the object', sent: '{"version":1,"kind":"event","event":"changed","data":{"text":"x","count":1}} {}', said: 'invalid trailing session frame content' },
+    ];
+    for (const { what, sent, said } of malformed) {
+      const { wire, registry, machine } = await bound();
+      const one = await consumer(wire, registry, 'participant', 'one');
+      const two = await consumer(wire, registry, 'observer', 'watcher');
+
+      one.near.send({ kind: 'text', data: sent });
+      await tick();
+      assert.deepEqual(one.at.closed, { code: 1002, reason: said }, `a consumer sending ${what}`);
+      // The session stands and goes on routing: only the consumer that sent
+      // it is gone.
+      assert.equal(two.at.closed, undefined, `a consumer sending ${what} ended another consumer`);
+      const live = { version: 1, kind: 'event', event: 'changed', data: payload('still here') };
+      say(machine, live);
+      assert.deepEqual(await two.at.family(), live);
+
+      // The machine's own ends the session, and every consumer with it,
+      // under the same code and the same reason.
+      machine.send({ kind: 'text', data: sent });
+      await tick();
+      assert.deepEqual(two.at.closed, { code: 1002, reason: said }, `the machine sending ${what}`);
+      wire.close();
+    }
+  });
 }

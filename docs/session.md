@@ -278,10 +278,15 @@ kind ends the connection it arrived on with **1003**, unsupported data, and
 the reason `a session speaks JSON text frames`, in both languages and on
 either connection: a consumer's own ends that consumer and leaves the
 session standing, the machine's ends the session and every consumer with it.
-Text that is no message of the profile is a fault of another kind and
-carries another code — **1002** in Go, **1008** in TypeScript, which is a
-divergence of its own and is filed rather than settled here. A machine that
-sends a frame of the session's own vocabulary is **1002** in both.
+Text that is no message of the profile is the fault beside it and ends the
+connection with **1002**, a protocol error, under a reason naming what was
+wrong with the frame: `a session frame must be a JSON object`, `duplicate
+session frame member "id"`, `invalid trailing session frame content`, which
+is the whole of the set a relay gives. Code and reason are one rule in both
+languages — a consumer reading a close cannot ask which runtime wrote the
+relay it attached to — and the machine's connection carries them as a
+consumer's does. A machine that sends a frame of the session's own
+vocabulary is **1002** as well, under the reason that names the frame.
 [profile.md](profile.md) lists every close code.
 
 ## Limits

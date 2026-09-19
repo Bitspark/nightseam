@@ -585,9 +585,12 @@ class Relay {
       attachment.channel.close(1003, BINARY_FRAME);
       return;
     }
+    // Text is where a message of the profile would be, so what is wrong is
+    // the message and not the frame: a protocol error, under the reason that
+    // names the fault.
     const envelope = read(frame);
-    if (!envelope) {
-      attachment.channel.close(1008, 'a frame that is not a message of the profile');
+    if (typeof envelope === 'string') {
+      attachment.channel.close(1002, envelope);
       return;
     }
     const id = typeof envelope.id === 'string' ? envelope.id : undefined;
@@ -652,9 +655,12 @@ class Relay {
       this.up.close(1003, BINARY_FRAME);
       return;
     }
+    // As on a consumer's connection: text that is no message of the profile
+    // is a protocol error under the reason naming the fault, where a frame
+    // of the wrong kind is unsupported data.
     const envelope = read(frame);
-    if (!envelope) {
-      this.up.close(1008, 'a frame that is not a message of the profile');
+    if (typeof envelope === 'string') {
+      this.up.close(1002, envelope);
       return;
     }
     // The session's own vocabulary is the relay's to produce: a machine that
@@ -833,19 +839,101 @@ const decoder = new TextDecoder();
 
 /**
  * What a session's connections are closed with when a frame of the wrong
- * kind arrives on one: 1003, unsupported data, in both languages. Text that
- * is no message of the profile is a different fault and carries a different
- * code — 1008 here, and the reason that names it.
+ * kind arrives on one: 1003, unsupported data. Text that is no message of
+ * the profile is the fault beside it and carries 1002, a protocol error,
+ * under a reason naming what was wrong with the frame. Both are one rule in
+ * both languages, code and reason alike, a consumer reading them off the
+ * close being unable to ask which runtime wrote the relay.
  */
 const BINARY_FRAME = 'a session speaks JSON text frames';
 
-/** read is a frame as the message it carries, or nothing when it carries none: the profile is JSON text. Its caller has already refused a frame that is not text, and the guard below is what makes that a type the body may read. */
-function read(frame: Wire): Envelope | undefined {
-  if (frame.kind !== 'text') return undefined;
+/**
+ * The reasons text that is no message of the profile is refused with, word
+ * for word as `session/go` names them: a closed set, since the connection is
+ * closed with one of them and a consumer reads it off the close.
+ */
+const NOT_AN_OBJECT = 'a session frame must be a JSON object';
+const TRAILING_CONTENT = 'invalid trailing session frame content';
+const duplicateMember = (name: string): string => `duplicate session frame member ${JSON.stringify(name)}`;
+
+/**
+ * read is the message a frame carries, or the reason it carries none: the
+ * text is one JSON object, each member of it named once and nothing after
+ * it. Its caller has already refused a frame that is not text, and the guard
+ * below is what makes that a type the body may read.
+ *
+ * JSON.parse is not that reading on its own — it takes a member named twice
+ * silently, the last one winning, and refuses content after the object with
+ * the same throw a syntax error gives — so the text is scanned first for
+ * those two, in the order the Go decoder meets them, and the parse judges
+ * everything the scan does not.
+ */
+function read(frame: Wire): Envelope | string {
+  if (frame.kind !== 'text') return NOT_AN_OBJECT;
+  const text = frame.data;
+  const object = scan(text);
+  if (typeof object === 'string') return object;
   let value: unknown;
-  try { value = JSON.parse(frame.data); } catch { return undefined; }
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  return value as Envelope;
+  try { value = JSON.parse(text.slice(0, object)); } catch { return NOT_AN_OBJECT; }
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return NOT_AN_OBJECT;
+  return space(text, object) < text.length ? TRAILING_CONTENT : value as Envelope;
+}
+
+/**
+ * scan reads a frame's text as far as the object it opens with: the index
+ * just past that object, or the reason a member of it is named twice. Text
+ * that opens no object it hands back whole, the parse being the judge of
+ * that, and it judges no syntax itself — what it hands back is a place to
+ * parse to and not a claim that the text up to it is JSON.
+ */
+function scan(text: string): number | string {
+  let i = space(text, 0);
+  if (text[i] !== '{') return text.length;
+  const named = new Set<string>();
+  let depth = 0;
+  for (; i < text.length; i++) {
+    const at = text[i];
+    if (at === '"') {
+      // A string is read whole: a brace or a colon inside one is content.
+      const end = quoted(text, i);
+      if (end < 0) return text.length;
+      if (depth === 1 && text[space(text, end + 1)] === ':') {
+        const name = member(text.slice(i, end + 1));
+        if (name === undefined) return text.length;
+        if (named.has(name)) return duplicateMember(name);
+        named.add(name);
+      }
+      i = end;
+    } else if (at === '{' || at === '[') {
+      depth++;
+    } else if ((at === '}' || at === ']') && --depth === 0) {
+      return i + 1;
+    }
+  }
+  return text.length;
+}
+
+/** The index of the first character at or after `from` that is not JSON whitespace. */
+function space(text: string, from: number): number {
+  let i = from;
+  while (i < text.length && (text[i] === ' ' || text[i] === '\t' || text[i] === '\n' || text[i] === '\r')) i++;
+  return i;
+}
+
+/** The index of the quote closing the string that opens at `from`, and -1 where the text closes none. */
+function quoted(text: string, from: number): number {
+  for (let i = from + 1; i < text.length; i++) {
+    if (text[i] === '\\') i++;
+    else if (text[i] === '"') return i;
+  }
+  return -1;
+}
+
+/** A member's name as its own JSON says it, and nothing where that text says no string. */
+function member(raw: string): string | undefined {
+  let name: unknown;
+  try { name = JSON.parse(raw); } catch { return undefined; }
+  return typeof name === 'string' ? name : undefined;
 }
 
 /** What a frame names: an event's name, a request's method; a response and a cancel name nothing. It is what the reserved prefix is read off. */

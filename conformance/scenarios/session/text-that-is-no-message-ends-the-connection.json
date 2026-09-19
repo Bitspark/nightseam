@@ -1,8 +1,8 @@
 {
-  "name": "a binary frame ends the connection it arrived on as unsupported data, from a consumer and from the machine",
+  "name": "text that is no message of the profile ends the connection as a protocol error, from a consumer and from the machine",
   "layer": "session",
   "replaces": "session/go/sessiontest and session/ts/src/conformance.ts, across the wire",
-  "description": "A session speaks JSON text frames. A frame of another kind carries no message of the profile at all, which is 1003 \u2014 unsupported data \u2014 and not the 1002 that text which is no message of the profile is refused with. Either side may send one: a consumer's ends its own connection and leaves the session standing, the machine's ends the session and every consumer with it, and both carry the same reason.",
+  "description": "A session speaks the profile in JSON text. Text that is no message of it \u2014 no JSON at all, an object with a member named twice, content after the object \u2014 is a protocol error, 1002, under a reason naming what was wrong with the frame, where a frame of the wrong kind is unsupported data. The reasons are a closed set and the same in both languages, a consumer reading one off the close being unable to ask which runtime wrote the relay. Either side may send such text: a consumer's ends its own connection and leaves the session standing, the machine's ends the session and every consumer with it.",
   "needs": [
     "lazy",
     "peer",
@@ -198,6 +198,41 @@
     },
     {
       "on": "b",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$carrier_b",
+        "family": "probe",
+        "after": 0,
+        "consume": "eager"
+      },
+      "bind": "three"
+    },
+    {
+      "on": "a",
+      "op": "tunnel.accept",
+      "args": {
+        "on": "$carrier_a",
+        "consume": "lazy"
+      },
+      "bind": {
+        "handle": "ch_three"
+      }
+    },
+    {
+      "on": "a",
+      "op": "session.attach",
+      "args": {
+        "on": "$reg",
+        "session": "s",
+        "channel": "$ch_three",
+        "role": "participant",
+        "origin": "three",
+        "after": 0
+      },
+      "bind": "att_three"
+    },
+    {
+      "on": "b",
       "op": "conn.receive",
       "args": {
         "on": "$two"
@@ -213,10 +248,10 @@
       "op": "conn.send",
       "args": {
         "on": "$one",
-        "kind": "binary",
-        "base64": "AAE="
+        "kind": "text",
+        "text": "not json"
       },
-      "note": "A frame of the wrong kind on a consumer's connection: it carries no message of the profile at all, which is unsupported data and not a message the profile refuses."
+      "note": "Text is where a message of the profile would be, so what is wrong is the message and not the frame: a protocol error under the reason naming the fault."
     },
     {
       "on": "b",
@@ -225,8 +260,8 @@
         "on": "$one"
       },
       "expect": {
-        "code": 1003,
-        "reason": "a session speaks JSON text frames"
+        "code": 1002,
+        "reason": "a session frame must be a JSON object"
       }
     },
     {
@@ -240,6 +275,27 @@
         "code": "timeout"
       },
       "note": "The session stands: the consumer that sent the frame is the only one ended by it."
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$three",
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{\"text\":\"x\",\"count\":1}} {}"
+      },
+      "note": "A second of the three reasons, from a second consumer: one object of the profile and another after it is no message either."
+    },
+    {
+      "on": "b",
+      "op": "conn.await_close",
+      "args": {
+        "on": "$three"
+      },
+      "expect": {
+        "code": 1002,
+        "reason": "invalid trailing session frame content"
+      }
     },
     {
       "on": "a",
@@ -278,10 +334,10 @@
       "op": "conn.send",
       "args": {
         "on": "$machine",
-        "kind": "binary",
-        "base64": "Ag=="
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"request\",\"id\":\"s:1\",\"id\":\"s:2\",\"method\":\"reverse\",\"params\":{\"text\":\"x\",\"count\":1}}"
       },
-      "note": "The machine's own ends the session, and every consumer with it, under the same code and the same reason."
+      "note": "The machine's own ends the session, and every consumer with it, under the code and the reason its own fault carries."
     },
     {
       "on": "b",
@@ -290,8 +346,8 @@
         "on": "$two"
       },
       "expect": {
-        "code": 1003,
-        "reason": "a session speaks JSON text frames"
+        "code": 1002,
+        "reason": "duplicate session frame member \"id\""
       }
     },
     {
@@ -301,8 +357,8 @@
         "on": "$machine"
       },
       "expect": {
-        "code": 1003,
-        "reason": "a session speaks JSON text frames"
+        "code": 1002,
+        "reason": "duplicate session frame member \"id\""
       }
     }
   ]

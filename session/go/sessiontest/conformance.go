@@ -1136,6 +1136,51 @@ func Run(t *testing.T, connect Connect) {
 			t.Fatalf("the machine's own side ended as %d %q", up.Code, up.Reason)
 		}
 	})
+
+	t.Run("text that is no message of the profile ends the connection as a protocol error", func(t *testing.T) {
+		// Text is where a message of the profile would be, so what is wrong
+		// is the message and not the frame: a protocol error — 1002 — under a
+		// reason naming the fault, where a frame of the wrong kind is
+		// unsupported data. The reasons are the closed set the decoder gives
+		// and are the same in both languages, a consumer reading one off the
+		// close being unable to ask which runtime wrote the relay — an object
+		// malformed inside among them, where a decoder's own words for a
+		// syntax error would be one runtime's prose on the wire.
+		for _, malformed := range []struct{ what, sent, said string }{
+			{"text that is no JSON at all", `not json`, "a session frame must be a JSON object"},
+			{"a JSON array", `["version",1]`, "a session frame must be a JSON object"},
+			{"an object malformed inside", `{"version":1,"kind":}`, "a session frame must be a JSON object"},
+			{"a member named twice", `{"version":1,"kind":"request","id":"c:1","id":"c:2","method":"no_args","params":{}}`, `duplicate session frame member "id"`},
+			{"content after the object", `{"version":1,"kind":"event","event":"changed","data":{"text":"x","count":1}} {}`, "invalid trailing session frame content"},
+		} {
+			t.Run(malformed.what, func(t *testing.T) {
+				registry, machine := bind(t, "s")
+				_, one := attach(t, registry, "s", "one", session.Participant, 0)
+				_, two := attach(t, registry, "s", "watcher", session.Observer, 0)
+
+				one.send(t, malformed.sent)
+				if closed := one.ended(t); closed.Code != duplex.CodeProtocolError || closed.Reason != malformed.said {
+					t.Fatalf("a consumer sending %s ended as %d %q, where 1002 %q was due", malformed.what, closed.Code, closed.Reason, malformed.said)
+				}
+				// The session stands and goes on routing: only the consumer
+				// that sent it is gone.
+				machine.send(t, `{"version":1,"kind":"event","event":"changed","data":{"text":"still here","count":1}}`)
+				if got := two.take(t); got.text("event") != "changed" {
+					t.Fatalf("the session stopped routing after a consumer sent %s: %s", malformed.what, got.raw)
+				}
+
+				// The machine's own ends the session, and every consumer with
+				// it, under the same code and the same reason.
+				machine.send(t, malformed.sent)
+				if ended := two.ended(t); ended.Code != duplex.CodeProtocolError || ended.Reason != malformed.said {
+					t.Fatalf("the machine sending %s ended a consumer as %d %q, where 1002 %q was due", malformed.what, ended.Code, ended.Reason, malformed.said)
+				}
+				if up := machine.ended(t); up.Code != duplex.CodeProtocolError || up.Reason != malformed.said {
+					t.Fatalf("the machine's own side ended as %d %q, where 1002 %q was due", up.Code, up.Reason, malformed.said)
+				}
+			})
+		}
+	})
 }
 
 // The trace contexts the change run sends, each on a frame of its own, so

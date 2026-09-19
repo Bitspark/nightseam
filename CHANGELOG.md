@@ -300,9 +300,23 @@ Nothing yet.
   code on every row; a scenario holds the codes across the wire.
 - A binary frame on a session's connection ends it as unsupported data,
   1003, in both languages, where TypeScript closed with 1008 and a reason
-  about the message rather than the frame; 1008 stays for text that is not
-  a message; `docs/profile.md` lists 1003 among the close codes, and a
-  session scenario reaches the case in both pairings.
+  about the message rather than the frame; `docs/profile.md` lists 1003
+  among the close codes, and a session scenario reaches the case in both
+  pairings.
+- Text that is no message of the profile ends a session's connection with
+  1002, a protocol error, in both languages and under the same reason, where
+  TypeScript closed with 1008 and one sentence for every case. The reason
+  names the fault as Go's decoder does — `a session frame must be a JSON
+  object`, `duplicate session frame member "id"`, `invalid trailing session
+  frame content` — and those three are the whole of the set: TypeScript now
+  reads the member named twice and the content after the object that
+  `JSON.parse` passes over, and Go gives one of the three where it gave
+  `encoding/json`'s own words for a frame malformed inside, which no other
+  runtime could say. `docs/session.md` states as the rule what it recorded
+  as a divergence; both session suites send such text from a consumer, which
+  ends that consumer alone, and from the machine, which ends the session,
+  and a session scenario holds the code and the reason on both sides in both
+  pairings.
 - One refusal reads one way in both validators: the pointer names the
   member and the text states the fact — `$.count: required field missing`,
   `$.note: null is not permitted`, `$.zzz: unknown field` — where the
