@@ -22,6 +22,22 @@ A record.
 |---|---|---|---|---|
 | `id` | `string` | required | — |  |
 
+In `go`:
+
+```go
+type AttachParams struct {
+	ID string `json:"id"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface AttachParams {
+  "id": string;
+}
+```
+
 For example:
 
 ```json
@@ -40,6 +56,24 @@ A record, generic in `S.Handle`.
 |---|---|---|---|---|
 | `connection` | `S.Handle` | required | — |  |
 | `last` | `integer` | required | — |  |
+
+In `go`:
+
+```go
+type Attachment[SHandle any] struct {
+	Connection SHandle `json:"connection"`
+	Last       int64   `json:"last"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface Attachment<S extends AnyFamily = SessionFamily> {
+  "connection": S["Handle"];
+  "last": number;
+}
+```
 
 For example:
 
@@ -61,6 +95,24 @@ A record, generic in `S.Envelope`.
 | `sequence` | `integer` | required | — |  |
 | `message` | `S.Envelope` | required | — |  |
 
+In `go`:
+
+```go
+type Frame[SEnvelope any] struct {
+	Sequence int64     `json:"sequence"`
+	Message  SEnvelope `json:"message"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface Frame<S extends AnyFamily = SessionFamily> {
+  "sequence": number;
+  "message": S["Envelope"];
+}
+```
+
 For example:
 
 ```json
@@ -77,6 +129,18 @@ Used by `Frames` (alias), `relay` (request), `frame.relayed` (data).
 An alias, generic in `S.Envelope`.
 
 An alias of array of `Frame`.
+
+In `go`:
+
+```go
+type Frames[SEnvelope any] = []Frame[SEnvelope]
+```
+
+In `typescript`:
+
+```typescript
+export type Frames<S extends AnyFamily = SessionFamily> = Array<Frame<S>>;
+```
 
 For example:
 
@@ -112,6 +176,57 @@ A record, carried from the built-in `duplex` family. One message of the nightsea
 | `tracestate` | `string` | optional | — | The vendor state of that trace. |
 | `meta` | map of `string` | optional | — | What a request or an event carries about the call, delivered to the handler beside the payload. |
 
+In `go`:
+
+```go
+type Envelope struct {
+	Version     int64                               `json:"version"`
+	Kind        string                              `json:"kind"`
+	ID          runtime.Optional[string]            `json:"id,omitzero"`
+	Method      runtime.Optional[string]            `json:"method,omitzero"`
+	Params      runtime.Optional[any]               `json:"params,omitzero"`
+	Result      runtime.Optional[any]               `json:"result,omitzero"`
+	Error       runtime.Optional[any]               `json:"error,omitzero"`
+	Event       runtime.Optional[string]            `json:"event,omitzero"`
+	Data        runtime.Optional[any]               `json:"data,omitzero"`
+	Traceparent runtime.Optional[string]            `json:"traceparent,omitzero"`
+	Tracestate  runtime.Optional[string]            `json:"tracestate,omitzero"`
+	Meta        runtime.Optional[map[string]string] `json:"meta,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */
+export interface Envelope {
+  /** The profile's version, 1. */
+  "version": number;
+  /** request, response, event or cancel. */
+  "kind": string;
+  /** What correlates a response or a cancel with its request. */
+  "id"?: string;
+  /** The method a request names. */
+  "method"?: string;
+  /** A request's parameters. */
+  "params"?: unknown;
+  /** A response's result. */
+  "result"?: unknown;
+  /** A response's error. */
+  "error"?: unknown;
+  /** The event an event frame names. */
+  "event"?: string;
+  /** An event's data. */
+  "data"?: unknown;
+  /** The W3C Trace Context of the frame. */
+  "traceparent"?: string;
+  /** The vendor state of that trace. */
+  "tracestate"?: string;
+  /** What a request or an event carries about the call, delivered to the handler beside the payload. */
+  "meta"?: Record<string, string>;
+}
+```
+
 ### Handle
 
 A record, carried from the built-in `duplex` family. A reference to a channel on the connection that carries the message holding it.
@@ -119,6 +234,24 @@ A record, carried from the built-in `duplex` family. A reference to a channel on
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `channel` | `integer` | required | — | The channel's id on that connection. |
+
+In `go`:
+
+```go
+type Handle struct {
+	Channel int64 `json:"channel"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** A reference to a channel on the connection that carries the message holding it. */
+export interface Handle {
+  /** The channel's id on that connection. */
+  "channel": number;
+}
+```
 
 ## Server side
 
@@ -161,6 +294,20 @@ The server answers:
     "last": 0
   }
 }
+```
+
+In `go`:
+
+```go
+client.Attach(ctx, params)
+
+func (Handler[SEnvelope, SHandle]) Attach(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle], params protocol.AttachParams) (protocol.Attachment[SHandle], error)
+```
+
+In `typescript`:
+
+```typescript
+await client.attach(params)
 ```
 
 ### `relay` on the wire
@@ -206,6 +353,20 @@ The server answers:
 }
 ```
 
+In `go`:
+
+```go
+client.Relay(ctx, params)
+
+func (Handler[SEnvelope, SHandle]) Relay(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle], params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.relay(params)
+```
+
 ### `frame.relayed` on the wire
 
 The server emits:
@@ -220,4 +381,16 @@ The server emits:
     "message": "‹S.Envelope›"
   }
 }
+```
+
+In `go`:
+
+```go
+remote.EmitFrameRelayed(ctx, data)
+```
+
+In `typescript`:
+
+```typescript
+client.onFrameRelayed(handler)
 ```

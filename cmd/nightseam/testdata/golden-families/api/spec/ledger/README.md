@@ -19,6 +19,31 @@ An entity, identified by `id`. An account: identified, with a unique email and a
 | `tags` | array of `string` | required | length ≤ 8 |  |
 | `opened_at` | `timestamp` | required | — |  |
 
+In `go`:
+
+```go
+type Account struct {
+	ID       string    `json:"id"`
+	Email    string    `json:"email"`
+	Balance  int64     `json:"balance"`
+	Tags     []string  `json:"tags"`
+	OpenedAt time.Time `json:"opened_at"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** An account: identified, with a unique email and a bounded balance. */
+export interface Account {
+  "id": string;
+  "email": string;
+  "balance": number;
+  "tags": Array<string>;
+  "opened_at": string;
+}
+```
+
 For example:
 
 ```json
@@ -44,6 +69,27 @@ A record. A transfer between two accounts, by their keys.
 | `from` | reference to `Account` | required | — |  |
 | `to` | reference to `Account` | required | — |  |
 | `note` | `string` | optional | length ≥ 1, length ≤ 140 |  |
+
+In `go`:
+
+```go
+type Transfer struct {
+	From string                   `json:"from"`
+	To   string                   `json:"to"`
+	Note runtime.Optional[string] `json:"note,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** A transfer between two accounts, by their keys. */
+export interface Transfer {
+  "from": string;
+  "to": string;
+  "note"?: string;
+}
+```
 
 For example:
 
@@ -78,6 +124,57 @@ A record, carried from the built-in `duplex` family. One message of the nightsea
 | `tracestate` | `string` | optional | — | The vendor state of that trace. |
 | `meta` | map of `string` | optional | — | What a request or an event carries about the call, delivered to the handler beside the payload. |
 
+In `go`:
+
+```go
+type Envelope struct {
+	Version     int64                               `json:"version"`
+	Kind        string                              `json:"kind"`
+	ID          runtime.Optional[string]            `json:"id,omitzero"`
+	Method      runtime.Optional[string]            `json:"method,omitzero"`
+	Params      runtime.Optional[any]               `json:"params,omitzero"`
+	Result      runtime.Optional[any]               `json:"result,omitzero"`
+	Error       runtime.Optional[any]               `json:"error,omitzero"`
+	Event       runtime.Optional[string]            `json:"event,omitzero"`
+	Data        runtime.Optional[any]               `json:"data,omitzero"`
+	Traceparent runtime.Optional[string]            `json:"traceparent,omitzero"`
+	Tracestate  runtime.Optional[string]            `json:"tracestate,omitzero"`
+	Meta        runtime.Optional[map[string]string] `json:"meta,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */
+export interface Envelope {
+  /** The profile's version, 1. */
+  "version": number;
+  /** request, response, event or cancel. */
+  "kind": string;
+  /** What correlates a response or a cancel with its request. */
+  "id"?: string;
+  /** The method a request names. */
+  "method"?: string;
+  /** A request's parameters. */
+  "params"?: unknown;
+  /** A response's result. */
+  "result"?: unknown;
+  /** A response's error. */
+  "error"?: unknown;
+  /** The event an event frame names. */
+  "event"?: string;
+  /** An event's data. */
+  "data"?: unknown;
+  /** The W3C Trace Context of the frame. */
+  "traceparent"?: string;
+  /** The vendor state of that trace. */
+  "tracestate"?: string;
+  /** What a request or an event carries about the call, delivered to the handler beside the payload. */
+  "meta"?: Record<string, string>;
+}
+```
+
 ### Handle
 
 A record, carried from the built-in `duplex` family. A reference to a channel on the connection that carries the message holding it.
@@ -85,3 +182,21 @@ A record, carried from the built-in `duplex` family. A reference to a channel on
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `channel` | `integer` | required | — | The channel's id on that connection. |
+
+In `go`:
+
+```go
+type Handle struct {
+	Channel int64 `json:"channel"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** A reference to a channel on the connection that carries the message holding it. */
+export interface Handle {
+  /** The channel's id on that connection. */
+  "channel": number;
+}
+```

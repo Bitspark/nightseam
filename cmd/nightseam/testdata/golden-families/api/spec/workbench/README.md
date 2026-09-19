@@ -17,6 +17,26 @@ A record.
 | `expected_version` | `integer` | optional | — |  |
 | `reason` | `string` | required | — |  |
 
+In `go`:
+
+```go
+type CancelWorkItemParams struct {
+	ID              string                  `json:"id"`
+	ExpectedVersion runtime.Optional[int64] `json:"expected_version,omitzero"`
+	Reason          string                  `json:"reason"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface CancelWorkItemParams {
+  "id": string;
+  "expected_version"?: number;
+  "reason": string;
+}
+```
+
 For example:
 
 ```json
@@ -39,6 +59,26 @@ A record.
 | `name` | `string` | required | — |  |
 | `description` | `string` | required | — |  |
 
+In `go`:
+
+```go
+type CreateProjectParams struct {
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface CreateProjectParams {
+  "key": string;
+  "name": string;
+  "description": string;
+}
+```
+
 For example:
 
 ```json
@@ -60,6 +100,26 @@ A record.
 | `project` | `string` | required | — |  |
 | `title` | `string` | required | — |  |
 | `draft` | `SpecificationDraft` | optional | — |  |
+
+In `go`:
+
+```go
+type CreateWorkItemParams struct {
+	Project string                               `json:"project"`
+	Title   string                               `json:"title"`
+	Draft   runtime.Optional[SpecificationDraft] `json:"draft,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface CreateWorkItemParams {
+  "project": string;
+  "title": string;
+  "draft"?: SpecificationDraft;
+}
+```
 
 For example:
 
@@ -96,6 +156,24 @@ A record.
 | `id` | `string` | required | — |  |
 | `description` | `string` | required | — |  |
 
+In `go`:
+
+```go
+type Criterion struct {
+	ID          string `json:"id"`
+	Description string `json:"description"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface Criterion {
+  "id": string;
+  "description": string;
+}
+```
+
 For example:
 
 ```json
@@ -121,6 +199,34 @@ A record.
 | `data` | `json` | required | — |  |
 | `created_at` | `timestamp` | required | — |  |
 
+In `go`:
+
+```go
+type Event struct {
+	Sequence   int64     `json:"sequence"`
+	Type       string    `json:"type"`
+	ProjectID  string    `json:"project_id"`
+	WorkItemID string    `json:"work_item_id"`
+	ActorID    string    `json:"actor_id"`
+	Data       any       `json:"data"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface Event {
+  "sequence": number;
+  "type": string;
+  "project_id": string;
+  "work_item_id": string;
+  "actor_id": string;
+  "data": unknown;
+  "created_at": string;
+}
+```
+
 For example:
 
 ```json
@@ -145,6 +251,22 @@ A record.
 |---|---|---|---|---|
 | `id` | `string` | required | — |  |
 
+In `go`:
+
+```go
+type GetWorkItemParams struct {
+	ID string `json:"id"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface GetWorkItemParams {
+  "id": string;
+}
+```
+
 For example:
 
 ```json
@@ -165,6 +287,26 @@ A record.
 | `project` | `string` | optional | — |  |
 | `limit` | `integer` | optional | — |  |
 
+In `go`:
+
+```go
+type ListEventsParams struct {
+	After   runtime.Optional[int64]  `json:"after,omitzero"`
+	Project runtime.Optional[string] `json:"project,omitzero"`
+	Limit   runtime.Optional[int64]  `json:"limit,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface ListEventsParams {
+  "after"?: number;
+  "project"?: string;
+  "limit"?: number;
+}
+```
+
 For example:
 
 ```json
@@ -180,6 +322,19 @@ Used by `events.list` (request).
 ### ListProjectsParams
 
 A record.
+
+In `go`:
+
+```go
+type ListProjectsParams struct {
+}
+```
+
+In `typescript`:
+
+```typescript
+export type ListProjectsParams = Record<string, never>;
+```
 
 For example:
 
@@ -197,6 +352,24 @@ A record.
 |---|---|---|---|---|
 | `project` | `string` | optional | — |  |
 | `state` | `string` | optional | — |  |
+
+In `go`:
+
+```go
+type ListWorkItemsParams struct {
+	Project runtime.Optional[string] `json:"project,omitzero"`
+	State   runtime.Optional[string] `json:"state,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface ListWorkItemsParams {
+  "project"?: string;
+  "state"?: string;
+}
+```
 
 For example:
 
@@ -224,6 +397,36 @@ A record.
 | `created_at` | `timestamp` | required | — |  |
 | `updated_at` | `timestamp` | required | — |  |
 
+In `go`:
+
+```go
+type Project struct {
+	ID          string    `json:"id"`
+	OwnerID     string    `json:"owner_id"`
+	Version     int64     `json:"version"`
+	Key         string    `json:"key"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface Project {
+  "id": string;
+  "owner_id": string;
+  "version": number;
+  "key": string;
+  "name": string;
+  "description": string;
+  "created_at": string;
+  "updated_at": string;
+}
+```
+
 For example:
 
 ```json
@@ -250,6 +453,24 @@ A record.
 | `id` | `string` | required | — |  |
 | `expected_version` | `integer` | optional | — |  |
 
+In `go`:
+
+```go
+type PublishSpecificationParams struct {
+	ID              string                  `json:"id"`
+	ExpectedVersion runtime.Optional[int64] `json:"expected_version,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface PublishSpecificationParams {
+  "id": string;
+  "expected_version"?: number;
+}
+```
+
 For example:
 
 ```json
@@ -270,6 +491,26 @@ A record.
 | `id` | `string` | required | — |  |
 | `expected_version` | `integer` | optional | — |  |
 | `reason` | `string` | required | — |  |
+
+In `go`:
+
+```go
+type ReopenWorkItemParams struct {
+	ID              string                  `json:"id"`
+	ExpectedVersion runtime.Optional[int64] `json:"expected_version,omitzero"`
+	Reason          string                  `json:"reason"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface ReopenWorkItemParams {
+  "id": string;
+  "expected_version"?: number;
+  "reason": string;
+}
+```
 
 For example:
 
@@ -292,6 +533,26 @@ A record.
 | `id` | `string` | required | — |  |
 | `expected_version` | `integer` | optional | — |  |
 | `dependencies` | array of `string` | required | — |  |
+
+In `go`:
+
+```go
+type SetDependenciesParams struct {
+	ID              string                  `json:"id"`
+	ExpectedVersion runtime.Optional[int64] `json:"expected_version,omitzero"`
+	Dependencies    []string                `json:"dependencies"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface SetDependenciesParams {
+  "id": string;
+  "expected_version"?: number;
+  "dependencies": Array<string>;
+}
+```
 
 For example:
 
@@ -317,6 +578,28 @@ A record.
 | `expected_version` | `integer` | optional | — |  |
 | `steps` | array of `Step` | required | — |  |
 | `reason` | `string` | optional | — |  |
+
+In `go`:
+
+```go
+type SetStepsParams struct {
+	ID              string                   `json:"id"`
+	ExpectedVersion runtime.Optional[int64]  `json:"expected_version,omitzero"`
+	Steps           []Step                   `json:"steps"`
+	Reason          runtime.Optional[string] `json:"reason,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface SetStepsParams {
+  "id": string;
+  "expected_version"?: number;
+  "steps": Array<Step>;
+  "reason"?: string;
+}
+```
 
 For example:
 
@@ -355,6 +638,34 @@ Extends `SpecificationDraft`.
 | `revision` | `integer` | required | — |  |
 | `published_at` | `timestamp` | required | — |  |
 
+In `go`:
+
+```go
+type Specification struct {
+	Objective    string      `json:"objective"`
+	Criteria     []Criterion `json:"criteria"`
+	Constraints  []string    `json:"constraints"`
+	Dependencies []string    `json:"dependencies"`
+	ID           string      `json:"id"`
+	Revision     int64       `json:"revision"`
+	PublishedAt  time.Time   `json:"published_at"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface Specification {
+  "objective": string;
+  "criteria": Array<Criterion>;
+  "constraints": Array<string>;
+  "dependencies": Array<string>;
+  "id": string;
+  "revision": number;
+  "published_at": string;
+}
+```
+
 For example:
 
 ```json
@@ -391,6 +702,28 @@ A record.
 | `constraints` | array of `string` | required | — |  |
 | `dependencies` | array of `string` | required | — |  |
 
+In `go`:
+
+```go
+type SpecificationDraft struct {
+	Objective    string      `json:"objective"`
+	Criteria     []Criterion `json:"criteria"`
+	Constraints  []string    `json:"constraints"`
+	Dependencies []string    `json:"dependencies"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface SpecificationDraft {
+  "objective": string;
+  "criteria": Array<Criterion>;
+  "constraints": Array<string>;
+  "dependencies": Array<string>;
+}
+```
+
 For example:
 
 ```json
@@ -425,6 +758,30 @@ A record.
 | `result_note` | `string` | required | — |  |
 | `change_reason` | `string` | required | — |  |
 
+In `go`:
+
+```go
+type Step struct {
+	ID           string `json:"id"`
+	Objective    string `json:"objective"`
+	State        string `json:"state"`
+	ResultNote   string `json:"result_note"`
+	ChangeReason string `json:"change_reason"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface Step {
+  "id": string;
+  "objective": string;
+  "state": string;
+  "result_note": string;
+  "change_reason": string;
+}
+```
+
 For example:
 
 ```json
@@ -448,6 +805,24 @@ A record.
 | `after` | `integer` | optional | — |  |
 | `project` | `string` | optional | — |  |
 
+In `go`:
+
+```go
+type SubscribeParams struct {
+	After   runtime.Optional[int64]  `json:"after,omitzero"`
+	Project runtime.Optional[string] `json:"project,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface SubscribeParams {
+  "after"?: number;
+  "project"?: string;
+}
+```
+
 For example:
 
 ```json
@@ -466,6 +841,22 @@ A record.
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `subscribed` | `boolean` | required | — |  |
+
+In `go`:
+
+```go
+type SubscribeResult struct {
+	Subscribed bool `json:"subscribed"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface SubscribeResult {
+  "subscribed": boolean;
+}
+```
 
 For example:
 
@@ -488,6 +879,30 @@ A record.
 | `key` | `string` | optional | — |  |
 | `name` | `string` | optional | — |  |
 | `description` | `string` | optional | — |  |
+
+In `go`:
+
+```go
+type UpdateProjectParams struct {
+	ID              string                   `json:"id"`
+	ExpectedVersion runtime.Optional[int64]  `json:"expected_version,omitzero"`
+	Key             runtime.Optional[string] `json:"key,omitzero"`
+	Name            runtime.Optional[string] `json:"name,omitzero"`
+	Description     runtime.Optional[string] `json:"description,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface UpdateProjectParams {
+  "id": string;
+  "expected_version"?: number;
+  "key"?: string;
+  "name"?: string;
+  "description"?: string;
+}
+```
 
 For example:
 
@@ -513,6 +928,28 @@ A record.
 | `expected_version` | `integer` | optional | — |  |
 | `title` | `string` | optional | — |  |
 | `draft` | `SpecificationDraft` | optional | — |  |
+
+In `go`:
+
+```go
+type UpdateWorkItemParams struct {
+	ID              string                               `json:"id"`
+	ExpectedVersion runtime.Optional[int64]              `json:"expected_version,omitzero"`
+	Title           runtime.Optional[string]             `json:"title,omitzero"`
+	Draft           runtime.Optional[SpecificationDraft] `json:"draft,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface UpdateWorkItemParams {
+  "id": string;
+  "expected_version"?: number;
+  "title"?: string;
+  "draft"?: SpecificationDraft;
+}
+```
 
 For example:
 
@@ -551,6 +988,26 @@ A record.
 | `email` | `string` | required | — |  |
 | `name` | `string` | required | — |  |
 
+In `go`:
+
+```go
+type User struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface User {
+  "id": string;
+  "email": string;
+  "name": string;
+}
+```
+
 For example:
 
 ```json
@@ -584,6 +1041,50 @@ A record.
 | `readiness` | `string` | required | — |  |
 | `created_at` | `timestamp` | required | — |  |
 | `updated_at` | `timestamp` | required | — |  |
+
+In `go`:
+
+```go
+type WorkItem struct {
+	ID                     string                               `json:"id"`
+	ProjectID              string                               `json:"project_id"`
+	Key                    string                               `json:"key"`
+	Title                  string                               `json:"title"`
+	State                  string                               `json:"state"`
+	Version                int64                                `json:"version"`
+	Draft                  runtime.Nullable[SpecificationDraft] `json:"draft"`
+	Specifications         []Specification                      `json:"specifications"`
+	CurrentSpecificationID string                               `json:"current_specification_id"`
+	PlanSpecificationID    string                               `json:"plan_specification_id"`
+	Steps                  []Step                               `json:"steps"`
+	Dependencies           []string                             `json:"dependencies"`
+	Readiness              string                               `json:"readiness"`
+	CreatedAt              time.Time                            `json:"created_at"`
+	UpdatedAt              time.Time                            `json:"updated_at"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface WorkItem {
+  "id": string;
+  "project_id": string;
+  "key": string;
+  "title": string;
+  "state": string;
+  "version": number;
+  "draft": SpecificationDraft | null;
+  "specifications": Array<Specification>;
+  "current_specification_id": string;
+  "plan_specification_id": string;
+  "steps": Array<Step>;
+  "dependencies": Array<string>;
+  "readiness": string;
+  "created_at": string;
+  "updated_at": string;
+}
+```
 
 For example:
 
@@ -675,6 +1176,57 @@ A record, carried from the built-in `duplex` family. One message of the nightsea
 | `tracestate` | `string` | optional | — | The vendor state of that trace. |
 | `meta` | map of `string` | optional | — | What a request or an event carries about the call, delivered to the handler beside the payload. |
 
+In `go`:
+
+```go
+type Envelope struct {
+	Version     int64                               `json:"version"`
+	Kind        string                              `json:"kind"`
+	ID          runtime.Optional[string]            `json:"id,omitzero"`
+	Method      runtime.Optional[string]            `json:"method,omitzero"`
+	Params      runtime.Optional[any]               `json:"params,omitzero"`
+	Result      runtime.Optional[any]               `json:"result,omitzero"`
+	Error       runtime.Optional[any]               `json:"error,omitzero"`
+	Event       runtime.Optional[string]            `json:"event,omitzero"`
+	Data        runtime.Optional[any]               `json:"data,omitzero"`
+	Traceparent runtime.Optional[string]            `json:"traceparent,omitzero"`
+	Tracestate  runtime.Optional[string]            `json:"tracestate,omitzero"`
+	Meta        runtime.Optional[map[string]string] `json:"meta,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */
+export interface Envelope {
+  /** The profile's version, 1. */
+  "version": number;
+  /** request, response, event or cancel. */
+  "kind": string;
+  /** What correlates a response or a cancel with its request. */
+  "id"?: string;
+  /** The method a request names. */
+  "method"?: string;
+  /** A request's parameters. */
+  "params"?: unknown;
+  /** A response's result. */
+  "result"?: unknown;
+  /** A response's error. */
+  "error"?: unknown;
+  /** The event an event frame names. */
+  "event"?: string;
+  /** An event's data. */
+  "data"?: unknown;
+  /** The W3C Trace Context of the frame. */
+  "traceparent"?: string;
+  /** The vendor state of that trace. */
+  "tracestate"?: string;
+  /** What a request or an event carries about the call, delivered to the handler beside the payload. */
+  "meta"?: Record<string, string>;
+}
+```
+
 ### Handle
 
 A record, carried from the built-in `duplex` family. A reference to a channel on the connection that carries the message holding it.
@@ -682,6 +1234,24 @@ A record, carried from the built-in `duplex` family. A reference to a channel on
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `channel` | `integer` | required | — | The channel's id on that connection. |
+
+In `go`:
+
+```go
+type Handle struct {
+	Channel int64 `json:"channel"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** A reference to a channel on the connection that carries the message holding it. */
+export interface Handle {
+  /** The channel's id on that connection. */
+  "channel": number;
+}
+```
 
 ## Server side
 
@@ -748,6 +1318,20 @@ The server answers:
 }
 ```
 
+In `go`:
+
+```go
+client.ListEvents(ctx, params)
+
+func (Handler) ListEvents(ctx context.Context, remote *binding.Remote, params protocol.ListEventsParams) ([]protocol.Event, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.listEvents(params)
+```
+
 ### `me` on the wire
 
 The client sends:
@@ -775,6 +1359,20 @@ The server answers:
     "name": "‹name›"
   }
 }
+```
+
+In `go`:
+
+```go
+client.Me(ctx)
+
+func (Handler) Me(ctx context.Context, remote *binding.Remote) (protocol.User, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.me()
 ```
 
 ### `projects.create` on the wire
@@ -815,6 +1413,20 @@ The server answers:
 }
 ```
 
+In `go`:
+
+```go
+client.CreateProject(ctx, params)
+
+func (Handler) CreateProject(ctx context.Context, remote *binding.Remote, params protocol.CreateProjectParams) (protocol.Project, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.createProject(params)
+```
+
 ### `projects.list` on the wire
 
 The client sends:
@@ -849,6 +1461,20 @@ The server answers:
     }
   ]
 }
+```
+
+In `go`:
+
+```go
+client.ListProjects(ctx, params)
+
+func (Handler) ListProjects(ctx context.Context, remote *binding.Remote, params protocol.ListProjectsParams) ([]protocol.Project, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.listProjects(params)
 ```
 
 ### `projects.update` on the wire
@@ -891,6 +1517,20 @@ The server answers:
 }
 ```
 
+In `go`:
+
+```go
+client.UpdateProject(ctx, params)
+
+func (Handler) UpdateProject(ctx context.Context, remote *binding.Remote, params protocol.UpdateProjectParams) (protocol.Project, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.updateProject(params)
+```
+
 ### `subscribe` on the wire
 
 The client sends:
@@ -919,6 +1559,20 @@ The server answers:
     "subscribed": true
   }
 }
+```
+
+In `go`:
+
+```go
+client.Subscribe(ctx, params)
+
+func (Handler) Subscribe(ctx context.Context, remote *binding.Remote, params protocol.SubscribeParams) (protocol.SubscribeResult, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.subscribe(params)
 ```
 
 ### `work.cancel` on the wire
@@ -1007,6 +1661,20 @@ The server answers:
     "updated_at": "2026-01-01T00:00:00Z"
   }
 }
+```
+
+In `go`:
+
+```go
+client.CancelWorkItem(ctx, params)
+
+func (Handler) CancelWorkItem(ctx context.Context, remote *binding.Remote, params protocol.CancelWorkItemParams) (protocol.WorkItem, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.cancelWorkItem(params)
 ```
 
 ### `work.create` on the wire
@@ -1111,6 +1779,20 @@ The server answers:
 }
 ```
 
+In `go`:
+
+```go
+client.CreateWorkItem(ctx, params)
+
+func (Handler) CreateWorkItem(ctx context.Context, remote *binding.Remote, params protocol.CreateWorkItemParams) (protocol.WorkItem, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.createWorkItem(params)
+```
+
 ### `work.dependencies` on the wire
 
 The client sends:
@@ -1201,6 +1883,20 @@ The server answers:
 }
 ```
 
+In `go`:
+
+```go
+client.SetDependencies(ctx, params)
+
+func (Handler) SetDependencies(ctx context.Context, remote *binding.Remote, params protocol.SetDependenciesParams) (protocol.WorkItem, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.setDependencies(params)
+```
+
 ### `work.get` on the wire
 
 The client sends:
@@ -1285,6 +1981,20 @@ The server answers:
     "updated_at": "2026-01-01T00:00:00Z"
   }
 }
+```
+
+In `go`:
+
+```go
+client.GetWorkItem(ctx, params)
+
+func (Handler) GetWorkItem(ctx context.Context, remote *binding.Remote, params protocol.GetWorkItemParams) (protocol.WorkItem, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.getWorkItem(params)
 ```
 
 ### `work.list` on the wire
@@ -1376,6 +2086,20 @@ The server answers:
 }
 ```
 
+In `go`:
+
+```go
+client.ListWorkItems(ctx, params)
+
+func (Handler) ListWorkItems(ctx context.Context, remote *binding.Remote, params protocol.ListWorkItemsParams) ([]protocol.WorkItem, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.listWorkItems(params)
+```
+
 ### `work.publish` on the wire
 
 The client sends:
@@ -1461,6 +2185,20 @@ The server answers:
     "updated_at": "2026-01-01T00:00:00Z"
   }
 }
+```
+
+In `go`:
+
+```go
+client.PublishSpecification(ctx, params)
+
+func (Handler) PublishSpecification(ctx context.Context, remote *binding.Remote, params protocol.PublishSpecificationParams) (protocol.WorkItem, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.publishSpecification(params)
 ```
 
 ### `work.reopen` on the wire
@@ -1549,6 +2287,20 @@ The server answers:
     "updated_at": "2026-01-01T00:00:00Z"
   }
 }
+```
+
+In `go`:
+
+```go
+client.ReopenWorkItem(ctx, params)
+
+func (Handler) ReopenWorkItem(ctx context.Context, remote *binding.Remote, params protocol.ReopenWorkItemParams) (protocol.WorkItem, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.reopenWorkItem(params)
 ```
 
 ### `work.steps` on the wire
@@ -1646,6 +2398,20 @@ The server answers:
     "updated_at": "2026-01-01T00:00:00Z"
   }
 }
+```
+
+In `go`:
+
+```go
+client.SetSteps(ctx, params)
+
+func (Handler) SetSteps(ctx context.Context, remote *binding.Remote, params protocol.SetStepsParams) (protocol.WorkItem, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.setSteps(params)
 ```
 
 ### `work.update` on the wire
@@ -1751,6 +2517,20 @@ The server answers:
 }
 ```
 
+In `go`:
+
+```go
+client.UpdateWorkItem(ctx, params)
+
+func (Handler) UpdateWorkItem(ctx context.Context, remote *binding.Remote, params protocol.UpdateWorkItemParams) (protocol.WorkItem, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.updateWorkItem(params)
+```
+
 ### `workbench.changed` on the wire
 
 The server emits:
@@ -1770,6 +2550,18 @@ The server emits:
     "created_at": "2026-01-01T00:00:00Z"
   }
 }
+```
+
+In `go`:
+
+```go
+remote.EmitChanged(ctx, data)
+```
+
+In `typescript`:
+
+```typescript
+client.onChanged(handler)
 ```
 
 ## Errors

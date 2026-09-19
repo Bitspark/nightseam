@@ -23,6 +23,23 @@ A record, generic in `B.Envelope`. A carrier frame, its S filled by B.
 |---|---|---|---|---|
 | `frame` | `carrier.Frame` with S=`B` | required | — |  |
 
+In `go`:
+
+```go
+type Borrowed[BEnvelope any] struct {
+	Frame carrierprotocol.Frame[BEnvelope] `json:"frame"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** A carrier frame, its S filled by B. */
+export interface Borrowed<B extends AnyFamily = SessionFamily> {
+  "frame": carrier.Frame<B>;
+}
+```
+
 For example:
 
 ```json
@@ -46,6 +63,28 @@ A record, generic in `A.Envelope`, `B.Envelope`.
 | `borrowed` | `Borrowed` | required | — |  |
 | `fixed` | `Fixed` | required | — |  |
 | `params` | `carrier.AttachParams` | required | — |  |
+
+In `go`:
+
+```go
+type Both[AEnvelope, BEnvelope any] struct {
+	Mine     Mine[AEnvelope]              `json:"mine"`
+	Borrowed Borrowed[BEnvelope]          `json:"borrowed"`
+	Fixed    Fixed                        `json:"fixed"`
+	Params   carrierprotocol.AttachParams `json:"params"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface Both<A extends AnyFamily = SessionFamily, B extends AnyFamily = SessionFamily> {
+  "mine": Mine<A>;
+  "borrowed": Borrowed<B>;
+  "fixed": Fixed;
+  "params": carrier.AttachParams;
+}
+```
 
 For example:
 
@@ -82,6 +121,23 @@ A record. A carrier frame, its S filled by probe.
 |---|---|---|---|---|
 | `frame` | `carrier.Frame` with S=probe | required | — |  |
 
+In `go`:
+
+```go
+type Fixed struct {
+	Frame carrierprotocol.Frame[probeprotocol.Envelope] `json:"frame"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** A carrier frame, its S filled by probe. */
+export interface Fixed {
+  "frame": carrier.Frame<probe.Family>;
+}
+```
+
 For example:
 
 ```json
@@ -102,6 +158,23 @@ A record, generic in `A.Envelope`. One message of A.
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `held` | `A.Envelope` | required | — |  |
+
+In `go`:
+
+```go
+type Mine[AEnvelope any] struct {
+	Held AEnvelope `json:"held"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** One message of A. */
+export interface Mine<A extends AnyFamily = SessionFamily> {
+  "held": A["Envelope"];
+}
+```
 
 For example:
 
@@ -136,6 +209,57 @@ A record, carried from the built-in `duplex` family. One message of the nightsea
 | `tracestate` | `string` | optional | — | The vendor state of that trace. |
 | `meta` | map of `string` | optional | — | What a request or an event carries about the call, delivered to the handler beside the payload. |
 
+In `go`:
+
+```go
+type Envelope struct {
+	Version     int64                               `json:"version"`
+	Kind        string                              `json:"kind"`
+	ID          runtime.Optional[string]            `json:"id,omitzero"`
+	Method      runtime.Optional[string]            `json:"method,omitzero"`
+	Params      runtime.Optional[any]               `json:"params,omitzero"`
+	Result      runtime.Optional[any]               `json:"result,omitzero"`
+	Error       runtime.Optional[any]               `json:"error,omitzero"`
+	Event       runtime.Optional[string]            `json:"event,omitzero"`
+	Data        runtime.Optional[any]               `json:"data,omitzero"`
+	Traceparent runtime.Optional[string]            `json:"traceparent,omitzero"`
+	Tracestate  runtime.Optional[string]            `json:"tracestate,omitzero"`
+	Meta        runtime.Optional[map[string]string] `json:"meta,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */
+export interface Envelope {
+  /** The profile's version, 1. */
+  "version": number;
+  /** request, response, event or cancel. */
+  "kind": string;
+  /** What correlates a response or a cancel with its request. */
+  "id"?: string;
+  /** The method a request names. */
+  "method"?: string;
+  /** A request's parameters. */
+  "params"?: unknown;
+  /** A response's result. */
+  "result"?: unknown;
+  /** A response's error. */
+  "error"?: unknown;
+  /** The event an event frame names. */
+  "event"?: string;
+  /** An event's data. */
+  "data"?: unknown;
+  /** The W3C Trace Context of the frame. */
+  "traceparent"?: string;
+  /** The vendor state of that trace. */
+  "tracestate"?: string;
+  /** What a request or an event carries about the call, delivered to the handler beside the payload. */
+  "meta"?: Record<string, string>;
+}
+```
+
 ### Handle
 
 A record, carried from the built-in `duplex` family. A reference to a channel on the connection that carries the message holding it.
@@ -143,6 +267,24 @@ A record, carried from the built-in `duplex` family. A reference to a channel on
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `channel` | `integer` | required | — | The channel's id on that connection. |
+
+In `go`:
+
+```go
+type Handle struct {
+	Channel int64 `json:"channel"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** A reference to a channel on the connection that carries the message holding it. */
+export interface Handle {
+  /** The channel's id on that connection. */
+  "channel": number;
+}
+```
 
 ## Server side
 
@@ -196,4 +338,18 @@ The server answers:
     }
   }
 }
+```
+
+In `go`:
+
+```go
+client.Look(ctx, params)
+
+func (Handler[AEnvelope, BEnvelope]) Look(ctx context.Context, remote *binding.Remote[AEnvelope, BEnvelope], params protocol.Mine[AEnvelope]) (protocol.Both[AEnvelope, BEnvelope], error)
+```
+
+In `typescript`:
+
+```typescript
+await client.look(params)
 ```

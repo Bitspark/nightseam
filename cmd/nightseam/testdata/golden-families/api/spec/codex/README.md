@@ -16,6 +16,22 @@ A record.
 |---|---|---|---|---|
 | `text` | `string` | required | — |  |
 
+In `go`:
+
+```go
+type Base struct {
+	Text string `json:"text"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface Base {
+  "text": string;
+}
+```
+
 For example:
 
 ```json
@@ -32,6 +48,26 @@ A record, open: fields beyond the declared ones are kept.
 |---|---|---|---|---|
 | `id` | `string` | required | — |  |
 | `note` | `string` | optional | — |  |
+
+In `go`:
+
+```go
+type OpenRecord struct {
+	ID               string                     `json:"id"`
+	Note             runtime.Optional[string]   `json:"note,omitzero"`
+	AdditionalFields map[string]json.RawMessage `json:"-"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface OpenRecord {
+  "id": string;
+  "note"?: string;
+  [key: string]: unknown;
+}
+```
 
 For example:
 
@@ -54,6 +90,26 @@ Extends `Base`.
 | `count` | `integer` | required | — |  |
 | `note` | `string` | optional, nullable | — |  |
 
+In `go`:
+
+```go
+type Payload struct {
+	Text  string                                     `json:"text"`
+	Count int64                                      `json:"count"`
+	Note  runtime.Optional[runtime.Nullable[string]] `json:"note,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface Payload {
+  "text": string;
+  "count": number;
+  "note"?: string | null;
+}
+```
+
 For example:
 
 ```json
@@ -72,6 +128,18 @@ An alias.
 
 An alias of array of `Payload`.
 
+In `go`:
+
+```go
+type Payloads = []Payload
+```
+
+In `typescript`:
+
+```typescript
+export type Payloads = Array<Payload>;
+```
+
 For example:
 
 ```json
@@ -89,6 +157,18 @@ For example:
 An enum.
 
 One of `ready`, `done`, `context.example`.
+
+In `go`:
+
+```go
+type Status string
+```
+
+In `typescript`:
+
+```typescript
+export type Status = "ready" | "done" | "context.example";
+```
 
 For example:
 
@@ -119,6 +199,57 @@ A record, carried from the built-in `duplex` family. One message of the nightsea
 | `tracestate` | `string` | optional | — | The vendor state of that trace. |
 | `meta` | map of `string` | optional | — | What a request or an event carries about the call, delivered to the handler beside the payload. |
 
+In `go`:
+
+```go
+type Envelope struct {
+	Version     int64                               `json:"version"`
+	Kind        string                              `json:"kind"`
+	ID          runtime.Optional[string]            `json:"id,omitzero"`
+	Method      runtime.Optional[string]            `json:"method,omitzero"`
+	Params      runtime.Optional[any]               `json:"params,omitzero"`
+	Result      runtime.Optional[any]               `json:"result,omitzero"`
+	Error       runtime.Optional[any]               `json:"error,omitzero"`
+	Event       runtime.Optional[string]            `json:"event,omitzero"`
+	Data        runtime.Optional[any]               `json:"data,omitzero"`
+	Traceparent runtime.Optional[string]            `json:"traceparent,omitzero"`
+	Tracestate  runtime.Optional[string]            `json:"tracestate,omitzero"`
+	Meta        runtime.Optional[map[string]string] `json:"meta,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */
+export interface Envelope {
+  /** The profile's version, 1. */
+  "version": number;
+  /** request, response, event or cancel. */
+  "kind": string;
+  /** What correlates a response or a cancel with its request. */
+  "id"?: string;
+  /** The method a request names. */
+  "method"?: string;
+  /** A request's parameters. */
+  "params"?: unknown;
+  /** A response's result. */
+  "result"?: unknown;
+  /** A response's error. */
+  "error"?: unknown;
+  /** The event an event frame names. */
+  "event"?: string;
+  /** An event's data. */
+  "data"?: unknown;
+  /** The W3C Trace Context of the frame. */
+  "traceparent"?: string;
+  /** The vendor state of that trace. */
+  "tracestate"?: string;
+  /** What a request or an event carries about the call, delivered to the handler beside the payload. */
+  "meta"?: Record<string, string>;
+}
+```
+
 ### Handle
 
 A record, carried from the built-in `duplex` family. A reference to a channel on the connection that carries the message holding it.
@@ -126,6 +257,24 @@ A record, carried from the built-in `duplex` family. A reference to a channel on
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `channel` | `integer` | required | — | The channel's id on that connection. |
+
+In `go`:
+
+```go
+type Handle struct {
+	Channel int64 `json:"channel"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** A reference to a channel on the connection that carries the message holding it. */
+export interface Handle {
+  /** The channel's id on that connection. */
+  "channel": number;
+}
+```
 
 ## Server side
 
@@ -177,6 +326,20 @@ The server answers:
 }
 ```
 
+In `go`:
+
+```go
+client.Echo(ctx, params)
+
+func (Handler) Echo(ctx context.Context, remote *binding.Remote, params protocol.Payload) (protocol.Payload, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.echo(params)
+```
+
 ### `no_args` on the wire
 
 The client sends:
@@ -202,6 +365,20 @@ The server answers:
 }
 ```
 
+In `go`:
+
+```go
+client.NoArgs(ctx)
+
+func (Handler) NoArgs(ctx context.Context, remote *binding.Remote) (string, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.noArgs()
+```
+
 ### `session.control` on the wire
 
 The server emits:
@@ -215,6 +392,18 @@ The server emits:
     "holder": "‹holder›"
   }
 }
+```
+
+In `go`:
+
+```go
+remote.EmitSessionControl(ctx, data)
+```
+
+In `typescript`:
+
+```typescript
+client.onSessionControl(handler)
 ```
 
 ### `session.cursor` on the wire
@@ -232,6 +421,18 @@ The server emits:
 }
 ```
 
+In `go`:
+
+```go
+remote.EmitSessionCursor(ctx, data)
+```
+
+In `typescript`:
+
+```typescript
+client.onSessionCursor(handler)
+```
+
 ### `changed` on the wire
 
 The server emits:
@@ -247,6 +448,18 @@ The server emits:
     "note": "‹note›"
   }
 }
+```
+
+In `go`:
+
+```go
+remote.EmitChanged(ctx, data)
+```
+
+In `typescript`:
+
+```typescript
+client.onChanged(handler)
 ```
 
 ## Client side
@@ -290,6 +503,18 @@ The client answers:
     "note": "‹note›"
   }
 }
+```
+
+In `go`:
+
+```go
+remote.Reverse(ctx, params)
+```
+
+In `typescript`:
+
+```typescript
+async reverse(params, context)
 ```
 
 ## Errors
