@@ -382,7 +382,9 @@ func (c *checker) expression(e model.TypeExpr, at diag.Location, where site) {
 			c.Addf(at, "inline_not_admissible", "A shape is written inline where a value's type is declared — a field, a variant, an operation's request, result or event — and not here; declare it under a name of its own.")
 			return
 		}
-		c.parameters(x.Type.Parameters, "", where.context)
+		if len(x.Type.Parameters) > 0 {
+			c.Add(at, "inline_not_admissible", "A shape written inline declares no parameters: it has no name for an application to fill them through.")
+		}
 		inner := where
 		inner.scope = append(append([]model.Parameter{}, x.Type.Parameters...), where.scope...)
 		inner.edges = nil // an inline shape is a value of its owner, not a type of the family

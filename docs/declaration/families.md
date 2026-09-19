@@ -158,7 +158,8 @@ inline request is `EchoRequest`, an event's data is `ChangedEvent`, and
 
 A shape is written inline where a *value's* type is declared and nowhere
 else: an alias of one, an entity, and a shape filling a parameter are each
-refused, and so is a derived name that collides with a declared type or
+refused; so is a shape that declares parameters of its own, which nothing
+could fill, and so is a derived name that collides with a declared type or
 with another derived name. A diagnostic about a shape with no name points
 at the path, which is what it has instead of a name. [A shape without a
 name is named by where it
