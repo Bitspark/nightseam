@@ -149,6 +149,16 @@ under *Unreleased*, in the words of the commits.
 
 ## Asking and reporting
 
-Design questions and reports of what is wrong go in issues, in the form
-above where they describe work; a security concern goes the way
-`SECURITY.md` says, not in an issue.
+Reports of what is wrong go in issues, in the *Bug* form; a security
+concern goes the way `SECURITY.md` says, not in an issue.
+
+A question whose answer is the operator's to give — which way a design
+goes, what a language promises, what the model says — is a **design
+issue**, in the *Design* form and under the `design` label: one question,
+what exists today, the options lettered with what each costs and what not
+deciding costs, and a recommendation marked as whose it is. It is answered
+in plain words, on the issue or in chat, and the verdict is copied onto it
+verbatim before any lane is cut from it; the lanes then name it as their
+provenance. A question that is really several is several issues, under one
+that indexes them and carries the round's *after the verdicts*. A lane that
+cannot yet say what holds it is such a question, not a lane.

@@ -1,0 +1,51 @@
+name: Design
+description: A question whose answer is the operator's to give, laid out for a verdict
+labels: [design]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The form is COLLABORATION.md's. A design issue holds one question:
+        what exists, the ways it could go with what each costs, a
+        recommendation marked as whose it is, and — once given — the verdict,
+        verbatim. It is answered in plain words on the issue or in chat, and
+        the verdict is copied here before any lane is cut from it. A question
+        that is really several is several issues, under one that indexes them.
+  - type: textarea
+    id: question
+    attributes:
+      label: The question
+      description: One decision, in one sentence, and why it is being taken now rather than later.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: What exists today
+      description: The current shape, in the terms of the code and the docs, so that every option is measured against the same thing.
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: The options
+      description: Lettered. Each with what it would mean, what it costs, and what it rules out. Then the cost of not deciding.
+    validations:
+      required: true
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: Recommendation
+      description: Which option, and whose recommendation it is — the operator's, an agent's — so that it is weighed as such.
+    validations:
+      required: true
+  - type: textarea
+    id: verdict
+    attributes:
+      label: Verdict
+      description: Left empty when filed. The answer, verbatim, with who gave it and when; then the lanes cut from it, by number.
+  - type: input
+    id: edges
+    attributes:
+      label: Waits on / Unblocks
+      description: What this decision waits on, and what waits on it.
