@@ -23,6 +23,9 @@ func (r *Family) other(name string) *Family {
 	if f := r.f.Imported[name]; f != nil {
 		return r.builder.build(f)
 	}
+	if f := r.f.Implicit[name]; f != nil {
+		return r.builder.build(f)
+	}
 	seen := map[*analysis.Family]bool{}
 	var find func(*analysis.Family) *analysis.Family
 	find = func(f *analysis.Family) *analysis.Family {
@@ -35,6 +38,11 @@ func (r *Family) other(name string) *Family {
 		}
 		for _, imported := range f.Imported {
 			if found := find(imported); found != nil {
+				return found
+			}
+		}
+		for _, implicit := range f.Implicit {
+			if found := find(implicit); found != nil {
 				return found
 			}
 		}
@@ -319,6 +327,15 @@ func (r *Family) resolvedSide(server bool) Side {
 			if source == r {
 				out.OwnEvents = append(out.OwnEvents, event)
 			}
+		}
+	}
+	// Only this family's tiers contribute implicit sides. The traversal of
+	// application inheritance above reads the source declarations, so a
+	// protocol-only family does not acquire a session tier through a base.
+	for _, name := range r.Carries {
+		if r.f.Implicit[name] != nil {
+			out.Extends = append(out.Extends, model.Inheritance{Name: name})
+			visit(r.other(name), nil, map[*Family]bool{})
 		}
 	}
 	visit(r, nil, map[*Family]bool{})

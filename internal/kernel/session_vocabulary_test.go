@@ -69,8 +69,8 @@ func TestSessionVocabularyEntersOnlySessionFamilySides(t *testing.T) {
 			if control != want || cursor != want || changed != 1 {
 				t.Errorf("events: control=%d cursor=%d changed=%d; want %d, %d, 1", control, cursor, changed, want, want)
 			}
-			for _, side := range []render.Side{facts.Client, {OwnEvents: facts.Server.OwnEvents}} {
-				for _, event := range append(slices.Clone(side.Events), side.OwnEvents...) {
+			for _, events := range [][]render.Event{facts.Client.Events, facts.Server.OwnEvents} {
+				for _, event := range events {
 					if strings.HasPrefix(event.Name, "session.") {
 						t.Errorf("session event became an application declaration or client emission: %+v", event)
 					}

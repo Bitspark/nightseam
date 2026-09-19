@@ -29,6 +29,7 @@ type Family struct {
 	Families []string               // every family of the world, sorted
 	Sessions []string               // the families with a session tier, sorted, this one among them if it has one
 	Imported map[string]*Family     // the imported families the world has, resolved in turn
+	Implicit map[string]*Family     // built-in families whose sides this family's tiers bring
 	Members  map[string]*Family     // the session families other than this one: what a parameter may bind
 	Carries  []string               // the built-in families the tiers bring, sorted
 	carried  map[string]int         // a carried type's name, at the rank of the tier that carries it
@@ -52,7 +53,7 @@ func resolve(world World, name string, resolved map[string]*Family) *Family {
 	if m == nil {
 		return nil
 	}
-	f := &Family{Family: m, Types: map[string]*model.Type{}, Imported: map[string]*Family{}, Members: map[string]*Family{}, carried: map[string]int{}, from: map[string]string{}, carriers: map[string]map[string]*Family{}, world: world}
+	f := &Family{Family: m, Types: map[string]*model.Type{}, Imported: map[string]*Family{}, Implicit: map[string]*Family{}, Members: map[string]*Family{}, carried: map[string]int{}, from: map[string]string{}, carriers: map[string]map[string]*Family{}, world: world}
 	resolved[name] = f
 	for typeName, t := range m.Types {
 		f.Types[typeName] = t
@@ -72,6 +73,9 @@ func resolve(world World, name string, resolved map[string]*Family) *Family {
 		}
 		f.Carries = append(f.Carries, tier.Builtin)
 		if !tier.Carries {
+			// Resolve in the built-in namespace: a checkout cannot replace
+			// the declaration a tier brings by using the same family name.
+			f.Implicit[tier.Builtin] = Resolve(World(builtin.Families()), tier.Builtin)
 			continue
 		}
 		for typeName, t := range b.Types {
