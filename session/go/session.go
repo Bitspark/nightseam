@@ -285,3 +285,8 @@ type Attachment struct {
 // session and every other consumer go on. Control it held is released, and
 // an open ask waits for the next holder. It may be called more than once.
 func (a *Attachment) Detach() { a.end(duplex.CodeNormal, "detached") }
+
+// Done is closed when the attachment ends, whether detached, disconnected,
+// refused after a send failure, or ended with its session. It signals
+// cancellation; the connection's close may still be completing.
+func (a *Attachment) Done() <-chan struct{} { return a.ctx.Done() }
