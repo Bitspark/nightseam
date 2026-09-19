@@ -11,6 +11,13 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "extends": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "urn:nightseam:v1:common#/$defs/familyName"
+          }
+        },
         "methods": {
           "type": "object",
           "propertyNames": {
@@ -97,28 +104,7 @@
       "$ref": "urn:nightseam:v1:common#/$defs/types"
     },
     "parameters": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "of"
-        ],
-        "properties": {
-          "name": {
-            "$ref": "urn:nightseam:v1:common#/$defs/parameterName"
-          },
-          "of": {
-            "enum": [
-              "session"
-            ]
-          },
-          "description": {
-            "type": "string"
-          }
-        }
-      }
+      "$ref": "urn:nightseam:v1:common#/$defs/parameters"
     },
     "server": {
       "$ref": "#/$defs/side"

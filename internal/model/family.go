@@ -60,20 +60,65 @@ const (
 	KindRecord = "record"
 	KindEnum   = "enum"
 	KindAlias  = "alias"
+	KindUnion  = "union"
 )
+
+// DefaultValueMember is the member a union carries a payload that is not an
+// object under, beside its tag; a union may name another.
+const DefaultValueMember = "value"
 
 // Type is one declared type.
 type Type struct {
 	Name        string
 	Kind        string
 	Description string
-	Key         string   // entity: the field that identifies it
-	Extends     []string // record, entity: the records whose fields come first
-	Open        bool     // record, entity: fields beyond the declared ones are kept
-	Fields      []Field  // record, entity: in wire order, own fields only
-	Values      []string // enum
-	Alias       TypeExpr // alias
+	Key         string      // entity: the field that identifies it
+	Parameters  []Parameter // record, entity, union, alias: the holes in it
+	Extends     []string    // record, entity: the records whose fields come first; union: the unions whose variants come first
+	Open        bool        // record, entity: fields beyond the declared ones are kept
+	Fields      []Field     // record, entity: in wire order, own fields only
+	Values      []string    // enum
+	Alias       TypeExpr    // alias
+	Tag         string      // union: the member that discriminates
+	Value       string      // union: the member a payload that is not an object rides under
+	Variants    []Variant   // union: own variants, by tag
 	At          diag.Location
+}
+
+// Variant is one arm of a union: the value of the discriminator that names
+// it and what it carries.
+type Variant struct {
+	Tag  string
+	Type TypeExpr
+	At   diag.Location
+}
+
+// Variant finds an own variant by its tag.
+func (t *Type) Variant(tag string) (*Variant, bool) {
+	for i := range t.Variants {
+		if t.Variants[i].Tag == tag {
+			return &t.Variants[i], true
+		}
+	}
+	return nil, false
+}
+
+// ValueMember is the member a union carries a non-object payload under.
+func (t *Type) ValueMember() string {
+	if t.Value != "" {
+		return t.Value
+	}
+	return DefaultValueMember
+}
+
+// Parameter finds a parameter of the type by name.
+func (t *Type) Parameter(name string) (*Parameter, bool) {
+	for i := range t.Parameters {
+		if t.Parameters[i].Name == name {
+			return &t.Parameters[i], true
+		}
+	}
+	return nil, false
 }
 
 // Field is one field of a record or entity.
@@ -107,21 +152,31 @@ type Protocol struct {
 	At         diag.Location
 }
 
-// Parameter is a hole in a family: a slot draws a type from it, and a
-// consumer binds it to a family that declares its role.
+// Parameter is a hole in a declaration — a family, a record, a union, an
+// alias — of one of two sorts, which Of names: a type parameter, filled by
+// a type expression and written where a type is named; or a family
+// parameter, Of the tier a bound family must carry, filled by a family and
+// drawn through, P.Type. One mechanism, two sorts: a family is not a type,
+// so a family parameter is not a type parameter with a bound.
 type Parameter struct {
 	Name        string
-	Of          string // the role a bound family must declare
+	Of          string // empty: a type parameter; otherwise the tier a bound family carries
 	Description string
 	At          diag.Location
 }
 
+// IsFamily reports whether the parameter is filled by a family rather than
+// by a type.
+func (p Parameter) IsFamily() bool { return p.Of != "" }
+
 // Side is one peer's interface: the methods it implements and the events
 // it emits. The server side is implemented by the server and called by the
-// client; the client side is the reverse.
+// client; the client side is the reverse. A side may extend the same side
+// of another family, taking its operations under their own names.
 type Side struct {
-	Methods []Method            // by name
-	Events  []Event             // by name
+	Extends []string            // the families whose same side this one extends
+	Methods []Method            // by name, own only
+	Events  []Event             // by name, own only
 	CRUD    map[string][]string // entity → operations; parsed, expanded by nothing yet
 	At      diag.Location
 }
@@ -177,14 +232,18 @@ type Overrides struct {
 // expressions arrive as raw JSON and are decoded by Decode.
 
 type typeJSON struct {
-	Kind        string          `json:"kind"`
-	Description string          `json:"description"`
-	Key         string          `json:"key"`
-	Extends     []string        `json:"extends"`
-	Open        bool            `json:"open"`
-	Fields      []fieldJSON     `json:"fields"`
-	Values      []string        `json:"values"`
-	Type        json.RawMessage `json:"type"`
+	Kind        string                     `json:"kind"`
+	Description string                     `json:"description"`
+	Key         string                     `json:"key"`
+	Parameters  []parameterJSON            `json:"parameters"`
+	Extends     []string                   `json:"extends"`
+	Open        bool                       `json:"open"`
+	Fields      []fieldJSON                `json:"fields"`
+	Values      []string                   `json:"values"`
+	Type        json.RawMessage            `json:"type"`
+	Tag         string                     `json:"tag"`
+	Value       string                     `json:"value"`
+	Variants    map[string]json.RawMessage `json:"variants"`
 }
 
 type fieldJSON struct {
@@ -215,6 +274,7 @@ type parameterJSON struct {
 }
 
 type sideJSON struct {
+	Extends []string              `json:"extends"`
 	Methods map[string]methodJSON `json:"methods"`
 	Events  map[string]eventJSON  `json:"events"`
 	CRUD    map[string][]string   `json:"crud"`
@@ -248,28 +308,68 @@ func DecodeTypes(file string, raw json.RawMessage) (map[string]*Type, error) {
 	types := make(map[string]*Type, len(wire))
 	for name, w := range wire {
 		at := diag.Location{File: file, Pointer: "/types/" + diag.Escape(name)}
-		t := &Type{Name: name, Kind: w.Kind, Description: w.Description, Key: w.Key, Extends: w.Extends, Open: w.Open, Values: w.Values, At: at}
-		for i, f := range w.Fields {
-			field, err := decodeField(f, at.Sub("fields", i))
-			if err != nil {
-				return nil, err
-			}
-			t.Fields = append(t.Fields, field)
-		}
-		if w.Type != nil {
-			alias, err := Decode(w.Type)
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", at.Sub("type"), err)
-			}
-			t.Alias = alias
+		t, err := buildType(name, w, at)
+		if err != nil {
+			return nil, err
 		}
 		types[name] = t
 	}
 	return types, nil
 }
 
+// decodeType decodes one type's body from its JSON: what DecodeTypes does
+// for a named type and what an inline shape in a type expression is.
+func decodeType(name string, raw json.RawMessage, at diag.Location) (*Type, error) {
+	var w typeJSON
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&w); err != nil {
+		return nil, err
+	}
+	return buildType(name, w, at)
+}
+
+func buildType(name string, w typeJSON, at diag.Location) (*Type, error) {
+	t := &Type{Name: name, Kind: w.Kind, Description: w.Description, Key: w.Key, Extends: w.Extends, Open: w.Open, Values: w.Values, Tag: w.Tag, Value: w.Value, At: at}
+	for i, p := range w.Parameters {
+		t.Parameters = append(t.Parameters, Parameter{Name: p.Name, Of: p.Of, Description: p.Description, At: at.Sub("parameters", i)})
+	}
+	for i, f := range w.Fields {
+		field, err := decodeField(f, at.Sub("fields", i))
+		if err != nil {
+			return nil, err
+		}
+		t.Fields = append(t.Fields, field)
+	}
+	if w.Type != nil {
+		alias, err := DecodeAt(w.Type, at.Sub("type"))
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", at.Sub("type"), err)
+		}
+		t.Alias = alias
+	}
+	for _, tag := range sortedRaw(w.Variants) {
+		here := at.Sub("variants", tag)
+		e, err := DecodeAt(w.Variants[tag], here)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", here, err)
+		}
+		t.Variants = append(t.Variants, Variant{Tag: tag, Type: e, At: here})
+	}
+	return t, nil
+}
+
+func sortedRaw(m map[string]json.RawMessage) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 func decodeField(w fieldJSON, at diag.Location) (Field, error) {
-	expr, err := Decode(w.Type)
+	expr, err := DecodeAt(w.Type, at.Sub("type"))
 	if err != nil {
 		return Field{}, fmt.Errorf("%s: %w", at.Sub("type"), err)
 	}
@@ -308,16 +408,16 @@ func DecodeProtocol(file string, raw json.RawMessage) (*Protocol, error) {
 }
 
 func decodeSide(w sideJSON, at diag.Location) (Side, error) {
-	side := Side{CRUD: w.CRUD, At: at}
+	side := Side{Extends: w.Extends, CRUD: w.CRUD, At: at}
 	for name, m := range w.Methods {
 		method := Method{Name: name, Description: m.Description, Errors: m.Errors, At: at.Sub("methods", name)}
 		var err error
 		if m.Request != nil {
-			if method.Request, err = Decode(m.Request); err != nil {
+			if method.Request, err = DecodeAt(m.Request, method.At.Sub("request")); err != nil {
 				return side, fmt.Errorf("%s: %w", method.At.Sub("request"), err)
 			}
 		}
-		if method.Result, err = Decode(m.Result); err != nil {
+		if method.Result, err = DecodeAt(m.Result, method.At.Sub("result")); err != nil {
 			return side, fmt.Errorf("%s: %w", method.At.Sub("result"), err)
 		}
 		side.Methods = append(side.Methods, method)
@@ -326,7 +426,7 @@ func decodeSide(w sideJSON, at diag.Location) (Side, error) {
 	for name, e := range w.Events {
 		event := Event{Name: name, Description: e.Description, At: at.Sub("events", name)}
 		var err error
-		if event.Type, err = Decode(e.Type); err != nil {
+		if event.Type, err = DecodeAt(e.Type, event.At.Sub("type")); err != nil {
 			return side, fmt.Errorf("%s: %w", event.At.Sub("type"), err)
 		}
 		side.Events = append(side.Events, event)
@@ -417,19 +517,45 @@ func (p *Protocol) ParameterNames() []string {
 	return names
 }
 
+// WalkExpressions visits every type expression the type declares at the
+// top of its own structure — each field's, its alias, each variant's — with
+// where it sits. It does not descend: Walk does that.
+func (t *Type) WalkExpressions(visit func(TypeExpr, diag.Location)) {
+	for i := range t.Fields {
+		visit(t.Fields[i].Type, t.At.Sub("fields", i, "type"))
+	}
+	if t.Alias != nil {
+		visit(t.Alias, t.At.Sub("type"))
+	}
+	for i := range t.Variants {
+		visit(t.Variants[i].Type, t.At.Sub("variants", t.Variants[i].Tag))
+	}
+}
+
+// rewritten is the type with every expression in it rewritten.
+func (t *Type) rewritten(f func(TypeExpr) TypeExpr) *Type {
+	out := *t
+	out.Fields = append([]Field(nil), t.Fields...)
+	for i := range out.Fields {
+		out.Fields[i].Type = Rewrite(out.Fields[i].Type, f)
+	}
+	out.Alias = Rewrite(t.Alias, f)
+	out.Variants = append([]Variant(nil), t.Variants...)
+	for i := range out.Variants {
+		out.Variants[i].Type = Rewrite(out.Variants[i].Type, f)
+	}
+	return &out
+}
+
 // Expressions visits every type expression a family declares, with where it
-// sits: each own field of each type, each alias, each method's request and
-// result, each event's type. Parents before children.
+// sits: each own field of each type, each alias, each variant, each
+// method's request and result, each event's type. Parents before children.
 func (f *Family) Expressions(visit func(ExprAt)) {
 	for _, name := range f.TypeNames() {
 		t := f.Types[name]
-		for i := range t.Fields {
-			field := &t.Fields[i]
-			walkAt(field.Type, ExprAt{Owner: name, At: field.At.Sub("type")}, visit)
-		}
-		if t.Alias != nil {
-			walkAt(t.Alias, ExprAt{Owner: name, At: t.At.Sub("type")}, visit)
-		}
+		t.WalkExpressions(func(e TypeExpr, at diag.Location) {
+			walkAt(e, ExprAt{Owner: name, At: at}, visit)
+		})
 	}
 	if f.Protocol == nil {
 		return
@@ -447,6 +573,33 @@ func (f *Family) Expressions(visit func(ExprAt)) {
 	}
 }
 
+// RewriteExpressions replaces every type expression the family declares,
+// and everything beneath it, by what fn returns: what the loader turns a
+// reference to a carried built-in into, in place, before anything resolves.
+func (f *Family) RewriteExpressions(fn func(TypeExpr) TypeExpr) {
+	for _, t := range f.Types {
+		for i := range t.Fields {
+			t.Fields[i].Type = Rewrite(t.Fields[i].Type, fn)
+		}
+		t.Alias = Rewrite(t.Alias, fn)
+		for i := range t.Variants {
+			t.Variants[i].Type = Rewrite(t.Variants[i].Type, fn)
+		}
+	}
+	if f.Protocol == nil {
+		return
+	}
+	for _, side := range []*Side{&f.Protocol.Server, &f.Protocol.Client} {
+		for i := range side.Methods {
+			side.Methods[i].Request = Rewrite(side.Methods[i].Request, fn)
+			side.Methods[i].Result = Rewrite(side.Methods[i].Result, fn)
+		}
+		for i := range side.Events {
+			side.Events[i].Type = Rewrite(side.Events[i].Type, fn)
+		}
+	}
+}
+
 // ExprAt is one type expression where it is declared: Owner is the type it
 // is part of, empty for an operation's.
 type ExprAt struct {
@@ -460,4 +613,61 @@ func walkAt(e TypeExpr, site ExprAt, visit func(ExprAt)) {
 		visit(ExprAt{Expr: x, Owner: site.Owner, At: site.At})
 		return true
 	})
+}
+
+// The wire form of a type and of a field: what a validator reads and what
+// an inline shape marshals to inside a type expression. A description is
+// not on the wire; the keys a declaration may add come after the ones it
+// always had, so that what a validator reads of a plain record is what it
+// always read.
+
+type wireTypeJSON struct {
+	Kind       string              `json:"kind"`
+	Key        string              `json:"key,omitempty"`
+	Fields     []Field             `json:"fields,omitempty"`
+	Extends    []string            `json:"extends,omitempty"`
+	Open       bool                `json:"open,omitempty"`
+	Values     []string            `json:"values,omitempty"`
+	Type       TypeExpr            `json:"type,omitempty"`
+	Parameters []wireParameter     `json:"parameters,omitempty"`
+	Tag        string              `json:"tag,omitempty"`
+	Value      string              `json:"value,omitempty"`
+	Variants   map[string]TypeExpr `json:"variants,omitempty"`
+}
+
+type wireParameter struct {
+	Name string `json:"name"`
+	Of   string `json:"of,omitempty"`
+}
+
+type wireFieldJSON struct {
+	Name     string       `json:"name"`
+	Type     TypeExpr     `json:"type"`
+	Required bool         `json:"required"`
+	Nullable bool         `json:"nullable,omitempty"`
+	Unique   bool         `json:"unique,omitempty"`
+	Min      *json.Number `json:"min,omitempty"`
+	Max      *json.Number `json:"max,omitempty"`
+	Length   *Length      `json:"length,omitempty"`
+	Pattern  string       `json:"pattern,omitempty"`
+}
+
+// MarshalJSON writes the type as a validator reads it.
+func (t *Type) MarshalJSON() ([]byte, error) {
+	w := wireTypeJSON{Kind: t.Kind, Key: t.Key, Fields: t.Fields, Extends: t.Extends, Open: t.Open, Values: t.Values, Type: t.Alias, Tag: t.Tag, Value: t.Value}
+	for _, p := range t.Parameters {
+		w.Parameters = append(w.Parameters, wireParameter{Name: p.Name, Of: p.Of})
+	}
+	if len(t.Variants) > 0 {
+		w.Variants = make(map[string]TypeExpr, len(t.Variants))
+		for _, variant := range t.Variants {
+			w.Variants[variant.Tag] = variant.Type
+		}
+	}
+	return json.Marshal(w)
+}
+
+// MarshalJSON writes the field as a validator reads it.
+func (f Field) MarshalJSON() ([]byte, error) {
+	return json.Marshal(wireFieldJSON{Name: f.Name, Type: f.Type, Required: f.Required, Nullable: f.Nullable, Unique: f.Unique, Min: f.Min, Max: f.Max, Length: f.Length, Pattern: f.Pattern})
 }

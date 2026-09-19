@@ -35,7 +35,7 @@ func Substitute(f *model.Family, bindings map[string]string) *model.Family {
 			case model.Apply:
 				with := make(map[string]model.Filler, len(v.With))
 				for parameter, filler := range v.With {
-					if family, bound := bindings[filler.Parameter]; filler.Parameter != "" && bound {
+					if family, bound := bindings[filler.Name()]; filler.Name() != "" && bound {
 						filler = model.Filler{Family: family}
 					}
 					with[parameter] = filler

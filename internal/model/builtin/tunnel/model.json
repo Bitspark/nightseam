@@ -1,0 +1,48 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Open": {
+      "kind": "record",
+      "description": "What the side that opens a channel asks for.",
+      "fields": [
+        {"name": "channel", "description": "The id the opener chose: odd for the client of the outer connection, even for its server.", "type": "integer"},
+        {"name": "family", "description": "The family the channel will speak.", "type": "string"},
+        {"name": "after", "description": "The last sequence the opener holds, carried and never acted on.", "type": "integer", "required": false},
+        {"name": "window", "description": "How many frames the opener will hold in flight before it returns credit.", "type": "integer"}
+      ]
+    },
+    "Opened": {
+      "kind": "record",
+      "description": "What the accepting side answers an open with.",
+      "fields": [
+        {"name": "window", "description": "The accepting side's window.", "type": "integer"}
+      ]
+    },
+    "Frame": {
+      "kind": "record",
+      "description": "One inner frame on a channel: exactly one of text and binary, a binary frame base64.",
+      "fields": [
+        {"name": "channel", "type": "integer"},
+        {"name": "text", "type": "string", "required": false},
+        {"name": "binary", "type": "string", "required": false}
+      ]
+    },
+    "Credit": {
+      "kind": "record",
+      "description": "Credit the receiver returns for frames its consumer took.",
+      "fields": [
+        {"name": "channel", "type": "integer"},
+        {"name": "frames", "type": "integer"}
+      ]
+    },
+    "Close": {
+      "kind": "record",
+      "description": "The close of a channel, travelling in order behind the frames sent before it.",
+      "fields": [
+        {"name": "channel", "type": "integer"},
+        {"name": "code", "type": "integer"},
+        {"name": "reason", "type": "string", "required": false}
+      ]
+    }
+  }
+}

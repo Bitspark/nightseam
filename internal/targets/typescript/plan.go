@@ -113,7 +113,7 @@ func (p *plan) plan() {
 	for _, t := range f.Types {
 		name, at := p.resolve(t.Name, t.Name, t.At)
 		p.types[t.Name] = name
-		if t.Injected {
+		if t.Carried {
 			continue
 		}
 		if p.identifier(name, at, "Type name") {

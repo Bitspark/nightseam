@@ -15,6 +15,7 @@ import (
 
 	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/model"
+	"github.com/Bitspark/nightseam/internal/model/builtin"
 )
 
 // World is every family of a checkout, by name.
@@ -23,11 +24,14 @@ type World map[string]*model.Family
 // Family is one family with the facts of its world.
 type Family struct {
 	*model.Family
-	Types    map[string]*model.Type // the declared types with the two injected ones, when there is a protocol
+	Types    map[string]*model.Type // the declared types with the carried ones of every built-in the tiers bring
 	Families []string               // every family of the world, sorted
 	Sessions []string               // the families with a session tier, sorted, this one among them if it has one
 	Imported map[string]*Family     // the imported families the world has, resolved in turn
 	Members  map[string]*Family     // the session families other than this one: what a parameter may bind
+	Carries  []string               // the built-in families the tiers bring, sorted
+	carried  map[string]int         // a carried type's name, at the rank of the tier that carries it
+	from     map[string]string      // a carried type's name, at the built-in family that declares it
 	world    World
 	generics *Generics
 }
@@ -46,18 +50,37 @@ func resolve(world World, name string, resolved map[string]*Family) *Family {
 	if m == nil {
 		return nil
 	}
-	f := &Family{Family: m, Types: map[string]*model.Type{}, Imported: map[string]*Family{}, Members: map[string]*Family{}, world: world}
+	f := &Family{Family: m, Types: map[string]*model.Type{}, Imported: map[string]*Family{}, Members: map[string]*Family{}, carried: map[string]int{}, from: map[string]string{}, world: world}
 	resolved[name] = f
 	for typeName, t := range m.Types {
 		f.Types[typeName] = t
 	}
-	if m.Protocol != nil {
-		for typeName, t := range model.Injected() {
+	// What a tier brings: the built-in family it names, imported with no
+	// imports line. Where the built-in is carried, its types are this
+	// family's own — a family's envelope is a message of that family — and
+	// they rank at the tier that carries them, not at the tier the built-in
+	// declares them in.
+	for _, tier := range model.Tiers {
+		if tier.Builtin == "" || !m.Has(tier.File) {
+			continue
+		}
+		b, ok := builtin.Family(tier.Builtin)
+		if !ok {
+			continue
+		}
+		f.Carries = append(f.Carries, tier.Builtin)
+		if !tier.Carries {
+			continue
+		}
+		for typeName, t := range b.Types {
 			if _, declared := f.Types[typeName]; !declared {
 				f.Types[typeName] = t
+				f.carried[typeName] = tier.Rank
+				f.from[typeName] = tier.Builtin
 			}
 		}
 	}
+	sort.Strings(f.Carries)
 	for other, om := range world {
 		f.Families = append(f.Families, other)
 		if om.Session != nil {
@@ -92,14 +115,28 @@ func (f *Family) TypeNames() []string {
 	return names
 }
 
-// Rank is the tier a type is declared in: the rank of its file, the
-// protocol's for an injected type.
+// Rank is the tier a type is declared in: the rank of its file, and for a
+// type carried from a built-in the rank of the tier that carries it.
 func (f *Family) Rank(typeName string) int {
+	if rank, carried := f.carried[typeName]; carried {
+		return rank
+	}
 	if t, ok := f.Types[typeName]; ok {
 		return model.Rank(t.At.File)
 	}
 	return -1
 }
+
+// IsCarried reports whether a type of this family is one it carries from a
+// built-in rather than one it declares.
+func (f *Family) IsCarried(typeName string) bool {
+	_, carried := f.carried[typeName]
+	return carried
+}
+
+// CarriedFrom is the built-in family a carried type is declared by, empty
+// for a type this family declares.
+func (f *Family) CarriedFrom(typeName string) string { return f.from[typeName] }
 
 // Parameters is the family's parameters, none without a protocol.
 func (f *Family) Parameters() []model.Parameter {
@@ -111,12 +148,47 @@ func (f *Family) Parameters() []model.Parameter {
 
 // HasParameter reports whether the family declares a parameter.
 func (f *Family) HasParameter(name string) bool {
+	_, ok := f.Parameter(name)
+	return ok
+}
+
+// Parameter finds a parameter of the family by name.
+func (f *Family) Parameter(name string) (model.Parameter, bool) {
 	for _, p := range f.Parameters() {
 		if p.Name == name {
-			return true
+			return p, true
 		}
 	}
-	return false
+	return model.Parameter{}, false
+}
+
+// FamilyParameters are the family's parameters filled by a family, in
+// declaration order: the ones a type is drawn through, and the only ones a
+// use names.
+func (f *Family) FamilyParameters() []model.Parameter {
+	var out []model.Parameter
+	for _, p := range f.Parameters() {
+		if p.IsFamily() {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// HasFamilyParameter reports whether the family declares a parameter of
+// that name filled by a family.
+func (f *Family) HasFamilyParameter(name string) bool {
+	p, ok := f.Parameter(name)
+	return ok && p.IsFamily()
+}
+
+// fills is the family parameter of this family a filler names, empty when
+// it fills the slot with anything else.
+func (f *Family) fills(filler model.Filler) string {
+	if name := filler.Name(); name != "" && f.HasFamilyParameter(name) {
+		return name
+	}
+	return ""
 }
 
 // FieldAt is one field of a record as inheritance reaches it: the record
@@ -183,7 +255,7 @@ func (f *Family) IsObject(e model.TypeExpr) bool {
 		t, ok := other.Types[x.Name]
 		return ok && isRecord(t)
 	case model.Drawn:
-		if model.IsInjected(x.Name) {
+		if model.Carried(x.Name) {
 			return true
 		}
 		for _, member := range f.Members {
@@ -262,7 +334,7 @@ func (f *Family) Generics() Generics {
 		return *f.generics
 	}
 	g := Generics{Types: map[string][]Use{}, Imported: map[string]map[string][]Use{}}
-	parameters := f.Parameters()
+	parameters := f.FamilyParameters()
 	order := map[string]int{}
 	for i, parameter := range parameters {
 		order[parameter.Name] = i
@@ -277,16 +349,17 @@ func (f *Family) Generics() Generics {
 		var out []Use
 		for _, use := range uses {
 			filler, bound := with[use.Parameter]
+			fills := f.fills(filler)
 			if !bound {
 				if len(parameters) != 1 {
 					continue
 				}
-				filler = model.Filler{Parameter: parameters[0].Name}
+				fills = parameters[0].Name
 			}
-			if filler.Parameter == "" {
+			if fills == "" {
 				continue
 			}
-			if renamed := (Use{filler.Parameter, use.Type}); !slices.Contains(out, renamed) {
+			if renamed := (Use{fills, use.Type}); !slices.Contains(out, renamed) {
 				out = append(out, renamed)
 			}
 		}
@@ -396,18 +469,19 @@ func (f *Family) UsesOf(e model.TypeExpr) []Use {
 }
 
 func (f *Family) renamed(uses []Use, with map[string]model.Filler) []Use {
-	parameters := f.Parameters()
+	parameters := f.FamilyParameters()
 	var out []Use
 	for _, use := range uses {
 		filler, bound := with[use.Parameter]
+		fills := f.fills(filler)
 		if !bound {
 			if len(parameters) != 1 {
 				continue
 			}
-			filler = model.Filler{Parameter: parameters[0].Name}
+			fills = parameters[0].Name
 		}
-		if filler.Parameter != "" {
-			if renamed := (Use{filler.Parameter, use.Type}); !slices.Contains(out, renamed) {
+		if fills != "" {
+			if renamed := (Use{fills, use.Type}); !slices.Contains(out, renamed) {
 				out = append(out, renamed)
 			}
 		}
@@ -429,7 +503,7 @@ func (f *Family) Locate(key string) (diag.Location, bool) {
 	}
 	if typeName, member, ok := strings.Cut(key, "."); ok && model.IsParameter(typeName) {
 		t, declared := f.Types[typeName]
-		if !declared || model.IsInjected(typeName) {
+		if !declared || model.Carried(typeName) {
 			return diag.Location{}, false
 		}
 		for _, field := range t.Fields {
@@ -444,7 +518,7 @@ func (f *Family) Locate(key string) (diag.Location, bool) {
 		}
 		return diag.Location{}, false
 	}
-	if t, ok := f.Types[key]; ok && !model.IsInjected(key) {
+	if t, ok := f.Types[key]; ok && !model.Carried(key) {
 		return t.At, true
 	}
 	if f.Protocol == nil {
@@ -467,4 +541,123 @@ func (f *Family) Locate(key string) (diag.Location, bool) {
 		return found[0], true
 	}
 	return diag.Location{}, false
+}
+
+// Builtin is a built-in family by name: a family the world always holds,
+// which a tier brings to a family that has it.
+func (f *Family) Builtin(name string) (*model.Family, bool) { return builtin.Family(name) }
+
+// Carriers are the families other than this one that carry a tier — what a
+// family parameter of that tier may bind — by name.
+func (f *Family) Carriers(role string) map[string]*Family {
+	tier, ok := tierOfRole(role)
+	if !ok {
+		return nil
+	}
+	out := map[string]*Family{}
+	for name, m := range f.world {
+		if name == f.Name || !m.Has(tier.File) {
+			continue
+		}
+		out[name] = resolve(f.world, name, map[string]*Family{})
+	}
+	return out
+}
+
+func tierOfRole(role string) (model.Tier, bool) {
+	for _, tier := range model.Tiers {
+		if tier.Name == role {
+			return tier, true
+		}
+	}
+	return model.Tier{}, false
+}
+
+// Shape is the record, entity or union a type expression denotes, with the
+// family it belongs to: what a union's variant carries, once resolved.
+// Anything that is not one of the three is not a shape.
+func (f *Family) Shape(e model.TypeExpr) (*model.Type, bool) {
+	switch x := e.(type) {
+	case model.Named:
+		t, ok := f.Types[x.Name]
+		return t, ok && isShape(t)
+	case model.Imported:
+		other, ok := f.Imported[x.Family]
+		if !ok {
+			return nil, false
+		}
+		t, ok := other.Types[x.Name]
+		return t, ok && isShape(t)
+	case model.Inline:
+		return x.Type, isShape(x.Type)
+	case model.Apply:
+		t, ok := f.Applied(x)
+		return t, ok && isShape(t)
+	}
+	return nil, false
+}
+
+func isShape(t *model.Type) bool {
+	return t != nil && (t.Kind == model.KindRecord || t.Kind == model.KindEntity || t.Kind == model.KindUnion)
+}
+
+// Applied is the type an application names, of this family or of an
+// imported one.
+func (f *Family) Applied(x model.Apply) (*model.Type, bool) {
+	if x.Family == "" {
+		t, ok := f.Types[x.Name]
+		return t, ok
+	}
+	other, ok := f.Imported[x.Family]
+	if !ok {
+		return nil, false
+	}
+	t, ok := other.Types[x.Name]
+	return t, ok
+}
+
+// ShapeFields is a shape's fields in wire order, inherited first, for a
+// type that may be written inline and so have no name in the family.
+func (f *Family) ShapeFields(t *model.Type) []model.Field {
+	if t.Name != "" {
+		if _, declared := f.Types[t.Name]; declared {
+			return f.FlattenedFields(t.Name)
+		}
+	}
+	var fields []model.Field
+	for _, parent := range t.Extends {
+		fields = append(fields, f.FlattenedFields(parent)...)
+	}
+	return append(fields, t.Fields...)
+}
+
+// VariantTags is every tag a union carries, its own and every one it
+// extends, sorted.
+func (f *Family) VariantTags(name string) []string {
+	seen := map[string]bool{}
+	var walk func(string, map[string]bool)
+	walk = func(current string, stack map[string]bool) {
+		if stack[current] {
+			return
+		}
+		stack[current] = true
+		defer delete(stack, current)
+		t, ok := f.Types[current]
+		if !ok || t.Kind != model.KindUnion {
+			return
+		}
+		for _, parent := range t.Extends {
+			walk(parent, stack)
+		}
+		for _, variant := range t.Variants {
+			seen[variant.Tag] = true
+		}
+	}
+	walk(name, map[string]bool{})
+	tags := make([]string, 0, len(seen))
+	for tag := range seen {
+		tags = append(tags, tag)
+	}
+	sort.Strings(tags)
+	return tags
 }

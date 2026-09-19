@@ -24,6 +24,7 @@ import (
 
 	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/model"
+	"github.com/Bitspark/nightseam/internal/model/builtin"
 )
 
 // schemas maps each tier to the schema that holds its file's shape.
@@ -214,8 +215,67 @@ func Family(fsys fs.FS, dir, name string, targets []string) (*model.Family, []di
 		family.Imports = append(family.Imports, imported)
 	}
 	sort.Strings(family.Imports)
+	implicit(family, &problems)
 	diag.Sort(problems.Diagnostics)
 	return family, problems.Diagnostics
+}
+
+// implicit settles what the tiers a family has bring it. A tier's built-in
+// family is imported with no imports line, so naming one there is refused;
+// a type it carries is the family's own and is written with the built-in
+// that declares it, duplex.Envelope, which is rewritten here to the plain
+// name the family carries it under — the one import code path, taken
+// before anything resolves.
+func implicit(family *model.Family, problems *diag.List) {
+	carried := map[string]*model.Family{}
+	for _, name := range builtin.Carried(family.Files) {
+		if b, ok := builtin.Family(name); ok {
+			carried[name] = b
+		}
+	}
+	for i, name := range family.Imports {
+		if _, isBuiltin := builtin.Family(name); isBuiltin {
+			problems.Addf(diag.Location{File: model.ModelFile}.Sub("imports", i), "implicit_import", "Family %s is built in and is imported by the tier that brings it, with no imports line.", name)
+		}
+	}
+	family.Expressions(func(site model.ExprAt) {
+		named, plain := site.Expr.(model.Named)
+		if !plain {
+			return
+		}
+		if _, declared := family.Types[named.Name]; declared {
+			return
+		}
+		for _, name := range sortedFamilies(carried) {
+			if _, carries := carried[name].Types[named.Name]; carries {
+				problems.Addf(site.At, "implicit_import", "Type %s is carried from the built-in %s family; write %s.%s.", named.Name, name, name, named.Name)
+				return
+			}
+		}
+	})
+	family.RewriteExpressions(func(e model.TypeExpr) model.TypeExpr {
+		imported, ok := e.(model.Imported)
+		if !ok {
+			return e
+		}
+		b, isCarried := carried[imported.Family]
+		if !isCarried {
+			return e
+		}
+		if _, declares := b.Types[imported.Name]; !declares {
+			return e
+		}
+		return model.Named{Name: imported.Name}
+	})
+}
+
+func sortedFamilies(m map[string]*model.Family) []string {
+	names := make([]string, 0, len(m))
+	for name := range m {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // readTier shape-checks one tier file and decodes its sections into the

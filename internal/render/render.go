@@ -31,6 +31,7 @@ type Family struct {
 	Errors          []Error     // by code
 	Session         *Session    // nil without a session tier
 	References      []string    // families whose generated packages this one's refer to, sorted
+	Carries         []string    // the built-in families the tiers bring, sorted
 	SessionFamilies []string    // the other families with a session tier, sorted: what a parameter may bind
 	Wire            string      // the wire description of every type, canonical JSON, what a validator reads
 	overrides       map[string]model.Overrides
@@ -50,13 +51,18 @@ type Parameter struct {
 type Type struct {
 	Name, Kind, Description string
 	Key                     string
-	Fields                  []Field // in wire order, inherited first
-	Own                     []Field // declared by this type alone
+	Parameters              []model.Parameter // the holes in the type itself
+	Fields                  []Field           // in wire order, inherited first
+	Own                     []Field           // declared by this type alone
 	Open                    bool
 	Values                  []string
 	Alias                   model.TypeExpr
-	Uses                    []Use // the type parameters the type takes
-	Injected                bool
+	Tag                     string          // union: the member that discriminates
+	Value                   string          // union: the member a non-object payload rides under
+	Variants                []model.Variant // union: own variants, by tag
+	Uses                    []Use           // the type parameters the type takes
+	Carried                 bool            // carried from a built-in family, not declared here
+	From                    string          // the built-in family that declares a carried type
 	At                      diag.Location
 }
 
@@ -76,8 +82,10 @@ type Field struct {
 
 // Side is one peer's interface.
 type Side struct {
+	Extends []string // the families whose same side this one extends
 	Methods []Method
 	Events  []Event
+	At      diag.Location
 }
 
 // Method is one operation, with what it is generic in.
@@ -126,7 +134,7 @@ func Build(f *analysis.Family) *Family {
 	}
 	for _, name := range f.TypeNames() {
 		t := f.Types[name]
-		rt := &Type{Name: name, Kind: t.Kind, Description: t.Description, Key: t.Key, Open: t.Open, Values: t.Values, Alias: t.Alias, Uses: g.Types[name], Injected: model.IsInjected(name) && t.At.Pointer == "", At: t.At}
+		rt := &Type{Name: name, Kind: t.Kind, Description: t.Description, Key: t.Key, Parameters: t.Parameters, Open: t.Open, Values: t.Values, Alias: t.Alias, Tag: t.Tag, Value: t.ValueMember(), Variants: t.Variants, Uses: g.Types[name], Carried: f.IsCarried(name), From: f.CarriedFrom(name), At: t.At}
 		f.WalkFields(name, func(at analysis.FieldAt) {
 			rt.Fields = append(rt.Fields, field(at.Owner, at.Field))
 		})
@@ -147,6 +155,7 @@ func Build(f *analysis.Family) *Family {
 		r.Session = &Session{Decides: s.Decides, Asks: s.Asks, Conversation: s.Conversation}
 	}
 	r.References = f.References()
+	r.Carries = f.Carries
 	for name := range f.Members {
 		r.SessionFamilies = append(r.SessionFamilies, name)
 	}
@@ -168,7 +177,7 @@ func field(owner string, m model.Field) Field {
 }
 
 func side(f *analysis.Family, s model.Side) Side {
-	var out Side
+	out := Side{Extends: s.Extends, At: s.At}
 	for _, m := range s.Methods {
 		uses := union(f.UsesOf(m.Request), f.UsesOf(m.Result))
 		out.Methods = append(out.Methods, Method{Name: m.Name, Description: m.Description, Request: m.Request, Result: m.Result, Errors: m.Errors, Uses: uses, At: m.At})
@@ -212,30 +221,47 @@ func (r *Family) ImportedUses(family, typeName string) []Use {
 	return r.f.Generics().Imported[family][typeName]
 }
 
-// Argument is what fills one type parameter of an applied type.
+// Argument is what fills one type parameter of an applied type: a family
+// parameter of this family, or a named family. Exactly one is set.
 type Argument struct {
-	Use    Use          // the imported type's parameter, at the type drawn
-	Filler model.Filler // a parameter of this family, or a named family
+	Use       Use    // the imported type's parameter, at the type drawn
+	Parameter string // a family parameter of this family
+	Family    string // a named family
 }
 
 // Arguments resolves an application: for each type parameter the applied
-// type takes, what fills it — a parameter of this family when the
-// application says so or when the family has one parameter, a named family
-// otherwise.
+// type takes, what fills it — a family parameter of this family when the
+// application says so or when the family has one, a named family otherwise.
 func (r *Family) Arguments(a model.Apply) []Argument {
 	var out []Argument
 	for _, use := range r.ImportedUses(a.Family, a.Name) {
+		argument := Argument{Use: use}
 		filler, bound := a.With[use.Parameter]
-		if !bound {
-			if len(r.Parameters) == 1 {
-				filler = model.Filler{Parameter: r.Parameters[0].Name}
-			} else {
-				filler = model.Filler{Parameter: use.Parameter}
-			}
+		switch {
+		case !bound && len(r.familyParameters()) == 1:
+			argument.Parameter = r.familyParameters()[0]
+		case !bound:
+			argument.Parameter = use.Parameter
+		case r.f.HasFamilyParameter(filler.Name()):
+			argument.Parameter = filler.Name()
+		case filler.Family != "":
+			argument.Family = filler.Family
+		default:
+			argument.Parameter = filler.Name()
 		}
-		out = append(out, Argument{Use: use, Filler: filler})
+		out = append(out, argument)
 	}
 	return out
+}
+
+func (r *Family) familyParameters() []string {
+	var names []string
+	for _, p := range r.Parameters {
+		if p.Of != "" {
+			names = append(names, p.Name)
+		}
+	}
+	return names
 }
 
 // Override is a target's name for a path key, if its override file names
@@ -303,4 +329,96 @@ func wire(f *analysis.Family) string {
 	}
 	data, _ := json.Marshal(types)
 	return string(data)
+}
+
+// Form is one form of the declaration language, named as a diagnostic names
+// it. A target that does not render a form yet refuses a family that uses
+// one, saying which form and which target, rather than emitting something
+// that is not what was declared — never a panic, and never silence.
+type Form struct {
+	Name string
+	At   diag.Location
+}
+
+// FormsUsed is every form of the declaration language the family uses that
+// a target may not render, each named once, in the order they are met. A
+// target whose renderer has learned a form drops it from what it refuses;
+// the list is what the targets of a language still owe the language.
+func FormsUsed(f *Family) []Form {
+	var forms []Form
+	seen := map[string]bool{}
+	add := func(name string, at diag.Location) {
+		if !seen[name] {
+			seen[name] = true
+			forms = append(forms, Form{Name: name, At: at})
+		}
+	}
+	expression := func(e model.TypeExpr, at diag.Location) {
+		model.Walk(e, func(x model.TypeExpr) bool {
+			switch v := x.(type) {
+			case model.Nullable:
+				add("a nullable type expression, {\"nullable\": T}", at)
+			case model.Literal:
+				add("a literal type", at)
+			case model.Inline:
+				add("a shape written inline, named by where it sits", at)
+			case model.Apply:
+				if v.Family == "" {
+					add("an application of a generic type of this family", at)
+				}
+			}
+			return true
+		})
+	}
+	for _, p := range f.Parameters {
+		switch {
+		case p.Of == "":
+			add("a type parameter of the family", p.At)
+		case p.Of != model.SessionRole:
+			add("a family parameter of the "+p.Of+" tier", p.At)
+		}
+	}
+	for _, t := range f.Types {
+		if t.Carried {
+			continue
+		}
+		if t.Kind == model.KindUnion {
+			add("a union", t.At)
+		}
+		if len(t.Parameters) > 0 {
+			add("a type parameter of a type", t.At)
+		}
+		for _, field := range t.Own {
+			expression(field.Type, field.At.Sub("type"))
+		}
+		if t.Alias != nil {
+			expression(t.Alias, t.At.Sub("type"))
+		}
+		for _, variant := range t.Variants {
+			expression(variant.Type, variant.At)
+		}
+	}
+	for _, side := range []Side{f.Server, f.Client} {
+		if len(side.Extends) > 0 {
+			add("a side that extends another family's", side.At.Sub("extends"))
+		}
+		for _, m := range side.Methods {
+			expression(m.Request, m.At.Sub("request"))
+			expression(m.Result, m.At.Sub("result"))
+		}
+		for _, e := range side.Events {
+			expression(e.Type, e.At.Sub("type"))
+		}
+	}
+	return forms
+}
+
+// Unrendered is the diagnostics a target reports for the forms it does not
+// render yet: one per form, naming the form and the target.
+func Unrendered(f *Family, target string) []diag.Diagnostic {
+	var diagnostics []diag.Diagnostic
+	for _, form := range FormsUsed(f) {
+		diagnostics = append(diagnostics, diag.New(f.Name, form.At, "unrendered_form", "The "+target+" target does not render "+form.Name+" yet."))
+	}
+	return diagnostics
 }

@@ -1,0 +1,30 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Envelope": {
+      "kind": "record",
+      "description": "One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else.",
+      "fields": [
+        {"name": "version", "description": "The profile's version, 1.", "type": "integer"},
+        {"name": "kind", "description": "request, response, event or cancel.", "type": "string"},
+        {"name": "id", "description": "What correlates a response or a cancel with its request.", "type": "string", "required": false},
+        {"name": "method", "description": "The method a request names.", "type": "string", "required": false},
+        {"name": "params", "description": "A request's parameters.", "type": "json", "required": false},
+        {"name": "result", "description": "A response's result.", "type": "json", "required": false},
+        {"name": "error", "description": "A response's error.", "type": "json", "required": false},
+        {"name": "event", "description": "The event an event frame names.", "type": "string", "required": false},
+        {"name": "data", "description": "An event's data.", "type": "json", "required": false},
+        {"name": "traceparent", "description": "The W3C Trace Context of the frame.", "type": "string", "required": false},
+        {"name": "tracestate", "description": "The vendor state of that trace.", "type": "string", "required": false},
+        {"name": "meta", "description": "What a request or an event carries about the call, delivered to the handler beside the payload.", "type": {"map": "string"}, "required": false}
+      ]
+    },
+    "Handle": {
+      "kind": "record",
+      "description": "A reference to a channel on the connection that carries the message holding it.",
+      "fields": [
+        {"name": "channel", "description": "The channel's id on that connection.", "type": "integer"}
+      ]
+    }
+  }
+}
