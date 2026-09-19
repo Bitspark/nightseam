@@ -9,6 +9,39 @@ import (
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
 )
 
+func TestResolvedShapeKeepsItsDeclaringFamily(t *testing.T) {
+	world := World(modeltest.World(map[string]map[string]string{
+		"base":     {"model.json": `{"nightseam":2,"types":{"Parent":{"kind":"record","fields":[{"name":"inherited","type":"string"}]},"Payload":{"kind":"record","extends":["Parent"],"fields":[{"name":"tag","type":{"literal":"base"}}]}}}`},
+		"consumer": {"model.json": `{"nightseam":2,"imports":["base"],"types":{"Payload":{"kind":"record","fields":[{"name":"local","type":"integer"}]}}}`},
+	}))
+	f := Resolve(world, "consumer")
+	for _, expression := range []model.TypeExpr{
+		model.Imported{Family: "base", Name: "Payload"},
+		model.Apply{Family: "base", Name: "Payload"},
+	} {
+		owner, shape, ok := f.ResolveShape(expression)
+		if !ok || owner.Name != "base" || shape != world["base"].Types["Payload"] {
+			t.Fatalf("shape lost its origin: %v, %v, %t", owner, shape, ok)
+		}
+		fields := owner.ShapeFields(shape)
+		if len(fields) != 2 || fields[0].Name != "inherited" || fields[1].Name != "tag" {
+			t.Fatalf("imported shape used consumer fields: %v", fields)
+		}
+	}
+	owner, shape, ok := f.ResolveShape(model.Named{Name: "Payload"})
+	if !ok || owner != f || shape != world["consumer"].Types["Payload"] {
+		t.Fatal("a local shape changed owners")
+	}
+	inline := &model.Type{Kind: model.KindRecord}
+	owner, shape, ok = f.ResolveShape(model.Inline{Type: inline})
+	if !ok || owner != f || shape != inline {
+		t.Fatal("an inline shape lost its lexical family")
+	}
+	if _, _, ok := f.ResolveShape(model.Primitive("string")); ok {
+		t.Fatal("a primitive became a shape")
+	}
+}
+
 // A world of a session family, probe, a carrier generic in one session
 // family, and an album generic in two that applies the carrier's Frame.
 func slotWorld() World {
