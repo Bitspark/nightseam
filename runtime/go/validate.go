@@ -77,8 +77,12 @@ func MustSchema(wire string, imported map[string]func(string, []byte) error) *Sc
 	return s
 }
 
-// TypeExpression decodes a type expression the generator wrote.
-func TypeExpression(encoded string) any {
+// MustTypeExpression decodes a type expression the generator wrote, and
+// panics on one it cannot read, as MustSchema does: its caller is generated
+// code passing a constant, for which a malformed expression is a generator
+// bug and not a consumer's error. A hand-written expression is decoded with
+// json.Unmarshal.
+func MustTypeExpression(encoded string) any {
 	var value any
 	if err := json.Unmarshal([]byte(encoded), &value); err != nil {
 		panic(err)

@@ -375,7 +375,7 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 	case "gen.validate":
 		// type is the expression's JSON as a string: "\"Payload\"", or
 		// "{\"array\": \"integer\"}".
-		expression := protocol.TypeExpression(str(raw, "type"))
+		expression := protocol.MustTypeExpression(str(raw, "type"))
 		if err := protocol.ValidateExpressionRaw(expression, raw["value"]); err != nil {
 			return map[string]any{"valid": false, "message": err.Error()}, nil
 		}

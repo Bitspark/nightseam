@@ -151,6 +151,6 @@ func emitValidation(f *file) {
 	f.linef("func %s(expression any, data []byte) error { return schema.%s(expression, data) }", identValidateExpressionRaw, identValidateExpressionRaw)
 	f.linef("// %s validates a typed value before publishing it on the wire.", identValidateValue)
 	f.linef("func %s(expression any, value any) error { return schema.%s(expression, value) }", identValidateValue, identValidateValue)
-	f.linef("// %s decodes a generated expression; callers ordinarily use named types.", identTypeExpression)
-	f.linef("func %s(encoded string) any { return %s.%s(encoded) }", identTypeExpression, runtime, identTypeExpression)
+	f.linef("// %s decodes a generated expression and panics on one it cannot read; callers ordinarily use named types.", identMustTypeExpression)
+	f.linef("func %s(encoded string) any { return %s.%s(encoded) }", identMustTypeExpression, runtime, identMustTypeExpression)
 }

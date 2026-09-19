@@ -39,7 +39,7 @@ func TestValidatorConformance(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, c := range table.Cases {
-		err := schema.ValidateExpressionRaw(TypeExpression(string(c.Expression)), c.Value)
+		err := schema.ValidateExpressionRaw(MustTypeExpression(string(c.Expression)), c.Value)
 		if (err == nil) != c.Valid {
 			t.Errorf("%s against %s: valid=%v, got %v", c.Value, c.Expression, c.Valid, err)
 		}
