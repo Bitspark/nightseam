@@ -2,7 +2,7 @@
 import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection } from "@nightseam/runtime";
 import type { Tunnel } from "@nightseam/tunnel";
 import { validateWire } from './types.ts';
-import type { AnyFamily, FamilyBinding, TypeBinding, SessionFamily, Slots } from './types.ts';
+import type { AnyFamily, FamilyBinding, TypeBinding, Slots } from './types.ts';
 import type * as Protocol from './types.ts';
 import type * as probe from "@example/probe-client";
 export * from './types.ts';
