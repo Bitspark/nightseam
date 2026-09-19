@@ -22,7 +22,7 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor, type Re
 import { DuplexPeer } from '@nightseam/runtime';
 import { memoryLog, Registry } from '@nightseam/session';
 import { Client, type Handler, type Payload } from '../../../cmd/nightseam/testdata/golden/api/ts/probe-client/src/index.ts';
-import { governance, pipes } from '../../../session/ts/src/conformance.ts';
+import { governance, pipes } from '@nightseam/session/conformance';
 import { observer } from './observer.ts';
 import { propagator } from './propagator.ts';
 

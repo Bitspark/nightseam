@@ -177,7 +177,7 @@ export class DuplexPeer {
     for (const key of Object.keys(DUPLEX_DEFAULTS) as (keyof typeof DUPLEX_DEFAULTS)[]) {
       const value = options[key];
       if (value !== undefined) {
-        positiveInteger(value, key);
+        positiveInteger(value, key, true);
         // Values deliberately remain configurable without introducing unbounded queues.
         (this.limits as Record<string, number>)[key] = value;
       }
@@ -312,7 +312,7 @@ export class DuplexPeer {
   call<T = unknown>(method: string, params: unknown = {}, options: CallOptions = {}): Promise<T> {
     try {
       requireName(method, 'method');
-      if (options.timeoutMs !== undefined) positiveInteger(options.timeoutMs, 'timeoutMs');
+      if (options.timeoutMs !== undefined) positiveInteger(options.timeoutMs, 'timeoutMs', true);
     } catch (error) { return Promise.reject(error); }
     if (!this.isOpen()) return Promise.reject(new DuplexError('not_connected', 'Peer is not connected.'));
     if (options.signal?.aborted) return Promise.reject(new DuplexError('cancelled', 'Call was cancelled before sending.'));
@@ -922,8 +922,12 @@ function requireName(value: unknown, field: string): asserts value is string {
 function requestID(value: unknown, prefix: string): void {
   if (typeof value !== 'string' || !value.startsWith(prefix) || !/^[1-9][0-9]{0,19}$/.test(value.slice(prefix.length))) throw new Error('Invalid request ID.');
 }
-function positiveInteger(value: number, name: string): void {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new DuplexError('invalid_options', `${name} must be a positive safe integer.`);
+/** Validates a component limit, returning it or throwing invalid_options; safe also requires exact integer representation. */
+export function positiveInteger(value: unknown, name: string, safe = false): number {
+  if (typeof value !== 'number' || !(safe ? Number.isSafeInteger(value) : Number.isInteger(value)) || value <= 0) {
+    throw new DuplexError('invalid_options', `${name} must be a positive ${safe ? 'safe ' : ''}integer.`);
+  }
+  return value;
 }
 function asError(error: unknown, code = 'internal'): DuplexError {
   return error instanceof DuplexError ? error : new DuplexError(code, 'Duplex operation failed.');

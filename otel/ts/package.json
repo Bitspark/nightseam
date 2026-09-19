@@ -54,11 +54,12 @@
     "@nightseam/session": "workspace:*",
     "@nightseam/tunnel": "workspace:*",
     "@opentelemetry/context-async-hooks": "^2.0.0",
-    "@opentelemetry/sdk-trace-base": "^2.0.0"
+    "@opentelemetry/sdk-trace-base": "^2.0.0",
+    "typescript": "^7.0.2"
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
-    "check": "tsc --noEmit --strict --target ES2022 --module nodenext --allowImportingTsExtensions --skipLibCheck src/index.ts src/observer.check.ts",
+    "check": "tsc -p tsconfig.check.json",
     "test": "node --experimental-strip-types --test --test-timeout=10000 src/propagator.test.ts src/observer.test.ts src/spans.test.ts src/dependencies.test.ts"
   }
 }

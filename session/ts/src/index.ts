@@ -22,7 +22,7 @@
  * it forwards verbatim, by construction rather than by enumeration.
  */
 import type { FrameConnection } from '@nightseam/duplex';
-import { DuplexError } from '@nightseam/runtime';
+import { positiveInteger, DuplexError } from '@nightseam/runtime';
 import type { Observer, ObserverEvent, Trace } from '@nightseam/runtime';
 
 /**
@@ -150,7 +150,7 @@ export interface Log {
  * so that one frame cannot grow a long-lived session without bound.
  */
 export function memoryLog(maxFrameBytes: number): Log {
-  const bound = positive(maxFrameBytes, 'maxFrameBytes');
+  const bound = positiveInteger(maxFrameBytes, 'maxFrameBytes');
   const frames: Frame[] = [];
   return {
     append(frame: Frame): Promise<number> {
@@ -239,8 +239,8 @@ export class Registry {
 
   constructor(options: RegistryOptions = {}) {
     this.limits = {
-      maxAttachments: positive(options.maxAttachments ?? 64, 'maxAttachments'),
-      maxInflight: positive(options.maxInflight ?? 256, 'maxInflight'),
+      maxAttachments: positiveInteger(options.maxAttachments ?? 64, 'maxAttachments'),
+      maxInflight: positiveInteger(options.maxInflight ?? 256, 'maxInflight'),
     };
     if (options.observer !== undefined) this.watcher = options.observer;
   }
@@ -1007,9 +1007,4 @@ function traceOf(envelope: Envelope): Trace | undefined {
   const tracestate = typeof envelope.tracestate === 'string' ? envelope.tracestate : '';
   if (!traceparent && !tracestate) return undefined;
   return tracestate ? { traceparent, tracestate } : { traceparent };
-}
-
-function positive(value: unknown, what: string): number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) throw new DuplexError('invalid_options', `${what} must be a positive integer.`);
-  return value;
 }

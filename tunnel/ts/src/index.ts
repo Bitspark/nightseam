@@ -13,7 +13,7 @@
  * the client of the outer connection and even for its server, and is what a
  * handle names: {"channel": 12} in a family's message.
  */
-import { DuplexError, type DuplexPeer, type ObserverEvent } from '@nightseam/runtime';
+import { positiveInteger, DuplexError, type DuplexPeer, type ObserverEvent } from '@nightseam/runtime';
 import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from '@nightseam/duplex';
 import { NO_STATUS } from '@nightseam/duplex';
 
@@ -61,11 +61,6 @@ export interface TunnelOptions {
 
 interface Acceptor { resolve: (channel: Channel) => void; reject: (error: DuplexError) => void }
 
-function positive(value: unknown, name: string): number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) throw new DuplexError('invalid_options', `${name} must be a positive integer.`);
-  return value;
-}
-
 /** The channels of one outer peer. */
 export class Tunnel {
   private readonly peer: DuplexPeer;
@@ -81,9 +76,9 @@ export class Tunnel {
   constructor(peer: DuplexPeer, options: TunnelOptions = {}) {
     this.peer = peer;
     this.options = {
-      maxFrameBytes: positive(options.maxFrameBytes ?? 1 << 20, 'maxFrameBytes'),
-      window: positive(options.window ?? 32, 'window'),
-      acceptCapacity: positive(options.acceptCapacity ?? 64, 'acceptCapacity'),
+      maxFrameBytes: positiveInteger(options.maxFrameBytes ?? 1 << 20, 'maxFrameBytes'),
+      window: positiveInteger(options.window ?? 32, 'window'),
+      acceptCapacity: positiveInteger(options.acceptCapacity ?? 64, 'acceptCapacity'),
     };
     this.parity = peer.role === 'server' ? 0 : 1;
     this.next = this.parity === 0 ? 2 : 1;

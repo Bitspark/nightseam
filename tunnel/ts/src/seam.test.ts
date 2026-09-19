@@ -5,7 +5,7 @@
 // file asks only what every transport is asked.
 import { pipe } from '@nightseam/duplex';
 import { DuplexPeer } from '@nightseam/runtime';
-import { run } from '../../../duplex/ts/src/conformance.ts';
+import { run } from '@nightseam/duplex/conformance';
 import { Tunnel } from './index.ts';
 
 run('a tunnel channel', async () => {

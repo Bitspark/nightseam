@@ -5,6 +5,25 @@ import type { PeerOptions, WebSocketLike } from './peer.ts';
 import type { Observer, ObserverEvent } from './observer.ts';
 import { webSocketConnection } from '@nightseam/duplex';
 import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from '@nightseam/duplex';
+import { positiveInteger } from './index.ts';
+
+test('component limits share validation while the peer keeps its safe-integer bound', () => {
+  for (const safe of [false, true]) {
+    assert.equal(positiveInteger(32, 'window', safe), 32);
+    for (const value of [undefined, null, '32', 0, -1, 1.5, NaN, Infinity]) {
+      assert.throws(() => positiveInteger(value, 'window', safe), {
+        name: 'DuplexError',
+        code: 'invalid_options',
+        message: `window must be a positive ${safe ? 'safe ' : ''}integer.`,
+      });
+    }
+  }
+  assert.equal(positiveInteger(Number.MAX_SAFE_INTEGER + 1, 'window'), Number.MAX_SAFE_INTEGER + 1);
+  assert.throws(() => positiveInteger(Number.MAX_SAFE_INTEGER + 1, 'timeoutMs', true), {
+    code: 'invalid_options',
+    message: 'timeoutMs must be a positive safe integer.',
+  });
+});
 
 class Socket extends EventTarget implements WebSocketLike {
   readyState = 1;

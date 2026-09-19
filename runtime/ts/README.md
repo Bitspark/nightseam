@@ -69,6 +69,11 @@ options replaces it with an adapter for one.
 
 ## Limits
 
+`positiveInteger(value, name, safe = false)` is the shared option validator
+used by the peer, tunnel and session. It returns a positive integer or
+throws `DuplexError` with code `invalid_options`; `safe = true` also requires
+an exactly representable integer, as the peer's limits do.
+
 Defaults are 64 incoming requests being handled (`maxConcurrentHandlers`),
 128 pending calls (`maxPendingRequests`), 128 queued events or outgoing
 frames (`queueCapacity`), 1 MiB frames (`maxFrameBytes`), 30-second request

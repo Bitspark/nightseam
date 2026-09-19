@@ -31,8 +31,8 @@ async function peered() {
   return { socket, peer };
 }
 function parts(frame: Record<string, unknown> | undefined): [string, string, string, string] {
-  assert.equal(typeof frame?.traceparent, 'string', 'frame carries a traceparent');
-  const traceparent = frame.traceparent as string;
+  const traceparent = frame?.traceparent;
+  assert.ok(typeof traceparent === 'string', 'frame carries a traceparent');
   assert.match(traceparent, FORM);
   return traceparent.split('-') as [string, string, string, string];
 }

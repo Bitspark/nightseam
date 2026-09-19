@@ -1,0 +1,7 @@
+# Generated code is owned by the generator and compared byte for byte.
+cmd/nightseam/testdata/
+examples/*/api/
+conformance/*/.generated/
+conformance/ts/generated/
+**/dist/
+.worktrees/
