@@ -30,7 +30,7 @@ func proofWorld(t *testing.T) analysis.World {
 }
 
 // TestProofFamilyIsAccepted: the proof contract — a generic union, a union
-// that extends another, a variant that carries its own tag as a literal and
+// that extends another, a variant payload with a literal field and
 // one that is not an object at all, a shape written inline, a collection of
 // values that may be null, a type parameter beside a family parameter of
 // the protocol tier on one declaration, a local application, a side that
