@@ -81,6 +81,10 @@ func Accept(w http.ResponseWriter, r *http.Request, options ServerOptions) (*Pee
 	return peer, nil
 }
 
+// NewHandler serves the profile at an HTTP endpoint: each request that
+// passes CheckOrigin and Authenticate is upgraded to a WebSocket and becomes
+// a server-role peer with the options given. The generated binding's
+// NewHandler wraps this with the family's handlers installed.
 func NewHandler(options ServerOptions) (http.Handler, error) {
 	if err := options.validate(); err != nil {
 		return nil, err
@@ -101,6 +105,8 @@ func NewHandler(options ServerOptions) (http.Handler, error) {
 	}), nil
 }
 
+// DialOptions is what Dial opens a WebSocket with: the peer's Options, the
+// headers and client of the HTTP upgrade, and the subprotocols to offer.
 type DialOptions struct {
 	Options    Options
 	HTTPHeader http.Header

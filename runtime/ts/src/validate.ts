@@ -16,6 +16,7 @@
 // {apply: "family.Type", with: {...}} for an imported generic type, and
 // {empty: true} for a request that takes nothing.
 
+/** A type as the embedded descriptor spells it: a primitive or named type, an array, a map, a nullable, a reference, or an application of a generic type. */
 export type TypeExpression =
   | string
   | { array: TypeExpression }
@@ -24,6 +25,7 @@ export type TypeExpression =
   | { apply: string; with: Record<string, string> }
   | { empty: true };
 
+/** One member of a record in the descriptor: its wire name, its type, whether it must be present, and the constraints the validator holds it to. */
 export interface WireField {
   name: string;
   type: TypeExpression;
@@ -36,6 +38,7 @@ export interface WireField {
   pattern?: string;
 }
 
+/** One type of the descriptor — a record, entity, enum, alias or union — as the validator reads it. */
 export interface WireType {
   kind: string;
   key?: string;

@@ -8,6 +8,7 @@ export type { WebSocketLike } from '@nightseam/duplex';
 
 /** The endpoint selects this profile; it is offered as no subprotocol by default. */
 export const DUPLEX_PROFILE = 'nightseam.duplex/1';
+/** The limits a peer runs with unless its options say otherwise; docs/profile.md lists them. */
 export const DUPLEX_DEFAULTS = Object.freeze({
   maxIncomingRequests: 64,
   maxPendingRequests: 128,
@@ -31,6 +32,7 @@ export class DuplexError extends Error {
   }
 }
 
+/** Where a peer is between construction and its end; `connected` is the only state that carries frames. */
 export type PeerStatus = 'disconnected' | 'connecting' | 'connected';
 /** A context makes the frame a child of the request the caller is serving. */
 /**
@@ -39,8 +41,11 @@ export type PeerStatus = 'disconnected' | 'connecting' | 'connected';
  * profile carries verbatim and reads nothing into.
  */
 export type Meta = Record<string, string>;
+/** What a call may carry: a signal that withdraws it, a deadline of its own, the context it is made under (so its trace parents on the request being served), and its meta. */
 export interface CallOptions { signal?: AbortSignal; timeoutMs?: number; context?: RequestContext; meta?: Meta }
+/** What an emit may carry: the context it is made under, and its meta. */
 export interface EmitOptions { context?: RequestContext; meta?: Meta }
+/** What a handler is given beside the params: a signal that fires when the caller withdraws the request or its deadline passes, the peer it arrived on, the request's id, and the trace and meta the frame brought. */
 export interface RequestContext {
   signal: AbortSignal;
   peer: DuplexPeer;
@@ -60,9 +65,13 @@ export interface EventContext {
   trace?: Trace;
   meta?: Meta;
 }
+/** Answers one request: the result, or a thrown DuplexError that crosses the wire with its code — any other error reaches the caller as `internal`. */
 export type RequestHandler = (params: unknown, context: RequestContext) => unknown | Promise<unknown>;
+/** Answers every request the peer has no handler for, by method name; the generated binding installs one. */
 export type Dispatcher = (method: string, params: unknown, context: RequestContext) => unknown | Promise<unknown>;
+/** Takes one event's data; events have no answer, and listeners run one at a time in arrival order. */
 export type EventListener = (event: string, data: unknown, context: EventContext) => void | Promise<void>;
+/** How a peer is made: its role, its dispatcher, the socket factory, its limits, its propagator, its observer and the family each name belongs to. Every member is optional and takes DUPLEX_DEFAULTS. */
 export interface PeerOptions {
   role?: 'client' | 'server';
   dispatch?: Dispatcher;

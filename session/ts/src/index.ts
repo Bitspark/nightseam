@@ -192,6 +192,7 @@ export interface Change {
 /** What a change carries beyond its kind, which the relay knows and the registry stamps the rest onto. */
 type Of = Omit<Change, 'at' | 'session' | 'kind'>;
 
+/** How a registry is made; every member is optional and takes its default, and a member that is not a positive integer is refused with `invalid_options`. */
 export interface RegistryOptions {
   /** How many consumers may be attached to one session at once; an attach beyond it is refused. Default: 64. */
   maxAttachments?: number;

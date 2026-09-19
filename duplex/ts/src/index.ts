@@ -4,7 +4,9 @@
  * correlation or events belongs here; those stay in the peer.
  */
 export type Frame = { kind: 'text'; data: string } | { kind: 'binary'; data: ArrayBuffer | Uint8Array };
+/** Where a connection is in its life; frames flow only while `open`. */
 export type ConnectionState = 'connecting' | 'open' | 'closing' | 'closed';
+/** What a connection tells the one listening: it opened, a frame arrived, it closed with a code and a reason, or it failed. */
 export interface ConnectionHandlers {
   open?: () => void;
   frame?: (frame: Frame) => void;

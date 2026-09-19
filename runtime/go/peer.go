@@ -23,8 +23,15 @@ import (
 	"github.com/Bitspark/nightseam/duplex/go"
 )
 
+// Profile names what this package speaks: JSON text frames carrying requests,
+// responses, events and cancellations both ways over a connection of the seam.
+// docs/profile.md is its specification.
 const Profile = "nightseam.duplex/1"
 
+// Role is the side of a connection a peer takes. It decides the prefix of the
+// request ids the peer mints — c: for a client, s: for a server — so the two
+// sides never mint the same id, and a tunnel over the peer chooses its channel
+// ids by it.
 type Role string
 
 const (
@@ -32,6 +39,10 @@ const (
 	ServerRole Role = "server"
 )
 
+// The errors a peer ends with: ErrClosed when Close was called or the
+// connection ended, ErrBackpressure when a queue stayed full past its write
+// deadline — a consumer that does not drain is disconnected rather than
+// allowed to hold the connection up. Both reach Err and every pending call.
 var (
 	ErrClosed       = errors.New("duplex connection closed")
 	ErrBackpressure = errors.New("duplex consumer is stalled")
@@ -47,8 +58,19 @@ type PublicError struct {
 
 func (e *PublicError) Error() string { return e.Code + ": " + e.Message }
 
+// Handler answers one request: it takes the params as they arrived and
+// returns the result, or an error — a *PublicError crosses the wire with its
+// code; any other error reaches the caller as internal. The context is
+// cancelled when the caller withdraws the request or its deadline passes, and
+// carries the trace and the meta the frame brought.
 type Handler func(context.Context, *Peer, json.RawMessage) (any, error)
+
+// EventHandler takes one event's data; events have no answer. Handlers run
+// one at a time in the order the events arrived.
 type EventHandler func(context.Context, *Peer, json.RawMessage)
+
+// Event is one event of the profile as a handler or an emitter sees it: its
+// name and its data.
 type Event struct {
 	Name string          `json:"event"`
 	Data json.RawMessage `json:"data"`
@@ -185,6 +207,10 @@ type Peer struct {
 	slots         chan struct{}
 }
 
+// NewPeer speaks the profile over any connection of the seam — a pipe, a
+// tunnel channel, a socket already accepted — as the given role. The peer
+// owns the connection from here and closes it when it ends; ctx ending ends
+// the peer. Dial and Accept are this over a WebSocket.
 func NewPeer(ctx context.Context, conn duplex.Conn, role Role, options Options) (*Peer, error) {
 	return newPeer(ctx, conn, role, options, "")
 }
@@ -225,7 +251,11 @@ func newPeer(ctx context.Context, conn duplex.Conn, role Role, options Options, 
 	return p, nil
 }
 
-func (p *Peer) Done() <-chan struct{}    { return p.done }
+// Done is closed when the peer has ended, for whatever reason; Err says which.
+func (p *Peer) Done() <-chan struct{} { return p.done }
+
+// Context is the peer's own, cancelled when it ends: what a handler or a
+// caller derives its own from to be released with the connection.
 func (p *Peer) Context() context.Context { return p.ctx }
 
 // Role is the side of the connection this peer is: it prefixes the request
@@ -244,8 +274,14 @@ func (p *Peer) Subprotocol() string { return p.subprotocol }
 
 // MaxFrameBytes is the largest frame this peer sends or receives.
 func (p *Peer) MaxFrameBytes() int64 { return p.options.MaxFrameBytes }
-func (p *Peer) Err() error           { p.mu.Lock(); defer p.mu.Unlock(); return p.err }
-func (p *Peer) Close() error         { p.fail(ErrClosed); return nil }
+
+// Err is why the peer ended, or nil while it runs: ErrClosed, ErrBackpressure,
+// the context's error, or the connection's own.
+func (p *Peer) Err() error { p.mu.Lock(); defer p.mu.Unlock(); return p.err }
+
+// Close ends the peer with ErrClosed, closing the connection beneath it and
+// failing every pending call. It is safe to call more than once.
+func (p *Peer) Close() error { p.fail(ErrClosed); return nil }
 
 func (p *Peer) fail(err error) {
 	p.once.Do(func() {
@@ -280,6 +316,8 @@ func (p *Peer) Handle(method string, handler Handler) error {
 	return nil
 }
 
+// HandleEvent registers the handler for the event of that name, replacing
+// any before it; an event with no handler is dropped.
 func (p *Peer) HandleEvent(name string, handler EventHandler) error {
 	if name == "" || handler == nil {
 		return errors.New("invalid duplex event handler")

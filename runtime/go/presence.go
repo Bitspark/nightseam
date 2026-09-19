@@ -12,8 +12,11 @@ type Optional[T any] struct {
 	Present bool
 }
 
+// Some is a present value.
 func Some[T any](value T) Optional[T] { return Optional[T]{Value: value, Present: true} }
-func (v Optional[T]) IsZero() bool    { return !v.Present }
+
+// IsZero reports absence, which is what omitzero reads.
+func (v Optional[T]) IsZero() bool { return !v.Present }
 func (v Optional[T]) MarshalJSON() ([]byte, error) {
 	if !v.Present {
 		return []byte("null"), nil
@@ -36,7 +39,10 @@ type Nullable[T any] struct {
 	Null  bool
 }
 
-func Null[T any]() Nullable[T]           { return Nullable[T]{Null: true} }
+// Null is JSON null.
+func Null[T any]() Nullable[T] { return Nullable[T]{Null: true} }
+
+// NonNull is a value that is not null.
 func NonNull[T any](value T) Nullable[T] { return Nullable[T]{Value: value} }
 func (v Nullable[T]) MarshalJSON() ([]byte, error) {
 	if v.Null {
