@@ -175,7 +175,9 @@ test('incoming deadlines abort handlers and retain occupied slots until completi
   const blocked = deferred();
   let signal: AbortSignal | undefined;
   server.handle('wait', (_params, context) => { signal = context.signal; return blocked.promise; });
-  await assert.rejects(client.call('wait'), { code: 'request_timeout' });
+  // The receiver's own deadline abandons the request, and `cancelled` is what
+  // it answers: `request_timeout` is a caller's own error and never a frame.
+  await assert.rejects(client.call('wait'), { code: 'cancelled' });
   assert.equal(signal?.aborted, true);
   await assert.rejects(client.call('wait'), { code: 'busy' });
   blocked.resolve();

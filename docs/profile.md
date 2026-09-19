@@ -103,8 +103,9 @@ the handler does not:
 | error code | when |
 | --- | --- |
 | `method_not_found` | no handler for `method` |
-| `busy` | the receiver has as many requests open as it allows |
+| `busy` | the receiver has as many requests open as it allows; or, locally and without a frame, the caller has as many calls outstanding as it allows |
 | `cancelled` | the request was withdrawn, or its deadline passed, before the handler answered |
+| `request_timeout` | the caller's own deadline passed; its own error, never a frame it received |
 | `internal` | the handler failed with an error that is not public, or panicked; the message says nothing more |
 
 A handler's own error crosses the wire only when it is a public one —
@@ -118,8 +119,14 @@ response, if it still sends one, is `cancelled`. A cancel for an id that is
 not open is ignored.
 
 Every request has a deadline on the sender's side (30 seconds by default)
-after which it is failed locally as `cancelled` and a cancel is sent; the
-receiver's own deadline for a handler is the same.
+after which it is failed locally as a **deadline** — `request_timeout`, not
+`cancelled` — and a cancel is sent. The distinction is not pedantry: the
+caller withdrawing a request and the caller giving up waiting for one are
+different facts, and the receiver may have answered either way, so what the
+caller learned is that its own deadline passed and nothing about the
+request's fate. An observer is told the outcome `timeout`. The receiver's
+own deadline for a handler is the same length, and what it answers on the
+wire when it passes is `cancelled`, the request having been abandoned.
 
 ## Events
 
@@ -130,12 +137,31 @@ sender's `Emit` resolves when the frame was accepted for sending.
 
 ## Limits and backpressure
 
-Every queue is bounded, per connection: 128 outgoing frames, 128 events
-waiting for their handlers, 64 requests being handled at once, frames of at
-most 1 MiB, by default. A producer that fills a queue is paced for one write
-deadline (10 seconds); a consumer that still does not drain it is
-disconnected rather than allowed to hold the connection up — a stalled
-consumer ends the connection, in both runtimes.
+Every queue is bounded, per connection, and by default: 128 outgoing frames,
+128 events waiting for their handlers, 128 calls outstanding at once, 64
+requests being handled at once, frames of at most 1 MiB.
+
+A producer that fills a queue is **paced for one write deadline** (10
+seconds); a consumer that still has not drained it by then is disconnected
+rather than allowed to hold the connection up. The rule is the same for
+every queue and in both runtimes, because a burst that would drain in a
+second should not end a connection: durable replay, a tight decoder loop
+outrunning a ready consumer, a socket that is briefly behind.
+
+Pacing an *inbound* queue means pacing the remote, and the only way to do
+that is to stop taking what it sends: while the event queue is full, the
+responses and cancellations on that connection wait with the events. That is
+the cost of not ending a connection that would recover, and the deadline is
+what bounds it. A runtime that cannot pause what its transport hands it — a
+browser peer has no such knob — holds the events instead of the reading; the
+deadline, and what happens when it passes, are the same either way.
+
+The two bounds on requests are different things and both are refusals rather
+than failures: a **receiver** with as many requests being handled as it
+allows answers `busy` on the wire, and a **caller** with as many calls
+outstanding as it allows refuses the next one where it stands, without
+sending a frame — no request is started, so no observer is told of one, and
+the connection serves the call after it.
 
 ## Trace context
 

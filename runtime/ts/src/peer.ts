@@ -510,7 +510,11 @@ export class DuplexPeer {
       started: Date.now(),
       timer: setTimeout(() => {
         controller.abort();
-        this.respond(id, incoming, undefined, new DuplexError('request_timeout', 'Request deadline exceeded.'), 'timeout');
+        // What crosses the wire when a receiver's own deadline passes is
+        // `cancelled`: the request was abandoned, which is what the caller can
+        // act on, and is what the profile and the Go peer both answer.
+        // `request_timeout` is a caller's own error and never a frame.
+        this.respond(id, incoming, undefined, new DuplexError('cancelled', 'Request deadline exceeded.'), 'timeout');
       }, this.limits.requestTimeoutMs),
     };
     this.incoming.set(id, incoming);
