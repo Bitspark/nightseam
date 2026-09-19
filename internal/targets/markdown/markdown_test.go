@@ -42,7 +42,7 @@ func TestWritesThePage(t *testing.T) {
 		"One of `on`, `off`.", "| `get` | `Account` | array of `Account` | `not_found` | Gets one " + "\\" + "| or more. |",
 		"| `changed` | reference to `Account` |", "| `not_found` | No such account. |",
 		"- **Decides**: `get`", "the id arrives in the `changed` event, at `id` of its data",
-		"For example:", `  "email": "‹email›"`, "Used by `get` (request, result), `changed` (data).",
+		"For example:", `  "email": "@"`, "Used by `get` (request, result), `changed` (data).",
 		"### `get` on the wire", "The client sends:", `  "method": "get",`, `  "id": "c:1",`, "The server answers:",
 		"Or refuses with `not_found`:", `    "message": "No such account."`, "### `changed` on the wire", "The server emits:", `  "event": "changed",`,
 	} {
