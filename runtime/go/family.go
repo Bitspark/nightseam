@@ -17,6 +17,7 @@ type Opaque struct{}
 // instantiated with it compiles, and validates nothing of what it carries.
 type Raw []byte
 
+// Of is the tag of Raw: Opaque, no family at all.
 func (Raw) Of() Opaque { return Opaque{} }
 
 func (r Raw) MarshalJSON() ([]byte, error) {

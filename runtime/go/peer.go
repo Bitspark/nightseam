@@ -35,7 +35,9 @@ const Profile = "nightseam.duplex/1"
 type Role string
 
 const (
+	// ClientRole dials and mints request ids under the c: prefix.
 	ClientRole Role = "client"
+	// ServerRole accepts and mints request ids under the s: prefix.
 	ServerRole Role = "server"
 )
 
@@ -56,6 +58,7 @@ type PublicError struct {
 	Data    json.RawMessage `json:"data,omitempty"`
 }
 
+// Error is the code and the message, as a log line shows them.
 func (e *PublicError) Error() string { return e.Code + ": " + e.Message }
 
 // Handler answers one request: it takes the params as they arrived and

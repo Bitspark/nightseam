@@ -21,7 +21,9 @@ export const DUPLEX_DEFAULTS = Object.freeze({
 
 /** Public application errors may cross the wire; other handler errors are hidden. */
 export class DuplexError extends Error {
+  /** The error's code as it travels on the wire: the profile's own, or a family's public error by name. */
   readonly code: string;
+  /** What a public error carries beside its message, validated as the family declares it. */
   readonly data?: unknown;
 
   constructor(code: string, message: string, data?: unknown) {
@@ -34,7 +36,6 @@ export class DuplexError extends Error {
 
 /** Where a peer is between construction and its end; `connected` is the only state that carries frames. */
 export type PeerStatus = 'disconnected' | 'connecting' | 'connected';
-/** A context makes the frame a child of the request the caller is serving. */
 /**
  * What a frame carries about a call rather than of it: a flat map of strings —
  * a tenant, an idempotency key, a credential that is per request — which the
@@ -189,6 +190,7 @@ export class DuplexPeer {
     this.remotePrefix = options.role === 'server' ? 'c:' : 's:';
   }
 
+  /** Where the peer is now; `connected` is the only status in which a call or an event travels. */
   get status(): PeerStatus { return this.state; }
 
   /** The side of the connection this peer is; a tunnel over it chooses channel ids by it. */
@@ -267,13 +269,19 @@ export class DuplexPeer {
     });
   }
 
+  /** Ends the connection with a normal close; every pending call rejects with `disconnected`. */
   close(): void { this.fail(new DuplexError('disconnected', 'Connection closed by caller.'), true, 1000); }
 
+  /** Tells the listener once, when the peer ends, why it ended; returns what removes the listener. */
   onClose(listener: (error: DuplexError) => void): () => void {
     this.closedListeners.add(listener);
     return () => { this.closedListeners.delete(listener); };
   }
 
+  /**
+   * Serves a method: one handler per name, given the params and a request context, its return the
+   * result and a thrown DuplexError the error the caller receives. Returns what unregisters it.
+   */
   handle(method: string, handler: RequestHandler): () => void {
     requireName(method, 'method');
     if (this.handlers.has(method)) throw new DuplexError('duplicate_handler', `Handler already registered for ${method}.`);
@@ -281,6 +289,7 @@ export class DuplexPeer {
     return () => { if (this.handlers.get(method) === handler) this.handlers.delete(method); };
   }
 
+  /** Listens to every event the remote emits, or to one by name; returns what removes the listener. */
   onEvent(listener: EventListener): () => void;
   onEvent(event: string, listener: (data: unknown, context: EventContext) => void | Promise<void>): () => void;
   onEvent(eventOrListener: string | EventListener, listener?: (data: unknown, context: EventContext) => void | Promise<void>): () => void {
@@ -296,6 +305,12 @@ export class DuplexPeer {
     return () => { this.listeners.delete(callback); };
   }
 
+  /**
+   * Calls a method on the remote and resolves with its result, or rejects with the DuplexError the
+   * remote answered — or the peer's own: `request_timeout` past the deadline, `cancelled` when the
+   * caller's signal fired, `busy` when too many calls are outstanding, `disconnected` when the
+   * connection ended first.
+   */
   call<T = unknown>(method: string, params: unknown = {}, options: CallOptions = {}): Promise<T> {
     try {
       requireName(method, 'method');

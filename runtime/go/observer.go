@@ -161,9 +161,13 @@ func (HandlerPanic) ObserverEvent()     {}
 type Outcome int
 
 const (
+	// OutcomeOK is a request answered with a result.
 	OutcomeOK Outcome = iota
+	// OutcomeErrored is a request answered with an error.
 	OutcomeErrored
+	// OutcomeCancelled is a request the caller withdrew before it was answered.
 	OutcomeCancelled
+	// OutcomeTimedOut is a request that outlived its deadline.
 	OutcomeTimedOut
 )
 

@@ -1,4 +1,6 @@
-// Package conformance is the runner of Nightseam's conformance suite: the
+// Package conformance is the runner of Nightseam's conformance suite — the
+// repository's own, importable because a Go module has no private path, and
+// no API a consumer is meant to build on: nothing in it is held stable. The
 // scenarios under conformance/scenarios, driven over the protocol of
 // conformance/DRIVER.md against a testee of each language. The runner
 // never speaks the profile; it starts two testees, tells each what to do,
