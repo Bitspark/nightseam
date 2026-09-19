@@ -477,14 +477,50 @@ func (c *checker) imported(x model.Imported, at diag.Location, where site) {
 	if other.Rank(x.Name) > where.context {
 		c.tierViolation(at, where.context, x.Family+"."+x.Name, t.At.File)
 	}
-	// A generic type of an imported family has parameters of its own, which
-	// this family must fill. A family with one parameter fills them all with
-	// it; with any other number the plain reference says nothing about which
-	// fills which, so an application is required.
-	generic := len(other.Generics().Types[x.Name]) > 0 || len(t.Parameters) > 0
-	if generic && len(f.FamilyParameters()) != 1 {
-		c.Addf(at, "ambiguous_application", "Type %s.%s is generic and this family declares %d parameters; say what fills each with {\"apply\": \"%s.%s\", \"with\": {…}}.", x.Family, x.Name, len(f.FamilyParameters()), x.Family, x.Name)
+	// Plain imports can infer family bindings from the caller's one family
+	// parameter. Type arguments still need an application, and a family
+	// bound must guarantee the tier each inferred slot requires.
+	parameters := append([]model.Parameter{}, t.Parameters...)
+	for _, use := range other.Generics().Types[x.Name] {
+		if _, own := lookup(parameters, use.Parameter); !own {
+			parameter, _ := other.Parameter(use.Parameter)
+			parameter.Name = use.Parameter
+			parameters = append(parameters, parameter)
+		}
 	}
+	if len(parameters) == 0 {
+		return
+	}
+	fillers := f.FamilyParameters()
+	if len(fillers) != 1 {
+		c.Addf(at, "ambiguous_application", "Type %s.%s is generic and this family declares %d family parameters; say what fills each with {\"apply\": \"%s.%s\", \"with\": {…}}.", x.Family, x.Name, len(fillers), x.Family, x.Name)
+		return
+	}
+	for _, parameter := range parameters {
+		if !parameter.IsFamily() {
+			c.Addf(at, "ambiguous_application", "Type %s.%s needs type parameter %s, which a family parameter cannot fill; supply it with {\"apply\": \"%s.%s\", \"with\": {…}}.", x.Family, x.Name, parameter.Name, x.Family, x.Name)
+			return
+		}
+		if !familyBoundFills(fillers[0].Of, parameter.Of) {
+			c.Addf(at, "ambiguous_application", "Type %s.%s needs parameter %s of the %s tier, but %s guarantees only %s; supply a suitable family with {\"apply\": \"%s.%s\", \"with\": {…}}.", x.Family, x.Name, parameter.Name, parameter.Of, fillers[0].Name, fillers[0].Of, x.Family, x.Name)
+			return
+		}
+	}
+}
+
+// Carrying a tier requires its lower tiers too. Unknown roles are refused
+// by the parameter checker and cannot establish an inferred binding.
+func familyBoundFills(from, to string) bool {
+	fromRank, toRank := -1, -1
+	for _, tier := range model.Tiers {
+		if tier.Name == from {
+			fromRank = tier.Rank
+		}
+		if tier.Name == to {
+			toRank = tier.Rank
+		}
+	}
+	return fromRank > 0 && toRank > 0 && fromRank >= toRank
 }
 
 // drawn holds a draw through a parameter: the parameter is one this

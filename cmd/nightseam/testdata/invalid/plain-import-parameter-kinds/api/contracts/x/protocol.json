@@ -1,0 +1,12 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [{"name": "S", "of": "protocol"}],
+  "types": {
+    "Use": {"kind": "record", "fields": [
+      {"name": "own", "type": "peer.OwnBox"},
+      {"name": "family", "type": "peer.FamilyBox"},
+      {"name": "session", "type": "peer.SessionBox"},
+      {"name": "slot", "type": "S.Envelope"}
+    ]}
+  }
+}

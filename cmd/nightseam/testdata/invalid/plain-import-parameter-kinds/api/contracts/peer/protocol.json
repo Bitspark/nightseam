@@ -1,0 +1,9 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [{"name": "T"}],
+  "types": {
+    "OwnBox": {"kind": "record", "parameters": [{"name": "Item"}], "fields": [{"name": "item", "type": "Item"}]},
+    "FamilyBox": {"kind": "record", "fields": [{"name": "item", "type": "T"}]},
+    "SessionBox": {"kind": "record", "parameters": [{"name": "P", "of": "session"}], "fields": [{"name": "item", "type": "P.Envelope"}]}
+  }
+}

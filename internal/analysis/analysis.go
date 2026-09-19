@@ -190,8 +190,8 @@ func (f *Family) Parameter(name string) (model.Parameter, bool) {
 }
 
 // FamilyParameters are the family's parameters filled by a family, in
-// declaration order: the ones a type is drawn through, and the only ones a
-// use names.
+// declaration order: the ones a type is drawn through. Parameters also
+// includes plain type parameters.
 func (f *Family) FamilyParameters() []model.Parameter {
 	var out []model.Parameter
 	for _, p := range f.Parameters() {
@@ -211,13 +211,6 @@ func (f *Family) HasFamilyParameter(name string) bool {
 
 // fills is the family parameter of this family a filler names, empty when
 // it fills the slot with anything else.
-func (f *Family) fills(filler model.Filler) string {
-	if name := filler.Name(); name != "" && f.HasFamilyParameter(name) {
-		return name
-	}
-	return ""
-}
-
 // FieldAt is one field of a record as inheritance reaches it: the record
 // that declares it and its index there.
 type FieldAt struct {
@@ -315,7 +308,7 @@ func (f *Family) References() []string {
 // a type parameter. A family generic in S and T, where S is drawn at its
 // Envelope and its Handle and T at its Envelope, has the uses {S,Envelope},
 // {S,Handle}, {T,Envelope} — in that order, by the parameter's declaration
-// and then by drawnBefore.
+// and then by drawnBefore. A plain type parameter has an empty Type.
 type Use struct {
 	Parameter string
 	Type      string
@@ -340,14 +333,11 @@ func drawnBefore(a, b string) bool {
 	return a < b
 }
 
-// Generics is what makes a family generic. A type drawn from a parameter
-// is filled where the generated code is instantiated, so a type that holds
-// one — directly, or through the types it refers to, its own family's or
-// an imported one's — is generic in that parameter, and so is a family
-// with such a type. Types maps each generic type to the uses it makes, in
-// parameter order; Family is the union over every type and operation;
-// Imported is Types of each imported family, with the imported family's
-// parameters renamed to the parameter of this one that fills them.
+// Generics records type parameters and draws through family parameters,
+// including transitive uses through types, inline shapes and applications.
+// Types maps each generic type to its uses in lexical declaration order;
+// Family includes only the enclosing family's parameters. Imported keeps
+// each imported family's uses in its own scope, before application.
 type Generics struct {
 	Types    map[string][]Use
 	Family   []Use
@@ -363,101 +353,23 @@ func (f *Family) Generics() Generics {
 		return *f.generics
 	}
 	g := Generics{Types: map[string][]Use{}, Imported: map[string]map[string][]Use{}}
-	parameters := f.FamilyParameters()
-	order := map[string]int{}
-	for i, parameter := range parameters {
-		order[parameter.Name] = i
-	}
-	// An imported family's parameters are not this family's, so an
-	// application says what fills each: through a parameter of this family,
-	// which is a use of it, or through a named family, which is not. A
-	// family with one parameter may refer to a generic imported type plainly
-	// and fill every parameter of it with that one; check refuses the plain
-	// reference from a family with any other number.
-	rename := func(uses []Use, with map[string]model.Filler) []Use {
-		var out []Use
-		for _, use := range uses {
-			filler, bound := with[use.Parameter]
-			fills := f.fills(filler)
-			if !bound {
-				if len(parameters) != 1 {
-					continue
-				}
-				fills = parameters[0].Name
-			}
-			if fills == "" {
-				continue
-			}
-			if renamed := (Use{fills, use.Type}); !slices.Contains(out, renamed) {
-				out = append(out, renamed)
-			}
-		}
-		return out
-	}
 	for name, other := range f.Imported {
 		g.Imported[name] = other.Generics().Types
 	}
-	union := func(sets ...[]Use) []Use {
-		var out []Use
-		for _, set := range sets {
-			for _, use := range set {
-				if !slices.Contains(out, use) {
-					out = append(out, use)
-				}
-			}
-		}
-		sort.SliceStable(out, func(i, j int) bool {
-			if out[i].Parameter != out[j].Parameter {
-				return order[out[i].Parameter] < order[out[j].Parameter]
-			}
-			return drawnBefore(out[i].Type, out[j].Type)
-		})
-		return out
-	}
-	// usesOf is the uses an expression makes, given the uses known of every
-	// type so far; the fixpoint below reaches the types through references.
-	var usesOf func(model.TypeExpr) []Use
-	usesOf = func(e model.TypeExpr) []Use {
-		switch x := e.(type) {
-		case model.Drawn:
-			if _, declared := order[x.Parameter]; declared {
-				return []Use{{x.Parameter, x.Name}}
-			}
-		case model.Apply:
-			if x.Family == "" {
-				return rename(g.Types[x.Name], x.With)
-			}
-			return rename(g.Imported[x.Family][x.Name], x.With)
-		case model.Imported:
-			return rename(g.Imported[x.Family][x.Name], nil)
-		case model.Named:
-			return g.Types[x.Name]
-		case model.Array:
-			return usesOf(x.Elem)
-		case model.Map:
-			return usesOf(x.Elem)
-		case model.Nullable:
-			return usesOf(x.Elem)
-		}
-		return nil
-	}
+	u := parameterUses{family: f, generics: &g}
 	for changed := true; changed; {
 		changed = false
 		for _, name := range f.TypeNames() {
 			t := f.Types[name]
+			scope := append(slices.Clone(f.Parameters()), t.Parameters...)
 			var sets [][]Use
-			if isRecord(t) {
-				for _, field := range f.FlattenedFields(name) {
-					sets = append(sets, usesOf(field.Type))
+			for _, parameter := range t.Parameters {
+				if !parameter.IsFamily() {
+					sets = append(sets, []Use{{Parameter: parameter.Name}})
 				}
 			}
-			if t.Alias != nil {
-				sets = append(sets, usesOf(t.Alias))
-			}
-			for _, variant := range t.Variants {
-				sets = append(sets, usesOf(variant.Type))
-			}
-			if uses := union(sets...); len(uses) > len(g.Types[name]) {
+			sets = append(sets, u.declaration(t, scope))
+			if uses := orderedUses(scope, sets...); !slices.Equal(uses, g.Types[name]) {
 				g.Types[name] = uses
 				changed = true
 			}
@@ -465,19 +377,23 @@ func (f *Family) Generics() Generics {
 	}
 	var sets [][]Use
 	for _, uses := range g.Types {
-		sets = append(sets, uses)
+		for _, use := range uses {
+			if _, declared := scopeParameter(f.Parameters(), use.Parameter); declared {
+				sets = append(sets, []Use{use})
+			}
+		}
 	}
 	if f.Protocol != nil {
 		for _, side := range []*model.Side{&f.Protocol.Server, &f.Protocol.Client} {
 			for _, m := range side.Methods {
-				sets = append(sets, usesOf(m.Request), usesOf(m.Result))
+				sets = append(sets, u.expression(m.Request, f.Parameters()), u.expression(m.Result, f.Parameters()))
 			}
 			for _, e := range side.Events {
-				sets = append(sets, usesOf(e.Type))
+				sets = append(sets, u.expression(e.Type, f.Parameters()))
 			}
 		}
 	}
-	g.Family = union(sets...)
+	g.Family = orderedUses(f.Parameters(), sets...)
 	f.generics = &g
 	return g
 }
@@ -485,50 +401,14 @@ func (f *Family) Generics() Generics {
 // UsesOf is the uses one expression makes, once the family's generics are
 // known: what a rendering declares a field or an operation generic in.
 func (f *Family) UsesOf(e model.TypeExpr) []Use {
-	g := f.Generics()
-	switch x := e.(type) {
-	case model.Drawn:
-		if f.HasParameter(x.Parameter) {
-			return []Use{{x.Parameter, x.Name}}
-		}
-	case model.Apply:
-		if x.Family == "" {
-			return f.renamed(g.Types[x.Name], x.With)
-		}
-		return f.renamed(g.Imported[x.Family][x.Name], x.With)
-	case model.Imported:
-		return f.renamed(g.Imported[x.Family][x.Name], nil)
-	case model.Named:
-		return g.Types[x.Name]
-	case model.Array:
-		return f.UsesOf(x.Elem)
-	case model.Map:
-		return f.UsesOf(x.Elem)
-	case model.Nullable:
-		return f.UsesOf(x.Elem)
-	}
-	return nil
+	return f.UsesIn(e, f.Parameters())
 }
 
-func (f *Family) renamed(uses []Use, with map[string]model.Filler) []Use {
-	parameters := f.FamilyParameters()
-	var out []Use
-	for _, use := range uses {
-		filler, bound := with[use.Parameter]
-		fills := f.fills(filler)
-		if !bound {
-			if len(parameters) != 1 {
-				continue
-			}
-			fills = parameters[0].Name
-		}
-		if fills != "" {
-			if renamed := (Use{fills, use.Type}); !slices.Contains(out, renamed) {
-				out = append(out, renamed)
-			}
-		}
-	}
-	return out
+// UsesIn resolves an expression's parameter uses in its lexical scope.
+// Inline shapes capture this scope rather than declaring fresh parameters.
+func (f *Family) UsesIn(e model.TypeExpr, scope []model.Parameter) []Use {
+	g := f.Generics()
+	return (&parameterUses{family: f, generics: &g}).expression(e, scope)
 }
 
 // Locate answers an override's path key with the declaration it names:
