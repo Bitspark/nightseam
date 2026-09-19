@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	duplex "github.com/Bitspark/nightseam/duplex/go"
 	ws "github.com/Bitspark/nightseam/runtime/go"
 	"github.com/coder/websocket"
 )
@@ -582,3 +583,136 @@ func TestAPanickingObserverInterruptsNoRouting(t *testing.T) {
 	receive(t, client.Done())
 	receive(t, remote.Done())
 }
+
+// TestAFrameIsObservedSentBeforeItsAnswerIsObservedReceived holds the ordering
+// promise of docs/observability.md where it is narrowest and where it broke: a
+// nested call, whose request goes out and whose answer comes back on two
+// goroutines of the same peer. Before the writer became the one place a send is
+// observed, the frame handed to the writer could be written, answered and the
+// answer observed received before observeSent ran — rarely, and on a schedule
+// nobody can predict, which is worse than often. Two hundred exchanges over a
+// real socket is enough to reach the interleaving that used to transpose them.
+func TestAFrameIsObservedSentBeforeItsAnswerIsObservedReceived(t *testing.T) {
+	for round := range 200 {
+		observed := new(recorder)
+		client, _ := newPair(t, ws.Options{Observer: observed, Handlers: map[string]ws.Handler{
+			// The handler calls back from the request's own context, so the
+			// nested request leaves while the outer one is still open.
+			"outer": func(ctx context.Context, p *ws.Peer, _ json.RawMessage) (any, error) {
+				var answer string
+				err := p.Call(ctx, "back", nil, &answer)
+				return answer, err
+			},
+		}}, ws.Options{Handlers: map[string]ws.Handler{
+			"back": func(context.Context, *ws.Peer, json.RawMessage) (any, error) { return "back", nil },
+		}})
+		var result string
+		if err := client.Call(context.Background(), "outer", nil, &result); err != nil || result != "back" {
+			t.Fatalf("round %d: %v, %q", round, err, result)
+		}
+
+		// The server's own view: it sent the nested request and received its
+		// answer, and no other frame of this exchange carries s:1.
+		sent, received := -1, -1
+		for i, event := range observed.await(t, 8) {
+			switch e := event.(type) {
+			case ws.FrameSent:
+				if e.Kind == "request" && e.ID == "s:1" && sent < 0 {
+					sent = i
+				}
+			case ws.FrameReceived:
+				if e.Kind == "response" && e.ID == "s:1" && received < 0 {
+					received = i
+				}
+			}
+		}
+		if sent < 0 || received < 0 {
+			t.Fatalf("round %d: sent at %d, received at %d:\n%s", round, sent, received, strings.Join(observed.lines(), "\n"))
+		}
+		if sent > received {
+			t.Fatalf("round %d: the answer to s:1 was observed received before the request was observed sent:\n%s",
+				round, strings.Join(observed.lines(), "\n"))
+		}
+	}
+}
+
+// blockedConn is a transport that says when a frame reaches it and never
+// delivers one, so that a test can see whether a send was observed before the
+// bytes left rather than inferring it from a schedule.
+type blockedConn struct {
+	sending chan struct{}
+	done    chan struct{}
+	once    sync.Once
+}
+
+func newBlockedConn() *blockedConn {
+	return &blockedConn{sending: make(chan struct{}, 8), done: make(chan struct{})}
+}
+
+func (c *blockedConn) Send(context.Context, duplex.Frame) error {
+	c.sending <- struct{}{}
+	return nil
+}
+
+func (c *blockedConn) Receive(ctx context.Context) (duplex.Frame, error) {
+	select {
+	case <-ctx.Done():
+		return duplex.Frame{}, ctx.Err()
+	case <-c.done:
+		return duplex.Frame{}, errors.New("closed")
+	}
+}
+
+func (c *blockedConn) Close(context.Context, duplex.Code, string) error { return c.Abort() }
+
+func (c *blockedConn) Abort() error {
+	c.once.Do(func() { close(c.done) })
+	return nil
+}
+
+// TestAFrameIsObservedSentBeforeItReachesTheTransport is the deterministic half
+// of the ordering promise, and the one that bites: the observer holds the
+// goroutine that told it inside FrameSent, and the transport must not have been
+// handed the frame while it is held there. One goroutine observes every send
+// and then writes it, so a send cannot overtake its own observation — where the
+// send was observed by whoever queued the frame, the writer was free to write
+// it, have it answered and have the answer observed first, which is the race
+// this holds shut. Volume does not hold it: two hundred nested calls over a
+// socket pass either way.
+func TestAFrameIsObservedSentBeforeItReachesTheTransport(t *testing.T) {
+	inObserver, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	observer := observerFunc(func(event ws.ObserverEvent) {
+		if _, ok := event.(ws.FrameSent); !ok {
+			return
+		}
+		once.Do(func() {
+			close(inObserver)
+			<-release
+		})
+	})
+	conn := newBlockedConn()
+	peer, err := ws.NewPeer(context.Background(), conn, ws.ClientRole, ws.Options{Observer: observer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = peer.Close() }()
+	go func() { _ = peer.Emit(context.Background(), "tick", 1) }()
+
+	receive(t, inObserver)
+	// Held inside the observer, and the frame must still be this peer's: a
+	// transport that already has it could already have been answered.
+	select {
+	case <-conn.sending:
+		close(release)
+		t.Fatal("the frame reached the transport while its send was still being observed")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(release)
+	receive(t, conn.sending)
+}
+
+// observerFunc is an observer of one function, for a test that cares about one event.
+type observerFunc func(ws.ObserverEvent)
+
+func (f observerFunc) Observe(event ws.ObserverEvent) { f(event) }

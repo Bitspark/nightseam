@@ -133,6 +133,16 @@ type frame struct {
 	Meta map[string]string `json:"meta,omitempty"`
 }
 
+// queuedFrame is one frame waiting for the writer: the bytes it will write and
+// the frame they were rendered from. The two travel together so that the send
+// is observed by the one goroutine that writes, immediately before the bytes
+// leave — one serialization point per peer, which is what makes the observer's
+// events one order (docs/observability.md).
+type queuedFrame struct {
+	data  []byte
+	frame frame
+}
+
 // queuedEvent keeps an event's trace beside it across the bounded queue: the
 // handler runs under the context the trace was extracted into, not under one
 // the reader has already left behind.
@@ -170,7 +180,7 @@ type Peer struct {
 	eventHandlers map[string]EventHandler
 	listeners     map[uint64]func(context.Context, Event)
 	listenerID    uint64
-	outputs       chan []byte
+	outputs       chan queuedFrame
 	events        chan queuedEvent
 	slots         chan struct{}
 }
@@ -197,7 +207,7 @@ func newPeer(ctx context.Context, conn duplex.Conn, role Role, options Options, 
 	p := &Peer{conn: conn, ctx: ctx, cancel: cancel, options: o, prefix: "c:", remotePrefix: "s:", subprotocol: subprotocol, done: make(chan struct{}),
 		pending: make(map[string]chan pendingResult), incoming: make(map[string]context.CancelFunc), handlers: make(map[string]Handler),
 		eventHandlers: make(map[string]EventHandler), listeners: make(map[uint64]func(context.Context, Event)),
-		outputs: make(chan []byte, o.QueueCapacity), events: make(chan queuedEvent, o.QueueCapacity), slots: make(chan struct{}, o.MaxConcurrentHandlers)}
+		outputs: make(chan queuedFrame, o.QueueCapacity), events: make(chan queuedEvent, o.QueueCapacity), slots: make(chan struct{}, o.MaxConcurrentHandlers)}
 	if role == ServerRole {
 		p.prefix, p.remotePrefix = "s:", "c:"
 	}
@@ -382,8 +392,7 @@ func (p *Peer) cancelRequest(id string, trace Trace) {
 	default:
 	}
 	select {
-	case p.outputs <- data:
-		p.observeSent(f, len(data))
+	case p.outputs <- queuedFrame{data: data, frame: f}:
 	default:
 	}
 }
@@ -424,8 +433,7 @@ func (p *Peer) enqueue(ctx context.Context, f frame) error {
 	default:
 	}
 	select {
-	case p.outputs <- data:
-		p.observeSent(f, len(data))
+	case p.outputs <- queuedFrame{data: data, frame: f}:
 		return nil
 	default:
 	}
@@ -437,8 +445,7 @@ func (p *Peer) enqueue(ctx context.Context, f frame) error {
 	timer := time.NewTimer(p.options.WriteTimeout)
 	defer timer.Stop()
 	select {
-	case p.outputs <- data:
-		p.observeSent(f, len(data))
+	case p.outputs <- queuedFrame{data: data, frame: f}:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -456,9 +463,13 @@ func (p *Peer) writeLoop() {
 		select {
 		case <-p.done:
 			return
-		case data := <-p.outputs:
+		case queued := <-p.outputs:
+			// The one place a send is observed, and before the bytes leave: a
+			// reply cannot be read, let alone observed, ahead of the frame.sent
+			// of the request that drew it.
+			p.observeSent(queued.frame, len(queued.data))
 			ctx, cancel := context.WithTimeout(p.ctx, p.options.WriteTimeout)
-			err := p.conn.Send(ctx, duplex.Frame{Kind: duplex.Text, Data: data})
+			err := p.conn.Send(ctx, duplex.Frame{Kind: duplex.Text, Data: queued.data})
 			cancel()
 			if err != nil {
 				p.fail(err)
@@ -652,8 +663,7 @@ func (p *Peer) rejectRequest(id string, trace Trace, public *PublicError) {
 		return
 	}
 	select {
-	case p.outputs <- data:
-		p.observeSent(f, len(data))
+	case p.outputs <- queuedFrame{data: data, frame: f}:
 		return
 	case <-p.done:
 		return
@@ -661,8 +671,7 @@ func (p *Peer) rejectRequest(id string, trace Trace, public *PublicError) {
 	}
 	runtime.Gosched()
 	select {
-	case p.outputs <- data:
-		p.observeSent(f, len(data))
+	case p.outputs <- queuedFrame{data: data, frame: f}:
 	case <-p.done:
 	default:
 		p.fail(ErrBackpressure)

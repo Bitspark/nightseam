@@ -49,10 +49,12 @@ type ConnectionClosed struct {
 	Local  bool
 }
 
-// FrameSent is one frame queued for the transport, which is as far as this peer
-// carries it. Name is what the frame names — the method of a request, the name
-// of an event — and a response and a cancel name nothing, a response's method
-// being no member of the wire.
+// FrameSent is one frame handed to the transport, which is as far as this peer
+// carries it: told by the writer immediately before the bytes leave, so that a
+// frame is observed sent before anything it draws can be received. Name is what
+// the frame names — the method of a request, the name of an event — and a
+// response and a cancel name nothing, a response's method being no member of
+// the wire.
 type FrameSent struct {
 	At     time.Time
 	Kind   string

@@ -904,3 +904,29 @@ test('a peer over a connection that is no WebSocket negotiated nothing', async t
   assert.equal(peer.subprotocol, '');
   assert.equal(other.subprotocol, '');
 });
+
+test('a frame is observed sent immediately before its bytes reach the transport', async () => {
+  // The ordering promise of docs/observability.md, held where it is narrowest:
+  // one place observes every send, and it is the writer. Where the send was
+  // observed by whoever queued the frame, a queue holding two frames observed
+  // both before either reached the transport, and anything the first drew
+  // could be observed received before the second was observed sent.
+  const order: string[] = [];
+  const socket = new Socket();
+  const write = socket.send.bind(socket);
+  socket.send = (text: string) => { order.push(`wire ${(JSON.parse(text) as { event: string }).event}`); write(text); };
+  const peer = new DuplexPeer({
+    observer: { observe(event) { if (event.type === 'frame.sent') order.push(`sent ${event.name}`); } },
+  });
+  await peer.attach(socket);
+
+  // Nothing drains while the socket is behind, so both frames are queued before
+  // either is written; the queue then empties in order.
+  socket.bufferedAmount = 1;
+  const first = peer.emit('one');
+  const second = peer.emit('two');
+  socket.bufferedAmount = 0;
+  await Promise.all([first, second]);
+
+  assert.deepEqual(order, ['sent one', 'wire one', 'sent two', 'wire two']);
+});

@@ -23,13 +23,55 @@ What holds of every event, at every layer:
   TypeScript are contained where they happen: that event is lost and nothing
   else is, the connection carries on, and the peer reports the failure
   nowhere, having no logger of its own to report it to.
-- **An event that concerns a frame carries that frame's trace and the family
-  of the name it concerns**; a connection, a channel or a backpressure event
-  concerns no frame and carries neither, stated rather than left null.
-  `Options.Families` in Go and `PeerOptions.families` in TypeScript label a
-  method or event name with the family it belongs to, which the generated
-  install fills in; a name nobody labelled has no family rather than a
-  guessed one.
+- **Every event names the thing its layer is about, and an event that
+  concerns a frame carries that frame's trace.** A frame event names its
+  family, a channel event names its family, a session event names its
+  session; a connection event and a backpressure event concern no frame and
+  name nothing beyond themselves, stated rather than left null.
+
+  | events | names | trace |
+  | --- | --- | --- |
+  | `ConnectionOpened`, `ConnectionClosed`, `Backpressure` | — | — |
+  | the runtime's `FrameSent`, `FrameReceived`, `RequestStarted`, `RequestEnded`, `EventEmitted`, `EventDelivered`, `HandlerPanic` | its family | ✓ |
+  | the tunnel's five channel events | its family | — |
+  | the session's `AskRaised`, `AskRouted`, `AskAnswered`, `FrameAppended`, `Refused` | its session | ✓ |
+  | the session's `SessionBound`, `SessionUnbound`, `SessionAttached`, `SessionDetached`, `ControlChanged` | its session | — |
+
+  A channel is opened *for* a family, so a family is the one thing every
+  channel event knows; a session event names the session and never a family,
+  the family being the session's own. `Options.Families` in Go and
+  `PeerOptions.families` in TypeScript label a method or event name with the
+  family it belongs to, which the generated install fills in; a name nobody
+  labelled has no family rather than a guessed one.
+
+## Order
+
+An observer's events are **one order per peer**, and each is told before the
+effect it names has left the peer:
+
+- `frame.sent` before the bytes reach the transport;
+- `frame.received` after the frame is parsed and before it is dispatched;
+- `request.started` before the handler runs, and `request.ended` after it
+  returns and before the response is queued;
+- `event.emitted` before the frame that carries it, and `event.delivered`
+  before the listeners run.
+
+What this asks of a runtime is one serialization point per direction: the
+writer tells the observer of each send immediately before it writes, and the
+reader tells it of each receipt immediately after parsing. A peer that told
+the observer where the frame was *queued* instead would have no order at all
+— the writer is free to write a queued frame, have it answered and have the
+answer read before the queueing goroutine says anything, so a reply could be
+observed received before the request that drew it was observed sent. That is
+not a theoretical window: it was seen once in a conformance run, and rarely
+enough to be worse than often, since a gate that fails on a schedule nobody
+can predict invites the loosening of the gate.
+
+So a frame observed sent is one the peer handed to the transport, and a
+connection that fails with frames still queued never observed those sent.
+
+The promise is one peer's. Two peers' observers are two orders, and nothing
+relates them but a trace.
 
 ## Taking one
 

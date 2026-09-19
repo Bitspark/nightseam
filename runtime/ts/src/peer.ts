@@ -121,6 +121,8 @@ interface Outgoing {
   waited: boolean;
   resolve: () => void;
   reject: (error: DuplexError) => void;
+  /** What the observer is told of this frame, called by the writer just before the bytes leave. */
+  observeSent?: () => void;
 }
 interface QueuedEvent { name: string; data: unknown; bytes: number; trace?: Trace; meta?: Meta }
 
@@ -391,17 +393,19 @@ export class DuplexPeer {
       }
     }
     return new Promise<void>((resolve, reject) => {
-      this.outgoing.push({ text, started: Date.now(), sent: false, waited: false, resolve, reject });
-      if (this.observer) {
-        // A frame the peer accepted for sending; what precedes this rejected it.
-        const kind = envelope.kind as string;
-        const trace = traceOf(envelope);
-        const family = this.family(name);
-        // What the peer did comes before the frame that carried it, as the Go
-        // peer tells it: an event is emitted, then its frame is sent.
-        if (kind === 'event') this.observe({ type: 'event.emitted', at: new Date(), name, bytes, trace, family });
-        this.observe({ type: 'frame.sent', at: new Date(), kind, name, bytes, id: envelope.id as string | undefined, trace, family });
-      }
+      const kind = envelope.kind as string;
+      const trace = traceOf(envelope);
+      const family = this.family(name);
+      // What the peer did comes before the frame that carried it, as the Go
+      // peer tells it: an event is emitted, then its frame is sent. The frame
+      // itself is observed by the writer, immediately before the bytes leave —
+      // one serialization point per peer, so that nothing a frame draws can be
+      // observed received ahead of it (docs/observability.md).
+      if (this.observer && kind === 'event') this.observe({ type: 'event.emitted', at: new Date(), name, bytes, trace, family });
+      const observeSent = this.observer
+        ? () => this.observe({ type: 'frame.sent', at: new Date(), kind, name, bytes, id: envelope.id as string | undefined, trace, family })
+        : undefined;
+      this.outgoing.push({ text, started: Date.now(), sent: false, waited: false, resolve, reject, observeSent });
       this.flush();
     });
   }
@@ -417,6 +421,7 @@ export class DuplexPeer {
         return;
       }
       if (!item.sent && connection.buffered === 0) {
+        item.observeSent?.();
         try { connection.send({ kind: 'text', data: item.text }); item.sent = true; } catch {
           this.fail(new DuplexError('send_failed', 'WebSocket send failed.'));
           return;
