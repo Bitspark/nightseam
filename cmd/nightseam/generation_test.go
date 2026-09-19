@@ -28,7 +28,7 @@ type generation struct {
 }
 
 var generations = []generation{
-	{name: "v2", probe: v2Probe, slots: v2Slots},
+	{name: "tool", probe: toolProbe, slots: toolSlots},
 }
 
 func writeAll(t *testing.T, directory string, files map[string][]byte) {
@@ -38,9 +38,9 @@ func writeAll(t *testing.T, directory string, files map[string][]byte) {
 	}
 }
 
-func v2Probe(t *testing.T, directory string) {
+func toolProbe(t *testing.T, directory string) {
 	t.Helper()
-	k := v2Kernel(module, scope)
+	k := toolKernel(module, scope)
 	world := k.Load(os.DirFS(familiesRoot), "api/contracts")
 	rendered, err := k.Render(world, "probe")
 	if err != nil {
@@ -49,7 +49,7 @@ func v2Probe(t *testing.T, directory string) {
 	writeAll(t, directory, rendered.Files)
 }
 
-func v2Slots(t *testing.T, directory string) {
+func toolSlots(t *testing.T, directory string) {
 	t.Helper()
 	// The world is probe and the carrier alone, as v1's is: with another
 	// session family in it the carrier's client would refer to that one too.
@@ -57,7 +57,7 @@ func v2Slots(t *testing.T, directory string) {
 	families := &kernel.World{Families: map[string]*model.Family{"probe": loaded.Families["probe"], "carrier": loaded.Families["carrier"]}, Names: []string{"carrier", "probe"}, Problems: map[string][]diag.Diagnostic{}}
 	// The left path: probe and the carrier with S bound to probe, at the
 	// default layout.
-	left := v2Kernel(module, scope)
+	left := toolKernel(module, scope)
 	bound := *families
 	bound.Families = map[string]*model.Family{}
 	for name, f := range families.Families {

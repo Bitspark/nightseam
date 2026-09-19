@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:nightseam:v2:common",
+  "$id": "urn:nightseam:v1:common",
   "$defs": {
     "familyName": {
       "type": "string",

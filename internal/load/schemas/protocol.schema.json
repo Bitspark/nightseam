@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:nightseam:v2:protocol",
+  "$id": "urn:nightseam:v1:protocol",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -14,7 +14,7 @@
         "methods": {
           "type": "object",
           "propertyNames": {
-            "$ref": "urn:nightseam:v2:common#/$defs/wireName"
+            "$ref": "urn:nightseam:v1:common#/$defs/wireName"
           },
           "additionalProperties": {
             "type": "object",
@@ -27,10 +27,10 @@
                 "type": "string"
               },
               "request": {
-                "$ref": "urn:nightseam:v2:common#/$defs/expr"
+                "$ref": "urn:nightseam:v1:common#/$defs/expr"
               },
               "result": {
-                "$ref": "urn:nightseam:v2:common#/$defs/expr"
+                "$ref": "urn:nightseam:v1:common#/$defs/expr"
               },
               "errors": {
                 "type": "array",
@@ -46,7 +46,7 @@
         "events": {
           "type": "object",
           "propertyNames": {
-            "$ref": "urn:nightseam:v2:common#/$defs/wireName"
+            "$ref": "urn:nightseam:v1:common#/$defs/wireName"
           },
           "additionalProperties": {
             "type": "object",
@@ -59,7 +59,7 @@
                 "type": "string"
               },
               "type": {
-                "$ref": "urn:nightseam:v2:common#/$defs/expr"
+                "$ref": "urn:nightseam:v1:common#/$defs/expr"
               }
             }
           }
@@ -67,7 +67,7 @@
         "crud": {
           "type": "object",
           "propertyNames": {
-            "$ref": "urn:nightseam:v2:common#/$defs/typeName"
+            "$ref": "urn:nightseam:v1:common#/$defs/typeName"
           },
           "additionalProperties": {
             "type": "array",
@@ -91,10 +91,10 @@
       "const": "nightseam.duplex/1"
     },
     "imports": {
-      "$ref": "urn:nightseam:v2:common#/$defs/imports"
+      "$ref": "urn:nightseam:v1:common#/$defs/imports"
     },
     "types": {
-      "$ref": "urn:nightseam:v2:common#/$defs/types"
+      "$ref": "urn:nightseam:v1:common#/$defs/types"
     },
     "parameters": {
       "type": "array",
@@ -107,7 +107,7 @@
         ],
         "properties": {
           "name": {
-            "$ref": "urn:nightseam:v2:common#/$defs/parameterName"
+            "$ref": "urn:nightseam:v1:common#/$defs/parameterName"
           },
           "of": {
             "enum": [

@@ -27,7 +27,7 @@ import (
 )
 
 // schemas maps each tier to the schema that holds its file's shape.
-var schemas = map[string]string{"model": "urn:nightseam:v2:model", "protocol": "urn:nightseam:v2:protocol", "session": "urn:nightseam:v2:session"}
+var schemas = map[string]string{"model": "urn:nightseam:v1:model", "protocol": "urn:nightseam:v1:protocol", "session": "urn:nightseam:v1:session"}
 
 //go:embed schemas/common.schema.json
 var commonSchema []byte
@@ -55,11 +55,11 @@ var compiled = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 	compiler.DefaultDraft(jsonschema.Draft2020)
 	compiler.UseLoader(offlineLoader{})
 	sources := map[string][]byte{
-		"urn:nightseam:v2:common":    commonSchema,
-		"urn:nightseam:v2:model":     modelSchema,
-		"urn:nightseam:v2:protocol":  protocolSchema,
-		"urn:nightseam:v2:session":   sessionSchema,
-		"urn:nightseam:v2:overrides": overridesSchema,
+		"urn:nightseam:v1:common":    commonSchema,
+		"urn:nightseam:v1:model":     modelSchema,
+		"urn:nightseam:v1:protocol":  protocolSchema,
+		"urn:nightseam:v1:session":   sessionSchema,
+		"urn:nightseam:v1:overrides": overridesSchema,
 	}
 	for id, source := range sources {
 		var value any
@@ -74,7 +74,7 @@ var compiled = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 	}
 	schemas := map[string]*jsonschema.Schema{}
 	for id := range sources {
-		if id == "urn:nightseam:v2:common" {
+		if id == "urn:nightseam:v1:common" {
 			continue
 		}
 		schema, err := compiler.Compile(id)
@@ -128,7 +128,7 @@ func Checkout(fsys fs.FS, contracts string, targets []string) (*World, []diag.Di
 	return world, diagnostics
 }
 
-// layerFile recognises <family>.<dto|rpc|sess>.json.
+// strayFile reads the family a misplaced <family>[.suffix].json was meant for.
 func strayFile(name string) (family string, ok bool) {
 	stem, isJSON := strings.CutSuffix(name, ".json")
 	if !isJSON {
@@ -205,7 +205,7 @@ func Family(fsys fs.FS, dir, name string, targets []string) (*model.Family, []di
 			problems.Add(diag.Location{File: file}, "unreadable", err.Error())
 			continue
 		}
-		if shape(file, "urn:nightseam:v2:overrides", data, &problems) == nil {
+		if shape(file, "urn:nightseam:v1:overrides", data, &problems) == nil {
 			continue
 		}
 		family.Overrides[target] = json.RawMessage(data)

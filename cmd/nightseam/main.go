@@ -69,7 +69,7 @@ func (a *app) kernel() (*kernel.Kernel, error) {
 	if a.scope == "" {
 		a.scope = "@" + path.Base(a.module)
 	}
-	return v2Kernel(a.module, a.scope), nil
+	return toolKernel(a.module, a.scope), nil
 }
 
 // moduleOf reads the module path a go.mod declares.

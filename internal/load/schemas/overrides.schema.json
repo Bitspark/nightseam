@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:nightseam:v2:overrides",
+  "$id": "urn:nightseam:v1:overrides",
   "type": "object",
   "additionalProperties": false,
   "properties": {

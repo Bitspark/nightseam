@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:nightseam:v2:session",
+  "$id": "urn:nightseam:v1:session",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "imports": {
-      "$ref": "urn:nightseam:v2:common#/$defs/imports"
+      "$ref": "urn:nightseam:v1:common#/$defs/imports"
     },
     "types": {
-      "$ref": "urn:nightseam:v2:common#/$defs/types"
+      "$ref": "urn:nightseam:v1:common#/$defs/types"
     },
     "decides": {
       "type": "array",
