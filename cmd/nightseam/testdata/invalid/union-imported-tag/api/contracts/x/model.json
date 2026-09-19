@@ -1,1 +1,0 @@
-{"nightseam":2,"imports":["remote"],"types":{"Payload":{"kind":"record","fields":[{"name":"kind","type":{"literal":"ok"}}]},"Result":{"kind":"union","tag":"kind","variants":{"ok":"remote.Payload"}}}}

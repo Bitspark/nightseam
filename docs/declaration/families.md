@@ -88,7 +88,7 @@ A type expression is one of:
 | `{"array": T}` | an ordered list |
 | `{"map": T}` | a string-keyed map |
 | `{"nullable": T}` | a value that may be null |
-| `{"literal": "text"}` | the type of one string value: what a union's discriminator is declared as |
+| `{"literal": "text"}` | the type of one string value |
 | `{"ref": "User"}` | a reference to an entity by its key |
 | `{"apply": "Page", "with": {"T": "User"}}` | a generic type of this family, filled |
 | `{"apply": "carrier.Frame", "with": {"S": "probe"}}` | a generic type of an imported family, filled |
@@ -116,27 +116,46 @@ form](../decisions/one-reference-form.md)).
 }}
 ```
 
-A union is one of several variants, told apart on the wire by the member
-`tag` names. A variant is **any type expression**. On the wire:
+A union is one of several variants, told apart by the member `tag` names.
+Every payload is carried whole under `value`, including a record, map, JSON
+or null: `{"type":"image","value":{"url":"�"}}` and
+`{"type":"count","value":3}`. A union may rename the payload member with
+`"value":"<member>"`; it must differ from the discriminator. A record's own
+literal member stays inside that payload, with its own required/nullable
+rules, and need not match the outer tag.
 
-- a variant whose value is an object carries the tag beside its own
-  members: `{"type": "image", "url": "…"}`;
-- a variant whose value is not an object rides under a `value` member
-  beside the tag: `{"type": "count", "value": 3}`. A union may name that
-  member otherwise with `"value": "<member>"`;
-- a variant record that **declares the tag member itself** carries its own
-  tag and takes no wrapper — and then it declares it as the literal of that
-  variant, required: `{"name": "type", "type": {"literal": "text"}}`. Any
-  other declaration of the tag member is refused, because it would hand two
-  languages one frame to read two ways.
+A variant declared as `{"empty":true}` has no payload and writes only the
+tag: `{"type":"none"}`. This marker belongs only in `variants`. An empty
+record and a nullable value remain payloads and write `"value":{}` and
+`"value":null`, respectively.
 
-A union may `extends` other unions, **adding** variants: the two read the
-same `tag` and the same value member, a tag the base already carries may not
-be redeclared, and a chain that returns to itself is refused. A value of the
-base validates against the extended; the reverse does not. `enum` is the
-union of variants with no payload, and stays as it is. [A union is
-internally tagged](../decisions/a-union-is-internally-tagged.md) is the
-record.
+A union may extend other unions, adding variants with the same tag and
+value member. A base's tag cannot be redeclared; conflicting inherited tags
+or bindings and inheritance cycles are refused. A base value validates
+against the extended union; the reverse does not. String `enum` stays
+unchanged. [A union is adjacently tagged](../decisions/a-union-is-internally-tagged.md)
+records the carrier and why it replaced the original flat form.
+
+### Inheritance arguments
+
+An `extends` entry is a bare name for a nongeneric base, or an explicit
+application for a generic base:
+
+```json
+"Child": {"kind":"record", "parameters":[{"name":"Item"}],
+  "extends":[{"apply":"base.Box","with":{"T":{"array":"Item"}}}],
+  "fields":[]}
+```
+
+The target is `Type` or `family.Type`. Every required parameter is bound
+explicitly, including captured enclosing-family parameters and the base's
+own parameters. This also applies to a local base. A binding can fix a type
+(`"T":"string"`), forward a parameter (`"T":"Item"`), or fill a family
+parameter with a family or an in-scope family parameter of a sufficient
+tier. Same-spelled parameters do not bind automatically. Missing arguments,
+unknown slots and incompatible kinds or tiers are diagnostics. Arguments
+belong to the extending declaration's scope; inherited names retain their
+original family's meaning.
 
 ### Shapes without a name
 
@@ -192,6 +211,12 @@ union, or a type drawn from a parameter — or absent; its `result` any type;
 its `errors` codes the family declares, and a method that names an error the
 family does not declare is refused. The public errors reach both languages
 by name — [the generated packages](generated.md#errors) say how.
+
+A generic side is extended with
+`"extends":[{"apply":"workbench","with":{"T":"Item"}}]`; the target is
+the family name and selects the same side. Every parameter declared by the
+base family is explicitly filled. A bare family name selects a nongeneric
+base only.
 
 A side may **`extends`** another family's same side: its methods and events
 arrive under their own names, with its errors, and with its governance

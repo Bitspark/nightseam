@@ -1,2 +1,0 @@
-x/model.json#/types/Part/variants/text: Variant text of union Part is "Text", which declares the member type the union discriminates on; a variant that carries its own tag declares it as {"literal": "text"}, and any other declaration of it is two readings of one frame. [tag_member]
-error: 1 problems

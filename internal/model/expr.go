@@ -58,12 +58,17 @@ type Map struct{ Elem TypeExpr }
 // array or a map of values that may be null can be declared.
 type Nullable struct{ Elem TypeExpr }
 
-// Literal is the type of one string value: what a union's discriminator is
-// declared as by a variant that carries its own tag.
+// Literal is the type of one string value, retained inside a union payload
+// like every other member of that payload.
 type Literal struct{ Value string }
 
 // Ref is a reference to an entity of this family by its key.
-type Ref struct{ Entity string }
+type Ref struct {
+	Entity string
+	// Family is the resolved lexical owner in rendering facts. Declarations
+	// and the wire spelling remain local {"ref": "Entity"} expressions.
+	Family string
+}
 
 // Apply fills the parameters of a generic type: Family is empty for a type
 // of this family, and With maps each of that type's parameters to what

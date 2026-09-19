@@ -38,7 +38,7 @@ func Session(f *analysis.Family) []diag.Diagnostic {
 		seen := map[*analysis.Family]bool{f: true}
 		for i, name := range side.Extends {
 			at := side.At.Sub("extends", i)
-			walkSessionSide(f.Imported[name], server, seen, func(base *analysis.Family, side *model.Side) {
+			walkSessionSide(f.Imported[name.Name], server, seen, func(base *analysis.Family, side *model.Side) {
 				addOperations(side)
 				if base.Session != nil {
 					inherited = append(inherited, source{base, server, at})
@@ -118,7 +118,7 @@ func walkSessionSide(f *analysis.Family, server bool, seen map[*analysis.Family]
 	seen[f] = true
 	side := sessionSide(f, server)
 	for _, name := range side.Extends {
-		walkSessionSide(f.Imported[name], server, seen, visit)
+		walkSessionSide(f.Imported[name.Name], server, seen, visit)
 	}
 	visit(f, side)
 }

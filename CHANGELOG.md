@@ -8,6 +8,16 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- Shared rendering facts now retain inline declaration identity, inherited
+  union variants and protocol operations, source ownership and session
+  governance. Explicit applications resolve nested type and family fillers;
+  parameter-use analysis includes type parameters and inline captures for
+  both the checker and renderers. Captured arguments follow nested named
+  types. Generic inheritance explicitly binds its own and captured family
+  parameters, and inherited references retain their lexical owner. Union
+  facts use the adjacent payload carrier from #146 and distinguish the
+  explicit no-payload marker from an empty record or null. Target support remains gated by
+  each renderer's existing refusals.
 - The declaration language gained the type language of #55's eight
   verdicts, whole and in one lane. **Unions**: `{"kind": "union", "tag":
   "type", "variants": {…}}`, internally tagged with a declared

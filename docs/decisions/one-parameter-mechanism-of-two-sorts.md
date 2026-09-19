@@ -28,6 +28,16 @@ fills that parameter: a type expression for a type parameter, a family name
 for a family parameter. One drawing operation, `P.Type`, refused with a
 diagnostic when `P` is a type parameter.
 
+The same filling operation applies at inheritance edges, settled by
+[#136](https://github.com/Bitspark/nightseam/issues/136). A generic base is
+extended as `{"apply":"Base","with":{"T":"Item"}}` or with a concrete
+filler. For types the target is `Type` or `family.Type`; for a protocol side
+it is the family name, selecting that same side. All required captured
+family parameters and own type parameters are explicit, even for a local
+base. A bare name is reserved for a nongeneric base. Nothing is inherited
+or bound merely because two parameters have the same spelling. Substitution
+preserves the caller's argument scope and each inherited member's source.
+
 **Whether a family parameter is a type parameter with a bound: it is not**,
 and the verdict asked for the answer rather than a note. A bound narrows
 what a thing may be while leaving it the same kind of thing — `T` is still
