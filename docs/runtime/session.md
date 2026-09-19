@@ -80,7 +80,7 @@ and a member that is not a positive integer is refused there with
 ```go
 type Frame struct {
     Sequence  int64
-    Direction Direction   // Up: from the machine; Down: from a consumer
+    Direction Direction   // Up: towards the machine, what a consumer sent; Down: from it
     Origin    string      // what the consumer was attached as, or the machine's
     At        time.Time
     Message   json.RawMessage

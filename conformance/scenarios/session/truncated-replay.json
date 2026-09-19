@@ -1,5 +1,5 @@
 {
-  "name": "a message over the log's bound is kept cut and not replayed, since a cut message is not a message; what fits is replayed in its place",
+  "name": "a message over the log's bound is kept cut and not replayed, since a cut message is not a message; what fits is replayed in its place, and the cursor passes what was not",
   "layer": "session",
   "needs": [
     "lazy",
@@ -305,6 +305,18 @@
         "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":1}}"
       },
       "note": "the frame the log cut is delivered as nothing and carries no cursor of its own"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$late"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":2}}"
+      },
+      "note": "the frame the log kept cut is the replay's last, so the replay ends by saying where it reached: a consumer resuming from this cursor reads the log on rather than over the frame it was never given"
     },
     {
       "on": "b",

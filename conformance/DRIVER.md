@@ -354,7 +354,17 @@ machine may send. A scenario reads them off a consumer's channel with
   N}}` reaches the one attachment a frame was just delivered to, replay and
   live alike, naming that frame's sequence in the log. What the relay writes
   of itself carries none — a refusal, an ask handed again as control moves —
-  and neither does a frame the log cut, which is delivered as nothing.
+  and neither does a frame the replay passed over, which is delivered as
+  nothing. Where such frames are a replay's last, the replay ends with one
+  cursor naming where it reached and no frame before it.
+
+A replay hands a channel what that consumer would have been delivered live:
+every event the machine sent down, and nothing else. An up frame is a
+consumer's and goes to the machine, never down; a response of the machine's
+answers a request another consumer sent, under that consumer's id; a request
+of the machine's stands with the holder of control, and reaches a new holder
+where control moves rather than through a replay. A scenario that prefills a
+log with `up` frames is prefilling what no consumer is replayed.
 
 `attachment.state` is the same two facts as the attachment holds them, so a
 scenario can hold what a consumer was told and what its attachment says to

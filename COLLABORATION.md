@@ -99,40 +99,65 @@ itself. An issue says:
 - **Held by** — the tests that hold it, named; the test that guards the
   invariant is written first.
 - **Provenance** — what it was decomposed from.
-- **Waits on / Unblocks / Touches** — the issues before and after it, and
-  the files it edits, so that two lanes are not cut through one file at
-  once.
+- **Waits on** — the issues that land before it. **Touches** — the
+  directories it edits, as backticked paths; the PR's scope check reads this
+  line and *notes* a file outside it, never refuses. Two lanes may touch one
+  file; the second to land merges, which a pull request does for it.
 
-One lane, one session, one branch or one tree: a lane lands on its own, with
-both tiers green, and does not carry another lane's change with it.
+A lane is a **sub-issue of its parent** (an Epic), not a "decomposed from"
+in prose: the parent then shows its own progress, closes when its lanes do,
+and what waits on what is a query rather than a paragraph. Issue types —
+Epic for a parent, Task for a lane, Bug for a defect — are set by the forms;
+the `design` label marks a question that waits on the operator's verdict,
+which no type expresses. A PR closes exactly one issue, and that issue has a
+milestone: the board *is* the milestones, and the scope check refuses a PR
+whose issue is on none.
 
-## Working in one tree
+One lane, one session, one worktree, one pull request: a lane lands on its
+own, green, and carries nothing of another lane.
 
-Several sessions may work in one checkout. Stage by path, never `git add
--A` over a tree you do not own wholesale; commit only the files of your lane;
-read `git status` before you commit and leave what is not yours as you found
-it. A file another lane is editing is not yours to reformat. Line endings are
-LF everywhere (`.gitattributes` says so), and a stray binary is never
-committed.
+## How a change lands
 
-The index is shared as well as the tree. Two lanes each stage by path and
-the first to run a bare `git commit` carries the other's staged files under
-its own message — it happened on 2026-09-19. Two ways to commit only what
-is yours, and which one depends on where your change is:
+`main` takes no direct push. Every change — a lane's, the coordinator's, a
+one-line doc fix — is a branch in a worktree of its own, a pull request, and
+a squash merge that lands by itself when the checks are green. The rules
+are a file, `.github/ruleset-main.json`; `node scripts/protect-main.mjs
+apply` puts them on the repository and CI's `protection` job fails when the
+live rules have drifted from the file. Nobody is exempt.
 
-- Your change is in the **working tree** and nobody else is in those files:
-  `git commit -F message -- <paths>` commits the working-tree state of
-  exactly those paths and nothing else the index holds (a new file is
-  `git add`ed first).
-- A sibling is mid-edit in the **same file**: do not touch the working tree.
-  Rebuild HEAD plus your own hunks, stage that as a blob
-  (`git hash-object -w` and `git update-index --cacheinfo`), confirm with
-  `git diff --cached --name-only` that the index holds your files alone,
-  and then a bare `git commit` — a pathspec would commit the working tree,
-  which is the union, and undo the point of the rebuild.
+1. **Start.** `node scripts/worktree.mjs add issue-<N>-<slug>` fetches
+   `origin/main` and makes `.worktrees/issue-<N>-<slug>` on a branch from
+   it. Work there; the main checkout is nobody's working tree. A sub-agent
+   is given `isolation: "worktree"` for the same reason.
+2. **Work.** Commit in the worktree as often as the work has a whole step.
+   Run what CI runs before you push — the two tiers, `pnpm -r check &&
+   pnpm -r build && pnpm -r test`, `node scripts/matrix-table.mjs --check`,
+   and `go vet ./... && go test ./...` inside `otel/go` — since a red gate
+   only spends a CI cycle.
+3. **Open.** `git push -u origin <branch> && gh pr create --fill`. The
+   title is the commit's first line; the body says what holds it and
+   `Closes #N`. Then **queue the merge at once**:
+   `gh pr merge --auto --squash --delete-branch`. The PR lands the moment
+   `fast` (both platforms), `full` and `protection` are green, whether or
+   not the session that opened it is still there.
+4. **Merge.** Squash only, so `main` is one commit per lane and its history
+   reads as the changelog's raw material. No approval is required: a green,
+   in-scope PR is its author's to land. A review is a comment on the PR,
+   read by the next lane, not a gate the lane waits on; hold `--auto` only
+   when the gate is red, there is feedback to answer, or you are unsure.
+5. **Finish.** Stop every process you started in the worktree, leave it
+   clean, and `node scripts/worktree.mjs rm <branch>` once the PR has
+   merged. The remote branch goes with the merge.
 
-Either way, `git diff --cached --stat` is read before every commit as the
-question "is every line of this mine?".
+What this replaces: several sessions in one working tree and one index,
+staging by path and rebuilding the index by hand to keep out of each
+other's commits. That worked until it did not — on 2026-09-19 three commits
+carried another lane's files under the wrong message — and a worktree per
+lane makes the whole discipline unnecessary rather than more careful.
+
+`conformance/matrix.json` and the README's Languages table are regenerated
+by the full suite; a PR whose scenarios change the matrix commits the one
+its own run wrote, and CI holds the table to it.
 
 ## Commits
 
@@ -140,7 +165,23 @@ One commit is one change, and its message says what changed and why, in one
 sentence, from the area it changes: `runtime/go: …`, `tunnel/ts: …`,
 `generator: …`, `docs: …`, `goldens: regenerate — feature: …`. The sentence
 is the review's first line and the changelog's raw material; a commit whose
-message needs a paragraph is usually two commits.
+message needs a paragraph is usually two commits. A commit carries no
+trailer and no attribution line; a squash merge takes the PR's title and
+body as the commit, so write those the same way.
+
+## A lesson is a check, never a paragraph
+
+When something bites — a race in CI, a file two lanes edited, a PR that
+landed with the wrong title — the fix is one of three things: a line in a
+workflow, a script under `scripts/`, or a field in an issue form. It is
+never a dated warning appended to this page or to AGENTS.md. Two of this
+repository's neighbours grew their agent instructions to four and eight
+thousand lines that way — every note a real lesson, every one something an
+agent had to remember rather than something a check did for it — and the
+reading became the friction the notes were meant to remove. AGENTS.md stays
+under fifty lines and points at this page; this page states rules, not
+incidents. What cannot be made a check and is not a rule is a `design`
+issue.
 
 ## Releases
 

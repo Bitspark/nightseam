@@ -96,7 +96,7 @@ type Envelope = Record<string, unknown>;
 export const PREFIX = 'session.';
 /** Who holds control: `{holder: "<origin>"}`, or `{holder: null}` where nobody does. Every attachment is sent it when control changes, and a consumer once on attach, before its replay. */
 export const CONTROL_EVENT = 'session.control';
-/** Where in the session's one order the frame delivered just before it stood: `{sequence: N}`, the log's own sequence, which is what a consumer resumes from. A frame the log cut is delivered as nothing and carries none. */
+/** Where in the session's one order the frame delivered just before it stood: `{sequence: N}`, the log's own sequence, which is what a consumer resumes from. A frame a replay passed over is delivered as nothing and carries none; where such frames are a replay's last, it ends with one cursor naming where it reached and no frame before it. */
 export const CURSOR_EVENT = 'session.cursor';
 
 /** A family's session tier, as the generated client states it. */
@@ -358,11 +358,11 @@ export class Attachment {
   get holder(): string | null { return this.control; }
 
   /**
-   * The log's sequence of the last frame delivered to this consumer — what
-   * the last `session.cursor` said — and zero where it has been delivered
-   * none. It is what the consumer reattaches after, and the relay's own
-   * count rather than one kept by counting frames, which a message the log
-   * cut would put out by one.
+   * Where in the session's one order this consumer stands — what the last
+   * `session.cursor` said — and zero where it has been told none. It is what
+   * the consumer reattaches after, and the relay's own count rather than one
+   * kept by counting frames, which every frame a replay passed over would put
+   * out by one.
    */
   get sequence(): number { return this.cursor; }
 
@@ -512,19 +512,26 @@ class Relay {
     // where the replay runs, so that control moving meanwhile is the change
     // it is told next rather than the state it is told it joined at.
     const joined = this.holder;
-    this.run(() => {
+    this.run(async () => {
       // Who holds control is the first thing on the connection, before the
       // replay and before any frame of the family, so that the consumer
       // knows the state it joined before it reads what it missed.
       this.tellControl([attachment], joined);
       const ceiling = pinned ?? this.sequence;
-      return this.log.replay(after, async frame => {
-        // A cut message is not a message: what the log truncated is there for a
-        // consumer that reads the log, not for a channel that speaks the family.
-        // It carries no cursor either, the next one naming the next sequence.
-        if (frame.sequence > ceiling || frame.truncated) return;
+      // stood is the last sequence a frame was delivered at, passed the last
+      // the replay read: a replay that passes over its last frames ends by
+      // saying where it reached, so that resuming from the cursor reads the
+      // log on from there rather than over the frames it already passed.
+      let stood = after;
+      let passed = after;
+      await this.log.replay(after, async frame => {
+        if (frame.sequence > ceiling) return;
+        passed = frame.sequence;
+        if (!replayable(frame)) return;
         this.deliver(attachment, frame.sequence, frame.message);
+        stood = frame.sequence;
       });
+      if (passed > stood) this.stand(attachment, passed);
     });
     attachment.attachTo(down.listen({
       frame: frame => this.run(() => this.fromDown(attachment, frame)),
@@ -764,6 +771,16 @@ class Relay {
   private deliver(attachment: Attachment, sequence: number, message: unknown): void {
     this.write(attachment.channel, message);
     if (sequence <= 0) return;
+    this.stand(attachment, sequence);
+  }
+
+  /**
+   * stand tells a consumer where it stands with no frame before it, which is
+   * what a replay ends with where the frames it passed over are its last: a
+   * cursor says where a consumer stands, and it stands past a frame it was
+   * not given as surely as past one it was.
+   */
+  private stand(attachment: Attachment, sequence: number): void {
     this.write(attachment.channel, { version: 1, kind: 'event', event: CURSOR_EVENT, data: { sequence } });
     attachment.at(sequence);
   }
@@ -934,6 +951,42 @@ function member(raw: string): string | undefined {
   let name: unknown;
   try { name = JSON.parse(raw); } catch { return undefined; }
   return typeof name === 'string' ? name : undefined;
+}
+
+/**
+ * Whether a frame of the log reaches the channel a replay is running on:
+ * what the consumer there would have been delivered live, which is the
+ * machine's events and nothing else.
+ *
+ * The relay is the one place that knows which frames are which, having
+ * recorded the direction, so what a replay hands a channel is mechanism and
+ * not policy. What it passes over, it passes over for a reason of the
+ * routing table's own:
+ *
+ * - An up frame is a consumer's, and a consumer's frame goes to the machine
+ *   and never down. Its id is the session's own — `c:N`, minted for the
+ *   machine — which on a consumer's channel is the prefix that channel mints
+ *   under, so a peer reading a replayed request of another consumer's ends
+ *   the connection on the prefix (docs/wire/profile.md) and the replay takes the
+ *   consumer with it.
+ * - A response of the machine's answers a request the session sent for one
+ *   consumer, under that consumer's own id. It means nothing under any
+ *   other, whose peer holds no such request.
+ * - A request of the machine's, and a cancel of one, stand with the holder of
+ *   control; a consumer attaching holds none, and one given control is handed
+ *   every open request again where control moves.
+ * - A cut message is not a message: what the log truncated is there for a
+ *   consumer that reads the log, not for a channel that speaks the family.
+ *   Text that is no message of the profile is passed over for the same reason
+ *   — a log the session did not fill may hold one.
+ *
+ * The log still records every frame: only the channel's view is narrowed, and
+ * the cursor still passes what the channel is not given.
+ */
+function replayable(frame: Frame): boolean {
+  if (frame.truncated || frame.direction !== 'down') return false;
+  const message = frame.message;
+  return typeof message === 'object' && message !== null && !Array.isArray(message) && (message as Envelope).kind === 'event';
 }
 
 /** What a frame names: an event's name, a request's method; a response and a cancel name nothing. It is what the reserved prefix is read off. */

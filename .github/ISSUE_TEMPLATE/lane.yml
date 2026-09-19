@@ -1,5 +1,6 @@
 name: Lane
 description: A unit of work of a size one session lands by itself
+type: Task
 body:
   - type: markdown
     attributes:
@@ -33,11 +34,18 @@ body:
     attributes:
       label: Provenance
       description: What this was decomposed from — an issue, a decision, a report.
-  - type: textarea
-    id: edges
+  - type: input
+    id: waits
     attributes:
-      label: Waits on / Unblocks / Touches
-      description: The issues before and after it, and the files it edits, so that two lanes are not cut through one file at once.
+      label: Waits on
+      description: The issues that land before this one, as "#N, #M", or "nothing".
+      placeholder: "nothing"
+  - type: input
+    id: touches
+    attributes:
+      label: Touches
+      description: "The directories this lane edits, as backticked paths: `runtime/go`, `docs/wire/session.md`. The scope check on the PR reads this line and notes, never refuses, a file outside it."
+      placeholder: "`session/go`, `session/ts`, `docs/wire/session.md`"
   - type: dropdown
     id: parity
     attributes:
