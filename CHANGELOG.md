@@ -48,6 +48,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- An observer snapshot repeated until its expectations match preserves its
+  history: the deadline scenario no longer consumes request events before
+  the cancel arrives, and the scenario loader refuses such polling without
+  `drain: false`.
 - A replay hands a consumer the machine's events alone, where it handed it
   every frame the log held: a consumer attaching after another had decided
   anything was replayed that other consumer's requests, which carry an id the

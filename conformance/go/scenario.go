@@ -282,6 +282,12 @@ func parseStep(raw json.RawMessage) (Step, error) {
 		until, _ := r["until"].(string)
 		step.Repeat = &Repeat{Max: int(max), Until: until}
 	}
+	// A snapshot that drains can split the evidence across polls: the first
+	// read consumes the request events before the cancel frame is observed,
+	// and no later answer can contain the whole expected sequence.
+	if step.Op == "peer.observed" && step.Repeat != nil && step.Repeat.Until == "match" && step.Args["drain"] != false {
+		return Step{}, fmt.Errorf("peer.observed repeated until match requires drain: false to preserve events between polls")
+	}
 	step.Note, _ = object["note"].(string)
 	return step, nil
 }

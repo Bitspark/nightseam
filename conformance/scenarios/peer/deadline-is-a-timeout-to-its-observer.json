@@ -60,7 +60,8 @@
       "on": "b",
       "op": "peer.observed",
       "args": {
-        "on": "$pb"
+        "on": "$pb",
+        "drain": false
       },
       "expect": {
         "$contains": [
