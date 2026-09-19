@@ -62,6 +62,35 @@ func TestRenderFamilyTypeParameterWithoutFamilyDraw(t *testing.T) {
 	}
 }
 
+func TestRenderUnionAndSideDeclarations(t *testing.T) {
+	world := analysis.World(modeltest.World(map[string]map[string]string{
+		"base": {"model.json": `{"nightseam":2,"types":{}}`, "protocol.json": modeltest.Protocol(`"server":{"methods":{"ping":{"result":"string"}}}`)},
+		"x": {
+			"model.json": `{"nightseam":2,"types":{
+				"Message":{"kind":"record","fields":[{"name":"kind","type":{"literal":"text"}},{"name":"body","type":"string"}]},
+				"Choice":{"kind":"union","tag":"kind","value":"payload","variants":{"text":"Message","count":"integer"}}
+			}}`,
+			"protocol.json": modeltest.Protocol(`"imports":["base"],"server":{"extends":["base"],"methods":{"choose":{"result":"Choice"}}}`),
+		},
+	}))
+	files, err := New(Config{}).Render(render.Build(analysis.Resolve(world, "x")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	document := string(files[0].Data)
+	for _, want := range []string{
+		"The `kind` member identifies the variant.",
+		"non-object payload is carried in `payload`",
+		"| `\"count\"` | `integer` |",
+		"| `\"text\"` | `Message` |",
+		"Extends the server side of `base`.",
+	} {
+		if !strings.Contains(document, want) {
+			t.Errorf("the specification lacks %q:\n%s", want, document)
+		}
+	}
+}
+
 func TestRenderBuiltinReferences(t *testing.T) {
 	world := analysis.World(builtin.Families())
 	for _, name := range builtin.Names() {

@@ -112,3 +112,8 @@ alone, so that the document is never behind it. It reserves nothing and
 refuses nothing, and it is a target that is no language: the example of
 what a target is, beyond a rendering into code ([a specification is
 rendered, not written](../decisions/a-specification-is-rendered-not-written.md)).
+
+The same target renders the complete [built-in family references](builtins/README.md),
+including each family's operations and types. Their generated headers name the
+embedded `nightseam:` source, and the fast test tier holds the documents to
+those declarations. The reference index names the regeneration command.

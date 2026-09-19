@@ -18,7 +18,6 @@ import (
 	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/emit"
 	"github.com/Bitspark/nightseam/internal/model"
-	"github.com/Bitspark/nightseam/internal/model/builtin"
 	"github.com/Bitspark/nightseam/internal/render"
 	"github.com/Bitspark/nightseam/internal/spi"
 )
@@ -201,8 +200,17 @@ func (d *doc) render() {
 }
 
 func (d *doc) source() string {
-	if _, ok := builtin.Family(d.f.Name); ok {
-		return builtin.Prefix + d.f.Name + "/"
+	for _, declaration := range d.f.Types {
+		if !declaration.Carried {
+			if directory := path.Dir(declaration.At.File); directory != "." {
+				return directory + "/"
+			}
+		}
+	}
+	for _, side := range []render.Side{d.f.Server, d.f.Client} {
+		if directory := path.Dir(side.At.File); directory != "." {
+			return directory + "/"
+		}
 	}
 	return "api/contracts/" + d.f.Name + "/"
 }
@@ -221,8 +229,8 @@ func (d *doc) parameter(name, of, description string, drawn []string) {
 func (d *doc) tiers() string {
 	var names []string
 	for _, file := range d.f.Files {
-		if _, ok := builtin.Family(d.f.Name); ok {
-			file = builtin.Locate(d.f.Name, file)
+		if source := d.source(); source != "api/contracts/"+d.f.Name+"/" {
+			file = source + file
 		}
 		names = append(names, "`"+file+"`")
 	}
@@ -346,18 +354,32 @@ func (d *doc) declarations(types []*render.Type) {
 		case "alias":
 			d.line("")
 			d.linef("An alias of %s.", spell(t.Alias))
+		case "union":
+			d.line("")
+			d.linef("The `%s` member identifies the variant. A non-object payload is carried in `%s` beside the tag; an object payload contributes its members directly. A record declaring the tag itself carries the matching literal.", t.Tag, t.Value)
+			d.line("")
+			d.line("| Tag | Payload |")
+			d.line("|---|---|")
+			for _, variant := range t.Variants {
+				tag, _ := json.Marshal(variant.Tag)
+				d.linef("| %s | %s |", cell(code(string(tag))), cell(spell(variant.Type)))
+			}
 		}
 	}
 }
 
 func (d *doc) side(name, intro string, side render.Side) {
-	if len(side.Methods) == 0 && len(side.Events) == 0 {
+	if len(side.Methods) == 0 && len(side.Events) == 0 && len(side.Extends) == 0 {
 		return
 	}
 	d.line("")
 	d.linef("## %s side", name)
 	d.line("")
 	d.line(intro)
+	if len(side.Extends) > 0 {
+		d.line("")
+		d.linef("Extends the %s side of %s.", strings.ToLower(name), d.families(side.Extends))
+	}
 	if len(side.Methods) > 0 {
 		d.line("")
 		d.line("| Method | Request | Result | Errors | Description |")

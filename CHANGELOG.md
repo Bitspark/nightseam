@@ -18,6 +18,9 @@ are one number. Entries are in the words of the commits that landed them.
   facts use the adjacent payload carrier from #146 and distinguish the
   explicit no-payload marker from an empty record or null. Target support remains gated by
   each renderer's existing refusals.
+- The spec target renders standalone references for the built-in families,
+  held to their embedded declarations by the fast test tier, and describes
+  nullable expressions, literals, type parameters and local applications.
 - The declaration language gained the type language of #55's eight
   verdicts, whole and in one lane. **Unions**: `{"kind": "union", "tag":
   "type", "variants": {…}}`, internally tagged with a declared
