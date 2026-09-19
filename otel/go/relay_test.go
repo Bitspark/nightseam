@@ -165,12 +165,25 @@ func TestOneCallThroughARelayIsOneSpanTree(t *testing.T) {
 	if err := r.registry.Control("s", attachment); err != nil {
 		t.Fatal(err)
 	}
+	// The session's vocabulary is delivered to the consumer on its event
+	// loop, which is not the goroutine the call's answer returns on: the
+	// control is sent on attach and the cursor after the answer it stands
+	// for, and neither delivery — which is where its span is written — is
+	// ordered before Call returns. A test that read the exporter then read a
+	// snapshot, and failed on a loaded runner where the loop had not run
+	// yet. So the consumer handles both, and the test waits for its own
+	// handlers, which run after the delivery is observed.
+	delivered := make(chan string, 8)
 	consumer := r.speaker(consumerFar, runtime.ClientRole, tracer, runtime.Options{
 		Families: map[string]string{"echo": "probe", "reverse": "probe"},
 		Handlers: map[string]runtime.Handler{
 			"reverse": func(context.Context, *runtime.Peer, json.RawMessage) (any, error) {
 				return payload{Text: "etag", Count: 1}, nil
 			},
+		},
+		Events: map[string]runtime.EventHandler{
+			session.ControlEvent: func(context.Context, *runtime.Peer, json.RawMessage) { delivered <- session.ControlEvent },
+			session.CursorEvent:  func(context.Context, *runtime.Peer, json.RawMessage) { delivered <- session.CursorEvent },
 		},
 	})
 	work, root := tracer.Start(context.Background(), "the consumer's own work")
@@ -182,8 +195,17 @@ func TestOneCallThroughARelayIsOneSpanTree(t *testing.T) {
 	if answered.Text != "etag" {
 		t.Fatalf("the machine answered %+v", answered)
 	}
+	for seen := map[string]bool{}; !seen[session.ControlEvent] || !seen[session.CursorEvent]; {
+		select {
+		case name := <-delivered:
+			seen[name] = true
+		case <-t.Context().Done():
+			t.Fatalf("the session's vocabulary was not delivered to the consumer: %v", seen)
+		}
+	}
 	// The connection spans of the two peers end when the peers do; the five
-	// spans the tree is made of have ended already.
+	// spans the tree is made of, and the two of the vocabulary, have ended
+	// already.
 	tree := map[string]string{}
 	traces := map[trace.TraceID]bool{}
 	spans := exporter.GetSpans()

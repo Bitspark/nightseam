@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 )
@@ -99,6 +100,22 @@ func Run(ctx context.Context, a, b *Testee, s Scenario) Outcome {
 		if err != nil {
 			return fail(args, "", err.Error())
 		}
+		// A step that repeats until its expectations match is a wait on the
+		// far side of the wire — an observer told of a frame the local answer
+		// preceded — and is asked again, briefly apart, until they hold or
+		// the repeats run out; the last answer is then what is reported.
+		if step.Repeat != nil && step.Repeat.Until == "match" {
+			for n := 1; n < step.Repeat.Max && !holds(step, answer, bindings); n++ {
+				select {
+				case <-ctx.Done():
+					return fail(args, renderAnswer(answer), ctx.Err().Error())
+				case <-time.After(50 * time.Millisecond):
+				}
+				if answer, err = testee.Request(ctx, step.Op, args, 15*time.Second); err != nil {
+					return fail(args, "", err.Error())
+				}
+			}
+		}
 		rendered := renderAnswer(answer)
 		if answer.Error != nil {
 			if answer.Error.Code == "unsupported" {
@@ -138,6 +155,30 @@ func Run(ctx context.Context, a, b *Testee, s Scenario) Outcome {
 	return Outcome{}
 }
 
+// holds reports whether a step's expect and assert are satisfied by an
+// answer — what a repeat until match waits for. Nothing is bound here: a
+// `$bind` in the expect writes as it matches, so the match is made against
+// a copy, and the run binds once, from the answer that held.
+func holds(step Step, answer Answer, bound Bindings) bool {
+	b := maps.Clone(bound)
+	if answer.Error != nil {
+		return step.ExpectError != nil && match(step.ExpectError, answer.Error.Members, b) == nil
+	}
+	if step.HasExpect && match(step.Expect, answer.OK, b) != nil {
+		return false
+	}
+	if step.Assert != nil {
+		rendered := renderAnswer(answer)
+		if needle, ok := step.Assert["absent"].(string); ok && strings.Contains(rendered, needle) {
+			return false
+		}
+		if needle, ok := step.Assert["present"].(string); ok && !strings.Contains(rendered, needle) {
+			return false
+		}
+	}
+	return true
+}
+
 // request sends a step's op, again while a repeat says so, with a deadline
 // past whatever the op itself was told to wait.
 func request(ctx context.Context, t *Testee, step Step, args map[string]any) (Answer, error) {
@@ -147,7 +188,7 @@ func request(ctx context.Context, t *Testee, step Step, args map[string]any) (An
 			within = time.Duration(ms)*time.Millisecond + 10*time.Second
 		}
 	}
-	if step.Repeat == nil {
+	if step.Repeat == nil || step.Repeat.Until == "match" {
 		return t.Request(ctx, step.Op, args, within)
 	}
 	var answer Answer

@@ -108,7 +108,13 @@ a peer, the lifecycle of every request a canned handler served, what an
 observer was told, the changes a registry made. An `await_*` op returns the
 first entry that matches, removing it; a `drain` op returns everything held
 and empties it. Nothing is reported unasked and nothing is lost between
-asks.
+asks. An op that reads what is held without waiting — `peer.observed`,
+`drain` — reads it as it is at that moment, so a scenario expecting there
+what the other side has yet to send, such as the cancel a caller writes
+*after* its own call has failed on its deadline, says `"repeat": {"max":
+…, "until": "match"}` on the step, and the runner asks again until the
+expectations hold; a scenario that reads once is a scenario that fails when
+the wire is slow.
 
 ## Inbound consumption
 

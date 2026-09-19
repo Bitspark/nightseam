@@ -61,7 +61,7 @@
           "type": "object", "additionalProperties": false, "required": ["max"],
           "properties": {
             "max": {"type": "integer", "minimum": 1},
-            "until": {"enum": ["error", "ok"], "description": "Stop repeating at the first answer of this kind; the step then holds its expect or expect_error against it."}
+            "until": {"enum": ["error", "ok", "match"], "description": "Stop repeating at the first answer of this kind — or, with match, at the first answer whose expect and assert hold, which is how a step waits for what the far side has yet to do; the step then holds its expectations against the last answer."}
           }
         },
         "note": {"type": "string"}
