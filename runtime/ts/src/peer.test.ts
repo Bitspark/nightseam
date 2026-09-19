@@ -1137,6 +1137,122 @@ test('an outcome is what ended the call: an error code, a cancellation, a deadli
   ]);
 });
 
+for (const code of ['cancelled', 'request_timeout']) {
+  test(`a public ${code} refusal is observed as an error in both directions`, async (t) => {
+    const consumer = recorder();
+    const machine = recorder();
+    const { client, server } = await paired({ observer: consumer }, { observer: machine });
+    t.after(() => client.close());
+    server.handle('deny', () => {
+      throw new DuplexError(code, 'Refused.');
+    });
+    await assert.rejects(client.call('deny'), { code });
+    for (const [observer, incoming] of [
+      [consumer, false],
+      [machine, true],
+    ] as const) {
+      assert.deepEqual(observer.events.filter((event) => event.type === 'request.ended').map(shape), [
+        {
+          type: 'request.ended',
+          id: 'c:1',
+          method: 'deny',
+          incoming,
+          durationMs: true,
+          outcome: 'error',
+          errorCode: code,
+          family: '',
+        },
+      ]);
+    }
+  });
+}
+
+test('a handler public refusal stays an error after the caller withdraws', async (t) => {
+  const started = deferred();
+  const ended = deferred<Extract<ObserverEvent, { type: 'request.ended' }>>();
+  const { client, server } = await paired(
+    {},
+    {
+      observer: {
+        observe(event) {
+          if (event.type === 'request.ended') ended.resolve(event);
+        },
+      },
+    },
+  );
+  t.after(() => client.close());
+  server.handle(
+    'deny',
+    (_params, context) =>
+      new Promise((_resolve, reject) => {
+        started.resolve();
+        context.signal.addEventListener('abort', () => reject(new DuplexError('cancelled', 'Refused.')), {
+          once: true,
+        });
+      }),
+  );
+  const controller = new AbortController();
+  const call = assert.rejects(client.call('deny', {}, { signal: controller.signal }), { code: 'cancelled' });
+  await started.promise;
+  controller.abort();
+  await call;
+  assert.deepEqual(shape(await ended.promise), {
+    type: 'request.ended',
+    id: 'c:1',
+    method: 'deny',
+    incoming: true,
+    durationMs: true,
+    outcome: 'error',
+    errorCode: 'cancelled',
+    family: '',
+  });
+});
+
+test('a cancellation before handler dispatch is observed once as a local cancellation', async (t) => {
+  const socket = new Socket();
+  const watching = recorder();
+  const responded = deferred();
+  const peer = new DuplexPeer({
+    observer: {
+      observe(event) {
+        watching.observe(event);
+        if (event.type === 'frame.sent' && event.kind === 'response') responded.resolve();
+      },
+    },
+  });
+  t.after(() => peer.close());
+  await peer.attach(socket);
+  let dispatched = false;
+  peer.handle('wait', () => {
+    dispatched = true;
+    return null;
+  });
+  socket.receive({ version: 1, kind: 'request', id: 's:1', method: 'wait', params: {} });
+  socket.receive({ version: 1, kind: 'cancel', id: 's:1' });
+  await responded.promise;
+  assert.equal(dispatched, false);
+  assert.deepEqual(watching.events.filter((event) => event.type === 'request.ended').map(shape), [
+    {
+      type: 'request.ended',
+      id: 's:1',
+      method: 'wait',
+      incoming: true,
+      durationMs: true,
+      outcome: 'cancelled',
+      errorCode: 'cancelled',
+      family: '',
+    },
+  ]);
+  assert.equal(
+    watching.events.some((event) => event.type === 'handler.panic'),
+    false,
+  );
+  assert.deepEqual(socket.sent.find((frame) => frame.kind === 'response')?.error, {
+    code: 'cancelled',
+    message: 'Request was cancelled.',
+  });
+});
+
 for (const outcome of ['cancelled', 'timeout'] as const) {
   test(`a local ${outcome} is observed before its cancel, and the receiver observes a withdrawal`, async (t) => {
     const consumer = recorder();

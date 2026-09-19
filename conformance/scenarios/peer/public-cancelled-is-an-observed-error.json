@@ -1,0 +1,71 @@
+{
+  "name": "a public cancelled refusal is observed as an error on both sides",
+  "layer": "peer",
+  "description": "A public error code does not establish a local cancellation. The handler refuses a request that nobody withdrew; both observers report error with the public code.",
+  "needs": ["peer", "observer"],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a",
+        "server_options": { "observe": true },
+        "client_options": { "observe": true }
+      },
+      "bind": { "server": "pa", "client": "pb" }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "deny",
+        "behavior": { "kind": "fail", "code": "cancelled", "message": "Refused." }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": { "on": "$pb", "method": "deny", "params": {} },
+      "bind": "c"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": { "on": "$c" },
+      "expect": { "error": { "code": "cancelled", "message": "Refused." } }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_request",
+      "args": { "on": "$pa", "method": "deny", "phase": "ended" },
+      "expect": { "outcome": "error" }
+    },
+    {
+      "on": "a",
+      "op": "peer.observed",
+      "args": { "on": "$pa" },
+      "expect": {
+        "$contains": [
+          { "type": "request.ended", "method": "deny", "incoming": true, "outcome": "error", "error_code": "cancelled" }
+        ]
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.observed",
+      "args": { "on": "$pb" },
+      "expect": {
+        "$contains": [
+          {
+            "type": "request.ended",
+            "method": "deny",
+            "incoming": false,
+            "outcome": "error",
+            "error_code": "cancelled"
+          }
+        ]
+      }
+    }
+  ]
+}

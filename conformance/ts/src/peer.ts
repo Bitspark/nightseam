@@ -238,13 +238,14 @@ const canned =
         case 'fail':
           throw new DuplexError(b.code ?? 'internal', b.message ?? '', b.data);
         case 'wait':
-          await new Promise<never>((_, reject) => {
-            if (context.signal.aborted) reject(new DuplexError('cancelled', 'cancelled'));
-            context.signal.addEventListener('abort', () => reject(new DuplexError('cancelled', 'cancelled')), {
-              once: true,
-            });
+          await new Promise<void>((resolve) => {
+            if (context.signal.aborted) resolve();
+            else context.signal.addEventListener('abort', () => resolve(), { once: true });
           });
-          break;
+          // Completing with an aborted signal lets the peer observe its own
+          // cancellation; throwing DuplexError would be a public refusal.
+          ended('cancelled');
+          return null;
         case 'hold':
           // The one handler that does not stop when it is told to: it holds the
           // request until the remote emits what releases it, cancelled or not,
@@ -275,8 +276,7 @@ const canned =
       ended('ok');
       return result;
     } catch (error) {
-      if (error instanceof DuplexError)
-        ended(context.signal.aborted || error.code === 'cancelled' ? 'cancelled' : 'error');
+      if (error instanceof DuplexError) ended(context.signal.aborted ? 'cancelled' : 'error');
       else ended('panic');
       throw error;
     }

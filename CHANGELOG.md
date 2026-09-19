@@ -114,6 +114,8 @@ are one number. Entries are in the words of the commits that landed them.
 - Request observers in Go and TypeScript report `request_timeout` for local
   deadlines and `cancelled` for local cancellation, in both directions, and
   observe the request ending before its best-effort cancel is sent.
+- TypeScript observes a handler's public `cancelled` refusal as an error,
+  matching Go, and distinguishes it from cancellation by the runtime.
 
 ## 0.3.0
 

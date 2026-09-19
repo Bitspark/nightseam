@@ -93,6 +93,11 @@ A handler whose own deadline passes is therefore observed locally as
 `cancelled`. The caller observes that response as `error` with `cancelled`:
 it received a refusal, and its own deadline did not pass.
 
+A handler's public refusal also remains `error` when its code is
+`cancelled` or `request_timeout`, even if the caller withdrew while the
+handler was running. A code's spelling alone establishes no local
+cancellation or deadline.
+
 ## Taking one
 
 ```go
