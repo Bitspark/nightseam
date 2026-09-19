@@ -163,6 +163,12 @@ test('rendered anchors cover the finder and hostile prose stays text', () => {
   const atlas = buildAtlas(doc);
   const html = atlas.families.map((f) => familyHTML(atlas, f.Name)).join('');
   for (const entry of finder(atlas)) assert(html.includes(`id="${escapeHTML(entry.id)}"`), entry.id);
+  const sections = [...html.matchAll(/href="(#[^"]+\/section\/[^\"]+)"/g)];
+  assert.equal(sections.length, 4 * atlas.families.length);
+  for (const [, href] of sections) {
+    assert(atlas.families.some((f) => f.Name === parseRoute(href)[0]));
+    assert(html.includes(`id="${href.slice(1)}"`));
+  }
   assert(!html.includes('<img'));
   assert(html.includes('&lt;img'));
 });

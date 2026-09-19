@@ -19,9 +19,9 @@ lensSelect.disabled = atlas.languages.length === 0;
 if (lensSelect.disabled) lensSelect.title = 'This document contains wire names only.';
 
 function navigate({ force = false } = {}) {
-  // Section links stay in the current family and do not rebuild its view.
-  const section = ['#board', '#vocabulary', '#errors', '#across', '#content'].includes(location.hash);
-  if (section && !force) return;
+  // The skip link stays in the current family once its view exists.
+  const section = location.hash === '#content';
+  if (section && !force && currentFamily) return;
   const parts = section ? [currentFamily] : parseRoute(location.hash || '#/');
   const name = parts?.[0] || atlas.families[0]?.Name;
   const view = familyView(atlas, name, lens);
