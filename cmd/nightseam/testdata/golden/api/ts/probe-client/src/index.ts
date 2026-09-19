@@ -6,7 +6,7 @@ import type * as Protocol from './types.ts';
 import type * as session from "@example/session-client";
 export * from './types.ts';
 export { DuplexError };
-/** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */
+/** Typed user callbacks installed before the client reads its first frame. Cursor tracking is always installed. */
 export interface Events {
   sessionControl?: (data: session.Control, context: EventContext) => void | Promise<void>;
   sessionCursor?: (data: session.Cursor, context: EventContext) => void | Promise<void>;
@@ -33,10 +33,14 @@ export const errors = { /** The caller is denied. */ denied: "denied", /** There
 export type ErrorCode = (typeof errors)[keyof typeof errors];
 export class Client implements Caller {
   readonly peer: DuplexPeer;
+  #sequence = 0;
+  /** The latest relay cursor processed by this client, initially zero. */
+  get sequence(): number { return this.#sequence; }
   constructor(peer: DuplexPeer, handler: Handler | undefined, events: Events) {
     this.peer = peer;
     if (!handler) throw new Error('reverse-call handler is required');
     peer.handle("reverse", async (params, context) => { try { validateWire("Payload", params); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.reverse(params as Protocol.Payload, context); validateWire("Payload", result); return result; });
+    this.onSessionCursor(data => { this.#sequence = data.sequence; });
     if (events.sessionControl) this.onSessionControl(events.sessionControl);
     if (events.sessionCursor) this.onSessionCursor(events.sessionCursor);
     if (events.changed) this.onChanged(events.changed);

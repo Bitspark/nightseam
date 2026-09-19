@@ -16,6 +16,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- Generated session clients retain the relay's exact cursor through Go
+  `Sequence()` and TypeScript `sequence`, including replay-ending cursors
+  and gaps from skipped frames. Tracking starts before reading and updates
+  state before user callbacks; protocol-only clients gain no session state.
 - The specification is a document the generator builds once from the
   declaration, `internal/doc`, and writers render: every type with an
   example value of it and where it is used, every operation as the frames

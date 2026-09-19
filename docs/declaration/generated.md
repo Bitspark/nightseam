@@ -225,9 +225,24 @@ The Go payload's `Holder.Null` says nobody holds control; otherwise
 Construction callbacks receive current control before the first replayed
 application event. Later registration receives subsequent transfers and
 releases. The same imported side provides `SessionCursor` / `sessionCursor`
-callbacks; automatic client cursor state is tracked separately by #45.
+callbacks and `OnSessionCursor` / `onSessionCursor` for later registration.
 These callbacks use the same `Events` setup and `OnX` registration as every
 other event, including the caller's Go `Prepare` hook.
+
+A session client exposes `client.Sequence()` in Go and `client.sequence`
+in TypeScript. Both start at zero and retain the exact sequence from the
+latest processed `session.cursor`, including a replay-ending cursor sent
+without an application event. They do not count frames. The internal typed
+callback is installed before reading begins, even when `Events` omits a
+cursor callback; state is updated before the user's callback runs. Removing
+a TypeScript user callback leaves the tracker installed. In Go, registering
+a second user cursor callback returns the usual duplicate-event error.
+
+Save that value to resume through the consumer's attachment mechanism. A
+constructor does not wait for replay to finish, and reconnecting creates a
+new client whose sequence remains zero until its first cursor arrives. Keep
+the saved cursor until the new connection reports progress. A protocol-only
+client has no cursor state or getter.
 
 ## Errors
 

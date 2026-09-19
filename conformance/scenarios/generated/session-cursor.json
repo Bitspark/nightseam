@@ -1,0 +1,283 @@
+{
+  "name": "generated session clients retain exact cursors across skipped replay and resume without duplicates",
+  "layer": "generated",
+  "needs": [
+    "generated"
+  ],
+  "mirror": true,
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.serve",
+      "args": {
+        "session": true,
+        "prefill": [
+          {
+            "direction": "down",
+            "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{\"text\":\"one\",\"count\":1}}"
+          },
+          {
+            "direction": "up",
+            "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{\"text\":\"skipped\",\"count\":2}}"
+          },
+          {
+            "direction": "down",
+            "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{\"text\":\"three\",\"count\":3}}"
+          },
+          {
+            "direction": "up",
+            "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{\"text\":\"trailing\",\"count\":4}}"
+          }
+        ]
+      },
+      "bind": {
+        "handle": "srv",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.dial",
+      "args": {
+        "url": "$url",
+        "cursor": true
+      },
+      "bind": "first"
+    },
+    {
+      "on": "b",
+      "op": "client.await_notification",
+      "args": {
+        "on": "$first"
+      },
+      "expect": {
+        "event": "session.control",
+        "data": {
+          "holder": null
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.await_notification",
+      "args": {
+        "on": "$first"
+      },
+      "expect": {
+        "event": "changed",
+        "data": {
+          "text": "one",
+          "count": 1
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.await_notification",
+      "args": {
+        "on": "$first"
+      },
+      "expect": {
+        "event": "session.cursor",
+        "data": {
+          "sequence": 1
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.await_notification",
+      "args": {
+        "on": "$first"
+      },
+      "expect": {
+        "event": "changed",
+        "data": {
+          "text": "three",
+          "count": 3
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.await_notification",
+      "args": {
+        "on": "$first"
+      },
+      "expect": {
+        "event": "session.cursor",
+        "data": {
+          "sequence": 3
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.await_notification",
+      "args": {
+        "on": "$first"
+      },
+      "expect": {
+        "event": "session.cursor",
+        "data": {
+          "sequence": 4
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.sequence",
+      "args": {
+        "on": "$first"
+      },
+      "expect": {
+        "sequence": 4
+      },
+      "bind": {
+        "sequence": "cursor"
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.close",
+      "args": {
+        "on": "$first"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.dial",
+      "args": {
+        "url": "$url",
+        "after": 3
+      },
+      "bind": "skipped"
+    },
+    {
+      "on": "b",
+      "op": "client.await_notification",
+      "args": {
+        "on": "$skipped"
+      },
+      "expect": {
+        "event": "session.control",
+        "data": {
+          "holder": null
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "server.control",
+      "args": {
+        "on": "$srv",
+        "origin": "consumer2"
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.await_notification",
+      "args": {
+        "on": "$skipped"
+      },
+      "expect": {
+        "event": "session.control",
+        "data": {
+          "holder": "consumer2"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.sequence",
+      "args": {
+        "on": "$skipped"
+      },
+      "expect": {
+        "sequence": 4
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.close",
+      "args": {
+        "on": "$skipped"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.dial",
+      "args": {
+        "url": "$url",
+        "after": "$cursor",
+        "control": false
+      },
+      "bind": "resumed"
+    },
+    {
+      "on": "b",
+      "op": "client.sequence",
+      "args": {
+        "on": "$resumed"
+      },
+      "expect": {
+        "sequence": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.on_cursor",
+      "args": {
+        "on": "$resumed"
+      }
+    },
+    {
+      "on": "a",
+      "op": "server.emit_changed",
+      "args": {
+        "on": "$srv",
+        "data": {
+          "text": "live",
+          "count": 5
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.await_notification",
+      "args": {
+        "on": "$resumed"
+      },
+      "expect": {
+        "event": "changed",
+        "data": {
+          "text": "live",
+          "count": 5
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.await_notification",
+      "args": {
+        "on": "$resumed"
+      },
+      "expect": {
+        "event": "session.cursor",
+        "data": {
+          "sequence": 5
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.sequence",
+      "args": {
+        "on": "$resumed"
+      },
+      "expect": {
+        "sequence": 5
+      }
+    }
+  ]
+}

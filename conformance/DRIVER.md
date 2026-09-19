@@ -415,15 +415,17 @@ in `testee.json` before the `generated` scenarios run.
 
 | op | arguments | answer |
 |---|---|---|
-| `gen.serve` | `behaviors`, `session` | `{"handle", "url"}` — the binding served at `url` with the canned handler set below; `session: true` places a relay before it |
-| `gen.dial` | **`url`**, `options`, `control` | `{"handle"}` a generated client, its reverse-call handler canned; `control: false` omits the construction-time control callback |
+| `gen.serve` | `behaviors`, `session`, `prefill` | `{"handle", "url"}` — the binding served at `url` with the canned handler set below; `session: true` places a relay before it |
+| `gen.dial` | **`url`**, `options`, `control`, `cursor`, `after` | `{"handle"}` a generated client, its reverse-call handler canned; `control: false` omits the construction-time control callback; `cursor: true` installs the cursor callback; `after` resumes a session |
 | `client.echo` | **`on`**, **`params`** | `{"result"}` or `{"error"}` as the typed call ended |
 | `client.no_args` | **`on`** | the same |
 | `client.seen` | **`on`**, **`params`** | the same |
 | `client.emit_noticed` | **`on`**, **`data`** | `{}` |
 | `client.await_changed` | **`on`**, `within_ms` | `{"data"}` |
-| `client.await_notification` | **`on`**, `within_ms` | `{"event", "data"}` — the next typed `changed` or `session.control` callback, in delivery order |
+| `client.await_notification` | **`on`**, `within_ms` | `{"event", "data"}` — the next typed `changed`, `session.control` or registered `session.cursor` callback, in delivery order |
 | `client.on_control` | **`on`** | `{}` — installs the generated control callback after construction |
+| `client.on_cursor` | **`on`** | `{}` — installs the generated cursor callback after construction |
+| `client.sequence` | **`on`** | `{"sequence"}` — the generated client's retained relay cursor, initially zero |
 | `client.close` | **`on`** | `{}` |
 | `server.reverse` | **`on`** the served handle, **`params`** | `{"result"}` or `{"error"}` — the binding calls the connected client's `reverse` |
 | `server.emit_changed` | **`on`**, **`data`** | `{}` |
@@ -444,6 +446,10 @@ which language is on each side, so it holds the prefix with a pattern.
 
 With `session: true`, the server binds that machine behind a real session
 relay whose log begins with one `changed` event, `{text:"replay",count:1}`.
+An explicit `prefill` list replaces that default; each entry has `text`
+(a serialized profile frame), `direction` (`down` by default, or `up`) and
+an optional `origin`, as in the session testee's log prefill. The endpoint
+reads the test harness's `after` query parameter to resume from that cursor.
 Consumers are named `consumer1`, `consumer2`, and so on in connection order.
 The generated client's typed `session.control` callback is installed during
 construction by default; `control: false` allows a scenario to exercise
@@ -451,6 +457,9 @@ later registration through `client.on_control`. The ordered notification
 queue holds initial control before replay and subsequent transfer/release,
 independently of `client.await_changed`'s existing queue. A language without
 a binding answers `gen.serve` with `unsupported`, as for the ordinary server.
+The client retains cursors even without a user cursor callback. A callback
+installed at construction or through `client.on_cursor` receives the same
+typed cursor after that state is updated; it does not own the tracker.
 
 The generated testee lies under `conformance/<lang>/generated/`, and the
 runner lays those files beside the probe rendering in `{rendered}` before

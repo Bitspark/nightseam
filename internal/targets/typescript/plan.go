@@ -37,6 +37,7 @@ const (
 	identPeer          = "peer"
 	identSlotsField    = "slots"
 	identClose         = "close"
+	identSequence      = "sequence"
 	identConstructor   = "constructor"
 	identThen          = "then"
 	identEmit          = "emit"
@@ -64,7 +65,7 @@ func Reserved() []string {
 	names := []string{identClient, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identSessionFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identDecides, identAsks, identConversation, identFamilyValue, identValidateWire, identProtocol}
 	names = append(names, imported...)
 	names = append(names, globals...)
-	names = append(names, identPeer, identSlotsField, identClose, identConstructor, identThen)
+	names = append(names, identPeer, identSlotsField, identClose, identSequence, identConstructor, identThen)
 	for _, name := range eventObjectMembers {
 		if !slices.Contains(names, name) {
 			names = append(names, name)
@@ -94,6 +95,9 @@ func newPlan(f *render.Family) (*plan, []diag.Diagnostic) {
 	p.module.Fix("generated use of a global", globals...)
 	p.client.Fix("generated client field", identPeer, identSlotsField)
 	p.client.Fix("generated client method", identClose, identConstructor)
+	if f.Session != nil {
+		p.client.Fix("generated session client getter", identSequence)
+	}
 	// A method named then would make the client a Promise-like value,
 	// breaking the async dial factory through JavaScript's thenable
 	// assimilation.
