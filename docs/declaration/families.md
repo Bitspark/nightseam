@@ -200,7 +200,12 @@ superset, so a consumer of the base may speak to it. The family it extends
 is one this family imports; a side that extends its own family's, a chain
 that returns, and a name that means two things across the join are each
 refused ([a side may extend another
-family's](../decisions/a-side-may-extend-another-familys.md)).
+family's](../decisions/a-side-may-extend-another-familys.md)). Session governance
+may name inherited operations on the selected sides, including through
+another base. A conversation definition follows the side that carries its
+event. Repeating the same event and path is compatible; inheriting or
+declaring a different one is an `incompatible_governance` diagnostic. A
+protocol-only family does not acquire a session tier by extending a side.
 
 ### What a tier brings
 

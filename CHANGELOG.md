@@ -116,6 +116,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Session governance now resolves inherited methods and events on the
+  selected protocol sides and refuses conflicting conversation definitions,
+  while preserving matching definitions through transitive inheritance.
 - Generated clients take typed event handlers at construction in Go and
   TypeScript, before the first frame is read, so an immediate replay keeps
   its first event; existing Go preparation hooks and later registration remain.
