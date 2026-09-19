@@ -12,6 +12,9 @@
       "op": "pair.peers",
       "args": {
         "server": "a",
+        "server_options": {
+          "observe": true
+        },
         "client_options": {
           "observe": true,
           "request_timeout_ms": 300
@@ -75,14 +78,39 @@
             "method": "wait",
             "incoming": false,
             "outcome": "timeout",
+            "error_code": "request_timeout",
             "duration": true
+          },
+          {
+            "type": "frame.sent",
+            "kind": "cancel"
           }
         ]
       },
-      "assert": {
-        "present": "\"kind\":\"cancel\""
+      "note": "the observer names the local deadline as request_timeout and ends the request before the best-effort cancel is sent. Repeated reads retain the earlier events while waiting for the writer to send the cancel",
+      "repeat": {
+        "max": 40,
+        "until": "match"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pa",
+        "drain": false
       },
-      "note": "the outcome is what the two runtimes agree on, and that a cancel was sent. The step repeats until its expectations hold: the caller's own answer — the call failing on its deadline — precedes the cancel frame the writer then sends, so the observer read here waits for the cancel to be written rather than asserting it already was. Two things beside it are not one rule yet and are held by nothing here rather than papered over: the error_code, which Go leaves empty where TypeScript names request_timeout, and where the cancel falls in the order — Go sends it before the request ends, TypeScript after — which is why the cancel is asserted present rather than placed",
+      "expect": {
+        "$contains": [
+          {
+            "type": "request.ended",
+            "method": "wait",
+            "incoming": true,
+            "outcome": "cancelled",
+            "error_code": "cancelled"
+          }
+        ]
+      },
       "repeat": {
         "max": 40,
         "until": "match"

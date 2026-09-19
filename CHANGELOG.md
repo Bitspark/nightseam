@@ -108,6 +108,9 @@ are one number. Entries are in the words of the commits that landed them.
 - The release round trip waits up to two minutes with backoff for npm and
   Go module propagation before installing, names unavailable packages on
   timeout, and has the workflow permission to file an issue on failure.
+- Request observers in Go and TypeScript report `request_timeout` for local
+  deadlines and `cancelled` for local cancellation, in both directions, and
+  observe the request ending before its best-effort cancel is sent.
 
 ## 0.3.0
 
