@@ -5,20 +5,23 @@ import { validateWire } from './types.ts';
 import type * as Protocol from './types.ts';
 export * from './types.ts';
 export { DuplexError };
+/** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */
+export interface Events {
+}
 export interface Handler {
 }
 export interface Caller {
 }
 export class Client implements Caller {
   readonly peer: DuplexPeer;
-  constructor(peer: DuplexPeer, handler?: Handler) {
+  constructor(peer: DuplexPeer, handler: Handler | undefined, events: Events) {
     this.peer = peer;
   }
   /** Connects to a WebSocket endpoint and speaks the family over it. */
-  static async dial(url: string, options: PeerOptions = {}, handler?: Handler): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families } }); const client = new Client(peer, handler); await peer.connect(url); return client; }
+  static async dial(url: string, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families } }); const client = new Client(peer, handler, events); await peer.connect(url); return client; }
   /** Speaks the family over a connection of the seam — a tunnel channel, a pipe, an open socket — as the client side of it. */
-  static async attach(connection: FrameConnection, options: PeerOptions = {}, handler?: Handler): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families } }); const client = new Client(peer, handler); await peer.attach(connection); return client; }
+  static async attach(connection: FrameConnection, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families } }); const client = new Client(peer, handler, events); await peer.attach(connection); return client; }
   /** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */
-  static async open(tunnel: Tunnel, handle: Protocol.Handle, options: PeerOptions = {}, handler?: Handler): Promise<Client> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach(channel, options, handler); }
+  static async open(tunnel: Tunnel, handle: Protocol.Handle, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach(channel, options, handler, events); }
   close(): void { this.peer.close(); }
 }

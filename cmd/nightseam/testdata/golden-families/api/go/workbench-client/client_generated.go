@@ -12,6 +12,11 @@ import (
 )
 
 type Client struct{ Peer *runtime.Peer }
+
+// Events installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.
+type Events struct {
+	Changed func(context.Context, protocol.Event)
+}
 type Handler interface {
 }
 
@@ -37,7 +42,7 @@ type Caller interface {
 var _ Caller = (*Client)(nil)
 
 // install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
-func install(handler Handler, options *runtime.Options) error {
+func install(handler Handler, events Events, options *runtime.Options) error {
 	handlers := map[string]runtime.Handler{}
 	for name, existing := range options.Handlers {
 		handlers[name] = existing
@@ -64,12 +69,25 @@ func install(handler Handler, options *runtime.Options) error {
 	families["work.update"] = "workbench"
 	families["workbench.changed"] = "workbench"
 	options.Families = families
+	prepare := options.Prepare
+	options.Prepare = func(peer *runtime.Peer) error {
+		client := &Client{Peer: peer}
+		if events.Changed != nil {
+			if err := client.OnChanged(events.Changed); err != nil {
+				return err
+			}
+		}
+		if prepare != nil {
+			return prepare(peer)
+		}
+		return nil
+	}
 	return nil
 }
 
 // Dial connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.
-func Dial(ctx context.Context, url string, options runtime.DialOptions, handler Handler) (*Client, error) {
-	if err := install(handler, &options.Options); err != nil {
+func Dial(ctx context.Context, url string, options runtime.DialOptions, handler Handler, events Events) (*Client, error) {
+	if err := install(handler, events, &options.Options); err != nil {
 		return nil, err
 	}
 	peer, response, err := runtime.Dial(ctx, url, options)
@@ -83,8 +101,8 @@ func Dial(ctx context.Context, url string, options runtime.DialOptions, handler 
 }
 
 // Attach speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.
-func Attach(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler) (*Client, error) {
-	if err := install(handler, &options); err != nil {
+func Attach(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler, events Events) (*Client, error) {
+	if err := install(handler, events, &options); err != nil {
 		return nil, err
 	}
 	peer, err := runtime.NewPeer(ctx, conn, runtime.ClientRole, options)
@@ -95,12 +113,12 @@ func Attach(ctx context.Context, conn duplex.Conn, options runtime.Options, hand
 }
 
 // Open resolves a handle to the channel it names on a tunnel and speaks the family over it.
-func Open(ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler) (*Client, error) {
+func Open(ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler, events Events) (*Client, error) {
 	channel, ok := t.Channel(handle.Channel)
 	if !ok {
 		return nil, fmt.Errorf("no channel %d on the connection", handle.Channel)
 	}
-	return Attach(ctx, channel, options, handler)
+	return Attach(ctx, channel, options, handler, events)
 }
 func (c *Client) Close() error { return c.Peer.Close() }
 func (c *Client) ListEvents(ctx context.Context, params protocol.ListEventsParams) ([]protocol.Event, error) {

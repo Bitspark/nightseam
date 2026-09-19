@@ -5,6 +5,10 @@ import { validateWire } from './types.ts';
 import type * as Protocol from './types.ts';
 export * from './types.ts';
 export { DuplexError };
+/** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */
+export interface Events {
+  changed?: (data: Protocol.Event, context: EventContext) => void | Promise<void>;
+}
 export interface Handler {
 }
 export interface Caller {
@@ -30,15 +34,16 @@ export const errors = { /** The request was canceled. */ canceled: "canceled", /
 export type ErrorCode = (typeof errors)[keyof typeof errors];
 export class Client implements Caller {
   readonly peer: DuplexPeer;
-  constructor(peer: DuplexPeer, handler?: Handler) {
+  constructor(peer: DuplexPeer, handler: Handler | undefined, events: Events) {
     this.peer = peer;
+    if (events.changed) this.onChanged(events.changed);
   }
   /** Connects to a WebSocket endpoint and speaks the family over it. */
-  static async dial(url: string, options: PeerOptions = {}, handler?: Handler): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "events.list": "workbench", "me": "workbench", "projects.create": "workbench", "projects.list": "workbench", "projects.update": "workbench", "subscribe": "workbench", "work.cancel": "workbench", "work.create": "workbench", "work.dependencies": "workbench", "work.get": "workbench", "work.list": "workbench", "work.publish": "workbench", "work.reopen": "workbench", "work.steps": "workbench", "work.update": "workbench", "workbench.changed": "workbench" } }); const client = new Client(peer, handler); await peer.connect(url); return client; }
+  static async dial(url: string, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "events.list": "workbench", "me": "workbench", "projects.create": "workbench", "projects.list": "workbench", "projects.update": "workbench", "subscribe": "workbench", "work.cancel": "workbench", "work.create": "workbench", "work.dependencies": "workbench", "work.get": "workbench", "work.list": "workbench", "work.publish": "workbench", "work.reopen": "workbench", "work.steps": "workbench", "work.update": "workbench", "workbench.changed": "workbench" } }); const client = new Client(peer, handler, events); await peer.connect(url); return client; }
   /** Speaks the family over a connection of the seam — a tunnel channel, a pipe, an open socket — as the client side of it. */
-  static async attach(connection: FrameConnection, options: PeerOptions = {}, handler?: Handler): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "events.list": "workbench", "me": "workbench", "projects.create": "workbench", "projects.list": "workbench", "projects.update": "workbench", "subscribe": "workbench", "work.cancel": "workbench", "work.create": "workbench", "work.dependencies": "workbench", "work.get": "workbench", "work.list": "workbench", "work.publish": "workbench", "work.reopen": "workbench", "work.steps": "workbench", "work.update": "workbench", "workbench.changed": "workbench" } }); const client = new Client(peer, handler); await peer.attach(connection); return client; }
+  static async attach(connection: FrameConnection, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "events.list": "workbench", "me": "workbench", "projects.create": "workbench", "projects.list": "workbench", "projects.update": "workbench", "subscribe": "workbench", "work.cancel": "workbench", "work.create": "workbench", "work.dependencies": "workbench", "work.get": "workbench", "work.list": "workbench", "work.publish": "workbench", "work.reopen": "workbench", "work.steps": "workbench", "work.update": "workbench", "workbench.changed": "workbench" } }); const client = new Client(peer, handler, events); await peer.attach(connection); return client; }
   /** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */
-  static async open(tunnel: Tunnel, handle: Protocol.Handle, options: PeerOptions = {}, handler?: Handler): Promise<Client> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach(channel, options, handler); }
+  static async open(tunnel: Tunnel, handle: Protocol.Handle, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach(channel, options, handler, events); }
   close(): void { this.peer.close(); }
   async listEvents(params: Protocol.ListEventsParams, options?: CallOptions): Promise<Array<Protocol.Event>> { validateWire("ListEventsParams", params); const result = await this.peer.call<Array<Protocol.Event>>("events.list", params, options); validateWire({"array":"Event"}, result); return result; }
   async me(options?: CallOptions): Promise<Protocol.User> { const params = {}; validateWire({ empty: true }, params); const result = await this.peer.call<Protocol.User>("me", params, options); validateWire("User", result); return result; }
