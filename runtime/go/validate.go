@@ -6,57 +6,66 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf16"
+
+	"github.com/Bitspark/nightseam/internal/pattern"
 )
 
-// Schema validates wire values against a family's types, as the generator
-// describes them: a record's fields with their presence, nullness and
-// constraints, its parents, an enum's values, an alias's target. A
-// generated protocol package embeds its family's description and builds
-// one Schema of it; a type of another family is validated by that family's
-// validator, which the package hands over by name; a type drawn from a
-// parameter is JSON to the schema, since the family that fills it is
-// chosen where the generic type is instantiated, and its codec validates
-// there.
+// Schema validates a family's descriptor: {"types": {...}, "parameters":
+// [...]}. Its imports retain their own descriptors, so an application can
+// fill type and family parameters without losing the caller's scope.
 //
-// A type expression is read as the contract writes it: a primitive, a
-// type of the family, "family.Type" for an imported family's, "S.Type" for
-// a parameter's, {"array": T}, {"map": T}, {"ref": "Entity"} for the
-// entity's key, {"apply": "family.Type", "with": {...}} for an imported
-// generic type, and {"empty": true} for a request that takes nothing.
+// Expressions include primitives, named and imported types, family draws,
+// arrays, maps, entity references, applications, literals, nullable values,
+// inline shapes and the empty object. Records and adjacently tagged unions
+// inherit their fields or variants. Field presence is separate from nullness.
 //
-// A refusal is one string: a JSON pointer naming the member that was wrong,
-// then the fact about it — "$.count: required field missing", "$.note: null
-// is not permitted", "$.zzz: unknown field". The TypeScript runtime prints
-// the same string for the same value, word for word, and
-// conformance/tables/validator.json holds both to it, so a consumer whose
-// server is in one language and client in the other reads one spelling of
-// one refusal.
+// Bind supplies parameters to raw validation. An explicitly applied argument
+// is always validated. A generated Go generic codec may instead leave a
+// family parameter unbound: the schema checks the enclosing shape and the
+// instantiated Go codec checks that slot during marshal or unmarshal.
+//
+// A refusal gives the location and the fact about it. Both runtimes read
+// conformance/tables/validator.json, including the same refusal strings.
 type Schema struct {
-	types    map[string]wireType
-	imported map[string]Imported
+	types      map[string]*wireType
+	imported   map[string]*Schema
+	scope      map[string]argument
+	parameters []wireParameter
 }
 
-// Imported validates a named type of another family: that family's own
-// ValidateRaw, which a generated protocol package hands to every family
-// that refers to it. at is the location the value sits at in the value
-// being validated, which a family passes when it reaches into another's
-// type, so that one refusal carries the one pointer the consumer handed
-// its value in at rather than a root per family the value crossed; absent,
-// the value is its own root.
-type Imported func(name string, data []byte, at ...string) error
+type argument struct {
+	typeExpression *expression
+	family         *Schema
+	unboundFamily  bool
+}
+
+// An expression retains the schema and bindings where it was written. In
+// particular, an argument to an imported generic belongs to its caller.
+type expression struct {
+	schema  *Schema
+	value   any
+	scope   map[string]argument
+	aliases map[*wireType]bool
+}
+
+type wireParameter struct{ Name, Of string }
 
 type wireType struct {
-	Kind    string
-	Key     string
-	Fields  []wireField
-	Extends []string
-	Open    bool
-	Values  []string
-	Type    any
+	Kind       string
+	Key        string
+	Fields     []wireField
+	Extends    []any
+	Open       bool
+	Values     []string
+	Type       any
+	Parameters []wireParameter
+	Tag, Value string
+	Variants   map[string]any
 }
 
 type wireField struct {
@@ -71,22 +80,35 @@ type wireField struct {
 }
 
 // NewSchema reads a family's wire description; imported maps each family
-// it refers to to that family's ValidateRaw.
-func NewSchema(wire []byte, imported map[string]Imported) (*Schema, error) {
+// it refers to to that family's Schema.
+func NewSchema(wire []byte, imported map[string]*Schema) (*Schema, error) {
 	s := &Schema{imported: imported}
 	decoder := json.NewDecoder(bytes.NewReader(wire))
 	decoder.UseNumber()
-	if err := decoder.Decode(&s.types); err != nil {
+	var description struct {
+		Types      map[string]*wireType
+		Parameters []wireParameter
+	}
+	if err := decoder.Decode(&description); err != nil {
 		return nil, err
 	}
+	s.types, s.parameters = description.Types, description.Parameters
+	if s.types == nil {
+		return nil, fmt.Errorf("expected family descriptor with types")
+	}
+	for _, name := range sortedKeys(s.types) {
+		if err := checkPatterns(s.types[name]); err != nil {
+			return nil, err
+		}
+	}
 	if s.imported == nil {
-		s.imported = map[string]Imported{}
+		s.imported = map[string]*Schema{}
 	}
 	return s, nil
 }
 
 // MustSchema is NewSchema for a description the generator wrote.
-func MustSchema(wire string, imported map[string]Imported) *Schema {
+func MustSchema(wire string, imported map[string]*Schema) *Schema {
 	s, err := NewSchema([]byte(wire), imported)
 	if err != nil {
 		panic(err)
@@ -101,7 +123,9 @@ func MustSchema(wire string, imported map[string]Imported) *Schema {
 // json.Unmarshal.
 func MustTypeExpression(encoded string) any {
 	var value any
-	if err := json.Unmarshal([]byte(encoded), &value); err != nil {
+	decoder := json.NewDecoder(strings.NewReader(encoded))
+	decoder.UseNumber()
+	if err := decoder.Decode(&value); err != nil {
 		panic(err)
 	}
 	return value
@@ -117,6 +141,16 @@ func (s *Schema) ValidateRaw(name string, data []byte, at ...string) error {
 // ValidateExpressionRaw verifies a type expression's value and rejects
 // trailing values. at roots the diagnostic, as ValidateRaw's does.
 func (s *Schema) ValidateExpressionRaw(expression any, data []byte, at ...string) error {
+	if err := checkPatterns(expression); err != nil {
+		return err
+	}
+	for _, name := range sortedKeys(s.scope) {
+		if argument := s.scope[name].typeExpression; argument != nil {
+			if err := checkPatterns(argument.value); err != nil {
+				return err
+			}
+		}
+	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	var value any
@@ -131,7 +165,104 @@ func (s *Schema) ValidateExpressionRaw(expression any, data []byte, at ...string
 	if len(at) > 0 {
 		location = at[0]
 	}
-	return s.validate(expression, value, location)
+	return (expressionContext(s, expression)).validate(value, location)
+}
+
+// Patterns are descriptor constraints, so an invalid one is refused even
+// when its optional field is absent or its containing collection is empty.
+func checkPatterns(value any) error {
+	check := func(value string) error {
+		if pattern.Check(value) != nil {
+			quoted, _ := json.Marshal(value)
+			return fmt.Errorf("pattern %s: outside Nightseam dialect", quoted)
+		}
+		return nil
+	}
+	switch value := value.(type) {
+	case TypeBinding:
+		return checkPatterns(value.Type)
+	case *wireType:
+		if value == nil {
+			return nil
+		}
+		for _, field := range value.Fields {
+			if err := check(field.Pattern); err != nil {
+				return err
+			}
+			if err := checkPatterns(field.Type); err != nil {
+				return err
+			}
+		}
+		if err := checkPatterns(value.Type); err != nil {
+			return err
+		}
+		for _, tag := range sortedKeys(value.Variants) {
+			if err := checkPatterns(value.Variants[tag]); err != nil {
+				return err
+			}
+		}
+	case map[string]any:
+		if value, ok := value["pattern"].(string); ok {
+			if err := check(value); err != nil {
+				return err
+			}
+		}
+		for _, key := range sortedKeys(value) {
+			if err := checkPatterns(value[key]); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for _, item := range value {
+			if err := checkPatterns(item); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func expressionContext(s *Schema, value any) expression {
+	return expression{schema: s, value: value, scope: s.scope}
+}
+
+// Bind returns a schema with type and family parameters filled. Type
+// arguments are interpreted in the receiver's scope, before this binding.
+func (s *Schema) Bind(types map[string]any, families map[string]*Schema) *Schema {
+	bound := *s
+	bound.scope = map[string]argument{}
+	for name, arg := range s.scope {
+		bound.scope[name] = arg
+	}
+	drawn := map[string]*Schema{}
+	for name, value := range types {
+		e := expressionContext(s, value)
+		bound.scope[name] = argument{typeExpression: &e}
+		if family, member, qualified := strings.Cut(name, "."); qualified && family != "" && member != "" {
+			if drawn[family] == nil {
+				drawn[family] = &Schema{types: map[string]*wireType{}}
+			}
+		}
+	}
+	// A second binding may add one drawn member to a family already partly
+	// filled. Forward all its members while retaining each argument's scope.
+	for name, arg := range bound.scope {
+		family, member, qualified := strings.Cut(name, ".")
+		if !qualified || drawn[family] == nil || arg.typeExpression == nil {
+			continue
+		}
+		e := arg.typeExpression
+		source := *e.schema
+		source.scope = e.scope
+		drawn[family].types[member] = &wireType{Kind: "alias", Type: TypeBinding{Schema: &source, Type: e.value}}
+	}
+	for name, schema := range drawn {
+		bound.scope[name] = argument{family: schema}
+	}
+	for name, family := range families {
+		bound.scope[name] = argument{family: family}
+	}
+	return &bound
 }
 
 // ValidateValue validates a typed value before publishing it on the wire.
@@ -145,32 +276,602 @@ func (s *Schema) ValidateValue(expression any, value any) error {
 
 // Fields names a record's wire fields, its parents' first.
 func (s *Schema) Fields(name string) []string {
+	resolved, err := expressionContext(s, name).resolve("$")
+	if err != nil {
+		return nil
+	}
+	fields, err := resolved.fields("$", map[*wireType]bool{})
+	if err != nil {
+		return nil
+	}
 	var out []string
-	for _, field := range s.flattened(name) {
-		out = append(out, field.Name)
+	for _, field := range fields {
+		out = append(out, field.field.Name)
 	}
 	return out
 }
 
-func (s *Schema) flattened(name string) []wireField {
-	var out []wireField
-	t := s.types[name]
-	for _, base := range t.Extends {
-		out = append(out, s.flattened(base)...)
-	}
-	return append(out, t.Fields...)
+func (e expression) child(value any) expression { e.value = value; e.aliases = nil; return e }
+
+type resolvedExpression struct {
+	expression
+	definition *wireType
+	name       string
 }
 
-func (s *Schema) validate(expression any, value any, location string) error {
-	bad := func(want string) error { return fmt.Errorf("%s: expected %s", location, want) }
-	if composite, ok := expression.(map[string]any); ok {
+func expected(location, want string) error { return fmt.Errorf("%s: expected %s", location, want) }
+
+// freeParameters follows declarations, including local applications, but
+// leaves a supplied imported argument in the caller's scope. A type needs
+// only the enclosing family's parameters that it actually uses.
+func (s *Schema) freeParameters(t *wireType, seen map[*wireType]bool) []wireParameter {
+	if t == nil || seen[t] {
+		return nil
+	}
+	seen[t] = true
+	defer delete(seen, t)
+	used := map[string]bool{}
+	var walk func(any)
+	walkBase := func(base any) {
+		if applied, ok := base.(map[string]any); ok {
+			if fillers, ok := applied["with"].(map[string]any); ok {
+				for _, filler := range fillers {
+					walk(filler)
+				}
+				return
+			}
+		}
+		walk(base)
+	}
+	inherit := func(t *wireType) {
+		for _, p := range s.freeParameters(t, seen) {
+			used[p.Name] = true
+		}
+	}
+	walk = func(value any) {
+		switch v := value.(type) {
+		case string:
+			prefix, member, dotted := strings.Cut(v, ".")
+			for _, p := range s.parameters {
+				if prefix == p.Name {
+					used[p.Name] = true
+					return
+				}
+			}
+			if !dotted {
+				inherit(s.types[v])
+				return
+			}
+			if imported := s.imported[prefix]; imported != nil {
+				target := imported.types[member]
+				if target == nil {
+					return
+				}
+				needed := append(imported.freeParameters(target, seen), target.Parameters...)
+				for _, parameter := range needed {
+					if parameter.Of != "" {
+						if p, ok := s.singleFamilyParameter(); ok {
+							used[p.Name] = true
+						}
+					}
+				}
+			}
+		case map[string]any:
+			for _, key := range []string{"array", "map", "nullable"} {
+				if inner, ok := v[key]; ok {
+					walk(inner)
+					return
+				}
+			}
+			if target, ok := v["apply"].(string); ok {
+				if !strings.Contains(target, ".") {
+					inherit(s.types[target])
+				}
+				if fillers, ok := v["with"].(map[string]any); ok {
+					for _, filler := range fillers {
+						walk(filler)
+					}
+				}
+				return
+			}
+			if name, ok := v["ref"].(string); ok {
+				if entity := s.types[name]; entity != nil {
+					for _, field := range entity.Fields {
+						if field.Name == entity.Key {
+							walk(field.Type)
+						}
+					}
+				}
+				return
+			}
+			if _, inline := v["kind"]; inline {
+				if items, ok := v["fields"].([]any); ok {
+					for _, item := range items {
+						if field, ok := item.(map[string]any); ok {
+							walk(field["type"])
+						}
+					}
+				}
+				if items, ok := v["extends"].([]any); ok {
+					for _, base := range items {
+						walkBase(base)
+					}
+				}
+				if variants, ok := v["variants"].(map[string]any); ok {
+					for _, variant := range variants {
+						walk(variant)
+					}
+				}
+			}
+		}
+	}
+	walk(t.Type)
+	for _, field := range t.Fields {
+		walk(field.Type)
+	}
+	for _, base := range t.Extends {
+		walkBase(base)
+	}
+	for _, variant := range t.Variants {
+		walk(variant)
+	}
+	var result []wireParameter
+	for _, p := range s.parameters {
+		if used[p.Name] {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+func (s *Schema) singleFamilyParameter() (wireParameter, bool) {
+	var result wireParameter
+	count := 0
+	for _, p := range s.parameters {
+		if p.Of != "" {
+			result = p
+			count++
+		}
+	}
+	return result, count == 1
+}
+
+// named looks up a declaration without expanding aliases. Its scope belongs
+// to the owner, while supplied arguments keep their original lexical scope.
+func (e expression) named(name, location string) (expression, *wireType, string, error) {
+	if family, member, dotted := strings.Cut(name, "."); dotted {
+		if family == "" {
+			return e, nil, "", expected(location, "known family")
+		}
+		caller := e
+		var schema *Schema
+		if family[0] >= 'A' && family[0] <= 'Z' {
+			schema = e.scope[family].family
+			if schema == nil {
+				return e, nil, "", expected(location, "a binding of the parameter "+family)
+			}
+		} else {
+			schema = e.schema.imported[family]
+			if schema == nil {
+				return e, nil, "", expected(location, "known family")
+			}
+		}
+		e = expressionContext(schema, member)
+		if family[0] >= 'a' && family[0] <= 'z' {
+			if source, ok := caller.schema.singleFamilyParameter(); ok {
+				if target := schema.types[member]; target != nil {
+					e.scope = map[string]argument{}
+					for name, arg := range schema.scope {
+						e.scope[name] = arg
+					}
+					for _, parameter := range append(schema.freeParameters(target, map[*wireType]bool{}), target.Parameters...) {
+						if parameter.Of == "" {
+							continue
+						}
+						if arg, ok := caller.scope[source.Name]; ok {
+							e.scope[parameter.Name] = arg
+						} else if caller.unboundFamily(source.Name) {
+							e.scope[parameter.Name] = argument{unboundFamily: true}
+						}
+					}
+				}
+			}
+		}
+		name = member
+	}
+	t, ok := e.schema.types[name]
+	if !ok || t == nil {
+		return e, nil, "", expected(location, "known type")
+	}
+	e.value = name
+	return e, t, name, nil
+}
+
+func (e expression) resolve(location string) (resolvedExpression, error) {
+	return e.resolveWith(location, false)
+}
+
+func (e expression) resolveWith(location string, inheritance bool) (resolvedExpression, error) {
+	// Alias/application cycles have no value constructor at which recursion
+	// can make progress. Records may recurse: each child starts a new resolve.
+	aliases := copyAliases(e.aliases)
+	for {
+		var definition *wireType
+		name := ""
+		switch v := e.value.(type) {
+		case TypeBinding:
+			if v.Schema == nil {
+				return resolvedExpression{}, expected(location, "schema for type argument")
+			}
+			e = expressionContext(v.Schema, v.Type)
+			continue
+		case goArgument:
+			e.value = describeArgument(v.typ)
+			continue
+		case goValue:
+			return resolvedExpression{expression: e}, nil
+		case string:
+			if arg, ok := e.scope[v]; ok {
+				if arg.typeExpression == nil {
+					return resolvedExpression{}, expected(location, "type argument")
+				}
+				e = *arg.typeExpression
+				aliases = copyAliases(e.aliases)
+				continue
+			}
+			if family, _, drawn := strings.Cut(v, "."); drawn && e.unboundFamily(family) {
+				// A generated Go generic codec checks its supplied Go type at
+				// marshal/unmarshal time. This schema checks the enclosing
+				// shape; an explicitly supplied family never takes this path.
+				return resolvedExpression{expression: e.child("json")}, nil
+			}
+			switch v {
+			case "json", "string", "boolean", "number", "integer", "timestamp":
+				return resolvedExpression{expression: e}, nil
+			}
+			var err error
+			e, definition, name, err = e.named(v, location)
+			if err != nil {
+				return resolvedExpression{}, err
+			}
+		case map[string]any:
+			if reference, ok := v["apply"].(string); ok {
+				target, t, targetName, err := e.named(reference, location)
+				if err != nil {
+					return resolvedExpression{}, err
+				}
+				fillers, ok := v["with"].(map[string]any)
+				if !ok {
+					return resolvedExpression{}, expected(location, "application arguments")
+				}
+				scope := map[string]argument{}
+				for parameter, arg := range target.scope {
+					scope[parameter] = arg
+				}
+				parameters := append([]wireParameter{}, t.Parameters...)
+				if inheritance || strings.Contains(reference, ".") {
+					parameters = append(target.schema.freeParameters(t, map[*wireType]bool{}), parameters...)
+				}
+				allowed := map[string]bool{}
+				for _, parameter := range parameters {
+					allowed[parameter.Name] = true
+					filler, exists := fillers[parameter.Name]
+					if !exists {
+						return resolvedExpression{}, expected(location, "an argument for "+parameter.Name)
+					}
+					if parameter.Of == "" {
+						captured := e.child(filler)
+						// Restoring this ancestry when the argument is read
+						// distinguishes Id<Id<T>> from A<T> = Id<A<T>>.
+						captured.aliases = copyAliases(aliases)
+						scope[parameter.Name] = argument{typeExpression: &captured}
+					} else {
+						family, ok := filler.(string)
+						if !ok {
+							return resolvedExpression{}, expected(location, "family argument for "+parameter.Name)
+						}
+						if e.unboundFamily(family) {
+							scope[parameter.Name] = argument{unboundFamily: true}
+							continue
+						}
+						schema := e.schema.imported[family]
+						if arg, exists := e.scope[family]; exists {
+							schema = arg.family
+						}
+						if schema == nil {
+							return resolvedExpression{}, expected(location, "known family argument for "+parameter.Name)
+						}
+						scope[parameter.Name] = argument{family: schema}
+					}
+				}
+				for _, parameter := range sortedKeys(fillers) {
+					if !allowed[parameter] {
+						return resolvedExpression{}, expected(location, "known parameter "+parameter)
+					}
+				}
+				target.scope = scope
+				e, definition, name = target, t, targetName
+			} else if _, ok := v["kind"]; ok {
+				data, err := json.Marshal(v)
+				if err != nil {
+					return resolvedExpression{}, err
+				}
+				decoder := json.NewDecoder(bytes.NewReader(data))
+				decoder.UseNumber()
+				if err = decoder.Decode(&definition); err != nil {
+					return resolvedExpression{}, err
+				}
+				name = definition.Kind
+			} else {
+				return resolvedExpression{expression: e}, nil
+			}
+		default:
+			return resolvedExpression{}, expected(location, "type expression")
+		}
+		inheritance = false
+		if definition.Kind == "alias" {
+			if aliases[definition] {
+				return resolvedExpression{}, expected(location, "acyclic type expression")
+			}
+			aliases[definition] = true
+			e.value = definition.Type
+			continue
+		}
+		return resolvedExpression{expression: e, definition: definition, name: name}, nil
+	}
+}
+
+func copyAliases(source map[*wireType]bool) map[*wireType]bool {
+	result := map[*wireType]bool{}
+	for definition := range source {
+		result[definition] = true
+	}
+	return result
+}
+
+func (e expression) unboundFamily(name string) bool {
+	if arg, ok := e.scope[name]; ok {
+		return arg.unboundFamily
+	}
+	for _, parameter := range e.schema.parameters {
+		if parameter.Name == name && parameter.Of != "" {
+			return true
+		}
+	}
+	return false
+}
+
+type scopedField struct {
+	field      wireField
+	expression expression
+}
+
+func (e expression) inherited(base any, location string) (resolvedExpression, error) {
+	if name, bare := base.(string); bare {
+		owner, definition, _, err := e.named(name, location)
+		if err != nil {
+			return resolvedExpression{}, err
+		}
+		generic := len(definition.Parameters) > 0 || len(owner.schema.freeParameters(definition, map[*wireType]bool{})) > 0
+		if generic {
+			return resolvedExpression{}, expected(location, "explicit application of generic base "+name)
+		}
+	}
+	return e.child(base).resolveWith(location, true)
+}
+
+func (r resolvedExpression) fields(location string, seen map[*wireType]bool) ([]scopedField, error) {
+	if r.definition == nil {
+		return nil, expected(location, "record")
+	}
+	if seen[r.definition] {
+		return nil, expected(location, "acyclic inheritance")
+	}
+	seen[r.definition] = true
+	defer delete(seen, r.definition)
+	var fields []scopedField
+	for _, base := range r.definition.Extends {
+		parent, err := r.inherited(base, location)
+		if err != nil {
+			return nil, err
+		}
+		inherited, err := parent.fields(location, seen)
+		if err != nil {
+			return nil, err
+		}
+		fields = append(fields, inherited...)
+	}
+	for _, field := range r.definition.Fields {
+		fields = append(fields, scopedField{field, r.child(field.Type)})
+	}
+	return fields, nil
+}
+
+func (r resolvedExpression) variants(location string, seen map[*wireType]bool) (map[string]expression, error) {
+	if r.definition == nil || r.definition.Kind != "union" {
+		return nil, expected(location, "union")
+	}
+	if seen[r.definition] {
+		return nil, expected(location, "acyclic inheritance")
+	}
+	seen[r.definition] = true
+	defer delete(seen, r.definition)
+	variants := map[string]expression{}
+	for _, base := range r.definition.Extends {
+		parent, err := r.inherited(base, location)
+		if err != nil {
+			return nil, err
+		}
+		inherited, err := parent.variants(location, seen)
+		if err != nil {
+			return nil, err
+		}
+		for tag, expression := range inherited {
+			variants[tag] = expression
+		}
+	}
+	for tag, variant := range r.definition.Variants {
+		variants[tag] = r.child(variant)
+	}
+	return variants, nil
+}
+
+func (e expression) nullable(location string) (bool, error) {
+	r, err := e.resolve(location)
+	if err != nil {
+		return false, err
+	}
+	composite, ok := r.value.(map[string]any)
+	if !ok {
+		return false, nil
+	}
+	_, ok = composite["nullable"]
+	return ok, nil
+}
+
+func (e expression) validate(value any, location string) error {
+	r, err := e.resolve(location)
+	if err != nil {
+		return err
+	}
+	bad := func(want string) error { return expected(location, want) }
+	if typed, ok := r.value.(goValue); ok {
+		return typed.validate(value, location)
+	}
+	if r.definition != nil {
+		t := r.definition
+		switch t.Kind {
+		case "enum":
+			for _, option := range t.Values {
+				if value == option {
+					return nil
+				}
+			}
+			return bad(r.name)
+		case "record", "entity":
+			obj, ok := value.(map[string]any)
+			if !ok {
+				return bad(r.name + " object")
+			}
+			fields, err := r.fields(location, map[*wireType]bool{})
+			if err != nil {
+				return err
+			}
+			allowed := map[string]bool{}
+			for _, scoped := range fields {
+				field := scoped.field
+				allowed[field.Name] = true
+				at := location + "." + field.Name
+				member, present := obj[field.Name]
+				if !present {
+					if field.Required {
+						return fmt.Errorf("%s: required field missing", at)
+					}
+					continue
+				}
+				if member == nil {
+					if field.Nullable {
+						continue
+					}
+					nullable, err := scoped.expression.nullable(at)
+					if err != nil {
+						return err
+					}
+					if !nullable {
+						return fmt.Errorf("%s: null is not permitted", at)
+					}
+				}
+				if err := scoped.expression.validate(member, at); err != nil {
+					return err
+				}
+				if member != nil {
+					if err := constrain(field, member, at); err != nil {
+						return err
+					}
+				}
+			}
+			for _, key := range sortedKeys(obj) {
+				if allowed[key] {
+					continue
+				}
+				if !t.Open {
+					return fmt.Errorf("%s.%s: unknown field", location, key)
+				}
+				if err := validateJSON(obj[key], location+"."+key); err != nil {
+					return err
+				}
+			}
+			return nil
+		case "union":
+			obj, ok := value.(map[string]any)
+			if !ok {
+				return bad(r.name + " object")
+			}
+			tag, present := obj[t.Tag]
+			if !present {
+				return fmt.Errorf("%s.%s: required field missing", location, t.Tag)
+			}
+			tagName, ok := tag.(string)
+			if !ok {
+				return expected(location+"."+t.Tag, "known variant")
+			}
+			variants, err := r.variants(location, map[*wireType]bool{})
+			if err != nil {
+				return err
+			}
+			variant, known := variants[tagName]
+			if !known {
+				return expected(location+"."+t.Tag, "known variant")
+			}
+			member := t.Value
+			if member == "" {
+				member = "value"
+			}
+			marker, isMarker := variant.value.(map[string]any)
+			empty := isMarker && len(marker) == 1 && marker["empty"] == true
+			if !empty {
+				wrapped, present := obj[member]
+				if !present {
+					return fmt.Errorf("%s.%s: required field missing", location, member)
+				}
+				if err := variant.validate(wrapped, location+"."+member); err != nil {
+					return err
+				}
+			}
+			for _, key := range sortedKeys(obj) {
+				if key != t.Tag && (empty || key != member) {
+					return fmt.Errorf("%s.%s: unknown field", location, key)
+				}
+			}
+			return nil
+		}
+		return bad("supported type")
+	}
+	if composite, ok := r.value.(map[string]any); ok {
+		if inner, ok := composite["nullable"]; ok {
+			if value == nil {
+				return nil
+			}
+			return r.child(inner).validate(value, location)
+		}
+		if literal, ok := composite["literal"]; ok {
+			literal, ok := literal.(string)
+			if !ok || literal == "" {
+				return bad("nonempty string literal")
+			}
+			want, _ := json.Marshal(literal)
+			if actual, ok := value.(string); ok && actual == literal {
+				return nil
+			}
+			return bad("literal " + string(want))
+		}
 		if element, ok := composite["array"]; ok {
 			items, ok := value.([]any)
 			if !ok {
 				return bad("array")
 			}
 			for i, item := range items {
-				if err := s.validate(element, item, fmt.Sprintf("%s[%d]", location, i)); err != nil {
+				if err := r.child(element).validate(item, fmt.Sprintf("%s[%d]", location, i)); err != nil {
 					return err
 				}
 			}
@@ -181,27 +882,32 @@ func (s *Schema) validate(expression any, value any, location string) error {
 			if !ok {
 				return bad("object")
 			}
-			for key, item := range items {
-				if err := s.validate(element, item, location+"."+key); err != nil {
+			for _, key := range sortedKeys(items) {
+				if err := r.child(element).validate(items[key], location+"."+key); err != nil {
 					return err
 				}
 			}
 			return nil
 		}
 		if entity, ok := composite["ref"].(string); ok {
-			t, known := s.types[entity]
-			if !known {
+			target, t, _, err := r.named(entity, location)
+			if err != nil {
 				return bad("known entity")
 			}
-			for _, field := range s.flattened(entity) {
-				if field.Name == t.Key {
-					return s.validate(field.Type, value, location)
+			resolved, err := target.resolve(location)
+			if err != nil {
+				return err
+			}
+			fields, err := resolved.fields(location, map[*wireType]bool{})
+			if err != nil {
+				return err
+			}
+			for _, field := range fields {
+				if field.field.Name == t.Key {
+					return field.expression.validate(value, location)
 				}
 			}
 			return bad("entity with a key")
-		}
-		if reference, ok := composite["apply"].(string); ok {
-			return s.foreign(reference, value, location)
 		}
 		if _, ok := composite["empty"]; ok {
 			items, ok := value.(map[string]any)
@@ -212,10 +918,7 @@ func (s *Schema) validate(expression any, value any, location string) error {
 		}
 		return bad("supported type expression")
 	}
-	name, ok := expression.(string)
-	if !ok {
-		return bad("type expression")
-	}
+	name := r.value.(string)
 	switch name {
 	case "json":
 		return validateJSON(value, location)
@@ -223,12 +926,10 @@ func (s *Schema) validate(expression any, value any, location string) error {
 		if _, ok := value.(string); !ok {
 			return bad("string")
 		}
-		return nil
 	case "boolean":
 		if _, ok := value.(bool); !ok {
 			return bad("boolean")
 		}
-		return nil
 	case "number", "integer":
 		n, ok := value.(json.Number)
 		if !ok {
@@ -241,7 +942,6 @@ func (s *Schema) validate(expression any, value any, location string) error {
 		if name == "integer" && !safeInteger(string(n)) {
 			return bad("JavaScript-safe integer")
 		}
-		return nil
 	case "timestamp":
 		text, ok := value.(string)
 		if !ok {
@@ -250,94 +950,22 @@ func (s *Schema) validate(expression any, value any, location string) error {
 		if _, err := time.Parse(time.RFC3339Nano, text); err != nil {
 			return bad("RFC3339 timestamp")
 		}
-		return nil
-	}
-	if strings.IndexByte(name, '.') >= 0 {
-		if name[0] >= 'A' && name[0] <= 'Z' {
-			// A type drawn from a parameter: the family that fills it
-			// validates where the generic type is instantiated.
-			return validateJSON(value, location)
-		}
-		return s.foreign(name, value, location)
-	}
-	t, ok := s.types[name]
-	if !ok {
+	default:
 		return bad("known type")
 	}
-	switch t.Kind {
-	case "alias":
-		return s.validate(t.Type, value, location)
-	case "enum":
-		text, ok := value.(string)
-		if !ok {
-			return bad(name)
-		}
-		for _, option := range t.Values {
-			if option == text {
-				return nil
-			}
-		}
-		return bad(name)
-	case "record", "entity":
-		obj, ok := value.(map[string]any)
-		if !ok {
-			return bad(name + " object")
-		}
-		allowed := map[string]bool{}
-		for _, field := range s.flattened(name) {
-			allowed[field.Name] = true
-			member, present := obj[field.Name]
-			if !present {
-				if field.Required {
-					return fmt.Errorf("%s.%s: required field missing", location, field.Name)
-				}
-				continue
-			}
-			if member == nil {
-				if field.Nullable {
-					continue
-				}
-				return fmt.Errorf("%s.%s: null is not permitted", location, field.Name)
-			}
-			at := location + "." + field.Name
-			if err := s.validate(field.Type, member, at); err != nil {
-				return err
-			}
-			if err := constrain(field, member, at); err != nil {
-				return err
-			}
-		}
-		for key, value := range obj {
-			if allowed[key] {
-				continue
-			}
-			if !t.Open {
-				return fmt.Errorf("%s.%s: unknown field", location, key)
-			}
-			if err := validateJSON(value, location+"."+key); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	return bad("supported type")
+	return nil
 }
 
-// foreign validates a value of another family's type by that family's
-// validator: family.Type, or the type an application names. The location
-// goes with the value, so that the other family's validator names the
-// member that was wrong at the pointer the consumer's own value has it at.
-func (s *Schema) foreign(reference string, value any, location string) error {
-	family, typeName, _ := strings.Cut(reference, ".")
-	validate, ok := s.imported[family]
-	if !ok {
-		return fmt.Errorf("%s: expected known family", location)
+func sortedKeys[V any](values map[string]V) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
 	}
-	data, err := json.Marshal(value)
-	if err != nil {
-		return err
-	}
-	return validate(typeName, data, location)
+	// Match JavaScript's string ordering, including keys outside the BMP.
+	slices.SortFunc(keys, func(a, b string) int {
+		return slices.Compare(utf16.Encode([]rune(a)), utf16.Encode([]rune(b)))
+	})
+	return keys
 }
 
 // constrain holds a field's value to its constraints: min and max on a
@@ -386,8 +1014,8 @@ func constrain(field wireField, value any, location string) error {
 	}
 	if field.Pattern != "" {
 		if text, ok := value.(string); ok {
-			matched, err := regexp.MatchString(field.Pattern, text)
-			if err != nil || !matched {
+			compiled, err := pattern.Compile(field.Pattern)
+			if err != nil || !compiled.MatchString(text) {
 				return fmt.Errorf("%s: expected a match of %s", location, field.Pattern)
 			}
 		}
@@ -408,8 +1036,8 @@ func validateJSON(value any, location string) error {
 			}
 		}
 	case map[string]any:
-		for key, item := range typed {
-			if err := validateJSON(item, location+"."+key); err != nil {
+		for _, key := range sortedKeys(typed) {
+			if err := validateJSON(typed[key], location+"."+key); err != nil {
 				return err
 			}
 		}
