@@ -57,7 +57,11 @@ null`), `attachment.sequence` and `attachment.onControl(fn): () => void`. A
 registration is not called with the state the consumer joined at — that
 frame is sent before `Attach` returns, which is before there is anywhere to
 call — and `Holder` reads it instead. `Detach` and `detach` end a consumer's
-attachment from this side.
+attachment from this side. Go `Attachment.Done() <-chan struct{}` closes and
+TypeScript `attachment.done: Promise<void>` resolves when the attachment
+ends, including when its connection fails or its whole session ends. They
+remain observable after termination, without a registry-wide subscription.
+Go's signal reports cancellation; connection-close work may still be completing.
 
 ## Options
 

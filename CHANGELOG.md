@@ -17,6 +17,9 @@ are one number. Entries are in the words of the commits that landed them.
   cannot escape the check. Prettier holds handwritten TypeScript formatting
   in CI, workspace conformance imports use package subpaths, and the three
   components share option validation while retaining their existing bounds.
+- Attachments expose completion directly through Go `Done()` and TypeScript
+  `done`, including session termination, so consumers can forget them without
+  watching every registry change.
 - `docs/` is sets by reader, each page one kind of thing: `wire/` is what
   crosses the wire in the wire's own terms and no runtime's — `profile.md`,
   `tunnel.md`, `session.md`, and `vocabulary.md`, the test that says where

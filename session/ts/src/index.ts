@@ -407,6 +407,9 @@ export class Registry {
 
 /** One consumer on a session: the connection it speaks on, the role it attached in and the origin its frames carry. */
 export class Attachment {
+  /** Resolves once this attachment ends, including when its whole session ends. Late observers see the same settled promise. */
+  readonly done: Promise<void>;
+  private finish!: () => void;
   readonly role: Role;
   readonly origin: string;
   readonly channel: FrameConnection;
@@ -421,6 +424,9 @@ export class Attachment {
 
   /** @internal */
   constructor(relay: Relay, channel: FrameConnection, role: Role, origin: string) {
+    this.done = new Promise<void>((resolve) => {
+      this.finish = resolve;
+    });
     this.relay = relay;
     this.channel = channel;
     this.role = role;
@@ -494,6 +500,7 @@ export class Attachment {
   release(): void {
     this.unlisten?.();
     this.unlisten = undefined;
+    this.finish();
   }
 }
 
