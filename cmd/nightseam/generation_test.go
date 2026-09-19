@@ -40,7 +40,7 @@ func writeAll(t *testing.T, directory string, files map[string][]byte) {
 
 func toolProbe(t *testing.T, directory string) {
 	t.Helper()
-	k := toolKernel(module, scope)
+	k := toolKernel(module, scope, "")
 	world := k.Load(os.DirFS(familiesRoot), "api/contracts")
 	rendered, err := k.Render(world, "probe")
 	if err != nil {
@@ -57,7 +57,7 @@ func toolSlots(t *testing.T, directory string) {
 	families := &kernel.World{Families: map[string]*model.Family{"probe": loaded.Families["probe"], "carrier": loaded.Families["carrier"]}, Names: []string{"carrier", "probe"}, Problems: map[string][]diag.Diagnostic{}}
 	// The left path: probe and the carrier with S bound to probe, at the
 	// default layout.
-	left := toolKernel(module, scope)
+	left := toolKernel(module, scope, "")
 	bound := *families
 	bound.Families = map[string]*model.Family{}
 	for name, f := range families.Families {

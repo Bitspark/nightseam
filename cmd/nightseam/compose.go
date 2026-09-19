@@ -14,4 +14,6 @@ import (
 var targetNames = compose.Names()
 
 // toolKernel is the kernel composed with the tool's targets.
-func toolKernel(module, scope string) *kernel.Kernel { return compose.Kernel(module, scope) }
+func toolKernel(module, scope, sibling string) *kernel.Kernel {
+	return compose.Kernel(module, scope, sibling)
+}

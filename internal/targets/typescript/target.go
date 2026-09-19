@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -22,7 +23,8 @@ import (
 // published under and is required; Runtime and Tunnel are the packages it
 // binds to and RuntimeVersion their version, Nightseam's own when left
 // empty; Layout says where a family's package lives, as a pattern over the
-// family's name; Place puts named families elsewhere.
+// family's name; Place puts named families elsewhere. Sibling selects how
+// generated packages refer to one another: file, workspace or version.
 type Config struct {
 	Scope          string
 	Runtime        string
@@ -30,6 +32,7 @@ type Config struct {
 	RuntimeVersion string
 	Layout         string
 	Place          map[string]string
+	Sibling        string
 }
 
 // The packages the generated one binds to unless the config names others,
@@ -39,6 +42,7 @@ const (
 	DefaultTunnel         = "@nightseam/tunnel"
 	DefaultRuntimeVersion = "0.3.0"
 	DefaultLayout         = "api/ts/{family}-client"
+	DefaultSibling        = "file"
 )
 
 // Name is the target's name: what its override file is called after.
@@ -62,6 +66,9 @@ func (c Config) settled() Config {
 	if c.Layout == "" {
 		c.Layout = DefaultLayout
 	}
+	if c.Sibling == "" {
+		c.Sibling = DefaultSibling
+	}
 	return c
 }
 
@@ -72,6 +79,9 @@ var pathPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_./{}-]*$`)
 // Validate reports what is wrong with the config.
 func (c Config) Validate() error {
 	c = c.settled()
+	if c.Sibling != "file" && c.Sibling != "workspace" && c.Sibling != "version" {
+		return fmt.Errorf("invalid TypeScript sibling resolution %q: use file, workspace or version", c.Sibling)
+	}
 	if !scopePattern.MatchString(c.Scope) {
 		return fmt.Errorf("an npm scope is required to name the generated packages, @scope: %q", c.Scope)
 	}
@@ -179,7 +189,20 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 	emitClient(client)
 	dependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion, t.config.Tunnel: t.config.RuntimeVersion}
 	for _, family := range p.references() {
-		dependencies[t.config.pkg(family)] = "0.0.0"
+		var dependency string
+		switch t.config.Sibling {
+		case "workspace":
+			dependency = "workspace:*"
+		case "version":
+			dependency = "0.0.0"
+		default:
+			relative, err := filepath.Rel(filepath.FromSlash(dir), filepath.FromSlash(t.config.dir(family)))
+			if err != nil {
+				return nil, fmt.Errorf("locate sibling %s: %w", family, err)
+			}
+			dependency = "file:" + filepath.ToSlash(relative)
+		}
+		dependencies[t.config.pkg(family)] = dependency
 	}
 	manifest, _ := json.Marshal(map[string]any{
 		"name": t.config.pkg(f.Name), "version": "0.0.0", "private": true, "type": "module", "exports": "./src/index.ts",
