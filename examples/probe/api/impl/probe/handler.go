@@ -25,3 +25,29 @@ func (Handler) Echo(ctx context.Context, remote *binding.Remote, params protocol
 	}
 	return remote.Reverse(ctx, params)
 }
+
+// Watch: Takes a callback and answers a record of callables: a live reference
+// travels in each direction within one call.
+//
+// The third level, and the one neither data nor an ordinary call reaches. The
+// client's `notice` arrives as a function value — the generated binding
+// imported it into the connection's live scope before this method saw it — and
+// the `stop` returned here is exported the same way, so the client calls it as
+// a function of its own.
+//
+// What makes it a live reference rather than a callback is the line that
+// closes over `notice` and calls it from inside `stop`: by then the call that
+// carried it has long returned. The reference outlives the call, and releasing
+// it, cancelling that call and asking the job to stop are three different
+// things.
+func (Handler) Watch(ctx context.Context, remote *binding.Remote, params protocol.Watch) (protocol.Subscription, error) {
+	notice := params.Watcher.Notice
+	if err := notice(ctx, protocol.Payload{Text: params.Label, Count: 1}); err != nil {
+		return protocol.Subscription{}, err
+	}
+	return protocol.Subscription{
+		Stop: func(ctx context.Context) error {
+			return notice(ctx, protocol.Payload{Text: params.Label + " done", Count: 0})
+		},
+	}, nil
+}
