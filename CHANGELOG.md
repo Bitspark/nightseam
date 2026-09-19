@@ -114,6 +114,9 @@ are one number. Entries are in the words of the commits that landed them.
 - Request observers in Go and TypeScript report `request_timeout` for local
   deadlines and `cancelled` for local cancellation, in both directions, and
   observe the request ending before its best-effort cancel is sent.
+- TypeScript event fields that collide with inherited Object members are
+  refused before generation; a name override preserves the wire event and
+  keeps omitted callbacks absent from an empty `Events` object.
 
 ## 0.3.0
 

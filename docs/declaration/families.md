@@ -122,3 +122,9 @@ the family declares is refused, and so is a name the generated code
 declares of itself — what each target reserves is held under
 `cmd/nightseam/testdata/reserved`. The naming conventions themselves are
 data both languages' tests read, `conformance/tables/naming.json`.
+
+TypeScript's optional `Events` fields also reserve inherited `Object`
+members, such as `toString`: otherwise an empty events object supplies a
+built-in method as a callback and can fail the interface's type check. A
+TypeScript override such as `{"names":{"to_string":"textChanged"}}`
+keeps the wire event `to_string` while giving its callback a safe field name.
