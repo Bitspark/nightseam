@@ -1,0 +1,10 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "status": {"result": "Status", "description": "What the job is doing now."},
+      "cancel": {"result": "Cancelled", "errors": ["job_finished"], "description": "Ask the application to stop the job; it ends the sink with cancelled."}
+    }
+  },
+  "errors": {"job_finished": "The job had already ended when the cancellation reached it."}
+}

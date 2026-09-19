@@ -1,0 +1,23 @@
+{
+  "profile": "nightseam.duplex/1",
+  "client": {
+    "methods": {
+      "report": {
+        "request": {
+          "kind": "record",
+          "fields": [
+            {"name": "sequence", "type": "integer", "min": 1},
+            {"name": "item", "type": "Item"}
+          ]
+        },
+        "result": "integer",
+        "description": "One item, answered with the sequence the sink has taken: the pacing a composition gets by awaiting it."
+      },
+      "end": {
+        "request": "Ending",
+        "result": "integer",
+        "description": "The last thing a sink is told; no further report follows it."
+      }
+    }
+  }
+}

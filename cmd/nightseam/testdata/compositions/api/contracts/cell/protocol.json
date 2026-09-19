@@ -1,0 +1,26 @@
+{
+  "profile": "nightseam.duplex/1",
+  "types": {
+    "Watch": {
+      "kind": "record",
+      "fields": [{"name": "observer", "type": "duplex.Handle"}]
+    },
+    "Watching": {
+      "kind": "record",
+      "description": "The value as of the moment the watch was taken, and the token that releases it.",
+      "fields": [
+        {"name": "at", "type": "Value"},
+        {"name": "token", "type": "string"}
+      ]
+    }
+  },
+  "server": {
+    "methods": {
+      "get": {"result": "Value"},
+      "set": {"request": {"kind": "record", "fields": [{"name": "text", "type": "string"}]}, "result": "Value"},
+      "watch": {"request": "Watch", "result": "Watching", "errors": ["unknown_reference"], "description": "Take an observer and answer with the value it is being told about from."},
+      "unwatch": {"request": {"kind": "record", "fields": [{"name": "token", "type": "string"}]}, "result": "boolean"}
+    }
+  },
+  "errors": {"unknown_reference": "The observer names no channel of this connection, or one that speaks another family."}
+}

@@ -51,6 +51,7 @@ fact once, with both spellings.
 | [tunnel.md](runtime/tunnel.md) | the tunnel: making one and when, the surface, options, credit in each language |
 | [session.md](runtime/session.md) | the session: the surface, options, the `Log` interface and the memory log, every refusal code, what a consumer builds on it, which observer a session tells |
 | [observer.md](runtime/observer.md) | the observer across the three layers: the rule, order, taking one, the console and `slog` adapters, the OpenTelemetry adapter, every event in both languages, a layer of your own, the session's changes told twice |
+| [compositions.md](runtime/compositions.md) | what a consumer composes out of them: a callback supplied and an interface returned, the rules that construction keeps and who keeps them, the three cancellations, interface, stream, cell and topic side by side, forwarding, and where the basis stops short |
 
 ## What a consumer declares — `declaration/`
 
