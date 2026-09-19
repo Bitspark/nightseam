@@ -1,10 +1,9 @@
 # How a layer speaks on the wire
 
 Nightseam is a stack: the seam carries frames, the profile correlates them,
-the tunnel multiplexes channels over one peer, the session governs a
-conversation over a tunnel's channels — or over any connection of the seam.
-Each layer is built on the one beneath and speaks it; none knows the ones
-above. This page says what that means for the one question that comes up
+the tunnel multiplexes channels over one peer, and a layer above the tunnel
+speaks over a channel — or over any connection of the seam. Each layer is
+built on the one beneath and speaks it; none knows the ones above. This page says what that means for the one question that comes up
 whenever a layer needs to say something new on the wire: **where does it
 go?** It was written after two wrong answers in one day, so that the third
 person to ask reads the test rather than repeating them.
@@ -32,8 +31,8 @@ The test, applied in order:
    ordinary frames of the profile — a request, a response, an event — with
    names in that layer's reserved prefix. The tunnel is the model:
    `channel.open` is a request, `channel.credit` an event, and the profile
-   knows nothing of channels. A session's control and its cursor are the
-   same kind of thing ([the session](session.md#the-sessions-own-vocabulary)).
+   knows nothing of channels. Anything a later layer must say on the wire
+   is the same kind of thing.
 3. **Is it a consumer's fact about a call, with no layer to carry it?**
    Then it is a **header**: a member on the request or event it is about,
    which the peer delivers to the handler beside the payload and reads
@@ -48,10 +47,10 @@ The test, applied in order:
    makes in turn, which is the opposite of a trace. A handler that means to
    pass one on says so ([the profile](profile.md#request-metadata)).
 
-Two things that look like members and are not — a sequence, which the
-session's log assigns and the peer never sees, and a fifth kind, "a session
-frame", which is an ordinary event of that layer's vocabulary — were each
-tried for an afternoon; [envelope members are what the peer acts
+Two things that look like members and are not — a sequence a layer above
+assigns and the peer never sees, and a fifth kind, "a frame of that layer",
+which is an ordinary event of that layer's vocabulary — were each tried for
+an afternoon; [envelope members are what the peer acts
 on](../decisions/envelope-members-are-what-the-peer-acts-on.md) is the
 record, and [`meta` is a header, not a
 member](../decisions/meta-is-a-header-not-a-member.md) the one header's.
@@ -60,41 +59,32 @@ member](../decisions/meta-is-a-header-not-a-member.md) the one header's.
 
 A layer that speaks on the wire does it as the tunnel does:
 
-- **A reserved prefix**, one per layer: `channel.` for the tunnel,
-  `session.` for the session. The namespace is the layer's, so that it is
-  never contested. The generator refuses consumer methods and events under
-  `session.`, including in families without a session tier. The built-in
-  family owns that namespace. Each target also holds its own identifiers
-  under `cmd/nightseam/testdata/reserved`.
+- **A reserved prefix**, one per layer: `channel.` for the tunnel. The
+  namespace is the layer's, so that it is never contested, and a layer that
+  takes one is what makes the generator refuse a consumer's operation under
+  it. Each target also holds its own identifiers under
+  `cmd/nightseam/testdata/reserved`.
 - **Ordinary frames of the profile.** A layer's request is a request, its
   event an event, minted, correlated and cancelled by the peer like any
-  other. The layer registers its handlers on the peer it runs over (the
-  tunnel's `channel.open` handler) or produces them in its own relay (the
-  session's `session.control` and `session.cursor`); either way the peer
-  dispatches by name and knows nothing of what the name means.
+  other. The layer registers its handlers on the peer it runs over — the
+  tunnel's `channel.open` handler — and the peer dispatches by name and
+  knows nothing of what the name means.
 - **Imported, implicitly.** A layer's vocabulary is a **family**: `duplex`
-  for the profile, `tunnel` for the tunnel, `session` for the session, each
-  declared in the declaration language under `internal/model/builtin/` and
-  carried in the binary. A family that has the layer's tier file imports
-  that family, with no `imports` line, and there is no injection mechanism
-  at all ([a tier is a built-in
-  family](../decisions/a-tier-is-a-built-in-family.md), [the
+  for the profile, `tunnel` for the tunnel, each declared in the declaration
+  language under `internal/model/builtin/` and carried in the binary. A
+  family that has the layer's tier file carries that family's types, with no
+  `imports` line, and there is no injection mechanism at all ([a tier is a
+  built-in family](../decisions/a-tier-is-a-built-in-family.md), [the
   declaration](../declaration/families.md#what-a-tier-brings)). The protocol
-  tier's built-in is *carried* — `duplex.Envelope` and `duplex.Handle` are
-  the carrying family's own types, since a family's envelope is a message of
-  that family — while the session's vocabulary is one declaration for every
-  family and reaches a family's generated code as a side that extends the
-  built-in `session` family's. No family declares any of it by hand, and one
-  that names a built-in in `imports`, or declares a type it carries, is
-  refused. The observer then labels a layer's operations with the family, as
-  any operation.
-- **Never logged as the family's.** A session's log holds the family's
-  frames; the session's own frames are state, not messages, and replay
-  never reports them stale.
-- **Never across the layer's boundary.** A `session.` frame sent by a
-  machine is refused by the relay, and `session.control` and
-  `session.cursor` are produced by the relay and never forwarded up from
-  anyone. The vocabulary belongs to the layer that defined it.
+  tier's built-in is carried — `duplex.Envelope` and `duplex.Handle` are the
+  carrying family's own types, since a family's envelope is a message of
+  that family. No family declares any of it by hand, and one that names a
+  built-in in `imports`, or declares a type it carries, is refused. The
+  observer then labels a layer's operations with the family, as any
+  operation.
+- **Never across the layer's boundary.** A layer's own frames are produced
+  by that layer and forwarded up from nobody. The vocabulary belongs to the
+  layer that defined it.
 
 ## How a change to the wire is made
 

@@ -1,5 +1,13 @@
 # A tier is a built-in family
 
+> **Superseded in one clause.** The session tier and its built-in family were
+> removed in 0.5.0 ([#196](https://github.com/Bitspark/nightseam/issues/196)),
+> and with them the *not carried* case: every tier that names a built-in now
+> carries its types, and `Tier.Carries` is gone from the table. The decision
+> this page records — a tier's vocabulary is a family in the declaration
+> language and there is no injection — is unchanged and is what `duplex` still
+> is.
+
 **The question.** A tier brings declarations to every family that carries
 it: the protocol tier brings `Envelope` and `Handle`, the session tier
 brings `session.control` and its kin. The first was a Go literal in the

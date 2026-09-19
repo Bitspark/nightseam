@@ -15,7 +15,7 @@ export const readJSON = file => JSON.parse(readFileSync(file, "utf8"));
 
 /**
  * The profile columns, in the order `profiles.json` declares them, which is
- * the order a language is built in — core, generator, tunnel, session,
+ * the order a language is built in — core, generator, tunnel,
  * observability — rather than the alphabetical order the matrix lists them
  * in. A profile the matrix knows and the declaration does not comes after,
  * so that a column is never silently dropped.

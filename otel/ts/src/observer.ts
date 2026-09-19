@@ -17,7 +17,7 @@ import { spanIdOf, wireContext } from './wire.ts';
  *
  * An observer is a peer's, so one of these belongs to one peer: the spans it
  * has open are that peer's requests, and an event of a layer running over that
- * peer — a tunnel's, a session's — is recorded on whichever of them encloses
+ * peer — a tunnel's — is recorded on whichever of them encloses
  * it. An event names its request by the id the profile correlates it
  * under where it has one and by the trace it carries otherwise; an event that
  * names neither — a channel's id is a number and names no request — concerns

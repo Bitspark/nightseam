@@ -3,7 +3,6 @@ package typescript
 import (
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/Bitspark/nightseam/internal/diag"
@@ -22,22 +21,17 @@ const (
 	identEvents        = "Events"
 	identFamily        = "Family"
 	identAnyFamily     = "AnyFamily"
-	identSessionFamily = "SessionFamily"
 	identFamilyBinding = "FamilyBinding"
 	identTypeBinding   = "TypeBinding"
 	identSlots         = "Slots"
 	identErrorCode     = "ErrorCode"
 	identErrors        = "errors"
-	identDecides       = "decides"
-	identAsks          = "asks"
-	identConversation  = "conversation"
 	identFamilyValue   = "family"
 	identValidateWire  = "validateWire"
 	identProtocol      = "Protocol"
 	identPeer          = "peer"
 	identSlotsField    = "slots"
 	identClose         = "close"
-	identSequence      = "sequence"
 	identConstructor   = "constructor"
 	identThen          = "then"
 	identEmit          = "emit"
@@ -62,10 +56,10 @@ var eventObjectMembers = []string{
 // Reserved is every identifier the generated module declares of itself,
 // imports, or uses of the language.
 func Reserved() []string {
-	names := []string{identClient, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identSessionFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identDecides, identAsks, identConversation, identFamilyValue, identValidateWire, identProtocol}
+	names := []string{identClient, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identProtocol}
 	names = append(names, imported...)
 	names = append(names, globals...)
-	names = append(names, identPeer, identSlotsField, identClose, identSequence, identConstructor, identThen)
+	names = append(names, identPeer, identSlotsField, identClose, identConstructor, identThen)
 	for _, name := range eventObjectMembers {
 		if !slices.Contains(names, name) {
 			names = append(names, name)
@@ -90,14 +84,11 @@ type plan struct {
 
 func newPlan(f *render.Family) (*plan, []diag.Diagnostic) {
 	p := &plan{family: f, module: emit.NewNamespace("module"), client: emit.NewNamespace("client"), types: map[string]string{}, operations: map[string]string{}, errors: map[string]string{}, List: diag.List{Family: f.Name}}
-	p.module.Fix("generated declaration", identClient, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identSessionFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identDecides, identAsks, identConversation, identFamilyValue, identValidateWire, identProtocol)
+	p.module.Fix("generated declaration", identClient, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identProtocol)
 	p.module.Fix("generated import", imported...)
 	p.module.Fix("generated use of a global", globals...)
 	p.client.Fix("generated client field", identPeer, identSlotsField)
 	p.client.Fix("generated client method", identClose, identConstructor)
-	if f.Session != nil {
-		p.client.Fix("generated session client getter", identSequence)
-	}
 	// A method named then would make the client a Promise-like value,
 	// breaking the async dial factory through JavaScript's thenable
 	// assimilation.
@@ -210,20 +201,8 @@ func (p *plan) plan() {
 }
 
 // references is every family the generated package depends on: the
-// families it refers to and, when it is generic, the session families,
-// whose Family types SessionFamily is the union of.
-func (p *plan) references() []string {
-	references := slices.Clone(p.family.References)
-	if needsSessionFamily(p.family) {
-		for _, family := range p.family.SessionFamilies {
-			if !slices.Contains(references, family) {
-				references = append(references, family)
-			}
-		}
-		sort.Strings(references)
-	}
-	return references
-}
+// families it refers to.
+func (p *plan) references() []string { return slices.Clone(p.family.References) }
 
 // errorKey is the member of errors one public error becomes: the code's
 // words in lower camel case, notFound for not_found, quoted when that is

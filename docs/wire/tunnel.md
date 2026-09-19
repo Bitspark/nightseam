@@ -1,8 +1,8 @@
 # The tunnel
 
 A tunnel multiplexes channels over one peer of the profile. Either side
-opens a channel, saying the family it speaks and the last sequence it holds;
-each channel is a connection of the seam, held to the same conformance
+opens a channel, saying the family it speaks; each channel is a connection
+of the seam, held to the same conformance
 suite as the WebSocket and the pipe, so a peer of any family runs over it
 unchanged, and a handle in a family's message, `{"channel": 12}`, names one.
 The outer peer sees four operations of the tunnel's own vocabulary and never
@@ -17,14 +17,14 @@ profile under the `channel.` prefix ([how a layer speaks](vocabulary.md)).
 **`channel.open`** — a request, from the side that opens:
 
 ```json
-{"channel": 12, "family": "chat", "after": 0, "window": 32}
+{"channel": 12, "family": "chat", "window": 32}
 ```
 
 `channel` is the id the opener chose (§ ids), `family` the family the
-channel will speak, `after` the last sequence the opener holds — carried,
-never acted on, for whatever runs above to resume from — and `window` how
-many frames the opener will hold in flight from the other side before it
-returns credit. The result is `{"window": 32}`, the accepting side's
+channel will speak, and `window` how many frames the opener will hold in
+flight from the other side before it returns credit. An open carries nothing
+for what runs above it: a layer that must resume says so in its own
+vocabulary. The result is `{"window": 32}`, the accepting side's
 window. An open is refused with `channel_invalid` (a malformed open, or an
 id of the accepting side's parity), `channel_exists` (the id is open) or
 `channel_refused` (nobody here has taken the channels already opened, up
@@ -45,7 +45,7 @@ for a channel that is not open is dropped.
 "frames": 16}`, returning credit for frames its consumer took.
 
 **`channel.close`** — an event, from the side that closes: `{"channel": 12,
-"code": 1000, "reason": "session ended"}`. It travels in order behind the
+"code": 1000, "reason": "the work is done"}`. It travels in order behind the
 frames sent before it, so what was sent before a close is delivered before
 the close is.
 

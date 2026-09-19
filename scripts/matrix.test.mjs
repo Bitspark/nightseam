@@ -15,11 +15,10 @@ const profiles = {
     core: { layers: ["seam", "peer"] },
     generator: { layers: ["generated"] },
     tunnel: { layers: ["tunnel"] },
-    session: { layers: ["session"] },
     observability: { needs: ["observer", "propagator"] },
   },
   tiers: {
-    1: { requires: ["core", "generator", "tunnel", "session", "observability"], onFailure: "stop" },
+    1: { requires: ["core", "generator", "tunnel", "observability"], onFailure: "stop" },
     2: { requires: ["core", "generator"], onFailure: "stop", otherwise: "stop-next" },
     3: { requires: ["core", "generator"], onFailure: "provisional" },
     4: { requires: ["core"], onFailure: "provisional" },
@@ -35,7 +34,7 @@ const row = (tier, cells, verdict = "ok") => ({ tier, verdict, cells });
 const all = value => Object.fromEntries(Object.keys(profiles.profiles).map(name => [name, value]));
 
 const matrix = {
-  profiles: ["core", "generator", "observability", "session", "tunnel"],
+  profiles: ["core", "generator", "observability", "tunnel"],
   languages: { go: row(1, all(green)), typescript: row(1, all(green)) },
 };
 
@@ -50,7 +49,7 @@ test("a cell says what passed, what was skipped with it, and what failed", () =>
 });
 
 test("the columns are the order a language is built in, not the order the matrix lists", () => {
-  assert.deepEqual(columns(matrix, profiles), ["core", "generator", "tunnel", "session", "observability"]);
+  assert.deepEqual(columns(matrix, profiles), ["core", "generator", "tunnel", "observability"]);
 });
 
 test("a profile the matrix knows and the declaration does not keeps its column", () => {
@@ -108,10 +107,10 @@ test("a document without the markers is refused rather than given a section", ()
 });
 
 test("a tier 1 language failing anything stops the release", () => {
-  const failing = { ...matrix, languages: { ...matrix.languages, typescript: row(1, { ...all(green), session: red }, "blocking") } };
+  const failing = { ...matrix, languages: { ...matrix.languages, typescript: row(1, { ...all(green), observability: red }, "blocking") } };
   const { problems, provisional, lagging } = gate(failing, profiles, undefined);
   assert.equal(problems.length, 1);
-  assert.match(problems[0], /`typescript` \(tier 1\) fails session, which tier 1 stops a release for/);
+  assert.match(problems[0], /`typescript` \(tier 1\) fails observability, which tier 1 stops a release for/);
   assert.deepEqual(provisional, []);
   assert.deepEqual(lagging, []);
 });
@@ -125,7 +124,7 @@ test("a tier 3 language failing what it guarantees ships, and is named provision
 });
 
 test("a tier 4 language failing outside core is informational and says nothing", () => {
-  const failing = { profiles: matrix.profiles, languages: { cpp: row(4, { ...all(green), session: red }) } };
+  const failing = { profiles: matrix.profiles, languages: { cpp: row(4, { ...all(green), tunnel: red }) } };
   assert.deepEqual(gate(failing, profiles, undefined), { problems: [], provisional: [], lagging: [] });
 });
 

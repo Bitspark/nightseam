@@ -38,18 +38,11 @@ const (
 	identServe                 = "Serve"
 	identClient                = "Client"
 	identCaller                = "Caller"
-	identDecides               = "Decides"
-	identAsks                  = "Asks"
-	identConversation          = "Conversation"
 	identDial                  = "Dial"
 	identAttach                = "Attach"
 	identOpen                  = "Open"
 	identPeer                  = "Peer"
 	identClose                 = "Close"
-	identSequence              = "Sequence"
-	identSequenceField         = "sequence"
-	identCursorHandler         = "cursorHandler"
-	identTrackCursor           = "trackCursor"
 	identEmit                  = "Emit"
 	identOn                    = "On"
 )
@@ -84,8 +77,8 @@ func Reserved() []string {
 		identTag, identOf, identWireType, identMarshalJSON, identUnmarshalJSON, identAdditionalFields,
 		identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identErrors, identIsError,
 		identRemote, identHandler, identEvents, identInstall, identNewHandler, identServe,
-		identClient, identCaller, identDecides, identAsks, identConversation, identDial, identAttach, identOpen,
-		identPeer, identClose, identSequence, identSequenceField, identCursorHandler, identTrackCursor,
+		identClient, identCaller, identDial, identAttach, identOpen,
+		identPeer, identClose,
 	}
 }
 
@@ -107,9 +100,6 @@ func planFamily(f *render.Family, seen map[*render.Family]bool) (*plan, []diag.D
 	p.packages.Fix("generated declaration", identTag, identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identErrors, identIsError)
 	p.client.Fix("generated client field", identPeer)
 	p.client.Fix("generated client method", identClose)
-	if f.Session != nil {
-		p.client.Fix("generated session client member", identSequence, identSequenceField, identCursorHandler, identTrackCursor)
-	}
 	p.remote.Fix("generated remote field", identPeer)
 	p.plan()
 	// Imported names retain their source overrides. Check that source's
@@ -236,7 +226,7 @@ func (p *plan) plan() {
 	// the tag an entry point takes for each.
 	generated := map[string]string{}
 	entries := emit.NewNamespace("entry-point packages")
-	entries.Fix("generated declaration", identRemote, identHandler, identEvents, identInstall, identNewHandler, identServe, identClient, identCaller, identDecides, identAsks, identConversation, identDial, identAttach, identOpen)
+	entries.Fix("generated declaration", identRemote, identHandler, identEvents, identInstall, identNewHandler, identServe, identClient, identCaller, identDial, identAttach, identOpen)
 	for _, use := range f.Uses {
 		p.typeParams[use] = parameterName(use)
 		at := diag.Location{}

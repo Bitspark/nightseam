@@ -44,7 +44,6 @@ A record. What the side that opens a channel asks for.
 |---|---|---|---|---|
 | `channel` | `integer` | required | — | The id the opener chose: odd for the client of the outer connection, even for its server. |
 | `family` | `string` | required | — | The family the channel will speak. |
-| `after` | `integer` | optional | — | The last sequence the opener holds, carried and never acted on. |
 | `window` | `integer` | required | — | How many frames the opener will hold in flight before it returns credit. |
 
 ### Opened
@@ -113,7 +112,6 @@ The client sends:
   "params": {
     "channel": 0,
     "family": "‹family›",
-    "after": 0,
     "window": 0
   }
 }
@@ -251,7 +249,6 @@ The server sends:
   "params": {
     "channel": 0,
     "family": "‹family›",
-    "after": 0,
     "window": 0
   }
 }

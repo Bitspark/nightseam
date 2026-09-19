@@ -15,31 +15,6 @@ func familyScope(f *render.Family) []model.Parameter {
 	return out
 }
 
-func needsSessionFamily(f *render.Family) bool {
-	for _, parameter := range f.Parameters {
-		if parameter.Of == model.SessionRole {
-			for _, use := range f.Uses {
-				if use.Parameter == parameter.Name {
-					return true
-				}
-			}
-		}
-	}
-	for _, t := range f.Types {
-		for _, parameter := range t.Scope {
-			if parameter.Of != model.SessionRole {
-				continue
-			}
-			for _, use := range t.Uses {
-				if use.Parameter == parameter.Name {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
 func (f *file) parameter(name string) (model.Parameter, bool) {
 	for _, parameter := range f.scope {
 		if parameter.Name == name {
@@ -77,11 +52,7 @@ func (f *file) declare(uses []render.Use) string {
 		if len(drawn) > 0 {
 			constraint += " & { " + strings.Join(drawn, "; ") + " }"
 		}
-		fallback := constraint
-		if parameter.Of == model.SessionRole {
-			fallback = identSessionFamily
-		}
-		declarations = append(declarations, name+" extends "+constraint+" = "+fallback)
+		declarations = append(declarations, name+" extends "+constraint+" = "+constraint)
 	}
 	if len(declarations) == 0 {
 		return ""

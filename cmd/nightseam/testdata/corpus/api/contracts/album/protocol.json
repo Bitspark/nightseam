@@ -3,11 +3,11 @@
   "parameters": [
     {
       "name": "A",
-      "of": "session"
+      "of": "protocol"
     },
     {
       "name": "B",
-      "of": "session"
+      "of": "protocol"
     }
   ],
   "imports": [

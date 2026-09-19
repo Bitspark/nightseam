@@ -24,11 +24,10 @@ tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
   the repository the tarball was built from, and a consumer can check that
   rather than take it.
 - **Go**: the module `github.com/Bitspark/nightseam` at the tag; nothing is
-  uploaded, a tag is the release. `runtime/go`, `duplex/go`, `tunnel/go`
-  and `session/go` are its importable packages, with their sub-packages —
-  `duplex/go/ws`, `runtime/go/slogobserver`, and the suites `duplex/go/duplextest`
-  and `session/go/sessiontest`. `cmd/nightseam` is what a consumer adds as a
-  Go tool.
+  uploaded, a tag is the release. `runtime/go`, `duplex/go` and `tunnel/go`
+  are its importable packages, with their sub-packages — `duplex/go/ws`,
+  `runtime/go/slogobserver`, and the suite `duplex/go/duplextest`.
+  `cmd/nightseam` is what a consumer adds as a Go tool.
 - **Go, nested**: a component that depends on what the core module may not
   is a module of its own, released by a second tag `<dir>/vX.Y.Z` cut beside
   `vX.Y.Z` — that is how the Go toolchain names a module in a subdirectory,

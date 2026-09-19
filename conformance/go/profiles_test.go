@@ -14,11 +14,11 @@ func tiered() *Profiles {
 		Profiles: map[string]Profile{
 			"core":          {Layers: []string{"seam", "peer"}},
 			"generator":     {Layers: []string{"generated"}},
-			"session":       {Layers: []string{"session"}},
+			"tunnel":        {Layers: []string{"tunnel"}},
 			"observability": {Needs: []string{"observer", "propagator"}},
 		},
 		Tiers: map[string]Tier{
-			"1": {Requires: []string{"core", "generator", "session", "observability"}, OnFailure: "stop"},
+			"1": {Requires: []string{"core", "generator", "tunnel", "observability"}, OnFailure: "stop"},
 			"2": {Requires: []string{"core", "generator"}, OnFailure: "stop"},
 			"3": {Requires: []string{"core", "generator"}, OnFailure: "provisional"},
 			"4": {Requires: []string{"core"}, OnFailure: "provisional"},
@@ -32,8 +32,8 @@ func tiered() *Profiles {
 func TestATesteeIsHeldToItsTier(t *testing.T) {
 	p := tiered()
 	core := Hello{Driver: 1, Layers: []string{"seam", "peer"}, Features: []string{"listen"}}
-	if err := p.HoldToTier("go", core); err == nil || !strings.Contains(err.Error(), "session") {
-		t.Fatalf("a tier 1 testee without session was not refused: %v", err)
+	if err := p.HoldToTier("go", core); err == nil || !strings.Contains(err.Error(), "tunnel") {
+		t.Fatalf("a tier 1 testee without the tunnel was not refused: %v", err)
 	}
 	if err := p.HoldToTier("fourth", core); err != nil {
 		t.Fatalf("a tier 4 testee holding core was refused: %v", err)
@@ -42,7 +42,7 @@ func TestATesteeIsHeldToItsTier(t *testing.T) {
 		t.Fatalf("a language of no tier was held to something: %v", err)
 	}
 	// The generated layer is a second testee's, so the first is not held to it.
-	full := Hello{Driver: 1, Layers: []string{"seam", "peer", "tunnel", "session"}, Features: []string{"observer", "propagator"}}
+	full := Hello{Driver: 1, Layers: []string{"seam", "peer", "tunnel"}, Features: []string{"observer", "propagator"}}
 	if err := p.HoldToTier("go", full); err != nil {
 		t.Fatal(err)
 	}
@@ -69,13 +69,13 @@ func TestVerdictsFollowTheTierTable(t *testing.T) {
 		t.Errorf("blocking = %v", blocking)
 	}
 	// A failure outside what the tier requires does not count against it.
-	m.Record("fourth", "session", failed)
+	m.Record("fourth", "tunnel", failed)
 	if got := m.Verdict(p, "fourth"); got != "provisional" {
-		t.Errorf("a tier 4 failure in session became %s", got)
+		t.Errorf("a tier 4 failure in the tunnel became %s", got)
 	}
 	ok := NewMatrix(p)
 	ok.Record("go", "core", Outcome{})
-	ok.Record("go", "session", Outcome{Skipped: "not today"})
+	ok.Record("go", "tunnel", Outcome{Skipped: "not today"})
 	if got := ok.Verdict(p, "go"); got != "ok" {
 		t.Errorf("a row of passes and skips is %s", got)
 	}

@@ -1,11 +1,11 @@
 /**
- * The span tree of one call, end to end: a consumer calls a method of the
- * probe family through a session relay, the machine's handler asks the holder
- * of control to reverse what it was given, and the holder answers. The
- * scenario is the session component's own — its `pipes`, its governance, its
- * generated client — run with this adapter on every peer of it, and what it
- * is held to is what #2 §1 lists: one trace from the consumer's call to the
- * holder's answer, each hop's spans children of the span that caused them.
+ * The span tree of one call, end to end: a client calls a method of the probe
+ * family over a channel of a tunnel, the server's handler calls the client
+ * back to reverse what it was given, and the client answers. The scenario is
+ * the tunnel component's own — one pipe, two peers, two tunnels, a channel —
+ * run with this adapter on every peer of it, and what it is held to is one
+ * trace from the client's call to its own answer, each hop's spans children of
+ * the span that caused them.
  *
  * Each hop is two spans and not one: the runtime asks a propagator what an
  * outgoing frame carries before it tells an observer the request began, so
@@ -24,14 +24,14 @@ import {
   SimpleSpanProcessor,
   type ReadableSpan,
 } from '@opentelemetry/sdk-trace-base';
+import { pipe } from '@nightseam/duplex';
 import { DuplexPeer } from '@nightseam/runtime';
-import { memoryLog, Registry } from '@nightseam/session';
+import { Tunnel, type Channel } from '@nightseam/tunnel';
 import {
   Client,
   type Handler,
   type Payload,
 } from '../../../cmd/nightseam/testdata/golden/api/ts/probe-client/src/index.ts';
-import { governance, pipes } from '@nightseam/session/conformance';
 import { observer } from './observer.ts';
 import { propagator } from './propagator.ts';
 
@@ -60,19 +60,41 @@ function recording() {
 }
 
 /**
- * One call, from a consumer attached to a session to the machine bound to it
- * and back through the ask the handler raises: the adapter is the propagator
- * and the observer of every peer that speaks the family, and the relay's own
- * peer observes through it too, so nothing of the run is outside the trace.
+ * Two tunnels over one pipe, with this adapter on the peers carrying them, and
+ * one connected pair of channels of the probe family.
+ */
+async function carried(tracer: Tracer) {
+  const [a, b] = pipe();
+  const near = new DuplexPeer({ role: 'client', propagator: propagator(), observer: observer(tracer) });
+  const far = new DuplexPeer({ role: 'server', propagator: propagator(), observer: observer(tracer) });
+  await Promise.all([near.attach(a), far.attach(b)]);
+  const opening = new Tunnel(near, {});
+  const accepting = new Tunnel(far, {});
+  const accepted = accepting.accept();
+  const client: Channel = await opening.open('probe');
+  const server: Channel = await accepted;
+  return {
+    client,
+    server,
+    close: () => {
+      near.close();
+      far.close();
+    },
+  };
+}
+
+/**
+ * One call, from a client over a channel to the server at its other end and
+ * back through the reverse call the handler makes: the adapter is the
+ * propagator and the observer of every peer that speaks the family, and the
+ * peers carrying the tunnel observe through it too, so nothing of the run is
+ * outside the trace.
  */
 async function calling(tracer: Tracer, text: string): Promise<Payload> {
-  const wire = await pipes(observer(tracer));
-  const registry = new Registry();
-  const { near: machine, far: up } = await wire.open();
-  registry.bind('s', up, governance, memoryLog(1 << 20));
+  const wire = await carried(tracer);
 
-  // The machine: it serves echo, and inside that handler it asks whoever holds
-  // control to reverse what it was given, from the handler's own context.
+  // The server: it serves echo, and inside that handler it calls the client
+  // back to reverse what it was given, from the handler's own context.
   const served = new DuplexPeer({
     role: 'server',
     propagator: propagator(),
@@ -83,20 +105,18 @@ async function calling(tracer: Tracer, text: string): Promise<Payload> {
     const reversed = await served.call<Payload>('reverse', params, { context });
     return { ...reversed, text: 'machine:' + reversed.text };
   });
-  await served.attach(machine);
+  await served.attach(wire.server);
 
-  // The consumer: attached as a participant, holding control, answering asks.
-  const consumer = await wire.open(0);
-  registry.control('s', registry.attach('s', consumer.far, 'participant', 'one', 0));
+  // The client: the generated one, answering the reverse call.
   const answering: Handler = { reverse: (params) => ({ ...params, text: [...params.text].reverse().join('') }) };
   const client = await Client.attach(
-    consumer.near,
+    wire.client,
     { propagator: propagator(), observer: observer(tracer) },
     answering,
     {},
   );
 
-  // The consumer's own span, which is what the call is made under: it is the
+  // The caller's own span, which is what the call is made under: it is the
   // one span of the trace this adapter did not open.
   const answer = await tracer.startActiveSpan('consumer.call', async (root) => {
     try {
@@ -118,7 +138,7 @@ function of(spans: ReadableSpan[], name: string): ReadableSpan[] {
   return spans.filter((span) => span.spanContext().traceId === root.spanContext().traceId);
 }
 
-test('one call through a relay to a handler whose ask is answered is one trace, parented hop by hop', async () => {
+test('one call over a channel to a handler that calls back is one trace, parented hop by hop', async () => {
   const kept = recording();
   assert.deepEqual(await calling(kept.tracer, 'value'), { text: 'machine:eulav', count: 1 });
   await kept.provider.forceFlush();
@@ -133,17 +153,18 @@ test('one call through a relay to a handler whose ask is answered is one trace, 
   const served = named('echo', SpanKind.SERVER);
   const asked = named('reverse', SpanKind.CLIENT);
   const answered = named('reverse', SpanKind.SERVER);
-  // The call the consumer made and the handler the relay carried it to are
-  // both of the span the consumer made it under.
+  // The call the client made and the handler the channel carried it to are
+  // both of the span the call was made under.
   assert.equal(called.parentSpanContext?.spanId, root.spanContext().spanId);
   assert.equal(served.parentSpanContext?.spanId, root.spanContext().spanId);
-  // What the handler asked, and the holder that answered it, are both of the
-  // handler's own span: the relay re-minted the id and forwarded the trace.
+  // What the handler asked back, and the client that answered it, are both of
+  // the handler's own span.
   assert.equal(asked.parentSpanContext?.spanId, served.spanContext().spanId);
   assert.equal(answered.parentSpanContext?.spanId, served.spanContext().spanId);
-  // The two a frame crossed a process to reach are parented remotely, from
-  // what the frame named; the ask is parented at the span itself, which the
-  // handler's own context carried to it and which names no remoteness.
+  // The two a frame crossed a connection to reach are parented remotely, from
+  // what the frame named; the reverse call is parented at the span itself,
+  // which the handler's own context carried to it and which names no
+  // remoteness.
   assert.equal(served.parentSpanContext?.isRemote, true);
   assert.equal(answered.parentSpanContext?.isRemote, true);
   assert.equal(asked.parentSpanContext?.isRemote, undefined);
@@ -151,10 +172,6 @@ test('one call through a relay to a handler whose ask is answered is one trace, 
   assert.deepEqual(spans.length, 5);
   for (const span of spans) assert.equal(span.ended, true, span.name);
   // Each request's frames are events of its span, and the family is on it.
-  // The session's own vocabulary travels the same connection, so a cursor
-  // delivered while the call stood open is on the call's span too: every
-  // event the peer delivered is a frame received and a delivery, and the one
-  // frame received that is neither is the answer the call waited for.
   const events = called.events.map((event) => event.name);
   assert.equal(events[0], 'frame.sent');
   assert.equal(

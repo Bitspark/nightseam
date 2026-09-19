@@ -3,13 +3,12 @@ import { createValidator, type AnyFamily, type FamilyBinding, type TypeBinding, 
 export type { AnyFamily, FamilyBinding, TypeBinding, Slots, TypeExpression };
 import type * as carrier from "@example/carrier-client";
 import { validateWire as validate_carrier } from "@example/carrier-client";
-import type * as codex from "@example/codex-client";
 import type * as probe from "@example/probe-client";
 import { validateWire as validate_probe } from "@example/probe-client";
-export interface Borrowed<B extends AnyFamily = SessionFamily> {
+export interface Borrowed<B extends AnyFamily = AnyFamily> {
   "frame": carrier.Frame<B>;
 }
-export interface Both<A extends AnyFamily = SessionFamily, B extends AnyFamily = SessionFamily> {
+export interface Both<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily> {
   "mine": Mine<A>;
   "borrowed": Borrowed<B>;
   "fixed": Fixed;
@@ -49,16 +48,14 @@ export interface Handle {
   /** The channel's id on that connection. */
   "channel": number;
 }
-export interface Mine<A extends AnyFamily = SessionFamily> {
+export interface Mine<A extends AnyFamily = AnyFamily> {
   "held": A["Envelope"];
 }
 /** The family: its name and the wire types a slot of it draws on. */
 export interface Family { readonly name: "album"; Envelope: Envelope; Fixed: Fixed; Handle: Handle }
-/** The session role: every family of the world that has a session tier. */
-export type SessionFamily = codex.Family | probe.Family;
 
-const contractTypes = {"types":{"Borrowed":{"kind":"record","fields":[{"name":"frame","type":{"apply":"carrier.Frame","with":{"S":"B"}},"required":true}]},"Both":{"kind":"record","fields":[{"name":"mine","type":"Mine","required":true},{"name":"borrowed","type":"Borrowed","required":true},{"name":"fixed","type":"Fixed","required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Fixed":{"kind":"record","fields":[{"name":"frame","type":{"apply":"carrier.Frame","with":{"S":"probe"}},"required":true}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Mine":{"kind":"record","fields":[{"name":"held","type":"A.Envelope","required":true}]}},"parameters":[{"name":"A","of":"session"},{"name":"B","of":"session"}]} as unknown as WireFamily;
+const contractTypes = {"types":{"Borrowed":{"kind":"record","fields":[{"name":"frame","type":{"apply":"carrier.Frame","with":{"S":"B"}},"required":true}]},"Both":{"kind":"record","fields":[{"name":"mine","type":"Mine","required":true},{"name":"borrowed","type":"Borrowed","required":true},{"name":"fixed","type":"Fixed","required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Fixed":{"kind":"record","fields":[{"name":"frame","type":{"apply":"carrier.Frame","with":{"S":"probe"}},"required":true}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Mine":{"kind":"record","fields":[{"name":"held","type":"A.Envelope","required":true}]}},"parameters":[{"name":"A","of":"protocol"},{"name":"B","of":"protocol"}]} as unknown as WireFamily;
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
 export const validateWire = createValidator(contractTypes, { "carrier": validate_carrier, "probe": validate_probe });
-/** This family bound: its name and its validator, to fill a slot of the session role in another family's client. */
+/** This family bound: its name and its validator, to fill a family slot in another family's client. */
 export const family = { name: "album", validate: validateWire } as const;

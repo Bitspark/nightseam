@@ -70,8 +70,8 @@ test('this package depends on the runtime and on OpenTelemetry, and on no other 
   assert.equal(named.includes('@opentelemetry/api'), true);
   assert.equal(named.includes('@opentelemetry/core'), true);
   const manifest = JSON.parse(readFileSync(path.join(root, 'otel', 'ts', 'package.json'), 'utf8'));
-  // The session, the tunnel and the seam are the suite's, which runs one call
-  // through a relay; what the package ships is the runtime and the two.
+  // The tunnel and the seam are the suite's, which runs one call over a
+  // channel; what the package ships is the runtime and the two.
   assert.deepEqual(Object.keys(manifest.dependencies), [
     '@nightseam/runtime',
     '@opentelemetry/api',

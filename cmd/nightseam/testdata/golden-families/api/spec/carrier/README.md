@@ -10,7 +10,7 @@ The tiers it declares bring the built-in family `duplex`, imported implicitly.
 
 The family is instantiated by filling these parameters:
 
-- **S**: a family with the `session` tier, drawn at `Envelope`, `Handle`.
+- **S**: a family with the `protocol` tier, drawn at `Envelope`, `Handle`.
 
 ## Types
 
@@ -69,7 +69,7 @@ type Attachment[SHandle any] struct {
 In `typescript`:
 
 ```typescript
-export interface Attachment<S extends AnyFamily = SessionFamily> {
+export interface Attachment<S extends AnyFamily = AnyFamily> {
   "connection": S["Handle"];
   "last": number;
 }
@@ -107,7 +107,7 @@ type Frame[SEnvelope any] struct {
 In `typescript`:
 
 ```typescript
-export interface Frame<S extends AnyFamily = SessionFamily> {
+export interface Frame<S extends AnyFamily = AnyFamily> {
   "sequence": number;
   "message": S["Envelope"];
 }
@@ -139,7 +139,7 @@ type Frames[SEnvelope any] = []Frame[SEnvelope]
 In `typescript`:
 
 ```typescript
-export type Frames<S extends AnyFamily = SessionFamily> = Array<Frame<S>>;
+export type Frames<S extends AnyFamily = AnyFamily> = Array<Frame<S>>;
 ```
 
 For example:

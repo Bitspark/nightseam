@@ -1,7 +1,0 @@
-{
-  "profile": "nightseam.duplex/1",
-  "parameters": [{"name": "S", "of": "protocol"}],
-  "types": {
-    "Use": {"kind": "alias", "type": {"apply": "peer.Box", "with": {"P": "S"}}}
-  }
-}

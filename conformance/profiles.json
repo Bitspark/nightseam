@@ -4,11 +4,10 @@
     "core": {"layers": ["seam", "peer"], "promise": "wire"},
     "generator": {"layers": ["generated"], "promise": "generated"},
     "tunnel": {"layers": ["tunnel"], "promise": "complete"},
-    "session": {"layers": ["session"], "promise": "complete"},
     "observability": {"needs": ["observer", "propagator"], "promise": "complete"}
   },
   "tiers": {
-    "1": {"requires": ["core", "generator", "tunnel", "session", "observability"], "lag": 0, "onFailure": "stop"},
+    "1": {"requires": ["core", "generator", "tunnel", "observability"], "lag": 0, "onFailure": "stop"},
     "2": {"requires": ["core", "generator"], "lag": 1, "onFailure": "stop", "otherwise": "stop-next"},
     "3": {"requires": ["core", "generator"], "onFailure": "provisional"},
     "4": {"requires": ["core"], "onFailure": "provisional"}

@@ -7,8 +7,8 @@ what every language's runtime implements, each held to the reference over a
 real socket by the conformance suite. This page is the wire — what a peer of
 any language sends, accepts and refuses — and names no runtime: what a
 consumer calls, in each language, is [the peer](../runtime/peer.md). A
-runtime for another language needs this page, [the tunnel](tunnel.md), [the
-session](session.md), [how a layer speaks](vocabulary.md) and [the driver
+runtime for another language needs this page, [the tunnel](tunnel.md),
+[how a layer speaks](vocabulary.md) and [the driver
 protocol](../../conformance/DRIVER.md), and nothing else.
 
 ## The connection beneath
@@ -27,10 +27,9 @@ registry's](../decisions/close-codes-are-the-websocket-registrys.md)).
 The profile sends text frames only and refuses a binary frame; a frame
 larger than the peer's limit is refused before delivery and the connection
 with it. The seam frames every frame whole; the profile never splits one.
-**1003** is what a frame of the wrong kind is refused with — the session
-closes both of its connections with it, and with `a session speaks JSON text
-frames` — where text that is no message of the profile is a fault of another
-kind and carries another code.
+**1003** is what a frame of the wrong kind is refused with — a layer above
+the profile that speaks JSON text closes with it too — where text that is no
+message of the profile is a fault of another kind and carries another code.
 
 ## The subprotocol
 
@@ -98,9 +97,9 @@ response carries the id of the request it answers, a cancel the id of the
 request it withdraws, and an id with the wrong prefix for its kind is
 malformed.
 
-Ids are per connection. A relay that carries frames across connections mints
-its own on the way out and maps the responses back ([the
-session](session.md)).
+Ids are per connection. A layer that carries frames across connections mints
+its own on the way out and maps the responses back ([how a layer
+speaks](vocabulary.md)).
 
 ## Requests
 
@@ -237,8 +236,7 @@ arrived — are [the peer's](../runtime/peer.md#request-metadata).
 No retry, no reconnection, no acknowledgment of delivery, no
 authentication: a connection is authenticated by whatever opened it — the
 upgrade, before the profile begins — and the profile begins once it is open.
-Resumption after a reconnect is a family's operation (`after` on a tunnel's
-`channel.open`, a session's log), not the profile's.
+Resumption after a reconnect is a family's operation, not the profile's.
 
 ## A frame, on the wire
 
@@ -258,7 +256,7 @@ A peer takes one observer and tells it ten things about the traffic it
 carries — a connection opened and closed, a frame sent and received, a
 request started and ended, an event emitted and delivered, backpressure, and
 a handler that threw — each carrying names, ids, sizes, durations, outcomes
-and the frame's trace, and none of them a payload. The tunnel and the session
-running over the peer emit their own events through the same observer, so a
-consumer chooses one. [The observer](../runtime/observer.md) has the rule and
+and the frame's trace, and none of them a payload. A tunnel running over the
+peer emits its own events through the same observer, so a consumer chooses
+one. [The observer](../runtime/observer.md) has the rule and
 every event of every layer.

@@ -1,10 +1,10 @@
 // nightseam renders a checkout's families into generated packages. A
 // family is declared in tier files under api/contracts/<family>/ —
-// model.json for its types, protocol.json for its two sides, session.json
-// for how a session of it is governed, and an override file per target
-// where a name differs from the convention — and rendered by every target
-// the tool is composed with, today Go, TypeScript and the family's own
-// specification as Markdown and the checkout's HTML atlas. A declaration refers
+// model.json for its types, protocol.json for its two sides, and an override
+// file per target where a name differs from the convention — and rendered by
+// every target the tool is composed with, today Go, TypeScript and the
+// family's own specification as Markdown and the checkout's HTML atlas. A
+// declaration refers
 // to its own tier or a lower one, never a higher one, and the tool refuses
 // one that does.
 //
@@ -245,7 +245,7 @@ func newCommand() *cobra.Command {
 		Short: "Render api/contracts into generated packages and specifications",
 		Long: `nightseam renders a checkout's families into generated packages. A
 family is declared in tier files under api/contracts/<family>/ — model.json,
-protocol.json, session.json, and an override file per target — and rendered
+protocol.json, and an override file per target — and rendered
 by every target the tool is composed with, today Go, TypeScript and the
 family's own specification as Markdown and the checkout's HTML atlas. The Go packages are rooted at the
 checkout's module, the TypeScript packages at an npm scope; both bind to

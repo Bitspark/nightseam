@@ -62,7 +62,7 @@ against what a release *would* publish.
 
 | | |
 | --- | --- |
-| `api/contracts/probe/` | the family: `model.json` for its types, `protocol.json` for its two sides, `session.json` for how a session of it is governed |
+| `api/contracts/probe/` | the family: `model.json` for its types and `protocol.json` for its two sides |
 | `api/go/`, `api/ts/`, `api/spec/` | what the generator renders, committed so that a reader sees it without running anything and `nightseam check` holds it |
 | `api/impl/probe/handler.go` | the server's behavior, where `nightseam init probe` wrote it once and will never write again |
 | `server/main.go` | `binding.NewHandler` and an HTTP server |

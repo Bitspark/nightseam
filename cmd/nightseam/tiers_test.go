@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Bitspark/nightseam/internal/model"
 )
 
 // writeFamily copies a family of testdata/families into a checkout.
@@ -24,36 +26,70 @@ func writeFamily(t *testing.T, root, family string) {
 	}
 }
 
+// TestTiersAreModelAndProtocolOnly: the tier table is exactly the model
+// and the protocol, and a checkout that carries a session.json is refused
+// with a diagnostic naming the file — the governed session tier is gone,
+// not renamed.
+func TestTiersAreModelAndProtocolOnly(t *testing.T) {
+	var names []string
+	for _, tier := range model.Tiers {
+		names = append(names, tier.Name+"="+tier.File)
+	}
+	if strings.Join(names, ",") != "model=model.json,protocol=protocol.json" {
+		t.Fatalf("the tiers are %v", names)
+	}
+	if roles := model.TierRoles(); strings.Join(roles, ",") != "protocol" {
+		t.Fatalf("a family parameter may be of %v", roles)
+	}
+	if model.IsTierRole("session") {
+		t.Fatal("session is still a tier a family parameter may be of")
+	}
+	root := t.TempDir()
+	writeFamily(t, root, "probe")
+	writeFixture(t, root, "api/contracts/probe/session.json", []byte(`{"decides": ["echo"]}`))
+	_, errs, err := run(t, root, "validate")
+	if err == nil || !strings.Contains(errs, "probe/session.json#:") || !strings.Contains(errs, "[unknown_file]") {
+		t.Fatalf("a session tier file was not refused: %v\n%s", err, errs)
+	}
+}
+
 // TestTierFilesAreLoadedAndRendered: a family declared in tier files
-// validates and renders as one; its session tier becomes the Caller
-// interface's companions, Decides, Asks and Conversation, in both
-// languages.
+// validates and renders as one.
 func TestTierFilesAreLoadedAndRendered(t *testing.T) {
 	root := t.TempDir()
 	writeFamily(t, root, "probe")
-	writeFixture(t, root, "api/contracts/probe/session.json", []byte(`{"decides": ["echo"], "asks": ["reverse"], "conversation": {"event": "changed", "path": "text"}}`))
 	if out, _, err := run(t, root, "validate"); err != nil || out != "1 families; valid\n" {
 		t.Fatalf("validate: %v\n%s", err, out)
 	}
-	if out, _, err := run(t, root, "generate"); err != nil || strings.Count(out, "generated ") != 19 {
+	if out, _, err := run(t, root, "generate"); err != nil || strings.Count(out, "generated ") != 10 {
 		t.Fatalf("generate: %v\n%s", err, out)
 	}
 	client, err := os.ReadFile(filepath.Join(root, "api/go/probe-client/client_generated.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"type Caller interface", "var _ Caller = (*Client)(nil)", `case "echo":`, "func Decides(method string) bool", "func Asks(method string) bool", `var Conversation = struct{ Event, Path string }{"changed", "text"}`} {
+	for _, want := range []string{"type Caller interface", "var _ Caller = (*Client)(nil)", "func (c *Client) Echo("} {
 		if !strings.Contains(string(client), want) {
 			t.Errorf("the Go client lacks %s", want)
+		}
+	}
+	for _, absent := range []string{"func Decides(", "func Asks(", "var Conversation ="} {
+		if strings.Contains(string(client), absent) {
+			t.Errorf("the Go client still declares %s", absent)
 		}
 	}
 	index, err := os.ReadFile(filepath.Join(root, "api/ts/probe-client/src/index.ts"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"export interface Caller {", "export class Client implements Caller {", `export const decides: ReadonlySet<string> = new Set(["echo"]);`, `export const asks: ReadonlySet<string> = new Set(["reverse"]);`, `export const conversation = { event: "changed", path: "text" } as const;`} {
+	for _, want := range []string{"export interface Caller {", "export class Client implements Caller {"} {
 		if !strings.Contains(string(index), want) {
 			t.Errorf("the TypeScript client lacks %s", want)
+		}
+	}
+	for _, absent := range []string{"export const decides", "export const asks", "export const conversation"} {
+		if strings.Contains(string(index), absent) {
+			t.Errorf("the TypeScript client still declares %s", absent)
 		}
 	}
 	if out, errs, err := run(t, root, "check"); err != nil || out != "" || errs != "" {
@@ -83,8 +119,8 @@ func TestLoaderHoldsTheTiers(t *testing.T) {
 	}
 }
 
-// TestParametersAreLoadedFromTheProtocolTier: a family generic in a
-// session family renders its types with the parameter's uses as Go type
+// TestParametersAreLoadedFromTheProtocolTier: a family generic in another
+// family renders its types with the parameter's uses as Go type
 // parameters.
 func TestParametersAreLoadedFromTheProtocolTier(t *testing.T) {
 	root := t.TempDir()

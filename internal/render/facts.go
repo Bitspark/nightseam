@@ -23,9 +23,6 @@ func (r *Family) other(name string) *Family {
 	if f := r.f.Imported[name]; f != nil {
 		return r.builder.build(f)
 	}
-	if f := r.f.Implicit[name]; f != nil {
-		return r.builder.build(f)
-	}
 	seen := map[*analysis.Family]bool{}
 	var find func(*analysis.Family) *analysis.Family
 	find = func(f *analysis.Family) *analysis.Family {
@@ -38,11 +35,6 @@ func (r *Family) other(name string) *Family {
 		}
 		for _, imported := range f.Imported {
 			if found := find(imported); found != nil {
-				return found
-			}
-		}
-		for _, implicit := range f.Implicit {
-			if found := find(implicit); found != nil {
 				return found
 			}
 		}
@@ -115,94 +107,11 @@ func (r *Family) complete() {
 		r.Client = r.resolvedSide(false)
 		r.Errors = r.resolvedErrors()
 	}
-	r.resolveSession()
 	r.resolveUses()
 	for _, t := range r.Types {
 		r.resolvePayloads(t)
 	}
 	r.surfaceReferences()
-}
-
-func (r *Family) resolveSession() {
-	if r.f.Session == nil {
-		return
-	}
-	out := &Session{Declaration: r.f.Session}
-	seen := map[string]bool{}
-	appendNames := func(to *[]string, names []string) {
-		for _, name := range names {
-			if !slices.Contains(*to, name) {
-				*to = append(*to, name)
-			}
-		}
-	}
-	var visit func(*Family, bool)
-	visit = func(source *Family, server bool) {
-		label := "client"
-		if server {
-			label = "server"
-		}
-		key := source.Name + "." + label
-		if seen[key] || source.f.Protocol == nil {
-			return
-		}
-		seen[key] = true
-		side := source.f.Protocol.Client
-		if server {
-			side = source.f.Protocol.Server
-		}
-		for _, name := range side.Extends {
-			if base := source.other(name.Name); base != nil {
-				visit(base, server)
-			}
-		}
-		session := source.f.Session
-		if session == nil {
-			return
-		}
-		if source != r {
-			out.Inherited = append(out.Inherited, SessionSource{Family: source.Name, Side: label, Declaration: session})
-		}
-		resolved := source.Client
-		if server {
-			resolved = source.Server
-		}
-		for _, name := range session.Decides {
-			for _, method := range resolved.Methods {
-				if method.Name == name {
-					appendNames(&out.Decides, []string{name})
-					break
-				}
-			}
-		}
-		if !server {
-			appendNames(&out.Asks, session.Asks)
-		}
-		if conversation := session.Conversation; conversation != nil {
-			for _, event := range resolved.Events {
-				if event.Name != conversation.Event {
-					continue
-				}
-				duplicate := false
-				for _, previous := range out.Conversations {
-					if previous.Conversation == *conversation {
-						duplicate = true
-						break
-					}
-				}
-				if !duplicate {
-					out.Conversations = append(out.Conversations, ConversationSource{Family: source.Name, Conversation: *conversation})
-				}
-			}
-		}
-	}
-	visit(r, true)
-	visit(r, false)
-	if len(out.Conversations) == 1 {
-		conversation := out.Conversations[0].Conversation
-		out.Conversation = &conversation
-	}
-	r.Session = out
 }
 
 func (r *Family) surfaceReferences() {
@@ -327,15 +236,6 @@ func (r *Family) resolvedSide(server bool) Side {
 			if source == r {
 				out.OwnEvents = append(out.OwnEvents, event)
 			}
-		}
-	}
-	// Only this family's tiers contribute implicit sides. The traversal of
-	// application inheritance above reads the source declarations, so a
-	// protocol-only family does not acquire a session tier through a base.
-	for _, name := range r.Carries {
-		if r.f.Implicit[name] != nil {
-			out.Extends = append(out.Extends, model.Inheritance{Name: name})
-			visit(r.other(name), nil, map[*Family]bool{})
 		}
 	}
 	visit(r, nil, map[*Family]bool{})

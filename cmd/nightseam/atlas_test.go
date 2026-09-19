@@ -58,22 +58,9 @@ func TestAtlasConfigAndCheckoutOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	found := false
-	builtins := 0
 	for _, family := range document.Families {
-		if family.Name == "session" {
-			builtins++
-			if !family.Builtin {
-				t.Error("session vocabulary lost its built-in origin")
-			}
-			types := map[string]bool{}
-			for _, typ := range family.Types {
-				types[typ.Name] = len(typ.Fields)+len(typ.Variants) > 0
-			}
-			for _, name := range []string{"Control", "Cursor"} {
-				if !types[name] {
-					t.Errorf("built-in operation payload session.%s has no definition", name)
-				}
-			}
+		if family.Builtin {
+			t.Errorf("the atlas documents the built-in family %s, which no tier carries as its own", family.Name)
 		}
 		if family.Name != "probe" {
 			continue
@@ -92,9 +79,6 @@ func TestAtlasConfigAndCheckoutOwnership(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("atlas lost the probe payload")
-	}
-	if builtins != 1 {
-		t.Fatalf("two session families document the built-in vocabulary %d times, want once", builtins)
 	}
 	if _, errs, err := run(t, root, "check"); err != nil {
 		t.Fatalf("check: %v\n%s", err, errs)

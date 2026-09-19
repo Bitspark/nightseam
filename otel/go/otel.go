@@ -1,7 +1,7 @@
 // Package otel binds Nightseam's two observability hooks to OpenTelemetry:
 // Propagator moves a frame's W3C trace context between a context and the two
 // members of the envelope, and Observer opens a span per request and records
-// what a peer, a tunnel and a session tell it. It is a module of its own,
+// what a peer and a tunnel tell it. It is a module of its own,
 // because the core module depends on nothing and that is a released promise;
 // it imports the runtime and nothing else of Nightseam, so that an event of a
 // layer it has never heard of reaches a span all the same.

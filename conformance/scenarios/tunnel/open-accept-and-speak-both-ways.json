@@ -1,5 +1,5 @@
 {
-  "name": "a channel opened from either side is accepted with its family and its after, carries a peer, and its id says who opened it",
+  "name": "a channel opened from either side is accepted with its family, carries a peer, and its id says who opened it",
   "layer": "tunnel",
   "replaces": "tunnel/go/interop_test.go with tunnel/ts/src/interop.ts",
   "needs": [
@@ -39,8 +39,7 @@
       "op": "tunnel.open",
       "args": {
         "on": "$tb",
-        "family": "probe",
-        "after": 3
+        "family": "probe"
       },
       "bind": {
         "handle": "cb",
@@ -62,8 +61,7 @@
       },
       "expect": {
         "id": "$opened",
-        "family": "probe",
-        "after": 3
+        "family": "probe"
       }
     },
     {
@@ -124,8 +122,7 @@
       "op": "tunnel.open",
       "args": {
         "on": "$ta",
-        "family": "codex",
-        "after": 11
+        "family": "codex"
       },
       "bind": {
         "handle": "ca2",
@@ -147,8 +144,7 @@
       },
       "expect": {
         "id": "$opened2",
-        "family": "codex",
-        "after": 11
+        "family": "codex"
       }
     },
     {

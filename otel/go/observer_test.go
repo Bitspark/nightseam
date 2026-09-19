@@ -44,7 +44,7 @@ func exported(t *testing.T) (trace.Tracer, *tracetest.InMemoryExporter) {
 }
 
 // channelOpened stands for an event of a layer running over the peer — a
-// tunnel's, a session's, a later profile's — which reaches this adapter
+// tunnel's, a later profile's — which reaches this adapter
 // through the peer's observer before this package has a case for it. Its
 // fields are of every kind the general path renders, and one of a kind it
 // renders not at all.

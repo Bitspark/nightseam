@@ -11,12 +11,12 @@ const event = (Action, Test, Output) => JSON.stringify({ Time: "2026-09-19T00:00
 const stream = [
   event("run", "TestMatrix"),
   event("run", "TestMatrix/python-with-rust"),
-  event("run", "TestMatrix/python-with-rust/session/the_gate"),
-  event("output", "TestMatrix/python-with-rust/session/the_gate", "    suite.go:140: conformance/scenarios/session/the-gate.json (a: python, b: rust)\n"),
-  event("output", "TestMatrix/python-with-rust/session/the_gate", "        step 7, session.changes on b: the answer is not the one expected\n"),
-  event("fail", "TestMatrix/python-with-rust/session/the_gate"),
-  event("run", "TestMatrix/rust-with-python/session/the_gate"),
-  event("fail", "TestMatrix/rust-with-python/session/the_gate"),
+  event("run", "TestMatrix/python-with-rust/tunnel/open_refused"),
+  event("output", "TestMatrix/python-with-rust/tunnel/open_refused", "    suite.go:140: conformance/scenarios/tunnel/open-refused.json (a: python, b: rust)\n"),
+  event("output", "TestMatrix/python-with-rust/tunnel/open_refused", "        step 7, tunnel.open on b: the answer is not the one expected\n"),
+  event("fail", "TestMatrix/python-with-rust/tunnel/open_refused"),
+  event("run", "TestMatrix/rust-with-python/tunnel/open_refused"),
+  event("fail", "TestMatrix/rust-with-python/tunnel/open_refused"),
   event("run", "TestMatrix/rust-with-python/peer/a_call_and_a_call_back"),
   event("fail", "TestMatrix/rust-with-python/peer/a_call_and_a_call_back"),
   event("pass", "TestMatrix/python-with-rust/tunnel/credit_stall"),
@@ -32,9 +32,9 @@ test("a scenario is one failure however many pairings tripped over it", () => {
   assert.equal(found.length, 2);
   assert.deepEqual(
     found.map(f => `${f.layer}/${f.scenario}`),
-    ["peer/a_call_and_a_call_back", "session/the_gate"],
+    ["peer/a_call_and_a_call_back", "tunnel/open_refused"],
   );
-  const gate = found.find(f => f.scenario === "the_gate");
+  const gate = found.find(f => f.scenario === "open_refused");
   assert.deepEqual(gate.pairings.map(p => p.pairing), ["python-with-rust", "rust-with-python"]);
 });
 
@@ -67,14 +67,14 @@ test("the title is the scenario and nothing that moves between runs", () => {
 });
 
 test("the body names every pairing, carries what each said, and says why the scenario is the issue", () => {
-  const gate = failures(stream).find(f => f.scenario === "the_gate");
+  const gate = failures(stream).find(f => f.scenario === "open_refused");
   const text = body(gate, "https://github.com/Bitspark/nightseam/actions/runs/1");
   assert.match(text, /^<!-- nightly-matrix -->/);
   assert.ok(text.includes(marker));
   assert.match(text, /\| `python-with-rust` \|/);
   assert.match(text, /\| `rust-with-python` \|/);
   assert.match(text, /the reference tolerates/);
-  assert.match(text, /step 7, session\.changes on b/);
+  assert.match(text, /step 7, tunnel\.open on b/);
   assert.match(text, /actions\/runs\/1/);
 });
 

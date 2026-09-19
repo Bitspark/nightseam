@@ -42,23 +42,21 @@ func TestResolvedShapeKeepsItsDeclaringFamily(t *testing.T) {
 	}
 }
 
-// A world of a session family, probe, a carrier generic in one session
+// A world of a protocol family, probe, a carrier generic in one protocol
 // family, and an album generic in two that applies the carrier's Frame.
 func slotWorld() World {
 	return World(modeltest.World(map[string]map[string]string{
 		"probe": {
 			"model.json":    `{"nightseam": 2, "types": {"Base": {"kind": "record", "fields": [{"name": "text", "type": "string"}]}, "Payload": {"kind": "record", "extends": ["Base"], "fields": [{"name": "count", "type": "integer"}]}, "Payloads": {"kind": "alias", "type": {"array": "Payload"}}}}`,
 			"protocol.json": modeltest.Protocol(`"server": {"methods": {"echo": {"request": "Payload", "result": "Payload"}}}`),
-			"session.json":  `{}`,
 		},
 		"codex": {
 			"model.json":    `{"nightseam": 2, "types": {"Payload": {"kind": "enum", "values": ["a"]}}}`,
 			"protocol.json": modeltest.Protocol(``),
-			"session.json":  `{}`,
 		},
 		"carrier": {
 			"model.json": `{"nightseam": 2}`,
-			"protocol.json": modeltest.Protocol(`"imports": ["probe"], "parameters": [{"name": "S", "of": "session"}],
+			"protocol.json": modeltest.Protocol(`"imports": ["probe"], "parameters": [{"name": "S", "of": "protocol"}],
 				"types": {
 					"Frame": {"kind": "record", "fields": [{"name": "sequence", "type": "integer"}, {"name": "message", "type": "S.Envelope"}]},
 					"Attachment": {"kind": "record", "fields": [{"name": "connection", "type": "S.Handle"}]},
@@ -69,7 +67,7 @@ func slotWorld() World {
 		},
 		"album": {
 			"model.json": `{"nightseam": 2}`,
-			"protocol.json": modeltest.Protocol(`"imports": ["carrier", "probe"], "parameters": [{"name": "A", "of": "session"}, {"name": "B", "of": "session"}],
+			"protocol.json": modeltest.Protocol(`"imports": ["carrier", "probe"], "parameters": [{"name": "A", "of": "protocol"}, {"name": "B", "of": "protocol"}],
 				"types": {
 					"Mine": {"kind": "record", "fields": [{"name": "held", "type": "A.Envelope"}, {"name": "payload", "type": "A.Payload"}]},
 					"Borrowed": {"kind": "record", "fields": [{"name": "frame", "type": {"apply": "carrier.Frame", "with": {"S": "B"}}}]},
@@ -81,25 +79,18 @@ func slotWorld() World {
 	}))
 }
 
-// TestResolveGivesAFamilyItsWorld: the families and session families of
-// the world, the imports resolved in turn, the members a parameter may
-// bind, and the two injected types where there is a protocol.
+// TestResolveGivesAFamilyItsWorld: the families of the world, the imports
+// resolved in turn, and the two injected types where there is a protocol.
 func TestResolveGivesAFamilyItsWorld(t *testing.T) {
 	world := slotWorld()
 	album := Resolve(world, "album")
-	if strings.Join(album.Families, ",") != "album,carrier,codex,probe" || strings.Join(album.Sessions, ",") != "codex,probe" {
-		t.Fatalf("world is %v / %v", album.Families, album.Sessions)
+	if strings.Join(album.Families, ",") != "album,carrier,codex,probe" {
+		t.Fatalf("world is %v", album.Families)
 	}
 	if album.Imported["carrier"] == nil || album.Imported["carrier"].Imported["probe"] == nil || album.Imported["probe"] != album.Imported["carrier"].Imported["probe"] {
 		t.Fatal("imports are not resolved transitively and once")
 	}
-	if len(album.Members) != 2 || album.Members["probe"] == nil || album.Members["codex"] == nil {
-		t.Fatalf("members are %v", album.Members)
-	}
 	probe := Resolve(world, "probe")
-	if len(probe.Members) != 1 || probe.Members["codex"] == nil || probe.Session == nil || album.Session != nil {
-		t.Fatal("a session family's members are the other session families")
-	}
 	if album.Types[model.EnvelopeType] == nil || album.Rank(model.EnvelopeType) != 1 || album.Rank("Mine") != 1 || probe.Rank("Base") != 0 || probe.Rank("Missing") != -1 {
 		t.Fatal("injected types and ranks are wrong")
 	}

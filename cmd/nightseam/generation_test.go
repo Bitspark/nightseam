@@ -55,7 +55,7 @@ func toolProbe(t *testing.T, directory string) {
 func toolSlots(t *testing.T, directory string) {
 	t.Helper()
 	// The world is probe and the carrier alone, as v1's is: with another
-	// session family in it the carrier's client would refer to that one too.
+	// family in it the carrier's client would refer to that one too.
 	loaded := kernel.Load(os.DirFS(familiesRoot), "api/contracts", []string{"go", "typescript"})
 	families := &kernel.World{Families: map[string]*model.Family{"probe": loaded.Families["probe"], "carrier": loaded.Families["carrier"]}, Names: []string{"carrier", "probe"}, Problems: map[string][]diag.Diagnostic{}}
 	// The left path: probe and the carrier with S bound to probe, at the

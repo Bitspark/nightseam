@@ -6,10 +6,9 @@ npm install @nightseam/otel
 
 The OpenTelemetry adapter for Nightseam: the propagator that puts a trace on
 the wire and the observer that turns what a peer sees into spans. It is a
-package of its own so that `@nightseam/duplex`, `@nightseam/runtime`,
-`@nightseam/tunnel` and `@nightseam/session` stay free of every dependency —
-a backend is the consumer's choice, and a consumer that makes none installs
-nothing for it.
+package of its own so that `@nightseam/duplex`, `@nightseam/runtime` and
+`@nightseam/tunnel` stay free of every dependency — a backend is the
+consumer's choice, and a consumer that makes none installs nothing for it.
 
 ```ts
 import { DuplexPeer } from '@nightseam/runtime';
@@ -37,10 +36,10 @@ two standard ones.
 came in, a client span where it went out — names it for the method, ends it at
 the outcome, and records everything else as a span event on the span it
 belongs to: the frames of an exchange, an event emitted or delivered, a
-connection closed with its code, and the tunnel's and the session's events
+connection closed with its code, and the tunnel's events
 where the peer has the span they concern. An observer belongs to one peer, as
-it does in the runtime, so the tunnel and the session running over that peer
-reach the same tracer without being given one.
+it does in the runtime, so a tunnel running over that peer
+reaches the same tracer without being given one.
 
 ## What a span carries
 
@@ -76,19 +75,19 @@ The runtime asks the propagator what an outgoing frame carries before it tells
 the observer the request began, so what a frame names is the span the call was
 made under: the client span of a call and the server span of the handler that
 serves it are siblings under it, and the nesting is between hops. One call
-from a consumer through a session relay to a machine handler that asks the
-holder of control, answered:
+over a channel of a tunnel to a handler that calls back the other way,
+answered:
 
 ```
 consumer.call                     the application's own span
-├── echo    CLIENT                the consumer's call
-└── echo    SERVER                the machine's handler, over the relay
-    ├── reverse CLIENT            the ask the handler raises
-    └── reverse SERVER            the holder's answer
+├── echo    CLIENT                the caller's call
+└── echo    SERVER                the handler, over the channel
+    ├── reverse CLIENT            the reverse call the handler makes
+    └── reverse SERVER            the caller's answer
 ```
 
-The relay forwards `traceparent` and `tracestate` byte for byte while
-re-minting request ids, so one trace spans every hop of a session.
+A tunnel forwards `traceparent` and `tracestate` byte for byte, so one trace
+spans every hop of a call carried over a channel.
 
 Apache-2.0, with `NOTICE` beside it. The repository is
 [Bitspark/nightseam](https://github.com/Bitspark/nightseam).

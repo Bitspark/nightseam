@@ -42,7 +42,6 @@ func TestBuiltinImportsLocateEachDeclarationAndCheckoutCollision(t *testing.T) {
 				fsys := fstest.MapFS{
 					"declarations/consumer/model.json":    {Data: []byte(fmt.Sprintf(`{"nightseam":2,"imports":["zebra","alpha",%q]}`, name))},
 					"declarations/consumer/protocol.json": {Data: []byte(fmt.Sprintf(`{"profile":"nightseam.duplex/1","imports":[%q]}`, name))},
-					"declarations/consumer/session.json":  {Data: []byte(fmt.Sprintf(`{"imports":["alpha",%q]}`, name))},
 				}
 				dir := path.Join("declarations", name)
 				if collision {
@@ -52,7 +51,6 @@ func TestBuiltinImportsLocateEachDeclarationAndCheckoutCollision(t *testing.T) {
 				want := map[diag.Location]bool{
 					{File: model.ModelFile, Pointer: "/imports/2"}:    true,
 					{File: model.ProtocolFile, Pointer: "/imports/0"}: true,
-					{File: model.SessionFile, Pointer: "/imports/1"}:  true,
 				}
 				for _, problem := range problems {
 					if problem.Family != "consumer" {

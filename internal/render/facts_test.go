@@ -356,36 +356,3 @@ func TestInheritedEntityReferencesRetainTheirDeclarations(t *testing.T) {
 		}
 	}
 }
-
-func TestSessionGovernanceFollowsTheInheritedSides(t *testing.T) {
-	world := analysis.World(modeltest.World(map[string]map[string]string{
-		"base":  {"model.json": `{"nightseam":2,"types":{"State":{"kind":"record","fields":[{"name":"id","type":"string"}]}}}`, "protocol.json": modeltest.Protocol(`"server":{"methods":{"write":{"result":"string"}},"events":{"started":{"type":"State"}}},"client":{"methods":{"answer":{"result":"string"}}}`), "session.json": `{"decides":["write"],"asks":["answer"],"conversation":{"event":"started","path":"id"}}`},
-		"child": {"model.json": `{"nightseam":2,"imports":["base"]}`, "protocol.json": modeltest.Protocol(`"server":{"extends":["base"]},"client":{"extends":["base"]}`), "session.json": `{}`},
-		"plain": {"model.json": `{"nightseam":2,"imports":["base"]}`, "protocol.json": modeltest.Protocol(`"server":{"extends":["base"]}`)},
-	}))
-	r := Build(analysis.Resolve(world, "child"))
-	if !reflect.DeepEqual(r.Session.Decides, []string{"write"}) || !reflect.DeepEqual(r.Session.Asks, []string{"answer"}) || r.Session.Conversation == nil || r.Session.Conversation.Event != "started" {
-		t.Fatalf("inherited governance = %+v", r.Session)
-	}
-	if len(world["child"].Session.Decides) != 0 || world["child"].Session.Conversation != nil {
-		t.Fatal("governance mutated the declaration")
-	}
-	if Build(analysis.Resolve(world, "plain")).Session != nil {
-		t.Fatal("inheriting a side invented a session tier")
-	}
-}
-
-func TestDecidingMethodsFollowEitherInheritedSide(t *testing.T) {
-	world := analysis.World(modeltest.World(map[string]map[string]string{
-		"base":   {"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"server":{"methods":{"write":{"result":"string"}}},"client":{"methods":{"answer":{"result":"string"}}}`), "session.json": `{"decides":["write","answer"]}`},
-		"server": {"model.json": `{"nightseam":2,"imports":["base"]}`, "protocol.json": modeltest.Protocol(`"server":{"extends":["base"]}`), "session.json": `{}`},
-		"client": {"model.json": `{"nightseam":2,"imports":["base"]}`, "protocol.json": modeltest.Protocol(`"client":{"extends":["base"]}`), "session.json": `{}`},
-		"both":   {"model.json": `{"nightseam":2,"imports":["base"]}`, "protocol.json": modeltest.Protocol(`"server":{"extends":["base"]},"client":{"extends":["base"]}`), "session.json": `{}`},
-	}))
-	for name, want := range map[string][]string{"base": {"write", "answer"}, "server": {"write"}, "client": {"answer"}, "both": {"write", "answer"}} {
-		r := Build(analysis.Resolve(world, name))
-		if !reflect.DeepEqual(r.Session.Decides, want) {
-			t.Errorf("%s deciding methods = %v, want %v", name, r.Session.Decides, want)
-		}
-	}
-}

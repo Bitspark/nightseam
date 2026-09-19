@@ -1,2 +1,2 @@
-x/rust.json#: A family directory holds tier files — model.json, protocol.json, session.json — and a target's override file — go.json, typescript.json, markdown.json, atlas.json — not rust.json. [unknown_file]
+x/rust.json#: A family directory holds tier files — model.json, protocol.json — and a target's override file — go.json, typescript.json, markdown.json, atlas.json — not rust.json. [unknown_file]
 error: 1 problems

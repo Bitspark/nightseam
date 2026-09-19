@@ -10,46 +10,32 @@ import (
 
 func TestExplicitFamilyArguments(t *testing.T) {
 	for name, tc := range map[string]struct {
-		bound, required, filler, kind, nesting      string
+		filler, kind, nesting                       string
 		family, local, typeParameter, absent, mixed bool
 		want                                        string
 	}{
 		"family equal bound":                            {family: true},
 		"family mixed arguments":                        {family: true, mixed: true},
 		"owned mixed arguments":                         {mixed: true},
-		"mixed arguments refuse weak bound":             {mixed: true, bound: "protocol", want: "invalid_filler"},
-		"family stronger bound":                         {family: true, required: "protocol"},
-		"family weaker bound":                           {family: true, bound: "protocol", want: "invalid_filler"},
 		"alias owned parameter":                         {},
 		"record owned parameter":                        {kind: "record"},
 		"union owned parameter":                         {kind: "union"},
-		"owned stronger bound":                          {required: "protocol"},
-		"owned weaker bound":                            {bound: "protocol", want: "invalid_filler"},
 		"local target":                                  {local: true},
-		"local target weaker bound":                     {local: true, bound: "protocol", want: "invalid_filler"},
 		"inline captures owned parameter":               {kind: "record", nesting: "inline"},
 		"collection captures owned parameter":           {kind: "record", nesting: "collection"},
 		"nested type argument captures owned parameter": {nesting: "application"},
-		"nested application refuses weak bound":         {nesting: "application", bound: "protocol", want: "invalid_filler"},
 		"owned type cannot fill family":                 {typeParameter: true, want: "invalid_filler"},
 		"family type cannot fill family":                {family: true, typeParameter: true, want: "invalid_filler"},
 		"unknown parameter":                             {absent: true, filler: `"Missing"`, want: "unresolved_parameter"},
 		"named concrete type cannot fill family":        {absent: true, filler: `"Payload"`, want: "invalid_filler"},
 		"primitive cannot fill family":                  {absent: true, filler: `"string"`, want: "invalid_filler"},
-		"concrete session family":                       {absent: true, filler: `"probe"`},
-		"concrete protocol family too weak":             {absent: true, filler: `"plain"`, want: "invalid_filler"},
-		"concrete protocol family fits protocol":        {absent: true, required: "protocol", filler: `"plain"`},
+		"concrete family with a protocol":               {absent: true, filler: `"probe"`},
+		"another concrete family with a protocol":       {absent: true, filler: `"plain"`},
 		"missing concrete family":                       {absent: true, filler: `"missing"`, want: "unresolved_type"},
 		"self family":                                   {absent: true, filler: `"x"`, want: "self_slot"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			bound, required := tc.bound, tc.required
-			if bound == "" {
-				bound = "session"
-			}
-			if required == "" {
-				required = "session"
-			}
+			const bound, required = "protocol", "protocol"
 			parameter := map[string]any{"name": "S", "of": bound}
 			if tc.typeParameter {
 				delete(parameter, "of")
@@ -131,7 +117,6 @@ func TestExplicitFamilyArguments(t *testing.T) {
 				"api/contracts/x/protocol.json":     {Data: encode(caller)},
 				"api/contracts/probe/model.json":    {Data: []byte(`{"nightseam":2}`)},
 				"api/contracts/probe/protocol.json": {Data: []byte(`{"profile":"nightseam.duplex/1"}`)},
-				"api/contracts/probe/session.json":  {Data: []byte(`{}`)},
 				"api/contracts/plain/model.json":    {Data: []byte(`{"nightseam":2}`)},
 				"api/contracts/plain/protocol.json": {Data: []byte(`{"profile":"nightseam.duplex/1"}`)},
 			}

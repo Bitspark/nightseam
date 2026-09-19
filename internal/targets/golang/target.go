@@ -124,7 +124,7 @@ func expand(pattern, family string) string { return strings.ReplaceAll(pattern, 
 
 func (*target) Name() string { return Name }
 
-func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Model, spi.Protocol, spi.Session} }
+func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Model, spi.Protocol} }
 
 // layout is where a family's packages live: its own placement, or the
 // checkout's layout.

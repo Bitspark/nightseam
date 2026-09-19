@@ -53,7 +53,7 @@ func TestImportedGoOverridesAreCheckedInTheirSourceFamily(t *testing.T) {
 
 func TestMixedParametersConstrainOnlyFamilyDraws(t *testing.T) {
 	fam := family(map[string]string{
-		"protocol.json": modeltest.Protocol(`"parameters":[{"name":"T"},{"name":"S","of":"session"}],"types":{"Input":{"kind":"record","fields":[{"name":"item","type":"T"},{"name":"frame","type":"S.Envelope"}]}},"server":{"methods":{"echo":{"request":"Input","result":"Input"}}}`),
+		"protocol.json": modeltest.Protocol(`"parameters":[{"name":"T"},{"name":"S","of":"protocol"}],"types":{"Input":{"kind":"record","fields":[{"name":"item","type":"T"},{"name":"frame","type":"S.Envelope"}]}},"server":{"methods":{"echo":{"request":"Input","result":"Input"}}}`),
 	})
 	files, err := New(Config{Module: "example.test/m"}).Render(fam)
 	if err != nil {
