@@ -18,7 +18,8 @@ family that may bind `S` is then held to declare, plainly, checked across
 the world. A parameter is bound where the generated code is instantiated,
 to any family that declares its role; today `session`, the role a family
 with a session tier carries ([a family in tiers](families.md#sessionjson)).
-Two parameters never collapse into one.
+Two parameters never collapse into one ([generic families render once and
+commute](../decisions/generic-families-render-once-and-commute.md)).
 
 ## Referring to a generic type
 

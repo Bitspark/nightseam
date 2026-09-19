@@ -27,6 +27,13 @@ are one number. Entries are in the words of the commits that landed them.
   moved with them, and `node scripts/links.mjs` holds every link in every
   page to the tree in CI. The package READMEs published with 0.3.0 name
   the flat paths until the next publish.
+- `docs/decisions/` is the record of what was decided and why — one page
+  per decision the pages already gave a reason for, twenty-two of them,
+  each the question, what was decided, what the alternative cost, the goal
+  it serves and since when — so that the next person to propose the
+  alternative finds the reason rather than repeats the afternoon; the state
+  pages keep the rule and one sentence of why and point at the record for
+  the argument.
 
 ## 0.3.0
 

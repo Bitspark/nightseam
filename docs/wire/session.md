@@ -18,8 +18,9 @@ predicates the generator renders for a session tier — which methods
 This page is what a session does on the wire, which every language's relay
 is held to — over the channels of a tunnel and over the seam's pipe with no
 tunnel at all, the suite run twice, which is what it means for the transport
-to be none of the relay's business. What a consumer calls is [the session's
-surface](../runtime/session.md).
+to be none of the relay's business ([the session runs over any connection
+of the seam](../decisions/the-session-runs-over-any-connection-of-the-seam.md)).
+What a consumer calls is [the session's surface](../runtime/session.md).
 
 ## The boundary rule
 
@@ -63,7 +64,8 @@ Held, one test each, in both languages:
    so two consumers attached over a session's life both send `c:1`. The
    relay is the family's client towards the machine and mints the ids it
    sends up itself, unique per session, keeping which consumer's request
-   each stands for; the machine's own ids, `s:N`, travel down as they are.
+   each stands for; the machine's own ids, `s:N`, travel down as they are
+   ([the relay mints its own ids](../decisions/the-relay-mints-its-own-ids.md)).
 5. **A consumer resumes from the log before any live frame.** A consumer
    attached with `after` receives the log's frames after that sequence
    first, then what arrives live, in one order and once; a frame the log
@@ -105,7 +107,8 @@ and a fifth kind were each tried for an afternoon.
 | `session.control` | `{"holder": "<origin>"}`, or `{"holder": null}` where nobody holds it | every attachment | once on attach, before the replay begins, and on every change — given, released, transferred |
 | `session.cursor` | `{"sequence": N}` | the one attachment a frame was just delivered to | straight after each frame it is delivered, replay and live alike, in the same order |
 
-Four rules hold of both:
+Four rules hold of both ([the session's vocabulary is not
+logged](../decisions/the-sessions-vocabulary-is-not-logged.md)):
 
 - **Neither is logged.** The log holds the family's frames and nothing else,
   so a replay never gives a stale holder or a cursor of its own: a consumer
@@ -160,7 +163,8 @@ attaching with `after: 0` before the machine has spoken again is given
 everything the log holds rather than nothing. The read happens before the
 machine's connection is read and under the relay's own lock, so a frame
 arriving while it runs is recorded above the head and never under a
-sequence the log already gave out.
+sequence the log already gave out ([the log is bound at its
+head](../decisions/the-log-is-bound-at-its-head.md)).
 
 Which log a session has — one in memory that a restart forgets, or one over
 whatever a consumer stores frames in — is the consumer's, and so are
@@ -188,8 +192,9 @@ wrong with the frame: `a session frame must be a JSON object`, `duplicate
 session frame member "id"`, `invalid trailing session frame content`, which
 is the whole of the set a relay gives. Code and reason are one rule in both
 languages — a consumer reading a close cannot ask which runtime wrote the
-relay it attached to — and the machine's connection carries them as a
-consumer's does. A machine that sends a frame of the session's own
+relay it attached to ([refusals are codes, not
+prose](../decisions/refusals-are-codes-not-prose.md)) — and the machine's
+connection carries them as a consumer's does. A machine that sends a frame of the session's own
 vocabulary is **1002** as well, under the reason that names the frame. A
 consumer that does not take its frames for one send deadline is detached; a
 machine that does not ends the session. [The profile](profile.md#the-connection-beneath)

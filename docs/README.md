@@ -48,6 +48,15 @@ The input side: the tier files, the tool, and what comes out.
 | [tiers.md](languages/tiers.md) | languages, profiles and tiers: the four promises, the profiles the conformance suite holds them to, which tier guarantees what and when, how the suite enforces it |
 | [onboarding.md](languages/onboarding.md) | how a language joins: the lanes in order, the testee, what a language promises before it is in the table |
 
+## Why it is this way — `decisions/`
+
+The record of what was decided and why, one page per decision: the
+question, what was decided, what the alternative cost, the goal it serves,
+and since when. A state page keeps the rule and one sentence of why and
+points here for the argument; a review reads this record before proposing
+what was already tried. [decisions/README.md](decisions/README.md) indexes
+the twenty-two.
+
 ## Around the repository
 
 | page | what |

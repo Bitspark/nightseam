@@ -66,9 +66,10 @@ frames, in halves of the window. A send beyond the window waits until
 credit arrives; how each runtime makes a sender wait is [its
 own](../runtime/tunnel.md#credit-in-each-language).
 
-The reason it is per channel: the outer peer ends a connection whose events
-it cannot deliver, so a stalled channel may never be the outer peer's to
-buffer — it stalls its own sender and nothing else.
+It is per channel so that a stalled channel stalls its own sender and
+nothing else — the outer peer ends a connection whose events it cannot
+deliver, so a stalled channel may never be the outer peer's to buffer
+([credit is per channel](../decisions/credit-is-per-channel.md)).
 
 ## Limits and closes
 

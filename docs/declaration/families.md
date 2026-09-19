@@ -62,7 +62,8 @@ of an imported family, `"identity.User"`; a type drawn from a parameter,
 to an entity by its key; `{"apply": "carrier.Frame", "with": {"S": "B"}}`, a
 generic type of an imported family with its parameters filled. There is one
 reference form: a qualifier in upper camel case is a parameter, in lower
-case a family, and every family a declaration names is imported.
+case a family, and every family a declaration names is imported ([one
+reference form](../decisions/one-reference-form.md)).
 
 ## protocol.json
 

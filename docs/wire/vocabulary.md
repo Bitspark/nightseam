@@ -45,14 +45,13 @@ The test, applied in order:
    makes in turn, which is the opposite of a trace. A handler that means to
    pass one on says so ([the profile](profile.md#request-metadata)).
 
-Two things that look like members and are not:
-
-- **A sequence.** The session's log assigns it and the consumer resumes by
-  it; the peer never sees it. It is the session's vocabulary (`session.cursor`),
-  not an envelope member, however cheap a member would have been.
-- **A fifth kind.** A frame of a layer above the peer — "a session frame" —
-  is an ordinary event or request of that layer's vocabulary. A kind is what
-  the peer correlates by, and the peer correlates four ways.
+Two things that look like members and are not — a sequence, which the
+session's log assigns and the peer never sees, and a fifth kind, "a session
+frame", which is an ordinary event of that layer's vocabulary — were each
+tried for an afternoon; [envelope members are what the peer acts
+on](../decisions/envelope-members-are-what-the-peer-acts-on.md) is the
+record, and [`meta` is a header, not a
+member](../decisions/meta-is-a-header-not-a-member.md) the one header's.
 
 ## A layer's own vocabulary
 

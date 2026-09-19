@@ -21,7 +21,8 @@ are the WebSocket registry's numbers on every transport: 1000 normal, 1001
 going away, 1002 protocol error, 1003 unsupported data, 1006 abnormal
 closure, 1008 policy violation, 1009 too large, 1011 internal, and 4000–4999
 for what runs above the seam; the profile itself closes with **4011** when
-the other side broke it.
+the other side broke it ([close codes are the WebSocket
+registry's](../decisions/close-codes-are-the-websocket-registrys.md)).
 
 The profile sends text frames only and refuses a binary frame; a frame
 larger than the peer's limit is refused before delivery and the connection
@@ -48,12 +49,13 @@ browser client's ticket, which has nowhere else to travel, a browser being
 unable to set a header on an upgrade. The server reads the ticket off the
 request as it reads everything else that authenticates a connection.
 
-The trap is the browser's, and it is the reason the defaults are what they
-are: a client that offers a subprotocol must be met by a server that selects
-one of them, or the browser refuses the connection. Offering and selecting
-are one decision, taken on both sides together. A ticket is not a list, so a
-server's selection may be a function of the request — how each runtime
-exposes that is [the peer](../runtime/peer.md#the-subprotocol).
+Offering and selecting are one decision, taken on both sides together: a
+client that offers a subprotocol must be met by a server that selects one
+of them, or the browser refuses the connection — which is why the defaults
+are what they are ([no subprotocol by
+default](../decisions/no-subprotocol-by-default.md)). A ticket is not a
+list, so a server's selection may be a function of the request; how each
+runtime exposes that is [the peer](../runtime/peer.md#the-subprotocol).
 
 ## The envelope
 
@@ -119,13 +121,12 @@ not open is ignored.
 
 Every request has a deadline on the sender's side (30 seconds by default)
 after which it is failed locally as a **deadline** — `request_timeout`, not
-`cancelled` — and a cancel is sent. The distinction is not pedantry: the
-caller withdrawing a request and the caller giving up waiting for one are
-different facts, and the receiver may have answered either way, so what the
-caller learned is that its own deadline passed and nothing about the
-request's fate. An observer is told the outcome `timeout`. The receiver's
-own deadline for a handler is the same length, and what it answers on the
-wire when it passes is `cancelled`, the request having been abandoned.
+`cancelled` — and a cancel is sent: the caller withdrawing a request and
+the caller giving up waiting for one are different facts ([a deadline is
+not a cancel](../decisions/a-deadline-is-not-a-cancel.md)). An observer is
+told the outcome `timeout`. The receiver's own deadline for a handler is
+the same length, and what it answers on the wire when it passes is
+`cancelled`, the request having been abandoned.
 
 ## Events
 
@@ -148,23 +149,22 @@ A producer that fills a queue is **paced for one write deadline** (10
 seconds); a consumer that still has not drained it by then is disconnected
 rather than allowed to hold the connection up. The rule is the same for
 every queue and in both runtimes, because a burst that would drain in a
-second should not end a connection: durable replay, a tight decoder loop
-outrunning a ready consumer, a socket that is briefly behind.
-
-Pacing an *inbound* queue means pacing the remote, and the only way to do
-that is to stop taking what it sends: while the event queue is full, the
-responses and cancellations on that connection wait with the events. That is
-the cost of not ending a connection that would recover, and the deadline is
-what bounds it. A runtime that cannot pause what its transport hands it — a
-browser peer has no such knob — holds the events instead of the reading; the
-deadline, and what happens when it passes, are the same either way.
+second should not end a connection ([queues are paced for one
+deadline](../decisions/queues-are-paced-for-one-deadline.md)). Pacing an
+*inbound* queue means pacing the remote, and the only way to do that is to
+stop taking what it sends: while the event queue is full, the responses and
+cancellations on that connection wait with the events. A runtime that
+cannot pause what its transport hands it — a browser peer has no such knob
+— holds the events instead of the reading; the deadline, and what happens
+when it passes, are the same either way.
 
 The two bounds on requests are different things and both are refusals rather
 than failures: a **receiver** with as many requests being handled as it
 allows answers `busy` on the wire, and a **caller** with as many calls
 outstanding as it allows refuses the next one where it stands, without
 sending a frame — no request is started, so no observer is told of one, and
-the connection serves the call after it.
+the connection serves the call after it ([`busy` is a refusal, not a
+failure](../decisions/busy-is-a-refusal-not-a-failure.md)).
 
 ## Trace context
 
@@ -203,7 +203,8 @@ about an answer is the result's business, and a `cancel` withdraws a call
 rather than making one.
 
 The form is the whole rule, and the profile reads no meaning into a key or a
-value. An empty object is a carriage like any other; `null`, a list, a string,
+value ([`meta` is a header, not a
+member](../decisions/meta-is-a-header-not-a-member.md)). An empty object is a carriage like any other; `null`, a list, a string,
 a number, and any value that is not a string make the frame malformed and end
 the connection with **4011**, as any malformed frame does. Keys beginning
 `nightseam.` are reserved for what the profile and its components may define

@@ -173,6 +173,7 @@ who reads it:
 | [docs/runtime/](docs/runtime/) | a consumer of the packages | the surface of the peer, the tunnel, the session and the observer, Go and TypeScript side by side |
 | [docs/declaration/](docs/declaration/) | a consumer declaring a family | the tier files, a family generic in others, the generator's commands, what the generated packages export, and the pipeline for whoever changes it |
 | [docs/languages/](docs/languages/) | a consumer choosing a language, a contributor bringing one | the four promises, profiles and tiers, and how a language joins |
+| [docs/decisions/](docs/decisions/) | anyone asking why | the record: one page per decision — the question, what was decided, what the alternative cost, since when |
 | [conformance/DRIVER.md](conformance/DRIVER.md) | a testee's author | the conformance suite: the protocol a language's testee speaks to the runner, every op |
 
 ## Working on Nightseam

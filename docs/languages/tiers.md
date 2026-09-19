@@ -82,10 +82,9 @@ the promotion is a change to `profiles.json` with the release that makes it.
 The assignment is a policy about promises, not a ranking of languages, and
 not a forecast of effort: the four pilots are planned for tier 2 because
 they are the four that get pushed to every profile first, and two of them —
-C++ and Haskell — are there *because* they are the hardest. This repository
-tests its limits to find out where the model breaks before Bitlink settles
-it, and a language that would only ever be held to `core` is a language
-nobody pushed. Java and Swift follow at tier 4 and rise as they hold.
+C++ and Haskell — are there *because* they are the hardest ([tiers are
+promises, not rankings](../decisions/tiers-are-promises-not-rankings.md)).
+Java and Swift follow at tier 4 and rise as they hold.
 
 ## How the suite enforces it
 

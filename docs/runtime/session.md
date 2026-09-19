@@ -116,8 +116,9 @@ where a log has it; every `Log` above stays what it is.
 
 A consumer's server drives this layer by calling into it, so what a call
 refuses with is part of the surface it is written against: a code a program
-branches on, never prose it would have to match. There is one vocabulary and
-it is the same in both languages, name for name.
+branches on, never prose it would have to match ([refusals are codes, not
+prose](../decisions/refusals-are-codes-not-prose.md)). There is one
+vocabulary and it is the same in both languages, name for name.
 
 In Go a refusal is a `*session.Error` with `Code` and `Message`, reached by
 either of the ways Go asks —
