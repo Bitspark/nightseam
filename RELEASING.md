@@ -115,8 +115,11 @@ that names another commit.
    laid for it and nothing overridden, `go get`s the root module at the tag
    and the adapter at its own, and runs the exchange.
    Before installing, it polls npm and the Go proxy with backoff for up to
-   two minutes for every published package and Go module to propagate,
-   reporting the wait and naming anything still unavailable at the deadline.
+   thirty minutes for every published package and Go module to propagate,
+   with retry backoff capped at thirty seconds.
+   The window includes cached Go proxy misses that can outlive publication
+   by many minutes. It reports the wait and names anything still unavailable
+   at the deadline.
 
    The round trip is the only step after the upload, and it is the only one
    whose failure cannot be answered by fixing the tree and tagging again: the

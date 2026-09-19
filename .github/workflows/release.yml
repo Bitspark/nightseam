@@ -122,7 +122,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
       # The round trip, once there is something to install: the same
-      # example, after waiting up to two minutes for npm and the Go proxy
+      # example, after waiting up to thirty minutes for npm and the Go proxy
       # to serve the release, with nothing laid for
       # it and nothing overridden. Its failure fails the run and files an
       # issue naming the tag, because by now the tag exists and the packages
