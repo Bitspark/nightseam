@@ -84,7 +84,7 @@ func (t *testee) options(r request) (runtime.Options, *recorder, error) {
 	for key, value := range raw {
 		var n int64
 		switch key {
-		case "max_frame_bytes", "queue_capacity", "request_timeout_ms", "write_timeout_ms":
+		case "max_frame_bytes", "max_pending_requests", "queue_capacity", "request_timeout_ms", "write_timeout_ms":
 			if err := json.Unmarshal(value, &n); err != nil {
 				return o, nil, invalid("options.%s is an integer", key)
 			}
@@ -92,6 +92,8 @@ func (t *testee) options(r request) (runtime.Options, *recorder, error) {
 		switch key {
 		case "max_frame_bytes":
 			o.MaxFrameBytes = n
+		case "max_pending_requests":
+			o.MaxPendingRequests = int(n)
 		case "queue_capacity":
 			o.QueueCapacity = int(n)
 		case "request_timeout_ms":

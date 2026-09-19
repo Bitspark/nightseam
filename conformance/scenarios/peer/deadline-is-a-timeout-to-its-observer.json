@@ -1,0 +1,87 @@
+{
+  "name": "a call whose own deadline passes is a timeout to its observer, and a cancel goes with it",
+  "layer": "peer",
+  "description": "The caller's deadline is a deadline and not a withdrawal: the receiver may still have answered. What the observer is told is the outcome, and a cancel is sent so the receiver stops working on it.",
+  "needs": [
+    "observer",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a",
+        "client_options": {
+          "observe": true,
+          "request_timeout_ms": 300
+        }
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "wait",
+        "behavior": {
+          "kind": "wait"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "wait",
+        "params": {}
+      },
+      "bind": "c"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c",
+        "within_ms": 3000
+      },
+      "expect": {
+        "error": {
+          "code": "request_timeout"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pb"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "request.started",
+            "method": "wait",
+            "incoming": false
+          },
+          {
+            "type": "request.ended",
+            "method": "wait",
+            "incoming": false,
+            "outcome": "timeout",
+            "duration": true
+          }
+        ]
+      },
+      "assert": {
+        "present": "\"kind\":\"cancel\""
+      },
+      "note": "the outcome is what the two runtimes agree on, and that a cancel was sent. Two things beside it are not one rule yet and are held by nothing here rather than papered over: the error_code, which Go leaves empty where TypeScript names request_timeout, and where the cancel falls — Go sends it before the request ends, TypeScript after — which is why the cancel is asserted present rather than placed in the order"
+    }
+  ]
+}

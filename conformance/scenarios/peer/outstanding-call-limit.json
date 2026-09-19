@@ -1,0 +1,147 @@
+{
+  "name": "a call past what a peer may have outstanding is refused busy, and the connection serves the next",
+  "layer": "peer",
+  "description": "The caller's own bound, as the receiver's is what answers busy to a request beyond what it will handle at once. The call past it never reaches the wire: nothing is sent, and the connection is whole for the call after it.",
+  "needs": [
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a",
+        "client_options": {
+          "max_pending_requests": 2
+        }
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "wait",
+        "behavior": {
+          "kind": "wait"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "echo",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "wait",
+        "params": {}
+      },
+      "bind": "c1"
+    },
+    {
+      "on": "a",
+      "op": "peer.await_request",
+      "args": {
+        "on": "$pa",
+        "method": "wait",
+        "phase": "started"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "wait",
+        "params": {}
+      },
+      "bind": "c2"
+    },
+    {
+      "on": "a",
+      "op": "peer.await_request",
+      "args": {
+        "on": "$pa",
+        "method": "wait",
+        "phase": "started"
+      },
+      "note": "both are open before the third is made, so the third meets the bound and not a race with it"
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "wait",
+        "params": {}
+      },
+      "bind": "c3"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c3"
+      },
+      "expect": {
+        "error": {
+          "code": "busy"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.cancel",
+      "args": {
+        "on": "$c1"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c1"
+      },
+      "expect": {
+        "error": {
+          "code": "cancelled"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "params": 7
+      },
+      "bind": "c4"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c4"
+      },
+      "expect": {
+        "result": 7
+      },
+      "note": "the refusal ended one call and nothing else: a place came free and the connection served it"
+    }
+  ]
+}

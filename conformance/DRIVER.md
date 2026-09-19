@@ -228,8 +228,9 @@ The seam's `conn.await_close` is where a code is a fact.
 |---|---|---|
 | `max_frame_bytes` | the runtime's | a frame over it is refused and the connection ended |
 | `queue_capacity` | the runtime's | inbound events held before the peer is stalled |
+| `max_pending_requests` | the runtime's | calls this peer may have outstanding at once; the one past it is refused `busy` without reaching the wire |
 | `request_timeout_ms` | the runtime's | a call's deadline |
-| `write_timeout_ms` | the runtime's | how long a send may wait |
+| `write_timeout_ms` | the runtime's | how long a send may wait, and how long a full queue is paced before its consumer is stalled |
 | `families` | `{}` | method or event name → family, what the observer's `family` says |
 | `observe` | `false` | keep what an observer is told, for `peer.observed` |
 | `propagate` | `false` | the runtime's default propagator is in use; every request carries a trace and a handler's callbacks parent on it |

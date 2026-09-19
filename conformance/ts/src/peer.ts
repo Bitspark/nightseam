@@ -225,6 +225,7 @@ const optionsOf = (args: Args): { options: PeerOptions; recorder: Recorder; obse
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     switch (key) {
       case 'max_frame_bytes': options.maxFrameBytes = value as number; break;
+      case 'max_pending_requests': options.maxPendingRequests = value as number; break;
       case 'queue_capacity': options.maxQueuedMessages = value as number; break;
       case 'request_timeout_ms': options.requestTimeoutMs = value as number; break;
       case 'write_timeout_ms': options.writeTimeoutMs = value as number; break;

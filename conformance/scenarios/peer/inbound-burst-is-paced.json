@@ -1,0 +1,121 @@
+{
+  "name": "events beyond what a peer holds are paced while its consumer drains them, and the connection is whole",
+  "layer": "peer",
+  "description": "The other side of inbound-backpressure: a queue filled faster than its consumer drains it is a burst and not a stall, and the peer pacing it is what tells them apart. The observer is told the queue filled and is not told anything stalled; every event arrives.",
+  "needs": [
+    "observer",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a",
+        "server_options": {
+          "observe": true,
+          "queue_capacity": 1,
+          "write_timeout_ms": 5000
+        }
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "burst",
+        "data": 1
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "burst",
+        "data": 2
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "burst",
+        "data": 3
+      },
+      "note": "three events through a queue of one: the third meets it full and is paced, where before the queue was paced it ended the connection"
+    },
+    {
+      "on": "a",
+      "op": "peer.await_event",
+      "args": {
+        "on": "$pa",
+        "name": "burst"
+      },
+      "expect": {
+        "data": 1
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_event",
+      "args": {
+        "on": "$pa",
+        "name": "burst"
+      },
+      "expect": {
+        "data": 2
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_event",
+      "args": {
+        "on": "$pa",
+        "name": "burst"
+      },
+      "expect": {
+        "data": 3
+      },
+      "note": "in order, and all of them: what was paced was delivered"
+    },
+    {
+      "on": "a",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pa"
+      },
+      "assert": {
+        "absent": "\"stalled\":true"
+      },
+      "note": "the queue filled and nothing stalled; the deadline never passed"
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "after",
+        "data": 4
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_event",
+      "args": {
+        "on": "$pa",
+        "name": "after"
+      },
+      "expect": {
+        "data": 4
+      },
+      "note": "the connection carried on, which is the whole of what pacing buys"
+    }
+  ]
+}
