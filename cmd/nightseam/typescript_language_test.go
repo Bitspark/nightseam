@@ -4,21 +4,19 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Bitspark/nightseam/internal/analysis"
-	"github.com/Bitspark/nightseam/internal/check"
 	"github.com/Bitspark/nightseam/internal/kernel"
 	"github.com/Bitspark/nightseam/internal/model/builtin"
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
-	"github.com/Bitspark/nightseam/internal/render"
-	"github.com/Bitspark/nightseam/internal/spi"
 	"github.com/Bitspark/nightseam/internal/targets/typescript"
 )
 
 // Each fixture compiles the actual generated packages against the runtime,
-// then executes values through those same packages. Model-only built-ins
-// participate too; activating their sides in a session is a separate lane.
+// then executes values through those same packages, including the built-in
+// dependencies that the kernel emits beside a session family.
 func typescriptLanguageFixture(t *testing.T, world analysis.World, source, script string) {
 	t.Helper()
 	root := repositoryRoot(t)
@@ -32,33 +30,27 @@ func typescriptLanguageFixture(t *testing.T, world analysis.World, source, scrip
 		paths["@nightseam/"+component] = []string{entry}
 		modules["@nightseam/"+component] = entry
 	}
-	target := typescript.New(typescript.Config{Scope: "@example"})
+	k := kernel.New(typescript.New(typescript.Config{Scope: "@example"}))
 	for name := range world {
-		family := analysis.Resolve(world, name)
-		if diagnostics := check.Family(family); len(diagnostics) != 0 {
-			t.Fatalf("%s: %v", name, diagnostics)
-		}
-		facts := render.Build(family)
-		if diagnostics := target.Check(facts); len(diagnostics) != 0 {
-			t.Fatalf("%s target: %v", name, diagnostics)
-		}
-		files, err := target.Render(facts)
+		result, err := k.Render(&kernel.World{Families: world}, name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, file := range files {
-			writeFixture(t, directory, file.Path, file.Data)
+		for path, data := range result.Files {
+			writeFixture(t, directory, path, data)
+			if rest, ok := strings.CutPrefix(path, "api/ts/"); ok && strings.HasSuffix(rest, "/src/index.ts") {
+				name := "@example/" + strings.TrimSuffix(rest, "/src/index.ts")
+				paths[name] = []string{"./" + path}
+				modules[name] = "./" + path
+			}
 		}
-		stubs, err := target.(spi.Scaffolder).Scaffold(facts, "handlers/"+name)
+		stubs, err := k.Scaffold(&kernel.World{Families: world}, name, "handlers/"+name)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, file := range stubs {
 			writeFixture(t, directory, file.Path, file.Data)
 		}
-		entry := "./api/ts/" + name + "-client/src/index.ts"
-		paths["@example/"+name+"-client"] = []string{entry}
-		modules["@example/"+name+"-client"] = entry
 	}
 	config, _ := json.Marshal(map[string]any{
 		"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": paths},

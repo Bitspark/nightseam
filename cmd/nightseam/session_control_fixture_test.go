@@ -73,11 +73,7 @@ func testGeneratedSessionControl(t *testing.T, root, tsc string, target spi.Targ
 	runFixture(t, directory, "node", "--loader", "./runtime-loader.mjs", "session-control.ts")
 }
 
-const sessionControlLoader = `export async function resolve(specifier,context,next){
- const map={'@nightseam/runtime':'./runtime/ts/src/index.ts','@nightseam/duplex':'./duplex/ts/src/index.ts','@nightseam/tunnel':'./tunnel/ts/src/index.ts','@example/session-client':'./api/ts/session-client/src/index.ts'};
- if(map[specifier])return {url:new URL(map[specifier],import.meta.url).href,shortCircuit:true};
- return next(specifier,context);
-}`
+const sessionControlLoader = runtimeLoader
 
 const goSessionControlFixture = `package generated_test
 import (
