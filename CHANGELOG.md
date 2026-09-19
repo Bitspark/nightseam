@@ -164,7 +164,7 @@ are one number. Entries are in the words of the commits that landed them.
 - Wire and declaration strings contain Unicode scalar values. Both runtimes
   reject malformed Unicode before decoding or publishing can replace it,
   including nested JSON, names, descriptors and custom encodings. Generated
-  Go codecs and sessions over raw connections use the same guards. Valid
+  Go codecs and peers over raw connections use the same guards. Valid
   surrogate pairs and ordinary U+FFFD stay unchanged.
 
 ### Removed
@@ -179,14 +179,14 @@ are one number. Entries are in the words of the commits that landed them.
   cursor and control helpers; the session observer events and their OTel
   spans; and the `session` conformance profile with its scenarios, driver
   ops and testee halves. Nightseam has no released consumer, so this is a
-  clean break with no shim and no migration; the live layer that replaces it
-  is designed in #201 and #202. The decision records of the removed layer are
-  kept and marked superseded.
+  clean break with no shim and no migration; the replacement live layer is
+  described in [the live runtime guide](docs/runtime/live.md). The decision
+  records of the removed layer are kept and marked superseded.
 - The `holder` corpus family, which drew a declared type through an unbound
   family parameter. The rule it exercised — every family that may bind a
   parameter declares what is drawn through it — is unchanged and still held by
-  `internal/check`; with `protocol` the only tier role, no checkout of more
-  than one family can satisfy it for a type the built-ins do not carry.
+  `internal/check`. The replacement `relay` family exercises a live-tier
+  family parameter by drawing the carried `Envelope` and `Handle` data types.
 
 - `after`, the session's resume cursor: from `Tunnel.Open` and
   `Channel.After`, from `channel.open` and the `channel.opened` and
@@ -217,6 +217,9 @@ are one number. Entries are in the words of the commits that landed them.
   reject incorrect values that merely begin with the expected output.
 - Generated live conformance waits for the server's attachment before reverse
   calls, within the driver's deadline, instead of racing a successful dial.
+- Generated higher-order callables convert their own request and result through
+  the live scope in both languages, so a callable may take or return another
+  callable without losing its binding during JSON encoding.
 - Worktree cleanup removes empty unregistered leftover directories and their
   branches, while preserving nonempty unregistered directories.
 - Carried built-ins used as union payloads remain local to their family in

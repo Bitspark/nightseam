@@ -24,8 +24,8 @@ tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
   the repository the tarball was built from, and a consumer can check that
   rather than take it.
 - **Go**: the module `github.com/Bitspark/nightseam` at the tag; nothing is
-  uploaded, a tag is the release. `runtime/go`, `duplex/go` and `tunnel/go`
-  are its importable packages, with their sub-packages — `duplex/go/ws`,
+  uploaded, a tag is the release. `runtime/go`, `duplex/go`, `tunnel/go` and
+  `live/go` are its importable packages, with their sub-packages — `duplex/go/ws`,
   `runtime/go/slogobserver`, and the suite `duplex/go/duplextest`.
   `cmd/nightseam` is what a consumer adds as a Go tool.
 - **Go, nested**: a component that depends on what the core module may not
@@ -67,7 +67,7 @@ that names another commit.
    `pnpm -r check && pnpm -r build && pnpm -r test`,
    `node scripts/matrix-table.mjs --check`, and `go vet ./... && go test ./...` in
    each nested Go module — `otel/go` — which the root module's `./...` does
-   not enter. The conformance suite runs with the first of those and writes
+   not enter. The conformance suite runs with the full tier and writes
    `conformance/matrix.json`; commit it with whatever moved it, since the
    release is weighed against the matrix the tag carries. *What a release
    refuses*, below, says what a red cell does.
@@ -176,8 +176,9 @@ packs every published package, copies `examples/probe` — the getting-started,
 and the one consumer both smokes use — out of the workspace, and resolves it
 against the packed shape and nothing else: no `workspace:*` link, no
 `replace` to this checkout. It then type-checks it, builds it, runs the
-server and reads the client's two lines back. It is the only gate that asks
-whether what is published can be *installed*; a `files` field that omits
+server and checks the client's data, RPC, events and live cancellation
+exchange. It is the only gate that asks whether what is published can be
+*installed*; a `files` field that omits
 `dist`, an `exports` entry naming a path the tarball does not hold, a
 dependency a link satisfied and a registry would not, a Go package that only
 ever resolved through a sibling checkout — each passes everything else here
@@ -185,11 +186,10 @@ and is given at a consumer's install, which is after the tag. It runs on
 every pull request too, in `ci.yml`'s full job, so that a packaging change
 fails the change rather than the release that carries it.
 
-The smoke also *imports* what it would publish. The example imports the two
-packages a generated client needs, so without more than that the rest of the
-release is packed, installed, held to carrying the files it names, and never
-opened. Every package the release finds is therefore imported from the copied
-consumer at every entry point its `publishConfig.exports` declares — type
+The smoke also *imports* what it would publish. The example imports the
+packages its generated live client needs. Every package the release finds is
+also imported from the copied consumer at every entry point its
+`publishConfig.exports` declares — type
 checked with library checking on, then loaded by Node — which is what asks the
 questions only a real import answers: a `dist` that imports a package the
 workspace link satisfied and a registry would not, an `exports` condition that
