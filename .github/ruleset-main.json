@@ -11,11 +11,17 @@
     "  - the three CI jobs are required, so that a green PR is a PR that passed",
     "    what main is held to, on both platforms and with the conformance suite;",
     "  - no approval is required, so that a green, in-scope PR is its author's",
-    "    to merge and a lane never waits on a person — review is a comment,",
+    "    to merge and a lane never waits on a person \u2014 review is a comment,",
     "    not a gate;",
     "  - strict is off, so that a PR green against a main that moved is still",
     "    green, and parallel lanes do not serialise on rebasing;",
-    "  - nobody is exempt, the coordinator included."
+    "  - nobody is exempt, the coordinator included.",
+    "",
+    "`repository` is what the repository itself must be set to for the rules to",
+    "mean what they say \u2014 auto-merge allowed so a green PR lands itself, squash",
+    "the only merge method so main is one commit per lane, the PR's title and",
+    "body as that commit, the branch deleted on merge. apply sets them and check",
+    "holds them; they were found off, one by one, on the first PR."
   ],
   "name": "main",
   "target": "branch",
@@ -23,13 +29,19 @@
   "bypass_actors": [],
   "conditions": {
     "ref_name": {
-      "include": ["refs/heads/main"],
+      "include": [
+        "refs/heads/main"
+      ],
       "exclude": []
     }
   },
   "rules": [
-    {"type": "deletion"},
-    {"type": "non_fast_forward"},
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
     {
       "type": "pull_request",
       "parameters": {
@@ -38,7 +50,9 @@
         "require_code_owner_review": false,
         "require_last_push_approval": false,
         "required_review_thread_resolution": false,
-        "allowed_merge_methods": ["squash"]
+        "allowed_merge_methods": [
+          "squash"
+        ]
       }
     },
     {
@@ -47,13 +61,32 @@
         "strict_required_status_checks_policy": false,
         "do_not_enforce_on_create": false,
         "required_status_checks": [
-          {"context": "fast (ubuntu-latest)"},
-          {"context": "fast (windows-latest)"},
-          {"context": "full"},
-          {"context": "protection"},
-          {"context": "scope"}
+          {
+            "context": "fast (ubuntu-latest)"
+          },
+          {
+            "context": "fast (windows-latest)"
+          },
+          {
+            "context": "full"
+          },
+          {
+            "context": "protection"
+          },
+          {
+            "context": "scope"
+          }
         ]
       }
     }
-  ]
+  ],
+  "repository": {
+    "allow_auto_merge": true,
+    "allow_squash_merge": true,
+    "allow_merge_commit": false,
+    "allow_rebase_merge": false,
+    "delete_branch_on_merge": true,
+    "squash_merge_commit_title": "PR_TITLE",
+    "squash_merge_commit_message": "PR_BODY"
+  }
 }
