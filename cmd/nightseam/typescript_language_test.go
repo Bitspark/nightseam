@@ -127,6 +127,7 @@ func TestTypeScriptAppliedInheritance(t *testing.T) {
 		 "parameters":[{"name":"F","of":"protocol"},{"name":"Value"}],
 		 "types":{
 		  "Forward":{"kind":"alias","type":{"apply":"base.Packet","with":{"S":"F","Item":"Value"}}},
+		  "Inherited":{"kind":"record","extends":[{"apply":"base.Packet","with":{"S":"F","Item":"Value"}}],"fields":[{"name":"note","type":{"literal":"extended"}}]},
 		  "FixedLiteral":{"kind":"alias","type":{"apply":"base.Nested","with":{"T":{"literal":"ok"}}}}},
 		 "server":{"extends":[{"apply":"base","with":{"S":"F","Item":"Value"}}]},
 		 "client":{"extends":[{"apply":"base","with":{"S":"F","Item":"Value"}}]}
@@ -149,6 +150,7 @@ import * as catalog from '@example/catalog-client';
 type Equals<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 const packet: Equals<base.Packet<probe.Family,string>,fixed.Packet> = true;
 const forwarded: Equals<child.Forward<probe.Family,string>,fixed.Packet> = true;
+const inherited: Equals<Omit<child.Inherited<probe.Family,string>,'note'>,fixed.Packet> = true;
 const caller: Equals<child.Caller<probe.Family,string>,fixed.Caller> = true;
 const handler: Equals<child.Handler<probe.Family,string>,fixed.Handler> = true;
 const events: Equals<child.Events<probe.Family,string>,fixed.Events> = true;
@@ -174,6 +176,9 @@ import {pipe} from '@nightseam/duplex';
 const binding = {type:'string', validate:probe.validateWire};
 const slots = {F:probe.family,Value:binding};
 const value = {message:{version:1,kind:'event',event:'changed',data:{}},handle:null,values:{first:['hello',null]}};
+child.validateWire('Inherited',{...value,note:'extended'},'$',slots);
+assert.throws(() => child.validateWire('Inherited',{...value,note:'wrong'},'$',slots));
+assert.throws(() => child.validateWire('Inherited',{...value,note:'extended',values:{first:[1]}},'$',slots));
 for (const validate of [v => child.validateWire('Forward',v,'$',slots),v => fixed.validateWire('Packet',v)]) {
  validate(value);
  assert.throws(() => validate({...value,values:{first:[1]}}));
