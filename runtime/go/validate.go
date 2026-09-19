@@ -67,6 +67,9 @@ type wireType struct {
 	Parameters []wireParameter
 	Tag, Value string
 	Variants   map[string]any
+	Contract   string
+	Request    any
+	Result     any
 }
 
 type wireField struct {
@@ -763,6 +766,38 @@ func (e expression) validate(value any, location string) error {
 	if r.definition != nil {
 		t := r.definition
 		switch t.Kind {
+		case "callable":
+			// A live value on the wire is a reference to one binding: the
+			// binding, opaque here, and the contract it implements. The
+			// contract is **nominal**, so the only reference this position
+			// accepts is one declared as this callable — which is what keeps
+			// a reference from reaching an implementation of something else.
+			//
+			// Validation ends there. It resolves nothing, registers nothing
+			// and reaches no network: whether the binding exists, is still
+			// alive, belongs to this scope or may be invoked is the live
+			// runtime's to answer when it imports it.
+			obj, ok := value.(map[string]any)
+			if !ok {
+				return bad("a live reference to " + t.Contract)
+			}
+			binding, ok := obj["binding"].(string)
+			if !ok || binding == "" {
+				return fmt.Errorf("%s.binding: a live reference names the binding it refers to", location)
+			}
+			contract, ok := obj["contract"].(string)
+			if !ok {
+				return fmt.Errorf("%s.contract: a live reference carries the declaration it implements", location)
+			}
+			if contract != t.Contract {
+				return fmt.Errorf("%s.contract: the reference carries %s where %s is expected", location, contract, t.Contract)
+			}
+			for _, key := range sortedKeys(obj) {
+				if key != "binding" && key != "contract" {
+					return fmt.Errorf("%s.%s: unknown field", location, key)
+				}
+			}
+			return nil
 		case "enum":
 			for _, option := range t.Values {
 				if value == option {
