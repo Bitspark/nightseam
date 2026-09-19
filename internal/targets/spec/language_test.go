@@ -6,6 +6,7 @@ import (
 
 	"github.com/Bitspark/nightseam/internal/analysis"
 	"github.com/Bitspark/nightseam/internal/check"
+	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/model/builtin"
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
 	"github.com/Bitspark/nightseam/internal/render"
@@ -160,5 +161,34 @@ func TestRenderBuiltinReferences(t *testing.T) {
 				t.Fatalf("the session reference does not describe its nullable holder:\n%s", document)
 			}
 		})
+	}
+}
+
+func TestRenderUnionDistinguishesAbsentPayload(t *testing.T) {
+	world := analysis.World(modeltest.World(map[string]map[string]string{
+		"x": {"model.json": `{"nightseam":2,"types":{"EmptyRecord":{"kind":"record","fields":[]}}}`},
+	}))
+	family := render.Build(analysis.Resolve(world, "x"))
+	family.Types = append(family.Types, &render.Type{
+		Name: "Choice", Kind: "union", Tag: "kind", Value: "payload",
+		Variants: []render.Variant{
+			{Variant: model.Variant{Tag: "none"}},
+			{Variant: model.Variant{Tag: "maybe", Type: model.Nullable{Elem: model.Primitive("string")}}},
+			{Variant: model.Variant{Tag: "record", Type: model.Named{Name: "EmptyRecord"}}},
+		},
+	})
+	files, err := New(Config{}).Render(family)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document := string(files[0].Data)
+	for _, want := range []string{
+		"| `\"none\"` | — |",
+		"| `\"maybe\"` | nullable `string` |",
+		"| `\"record\"` | `EmptyRecord` |",
+	} {
+		if !strings.Contains(document, want) {
+			t.Errorf("the specification confuses payload absence with a payload value; missing %q:\n%s", want, document)
+		}
 	}
 }

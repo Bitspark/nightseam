@@ -370,7 +370,11 @@ func (d *doc) declarations(types []*render.Type) {
 			d.line("|---|---|---|")
 			for _, variant := range t.Variants {
 				tag, _ := json.Marshal(variant.Tag)
-				d.linef("| %s | %s | %s |", cell(code(string(tag))), cell(d.spell(variant.Type, variant.Origin.Family, t.Scope)), code(d.qualified(variant.Origin.Family, variant.Origin.Declaration)))
+				payload := "—"
+				if variant.Type != nil {
+					payload = d.spell(variant.Type, variant.Origin.Family, t.Scope)
+				}
+				d.linef("| %s | %s | %s |", cell(code(string(tag))), cell(payload), code(d.qualified(variant.Origin.Family, variant.Origin.Declaration)))
 			}
 		}
 	}
