@@ -82,6 +82,37 @@ func TestExamplesOfEveryForm(t *testing.T) {
 	}
 }
 
+// Every variant has its own complete envelope, including inherited arms.
+// An empty record remains a payload, and recursive arms fold at the same
+// declaration boundary as the type's primary example.
+func TestEveryUnionVariantHasItsOwnExample(t *testing.T) {
+	f := proof(t)
+	for _, name := range []string{"Part", "RichPart", "Option", "Result"} {
+		typ := typed(f, name)
+		for _, variant := range typ.Variants {
+			var value map[string]json.RawMessage
+			if err := json.Unmarshal(variant.Example, &value); err != nil {
+				t.Fatalf("%s.%s: %v", name, variant.Tag, err)
+			}
+			var tag string
+			if err := json.Unmarshal(value[typ.Tag], &tag); err != nil || tag != variant.Tag {
+				t.Fatalf("%s.%s: wrong tag in %s", name, variant.Tag, variant.Example)
+			}
+			if _, present := value[typ.Value]; present == variant.Empty {
+				t.Fatalf("%s.%s: wrong payload presence in %s", name, variant.Tag, variant.Example)
+			}
+		}
+	}
+	w := analysis.World(modeltest.World(map[string]map[string]string{"x": {"model.json": `{"nightseam":2,"types":{"Choice":{"kind":"union","tag":"kind","value":"body","variants":{"none":{"empty":true},"record":{"kind":"record","fields":[]},"again":"Choice"}}}}`}}))
+	typ := typed(Build(render.Build(analysis.Resolve(w, "x"))), "Choice")
+	want := map[string]string{"none": `{"kind":"none"}`, "record": `{"kind":"record","body":{}}`, "again": `{"kind":"again","body":null}`}
+	for _, variant := range typ.Variants {
+		if got := string(variant.Example); got != want[variant.Tag] {
+			t.Errorf("%s: %s, want %s", variant.Tag, got, want[variant.Tag])
+		}
+	}
+}
+
 // TestFramesAreTheProfiles: a method's exchange is the request and the
 // response of the profile with the side's ids — c:1 for a method of the
 // server, which the client calls — params an object and result an example

@@ -115,6 +115,7 @@ type Variant struct {
 	Empty    bool
 	Origin   Origin
 	Scope    []string
+	Example  json.RawMessage // this arm's complete tagged value, canonical JSON
 }
 
 // Side is one peer's interface.
@@ -202,7 +203,7 @@ func Build(f *render.Family, spellers map[string]spi.Speller) *Family {
 			dt.Fields = append(dt.Fields, Field{Name: field.Name, Description: field.Description, Type: field.Type, Declared: named(declaredOr(field.DeclaredType, field.Type)), Required: field.Required, Nullable: field.Nullable, Unique: field.Unique, Min: field.Min, Max: field.Max, Length: field.Length, Pattern: field.Pattern, Owner: field.Owner, Origin: origin(field.Origin)})
 		}
 		for _, variant := range t.Variants {
-			dt.Variants = append(dt.Variants, Variant{Tag: variant.Tag, Type: variant.Type, Declared: named(declaredOr(variant.DeclaredType, variant.Type)), Empty: variant.Form == render.VariantEmpty, Origin: origin(variant.Origin), Scope: names(variant.Scope)})
+			dt.Variants = append(dt.Variants, Variant{Tag: variant.Tag, Type: variant.Type, Declared: named(declaredOr(variant.DeclaredType, variant.Type)), Empty: variant.Form == render.VariantEmpty, Origin: origin(variant.Origin), Scope: names(variant.Scope), Example: x.variantExample(t, variant).raw()})
 		}
 		if t.Carried {
 			d.Carried = append(d.Carried, dt)
