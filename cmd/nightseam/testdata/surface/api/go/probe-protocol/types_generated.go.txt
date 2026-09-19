@@ -1,9 +1,13 @@
+const CarriedKindEnvelope CarriedKind = "envelope"
+const CarriedKindHandle CarriedKind = "handle"
+const CarriedKindNone CarriedKind = "none"
 const ErrorDenied = "denied"
 const ErrorNotFound = "not_found"
 const StatusContextExample Status = "context.example"
 const StatusDone Status = "done"
 const StatusReady Status = "ready"
 func (*Base) UnmarshalJSON(data []byte) error
+func (*Carried) UnmarshalJSON(data []byte) error
 func (*Envelope) UnmarshalJSON(data []byte) error
 func (*Handle) UnmarshalJSON(data []byte) error
 func (*OpenRecord) UnmarshalJSON(data []byte) error
@@ -12,6 +16,10 @@ func (*Seen) UnmarshalJSON(data []byte) error
 func (Base) MarshalJSON() ([]byte, error)
 func (Base) Of() Tag
 func (Base) WireType() runtime.TypeBinding
+func (Carried) Kind() CarriedKind
+func (Carried) MarshalJSON() ([]byte, error)
+func (Carried) Of() Tag
+func (Carried) WireType() runtime.TypeBinding
 func (Envelope) MarshalJSON() ([]byte, error)
 func (Envelope) Of() Tag
 func (Envelope) WireType() runtime.TypeBinding
@@ -31,6 +39,8 @@ func (Status) Of() Tag
 func (Status) WireType() runtime.TypeBinding
 func IsError(err error, code string) bool
 type Base struct{Text string `json:"text"`}
+type Carried struct{Envelope *Envelope; Handle *Handle; None *struct{}}
+type CarriedKind string
 type Counts map[string]int64
 type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`; Traceparent runtime.Optional[string] `json:"traceparent,omitzero"`; Tracestate runtime.Optional[string] `json:"tracestate,omitzero"`; Meta runtime.Optional[map[string]string] `json:"meta,omitzero"`}
 type Handle struct{Channel int64 `json:"channel"`}

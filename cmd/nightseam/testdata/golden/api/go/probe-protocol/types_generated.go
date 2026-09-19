@@ -43,6 +43,99 @@ func (v *Base) UnmarshalJSON(data []byte) error {
 func (Base) Of() Tag                       { return Tag{} }
 func (Base) WireType() runtime.TypeBinding { return runtime.TypeBinding{Schema: schema, Type: "Base"} }
 
+type CarriedKind string
+
+const (
+	CarriedKindEnvelope CarriedKind = "envelope"
+	CarriedKindHandle   CarriedKind = "handle"
+	CarriedKindNone     CarriedKind = "none"
+)
+
+type Carried struct {
+	Envelope *Envelope
+	Handle   *Handle
+	None     *struct{}
+}
+
+func (v Carried) Kind() CarriedKind {
+	var kind CarriedKind
+	selected := 0
+	if v.Envelope != nil {
+		selected++
+		kind = CarriedKindEnvelope
+	}
+	if v.Handle != nil {
+		selected++
+		kind = CarriedKindHandle
+	}
+	if v.None != nil {
+		selected++
+		kind = CarriedKindNone
+	}
+	if selected != 1 {
+		return ""
+	}
+	return kind
+}
+func (v Carried) MarshalJSON() ([]byte, error) {
+	kind := v.Kind()
+	if kind == "" {
+		return nil, fmt.Errorf("union Carried requires exactly one selected variant")
+	}
+	envelope := map[string]any{"kind": kind}
+	switch kind {
+	case CarriedKindEnvelope:
+		envelope["value"] = v.Envelope
+	case CarriedKindHandle:
+		envelope["value"] = v.Handle
+	case CarriedKindNone:
+	}
+	data, err := runtime.MarshalJSON(envelope)
+	if err != nil {
+		return nil, err
+	}
+	if err = schema.ValidateExpressionRaw("Carried", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+func (v *Carried) UnmarshalJSON(data []byte) error {
+	if err := schema.ValidateExpressionRaw("Carried", data); err != nil {
+		return err
+	}
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return err
+	}
+	var kind CarriedKind
+	if err := json.Unmarshal(envelope["kind"], &kind); err != nil {
+		return err
+	}
+	var decoded Carried
+	switch kind {
+	case CarriedKindEnvelope:
+		decoded.Envelope = new(Envelope)
+		if err := json.Unmarshal(envelope["value"], decoded.Envelope); err != nil {
+			return err
+		}
+	case CarriedKindHandle:
+		decoded.Handle = new(Handle)
+		if err := json.Unmarshal(envelope["value"], decoded.Handle); err != nil {
+			return err
+		}
+	case CarriedKindNone:
+		decoded.None = new(struct{})
+	default:
+		return fmt.Errorf("unknown Carried union tag %q", kind)
+	}
+	*v = decoded
+	return nil
+}
+func (Carried) Of() Tag { return Tag{} }
+func (Carried) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Carried"}
+}
+
 type Counts = map[string]int64
 
 // Envelope: One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else.

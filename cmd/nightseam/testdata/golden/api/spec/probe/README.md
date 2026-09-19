@@ -41,6 +41,58 @@ For example:
 }
 ```
 
+### Carried
+
+A union.
+
+The `kind` member identifies the variant. The complete payload is carried in `value` beside the tag, including records, maps, JSON and null. A record's own literal tag remains inside its payload. A variant without a payload has only the tag; `value` is absent.
+
+| Tag | Payload | Declared by |
+|---|---|---|
+| `"envelope"` | `Envelope` | `Carried` |
+| `"handle"` | `Handle` | `Carried` |
+| `"none"` | — | `Carried` |
+
+In `go`:
+
+```go
+type Carried struct {
+	Envelope *Envelope
+	Handle   *Handle
+	None     *struct{}
+}
+```
+
+In `typescript`:
+
+```typescript
+export type Carried = { "kind": "envelope"; "value": Envelope } | { "kind": "handle"; "value": Handle } | { "kind": "none" };
+```
+
+For example:
+
+```json
+{
+  "kind": "envelope",
+  "value": {
+    "version": 0,
+    "kind": "‹kind›",
+    "id": "‹id›",
+    "method": "‹method›",
+    "params": {},
+    "result": {},
+    "error": {},
+    "event": "‹event›",
+    "data": {},
+    "traceparent": "‹traceparent›",
+    "tracestate": "‹tracestate›",
+    "meta": {
+      "‹key›": "‹meta›"
+    }
+  }
+}
+```
+
 ### Counts
 
 An alias.
