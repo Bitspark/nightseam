@@ -16,7 +16,7 @@ type Both[SEnvelope, SHandle, TEnvelope any] struct {
 }
 
 func (v Both[SEnvelope, SHandle, TEnvelope]) MarshalJSON() ([]byte, error) {
-	data, err := json.Marshal((struct {
+	data, err := runtime.MarshalJSON((struct {
 		Frame  Frame[SEnvelope, SHandle] `json:"frame"`
 		Echoes []Echo[TEnvelope]         `json:"echoes"`
 	})(v))
@@ -52,7 +52,7 @@ type Echo[TEnvelope any] struct {
 }
 
 func (v Echo[TEnvelope]) MarshalJSON() ([]byte, error) {
-	data, err := json.Marshal((struct {
+	data, err := runtime.MarshalJSON((struct {
 		Heard TEnvelope `json:"heard"`
 	})(v))
 	if err != nil {
@@ -99,7 +99,7 @@ type Envelope struct {
 
 func (v Envelope) MarshalJSON() ([]byte, error) {
 	type wire Envelope
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ type Frame[SEnvelope, SHandle any] struct {
 }
 
 func (v Frame[SEnvelope, SHandle]) MarshalJSON() ([]byte, error) {
-	data, err := json.Marshal((struct {
+	data, err := runtime.MarshalJSON((struct {
 		Message SEnvelope `json:"message"`
 		Back    SHandle   `json:"back"`
 	})(v))
@@ -169,7 +169,7 @@ type Handle struct {
 
 func (v Handle) MarshalJSON() ([]byte, error) {
 	type wire Handle
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +201,7 @@ type Named struct {
 
 func (v Named) MarshalJSON() ([]byte, error) {
 	type wire Named
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}

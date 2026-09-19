@@ -25,6 +25,7 @@ import (
 	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/model/builtin"
+	"github.com/Bitspark/nightseam/internal/scalarjson"
 )
 
 // schemas maps each tier to the schema that holds its file's shape.
@@ -154,6 +155,10 @@ func strayFile(name string) (family string, ok bool) {
 // all.
 func Family(fsys fs.FS, dir, name string, targets []string) (*model.Family, []diag.Diagnostic) {
 	problems := diag.List{Family: name}
+	if err := scalarjson.Value(name); err != nil {
+		problems.Add(diag.Location{}, "invalid_declaration", err.Error())
+		return nil, problems.Diagnostics
+	}
 	family := &model.Family{Name: name, Source: dir, Types: map[string]*model.Type{}, Overrides: map[string]json.RawMessage{}}
 	entries, err := fs.ReadDir(fsys, dir)
 	if err != nil {
@@ -331,6 +336,10 @@ func readTier(tier model.Tier, data []byte, family *model.Family, imports map[st
 // shape decodes a file as an object and holds it to its schema; it returns
 // the object's sections, or nil after reporting what is wrong.
 func shape(file, schemaID string, data []byte, problems *diag.List) map[string]json.RawMessage {
+	if err := scalarjson.Raw(data); err != nil {
+		problems.Add(diag.Location{File: file}, "invalid_json", err.Error())
+		return nil
+	}
 	var value any
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()

@@ -22,7 +22,7 @@ func (v LiteralText) MarshalJSON() ([]byte, error) {
 	if v != LiteralTextValue {
 		return nil, fmt.Errorf("expected literal \"text\"")
 	}
-	return json.Marshal(string(v))
+	return runtime.MarshalJSON(string(v))
 }
 func (v *LiteralText) UnmarshalJSON(data []byte) error {
 	if err := schema.ValidateExpressionRaw(map[string]any{"literal": "text"}, data); err != nil {
@@ -40,7 +40,7 @@ type Carried[SEnvelope, SHandle, Item any] struct {
 }
 
 func (v Carried[SEnvelope, SHandle, Item]) MarshalJSON() ([]byte, error) {
-	data, err := json.Marshal((struct {
+	data, err := runtime.MarshalJSON((struct {
 		Message SEnvelope                 `json:"message"`
 		Back    runtime.Nullable[SHandle] `json:"back"`
 		Page    Page[Item]                `json:"page"`
@@ -91,7 +91,7 @@ type Envelope struct {
 
 func (v Envelope) MarshalJSON() ([]byte, error) {
 	type wire Envelope
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ type Handle struct {
 
 func (v Handle) MarshalJSON() ([]byte, error) {
 	type wire Handle
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func (v Option[T]) MarshalJSON() ([]byte, error) {
 	case OptionKindSome:
 		envelope["value"] = v.Some.Value
 	}
-	data, err := json.Marshal(envelope)
+	data, err := runtime.MarshalJSON(envelope)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +240,7 @@ type OptionNone struct {
 
 func (v OptionNone) MarshalJSON() ([]byte, error) {
 	type wire OptionNone
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +273,7 @@ type Page[T any] struct {
 }
 
 func (v Page[T]) MarshalJSON() ([]byte, error) {
-	data, err := json.Marshal((struct {
+	data, err := runtime.MarshalJSON((struct {
 		Items []T                                        `json:"items"`
 		Next  runtime.Optional[runtime.Nullable[string]] `json:"next,omitzero"`
 	})(v))
@@ -353,7 +353,7 @@ func (v Part) MarshalJSON() ([]byte, error) {
 	case PartKindText:
 		envelope["value"] = v.Text
 	}
-	data, err := json.Marshal(envelope)
+	data, err := runtime.MarshalJSON(envelope)
 	if err != nil {
 		return nil, err
 	}
@@ -407,7 +407,7 @@ type PartImage struct {
 
 func (v PartImage) MarshalJSON() ([]byte, error) {
 	type wire PartImage
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -442,7 +442,7 @@ type PartsRequest struct {
 
 func (v PartsRequest) MarshalJSON() ([]byte, error) {
 	type wire PartsRequest
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -510,7 +510,7 @@ func (v Result[T, E]) MarshalJSON() ([]byte, error) {
 	case ResultKindOk:
 		envelope["value"] = v.Ok.Value
 	}
-	data, err := json.Marshal(envelope)
+	data, err := runtime.MarshalJSON(envelope)
 	if err != nil {
 		return nil, err
 	}
@@ -610,7 +610,7 @@ func (v RichPart) MarshalJSON() ([]byte, error) {
 	case RichPartKindTable:
 		envelope["value"] = v.Table
 	}
-	data, err := json.Marshal(envelope)
+	data, err := runtime.MarshalJSON(envelope)
 	if err != nil {
 		return nil, err
 	}
@@ -692,7 +692,7 @@ type RichPartTable struct {
 
 func (v RichPartTable) MarshalJSON() ([]byte, error) {
 	type wire RichPartTable
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -726,7 +726,7 @@ type TextPart struct {
 
 func (v TextPart) MarshalJSON() ([]byte, error) {
 	type wire TextPart
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}

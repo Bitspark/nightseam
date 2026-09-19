@@ -1,6 +1,7 @@
 /** Internal frame validation and carriage shared by the peer and its conformance tests. */
 import { DuplexError } from './error.ts';
 import type { Meta } from './peer.ts';
+import { scalarJSON } from './unicode.ts';
 
 /** A decoded JSON envelope; the connection beneath carries it as a text frame. */
 export type Envelope = Record<string, unknown>;
@@ -12,6 +13,7 @@ export type Envelope = Record<string, unknown>;
  * reads none of them. Not part of the package surface.
  */
 export function decodeEnvelope(data: string, localPrefix: string, remotePrefix: string): Envelope {
+  scalarJSON(data);
   const value: unknown = JSON.parse(data);
   if (!isObject(value) || value.version !== 1) throw new Error();
   // JSON.parse keeps the last of two members of one name; a frame that spells

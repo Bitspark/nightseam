@@ -6,6 +6,7 @@ import type { Frame, FrameConnection, WebSocketLike } from '@nightseam/duplex';
 import { defaultPropagator, traceOf, traced } from './trace.ts';
 import type { Propagator, Trace } from './trace.ts';
 import type { Observer, ObserverEvent } from './observer.ts';
+import { scalarJSON } from './unicode.ts';
 
 export type { WebSocketLike } from '@nightseam/duplex';
 
@@ -458,6 +459,7 @@ export class DuplexPeer {
         }
         return value;
       });
+      scalarJSON(text);
     } catch {
       return Promise.reject(new DuplexError('invalid_message', 'Frame must contain serializable JSON values.'));
     }
@@ -758,7 +760,30 @@ export class DuplexPeer {
         family: this.family(incoming.method),
       });
     }
-    void this.send(traced(frame, incoming.trace), '').catch((error) => this.fail(asError(error)));
+    void this.send(traced(frame, incoming.trace), '').catch(async (error: unknown) => {
+      // An unencodable response must settle the call, as the Go peer does,
+      // without publishing a replacement for malformed handler output.
+      if (error instanceof DuplexError && ['invalid_message', 'frame_too_large'].includes(error.code)) {
+        try {
+          await this.send(
+            traced(
+              {
+                version: 1,
+                kind: 'response',
+                id,
+                error: { code: 'internal', message: 'Response could not be encoded' },
+              },
+              incoming.trace,
+            ),
+          );
+          return;
+        } catch (fallbackError) {
+          this.fail(asError(fallbackError));
+          return;
+        }
+      }
+      this.fail(asError(error));
+    });
   }
 
   private event(name: string, data: unknown, bytes: number, trace?: Trace, meta?: Meta): void {

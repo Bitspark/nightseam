@@ -15,6 +15,7 @@ import (
 	"sort"
 
 	"github.com/Bitspark/nightseam/internal/diag"
+	"github.com/Bitspark/nightseam/internal/scalarjson"
 )
 
 // Version is the declaration language this package reads, the value of
@@ -302,6 +303,9 @@ type sessionJSON struct {
 
 // DecodeTypes decodes a tier file's types section, at /types of the file.
 func DecodeTypes(file string, raw json.RawMessage) (map[string]*Type, error) {
+	if err := scalarjson.Raw(raw); err != nil {
+		return nil, fmt.Errorf("%s: %w", file, err)
+	}
 	var wire map[string]typeJSON
 	if err := json.Unmarshal(raw, &wire); err != nil {
 		return nil, fmt.Errorf("%s#/types: %w", file, err)
@@ -394,6 +398,9 @@ func decodeField(w fieldJSON, at diag.Location) (Field, error) {
 // DecodeProtocol decodes the protocol tier's own sections from the file's
 // object; the types and imports every tier carries are decoded apart.
 func DecodeProtocol(file string, raw json.RawMessage) (*Protocol, error) {
+	if err := scalarjson.Raw(raw); err != nil {
+		return nil, fmt.Errorf("%s: %w", file, err)
+	}
 	var w protocolJSON
 	if err := json.Unmarshal(raw, &w); err != nil {
 		return nil, fmt.Errorf("%s: %w", file, err)
@@ -451,6 +458,9 @@ func decodeSide(w sideJSON, at diag.Location) (Side, error) {
 
 // DecodeSession decodes the session tier's own sections.
 func DecodeSession(file string, raw json.RawMessage) (*Session, error) {
+	if err := scalarjson.Raw(raw); err != nil {
+		return nil, fmt.Errorf("%s: %w", file, err)
+	}
 	var w sessionJSON
 	if err := json.Unmarshal(raw, &w); err != nil {
 		return nil, fmt.Errorf("%s: %w", file, err)
@@ -461,6 +471,9 @@ func DecodeSession(file string, raw json.RawMessage) (*Session, error) {
 // DecodeOverrides decodes a target's override file; a key it does not know
 // is refused, since an override file may only override.
 func DecodeOverrides(file string, raw json.RawMessage) (Overrides, error) {
+	if err := scalarjson.Raw(raw); err != nil {
+		return Overrides{}, fmt.Errorf("%s: %w", file, err)
+	}
 	var o Overrides
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()

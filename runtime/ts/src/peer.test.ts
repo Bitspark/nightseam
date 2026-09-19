@@ -105,6 +105,22 @@ async function paired(clientOptions: PeerOptions = {}, serverOptions: PeerOption
   return { client, server, left, right };
 }
 
+test('peer refuses malformed outgoing Unicode without losing valid strings', async (t) => {
+  const { client, server, left } = await paired();
+  t.after(() => client.close());
+  server.handle('echo', (value) => value);
+  server.handle('bad', () => '\uD800');
+  for (const value of ['\uD800', { x: ['\uDC00'] }, { ['\uD800']: 1 }, { toJSON: () => '\uD800' }]) {
+    await assert.rejects(client.emit('probe', value), { code: 'invalid_message' });
+    await assert.rejects(client.call('echo', value), { code: 'invalid_message' });
+  }
+  await assert.rejects(client.emit('\uD800', null), { code: 'invalid_message' });
+  await assert.rejects(client.emit('probe', null, { meta: { x: '\uD800' } }), { code: 'invalid_message' });
+  assert.equal(left.sent.length, 0);
+  await assert.rejects(client.call('bad'), { code: 'internal' });
+  assert.equal(await client.call('echo', '😀�'), '😀�');
+});
+
 function deferred<T = void>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   const promise = new Promise<T>((accept) => {

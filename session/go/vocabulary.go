@@ -1,11 +1,11 @@
 package session
 
 import (
-	"encoding/json"
 	"strings"
 	"sync"
 
 	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/runtime/go"
 )
 
 // The session's own vocabulary on the wire. A layer that speaks on the wire
@@ -69,7 +69,7 @@ func cursorFrame(sequence int64) []byte {
 }
 
 func sessionFrame(event string, data any) []byte {
-	encoded, err := json.Marshal(vocabulary{Version: 1, Kind: "event", Event: event, Data: data})
+	encoded, err := runtime.MarshalJSON(vocabulary{Version: 1, Kind: "event", Event: event, Data: data})
 	if err != nil {
 		return nil
 	}

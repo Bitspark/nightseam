@@ -1129,6 +1129,9 @@ export function run(connect: Connect): void {
     await refused('an attach under an origin that is no text', 'origin_invalid', async () =>
       registry.attach('s', await spare(), 'participant', 7 as unknown as string, 0),
     );
+    await refused('an attach under malformed Unicode', 'origin_invalid', async () =>
+      registry.attach('s', await spare(), 'participant', '\uD800', 0),
+    );
     await refused('an attach after what is no sequence', 'sequence_invalid', async () =>
       registry.attach('s', await spare(), 'participant', 'one', -1),
     );
@@ -1200,6 +1203,16 @@ export function run(connect: Connect): void {
     // malformed inside among them, where a parser's own words for a syntax
     // error would be one runtime's prose on the wire.
     const malformed = [
+      {
+        what: 'an unpaired surrogate in a payload',
+        sent: '{"version":1,"kind":"event","event":"changed","data":{"text":"\\uD800"}}',
+        said: 'invalid Unicode: expected Unicode scalar strings',
+      },
+      {
+        what: 'an unpaired surrogate in a key',
+        sent: '{"version":1,"kind":"event","event":"changed","data":{"\\uDC00":1}}',
+        said: 'invalid Unicode: expected Unicode scalar strings',
+      },
       { what: 'text that is no JSON at all', sent: 'not json', said: 'a session frame must be a JSON object' },
       { what: 'a JSON array', sent: '["version",1]', said: 'a session frame must be a JSON object' },
       {

@@ -43,6 +43,12 @@ are one number. Entries are in the words of the commits that landed them.
   the proof family and built-ins compile, and executable fixtures hold
   inherited calls, events, reverse calls and lossless union payloads.
 
+- Wire and declaration strings contain Unicode scalar values. Both runtimes
+  reject malformed Unicode before decoding or publishing can replace it,
+  including nested JSON, names, descriptors and custom encodings. Generated
+  Go codecs and sessions over raw connections use the same guards. Valid
+  surrogate pairs and ordinary U+FFFD stay unchanged.
+
 ## 0.4.0 - 2026-09-19
 
 This release makes the consumer improvements landed since 0.3.0 available

@@ -3,6 +3,7 @@ package runtime
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/Bitspark/nightseam/internal/scalarjson"
 )
 
 // Optional distinguishes an absent member from a present value. Generated Go
@@ -24,11 +25,14 @@ func (v Optional[T]) MarshalJSON() ([]byte, error) {
 	if !v.Present {
 		return []byte("null"), nil
 	}
-	return json.Marshal(v.Value)
+	return MarshalJSON(v.Value)
 }
 
 // UnmarshalJSON reads a member that is present; an absent one never reaches it.
 func (v *Optional[T]) UnmarshalJSON(data []byte) error {
+	if err := scalarjson.Raw(data); err != nil {
+		return err
+	}
 	var value T
 	if err := json.Unmarshal(data, &value); err != nil {
 		return err
@@ -55,11 +59,14 @@ func (v Nullable[T]) MarshalJSON() ([]byte, error) {
 	if v.Null {
 		return []byte("null"), nil
 	}
-	return json.Marshal(v.Value)
+	return MarshalJSON(v.Value)
 }
 
 // UnmarshalJSON reads null as Null and anything else as the value.
 func (v *Nullable[T]) UnmarshalJSON(data []byte) error {
+	if err := scalarjson.Raw(data); err != nil {
+		return err
+	}
 	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 		var zero T
 		v.Value, v.Null = zero, true

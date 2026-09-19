@@ -10,6 +10,15 @@ the wire that page does not state.
 
 ## The seam beneath
 
+Outgoing values must satisfy the profile's
+[Unicode string domain](../wire/profile.md#the-envelope), including keys
+and custom JSON output. Go's `runtime.MarshalJSON(value)` applies that
+check during encoding; generated codecs use it before their type checks.
+`Schema.ValidateValue` also uses it. TypeScript validates the serialized
+frame before sending, and generated validators refuse unpaired UTF-16
+units in in-memory values and descriptors. A malformed handler response
+becomes an `internal` error response rather than a changed value.
+
 A peer runs over a connection of the seam, `duplex.Conn` in Go and
 `FrameConnection` in TypeScript — ordered frames both ways, an explicit
 close with a code and a reason, and nothing else. Three transports ship:

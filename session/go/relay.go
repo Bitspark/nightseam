@@ -2,12 +2,12 @@ package session
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/runtime/go"
@@ -276,7 +276,7 @@ type refusal struct {
 }
 
 func (r *relay) refuse(a *Attachment, m *message, code, reason string) {
-	data, err := json.Marshal(refusal{Version: 1, Kind: "response", ID: m.id(), Error: &runtime.PublicError{Code: code, Message: reason}})
+	data, err := runtime.MarshalJSON(refusal{Version: 1, Kind: "response", ID: m.id(), Error: &runtime.PublicError{Code: code, Message: reason}})
 	if err != nil {
 		return
 	}
@@ -452,6 +452,9 @@ func (r *relay) holds(a *Attachment) bool {
 // reaches it: the frames after its sequence that this consumer can take, up
 // to the one the session had reached when it was added, in one order.
 func (r *relay) attach(down duplex.Conn, role Role, origin string, after int64) (*Attachment, error) {
+	if !utf8.ValidString(origin) {
+		return nil, coded(ErrorOriginInvalid, "an origin contains Unicode scalar values")
+	}
 	if down == nil {
 		return nil, coded(ErrorSessionInvalid, "a consumer attaches over a connection")
 	}

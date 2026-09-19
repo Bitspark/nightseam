@@ -59,6 +59,14 @@ runtime exposes that is [the peer](../runtime/peer.md#the-subprotocol).
 
 ## The envelope
 
+All JSON strings contain Unicode scalar values, including object member
+names, envelope members and nested payloads. Malformed UTF-8 and unpaired
+UTF-16 surrogate escapes are refused before decoding can replace them;
+the check includes duplicate members a decoder would otherwise discard.
+A valid surrogate pair represents its code point. An ordinary `�` (U+FFFD)
+and ASCII text spelling `\\uD800` remain valid and unchanged. This is the
+[admitted string domain](../decisions/strings-are-unicode-scalars.md).
+
 One JSON object per frame, with `version` `1` and a `kind`:
 
 | kind | members | rule |

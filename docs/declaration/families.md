@@ -10,6 +10,12 @@ out, and the [README](../../README.md) is the short path.
 
 ## The files
 
+Every declaration string, including names and descriptions, contains
+[Unicode scalar values](../decisions/strings-are-unicode-scalars.md).
+The loader refuses malformed UTF-8 and unpaired surrogate escapes in tier
+and override files before decoding changes them. Valid surrogate pairs,
+ordinary U+FFFD and ASCII pattern-escape text remain unchanged.
+
 A family `f` is a directory `api/contracts/f/` of the consuming checkout,
 one file per tier and, where the convention is not enough, one per target:
 

@@ -19,7 +19,7 @@ type CancelWorkItemParams struct {
 
 func (v CancelWorkItemParams) MarshalJSON() ([]byte, error) {
 	type wire CancelWorkItemParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ type CreateProjectParams struct {
 
 func (v CreateProjectParams) MarshalJSON() ([]byte, error) {
 	type wire CreateProjectParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ type CreateWorkItemParams struct {
 
 func (v CreateWorkItemParams) MarshalJSON() ([]byte, error) {
 	type wire CreateWorkItemParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ type Criterion struct {
 
 func (v Criterion) MarshalJSON() ([]byte, error) {
 	type wire Criterion
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +164,7 @@ type Envelope struct {
 
 func (v Envelope) MarshalJSON() ([]byte, error) {
 	type wire Envelope
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +202,7 @@ type Event struct {
 
 func (v Event) MarshalJSON() ([]byte, error) {
 	type wire Event
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +234,7 @@ type GetWorkItemParams struct {
 
 func (v GetWorkItemParams) MarshalJSON() ([]byte, error) {
 	type wire GetWorkItemParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +267,7 @@ type Handle struct {
 
 func (v Handle) MarshalJSON() ([]byte, error) {
 	type wire Handle
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +301,7 @@ type ListEventsParams struct {
 
 func (v ListEventsParams) MarshalJSON() ([]byte, error) {
 	type wire ListEventsParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -332,7 +332,7 @@ type ListProjectsParams struct {
 
 func (v ListProjectsParams) MarshalJSON() ([]byte, error) {
 	type wire ListProjectsParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -365,7 +365,7 @@ type ListWorkItemsParams struct {
 
 func (v ListWorkItemsParams) MarshalJSON() ([]byte, error) {
 	type wire ListWorkItemsParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -404,7 +404,7 @@ type Project struct {
 
 func (v Project) MarshalJSON() ([]byte, error) {
 	type wire Project
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -437,7 +437,7 @@ type PublishSpecificationParams struct {
 
 func (v PublishSpecificationParams) MarshalJSON() ([]byte, error) {
 	type wire PublishSpecificationParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -471,7 +471,7 @@ type ReopenWorkItemParams struct {
 
 func (v ReopenWorkItemParams) MarshalJSON() ([]byte, error) {
 	type wire ReopenWorkItemParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -505,7 +505,7 @@ type SetDependenciesParams struct {
 
 func (v SetDependenciesParams) MarshalJSON() ([]byte, error) {
 	type wire SetDependenciesParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -540,7 +540,7 @@ type SetStepsParams struct {
 
 func (v SetStepsParams) MarshalJSON() ([]byte, error) {
 	type wire SetStepsParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -578,7 +578,7 @@ type Specification struct {
 
 func (v Specification) MarshalJSON() ([]byte, error) {
 	type wire Specification
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -613,7 +613,7 @@ type SpecificationDraft struct {
 
 func (v SpecificationDraft) MarshalJSON() ([]byte, error) {
 	type wire SpecificationDraft
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -649,7 +649,7 @@ type Step struct {
 
 func (v Step) MarshalJSON() ([]byte, error) {
 	type wire Step
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -680,7 +680,7 @@ type SubscribeParams struct {
 
 func (v SubscribeParams) MarshalJSON() ([]byte, error) {
 	type wire SubscribeParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -712,7 +712,7 @@ type SubscribeResult struct {
 
 func (v SubscribeResult) MarshalJSON() ([]byte, error) {
 	type wire SubscribeResult
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -748,7 +748,7 @@ type UpdateProjectParams struct {
 
 func (v UpdateProjectParams) MarshalJSON() ([]byte, error) {
 	type wire UpdateProjectParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -783,7 +783,7 @@ type UpdateWorkItemParams struct {
 
 func (v UpdateWorkItemParams) MarshalJSON() ([]byte, error) {
 	type wire UpdateWorkItemParams
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -817,7 +817,7 @@ type User struct {
 
 func (v User) MarshalJSON() ([]byte, error) {
 	type wire User
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
@@ -861,7 +861,7 @@ type WorkItem struct {
 
 func (v WorkItem) MarshalJSON() ([]byte, error) {
 	type wire WorkItem
-	data, err := json.Marshal(wire(v))
+	data, err := runtime.MarshalJSON(wire(v))
 	if err != nil {
 		return nil, err
 	}
