@@ -20,14 +20,14 @@ type Handler interface {
 
 func (c *Remote) Reverse(ctx context.Context, params protocol.Payload) (protocol.Payload, error) {
 	var result protocol.Payload
-	if err := protocol.ValidateValue(protocol.TypeExpression("\"Payload\""), params); err != nil {
+	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"Payload\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "reverse", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"Payload\""), raw); err != nil {
+	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -50,7 +50,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["echo"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.Payload
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"Payload\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -60,7 +60,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"Payload\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"Payload\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -76,7 +76,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"string\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"string\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -110,7 +110,7 @@ func Serve(ctx context.Context, conn duplex.Conn, options runtime.Options, handl
 	return runtime.NewPeer(ctx, conn, runtime.ServerRole, options)
 }
 func (c *Remote) EmitChanged(ctx context.Context, data protocol.Payload) error {
-	if err := protocol.ValidateValue(protocol.TypeExpression("\"Payload\""), data); err != nil {
+	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"Payload\""), data); err != nil {
 		return err
 	}
 	return c.Peer.Emit(ctx, "changed", data)

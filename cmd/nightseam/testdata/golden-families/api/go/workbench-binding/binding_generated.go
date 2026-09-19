@@ -45,7 +45,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["events.list"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.ListEventsParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"ListEventsParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"ListEventsParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -55,7 +55,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("{\"array\":\"Event\"}"), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("{\"array\":\"Event\"}"), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -71,7 +71,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"User\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"User\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -81,7 +81,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["projects.create"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.CreateProjectParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"CreateProjectParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"CreateProjectParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -91,7 +91,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"Project\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"Project\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -101,7 +101,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["projects.list"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.ListProjectsParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"ListProjectsParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"ListProjectsParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -111,7 +111,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("{\"array\":\"Project\"}"), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("{\"array\":\"Project\"}"), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -121,7 +121,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["projects.update"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.UpdateProjectParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"UpdateProjectParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"UpdateProjectParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -131,7 +131,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"Project\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"Project\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -141,7 +141,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["subscribe"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.SubscribeParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"SubscribeParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"SubscribeParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -151,7 +151,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"SubscribeResult\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"SubscribeResult\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -161,7 +161,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["work.cancel"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.CancelWorkItemParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"CancelWorkItemParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"CancelWorkItemParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -171,7 +171,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"WorkItem\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -181,7 +181,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["work.create"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.CreateWorkItemParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"CreateWorkItemParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"CreateWorkItemParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -191,7 +191,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"WorkItem\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -201,7 +201,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["work.dependencies"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.SetDependenciesParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"SetDependenciesParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"SetDependenciesParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -211,7 +211,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"WorkItem\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -221,7 +221,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["work.get"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.GetWorkItemParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"GetWorkItemParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"GetWorkItemParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -231,7 +231,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"WorkItem\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -241,7 +241,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["work.list"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.ListWorkItemsParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"ListWorkItemsParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"ListWorkItemsParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -251,7 +251,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("{\"array\":\"WorkItem\"}"), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("{\"array\":\"WorkItem\"}"), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -261,7 +261,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["work.publish"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.PublishSpecificationParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"PublishSpecificationParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"PublishSpecificationParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -271,7 +271,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"WorkItem\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -281,7 +281,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["work.reopen"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.ReopenWorkItemParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"ReopenWorkItemParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"ReopenWorkItemParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -291,7 +291,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"WorkItem\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -301,7 +301,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["work.steps"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.SetStepsParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"SetStepsParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"SetStepsParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -311,7 +311,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"WorkItem\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -321,7 +321,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["work.update"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.UpdateWorkItemParams
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"UpdateWorkItemParams\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"UpdateWorkItemParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -331,7 +331,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"WorkItem\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -377,7 +377,7 @@ func Serve(ctx context.Context, conn duplex.Conn, options runtime.Options, handl
 	return runtime.NewPeer(ctx, conn, runtime.ServerRole, options)
 }
 func (c *Remote) EmitChanged(ctx context.Context, data protocol.Event) error {
-	if err := protocol.ValidateValue(protocol.TypeExpression("\"Event\""), data); err != nil {
+	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"Event\""), data); err != nil {
 		return err
 	}
 	return c.Peer.Emit(ctx, "workbench.changed", data)

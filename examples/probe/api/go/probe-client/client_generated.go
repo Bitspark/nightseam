@@ -59,7 +59,7 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["reverse"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.Payload
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"Payload\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -69,7 +69,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"Payload\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"Payload\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -126,14 +126,14 @@ func (c *Client) Close() error { return c.Peer.Close() }
 // Echo: Returns the payload, its text reversed by the caller.
 func (c *Client) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error) {
 	var result protocol.Payload
-	if err := protocol.ValidateValue(protocol.TypeExpression("\"Payload\""), params); err != nil {
+	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"Payload\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "echo", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"Payload\""), raw); err != nil {
+	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -143,7 +143,7 @@ func (c *Client) Echo(ctx context.Context, params protocol.Payload) (protocol.Pa
 }
 func (c *Client) OnChanged(handler func(context.Context, protocol.Payload)) error {
 	return c.Peer.HandleEvent("changed", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"Payload\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
 			_ = peer.Close()
 			return
 		}

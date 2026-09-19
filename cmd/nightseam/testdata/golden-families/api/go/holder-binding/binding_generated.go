@@ -31,7 +31,7 @@ func install[SEnvelope, SPayload any](handler Handler[SEnvelope, SPayload], opti
 	}
 	handlers["hold"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.Held[SEnvelope, SPayload]
-		if err := protocol.ValidateExpressionRaw(protocol.TypeExpression("\"Held\""), raw); err != nil {
+		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Held\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -41,7 +41,7 @@ func install[SEnvelope, SPayload any](handler Handler[SEnvelope, SPayload], opti
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.TypeExpression("\"S.Payload\""), result); err != nil {
+		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"S.Payload\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil

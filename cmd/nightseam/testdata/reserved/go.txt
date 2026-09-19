@@ -6,7 +6,7 @@ AdditionalFields
 ValidateRaw
 ValidateExpressionRaw
 ValidateValue
-TypeExpression
+MustTypeExpression
 Errors
 IsError
 Remote

@@ -19,5 +19,5 @@ func ValidateExpressionRaw(expression any, data []byte) error {
 // ValidateValue validates a typed value before publishing it on the wire.
 func ValidateValue(expression any, value any) error { return schema.ValidateValue(expression, value) }
 
-// TypeExpression decodes a generated expression; callers ordinarily use named types.
-func TypeExpression(encoded string) any { return runtime.TypeExpression(encoded) }
+// MustTypeExpression decodes a generated expression and panics on one it cannot read; callers ordinarily use named types.
+func MustTypeExpression(encoded string) any { return runtime.MustTypeExpression(encoded) }
