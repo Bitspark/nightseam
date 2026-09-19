@@ -1,0 +1,250 @@
+{
+  "name": "proof inline names and Unicode and pattern refusals agree in both languages",
+  "layer": "generated",
+  "needs": [
+    "generated"
+  ],
+  "mirror": false,
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.proof_names",
+      "expect": [
+        "OptionNone",
+        "PartImage",
+        "PartsRequest",
+        "RichPartTable"
+      ]
+    },
+    {
+      "on": "a",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "\"Part\"",
+        "value": {
+          "type": "image",
+          "value": {
+            "url": "https://example.org/image",
+            "alt": null
+          }
+        }
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "\"RichPart\"",
+        "value": {
+          "type": "table",
+          "value": {
+            "rows": [
+              "one",
+              null,
+              "three"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "\"Part\"",
+        "value": {
+          "type": "table",
+          "value": {
+            "rows": [
+              "one",
+              null,
+              "three"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "valid": false,
+        "code": "invalid"
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "\"string\"",
+        "text": "\"\\ud800\""
+      },
+      "expect": {
+        "valid": false,
+        "code": "invalid",
+        "message": "invalid Unicode: expected Unicode scalar strings"
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "\"string\"",
+        "text": "\"\\ud83d\\ude00 �\""
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "\"json\"",
+        "text": "{\"duplicate\":\"\\ud800\",\"duplicate\":\"valid\"}"
+      },
+      "expect": {
+        "valid": false,
+        "code": "invalid",
+        "message": "invalid Unicode: expected Unicode scalar strings"
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "{\"kind\": \"record\", \"fields\": [{\"name\": \"code\", \"type\": \"string\", \"pattern\": \"(?=a)\"}]}",
+        "value": {
+          "code": "a"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "code": "invalid",
+        "message": "pattern \"(?=a)\": outside Nightseam dialect"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.proof_names",
+      "expect": [
+        "OptionNone",
+        "PartImage",
+        "PartsRequest",
+        "RichPartTable"
+      ]
+    },
+    {
+      "on": "b",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "\"Part\"",
+        "value": {
+          "type": "image",
+          "value": {
+            "url": "https://example.org/image",
+            "alt": null
+          }
+        }
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "\"RichPart\"",
+        "value": {
+          "type": "table",
+          "value": {
+            "rows": [
+              "one",
+              null,
+              "three"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "\"Part\"",
+        "value": {
+          "type": "table",
+          "value": {
+            "rows": [
+              "one",
+              null,
+              "three"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "valid": false,
+        "code": "invalid"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "\"string\"",
+        "text": "\"\\ud800\""
+      },
+      "expect": {
+        "valid": false,
+        "code": "invalid",
+        "message": "invalid Unicode: expected Unicode scalar strings"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "\"string\"",
+        "text": "\"\\ud83d\\ude00 �\""
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "\"json\"",
+        "text": "{\"duplicate\":\"\\ud800\",\"duplicate\":\"valid\"}"
+      },
+      "expect": {
+        "valid": false,
+        "code": "invalid",
+        "message": "invalid Unicode: expected Unicode scalar strings"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.proof_validate",
+      "args": {
+        "type": "{\"kind\": \"record\", \"fields\": [{\"name\": \"code\", \"type\": \"string\", \"pattern\": \"(?=a)\"}]}",
+        "value": {
+          "code": "a"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "code": "invalid",
+        "message": "pattern \"(?=a)\": outside Nightseam dialect"
+      }
+    }
+  ]
+}

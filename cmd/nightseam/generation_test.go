@@ -21,7 +21,7 @@ import (
 // API; a next generation is held to them the same way.
 type generation struct {
 	name string
-	// probe renders the probe family into the fixture directory.
+	// probe renders probe and the full-language proof into the fixture directory.
 	probe func(t *testing.T, directory string)
 	// slots renders probe, the substituted carrier at the default paths —
 	// the left path — and the carrier as written at gen/ — the right path.
@@ -43,11 +43,13 @@ func toolProbe(t *testing.T, directory string) {
 	t.Helper()
 	k, _ := toolKernel(load.Config{}, module, scope, "")
 	world := k.Load(os.DirFS(familiesRoot), "api/contracts")
-	rendered, err := k.Render(world, "probe")
-	if err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"probe", "proof"} {
+		rendered, err := k.Render(world, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeAll(t, directory, rendered.Files)
 	}
-	writeAll(t, directory, rendered.Files)
 }
 
 func toolSlots(t *testing.T, directory string) {

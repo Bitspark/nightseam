@@ -20,11 +20,11 @@ func TestProofAndBuiltinGoFamiliesCompileAndCommunicate(t *testing.T) {
 	if testing.Short() {
 		t.Skip("the full tier compiles and connects generated packages")
 	}
-	loaded, diagnostics := load.Checkout(os.DirFS("../../../cmd/nightseam/testdata"), "proof", []string{Name})
+	loaded, diagnostics := load.Checkout(os.DirFS("../../../cmd/nightseam/testdata/families"), "api/contracts", []string{Name, "typescript"})
 	if len(diagnostics) != 0 {
 		t.Fatal(diagnostics)
 	}
-	world := analysis.World(loaded.Families)
+	world := analysis.World{"probe": loaded.Families["probe"], "proof": loaded.Families["proof"]}
 	for name, family := range builtin.Families() {
 		world[name] = family
 	}
@@ -83,7 +83,7 @@ import (
  duplex "github.com/Bitspark/nightseam/duplex/go"
  runtime "github.com/Bitspark/nightseam/runtime/go"
 )
-type server struct{}
+type server struct{binding.Handler[probe.Envelope,probe.Handle,string]}
 func (server) Echo(ctx context.Context,remote *binding.Remote[probe.Envelope,probe.Handle,string],p probe.Payload)(probe.Payload,error) {
  if err:=remote.EmitChanged(ctx,p); err!=nil { return probe.Payload{},err }; return p,nil
 }

@@ -14,8 +14,8 @@ import (
 )
 
 // The generated layer: a language's second testee links what the generator
-// renders for the corpus's probe family and speaks the family through it.
-// The runner renders probe into the recipe's {rendered} directory under a
+// renders for the probe and proof families and speaks them through it.
+// The runner renders both into the recipe's {rendered} directory under a
 // fixed module and scope, lays the language's own files from
 // conformance/<lang>/generated/ beside the rendering — the testee's source,
 // its module or package manifest — with {checkout} and {go} filled in text
@@ -31,22 +31,28 @@ import (
 const GeneratedModule = "example.test/generated"
 const GeneratedScope = "@example"
 
-// renderProbe renders the corpus's probe family into dir.
-func renderProbe(checkout, dir string) error {
+// renderProofAndProbe renders the shared proof against the conformance probe into dir.
+func renderProofAndProbe(checkout, dir string) error {
 	k := compose.Kernel(GeneratedModule, GeneratedScope, "")
 	corpus := filepath.Join(checkout, "cmd", "nightseam", "testdata", "corpus")
 	world := k.Load(os.DirFS(corpus), "api/contracts")
-	result, err := k.Render(world, "probe")
-	if err != nil {
-		return fmt.Errorf("render probe: %w", err)
-	}
-	for p, data := range result.Files {
-		file := filepath.Join(dir, filepath.FromSlash(p))
-		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
-			return err
+	proof := k.Load(os.DirFS(filepath.Join(checkout, "cmd", "nightseam", "testdata", "families")), "api/contracts")
+	world.Families["proof"] = proof.Families["proof"]
+	world.Problems["proof"] = proof.Problems["proof"]
+	world.Names = append(world.Names, "proof")
+	for _, name := range []string{"probe", "proof"} {
+		result, err := k.Render(world, name)
+		if err != nil {
+			return fmt.Errorf("render proof and probe: %w", err)
 		}
-		if err := os.WriteFile(file, data, 0o644); err != nil {
-			return err
+		for p, data := range result.Files {
+			file := filepath.Join(dir, filepath.FromSlash(p))
+			if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+				return err
+			}
+			if err := os.WriteFile(file, data, 0o644); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -104,7 +110,7 @@ func goDirectiveOf(file string) (string, error) {
 	return "", fmt.Errorf("no go directive in %s", file)
 }
 
-// PrepareGenerated renders probe and lays the language's files for every
+// PrepareGenerated renders proof and probe and lays the language's files for every
 // recipe that has a generated testee, then builds each once. The rendering
 // lands where the recipe says; a recipe without a generated section is
 // left out of the generated layer.
@@ -127,7 +133,7 @@ func (s *Suite) PrepareGenerated(t *testing.T) []string {
 		if err := os.RemoveAll(places.Rendered); err != nil {
 			t.Fatal(err)
 		}
-		if err := renderProbe(s.Checkout, places.Rendered); err != nil {
+		if err := renderProofAndProbe(s.Checkout, places.Rendered); err != nil {
 			t.Fatal(err)
 		}
 		if err := layGenerated(s.Checkout, from, places.Rendered); err != nil {

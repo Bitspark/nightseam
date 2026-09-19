@@ -76,7 +76,7 @@ func TestDialOnly(t *testing.T) {
 }
 
 // TestGenerated holds every language's generated testee — what its target
-// renders for the probe family, over its runtime — to Go's, on either side,
+// renders for the probe and proof families, over its runtime — to Go's, on either side,
 // and Go's to its own.
 func TestGenerated(t *testing.T) {
 	s := Open(t)

@@ -14,7 +14,7 @@ import (
 
 func proof(t *testing.T) *analysis.Family {
 	t.Helper()
-	world, diagnostics := load.Checkout(os.DirFS("../../cmd/nightseam/testdata"), "proof", nil)
+	world, diagnostics := load.Checkout(os.DirFS("../../cmd/nightseam/testdata/families"), "api/contracts", []string{"go", "typescript"})
 	if len(diagnostics) != 0 {
 		t.Fatalf("load proof: %v", diagnostics)
 	}
@@ -23,7 +23,7 @@ func proof(t *testing.T) *analysis.Family {
 
 func TestInlineDeclarationsAreRenderingTypes(t *testing.T) {
 	r := Build(proof(t))
-	if r.Source != "proof/proof" {
+	if r.Source != "api/contracts/proof" {
 		t.Fatalf("source directory = %q", r.Source)
 	}
 	for _, name := range []string{"OptionNone", "PartImage", "RichPartTable", "PartsRequest"} {
@@ -53,7 +53,7 @@ func TestSideIncludesItsBaseOperationsAndErrors(t *testing.T) {
 			t.Errorf("inherited request = %s, want its declaring family's type", model.String(method.Request))
 		}
 	}
-	if want := []string{"echo", "parts", "relay"}; !reflect.DeepEqual(methods, want) {
+	if want := []string{"echo", "no_args", "classify", "classify_rich", "parts", "relay"}; !reflect.DeepEqual(methods, want) {
 		t.Errorf("methods = %v, want %v", methods, want)
 	}
 	if len(r.Errors) != 1 || r.Errors[0].Code != "denied" {

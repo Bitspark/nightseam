@@ -16,6 +16,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- The full type-language proof joins the shared family corpus, with compiled
+  generated cross-wire scenarios, a mixed family/type binding diagram, and
+  measured inline-name churn in Go and TypeScript.
+
 - Generated session clients retain the relay's exact cursor through Go
   `Sequence()` and TypeScript `sequence`, including replay-ending cursors
   and gaps from skipped frames. Tracking starts before reading and updates

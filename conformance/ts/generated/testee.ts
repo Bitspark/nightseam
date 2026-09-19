@@ -9,6 +9,7 @@
  * here and the runner skips what needs it; a scenario that dials a Go
  * binding, or that asks the rendering what it says, runs.
  */
+import { proofOps, resetProof, ProofFailure } from './proof.ts';
 import { createInterface } from 'node:readline';
 import { Client, DuplexError, asks, conversation, decides, errors, validateWire, type Payload, type Seen } from './api/ts/probe-client/src/index.ts';
 import type {Control, Cursor} from './api/ts/session-client/src/index.ts';
@@ -58,6 +59,7 @@ let next = 0;
 let bye = false;
 
 const reset = () => {
+  resetProof();
   for (const d of handles.values()) d.shutdown();
   handles.clear();
 };
@@ -89,6 +91,7 @@ const typed = async (work: () => Promise<unknown>): Promise<Record<string, unkno
 };
 
 const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
+  ...proofOps,
   hello: () => ({ driver: 1, language: 'typescript', layers: ['generated'], features: [] }),
   reset: () => { reset(); return {}; },
   bye: () => { bye = true; reset(); return {}; },
@@ -154,7 +157,7 @@ const serve = async (line: string): Promise<string> => {
   try {
     return JSON.stringify({ id, ok: (await handler(args)) ?? {} });
   } catch (error) {
-    if (error instanceof Failure) return JSON.stringify({ id, error });
+    if (error instanceof Failure || error instanceof ProofFailure) return JSON.stringify({ id, error: {code:error.code,message:error.message} });
     return JSON.stringify({ id, error: fail('internal', error instanceof Error ? error.message : String(error)) });
   }
 };

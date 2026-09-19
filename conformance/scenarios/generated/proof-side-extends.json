@@ -1,0 +1,53 @@
+{
+  "name": "the probe client speaks to the generated binding whose server side extends probe",
+  "layer": "generated",
+  "needs": [
+    "generated"
+  ],
+  "mirror": true,
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.proof_serve",
+      "bind": {
+        "handle": "srv",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.dial",
+      "args": {
+        "url": "$url"
+      },
+      "bind": "cl"
+    },
+    {
+      "on": "b",
+      "op": "client.echo",
+      "args": {
+        "on": "$cl",
+        "params": {
+          "text": "base client",
+          "count": 2
+        }
+      },
+      "expect": {
+        "result": {
+          "text": "base client",
+          "count": 2
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.no_args",
+      "args": {
+        "on": "$cl"
+      },
+      "expect": {
+        "result": "proof"
+      }
+    }
+  ]
+}
