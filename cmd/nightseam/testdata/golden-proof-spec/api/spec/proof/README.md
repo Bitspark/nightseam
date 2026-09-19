@@ -33,7 +33,7 @@ A union, generic in `T`. A value, or nothing: a generic union, declared in the l
 
 - **T**: a type. What the value is, where there is one.
 
-The `kind` member identifies the variant. A non-object payload is carried in `value` beside the tag; an object payload contributes its members directly. A record declaring the tag itself carries the matching literal.
+The `kind` member identifies the variant. The complete payload is carried in `value` beside the tag, including records, maps, JSON and null. A record's own literal tag remains inside its payload. A variant without a payload has only the tag; `value` is absent.
 
 | Tag | Payload | Declared by |
 |---|---|---|
@@ -63,7 +63,7 @@ A record, generic in `T`. A page of anything: a type parameter filled by a type 
 
 A union. One part of a message: a record that carries its own tag, a shape written inline, and a payload that is not an object.
 
-The `type` member identifies the variant. A non-object payload is carried in `value` beside the tag; an object payload contributes its members directly. A record declaring the tag itself carries the matching literal.
+The `type` member identifies the variant. The complete payload is carried in `value` beside the tag, including records, maps, JSON and null. A record's own literal tag remains inside its payload. A variant without a payload has only the tag; `value` is absent.
 
 | Tag | Payload | Declared by |
 |---|---|---|
@@ -107,7 +107,7 @@ A union, generic in `T`, `E`. What came of a call: two type parameters on one de
 - **T**: a type.
 - **E**: a type.
 
-The `kind` member identifies the variant. A non-object payload is carried in `value` beside the tag; an object payload contributes its members directly. A record declaring the tag itself carries the matching literal.
+The `kind` member identifies the variant. The complete payload is carried in `value` beside the tag, including records, maps, JSON and null. A record's own literal tag remains inside its payload. A variant without a payload has only the tag; `value` is absent.
 
 | Tag | Payload | Declared by |
 |---|---|---|
@@ -120,7 +120,7 @@ A union. Part widened: an extending union adds variants, and a value of the base
 
 Extends `Part`.
 
-The `type` member identifies the variant. A non-object payload is carried in `value` beside the tag; an object payload contributes its members directly. A record declaring the tag itself carries the matching literal.
+The `type` member identifies the variant. The complete payload is carried in `value` beside the tag, including records, maps, JSON and null. A record's own literal tag remains inside its payload. A variant without a payload has only the tag; `value` is absent.
 
 | Tag | Payload | Declared by |
 |---|---|---|
