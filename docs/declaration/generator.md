@@ -104,11 +104,59 @@ is developer tooling and never a runtime dependency of its own generator.
 
 ## The specification
 
-A third target, `spec`, renders each family's specification as Markdown at
-`api/spec/<family>/README.md` — its types with their fields and
-constraints, the two sides with their operations and errors, the parameters
-it is generic in, the governance of a session of it — from the declaration
-alone, so that the document is never behind it. It reserves nothing and
-refuses nothing, and it is a target that is no language: the example of
-what a target is, beyond a rendering into code ([a specification is
-rendered, not written](../decisions/a-specification-is-rendered-not-written.md)).
+The specification is a document the generator builds once from the
+declaration, `internal/doc`, and writers render: every type with its
+fields and constraints, an example value of it and where it is used; the
+two sides with their operations and errors, each operation as the frames
+of the profile carry it — the request, the response, a refusal per error
+the method declares, an event's frame — and how much each side says; the
+parameters a family is generic in; the governance of a session of it. All
+of it comes from the declaration alone, so that no page is ever behind it,
+and the examples are synthesized deterministically — a placeholder string
+is its member's name between angle quotes, `‹text›`, a number its lower
+bound or zero, an enum its first value, a union its first variant by tag,
+a recursion folded to null — so that a page shows the wire without a peer
+having run ([a specification is rendered, not
+written](../decisions/a-specification-is-rendered-not-written.md); [a
+specification has a document, and renderers of
+it](../decisions/a-specification-has-a-document-and-renderers-of-it.md)).
+
+A writer renders the document in one format and is a target by an adapter,
+so that the kernel holds every format the same way — what it owns, where
+its files are found, what is stale — and a writer implements none of that.
+A writer declares its unit: pages of one family, pages of the checkout as
+a whole, or both. `markdown` is the first writer, a page per family at
+`api/spec/<family>/README.md`, which renders where the tree is read; it
+reserves nothing and refuses only the forms of the declaration language no
+writer renders yet. A writer of the checkout as a whole — an index of every
+family, a page across them — is rendered on every run, after the families,
+from every family the checkout has, whole or not at all: a family with a
+diagnostic refuses it, naming itself.
+
+## The checkout's config
+
+`api/contracts/nightseam.json`, beside the families, is the checkout's own:
+
+```json
+{
+  "disabled": ["typescript"],
+  "targets": {
+    "markdown": {"layout": "docs/{family}"},
+    "go": {"runtime": "example.com/fork/runtime"}
+  }
+}
+```
+
+`disabled` is the one key the kernel reads: a target named there is
+composed no more, renders nothing, and what it rendered before is left
+alone, its roots being nobody's to walk. Everything under `targets` is a
+section keyed by a target's name, carried raw and read by that target —
+the rule of a family's override file, at the checkout — decoded into the
+target's own config with no member the config lacks, and validated by the
+target; a section keyed by no composed target, a disabled name that is
+none, a member a config lacks or a value a target refuses is a diagnostic
+at its place in the file, which `validate` reports first, as the
+checkout's own, and which refuses `generate`, `check` and `init` before any
+family. What the tool's flags set — `--module`, `--scope`, `--ts-sibling` —
+a section may not set, since those are the tool's to know of the checkout
+it runs in.

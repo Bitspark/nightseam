@@ -136,8 +136,8 @@ the tunnel, and on nothing else.
 Every published component exists in both languages and both are held to one
 suite; the suite's own testees live at `conformance/<lang>`, private. A third
 language is `<component>/<lang>` for each of these, a target under
-`internal/targets/` (Go's is `golang`, and `spec` is a target that is no
-language), and a testee under `conformance/<lang>`; nothing
+`internal/targets/` (Go's is `golang`, and `markdown` is a writer of the
+specification, a target that is no language), and a testee under `conformance/<lang>`; nothing
 else moves, and [docs/languages/onboarding.md](docs/languages/onboarding.md)
 is the order to do it in.
 

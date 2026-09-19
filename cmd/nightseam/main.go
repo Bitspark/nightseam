@@ -3,7 +3,8 @@
 // model.json for its types, protocol.json for its two sides, session.json
 // for how a session of it is governed, and an override file per target
 // where a name differs from the convention — and rendered by every target
-// the tool is composed with, today Go and TypeScript. A declaration refers
+// the tool is composed with, today Go, TypeScript and the family's own
+// specification as Markdown. A declaration refers
 // to its own tier or a lower one, never a higher one, and the tool refuses
 // one that does.
 //
@@ -248,7 +249,9 @@ protocol.json, session.json, and an override file per target — and rendered
 by every target the tool is composed with, today Go, TypeScript and the
 family's own specification as Markdown. The Go packages are rooted at the
 checkout's module, the TypeScript packages at an npm scope; both bind to
-Nightseam's runtime. Nothing is written that is already up to date.`,
+Nightseam's runtime. The checkout's own config, api/contracts/nightseam.json,
+disables targets and configures each in a section of its own. Nothing is
+written that is already up to date.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		// --version and the version command are one answer in one spelling.
