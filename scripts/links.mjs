@@ -14,9 +14,12 @@
 // same way, since that is the form a package README must use to render on
 // npm and the one a move would otherwise break without a sound. Any other
 // URL is somebody else's and is not asked. Links inside fenced or inline
-// code are examples, not claims, and are skipped. The tracked set comes from
-// git rather than the disk so that the answer is the same on a
-// case-insensitive filesystem as on the one CI runs.
+// code are examples, not claims, and are skipped. The issue forms under
+// .github/ISSUE_TEMPLATE are read for links too: a form renders on
+// github.com and points into the tree by the repository's own URL, and a
+// form that pointed at a page that moved would misdirect every issue filed
+// from it. The tracked set comes from git rather than the disk so that the
+// answer is the same on a case-insensitive filesystem as on the one CI runs.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, posix } from "node:path";
@@ -68,6 +71,19 @@ export function links(markdown) {
 
 function unwrap(target) {
   return target.startsWith("<") && target.endsWith(">") ? target.slice(1, -1) : target;
+}
+
+/**
+ * The tracked paths whose links are held: every Markdown page, and every
+ * issue form. A form is not a page — nothing links into one, so it answers
+ * to no anchor — but what it links out to is held like a page's.
+ */
+export function sources(tracked) {
+  const found = new Set();
+  for (const path of tracked) {
+    if (path.endsWith(".md") || /^\.github\/ISSUE_TEMPLATE\/[^/]+\.ya?ml$/.test(path)) found.add(path);
+  }
+  return found;
 }
 
 /** A heading's anchor as GitHub renders it; `taken` counts repeats so that the second `## Options` is `options-1`. */
@@ -162,8 +178,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   // The tree's paths are POSIX whatever the platform; the disk is read by
   // the platform's own join, and that is the one place it is read.
   const pages = new Map();
-  for (const path of tracked) {
-    if (!path.endsWith(".md")) continue;
+  for (const path of sources(tracked)) {
     try {
       pages.set(path, decodeMarkdown(readFileSync(join(root, path)), path));
     } catch (error) {
@@ -179,5 +194,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   }
   let count = 0;
   for (const markdown of pages.values()) count += links(markdown).length;
-  console.log(`${count} links in ${pages.size} pages resolve`);
+  console.log(`${count} links in ${pages.size} pages and forms resolve`);
 }
