@@ -69,7 +69,7 @@ type Options struct {
 
 func (o Options) normalized() (Options, error) {
 	if o.MaxFrameBytes < 0 || o.Window < 0 || o.AcceptCapacity < 0 {
-		return o, errors.New("tunnel limits must be positive")
+		return o, errors.New("tunnel limits must not be negative")
 	}
 	if o.MaxFrameBytes == 0 {
 		o.MaxFrameBytes = 1 << 20
@@ -474,7 +474,7 @@ func (c *Channel) tell(code duplex.Code, reason string) {
 // while the other side's window is full, until ctx ends.
 func (c *Channel) Send(ctx context.Context, frame duplex.Frame) error {
 	if frame.Kind != duplex.Text && frame.Kind != duplex.Binary {
-		return errors.New("duplex frame of no kind")
+		return duplex.ErrNoKind
 	}
 	if err := c.take(ctx); err != nil {
 		return err

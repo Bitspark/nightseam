@@ -14,7 +14,8 @@
     "Counts": {"kind": "alias", "type": {"map": "integer"}},
     "User": {"kind": "entity", "key": "id", "fields": [{"name": "id", "type": "string", "required": true}, {"name": "name", "type": "string", "required": true}]},
     "Held": {"kind": "record", "fields": [{"name": "who", "type": {"ref": "User"}, "required": true}, {"name": "other", "type": "peer.Thing", "required": true}]},
-    "Frame": {"kind": "record", "fields": [{"name": "inner", "type": {"apply": "peer.Box", "with": {"S": "peer"}}, "required": true}]}
+    "Frame": {"kind": "record", "fields": [{"name": "inner", "type": {"apply": "peer.Box", "with": {"S": "peer"}}, "required": true}]},
+    "Unflagged": {"kind": "record", "fields": [{"name": "text", "type": "string"}]}
   },
   "imported": {
     "peer": {
@@ -76,6 +77,9 @@
     {"expression": "peer.Envelope", "value": {"version": 1, "meta": {"attempt": 2}}, "valid": false},
     {"expression": "peer.Envelope", "value": {"version": 1, "meta": {"tenant": null}}, "valid": false},
     {"expression": "Frame", "value": {"inner": {"nope": 1}}, "valid": false},
-    {"expression": "Nope", "value": 1, "valid": false}
+    {"expression": "Nope", "value": 1, "valid": false},
+    {"expression": "Unflagged", "value": {}, "valid": true},
+    {"expression": "Unflagged", "value": {"text": "x"}, "valid": true},
+    {"expression": "Unflagged", "value": {"text": 1}, "valid": false}
   ]
 }

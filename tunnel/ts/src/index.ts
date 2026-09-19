@@ -15,6 +15,7 @@
  */
 import { DuplexError, type DuplexPeer, type ObserverEvent } from '@nightseam/runtime';
 import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from '@nightseam/duplex';
+import { NO_STATUS } from '@nightseam/duplex';
 
 /**
  * What a tunnel tells the observer of the peer it runs over. They are members
@@ -38,10 +39,16 @@ declare module '@nightseam/runtime' {
   }
 }
 
+/** The request that opens a channel, and the three events a channel travels as. */
 export const OPEN_METHOD = 'channel.open';
 export const FRAME_EVENT = 'channel.frame';
 export const CREDIT_EVENT = 'channel.credit';
 export const CLOSE_EVENT = 'channel.close';
+
+/** The three codes `channel.open` is refused with, as the Go tunnel exports them. */
+export const CHANNEL_REFUSED = 'channel_refused';
+export const CHANNEL_EXISTS = 'channel_exists';
+export const CHANNEL_INVALID = 'channel_invalid';
 
 export interface TunnelOptions {
   /** Bounds a frame received over a channel; a larger one is refused before delivery, and the channel with it. Default: one mebibyte. */
@@ -93,11 +100,11 @@ export class Tunnel {
   async open(family: string, after = 0): Promise<Channel> {
     if (typeof family !== 'string' || family === '') {
       this.refused('', 'a channel is opened for a family');
-      throw new DuplexError('channel_invalid', 'A channel is opened for a family.');
+      throw new DuplexError(CHANNEL_INVALID, 'A channel is opened for a family.');
     }
     if (!Number.isInteger(after) || after < 0) {
       this.refused(family, 'after must be a sequence');
-      throw new DuplexError('channel_invalid', 'after must be a sequence.');
+      throw new DuplexError(CHANNEL_INVALID, 'after must be a sequence.');
     }
     const id = this.next;
     this.next += 2;
@@ -119,7 +126,7 @@ export class Tunnel {
       this.table.delete(id);
       channel.endLocal();
       this.refused(family, 'the other side declared no window');
-      throw new DuplexError('channel_invalid', 'The other side declared no window.');
+      throw new DuplexError(CHANNEL_INVALID, 'The other side declared no window.');
     }
     channel.grant(window);
     this.observe({ type: 'channel.opened', at: new Date(), family, id, after, opener: true });
@@ -179,19 +186,19 @@ export class Tunnel {
     const p = params as Partial<Record<'channel' | 'family' | 'after' | 'window', unknown>> | null;
     if (!p || typeof p !== 'object' || typeof p.channel !== 'number' || !Number.isInteger(p.channel) || p.channel <= 0 || typeof p.family !== 'string' || p.family === '' || typeof p.after !== 'number' || !Number.isInteger(p.after) || p.after < 0 || typeof p.window !== 'number' || !Number.isInteger(p.window) || p.window <= 0) {
       this.refused(typeof p?.family === 'string' ? p.family : '', 'an open naming no channel, family, sequence and window');
-      throw new DuplexError('channel_invalid', 'channel.open needs a positive channel id of the opener\'s parity, a family, a sequence and a window.');
+      throw new DuplexError(CHANNEL_INVALID, 'channel.open needs a positive channel id of the opener\'s parity, a family, a sequence and a window.');
     }
     if (p.channel % 2 === this.parity) {
       this.refused(p.family, 'the channel id is of this side\'s parity');
-      throw new DuplexError('channel_invalid', 'The channel id is of this side\'s parity.');
+      throw new DuplexError(CHANNEL_INVALID, 'The channel id is of this side\'s parity.');
     }
     if (this.table.has(p.channel)) {
       this.refused(p.family, `channel ${p.channel} is open`);
-      throw new DuplexError('channel_exists', `Channel ${p.channel} is open.`);
+      throw new DuplexError(CHANNEL_EXISTS, `Channel ${p.channel} is open.`);
     }
     if (this.acceptors.length === 0 && this.pending.length >= this.options.acceptCapacity) {
       this.refused(p.family, 'no room for a channel nobody has accepted');
-      throw new DuplexError('channel_refused', 'No room for a channel nobody has accepted.');
+      throw new DuplexError(CHANNEL_REFUSED, 'No room for a channel nobody has accepted.');
     }
     const channel = new Channel(this, p.channel, p.family, p.after, p.window);
     this.table.set(p.channel, channel);
@@ -245,7 +252,7 @@ export class Tunnel {
     const channel = this.table.get(payload.channel);
     if (!channel) return;
     this.remove(payload.channel);
-    channel.endRemote(typeof payload.code === 'number' ? payload.code : 1005, typeof payload.reason === 'string' ? payload.reason : '');
+    channel.endRemote(typeof payload.code === 'number' ? payload.code : NO_STATUS, typeof payload.reason === 'string' ? payload.reason : '');
   }
 
   private onOuterClose(): void {

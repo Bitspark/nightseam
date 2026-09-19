@@ -25,9 +25,15 @@ import (
 type Kind int
 
 const (
+	// Text is a frame of UTF-8 text, what the profile's JSON envelopes travel as.
 	Text Kind = iota + 1
+	// Binary is a frame of bytes, opaque to the seam.
 	Binary
 )
+
+// ErrNoKind is refused by every transport for a frame whose Kind is neither
+// Text nor Binary.
+var ErrNoKind = errors.New("duplex frame of no kind")
 
 func (k Kind) String() string {
 	switch k {
@@ -50,16 +56,28 @@ type Frame struct {
 type Code int
 
 const (
-	CodeNormal          Code = 1000
-	CodeGoingAway       Code = 1001
-	CodeProtocolError   Code = 1002
+	// CodeNormal is a close both sides meant.
+	CodeNormal Code = 1000
+	// CodeGoingAway is a side shutting down.
+	CodeGoingAway Code = 1001
+	// CodeProtocolError is a frame the receiver could not take as the
+	// protocol above the seam defines one.
+	CodeProtocolError Code = 1002
+	// CodeUnsupportedData is a frame of a kind the receiver does not speak,
+	// such as a binary frame where JSON text was expected.
 	CodeUnsupportedData Code = 1003
+	// CodeNoStatus is what a side sees when the other closed with no code:
+	// never sent, only read.
+	CodeNoStatus Code = 1005
 	// CodeAbnormalClosure is what a side sees when the other ended with no
 	// close at all: an abort, or a dropped transport.
 	CodeAbnormalClosure Code = 1006
+	// CodePolicyViolation is a frame that parses and is refused anyway.
 	CodePolicyViolation Code = 1008
-	CodeTooLarge        Code = 1009
-	CodeInternalError   Code = 1011
+	// CodeTooLarge is a frame over the receiver's limit.
+	CodeTooLarge Code = 1009
+	// CodeInternalError is a failure of the receiver's own.
+	CodeInternalError Code = 1011
 )
 
 // Application codes are the range a protocol above the seam may use for its

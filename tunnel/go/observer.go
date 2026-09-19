@@ -96,8 +96,8 @@ var (
 // session of a family speaks over a channel and is given nothing else of the
 // tunnel, so this is how it emits its events without an observer option of its
 // own — the same way the tunnel emits its own, one step further down. It is
-// Tunnel.Peer of the tunnel this channel belongs to, and the twin of the
-// Channel.observe tunnel/ts gained for session/ts in d9d0c6a.
+// Tunnel.Peer of the tunnel this channel belongs to, and the twin of
+// Channel.observe in tunnel/ts.
 func (c *Channel) Peer() *runtime.Peer { return c.t.Peer() }
 
 // Every hook point below asks the peer for an observer before it builds

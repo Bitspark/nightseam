@@ -101,7 +101,7 @@ type Options struct {
 
 func (o Options) normalized() (Options, error) {
 	if o.MaxConcurrentHandlers < 0 || o.MaxPendingRequests < 0 || o.QueueCapacity < 0 || o.MaxFrameBytes < 0 || o.RequestTimeout < 0 || o.WriteTimeout < 0 {
-		return o, errors.New("duplex limits must be positive")
+		return o, errors.New("duplex limits must not be negative")
 	}
 	if o.MaxConcurrentHandlers == 0 {
 		o.MaxConcurrentHandlers = 64

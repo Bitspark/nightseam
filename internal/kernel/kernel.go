@@ -104,9 +104,7 @@ func (k *Kernel) Validate(world *World, name string) []diag.Diagnostic {
 
 // Result is one family rendered by every target: its files by path.
 type Result struct {
-	Files          map[string][]byte
-	Recipe         string
-	RuntimeVersion string
+	Files map[string][]byte
 }
 
 // Render renders one family with every target that consumes what it
@@ -140,7 +138,7 @@ func (k *Kernel) Render(world *World, name string) (Result, error) {
 			files[file.Path] = file.Data
 		}
 	}
-	return Result{Files: files, Recipe: spi.Recipe, RuntimeVersion: spi.RuntimeVersion}, nil
+	return Result{Files: files}, nil
 }
 
 // consumes reports whether a target has anything to render for a family:

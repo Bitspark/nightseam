@@ -200,9 +200,6 @@ func union(sets ...[]Use) []Use {
 // Type finds a type by name.
 func (r *Family) Type(name string) *Type { return r.types[name] }
 
-// HasSession reports whether the family has a session tier.
-func (r *Family) HasSession() bool { return r.Session != nil }
-
 // HasProtocol reports whether the family has a protocol tier.
 func (r *Family) HasProtocol() bool { return r.f.Protocol != nil }
 

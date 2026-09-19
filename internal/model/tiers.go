@@ -28,9 +28,6 @@ var Tiers = []Tier{
 	{Name: "session", Rank: 2, File: SessionFile, Sections: []string{"decides", "asks", "conversation", "extensions"}},
 }
 
-// Common are the sections every tier file may carry.
-var Common = []string{"imports", "types"}
-
 // TierOf finds a tier by its file name.
 func TierOf(file string) (Tier, bool) {
 	for _, tier := range Tiers {

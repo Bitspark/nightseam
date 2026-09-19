@@ -16,7 +16,7 @@
 // {apply: "family.Type", with: {...}} for an imported generic type, and
 // {empty: true} for a request that takes nothing.
 
-/** A type as the embedded descriptor spells it: a primitive or named type, an array, a map, a nullable, a reference, or an application of a generic type. */
+/** A type as the embedded descriptor spells it: a primitive or named type, an array, a map, a reference, or an application of a generic type. */
 export type TypeExpression =
   | string
   | { array: TypeExpression }
@@ -38,7 +38,7 @@ export interface WireField {
   pattern?: string;
 }
 
-/** One type of the descriptor — a record, entity, enum, alias or union — as the validator reads it. */
+/** One type of the descriptor — a record, entity, enum or alias — as the validator reads it. */
 export interface WireType {
   kind: string;
   key?: string;
@@ -195,7 +195,7 @@ export function createValidator(types: Record<string, WireType>, imported: Recor
     const object = value as Record<string, unknown>, allowed = new Set<string>();
     for (const field of fields(type)) {
       allowed.add(field.name);
-      if (!Object.hasOwn(object, field.name)) { if (field.required !== false) bad('required field ' + field.name); continue; }
+      if (!Object.hasOwn(object, field.name)) { if (field.required === true) bad('required field ' + field.name); continue; }
       const child = object[field.name];
       if (child === null && field.nullable) continue;
       if (child === null) bad('non-null field ' + field.name);

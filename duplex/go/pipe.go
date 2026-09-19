@@ -57,7 +57,7 @@ func (e *pipeEnd) remoteError() error {
 
 func (e *pipeEnd) Send(ctx context.Context, frame Frame) error {
 	if frame.Kind != Text && frame.Kind != Binary {
-		return fmt.Errorf("duplex frame of no kind")
+		return ErrNoKind
 	}
 	select {
 	case <-e.done:

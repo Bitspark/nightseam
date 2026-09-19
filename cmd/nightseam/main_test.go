@@ -24,7 +24,7 @@ const scope = "@example"
 // kernel, from the tier files to compiled and communicating packages.
 
 func TestDeterministicGeneration(t *testing.T) {
-	first, second := renderV2(t, familiesRoot), renderV2(t, familiesRoot)
+	first, second := renderTool(t, familiesRoot), renderTool(t, familiesRoot)
 	if !reflect.DeepEqual(first, second) {
 		t.Fatal("generation is not deterministic")
 	}
@@ -269,7 +269,7 @@ client.close();
 const runtimeLoader = `export async function resolve(specifier,context,next){const map={'@nightseam/runtime':'./runtime/ts/src/index.ts','@nightseam/duplex':'./duplex/ts/src/index.ts','@nightseam/tunnel':'./tunnel/ts/src/index.ts'};if(map[specifier])return {url:new URL(map[specifier],import.meta.url).href,shortCircuit:true};return next(specifier,context);}`
 
 func TestWorkbenchContractRenders(t *testing.T) {
-	files := renderV2(t, familiesRoot)
+	files := renderTool(t, familiesRoot)
 	index, ok := files["api/ts/workbench-client/src/index.ts"]
 	if !ok {
 		t.Fatal("the workbench client is not rendered")
@@ -510,7 +510,7 @@ func (l *labels) hold(t *testing.T, side string, want map[string]string) {
 // probe's install merges beside rather than replacing: one peer carrying
 // two families labels each name with its own, and a name nobody labelled
 // has no family rather than a guessed one.
-func TestInstallLabelsEveryNameWithItsFamily(t *testing.T) {
+func TestInstallLabelsEveryNameWithItsFamilyOverTheWire(t *testing.T) {
  consumer, machine := newLabels(), newLabels()
  options := runtime.ServerOptions{Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil }, CheckOrigin: func(*http.Request) bool { return true }}
  options.Options = runtime.Options{Observer: machine, Families: map[string]string{"relay": "carrier"}}

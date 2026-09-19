@@ -59,7 +59,7 @@ func typeOf(k duplex.Kind) (websocket.MessageType, error) {
 	case duplex.Binary:
 		return websocket.MessageBinary, nil
 	}
-	return 0, fmt.Errorf("duplex frame of no kind")
+	return 0, duplex.ErrNoKind
 }
 
 func (c *connection) Send(ctx context.Context, frame duplex.Frame) error {

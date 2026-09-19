@@ -41,8 +41,8 @@ export interface WebSocketLike {
 }
 
 const STATES: readonly ConnectionState[] = ['connecting', 'open', 'closing', 'closed'];
-/** The registry's "no status code present", used when a close event carries none. */
-const NO_STATUS = 1005;
+/** The registry's "no status code present": what a side reads when the other closed with no code, never sent. */
+export const NO_STATUS = 1005;
 
 /**
  * Adapts a WebSocket to a frames duplex connection: readyState maps to state,
