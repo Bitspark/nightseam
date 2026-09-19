@@ -43,12 +43,7 @@ export interface Carried<S extends AnyFamily = AnyFamily> {
 
 For example:
 
-```json
-{
-  "message": "‹S.Envelope›",
-  "back": "‹S.Handle›"
-}
-```
+Example unavailable (limit): no compatible concrete family is available for S.
 
 Used by `relay` (request).
 
@@ -162,31 +157,7 @@ The server implements these methods and emits these events.
 
 ### `relay` on the wire
 
-The client sends:
-
-```json
-{
-  "version": 1,
-  "kind": "request",
-  "id": "c:1",
-  "method": "relay",
-  "params": {
-    "message": "‹S.Envelope›",
-    "back": "‹S.Handle›"
-  }
-}
-```
-
-The server answers:
-
-```json
-{
-  "version": 1,
-  "kind": "response",
-  "id": "c:1",
-  "result": "‹S.Envelope›"
-}
-```
+Example unavailable (limit): no compatible concrete family is available for S.
 
 In `go`:
 

@@ -44,15 +44,49 @@ export interface Both<S extends AnyFamily = AnyFamily, T extends AnyFamily = Any
 
 For example:
 
+Example bindings: `S = family probe`, `T = family probe`.
+
 ```json
 {
   "frame": {
-    "message": "‹S.Envelope›",
-    "back": "‹S.Handle›"
+    "message": {
+      "version": 0,
+      "kind": "‹kind›",
+      "id": "‹id›",
+      "method": "‹method›",
+      "params": {},
+      "result": {},
+      "error": {},
+      "event": "‹event›",
+      "data": {},
+      "traceparent": "‹traceparent›",
+      "tracestate": "‹tracestate›",
+      "meta": {
+        "‹key›": "‹meta›"
+      }
+    },
+    "back": {
+      "channel": 0
+    }
   },
   "echoes": [
     {
-      "heard": "‹T.Envelope›"
+      "heard": {
+        "version": 0,
+        "kind": "‹kind›",
+        "id": "‹id›",
+        "method": "‹method›",
+        "params": {},
+        "result": {},
+        "error": {},
+        "event": "‹event›",
+        "data": {},
+        "traceparent": "‹traceparent›",
+        "tracestate": "‹tracestate›",
+        "meta": {
+          "‹key›": "‹meta›"
+        }
+      }
     }
   ]
 }
@@ -86,9 +120,26 @@ export interface Echo<T extends AnyFamily = AnyFamily> {
 
 For example:
 
+Example bindings: `T = family probe`.
+
 ```json
 {
-  "heard": "‹T.Envelope›"
+  "heard": {
+    "version": 0,
+    "kind": "‹kind›",
+    "id": "‹id›",
+    "method": "‹method›",
+    "params": {},
+    "result": {},
+    "error": {},
+    "event": "‹event›",
+    "data": {},
+    "traceparent": "‹traceparent›",
+    "tracestate": "‹tracestate›",
+    "meta": {
+      "‹key›": "‹meta›"
+    }
+  }
 }
 ```
 
@@ -123,10 +174,29 @@ export interface Frame<S extends AnyFamily = AnyFamily> {
 
 For example:
 
+Example bindings: `S = family probe`.
+
 ```json
 {
-  "message": "‹S.Envelope›",
-  "back": "‹S.Handle›"
+  "message": {
+    "version": 0,
+    "kind": "‹kind›",
+    "id": "‹id›",
+    "method": "‹method›",
+    "params": {},
+    "result": {},
+    "error": {},
+    "event": "‹event›",
+    "data": {},
+    "traceparent": "‹traceparent›",
+    "tracestate": "‹tracestate›",
+    "meta": {
+      "‹key›": "‹meta›"
+    }
+  },
+  "back": {
+    "channel": 0
+  }
 }
 ```
 
@@ -369,6 +439,8 @@ await client.named(params)
 
 ### `relay` on the wire
 
+Example bindings: `S = family probe`, `T = family probe`.
+
 The client sends:
 
 ```json
@@ -377,7 +449,22 @@ The client sends:
   "kind": "request",
   "id": "c:1",
   "method": "relay",
-  "params": "‹T.Envelope›"
+  "params": {
+    "version": 0,
+    "kind": "‹kind›",
+    "id": "‹id›",
+    "method": "‹method›",
+    "params": {},
+    "result": {},
+    "error": {},
+    "event": "‹event›",
+    "data": {},
+    "traceparent": "‹traceparent›",
+    "tracestate": "‹tracestate›",
+    "meta": {
+      "‹key›": "‹meta›"
+    }
+  }
 }
 ```
 
@@ -390,12 +477,44 @@ The server answers:
   "id": "c:1",
   "result": {
     "frame": {
-      "message": "‹S.Envelope›",
-      "back": "‹S.Handle›"
+      "message": {
+        "version": 0,
+        "kind": "‹kind›",
+        "id": "‹id›",
+        "method": "‹method›",
+        "params": {},
+        "result": {},
+        "error": {},
+        "event": "‹event›",
+        "data": {},
+        "traceparent": "‹traceparent›",
+        "tracestate": "‹tracestate›",
+        "meta": {
+          "‹key›": "‹meta›"
+        }
+      },
+      "back": {
+        "channel": 0
+      }
     },
     "echoes": [
       {
-        "heard": "‹T.Envelope›"
+        "heard": {
+          "version": 0,
+          "kind": "‹kind›",
+          "id": "‹id›",
+          "method": "‹method›",
+          "params": {},
+          "result": {},
+          "error": {},
+          "event": "‹event›",
+          "data": {},
+          "traceparent": "‹traceparent›",
+          "tracestate": "‹tracestate›",
+          "meta": {
+            "‹key›": "‹meta›"
+          }
+        }
       }
     ]
   }
@@ -418,6 +537,8 @@ await client.relay(params)
 
 ### `echoed` on the wire
 
+Example bindings: `T = family probe`.
+
 The server emits:
 
 ```json
@@ -426,7 +547,22 @@ The server emits:
   "kind": "event",
   "event": "echoed",
   "data": {
-    "heard": "‹T.Envelope›"
+    "heard": {
+      "version": 0,
+      "kind": "‹kind›",
+      "id": "‹id›",
+      "method": "‹method›",
+      "params": {},
+      "result": {},
+      "error": {},
+      "event": "‹event›",
+      "data": {},
+      "traceparent": "‹traceparent›",
+      "tracestate": "‹tracestate›",
+      "meta": {
+        "‹key›": "‹meta›"
+      }
+    }
   }
 }
 ```
