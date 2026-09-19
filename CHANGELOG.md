@@ -54,6 +54,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Go's `session.New` returns `(*Registry, error)` and refuses negative
+  attachment, inflight and send-timeout limits with `invalid_options`;
+  zero still selects the defaults. Both conformance testees preserve the
+  constructor's refusal code, held by the shared session scenario.
 - An observer snapshot repeated until its expectations match preserves its
   history: the deadline scenario no longer consumes request events before
   the cancel arrives, and the scenario loader refuses such polling without

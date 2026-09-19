@@ -115,7 +115,11 @@ export function sessionOps(t: Testee): Record<string, Op> {
           }
         }
       }
-      return { handle: t.mint('reg', new RegistryOn(new Registry(options))) };
+      try {
+        return { handle: t.mint('reg', new RegistryOn(new Registry(options))) };
+      } catch (error) {
+        throw sessionError(error);
+      }
     },
     'session.bind': async (args) => {
       const reg = registryOf(args);
