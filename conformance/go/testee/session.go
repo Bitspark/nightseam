@@ -151,13 +151,45 @@ func (t *testee) sessionOps() map[string]func(request) (any, error) {
 					return nil, invalid("log.max_frame_bytes is an integer")
 				}
 			}
+			log := session.NewMemoryLog(maxFrameBytes)
+			// A log with frames in it before anything is bound, which is what a
+			// durable one holds after the process that wrote them ended; it is
+			// filled through the Log interface, as the component's own suites
+			// fill theirs.
+			if raw, ok := logOptions["prefill"]; ok {
+				var prefill []struct {
+					Direction string `json:"direction"`
+					Origin    string `json:"origin"`
+					Text      string `json:"text"`
+				}
+				if err := json.Unmarshal(raw, &prefill); err != nil {
+					return nil, invalid("log.prefill is a list of frames")
+				}
+				for _, frame := range prefill {
+					direction := session.Down
+					switch frame.Direction {
+					case "", "down":
+					case "up":
+						direction = session.Up
+					default:
+						return nil, invalid("log.prefill direction is up or down")
+					}
+					if !json.Valid([]byte(frame.Text)) {
+						return nil, invalid("log.prefill names each frame by its message, as text")
+					}
+					if _, err := log.Append(context.Background(), session.Frame{Direction: direction,
+						Origin: frame.Origin, At: time.Now().UTC(), Message: json.RawMessage(frame.Text)}); err != nil {
+						return nil, sessionError(err)
+					}
+				}
+			}
 			within, err := r.within()
 			if err != nil {
 				return nil, err
 			}
 			done := make(chan error, 1)
 			go func() {
-				done <- reg.Bind(id, ch, session.Governance{Decides: decides, Asks: asks}, session.NewMemoryLog(maxFrameBytes))
+				done <- reg.Bind(id, ch, session.Governance{Decides: decides, Asks: asks}, log)
 			}()
 			select {
 			case err := <-done:

@@ -88,11 +88,22 @@ export interface Frame {
   truncated: boolean;
 }
 
-/** The consumer's store of a session's frames; the package ships an in-memory one. */
+/**
+ * The consumer's store of a session's frames; the package ships an in-memory
+ * one. A log handed to `bind` that already holds frames is bound at its head:
+ * `bind` reads it once, through `replay` from after zero, and the session goes
+ * on from the last sequence that read delivered.
+ */
 export interface Log {
   /** Records a frame and returns the sequence it was given, which counts from one. */
   append(frame: Frame): Promise<number>;
-  /** Delivers every frame after a sequence, in order, waiting on each. */
+  /**
+   * Delivers every frame after a sequence, in ascending sequence order,
+   * waiting on each. The order is the contract rather than a convenience of
+   * the in-memory log's: it is what makes the last sequence `bind`'s read is
+   * given the log's head, so a log that delivers out of order binds its
+   * session below its own end.
+   */
   replay(after: number, deliver: (frame: Frame) => Promise<void>): Promise<void>;
 }
 
@@ -181,7 +192,14 @@ export class Registry {
     };
   }
 
-  /** Binds a session to the channel its machine speaks on, governed by its family's session tier and logged to `log`; the session lives until that channel closes. */
+  /**
+   * Binds a session to the channel its machine speaks on, governed by its
+   * family's session tier and logged to `log`; the session lives until that
+   * channel closes. The log is read once here, from its beginning, and the
+   * session goes on from its head: a durable log bound with frames already in
+   * it replays them to a consumer that attaches after nothing, rather than
+   * waiting for the machine to speak for the session to learn where it is.
+   */
   bind(id: string, up: Channel, governance: Governance, log: Log): void {
     if (typeof id !== 'string' || id === '') throw new DuplexError('session_invalid', 'A session is bound under an id.');
     if (this.relays.has(id)) throw new DuplexError('session_exists', `Session ${id} is bound.`);
@@ -314,6 +332,8 @@ class Relay {
   private upNext = 0;
   /** The sequence the log has reached: what a consumer attaching now is replayed up to, and no further. */
   private sequence = 0;
+  /** Whether the cursor above has been seated from the log, which is the first step of the queue and so runs before any frame is recorded. */
+  private seated = false;
   private queue: Promise<void> = Promise.resolve();
   private ended = false;
 
@@ -325,8 +345,32 @@ class Relay {
     this.log = log;
   }
 
+  /**
+   * seat places the cursor at the log's head, so that a session bound over a
+   * log that already holds frames goes on from its end rather than from
+   * nothing: a consumer attaching before the machine has spoken is replayed
+   * what the log holds. It reads the log once, from after zero, and takes the
+   * last sequence `replay` delivered, which is the head because `replay`
+   * delivers in ascending sequence order.
+   *
+   * It is the first step of the relay's queue, put there before the machine's
+   * channel is listened to: a frame the machine sends while the cursor is
+   * being seated is recorded behind the read, above the head, rather than
+   * under a sequence the log has already given out. A `Log` that knows its
+   * head without a read may later say so as a member the relay prefers where
+   * a log has one, which leaves every existing `Log` valid and this read what
+   * a log without it is bound by.
+   */
+  private async seat(): Promise<void> {
+    let head = 0;
+    await this.log.replay(0, frame => { head = frame.sequence; return Promise.resolve(); });
+    this.sequence = head;
+    this.seated = true;
+  }
+
   /** @internal */
   listen(): void {
+    this.run(() => this.seat());
     this.up.listen({
       frame: frame => this.run(() => this.fromUp(frame)),
       close: (code, reason) => this.run(() => this.end(code, reason)),
@@ -344,13 +388,20 @@ class Relay {
     // the consumer missed reaches it before anything live, in one order, and
     // it stops where the session stood when the consumer was added: a frame
     // recorded since reaches it live instead, once.
-    const ceiling = this.sequence;
-    this.run(() => this.log.replay(after, async frame => {
-      // A cut message is not a message: what the log truncated is there for a
-      // consumer that reads the log, not for a channel that speaks the family.
-      if (frame.sequence > ceiling || frame.truncated) return;
-      this.write(down, frame.message);
-    }));
+    // Until the cursor is seated no frame has been recorded — every record
+    // runs on the queue behind the seat — so a consumer that attaches that
+    // early is replayed up to the head the seat finds, read where the replay
+    // runs rather than pinned to the zero the cursor still stands at.
+    const pinned = this.seated ? this.sequence : undefined;
+    this.run(() => {
+      const ceiling = pinned ?? this.sequence;
+      return this.log.replay(after, async frame => {
+        // A cut message is not a message: what the log truncated is there for a
+        // consumer that reads the log, not for a channel that speaks the family.
+        if (frame.sequence > ceiling || frame.truncated) return;
+        this.write(down, frame.message);
+      });
+    });
     attachment.attachTo(down.listen({
       frame: frame => this.run(() => this.fromDown(attachment, frame)),
       close: () => this.run(() => this.drop(attachment)),

@@ -36,11 +36,12 @@ registry.Attention()               // every session with an unanswered ask
 ```
 
 `Bind` gives a session its own channel, the family's governance and its
-log; it is live from then until that channel closes. Which log is the
-consumer's: `session.NewMemoryLog(maxFrameBytes)` in Go and
-`memoryLog(maxFrameBytes)` in TypeScript are the one the package ships, and
-*The log* below says what is passed in their place when a session's frames
-must outlive the process. `Attach` adds a consumer over a channel of its
+log; it is live from then until that channel closes, and it reads the log
+once on the way in, so that a log bound with frames already in it is bound
+at its head rather than at nothing. Which log is the consumer's:
+`session.NewMemoryLog(maxFrameBytes)` in Go and `memoryLog(maxFrameBytes)`
+in TypeScript are the one the package ships, and *The log* below says what
+is passed in their place when a session's frames must outlive the process. `Attach` adds a consumer over a channel of its
 own, in a role — `Participant`, which may decide while it holds control and
 may be given it, or `Observer`, which never decides and is never given
 control — saying what the consumer is, stamped on every frame it sends as
@@ -88,7 +89,8 @@ Held, one test each, in both languages:
    attached with `after` receives the log's frames after that sequence
    first, then what arrives live, in one order and once; a frame the log
    cut is passed over, a cut message being no message for a channel that
-   speaks the family.
+   speaks the family. A log bound with frames already in it is bound at its
+   head, so what it held before the session was bound is among them.
 6. **A frame carrying members the relay does not know arrives with them.**
    The relay reads a frame as a JSON object and rewrites its `id` alone;
    every other member — a trace context, a member of a later profile —
@@ -135,6 +137,18 @@ changes, the relay holding the up channel across the append and the send
 either way, so that what the log says the consumers sent is the order the
 machine saw. Retention, redaction and what `Truncated` means for a reader
 are the consumer's with it, by the boundary rule.
+
+Such a log is bound at its head. `Bind` reads it once, through `Replay` from
+after zero, and seats the session at the last sequence that read delivered —
+which is why `Replay` delivers in ascending sequence order, and is the whole
+of what a durable implementation owes beyond storing frames. So a session
+bound after a restart stands at its log's end, and a consumer attaching with
+`after: 0` before the machine has spoken again is given everything the log
+holds rather than nothing. The read happens before the machine's channel is
+read and under the relay's own lock, so a frame arriving while it runs is
+recorded above the head and never under a sequence the log already gave out.
+A log that knows its head without a read may one day say so, as something
+the relay prefers where a log has it; every `Log` above stays what it is.
 
 ## Errors and limits
 

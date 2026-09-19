@@ -75,6 +75,33 @@ func newRelay(registry *Registry, id string, up *tunnel.Channel, g Governance, l
 		ctx: ctx, cancel: cancel, inflight: map[string]*pending{}, routed: map[string]*routed{}}
 }
 
+// seat places the relay's cursor at the log's head, so that a session bound
+// over a log that already holds frames goes on from its end rather than from
+// nothing: a consumer attaching before the machine has spoken is replayed
+// what the log holds. It reads the log once, from after zero, and takes the
+// last sequence Replay delivered, which is the head because Replay delivers
+// in ascending sequence order.
+//
+// Run before the pump and under the relay's lock: a frame the machine sends
+// while the cursor is being seated is recorded behind the read, above the
+// head, rather than under a sequence the log has already given out. A Log
+// that knows its head without a read may later say so as an optional
+// interface the relay prefers where a log has one, which leaves every
+// existing Log valid and this read what a log without it is bound by.
+func (r *relay) seat() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	head := int64(0)
+	if err := r.log.Replay(r.ctx, 0, func(frame Frame) error {
+		head = frame.Sequence
+		return nil
+	}); err != nil {
+		return err
+	}
+	r.sequence = head
+	return nil
+}
+
 // pump reads the machine's channel until it ends.
 func (r *relay) pump() {
 	for {

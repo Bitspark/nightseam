@@ -129,6 +129,12 @@ func New(options Options) *Registry {
 // the family it speaks and the log its frames are kept in. The session is
 // live from here until that channel closes, which ends every consumer
 // attached to it with the same close.
+//
+// The log is read once here, from its beginning, and the session goes on
+// from its head: a durable log bound with frames already in it replays them
+// to a consumer that attaches after nothing, rather than waiting for the
+// machine to speak for the session to learn where it is. A log that cannot
+// be read is not bound.
 func (r *Registry) Bind(id string, up *tunnel.Channel, g Governance, log Log) error {
 	switch {
 	case id == "":
@@ -141,6 +147,12 @@ func (r *Registry) Bind(id string, up *tunnel.Channel, g Governance, log Log) er
 		return errors.New("a session is bound with a log")
 	}
 	relay := newRelay(r, id, up, g, log)
+	// Before the session is anyone's and before the pump reads a frame, so
+	// that what the machine sends meanwhile is recorded above the head.
+	if err := relay.seat(); err != nil {
+		relay.cancel()
+		return fmt.Errorf("the session's log could not be read at bind: %w", err)
+	}
 	r.mu.Lock()
 	if _, bound := r.sessions[id]; bound {
 		r.mu.Unlock()

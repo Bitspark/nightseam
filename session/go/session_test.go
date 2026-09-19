@@ -3,6 +3,7 @@ package session_test
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -174,5 +175,73 @@ func TestAttachmentsAreBounded(t *testing.T) {
 	second, _ := channels(t)
 	if _, err := registry.Attach("s", second, session.Observer, "two", 0); err == nil {
 		t.Fatal("a session took a consumer beyond its bound")
+	}
+}
+
+// seating is a log whose first replay — the one Bind reads the head with —
+// says that it has begun and waits to be let go, so that a test can have the
+// machine speak while the cursor is being seated. Every later replay, which
+// is a consumer's, runs as the log beneath it does.
+type seating struct {
+	session.Log
+	began   chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (l *seating) Replay(ctx context.Context, after int64, deliver func(session.Frame) error) error {
+	l.once.Do(func() {
+		close(l.began)
+		<-l.release
+	})
+	return l.Log.Replay(ctx, after, deliver)
+}
+
+// TestBindRecordsAboveTheHeadAFrameSentWhileItReads: the machine speaks
+// while Bind is reading the log's head, and what it sent is recorded above
+// that head rather than under a sequence the log has already given out —
+// which is what seating the cursor before the pump, under the relay's lock,
+// is for. Run under -race it is also the two goroutines on the cursor.
+func TestBindRecordsAboveTheHeadAFrameSentWhileItReads(t *testing.T) {
+	const held = 3
+	beneath := session.NewMemoryLog(0)
+	for i := 0; i < held; i++ {
+		if _, err := beneath.Append(context.Background(), session.Frame{Direction: session.Down,
+			Message: []byte(`{"version":1,"kind":"event","event":"changed","data":{"text":"held","count":1}}`)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	log := &seating{Log: beneath, began: make(chan struct{}), release: make(chan struct{})}
+	registry := session.New(session.Options{})
+	appended := make(chan int64, 8)
+	stop := registry.OnChange(func(change session.Change) {
+		if change.Kind == session.ChangeFrameAppended {
+			appended <- change.Sequence
+		}
+	})
+	t.Cleanup(stop)
+	up, far := channels(t)
+	bound := make(chan error, 1)
+	go func() { bound <- registry.Bind("s", up, sessiontest.Probe(t), log) }()
+	<-log.began
+	// The machine speaks with the read in progress; the frame waits on the
+	// channel until the pump, which the seat runs before, reads it.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := far.Send(ctx, duplex.Frame{Kind: duplex.Text,
+		Data: []byte(`{"version":1,"kind":"event","event":"changed","data":{"text":"live","count":2}}`)}); err != nil {
+		t.Fatal(err)
+	}
+	close(log.release)
+	if err := <-bound; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case sequence := <-appended:
+		if sequence != held+1 {
+			t.Fatalf("a frame sent while the cursor was seated was recorded at %d, not above the log's head of %d", sequence, held)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the frame the machine sent while the cursor was seated was never recorded")
 	}
 }

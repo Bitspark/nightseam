@@ -228,6 +228,61 @@ func Run(t *testing.T, connect Connect) {
 		}
 	})
 
+	t.Run("a session bound over a log that already holds frames is bound at its head", func(t *testing.T) {
+		// The log is filled through the interface a consumer's own durable one
+		// implements, so that what is held here is what a session bound after
+		// a restart is bound over, and the suite needs no log of its own.
+		held := []string{
+			`{"version":1,"kind":"event","event":"changed","data":{"text":"one","count":1}}`,
+			`{"version":1,"kind":"event","event":"changed","data":{"text":"two","count":2}}`,
+			`{"version":1,"kind":"event","event":"changed","data":{"text":"three","count":3}}`,
+		}
+		log := session.NewMemoryLog(0)
+		for _, message := range held {
+			if _, err := log.Append(context.Background(), session.Frame{Direction: session.Down, Message: []byte(message)}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		registry := session.New(session.Options{})
+		near, far := connect(t, nil)
+		if err := registry.Bind("s", near, governance, log); err != nil {
+			t.Fatal(err)
+		}
+		machine := &speaker{name: "machine", channel: far}
+		// A consumer resuming from nothing, before the machine has spoken at
+		// all, is given every frame the log holds.
+		_, all := attach(t, registry, "s", "all", session.Observer, 0)
+		for i, message := range held {
+			if replayed := all.take(t); string(replayed.raw) != message {
+				t.Fatalf("frame %d of the replay was %s", i+1, replayed.raw)
+			}
+		}
+		all.quiet(t)
+		// And one holding all but the last two takes exactly those two.
+		_, late := attach(t, registry, "s", "late", session.Observer, int64(len(held)-2))
+		for _, message := range held[len(held)-2:] {
+			if replayed := late.take(t); string(replayed.raw) != message {
+				t.Fatalf("a consumer resuming after %d frames saw %s", len(held)-2, replayed.raw)
+			}
+		}
+		late.quiet(t)
+		// The session goes on from the log's end rather than from nothing: the
+		// machine's next frame takes the sequence after the head, which is what
+		// a consumer holding the whole log is replayed nothing before.
+		const live = `{"version":1,"kind":"event","event":"changed","data":{"text":"live","count":4}}`
+		machine.send(t, live)
+		for _, consumer := range []*speaker{all, late} {
+			if received := consumer.take(t); string(received.raw) != live {
+				t.Fatalf("%s saw %s", consumer.name, received.raw)
+			}
+		}
+		_, after := attach(t, registry, "s", "after", session.Observer, int64(len(held)))
+		if replayed := after.take(t); string(replayed.raw) != live {
+			t.Fatalf("a consumer resuming after the whole log saw %s", replayed.raw)
+		}
+		after.quiet(t)
+	})
+
 	t.Run("a frame carrying members the relay does not know arrives with them", func(t *testing.T) {
 		registry, machine := bind(t, "s")
 		holder, one := attach(t, registry, "s", "one", session.Participant, 0)

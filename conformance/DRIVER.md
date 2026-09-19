@@ -262,13 +262,21 @@ The session component: `session/go`, `@nightseam/session`.
 | op | arguments | answer |
 |---|---|---|
 | `session.new` | `options` (`max_attachments`, `max_inflight`) | `{"handle"}` a registry |
-| `session.bind` | **`on`**, **`session`**, **`channel`**, **`governance`** `{"decides": […], "asks": […]}`, `log` `{"max_frame_bytes"}`, `within_ms` | `{}` |
+| `session.bind` | **`on`**, **`session`**, **`channel`**, **`governance`** `{"decides": […], "asks": […]}`, `log` `{"max_frame_bytes", "prefill"}`, `within_ms` | `{}` |
 | `session.attach` | **`on`**, **`session`**, **`channel`**, **`role`** `"participant"`\|`"observer"`, **`origin`**, `after`, `within_ms` | `{"handle"}` an attachment; the replay has been delivered when it answers |
 | `session.control` | **`on`**, **`session`**, `attachment` (a handle, or `null` to release) | `{}` |
 | `session.attention` | **`on`** | `["id", …]` |
 | `session.changes` | **`on`**, `trace`, `drain` | `[change, …]` normalized: `kind` (`bound`, `unbound`, `attached`, `detached`, `ask_raised`, `ask_routed`, `ask_answered`, `control_changed`, `frame_appended`, `refused`), `session`, and of `origin`, `role`, `sequence`, `method`, `trace` what the change carries |
 | `session.await_change` | **`on`**, **`kind`**, `within_ms` | the first such change, removed |
 | `attachment.detach` | **`on`** | `{}` |
+
+`session.bind`'s `log.prefill` is a list of frames appended to the log
+before the session is bound over it, each `{"text"}` — the message as it
+went over the channel — with `direction` (`down` where it is left out) and
+`origin`. It is the durable log a session is bound over after the process
+that wrote those frames ended, which a testee has no other way to say; the
+component's own suites build theirs the same way, by appending through the
+`Log` interface.
 
 A session observes through the peer its machine's channel runs over; its
 events reach `peer.observed` there: `session.bound`, `session.unbound`

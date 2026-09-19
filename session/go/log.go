@@ -51,13 +51,19 @@ type Frame struct {
 
 // Log is a session's frames in one order. The record's shape is the
 // profile's and belongs here; the store is the consumer's, which is why
-// this is an interface and the package ships only an in-memory one.
+// this is an interface and the package ships only an in-memory one. A log
+// handed to Bind that already holds frames is bound at its head: Bind reads
+// it once, through Replay from after zero, and the session goes on from the
+// last sequence that read delivered.
 type Log interface {
 	// Append records a frame and gives it its sequence, which is one more
 	// than the last it gave.
 	Append(ctx context.Context, frame Frame) (sequence int64, err error)
-	// Replay delivers every frame after a sequence, in order, until deliver
-	// returns an error, which Replay returns.
+	// Replay delivers every frame after a sequence, in ascending sequence
+	// order, until deliver returns an error, which Replay returns. The order
+	// is the contract rather than a convenience of the memory log's: it is
+	// what makes the last sequence Bind's read is given the log's head, so a
+	// log that delivers out of order binds its session below its own end.
 	Replay(ctx context.Context, after int64, deliver func(Frame) error) error
 }
 

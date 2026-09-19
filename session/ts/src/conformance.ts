@@ -346,6 +346,43 @@ export function run(connect: Connect): void {
     wire.close();
   });
 
+  test('a session bound over a log that already holds frames is bound at its head', async () => {
+    const wire = await connect();
+    const registry = new Registry();
+    // The log is filled through the interface a consumer's own durable one
+    // implements, so that what is held here is what a session bound after a
+    // restart is bound over, and the suite needs no log of its own.
+    const log = memoryLog(1 << 20);
+    const held = [1, 2, 3].map(count => ({ version: 1, kind: 'event', event: 'changed', data: payload('held', count) }));
+    for (const message of held) await log.append({ sequence: 0, direction: 'down', origin: '', at: new Date(), message, truncated: false });
+    const { near: machine, far: up } = await wire.open();
+    registry.bind('s', up, governance, log);
+    // A consumer resuming from nothing, before the machine has spoken at all,
+    // is given every frame the log holds.
+    const all = await consumer(wire, registry, 'observer', 'all');
+    const atAll = listen(all.near);
+    for (const message of held) assert.deepEqual(await atAll.next(), message);
+    // And one holding all but the last two takes exactly those two.
+    const late = await consumer(wire, registry, 'observer', 'late', held.length - 2);
+    const atLate = listen(late.near);
+    for (const message of held.slice(-2)) assert.deepEqual(await atLate.next(), message);
+    await tick();
+    assert.deepEqual([atAll.envelopes.length, atLate.envelopes.length], [held.length, 2]);
+    // The session goes on from the log's end rather than from nothing: the
+    // machine's next frame takes the sequence after the head, which is what a
+    // consumer holding the whole log is replayed nothing before.
+    const live = { version: 1, kind: 'event', event: 'changed', data: payload('live', held.length + 1) };
+    say(machine, live);
+    assert.deepEqual(await atAll.next(), live);
+    assert.deepEqual(await atLate.next(), live);
+    const after = await consumer(wire, registry, 'observer', 'after', held.length);
+    const atAfter = listen(after.near);
+    assert.deepEqual(await atAfter.next(), live);
+    await tick();
+    assert.deepEqual(atAfter.envelopes, [live]);
+    wire.close();
+  });
+
   test('a message over the log\'s bound is kept cut and replayed truncated', async () => {
     const { wire, registry, log, machine } = await bound(128);
     const atMachine = listen(machine);

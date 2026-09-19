@@ -84,7 +84,7 @@ export function sessionOps(t: Testee): Record<string, Op> {
       }
       return { handle: t.mint('reg', new RegistryOn(new Registry(options))) };
     },
-    'session.bind': args => {
+    'session.bind': async args => {
       const reg = registryOf(args);
       const id = stringOf(args, 'session', true);
       const up = channelOf(args);
@@ -94,10 +94,27 @@ export function sessionOps(t: Testee): Record<string, Op> {
       const deciding = new Set(decides);
       const asking = new Set(asks);
       const governance: Governance = { decides: m => deciding.has(m), asks: m => asking.has(m) };
-      const log = (args.log ?? {}) as Record<string, unknown>;
-      const bound = typeof log.max_frame_bytes === 'number' ? log.max_frame_bytes : 1 << 20;
+      const options = (args.log ?? {}) as Record<string, unknown>;
+      const bound = typeof options.max_frame_bytes === 'number' ? options.max_frame_bytes : 1 << 20;
+      const log = memoryLog(bound);
+      // A log with frames in it before anything is bound, which is what a
+      // durable one holds after the process that wrote them ended; it is
+      // filled through the Log interface, as the component's own suites fill
+      // theirs.
+      if (options.prefill !== undefined) {
+        if (!Array.isArray(options.prefill)) throw invalid('log.prefill is a list of frames');
+        for (const entry of options.prefill as Record<string, unknown>[]) {
+          const direction = entry.direction ?? 'down';
+          if (direction !== 'up' && direction !== 'down') throw invalid('log.prefill direction is up or down');
+          if (typeof entry.text !== 'string') throw invalid('log.prefill names each frame by its message, as text');
+          let message: unknown;
+          try { message = JSON.parse(entry.text); } catch { throw invalid('log.prefill names each frame by its message, as text'); }
+          const origin = typeof entry.origin === 'string' ? entry.origin : '';
+          await log.append({ sequence: 0, direction, origin, at: new Date(), message, truncated: false });
+        }
+      }
       try {
-        reg.registry.bind(id, up, governance, memoryLog(bound));
+        reg.registry.bind(id, up, governance, log);
       } catch (error) {
         throw sessionError(error);
       }
