@@ -308,6 +308,8 @@ const textBinding: TypeBinding = {type:'string', validate:probe.validateWire};
 const client = new Client<probe.Family, string>(new DuplexPeer(), probe.family, textBinding, undefined, {});
 // @ts-expect-error An empty record payload remains present.
 const missing: Option<string> = {kind:'none'};
+// @ts-expect-error An empty record payload is an object, never a scalar.
+const scalarEmpty: Option<string> = {kind:'none',value:3};
 // @ts-expect-error A payload is whole under value, including records.
 const flat: Part = {type:'text', body:'hello'};
 // @ts-expect-error The literal inside a payload is still enforced.

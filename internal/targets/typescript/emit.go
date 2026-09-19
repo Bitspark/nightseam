@@ -91,6 +91,10 @@ func emitTypes(f *file) {
 			if t.Description != "" {
 				f.linef("/** %s */", comment(t.Description))
 			}
+			if len(t.Fields) == 0 && !t.Open {
+				f.linef("export type %s%s = Record<string, never>;", name, f.declare(t.Uses))
+				continue
+			}
 			f.w.Block(fmt.Sprintf("export interface %s%s {", name, f.declare(t.Uses)), "}", func() {
 				for _, field := range t.Fields {
 					optional, null := "", ""
