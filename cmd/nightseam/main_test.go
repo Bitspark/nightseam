@@ -343,7 +343,9 @@ func TestCommands(t *testing.T) {
 
 // TestImportDirection holds the seam: the kernel, the contract and the seam
 // never import a language; a language imports neither the kernel nor
-// another language; only the tool itself composes them.
+// another language; and a target is named in internal/compose alone — the
+// tool and the conformance suite both reach the targets through it, so
+// that what the suite renders is what the tool renders.
 func TestImportDirection(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -357,9 +359,11 @@ func TestImportDirection(t *testing.T) {
 	}
 	const nightseam = "github.com/Bitspark/nightseam"
 	const tool = nightseam + "/cmd/nightseam"
+	const suite = nightseam + "/conformance/go"
 	internal := nightseam + "/internal/"
+	root := internal + "compose"
 	// What each package of the seam may import of the others; the tool
-	// itself may import any. No entry names a target.
+	// itself may import any. Only the composition root names a target.
 	allowed := map[string]map[string]bool{
 		"diag":               {},
 		"naming":             {},
@@ -375,6 +379,7 @@ func TestImportDirection(t *testing.T) {
 		"targets/typescript": {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
 		"targets/spec":       {"diag": true, "model": true, "render": true, "spi": true, "emit": true},
 		"kernel":             {"diag": true, "model": true, "load": true, "analysis": true, "check": true, "render": true, "spi": true},
+		"compose":            {"kernel": true, "spi": true, "targets/golang": true, "targets/typescript": true, "targets/spec": true},
 		"oracle":             {"model": true},
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -408,6 +413,40 @@ func TestImportDirection(t *testing.T) {
 	}
 	if seen < 12 {
 		t.Fatalf("saw %d packages of the tool", seen)
+	}
+	// The composition root is one place, and both its callers reach the
+	// targets only through it: the tool renders a checkout and the
+	// conformance suite renders the corpus's probe family for a language's
+	// generated testee, and a suite composing targets of its own would go
+	// on validating output the tool no longer produces. Read without their
+	// tests, which may name a target — what each reserves, what each
+	// renders for the corpus — as the subject of a test rather than as a
+	// second composition.
+	data, err = exec.CommandContext(ctx, "go", "list", "-json", tool, suite).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoder = json.NewDecoder(bytes.NewReader(data))
+	for callers := 0; ; callers++ {
+		var p pkg
+		if err := decoder.Decode(&p); err == io.EOF {
+			if callers != 2 {
+				t.Fatalf("read %d of the composition root's callers", callers)
+			}
+			break
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		composes := false
+		for _, imported := range p.Imports {
+			if strings.HasPrefix(imported, internal+"targets/") {
+				t.Errorf("%s imports %s; a target is named in %s and nowhere else", p.ImportPath, imported, root)
+			}
+			composes = composes || imported == root
+		}
+		if !composes {
+			t.Errorf("%s does not import %s, where the targets it renders with are composed", p.ImportPath, root)
+		}
 	}
 }
 

@@ -10,9 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Bitspark/nightseam/internal/kernel"
-	"github.com/Bitspark/nightseam/internal/targets/golang"
-	"github.com/Bitspark/nightseam/internal/targets/typescript"
+	"github.com/Bitspark/nightseam/internal/compose"
 )
 
 // The generated layer: a language's second testee links what the generator
@@ -22,8 +20,11 @@ import (
 // conformance/<lang>/generated/ beside the rendering — the testee's source,
 // its module or package manifest — with {checkout} and {go} filled in text
 // files, and then the recipe's generated build and run take over. The
-// runner knows no language; a language's target is composed here the way
-// the tool composes it, and one that has no target has no generated testee.
+// runner knows no language; the targets are the tool's own, composed in
+// internal/compose and named nowhere else, so that the suite renders what
+// the tool renders, and a language that has no target has no generated
+// testee. What a testee does not consume — the specification the spec
+// target lays beside the sources — it ignores.
 
 // GeneratedModule and GeneratedScope root the rendering, as the fixtures
 // under cmd/nightseam root theirs.
@@ -32,7 +33,7 @@ const GeneratedScope = "@example"
 
 // renderProbe renders the corpus's probe family into dir.
 func renderProbe(checkout, dir string) error {
-	k := kernel.New(golang.New(golang.Config{Module: GeneratedModule}), typescript.New(typescript.Config{Scope: GeneratedScope}))
+	k := compose.Kernel(GeneratedModule, GeneratedScope)
 	corpus := filepath.Join(checkout, "cmd", "nightseam", "testdata", "corpus")
 	world := k.Load(os.DirFS(corpus), "api/contracts")
 	result, err := k.Render(world, "probe")

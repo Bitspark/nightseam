@@ -65,9 +65,13 @@ collision is a diagnostic and what is reserved is what is emitted — and
 then emits, registering imports where it uses them; the `kernel` runs the
 pipeline and refuses a rendered path outside the directories the target
 owns. A family with any diagnostic is refused before a target renders.
-Targets are composed in `cmd/nightseam/v2.go` and nowhere else; the seam
+Targets are composed in `internal/compose` and nowhere else; the seam
 between them and the kernel is `internal/spi`, and a test holds the
-package graph to that.
+package graph to that. The composition root is a package rather than the
+command so that the conformance suite imports it too: what the suite
+renders for a language's generated testee is what the tool renders, down
+to each target's config, and a target added or defaulted differently
+reaches the two together.
 
 The generated packages own their directories wholesale —
 `api/go/<f>-protocol`, `-binding`, `-client` and `api/ts/<f>-client` — and
@@ -109,6 +113,7 @@ internal/render/        a family as a target sees it, computed once
 internal/spi/           the seam between the kernel and a target
 internal/targets/       golang, typescript and spec: each renders a family, names the others never
 internal/kernel/        load, analyse, check, render
+internal/compose/       the composition root: the only place a target is named, imported by the tool and by the conformance suite
 internal/emit/          a writer, an import set, a namespace: what every target writes with
 internal/naming/        the convention every target derives names by
 internal/diag/          where a problem is: family, tier file, pointer, code

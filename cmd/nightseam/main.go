@@ -19,11 +19,13 @@
 // Nightseam's runtime, github.com/Bitspark/nightseam/runtime and
 // @nightseam/runtime, the peer of the nightseam.duplex/1 profile.
 //
-// The generator is a kernel and one package per target, composed here and
-// nowhere else: targets names them, the kernel renders through the seam in
-// internal/spi. It is developer tooling, never a runtime dependency; a
-// consumer runs it as a Go tool, go tool nightseam check. Family names
-// complete in the shell: nightseam completion --help.
+// The generator is a kernel and one package per target, composed in
+// internal/compose and nowhere else: it names them, the kernel renders
+// through the seam in internal/spi, and the conformance suite composes
+// the same targets through the same package, so that what the suite
+// renders is what this tool renders. It is developer tooling, never a
+// runtime dependency; a consumer runs it as a Go tool, go tool nightseam
+// check. Family names complete in the shell: nightseam completion --help.
 package main
 
 import (
