@@ -40,6 +40,7 @@ func (v *Base) UnmarshalJSON(data []byte) error {
 }
 func (Base) Of() Tag { return Tag{} }
 
+// Envelope: One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else.
 type Envelope struct {
 	Version     int64                               `json:"version"`
 	Kind        string                              `json:"kind"`
@@ -80,6 +81,7 @@ func (v *Envelope) UnmarshalJSON(data []byte) error {
 }
 func (Envelope) Of() Tag { return Tag{} }
 
+// Handle: A reference to a channel on the connection that carries the message holding it.
 type Handle struct {
 	Channel int64 `json:"channel"`
 }
