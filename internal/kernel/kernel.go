@@ -18,6 +18,7 @@ import (
 	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/load"
 	"github.com/Bitspark/nightseam/internal/model"
+	"github.com/Bitspark/nightseam/internal/model/builtin"
 	"github.com/Bitspark/nightseam/internal/render"
 	"github.com/Bitspark/nightseam/internal/spi"
 )
@@ -91,54 +92,80 @@ func (k *Kernel) Validate(world *World, name string) []diag.Diagnostic {
 	if diagnostics := Validate(world, name); len(diagnostics) != 0 {
 		return diagnostics
 	}
-	f := render.Build(Resolve(world, name))
 	var diagnostics []diag.Diagnostic
-	for _, target := range k.targets {
-		if k.consumes(target, f) {
-			diagnostics = append(diagnostics, target.Check(f)...)
+	for _, f := range renderingFamilies(render.Build(Resolve(world, name))) {
+		for _, target := range k.targets {
+			if k.consumes(target, f) {
+				diagnostics = append(diagnostics, target.Check(f)...)
+			}
 		}
 	}
 	diag.Sort(diagnostics)
 	return diagnostics
 }
 
-// Result is one family rendered by every target: its files by path.
+// Result is one family and its built-in dependencies rendered by every
+// target: their files by path.
 type Result struct {
 	Files map[string][]byte
 }
 
-// Render renders one family with every target that consumes what it
-// declares. A family with any diagnostic is refused before any target
+// Render renders one family and its built-in dependencies with every target
+// that consumes what they declare. A family with any diagnostic is refused before any target
 // renders; a rendered path outside what its target owns, or rendered
 // twice, is refused after.
 func (k *Kernel) Render(world *World, name string) (Result, error) {
 	if diagnostics := k.Validate(world, name); len(diagnostics) != 0 {
 		return Result{}, fmt.Errorf("invalid family: %s", diagnostics[0])
 	}
-	f := render.Build(Resolve(world, name))
 	files := map[string][]byte{}
-	for _, target := range k.targets {
-		if !k.consumes(target, f) {
-			continue
-		}
-		rendered, err := target.Render(f)
-		if err != nil {
-			return Result{}, fmt.Errorf("%s: %w", target.Name(), err)
-		}
-		for _, file := range rendered {
-			if !safe(file.Path) {
-				return Result{}, fmt.Errorf("%s: invalid output path %q", target.Name(), file.Path)
+	for _, f := range renderingFamilies(render.Build(Resolve(world, name))) {
+		for _, target := range k.targets {
+			if !k.consumes(target, f) {
+				continue
 			}
-			if !owned(file.Path, target.Owns(name)) {
-				return Result{}, fmt.Errorf("%s: %s lies outside the directories the target owns for %s: %s", target.Name(), file.Path, name, strings.Join(target.Owns(name), ", "))
+			rendered, err := target.Render(f)
+			if err != nil {
+				return Result{}, fmt.Errorf("%s: %w", target.Name(), err)
 			}
-			if _, exists := files[file.Path]; exists {
-				return Result{}, fmt.Errorf("%s: conflicting generated output %s", target.Name(), file.Path)
+			for _, file := range rendered {
+				if !safe(file.Path) {
+					return Result{}, fmt.Errorf("%s: invalid output path %q", target.Name(), file.Path)
+				}
+				if !owned(file.Path, target.Owns(f.Name)) {
+					return Result{}, fmt.Errorf("%s: %s lies outside the directories the target owns for %s: %s", target.Name(), file.Path, f.Name, strings.Join(target.Owns(f.Name), ", "))
+				}
+				if _, exists := files[file.Path]; exists {
+					return Result{}, fmt.Errorf("%s: conflicting generated output %s", target.Name(), file.Path)
+				}
+				files[file.Path] = file.Data
 			}
-			files[file.Path] = file.Data
 		}
 	}
 	return Result{Files: files}, nil
+}
+
+// A built-in is a generated dependency with the same target contract as a
+// checkout family. Render it once beside the family that needs it; carried
+// types remain in that family's own package and create no dependency.
+func renderingFamilies(root *render.Family) []*render.Family {
+	var families []*render.Family
+	seen := map[string]bool{}
+	var visit func(*render.Family)
+	visit = func(f *render.Family) {
+		if seen[f.Name] {
+			return
+		}
+		seen[f.Name] = true
+		families = append(families, f)
+		for _, name := range f.References {
+			if source := f.ReferencedFamily(name); source != nil && strings.HasPrefix(source.Source, builtin.Prefix) {
+				visit(source)
+			}
+		}
+	}
+	visit(root)
+	return families
 }
 
 // consumes reports whether a target has anything to render for a family:
@@ -188,6 +215,18 @@ func (k *Kernel) Stale(fsys fs.FS, world *World, chosen []string, rendered map[s
 	for _, name := range chosen {
 		chosenSet[name] = true
 	}
+	implicit := map[string]bool{}
+	for name, family := range world.Families {
+		for _, tier := range model.Tiers {
+			if tier.Builtin == "" || tier.Carries || !family.Has(tier.File) {
+				continue
+			}
+			implicit[tier.Builtin] = true
+			if chosenSet[name] {
+				chosenSet[tier.Builtin] = true
+			}
+		}
+	}
 	var stale []string
 	seen := map[string]bool{}
 	for _, target := range k.targets {
@@ -213,6 +252,7 @@ func (k *Kernel) Stale(fsys fs.FS, world *World, chosen []string, rendered map[s
 					return nil
 				}
 				_, exists := world.Families[family]
+				exists = exists || implicit[family]
 				if !exists || chosenSet[family] {
 					seen[p] = true
 					stale = append(stale, p)
