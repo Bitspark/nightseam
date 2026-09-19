@@ -1,0 +1,16 @@
+[package]
+name = "nightseam"
+description = "The Nightseam duplex peer and declaration validator."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+nightseam-duplex = { path = "../../duplex/rs", version = "0.4.0" }
+tokio.workspace = true
+tokio-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
