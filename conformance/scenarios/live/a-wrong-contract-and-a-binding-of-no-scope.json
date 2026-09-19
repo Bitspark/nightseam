@@ -1,0 +1,116 @@
+{
+  "name": "a wrong contract and a binding of no scope reach no implementation",
+  "layer": "live",
+  "description": "The two refusals that keep a reference from reaching something it does not name: a contract the binding does not carry, and a binding id this connection never minted.",
+  "needs": [
+    "live",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.over",
+      "args": {
+        "on": "$pa"
+      },
+      "bind": "la"
+    },
+    {
+      "on": "b",
+      "op": "live.over",
+      "args": {
+        "on": "$pb"
+      },
+      "bind": "lb"
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report",
+        "behavior": {
+          "kind": "echo"
+        }
+      },
+      "bind": {
+        "reference": "r"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": "$r",
+        "contract": "probe/SetVolume"
+      },
+      "expect_error": {
+        "code": "contract_mismatch"
+      },
+      "note": "the same shape under another declaration is another contract"
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": {
+          "binding": "0000000000000000.1",
+          "contract": "probe/Report"
+        },
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "handle": "stale"
+      },
+      "note": "a token of no scope attaches; what it cannot do is resolve"
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$stale",
+        "request": null
+      },
+      "bind": {
+        "handle": "c"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c"
+      },
+      "expect": {
+        "error": {
+          "code": "reference_unknown"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.counts",
+      "args": {
+        "on": "$la"
+      },
+      "expect": {
+        "exports": 1,
+        "imports": 0
+      },
+      "note": "and the real binding was never reached"
+    }
+  ]
+}

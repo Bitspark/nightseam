@@ -1,0 +1,144 @@
+{
+  "name": "a reference carried inside a data payload is still the binding it names",
+  "layer": "live",
+  "description": "A reference travels as an ordinary value of the message holding it. Carried down and back through a nested payload it names the same binding, and importing it attaches to that one.",
+  "needs": [
+    "live",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.over",
+      "args": {
+        "on": "$pa"
+      },
+      "bind": "la"
+    },
+    {
+      "on": "b",
+      "op": "live.over",
+      "args": {
+        "on": "$pb"
+      },
+      "bind": "lb"
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report",
+        "behavior": {
+          "kind": "return",
+          "value": "nested"
+        }
+      },
+      "bind": {
+        "reference": "r"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "carry",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "carry",
+        "params": {
+          "job": {
+            "sink": {
+              "at": "$r"
+            }
+          },
+          "also": [
+            {
+              "at": "$r"
+            }
+          ],
+          "count": 1
+        }
+      },
+      "bind": {
+        "handle": "c"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c"
+      },
+      "bind": {
+        "result": "back"
+      },
+      "note": "the reference is a value of the payload and comes back as one"
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": "$back.job.sink.at",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "handle": "at"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$at",
+        "request": null
+      },
+      "bind": {
+        "handle": "c2"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c2"
+      },
+      "expect": {
+        "result": "nested"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 1
+      },
+      "note": "one binding, however deep it was carried"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import { createInterface } from 'node:readline';
 import { seamOps } from './seam.ts';
 import { peerOps } from './peer.ts';
 import { tunnelOps } from './tunnel.ts';
+import { liveOps } from './live.ts';
 
 const DRIVER = 1;
 
@@ -176,7 +177,7 @@ const ops: Record<string, Op> = {
   hello: () => ({
     driver: DRIVER,
     language: 'typescript',
-    layers: ['seam', 'peer', 'tunnel'],
+    layers: ['seam', 'peer', 'tunnel', 'live'],
     features: ['listen', 'pipe', 'observer', 'propagator', 'lazy'],
   }),
   reset: () => {
@@ -191,6 +192,7 @@ const ops: Record<string, Op> = {
   ...seamOps(testee),
   ...peerOps(testee),
   ...tunnelOps(testee),
+  ...liveOps(testee),
 };
 
 const serve = async (line: string): Promise<string> => {

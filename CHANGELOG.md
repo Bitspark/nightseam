@@ -19,6 +19,28 @@ are one number. Entries are in the words of the commits that landed them.
   name has no credential to make its first publish — npm attaches a trusted
   publisher to a package that already exists, and `pnpm -r publish` reaches a
   new name after the tag is pushed.
+- `live/go` and `@nightseam/live`: callable values across one connection. A
+  scope over a peer, bindings exported from it, references that name them
+  inside an ordinary payload, imports that share one dispatch per binding,
+  release, forwarding and bounds. The layer speaks `live.invoke` and
+  `live.release` as ordinary frames of the profile under a reserved `live.`
+  prefix, so it adds nothing to the envelope and needs no tunnel. A reference
+  is minted only by an export or by a scope's decode, carries that scope, and
+  is refused in another — so a token cannot be detached and imported again.
+  Release refuses the next invocation and lets dispatched ones settle; closing
+  a scope settles them all; cancelling an invocation is neither.
+- A `live` conformance profile: ten scenarios run in Go, in TypeScript and in
+  both cross-language directions over real sockets, each ending by counting
+  what its scopes still hold, so a retained binding fails a scenario whose
+  payloads all matched.
+
+### Removed
+
+- `after`, the session's resume cursor, from `Tunnel.Open`, `channel.open`,
+  `Channel.After` and the `channel.opened` and `channel.accepted` observer
+  events in both languages. Nothing in data, RPC or live reads it; a session
+  that resumes now states its own cursor when it attaches rather than taking
+  one off the channel it attached over.
 
 ### Fixed
 

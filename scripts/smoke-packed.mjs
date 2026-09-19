@@ -101,9 +101,9 @@ async function smoke() {
   cpSync(join(root, examples[0]), consumer, { recursive: true, filter: source => !/[\\/](node_modules|dist)$/.test(source) });
   mkdirSync(join(consumer, "tarballs"));
   for (const file of Object.values(packed)) cpSync(join(tarballs, file), join(consumer, "tarballs", file));
-  // The example depends on the two packages a generated client needs; the
-  // release publishes five, and a tarball nobody installs is a tarball
-  // nobody checked, so the rest are added to the copy.
+  // The example depends on the two packages a generated client needs, and a
+  // tarball nobody installs is a tarball nobody checked, so every other
+  // package the release publishes is added to the copy.
   const consumed = manifest(consumer);
   for (const name of Object.keys(packed)) consumed.dependencies[name] ??= version;
   writeFileSync(join(consumer, "package.json"), JSON.stringify(consumed, null, 2) + "\n");

@@ -99,10 +99,10 @@ its **tier**: 1 guarantees every profile with no lag, 2 guarantees `core` and
 and each profile is.
 
 <!-- matrix:start -->
-| language | tier | core | generator | tunnel | observability | verdict |
-| --- | --- | --- | --- | --- | --- | --- |
-| `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ok |
-| `typescript` | 1 | ✓ | ✓ 10 skipped | ✓ | ✓ | ok |
+| language | tier | core | generator | tunnel | live | observability | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
+| `typescript` | 1 | ✓ | ✓ 10 skipped | ✓ | ✓ | ✓ | ok |
 
 Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2; `java`, `swift` at tier 4.
 <!-- matrix:end -->
@@ -137,7 +137,8 @@ the tunnel, and on nothing else.
 | [`@nightseam/duplex`](duplex/ts) | [`duplex/go`](duplex/go) | the seam: ordered frames both ways, an explicit close with a code and a reason, a WebSocket adapter and an in-memory pipe |
 | [`@nightseam/runtime`](runtime/ts) | [`runtime/go`](runtime/go) | the peer of the profile: correlation, cancellation, backpressure, presence, trace context, the wire validator, the observer and its console and slog adapters |
 | [`@nightseam/tunnel`](tunnel/ts) | [`tunnel/go`](tunnel/go) | channels multiplexed over one peer, each one a connection of the seam, with per-channel credit |
-| [`@nightseam/otel`](otel/ts) | [`otel/go`](otel/go) | the OpenTelemetry adapter, the one component a consumer opts into: a propagator over the W3C trace context propagator and an observer that opens a span per request, so that the three above pull in no telemetry backend — on npm they depend on nothing at all, and in Go on one third-party module, the WebSocket transport |
+| [`@nightseam/live`](live/ts) | [`live/go`](live/go) | callable values across one connection: a scope over a peer, exported bindings, imported references, release and forwarding |
+| [`@nightseam/otel`](otel/ts) | [`otel/go`](otel/go) | the OpenTelemetry adapter, the one component a consumer opts into: a propagator over the W3C trace context propagator and an observer that opens a span per request, so that the four above pull in no telemetry backend — on npm they depend on nothing at all, and in Go on one third-party module, the WebSocket transport |
 | — | [`cmd/nightseam`](cmd/nightseam) | the generator |
 
 Every published component exists in both languages and both are held to one

@@ -5,8 +5,8 @@ npm install @nightseam/tunnel
 ```
 
 Channels multiplexed over one peer of the `nightseam.duplex/1` profile.
-Either side opens a channel, naming the family it will speak and the last
-sequence it holds; each channel is a `FrameConnection` of `@nightseam/duplex`,
+Either side opens a channel, naming the family it will speak; each channel is
+a `FrameConnection` of `@nightseam/duplex`,
 so a `DuplexPeer` — and every client Nightseam generates — runs over it
 unchanged, and a handle in a family's message, `{"channel": 12}`, names one.
 
