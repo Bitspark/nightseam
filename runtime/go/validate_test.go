@@ -8,7 +8,9 @@ import (
 
 // TestValidatorConformance: the validator agrees with the conformance table
 // every runtime is held to, case by case, on the wire description of a
-// family and of one it refers to.
+// family and of one it refers to — on the verdict, and on the diagnostic
+// where the row states one, which is the string the other runtime's
+// validator prints for the same value.
 func TestValidatorConformance(t *testing.T) {
 	data, err := os.ReadFile("../../conformance/tables/validator.json")
 	if err != nil {
@@ -21,12 +23,13 @@ func TestValidatorConformance(t *testing.T) {
 			Expression json.RawMessage
 			Value      json.RawMessage
 			Valid      bool
+			Message    string
 		}
 	}
 	if err := json.Unmarshal(data, &table); err != nil {
 		t.Fatal(err)
 	}
-	imported := map[string]func(string, []byte) error{}
+	imported := map[string]Imported{}
 	for family, wire := range table.Imported {
 		schema, err := NewSchema(wire, nil)
 		if err != nil {
@@ -42,6 +45,10 @@ func TestValidatorConformance(t *testing.T) {
 		err := schema.ValidateExpressionRaw(MustTypeExpression(string(c.Expression)), c.Value)
 		if (err == nil) != c.Valid {
 			t.Errorf("%s against %s: valid=%v, got %v", c.Value, c.Expression, c.Valid, err)
+			continue
+		}
+		if c.Message != "" && err.Error() != c.Message {
+			t.Errorf("%s against %s: message %q, got %q", c.Value, c.Expression, c.Message, err)
 		}
 	}
 	if err := schema.ValidateValue("Status", "on"); err != nil {

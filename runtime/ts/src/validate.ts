@@ -15,6 +15,14 @@
 // parameter's, {array: T}, {map: T}, {ref: "Entity"} for the entity's key,
 // {apply: "family.Type", with: {...}} for an imported generic type, and
 // {empty: true} for a request that takes nothing.
+//
+// A refusal is one string: a JSON pointer naming the member that was wrong,
+// then the fact about it — "$.count: required field missing", "$.note: null
+// is not permitted", "$.zzz: unknown field". The Go runtime prints the same
+// string for the same value, word for word, and
+// conformance/tables/validator.json holds both to it, so a consumer whose
+// server is in one language and client in the other reads one spelling of
+// one refusal.
 
 /** A type as the embedded descriptor spells it: a primitive or named type, an array, a map, a reference, or an application of a generic type. */
 export type TypeExpression =
@@ -74,15 +82,18 @@ function timestamp(value: unknown): boolean {
   return month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1]! && Number(m[4]) <= 23 && Number(m[5]) <= 59 && Number(m[6]) <= 59 && (!m[7] || (Number(m[8]) <= 23 && Number(m[9]) <= 59)) && !Number.isNaN(Date.parse(value));
 }
 
-function jsonValue(value: unknown, seen = new Set<object>()): void {
+function jsonValue(value: unknown, location: string, seen = new Set<object>()): void {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
-  if (typeof value === 'number' && Number.isFinite(value)) return;
-  if (typeof value !== 'object' || seen.has(value)) throw new Error('expected finite acyclic JSON');
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error(location + ': expected finite JSON number');
+    return;
+  }
+  if (typeof value !== 'object' || seen.has(value)) throw new Error(location + ': expected acyclic JSON');
   seen.add(value);
-  if (Array.isArray(value)) for (const child of value) jsonValue(child, seen);
+  if (Array.isArray(value)) { let index = 0; for (const child of value) jsonValue(child, location + '[' + (index++) + ']', seen); }
   else {
-    if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) throw new Error('expected plain JSON object');
-    for (const child of Object.values(value)) jsonValue(child, seen);
+    if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) throw new Error(location + ': expected plain JSON object');
+    for (const [key, child] of Object.entries(value)) jsonValue(child, location + '.' + key, seen);
   }
   seen.delete(value);
 }
@@ -164,12 +175,13 @@ export function createValidator(types: Record<string, WireType>, imported: Recor
         return;
       }
       if ('apply' in type) { foreign(type.apply, value, location, applied(type.with, slots)); return; }
-      if (!plainObject(value)) bad('plain object');
       if ('map' in type) {
+        if (!plainObject(value)) bad('object');
         for (const [key, item] of Object.entries(value as Record<string, unknown>)) validateWire(type.map, item, location + '.' + key, slots);
         return;
       }
-      if (Object.keys(value as object).length !== 0) bad('empty object');
+      if (!('empty' in type)) bad('supported type expression');
+      if (!plainObject(value) || Object.keys(value as object).length !== 0) bad('empty object');
       return;
     }
     if (type.includes('.')) {
@@ -179,31 +191,43 @@ export function createValidator(types: Record<string, WireType>, imported: Recor
       return;
     }
     switch (type) {
-      case 'json': jsonValue(value); return;
+      case 'json': jsonValue(value, location); return;
       case 'string': if (typeof value !== 'string') bad('string'); return;
       case 'boolean': if (typeof value !== 'boolean') bad('boolean'); return;
-      case 'number': if (typeof value !== 'number' || !Number.isFinite(value)) bad('finite number'); return;
-      case 'integer': if (typeof value !== 'number' || !Number.isSafeInteger(value)) bad('JavaScript-safe integer'); return;
-      case 'timestamp': if (!timestamp(value)) bad('RFC3339 timestamp'); return;
+      case 'number': case 'integer':
+        if (typeof value !== 'number') bad(type);
+        if (!Number.isFinite(value)) bad('finite number');
+        if (type === 'integer' && !Number.isSafeInteger(value)) bad('JavaScript-safe integer');
+        return;
+      case 'timestamp':
+        if (typeof value !== 'string') bad('timestamp');
+        if (!timestamp(value)) bad('RFC3339 timestamp');
+        return;
     }
     const definition = types[type];
     if (!definition) bad('known type');
     if (definition!.kind === 'alias') { validateWire(definition!.type!, value, location, slots); return; }
     if (definition!.kind === 'enum') { if (typeof value !== 'string' || !definition!.values!.includes(value)) bad(type); return; }
     if (definition!.kind !== 'record' && definition!.kind !== 'entity') bad('supported type');
-    if (!plainObject(value)) bad(type + ' plain object');
+    if (!plainObject(value)) bad(type + ' object');
     const object = value as Record<string, unknown>, allowed = new Set<string>();
     for (const field of fields(type)) {
       allowed.add(field.name);
-      if (!Object.hasOwn(object, field.name)) { if (field.required === true) bad('required field ' + field.name); continue; }
+      const at = location + '.' + field.name;
+      if (!Object.hasOwn(object, field.name)) {
+        if (field.required === true) throw new Error(at + ': required field missing');
+        continue;
+      }
       const child = object[field.name];
       if (child === null && field.nullable) continue;
-      if (child === null) bad('non-null field ' + field.name);
-      validateWire(field.type, child, location + '.' + field.name, slots);
-      constrain(field, child, location + '.' + field.name);
+      if (child === null) throw new Error(at + ': null is not permitted');
+      validateWire(field.type, child, at, slots);
+      constrain(field, child, at);
     }
     for (const key of Object.keys(object)) {
-      if (!allowed.has(key)) { if (!definition!.open) bad('known field ' + key); jsonValue(object[key]); }
+      if (allowed.has(key)) continue;
+      if (!definition!.open) throw new Error(location + '.' + key + ': unknown field');
+      jsonValue(object[key], location + '.' + key);
     }
   };
   return validateWire;

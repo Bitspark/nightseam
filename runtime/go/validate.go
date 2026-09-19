@@ -27,10 +27,27 @@ import (
 // a parameter's, {"array": T}, {"map": T}, {"ref": "Entity"} for the
 // entity's key, {"apply": "family.Type", "with": {...}} for an imported
 // generic type, and {"empty": true} for a request that takes nothing.
+//
+// A refusal is one string: a JSON pointer naming the member that was wrong,
+// then the fact about it — "$.count: required field missing", "$.note: null
+// is not permitted", "$.zzz: unknown field". The TypeScript runtime prints
+// the same string for the same value, word for word, and
+// conformance/tables/validator.json holds both to it, so a consumer whose
+// server is in one language and client in the other reads one spelling of
+// one refusal.
 type Schema struct {
 	types    map[string]wireType
-	imported map[string]func(string, []byte) error
+	imported map[string]Imported
 }
+
+// Imported validates a named type of another family: that family's own
+// ValidateRaw, which a generated protocol package hands to every family
+// that refers to it. at is the location the value sits at in the value
+// being validated, which a family passes when it reaches into another's
+// type, so that one refusal carries the one pointer the consumer handed
+// its value in at rather than a root per family the value crossed; absent,
+// the value is its own root.
+type Imported func(name string, data []byte, at ...string) error
 
 type wireType struct {
 	Kind    string
@@ -55,7 +72,7 @@ type wireField struct {
 
 // NewSchema reads a family's wire description; imported maps each family
 // it refers to to that family's ValidateRaw.
-func NewSchema(wire []byte, imported map[string]func(string, []byte) error) (*Schema, error) {
+func NewSchema(wire []byte, imported map[string]Imported) (*Schema, error) {
 	s := &Schema{imported: imported}
 	decoder := json.NewDecoder(bytes.NewReader(wire))
 	decoder.UseNumber()
@@ -63,13 +80,13 @@ func NewSchema(wire []byte, imported map[string]func(string, []byte) error) (*Sc
 		return nil, err
 	}
 	if s.imported == nil {
-		s.imported = map[string]func(string, []byte) error{}
+		s.imported = map[string]Imported{}
 	}
 	return s, nil
 }
 
 // MustSchema is NewSchema for a description the generator wrote.
-func MustSchema(wire string, imported map[string]func(string, []byte) error) *Schema {
+func MustSchema(wire string, imported map[string]Imported) *Schema {
 	s, err := NewSchema([]byte(wire), imported)
 	if err != nil {
 		panic(err)
@@ -91,14 +108,15 @@ func MustTypeExpression(encoded string) any {
 }
 
 // ValidateRaw verifies a named type's value, including null and field
-// presence.
-func (s *Schema) ValidateRaw(name string, data []byte) error {
-	return s.ValidateExpressionRaw(name, data)
+// presence. at roots the diagnostic where a family that imports this one
+// holds the value; absent, the value is its own root.
+func (s *Schema) ValidateRaw(name string, data []byte, at ...string) error {
+	return s.ValidateExpressionRaw(name, data, at...)
 }
 
 // ValidateExpressionRaw verifies a type expression's value and rejects
-// trailing values.
-func (s *Schema) ValidateExpressionRaw(expression any, data []byte) error {
+// trailing values. at roots the diagnostic, as ValidateRaw's does.
+func (s *Schema) ValidateExpressionRaw(expression any, data []byte, at ...string) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	var value any
@@ -109,7 +127,11 @@ func (s *Schema) ValidateExpressionRaw(expression any, data []byte) error {
 	if err := decoder.Decode(&extra); err != io.EOF {
 		return fmt.Errorf("expected exactly one JSON value")
 	}
-	return s.validate(expression, value, "$")
+	location := "$"
+	if len(at) > 0 {
+		location = at[0]
+	}
+	return s.validate(expression, value, location)
 }
 
 // ValidateValue validates a typed value before publishing it on the wire.
@@ -301,8 +323,10 @@ func (s *Schema) validate(expression any, value any, location string) error {
 	return bad("supported type")
 }
 
-// imported validates a value of another family's type by that family's
-// validator: family.Type, or the type an application names.
+// foreign validates a value of another family's type by that family's
+// validator: family.Type, or the type an application names. The location
+// goes with the value, so that the other family's validator names the
+// member that was wrong at the pointer the consumer's own value has it at.
 func (s *Schema) foreign(reference string, value any, location string) error {
 	family, typeName, _ := strings.Cut(reference, ".")
 	validate, ok := s.imported[family]
@@ -313,10 +337,7 @@ func (s *Schema) foreign(reference string, value any, location string) error {
 	if err != nil {
 		return err
 	}
-	if err := validate(typeName, data); err != nil {
-		return fmt.Errorf("%s: %w", location, err)
-	}
-	return nil
+	return validate(typeName, data, location)
 }
 
 // constrain holds a field's value to its constraints: min and max on a

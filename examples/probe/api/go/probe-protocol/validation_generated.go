@@ -6,14 +6,16 @@ import (
 )
 
 // schema is the family's wire description, as the runtime validates it; a type of another family is validated by that family's own validator.
-var schema = runtime.MustSchema("{\"Envelope\":{\"kind\":\"record\",\"fields\":[{\"name\":\"version\",\"type\":\"integer\",\"required\":true},{\"name\":\"kind\",\"type\":\"string\",\"required\":true},{\"name\":\"id\",\"type\":\"string\",\"required\":false},{\"name\":\"method\",\"type\":\"string\",\"required\":false},{\"name\":\"params\",\"type\":\"json\",\"required\":false},{\"name\":\"result\",\"type\":\"json\",\"required\":false},{\"name\":\"error\",\"type\":\"json\",\"required\":false},{\"name\":\"event\",\"type\":\"string\",\"required\":false},{\"name\":\"data\",\"type\":\"json\",\"required\":false},{\"name\":\"traceparent\",\"type\":\"string\",\"required\":false},{\"name\":\"tracestate\",\"type\":\"string\",\"required\":false},{\"name\":\"meta\",\"type\":{\"map\":\"string\"},\"required\":false}]},\"Handle\":{\"kind\":\"record\",\"fields\":[{\"name\":\"channel\",\"type\":\"integer\",\"required\":true}]},\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true},{\"name\":\"count\",\"type\":\"integer\",\"required\":true}]}}", map[string]func(string, []byte) error{})
+var schema = runtime.MustSchema("{\"Envelope\":{\"kind\":\"record\",\"fields\":[{\"name\":\"version\",\"type\":\"integer\",\"required\":true},{\"name\":\"kind\",\"type\":\"string\",\"required\":true},{\"name\":\"id\",\"type\":\"string\",\"required\":false},{\"name\":\"method\",\"type\":\"string\",\"required\":false},{\"name\":\"params\",\"type\":\"json\",\"required\":false},{\"name\":\"result\",\"type\":\"json\",\"required\":false},{\"name\":\"error\",\"type\":\"json\",\"required\":false},{\"name\":\"event\",\"type\":\"string\",\"required\":false},{\"name\":\"data\",\"type\":\"json\",\"required\":false},{\"name\":\"traceparent\",\"type\":\"string\",\"required\":false},{\"name\":\"tracestate\",\"type\":\"string\",\"required\":false},{\"name\":\"meta\",\"type\":{\"map\":\"string\"},\"required\":false}]},\"Handle\":{\"kind\":\"record\",\"fields\":[{\"name\":\"channel\",\"type\":\"integer\",\"required\":true}]},\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true},{\"name\":\"count\",\"type\":\"integer\",\"required\":true}]}}", map[string]runtime.Imported{})
 
-// ValidateRaw verifies a named contract value, including null and field presence.
-func ValidateRaw(name string, data []byte) error { return schema.ValidateRaw(name, data) }
+// ValidateRaw verifies a named contract value, including null and field presence; at roots the diagnostic where a family that imports this one holds the value.
+func ValidateRaw(name string, data []byte, at ...string) error {
+	return schema.ValidateRaw(name, data, at...)
+}
 
 // ValidateExpressionRaw verifies a type expression and rejects trailing values.
-func ValidateExpressionRaw(expression any, data []byte) error {
-	return schema.ValidateExpressionRaw(expression, data)
+func ValidateExpressionRaw(expression any, data []byte, at ...string) error {
+	return schema.ValidateExpressionRaw(expression, data, at...)
 }
 
 // ValidateValue validates a typed value before publishing it on the wire.

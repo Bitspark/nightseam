@@ -7,14 +7,16 @@ import (
 )
 
 // schema is the family's wire description, as the runtime validates it; a type of another family is validated by that family's own validator.
-var schema = runtime.MustSchema("{\"Both\":{\"kind\":\"record\",\"fields\":[{\"name\":\"frame\",\"type\":\"Frame\",\"required\":true},{\"name\":\"echoes\",\"type\":{\"array\":\"Echo\"},\"required\":true}]},\"Echo\":{\"kind\":\"record\",\"fields\":[{\"name\":\"heard\",\"type\":\"T.Envelope\",\"required\":true}]},\"Envelope\":{\"kind\":\"record\",\"fields\":[{\"name\":\"version\",\"type\":\"integer\",\"required\":true},{\"name\":\"kind\",\"type\":\"string\",\"required\":true},{\"name\":\"id\",\"type\":\"string\",\"required\":false},{\"name\":\"method\",\"type\":\"string\",\"required\":false},{\"name\":\"params\",\"type\":\"json\",\"required\":false},{\"name\":\"result\",\"type\":\"json\",\"required\":false},{\"name\":\"error\",\"type\":\"json\",\"required\":false},{\"name\":\"event\",\"type\":\"string\",\"required\":false},{\"name\":\"data\",\"type\":\"json\",\"required\":false},{\"name\":\"traceparent\",\"type\":\"string\",\"required\":false},{\"name\":\"tracestate\",\"type\":\"string\",\"required\":false},{\"name\":\"meta\",\"type\":{\"map\":\"string\"},\"required\":false}]},\"Frame\":{\"kind\":\"record\",\"fields\":[{\"name\":\"message\",\"type\":\"S.Envelope\",\"required\":true},{\"name\":\"back\",\"type\":\"S.Handle\",\"required\":true}]},\"Handle\":{\"kind\":\"record\",\"fields\":[{\"name\":\"channel\",\"type\":\"integer\",\"required\":true}]},\"Named\":{\"kind\":\"record\",\"fields\":[{\"name\":\"held\",\"type\":\"probe.Envelope\",\"required\":true}]}}", map[string]func(string, []byte) error{"probe": probeprotocol.ValidateRaw})
+var schema = runtime.MustSchema("{\"Both\":{\"kind\":\"record\",\"fields\":[{\"name\":\"frame\",\"type\":\"Frame\",\"required\":true},{\"name\":\"echoes\",\"type\":{\"array\":\"Echo\"},\"required\":true}]},\"Echo\":{\"kind\":\"record\",\"fields\":[{\"name\":\"heard\",\"type\":\"T.Envelope\",\"required\":true}]},\"Envelope\":{\"kind\":\"record\",\"fields\":[{\"name\":\"version\",\"type\":\"integer\",\"required\":true},{\"name\":\"kind\",\"type\":\"string\",\"required\":true},{\"name\":\"id\",\"type\":\"string\",\"required\":false},{\"name\":\"method\",\"type\":\"string\",\"required\":false},{\"name\":\"params\",\"type\":\"json\",\"required\":false},{\"name\":\"result\",\"type\":\"json\",\"required\":false},{\"name\":\"error\",\"type\":\"json\",\"required\":false},{\"name\":\"event\",\"type\":\"string\",\"required\":false},{\"name\":\"data\",\"type\":\"json\",\"required\":false},{\"name\":\"traceparent\",\"type\":\"string\",\"required\":false},{\"name\":\"tracestate\",\"type\":\"string\",\"required\":false},{\"name\":\"meta\",\"type\":{\"map\":\"string\"},\"required\":false}]},\"Frame\":{\"kind\":\"record\",\"fields\":[{\"name\":\"message\",\"type\":\"S.Envelope\",\"required\":true},{\"name\":\"back\",\"type\":\"S.Handle\",\"required\":true}]},\"Handle\":{\"kind\":\"record\",\"fields\":[{\"name\":\"channel\",\"type\":\"integer\",\"required\":true}]},\"Named\":{\"kind\":\"record\",\"fields\":[{\"name\":\"held\",\"type\":\"probe.Envelope\",\"required\":true}]}}", map[string]runtime.Imported{"probe": probeprotocol.ValidateRaw})
 
-// ValidateRaw verifies a named contract value, including null and field presence.
-func ValidateRaw(name string, data []byte) error { return schema.ValidateRaw(name, data) }
+// ValidateRaw verifies a named contract value, including null and field presence; at roots the diagnostic where a family that imports this one holds the value.
+func ValidateRaw(name string, data []byte, at ...string) error {
+	return schema.ValidateRaw(name, data, at...)
+}
 
 // ValidateExpressionRaw verifies a type expression and rejects trailing values.
-func ValidateExpressionRaw(expression any, data []byte) error {
-	return schema.ValidateExpressionRaw(expression, data)
+func ValidateExpressionRaw(expression any, data []byte, at ...string) error {
+	return schema.ValidateExpressionRaw(expression, data, at...)
 }
 
 // ValidateValue validates a typed value before publishing it on the wire.

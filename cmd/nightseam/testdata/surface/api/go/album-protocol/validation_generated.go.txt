@@ -1,4 +1,4 @@
 func MustTypeExpression(encoded string) any
-func ValidateExpressionRaw(expression any, data []byte) error
-func ValidateRaw(name string, data []byte) error
+func ValidateExpressionRaw(expression any, data []byte, at ...string) error
+func ValidateRaw(name string, data []byte, at ...string) error
 func ValidateValue(expression any, value any) error
