@@ -323,7 +323,32 @@ The session component: `session/go`, `@nightseam/session`.
 | `session.attention` | **`on`** | `["id", …]` |
 | `session.changes` | **`on`**, `trace`, `drain` | `[change, …]` normalized: `kind` (`bound`, `unbound`, `attached`, `detached`, `ask_raised`, `ask_routed`, `ask_answered`, `control_changed`, `frame_appended`, `refused`), `session`, and of `origin`, `role`, `sequence`, `method`, `trace` what the change carries |
 | `session.await_change` | **`on`**, **`kind`**, `within_ms` | the first such change, removed |
+| `attachment.state` | **`on`** an attachment | `{"holder": "<origin>"\|null, "sequence"}` — what the relay last told that consumer of the session's own vocabulary |
 | `attachment.detach` | **`on`** | `{}` |
+
+A session speaks its own vocabulary on the wire, as the tunnel speaks
+`channel.open`: ordinary events of the profile under the `session.` prefix,
+which the relay produces, a consumer reads and neither the log keeps nor the
+machine may send. A scenario reads them off a consumer's channel with
+`conn.receive` like any other frame:
+
+- `{"version":1,"kind":"event","event":"session.control","data":{"holder":
+  "<origin>"|null}}` reaches every attachment when control changes, and one
+  consumer on attach before its replay begins.
+- `{"version":1,"kind":"event","event":"session.cursor","data":{"sequence":
+  N}}` reaches the one attachment a frame was just delivered to, replay and
+  live alike, naming that frame's sequence in the log. What the relay writes
+  of itself carries none — a refusal, an ask handed again as control moves —
+  and neither does a frame the log cut, which is delivered as nothing.
+
+`attachment.state` is the same two facts as the attachment holds them, so a
+scenario can hold what a consumer was told and what its attachment says to
+each other: `holder` is null where nobody holds control, and `sequence` is
+zero where nothing has been delivered.
+
+A machine that sends any `session.*` frame has its connection ended with
+1002 and a reason naming the frame, which every consumer of that session is
+ended with.
 
 `session.bind`'s `log.prefill` is a list of frames appended to the log
 before the session is bound over it, each `{"text"}` — the message as it

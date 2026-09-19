@@ -41,6 +41,8 @@ calls in.
 registry := session.New(session.Options{})
 registry.Bind(id, up, session.Governance{Decides: chatclient.Decides, Asks: chatclient.Asks}, session.NewMemoryLog(1<<20))
 attachment, _ := registry.Attach(id, down, session.Participant, "consumer:7", after)
+attachment.Holder()                // who holds control, as this consumer was told
+attachment.Sequence()              // where in the log it stands, which it reattaches after
 registry.Control(id, attachment)   // or nil, releasing control
 registry.Attention()               // every session with an unanswered ask
 ```
@@ -116,6 +118,71 @@ Held, one test each, in both languages:
 8. **Attention is every session the machine asked of** and nobody has
    answered, by id, in order.
 9. **A message over the log's bound is replayed truncated.**
+10. **A consumer is told who holds control and where it stands.**
+    `session.control` reaches every attachment on attach, before the replay
+    begins, and on every change; `session.cursor` reaches the one attachment
+    a frame was just delivered to, naming that frame's place in the log.
+    Neither is logged and neither may come from the machine — *The session's
+    own vocabulary* below.
+
+## The session's own vocabulary
+
+A session speaks its own vocabulary on the wire, as the tunnel speaks
+`channel.open` and `channel.credit`: ordinary events of the profile,
+carried on the same connection beside the family the session governs and
+distinct from it, under the `session.` prefix the session tier reserves.
+The peer forwards them and reads nothing into them, the relay produces them
+and a consumer reads them. [layers.md](layers.md) is the test that puts them
+here rather than in the profile's envelope, where a sequence and a fifth
+kind were each tried for an afternoon.
+
+| frame | data | who is sent it | when |
+| --- | --- | --- | --- |
+| `session.control` | `{"holder": "<origin>"}`, or `{"holder": null}` where nobody holds it | every attachment | once on attach, before the replay begins, and on every change — given, released, transferred |
+| `session.cursor` | `{"sequence": N}` | the one attachment a frame was just delivered to | straight after each frame it is delivered, replay and live alike, in the same order |
+
+Four rules hold of both:
+
+- **Neither is logged.** The log holds the family's frames and nothing else,
+  so a replay never gives a stale holder or a cursor of its own: a consumer
+  that reattaches is told both afresh, by the relay, where it now stands.
+- **Neither is a family event.** No family declares them, so a generated
+  client sees an event it has no listener for and drops it, which is what
+  the profile says a peer does with any event it did not declare. A consumer
+  that wants them today listens on the name.
+- **The machine never sends one.** The vocabulary is the relay's to produce;
+  a machine that sends any `session.*` frame speaks for the layer above it,
+  and its connection is ended with 1002 and a reason naming the frame —
+  which ends every consumer of that session, as any close of the machine's
+  connection does. The frame reaches neither the log nor a consumer.
+- **The cursor is the log's sequence, not a count.** A frame the log cut is
+  delivered as nothing and carries no cursor; the cursor after the next
+  frame names that frame's own sequence, so a consumer that counted what
+  arrived would stand one short after every truncation. A frame with no
+  place in the log carries none either — the relay's own refusal, an ask
+  handed again as control moves — so a cursor never moves backwards.
+
+Both are readable off the attachment, set from what the relay sent, so a
+consumer reading the state and one reading the wire agree: Go
+`Attachment.Holder() (origin string, held bool)`, `Attachment.Sequence()
+int64` and `Attachment.OnControl(func(origin string, held bool)) (stop
+func())`; TypeScript `attachment.holder` (`string | null`),
+`attachment.sequence` and `attachment.onControl(fn): () => void`. A
+registration is not called with the state the consumer joined at — that
+frame is sent before `Attach` returns, which is before there is anywhere to
+call — and `Holder` reads it instead.
+
+That is the whole of resumption on the consumer's side: attaching again
+after the last cursor it was told gives it exactly what came after the last
+frame it was delivered, and nothing it already holds.
+
+Two things of this vocabulary are not here yet, and nothing above is undone
+by them: `session.subscribe` and `session.unsubscribe`, by which a consumer
+narrows which of the family's events reach it (#51); and the typed surface —
+how these two reach a family's generated code as operations no family
+declares, and the `session.` prefix the generator refuses a family to
+declare a method or an event under (#50 and #45's other half, which waits on
+#62). Both are 0.4.0.
 
 ## The log
 

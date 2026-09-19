@@ -346,20 +346,44 @@ func (t *testee) sessionOps() map[string]func(request) (any, error) {
 			}
 			return t.normalizeChange(c, withTrace), nil
 		},
-		"attachment.detach": func(r request) (any, error) {
-			handle, err := r.mustString("on")
+		// attachment.state is what the relay last told this consumer of the
+		// session's own vocabulary: who holds control, and where in the log
+		// it stands. A testee reports it so that a scenario can hold the
+		// attachment's state and the frames on the wire to each other.
+		"attachment.state": func(r request) (any, error) {
+			a, err := t.attachmentOf(r)
 			if err != nil {
 				return nil, err
 			}
-			object, ok := t.lookup(handle)
-			a, isAttachment := object.(*attachment)
-			if !ok || !isAttachment {
-				return nil, fail("unknown_handle", "%s is not an attachment", handle)
+			state := map[string]any{"holder": nil, "sequence": a.Sequence()}
+			if origin, held := a.Holder(); held {
+				state["holder"] = origin
+			}
+			return state, nil
+		},
+		"attachment.detach": func(r request) (any, error) {
+			a, err := t.attachmentOf(r)
+			if err != nil {
+				return nil, err
 			}
 			a.Detach()
 			return nil, nil
 		},
 	}
+}
+
+// attachmentOf is the attachment an op names under on.
+func (t *testee) attachmentOf(r request) (*attachment, error) {
+	handle, err := r.mustString("on")
+	if err != nil {
+		return nil, err
+	}
+	object, ok := t.lookup(handle)
+	a, isAttachment := object.(*attachment)
+	if !ok || !isAttachment {
+		return nil, fail("unknown_handle", "%s is not an attachment", handle)
+	}
+	return a, nil
 }
 
 func set(names []string) func(string) bool {

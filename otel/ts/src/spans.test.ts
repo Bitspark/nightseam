@@ -121,7 +121,14 @@ test('one call through a relay to a handler whose ask is answered is one trace, 
   assert.deepEqual(spans.length, 5);
   for (const span of spans) assert.equal(span.ended, true, span.name);
   // Each request's frames are events of its span, and the family is on it.
-  assert.deepEqual(called.events.map(event => event.name), ['frame.sent', 'frame.received']);
+  // The session's own vocabulary travels the same connection, so a cursor
+  // delivered while the call stood open is on the call's span too: every
+  // event the peer delivered is a frame received and a delivery, and the one
+  // frame received that is neither is the answer the call waited for.
+  const events = called.events.map(event => event.name);
+  assert.equal(events[0], 'frame.sent');
+  assert.equal(events.filter(name => name === 'frame.received').length,
+    events.filter(name => name === 'event.delivered').length + 1);
   assert.equal(served.attributes['nightseam.family'], 'probe');
   assert.equal(served.attributes['nightseam.incoming'], true);
   assert.equal(asked.attributes['nightseam.method'], 'reverse');

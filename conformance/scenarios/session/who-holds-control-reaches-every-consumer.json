@@ -1,6 +1,7 @@
 {
-  "name": "a session bound over a log that already holds frames is bound at its head, and replays them to a consumer that attaches before the machine has spoken",
+  "name": "who holds control reaches every consumer as the session's own event: on attach before the replay, on every change, and never from the machine",
   "layer": "session",
+  "replaces": "session/go/sessiontest and session/ts/src/conformance.ts, across the wire",
   "needs": [
     "lazy",
     "peer",
@@ -120,26 +121,8 @@
           "asks": [
             "reverse"
           ]
-        },
-        "log": {
-          "max_frame_bytes": 1048576,
-          "prefill": [
-            {
-              "direction": "down",
-              "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":1}"
-            },
-            {
-              "direction": "down",
-              "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":2}"
-            },
-            {
-              "direction": "down",
-              "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":3}"
-            }
-          ]
         }
-      },
-      "note": "the log already holds three frames, as a durable one does after the process that wrote them ended"
+      }
     },
     {
       "on": "b",
@@ -150,7 +133,7 @@
         "after": 0,
         "consume": "eager"
       },
-      "bind": "all"
+      "bind": "one"
     },
     {
       "on": "a",
@@ -160,7 +143,7 @@
         "consume": "lazy"
       },
       "bind": {
-        "handle": "ch_all"
+        "handle": "ch_one"
       }
     },
     {
@@ -169,90 +152,34 @@
       "args": {
         "on": "$reg",
         "session": "s",
-        "channel": "$ch_all",
-        "role": "observer",
-        "origin": "all",
+        "channel": "$ch_one",
+        "role": "participant",
+        "origin": "one",
         "after": 0
       },
-      "bind": "att_all"
+      "bind": "att_one"
     },
     {
       "on": "b",
       "op": "conn.receive",
       "args": {
-        "on": "$all"
+        "on": "$one"
       },
       "expect": {
         "kind": "text",
         "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":null}}"
-      }
+      },
+      "note": "a consumer that joins a session nobody holds is told exactly that, before anything else on its connection"
     },
     {
-      "on": "b",
-      "op": "conn.receive",
+      "on": "a",
+      "op": "attachment.state",
       "args": {
-        "on": "$all"
+        "on": "$att_one"
       },
       "expect": {
-        "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":1}"
-      },
-      "note": "a consumer resuming from nothing is given the log's frames, before the machine has spoken at all"
-    },
-    {
-      "on": "b",
-      "op": "conn.receive",
-      "args": {
-        "on": "$all"
-      },
-      "expect": {
-        "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":1}}"
-      },
-      "note": "the cursor is the log's own sequence, which a consumer resumes from"
-    },
-    {
-      "on": "b",
-      "op": "conn.receive",
-      "args": {
-        "on": "$all"
-      },
-      "expect": {
-        "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":2}"
-      }
-    },
-    {
-      "on": "b",
-      "op": "conn.receive",
-      "args": {
-        "on": "$all"
-      },
-      "expect": {
-        "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":2}}"
-      }
-    },
-    {
-      "on": "b",
-      "op": "conn.receive",
-      "args": {
-        "on": "$all"
-      },
-      "expect": {
-        "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":3}"
-      }
-    },
-    {
-      "on": "b",
-      "op": "conn.receive",
-      "args": {
-        "on": "$all"
-      },
-      "expect": {
-        "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":3}}"
+        "holder": null,
+        "sequence": 0
       }
     },
     {
@@ -264,7 +191,7 @@
         "after": 0,
         "consume": "eager"
       },
-      "bind": "late"
+      "bind": "two"
     },
     {
       "on": "a",
@@ -274,7 +201,7 @@
         "consume": "lazy"
       },
       "bind": {
-        "handle": "ch_late"
+        "handle": "ch_two"
       }
     },
     {
@@ -283,18 +210,18 @@
       "args": {
         "on": "$reg",
         "session": "s",
-        "channel": "$ch_late",
-        "role": "observer",
-        "origin": "late",
-        "after": 1
+        "channel": "$ch_two",
+        "role": "participant",
+        "origin": "two",
+        "after": 0
       },
-      "bind": "att_late"
+      "bind": "att_two"
     },
     {
       "on": "b",
       "op": "conn.receive",
       "args": {
-        "on": "$late"
+        "on": "$two"
       },
       "expect": {
         "kind": "text",
@@ -302,48 +229,132 @@
       }
     },
     {
-      "on": "b",
-      "op": "conn.receive",
+      "on": "a",
+      "op": "session.control",
       "args": {
-        "on": "$late"
-      },
-      "expect": {
-        "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":2}"
-      },
-      "note": "and one holding the first frame takes the two after it, and no more"
-    },
-    {
-      "on": "b",
-      "op": "conn.receive",
-      "args": {
-        "on": "$late"
-      },
-      "expect": {
-        "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":2}}"
+        "on": "$reg",
+        "session": "s",
+        "attachment": "$att_one"
       }
     },
     {
       "on": "b",
       "op": "conn.receive",
       "args": {
-        "on": "$late"
+        "on": "$one"
       },
       "expect": {
         "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":3}"
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"one\"}}"
+      },
+      "note": "control moving is told to every consumer, the one it moved to and the ones it did not"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$two"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"one\"}}"
+      }
+    },
+    {
+      "on": "a",
+      "op": "attachment.state",
+      "args": {
+        "on": "$att_one"
+      },
+      "expect": {
+        "holder": "one",
+        "sequence": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "attachment.state",
+      "args": {
+        "on": "$att_two"
+      },
+      "expect": {
+        "holder": "one",
+        "sequence": 0
+      },
+      "note": "the attachment says what the relay told its consumer, so the two agree"
+    },
+    {
+      "on": "a",
+      "op": "session.control",
+      "args": {
+        "on": "$reg",
+        "session": "s",
+        "attachment": null
       }
     },
     {
       "on": "b",
       "op": "conn.receive",
       "args": {
-        "on": "$late"
+        "on": "$one"
       },
       "expect": {
         "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":3}}"
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":null}}"
+      },
+      "note": "released, control stands with nobody, which an origin alone could not say of a consumer attached under no name"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$two"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":null}}"
+      }
+    },
+    {
+      "on": "a",
+      "op": "attachment.state",
+      "args": {
+        "on": "$att_one"
+      },
+      "expect": {
+        "holder": null,
+        "sequence": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "session.control",
+      "args": {
+        "on": "$reg",
+        "session": "s",
+        "attachment": "$att_one"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"one\"}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$two"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"one\"}}"
       }
     },
     {
@@ -352,68 +363,53 @@
       "args": {
         "on": "$machine",
         "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":4}"
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":1}"
+      },
+      "note": "one frame of the family, so that a consumer attaching after it has a replay"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":1}"
       }
     },
     {
       "on": "b",
       "op": "conn.receive",
       "args": {
-        "on": "$all"
+        "on": "$one"
       },
       "expect": {
         "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":4}"
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":1}}"
       }
     },
     {
       "on": "b",
       "op": "conn.receive",
       "args": {
-        "on": "$all"
+        "on": "$two"
       },
       "expect": {
         "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":4}}"
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":1}"
       }
     },
     {
       "on": "b",
       "op": "conn.receive",
       "args": {
-        "on": "$late"
+        "on": "$two"
       },
       "expect": {
         "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":4}"
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":1}}"
       }
-    },
-    {
-      "on": "b",
-      "op": "conn.receive",
-      "args": {
-        "on": "$late"
-      },
-      "expect": {
-        "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":4}}"
-      }
-    },
-    {
-      "on": "a",
-      "op": "session.changes",
-      "args": {
-        "on": "$reg"
-      },
-      "expect": {
-        "$contains": [
-          {
-            "kind": "frame_appended",
-            "sequence": 4
-          }
-        ]
-      },
-      "note": "the session went on from the log's head: the machine's first frame is the fourth, not the first"
     },
     {
       "on": "b",
@@ -424,7 +420,7 @@
         "after": 0,
         "consume": "eager"
       },
-      "bind": "after"
+      "bind": "three"
     },
     {
       "on": "a",
@@ -434,7 +430,7 @@
         "consume": "lazy"
       },
       "bind": {
-        "handle": "ch_after"
+        "handle": "ch_three"
       }
     },
     {
@@ -443,56 +439,99 @@
       "args": {
         "on": "$reg",
         "session": "s",
-        "channel": "$ch_after",
+        "channel": "$ch_three",
         "role": "observer",
-        "origin": "after",
-        "after": 3
+        "origin": "three",
+        "after": 0
       },
-      "bind": "att_after"
+      "bind": "att_three"
     },
     {
       "on": "b",
       "op": "conn.receive",
       "args": {
-        "on": "$after"
+        "on": "$three"
       },
       "expect": {
         "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":null}}"
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"one\"}}"
+      },
+      "note": "a consumer attaching is told the holder it joined before any replayed or live frame"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$three"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":1}"
       }
     },
     {
       "on": "b",
       "op": "conn.receive",
       "args": {
-        "on": "$after"
+        "on": "$three"
       },
       "expect": {
         "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":4}"
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":1}}"
+      }
+    },
+    {
+      "on": "a",
+      "op": "attachment.state",
+      "args": {
+        "on": "$att_three"
       },
-      "note": "a consumer holding the whole log is replayed nothing of it and given what came after"
+      "expect": {
+        "holder": "one",
+        "sequence": 1
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.send",
+      "args": {
+        "on": "$machine",
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"three\"}}"
+      },
+      "note": "the vocabulary is the relay's to produce: a machine speaking it speaks for the layer above it"
     },
     {
       "on": "b",
-      "op": "conn.receive",
+      "op": "conn.await_close",
       "args": {
-        "on": "$after"
+        "on": "$one"
       },
       "expect": {
-        "kind": "text",
-        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":4}}"
+        "code": 1002,
+        "reason": "a machine does not send session.control"
       }
     },
     {
       "on": "b",
-      "op": "conn.receive",
+      "op": "conn.await_close",
       "args": {
-        "on": "$after",
-        "within_ms": 250
+        "on": "$two"
       },
-      "expect_error": {
-        "code": "timeout"
+      "expect": {
+        "code": 1002,
+        "reason": "a machine does not send session.control"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.await_close",
+      "args": {
+        "on": "$three"
+      },
+      "expect": {
+        "code": 1002,
+        "reason": "a machine does not send session.control"
       }
     }
   ]

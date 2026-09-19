@@ -164,12 +164,34 @@
       "bind": "att_one"
     },
     {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":null}}"
+      }
+    },
+    {
       "on": "a",
       "op": "session.control",
       "args": {
         "on": "$reg",
         "session": "s",
         "attachment": "$att_one"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"one\"}}"
       }
     },
     {

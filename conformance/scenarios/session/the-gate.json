@@ -169,6 +169,17 @@
     },
     {
       "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":null}}"
+      }
+    },
+    {
+      "on": "b",
       "op": "tunnel.open",
       "args": {
         "on": "$carrier_b",
@@ -208,12 +219,45 @@
       "bind": "att_two"
     },
     {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$two"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":null}}"
+      }
+    },
+    {
       "on": "a",
       "op": "session.control",
       "args": {
         "on": "$reg",
         "session": "gate",
         "attachment": "$att_one"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"one\"}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$two"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"one\"}}"
       }
     },
     {
@@ -240,11 +284,33 @@
       "on": "b",
       "op": "conn.receive",
       "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":1}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
         "on": "$two"
       },
       "expect": {
         "kind": "text",
         "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"tracestate\":\"nightseam=gate\",\"data\":{\"text\":\"ready\",\"count\":0}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$two"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":1}}"
       }
     },
     {
@@ -290,6 +356,17 @@
       "note": "and the answer reaches the one consumer that asked, under the id it asked with"
     },
     {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":3}}"
+      }
+    },
+    {
       "on": "a",
       "op": "conn.send",
       "args": {
@@ -309,6 +386,17 @@
         "text": "{\"version\":1,\"kind\":\"request\",\"id\":\"s:1\",\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b8-01\",\"method\":\"reverse\",\"params\":{\"text\":\"gate\",\"count\":1}}"
       },
       "note": "what the machine asks reaches the holder"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":4}}"
+      }
     },
     {
       "on": "b",
@@ -348,6 +436,28 @@
         "on": "$reg",
         "session": "gate",
         "attachment": "$att_two"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"two\"}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$two"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"two\"}}"
       }
     },
     {
@@ -441,6 +551,18 @@
       "bind": "att_late"
     },
     {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$late"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"two\"}}"
+      },
+      "note": "a consumer attaching is told the holder it joined before a frame of the replay"
+    },
+    {
       "on": "a",
       "op": "conn.send",
       "args": {
@@ -469,7 +591,29 @@
       },
       "expect": {
         "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":2}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$late"
+      },
+      "expect": {
+        "kind": "text",
         "text": "{\"version\":1,\"kind\":\"response\",\"id\":\"c:1\",\"result\":{\"text\":\"etag\",\"count\":1}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$late"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":3}}"
       }
     },
     {
@@ -491,7 +635,29 @@
       },
       "expect": {
         "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":4}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$late"
+      },
+      "expect": {
+        "kind": "text",
         "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"noticed\",\"data\":{\"text\":\"asked\",\"count\":1}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$late"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":5}}"
       }
     },
     {
@@ -513,9 +679,31 @@
       },
       "expect": {
         "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":6}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$late"
+      },
+      "expect": {
+        "kind": "text",
         "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"tracestate\":\"nightseam=late\",\"data\":{\"text\":\"live\",\"count\":2}}"
       },
       "note": "and then what is live"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$late"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":7}}"
+      }
     },
     {
       "on": "b",
@@ -532,11 +720,33 @@
       "on": "b",
       "op": "conn.receive",
       "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":7}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
         "on": "$two"
       },
       "expect": {
         "kind": "text",
         "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"tracestate\":\"nightseam=late\",\"data\":{\"text\":\"live\",\"count\":2}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$two"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":7}}"
       }
     },
     {

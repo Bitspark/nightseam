@@ -11,7 +11,7 @@ import { pipe, webSocketConnection, type FrameConnection, type WebSocketLike } f
 import { DuplexPeer, type Observer, type ObserverEvent } from '@nightseam/runtime';
 import { Tunnel } from '@nightseam/tunnel';
 import { governance } from './conformance.ts';
-import { memoryLog, Registry, type Attachment } from './index.ts';
+import { CURSOR_EVENT, memoryLog, PREFIX, Registry, type Attachment } from './index.ts';
 
 /** One envelope of the profile, as a raw end reads and writes it. */
 type Envelope = Record<string, unknown>;
@@ -23,7 +23,7 @@ function say(connection: FrameConnection, envelope: Envelope): void {
   connection.send({ kind: 'text', data: JSON.stringify(envelope) });
 }
 
-/** The envelopes a connection receives, its close, and a promise of the next one not yet taken. */
+/** The envelopes a connection receives, its close, and a promise of the next one not yet taken; a consumer's end also takes a frame of the family with the cursor the relay sends straight after it. */
 function listen(connection: FrameConnection) {
   const envelopes: Envelope[] = [];
   const waiters: ((envelope: Envelope) => void)[] = [];
@@ -38,12 +38,23 @@ function listen(connection: FrameConnection) {
     },
     close: (code, reason) => { closed = { code, reason }; },
   });
+  function next(): Promise<Envelope> {
+    if (taken < envelopes.length) return Promise.resolve(envelopes[taken++]!);
+    taken++;
+    return new Promise<Envelope>(resolve => { waiters.push(resolve); });
+  }
   return {
     envelopes,
-    next(): Promise<Envelope> {
-      if (taken < envelopes.length) return Promise.resolve(envelopes[taken++]!);
-      taken++;
-      return new Promise<Envelope>(resolve => { waiters.push(resolve); });
+    next,
+    /** One frame of the family and the cursor that names its place, the session's own vocabulary before it passed over. */
+    async family(): Promise<Envelope> {
+      for (;;) {
+        const frame = await next();
+        if (typeof frame.event === 'string' && frame.event.startsWith(PREFIX) && frame.event !== CURSOR_EVENT) continue;
+        assert.equal(frame.event === CURSOR_EVENT, false, 'a cursor arrived where no frame stood before it');
+        assert.equal((await next()).event, CURSOR_EVENT, 'a frame of the family was not followed by its cursor');
+        return frame;
+      }
     },
     get closed() { return closed; },
   };
@@ -66,12 +77,14 @@ async function drive(registry: Registry): Promise<void> {
   const atHolder = listen(holderEnd);
   const atIdle = listen(idleEnd);
   say(machine, { version: 1, kind: 'request', id: 's:1', method: 'reverse', params: { text: 't', count: 1 } });
-  const asked = await atHolder.next();
+  const asked = await atHolder.family();
   say(holderEnd, { version: 1, kind: 'response', id: asked.id, result: { text: 't', count: 1 } });
   await tick();
   // A participant that does not hold control is refused in the machine's
   // place, which the machine never sees and an observer does.
   say(idleEnd, { version: 1, kind: 'request', id: 'c:1', method: 'echo', params: { text: 't', count: 1 } });
+  await atIdle.next();
+  await atIdle.next();
   await atIdle.next();
   holder.detach();
   machine.close(4002, 'the machine went away');
@@ -164,18 +177,18 @@ test('an in-process machine over a pipe and a consumer over a tunnel channel on 
   // A call: the consumer's request reaches the machine under an id of the
   // session's own and its answer comes back under the consumer's.
   say(consumer, { version: 1, kind: 'request', id: 'c:1', method: 'echo', params: { text: 'over the seam', count: 1 } });
-  assert.deepEqual(await atConsumer.next(), { version: 1, kind: 'response', id: 'c:1', result: { text: 'machine:over the seam', count: 1 } });
+  assert.deepEqual(await atConsumer.family(), { version: 1, kind: 'response', id: 'c:1', result: { text: 'machine:over the seam', count: 1 } });
 
   // An event: what the machine emits reaches every consumer attached.
   await machine.emit('changed', { text: 'moved', count: 2 });
-  const event = await atConsumer.next();
+  const event = await atConsumer.family();
   assert.equal(event.event, 'changed');
   assert.deepEqual(event.data, { text: 'moved', count: 2 });
 
   // An ask: what the machine asks is routed to the holder of control, and
   // its answer travels back over the pipe.
   const answer = machine.call('reverse', { text: 'deliver', count: 1 });
-  const ask = await atConsumer.next();
+  const ask = await atConsumer.family();
   assert.equal(ask.method, 'reverse');
   say(consumer, { version: 1, kind: 'response', id: ask.id, result: { text: 'reveiled', count: 1 } });
   assert.deepEqual(await answer, { text: 'reveiled', count: 1 });

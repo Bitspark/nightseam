@@ -261,6 +261,16 @@ type Attachment struct {
 	cancel context.CancelFunc
 	send   sync.Mutex
 	once   sync.Once
+
+	// state is what the relay last told this consumer of the session's own
+	// vocabulary — who holds control, where in the log it stands — and the
+	// registrations waiting on the first of them. It is a lock of its own so
+	// that reading the state takes no turn on the connection.
+	state    sync.Mutex
+	holder   string
+	held     bool
+	sequence int64
+	controls []*controlWatch
 }
 
 // Detach removes the consumer from its session and ends its connection; the

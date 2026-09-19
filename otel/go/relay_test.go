@@ -200,6 +200,13 @@ func TestOneCallThroughARelayIsOneSpanTree(t *testing.T) {
 			parent = described(held)
 		}
 		tree[described(span)] = parent
+		if strings.HasPrefix(span.Name, session.Prefix) {
+			// The session's own vocabulary is the relay's, written of itself
+			// and under no call: it carries no trace context, so each of
+			// these is a span under nothing and in a trace of its own, which
+			// is no part of the call's.
+			continue
+		}
 		traces[span.SpanContext.TraceID()] = true
 	}
 	want := map[string]string{
@@ -208,6 +215,8 @@ func TestOneCallThroughARelayIsOneSpanTree(t *testing.T) {
 		"echo (server)":                      "the consumer's own work (internal)",
 		"reverse (client)":                   "echo (server)",
 		"reverse (server)":                   "echo (server)",
+		"session.control (consumer)":         "nothing",
+		"session.cursor (consumer)":          "nothing",
 	}
 	for span, parent := range want {
 		if tree[span] != parent {

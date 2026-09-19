@@ -162,6 +162,17 @@
       "bind": "att_one"
     },
     {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":null}}"
+      }
+    },
+    {
       "on": "a",
       "op": "conn.send",
       "args": {
@@ -179,6 +190,17 @@
       "expect": {
         "kind": "text",
         "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":1}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":1}}"
       }
     },
     {
@@ -201,6 +223,18 @@
         "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{\"text\":\"well beyond the bound the log was given\"}}"
       },
       "note": "a live frame reaches a consumer whole whatever the log keeps"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$one"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":2}}"
+      },
+      "note": "a live frame is delivered whole whatever the log kept, and its cursor is its own sequence"
     },
     {
       "on": "b",
@@ -245,9 +279,32 @@
       },
       "expect": {
         "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":null}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$late"
+      },
+      "expect": {
+        "kind": "text",
         "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":1}"
       },
       "note": "the replay gives the small frame as it was"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$late"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":1}}"
+      },
+      "note": "the frame the log cut is delivered as nothing and carries no cursor of its own"
     },
     {
       "on": "b",

@@ -161,6 +161,18 @@
     },
     {
       "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$first"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":null}}"
+      },
+      "note": "every consumer is told who holds control before anything else on its connection"
+    },
+    {
+      "on": "b",
       "op": "tunnel.open",
       "args": {
         "on": "$carrier_b",
@@ -196,6 +208,17 @@
     },
     {
       "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$second"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":null}}"
+      }
+    },
+    {
+      "on": "b",
       "op": "tunnel.open",
       "args": {
         "on": "$carrier_b",
@@ -228,6 +251,17 @@
         "after": 0
       },
       "bind": "att_watcher"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$watcher"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":null}}"
+      }
     },
     {
       "on": "b",
@@ -290,6 +324,40 @@
         "on": "$reg",
         "session": "s",
         "attachment": "$att_first"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$first"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"first\"}}"
+      },
+      "note": "control moving is told to every consumer, the one it moved to and the ones it did not"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$second"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"first\"}}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$watcher"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.control\",\"data\":{\"holder\":\"first\"}}"
       }
     },
     {
@@ -375,6 +443,18 @@
         "text": "{\"version\":1,\"kind\":\"request\",\"id\":\"s:1\",\"method\":\"reverse\",\"params\":{\"text\":\"t\",\"count\":1}}"
       },
       "note": "the ask reaches the holder"
+    },
+    {
+      "on": "b",
+      "op": "conn.receive",
+      "args": {
+        "on": "$first"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"event\",\"event\":\"session.cursor\",\"data\":{\"sequence\":3}}"
+      },
+      "note": "the ask stood third in the session's one order, two frames of the holder's having gone up before it"
     },
     {
       "on": "b",

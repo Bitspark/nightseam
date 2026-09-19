@@ -322,6 +322,46 @@ func says(t *testing.T, over duplex.Conn, message string) {
 	}
 }
 
+// family takes the next frame of the family from a connection, passing over
+// the session's own vocabulary — who holds control, where the cursor stands
+// — which a consumer is told beside the conversation it is attached to.
+func family(t *testing.T, over duplex.Conn) string {
+	t.Helper()
+	for {
+		message := hears(t, over)
+		var named struct {
+			Event string `json:"event"`
+		}
+		if json.Unmarshal([]byte(message), &named) == nil && strings.HasPrefix(named.Event, session.Prefix) {
+			continue
+		}
+		return message
+	}
+}
+
+// ends waits for a connection to be closed and gives the close, passing
+// over the session's own vocabulary as family does: a cursor the consumer
+// never read is no frame of the conversation it was in.
+func ends(t *testing.T, ctx context.Context, over duplex.Conn) *duplex.CloseError {
+	t.Helper()
+	for {
+		received, err := over.Receive(ctx)
+		if err != nil {
+			var closed *duplex.CloseError
+			if !errors.As(err, &closed) {
+				t.Fatalf("the connection ended as %v", err)
+			}
+			return closed
+		}
+		var named struct {
+			Event string `json:"event"`
+		}
+		if json.Unmarshal(received.Data, &named) != nil || !strings.HasPrefix(named.Event, session.Prefix) {
+			t.Fatalf("the connection was left open, carrying %s", received.Data)
+		}
+	}
+}
+
 // hears takes the next frame of a connection as the text it carries.
 func hears(t *testing.T, over duplex.Conn) string {
 	t.Helper()
@@ -357,13 +397,13 @@ func drive(t *testing.T, registry *session.Registry) {
 		t.Fatal(err)
 	}
 	says(t, machine, `{"version":1,"kind":"request","id":"s:1","method":"reverse","params":{"text":"t","count":1}}`)
-	hears(t, holderEnd)
+	family(t, holderEnd)
 	says(t, holderEnd, `{"version":1,"kind":"response","id":"s:1","result":{"text":"t","count":1}}`)
 	hears(t, machine)
 	// A participant that does not hold control is refused in the machine's
 	// place, which the machine never sees and the observer does.
 	says(t, idleEnd, `{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":"t","count":1}}`)
-	hears(t, idleEnd)
+	family(t, idleEnd)
 	holder.Detach()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -502,7 +542,7 @@ func TestAMachineOverAPipeAndAConsumerOverAWebSocket(t *testing.T) {
 	// A call: the consumer's request reaches the machine under an id of the
 	// session's own and its answer comes back under the consumer's.
 	says(t, consumer, `{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":"over the seam","count":1}}`)
-	if answered := hears(t, consumer); !strings.Contains(answered, `"id":"c:1"`) || !strings.Contains(answered, `machine:over the seam`) {
+	if answered := family(t, consumer); !strings.Contains(answered, `"id":"c:1"`) || !strings.Contains(answered, `machine:over the seam`) {
 		t.Fatalf("the consumer saw %s", answered)
 	}
 
@@ -510,7 +550,7 @@ func TestAMachineOverAPipeAndAConsumerOverAWebSocket(t *testing.T) {
 	if err := machine.Emit(ctx, "changed", map[string]any{"text": "moved", "count": 2}); err != nil {
 		t.Fatal(err)
 	}
-	if event := hears(t, consumer); !strings.Contains(event, `"event":"changed"`) {
+	if event := family(t, consumer); !strings.Contains(event, `"event":"changed"`) {
 		t.Fatalf("the consumer saw %s", event)
 	}
 
@@ -524,7 +564,7 @@ func TestAMachineOverAPipeAndAConsumerOverAWebSocket(t *testing.T) {
 	go func() {
 		asked <- machine.Call(ctx, "reverse", map[string]any{"text": "deliver", "count": 1}, &reversed)
 	}()
-	ask := hears(t, consumer)
+	ask := family(t, consumer)
 	if !strings.Contains(ask, `"method":"reverse"`) {
 		t.Fatalf("the holder saw %s", ask)
 	}
@@ -546,12 +586,7 @@ func TestAMachineOverAPipeAndAConsumerOverAWebSocket(t *testing.T) {
 	// channel, an in-process machine that stops being the dropped transport
 	// the seam calls an abnormal closure.
 	machine.Close()
-	if _, err := consumer.Receive(ctx); err == nil {
-		t.Fatal("the machine's end left the consumer's channel open")
-	} else {
-		var closed *duplex.CloseError
-		if !errors.As(err, &closed) || closed.Code != duplex.CodeAbnormalClosure {
-			t.Fatalf("the consumer's channel ended as %v", err)
-		}
+	if closed := ends(t, ctx, consumer); closed.Code != duplex.CodeAbnormalClosure {
+		t.Fatalf("the consumer's channel ended as %v", closed)
 	}
 }

@@ -165,6 +165,14 @@ export function sessionOps(t: Testee): Record<string, Op> {
       if (!item) throw fail('timeout', `no ${kind}`);
       return normalizeChange(reg, item, boolOf(args, 'trace'));
     },
+    // attachment.state is what the relay last told this consumer of the
+    // session's own vocabulary: who holds control, and where in the log it
+    // stands. A testee reports it so that a scenario can hold the
+    // attachment's state and the frames on the wire to each other.
+    'attachment.state': args => {
+      const { attachment } = t.lookup(args.on, isAttachment, 'an attachment');
+      return { holder: attachment.holder, sequence: attachment.sequence };
+    },
     'attachment.detach': args => {
       t.lookup(args.on, isAttachment, 'an attachment').attachment.detach();
       return {};

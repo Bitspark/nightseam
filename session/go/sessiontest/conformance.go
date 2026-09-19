@@ -68,16 +68,24 @@ func Run(t *testing.T, connect Connect) {
 		if err := registry.Bind(id, near, governance, session.NewMemoryLog(0)); err != nil {
 			t.Fatal(err)
 		}
-		return registry, &speaker{name: "machine", channel: far}
+		return registry, newSpeaker("machine", far, false)
 	}
 	attach := func(t *testing.T, registry *session.Registry, id, origin string, role session.Role, after int64) (*session.Attachment, *speaker) {
 		t.Helper()
 		near, far := connect(t, nil)
+		// The consumer is reading before the attach, which sends it who holds
+		// control and everything it missed before it returns: a replay is
+		// longer than a connection holds.
+		consumer := newSpeaker(origin, far, true)
 		attachment, err := registry.Attach(id, near, role, origin, after)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return attachment, &speaker{name: origin, channel: far}
+		// Every consumer is told who holds control before anything else on
+		// its connection; it is taken here so that what follows is the
+		// session's conversation, and the case below holds what it said.
+		consumer.joined(t)
+		return attachment, consumer
 	}
 
 	t.Run("a response reaches the one consumer that asked, an event every one", func(t *testing.T) {
@@ -114,7 +122,7 @@ func Run(t *testing.T, connect Connect) {
 		// refused; the machine never sees either.
 		for _, consumer := range []*speaker{watcher, second} {
 			consumer.send(t, echo)
-			refused := consumer.take(t)
+			refused := consumer.alone(t)
 			if refused.text("kind") != "response" || refused.text("id") != "c:1" {
 				t.Fatalf("%s saw %s", consumer.name, refused.raw)
 			}
@@ -129,6 +137,13 @@ func Run(t *testing.T, connect Connect) {
 		machine.quiet(t)
 		if err := registry.Control("s", holder); err != nil {
 			t.Fatal(err)
+		}
+		// Control moving is told to every consumer, the one it moved to and
+		// the ones it did not.
+		for _, consumer := range []*speaker{first, second, watcher} {
+			if origin, held := consumer.control(t); origin != "first" || !held {
+				t.Fatalf("%s was told control is %q, held %v", consumer.name, origin, held)
+			}
 		}
 		first.send(t, echo)
 		asked := machine.take(t)
@@ -164,6 +179,8 @@ func Run(t *testing.T, connect Connect) {
 		if err := registry.Control("s", first); err != nil {
 			t.Fatal(err)
 		}
+		one.control(t)
+		two.control(t)
 		machine.send(t, `{"version":1,"kind":"request","id":"s:1","method":"reverse","params":{"text":"t","count":1}}`)
 		if ask := one.take(t); ask.text("method") != "reverse" {
 			t.Fatalf("the holder saw %s", ask.raw)
@@ -172,7 +189,14 @@ func Run(t *testing.T, connect Connect) {
 		if err := registry.Control("s", second); err != nil {
 			t.Fatal(err)
 		}
-		if ask := two.take(t); ask.text("id") != "s:1" || ask.text("method") != "reverse" {
+		one.control(t)
+		if origin, held := two.control(t); origin != "two" || !held {
+			t.Fatalf("the new holder was told control is %q, held %v", origin, held)
+		}
+		// The ask follows control as the frame the log already holds: handed
+		// again is no new place in the order, so it carries no cursor and
+		// never moves the new holder's backwards.
+		if ask := two.alone(t); ask.text("id") != "s:1" || ask.text("method") != "reverse" {
 			t.Fatalf("the new holder saw %s", ask.raw)
 		}
 		// The consumer that no longer holds control no longer answers.
@@ -239,6 +263,9 @@ func Run(t *testing.T, connect Connect) {
 		if resumed := later.take(t); resumed.text("event") != "changed" || string(resumed.member["data"]) != `{"text":"one","count":1}` {
 			t.Fatalf("a consumer resuming after two frames saw %s", resumed.raw)
 		}
+		if later.cursor != 3 {
+			t.Fatalf("a consumer replayed the third frame was told it stands at %d", later.cursor)
+		}
 	})
 
 	t.Run("a session bound over a log that already holds frames is bound at its head", func(t *testing.T) {
@@ -261,7 +288,7 @@ func Run(t *testing.T, connect Connect) {
 		if err := registry.Bind("s", near, governance, log); err != nil {
 			t.Fatal(err)
 		}
-		machine := &speaker{name: "machine", channel: far}
+		machine := newSpeaker("machine", far, false)
 		// A consumer resuming from nothing, before the machine has spoken at
 		// all, is given every frame the log holds.
 		_, all := attach(t, registry, "s", "all", session.Observer, 0)
@@ -303,6 +330,8 @@ func Run(t *testing.T, connect Connect) {
 		if err := registry.Control("s", holder); err != nil {
 			t.Fatal(err)
 		}
+		one.control(t)
+		two.control(t)
 		const sent = `{"version":1,"kind":"request","id":"c:9","traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01","method":"echo","params":{"text":"t","count":1},"baggage":{"tenant":"acme"}}`
 		one.send(t, sent)
 		asked := machine.take(t)
@@ -331,6 +360,8 @@ func Run(t *testing.T, connect Connect) {
 		if err := registry.Control("s", holder); err != nil {
 			t.Fatal(err)
 		}
+		one.control(t)
+		two.control(t)
 		const sent = `{"version":1,"kind":"request","id":"c:9","method":"echo","params":{"text":"t","count":1},"meta":{"tenant":"acme","idempotency":"k-1"}}`
 		one.send(t, sent)
 		asked := machine.take(t)
@@ -386,8 +417,9 @@ func Run(t *testing.T, connect Connect) {
 			if err := registry.Bind(id, near, governance, session.NewMemoryLog(0)); err != nil {
 				t.Fatal(err)
 			}
-			machines[id] = &speaker{name: "machine " + id, channel: far}
+			machines[id] = newSpeaker("machine "+id, far, false)
 			down, consumer := connect(t, nil)
+			held := newSpeaker(id, consumer, true)
 			attachment, err := registry.Attach(id, down, session.Participant, id, 0)
 			if err != nil {
 				t.Fatal(err)
@@ -395,7 +427,9 @@ func Run(t *testing.T, connect Connect) {
 			if err := registry.Control(id, attachment); err != nil {
 				t.Fatal(err)
 			}
-			holders[id] = &speaker{name: id, channel: consumer}
+			held.joined(t)
+			held.control(t)
+			holders[id] = held
 		}
 		if attention := registry.Attention(); len(attention) != 0 {
 			t.Fatalf("a quiet registry wants attention: %v", attention)
@@ -430,7 +464,7 @@ func Run(t *testing.T, connect Connect) {
 		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
 			t.Fatal(err)
 		}
-		machine := &speaker{name: "machine", channel: far}
+		machine := newSpeaker("machine", far, false)
 		changes.expect(t, expected{kind: session.ChangeBound})
 		events.expect(t, session.SessionBound{Session: "s"})
 
@@ -467,7 +501,7 @@ func Run(t *testing.T, connect Connect) {
 		// What the relay refuses is a change and never a frame: the machine
 		// never saw it, so the log did not either.
 		two.send(t, `{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":"t","count":1}}`)
-		two.take(t)
+		two.alone(t)
 		changes.expect(t, expected{kind: session.ChangeRefused, origin: "two", method: "echo"})
 		events.expect(t, session.Refused{Session: "s", Code: session.ErrorNotControlling, Method: "echo",
 			Role: session.Observer, Origin: "two"})
@@ -477,6 +511,8 @@ func Run(t *testing.T, connect Connect) {
 		}
 		changes.expect(t, expected{kind: session.ChangeControlChanged, origin: "one"})
 		events.expect(t, session.ControlChanged{Session: "s", Origin: "one", Held: true})
+		one.control(t)
+		two.control(t)
 
 		// A deciding frame of the holder's, with a trace the relay knows
 		// nothing of and tells whoever is watching about.
@@ -544,7 +580,10 @@ func Run(t *testing.T, connect Connect) {
 		}
 		changes.expect(t, expected{kind: session.ChangeControlChanged, origin: "three"})
 		events.expect(t, session.ControlChanged{Session: "s", Origin: "three", Held: true})
-		three.take(t)
+		for _, consumer := range []*speaker{one, two, three} {
+			consumer.control(t)
+		}
+		three.alone(t)
 		changes.expect(t, expected{kind: session.ChangeAskRouted, origin: "three", method: "reverse", trace: askTrace})
 		events.expect(t, session.AskRouted{Session: "s", ID: "s:1", Method: "reverse", Origin: "three",
 			Trace: runtime.Trace{Parent: askTrace}})
@@ -570,6 +609,11 @@ func Run(t *testing.T, connect Connect) {
 		next.Detach()
 		changes.expect(t, expected{kind: session.ChangeControlChanged})
 		events.expect(t, session.ControlChanged{Session: "s"})
+		// The consumer still attached is told control stands with nobody,
+		// which is the change a holder leaving makes.
+		if origin, held := two.control(t); origin != "" || held {
+			t.Fatalf("a holder leaving left control with %q, held %v", origin, held)
+		}
 		changes.expect(t, expected{kind: session.ChangeDetached, origin: "three"})
 		events.expect(t, session.SessionDetached{Session: "s", Role: session.Participant, Origin: "three"})
 
@@ -621,12 +665,14 @@ func Run(t *testing.T, connect Connect) {
 		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
 			t.Fatal(err)
 		}
-		machine := &speaker{name: "machine", channel: far}
+		machine := newSpeaker("machine", far, false)
 		holder, one := attach(t, registry, "s", "one", session.Participant, 0)
 		_, watcher := attach(t, registry, "s", "watcher", session.Observer, 0)
 		if err := registry.Control("s", holder); err != nil {
 			t.Fatal(err)
 		}
+		one.control(t)
+		watcher.control(t)
 		one.send(t, fmt.Sprintf(`{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":%q,"count":1},"meta":{"secret":%q}}`, sentinel, sentinel))
 		asked := machine.take(t)
 		machine.send(t, fmt.Sprintf(`{"version":1,"kind":"response","id":%q,"result":{"text":%q,"count":1}}`, asked.text("id"), sentinel))
@@ -639,7 +685,7 @@ func Run(t *testing.T, connect Connect) {
 		one.send(t, fmt.Sprintf(`{"version":1,"kind":"response","id":"s:1","result":{"text":%q,"count":1}}`, sentinel))
 		machine.take(t)
 		watcher.send(t, fmt.Sprintf(`{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":%q,"count":1}}`, sentinel))
-		watcher.take(t)
+		watcher.alone(t)
 
 		// What a change says is the members it declares, so a message
 		// cannot arrive under a name the sentinel was not looked for under.
@@ -692,15 +738,16 @@ func Run(t *testing.T, connect Connect) {
 		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
 			t.Fatal(err)
 		}
-		machine := &speaker{name: "machine", channel: far}
+		machine := newSpeaker("machine", far, false)
 		holder, one := attach(t, registry, "s", "one", session.Participant, 0)
 		if err := registry.Control("s", holder); err != nil {
 			t.Fatal(err)
 		}
+		one.control(t)
 		one.send(t, `{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":"t","count":1}}`)
 		machine.take(t)
 		one.send(t, `{"version":1,"kind":"request","id":"c:2","method":"echo","params":{"text":"t","count":1}}`)
-		refused := one.take(t)
+		refused := one.alone(t)
 		var public struct{ Code string }
 		if err := json.Unmarshal(refused.member["error"], &public); err != nil {
 			t.Fatal(err)
@@ -772,6 +819,204 @@ func Run(t *testing.T, connect Connect) {
 			return nil
 		}); err != nil {
 			t.Fatal(err)
+		}
+	})
+
+	t.Run("every consumer is told who holds control, and one attaching is told before anything else", func(t *testing.T) {
+		registry, machine := bind(t, "s")
+		holder, one := attach(t, registry, "s", "one", session.Participant, 0)
+		_, two := attach(t, registry, "s", "two", session.Observer, 0)
+		// A consumer that joins a session nobody holds is told exactly that,
+		// which is what a holder absent means and what an origin alone could
+		// not say of a consumer attached under no name.
+		for _, consumer := range []*speaker{one, two} {
+			if consumer.holder != "" || consumer.held {
+				t.Fatalf("%s joined a session held by %q", consumer.name, consumer.holder)
+			}
+		}
+		if err := registry.Control("s", holder); err != nil {
+			t.Fatal(err)
+		}
+		for _, consumer := range []*speaker{one, two} {
+			if origin, held := consumer.control(t); origin != "one" || !held {
+				t.Fatalf("%s was told control is %q, held %v", consumer.name, origin, held)
+			}
+		}
+		if err := registry.Control("s", nil); err != nil {
+			t.Fatal(err)
+		}
+		for _, consumer := range []*speaker{one, two} {
+			if origin, held := consumer.control(t); origin != "" || held {
+				t.Fatalf("%s was told control released is %q, held %v", consumer.name, origin, held)
+			}
+		}
+		// Given again, so that a consumer attaching after it joins a session
+		// somebody holds, and with one frame in the log so that its replay
+		// is not empty: who holds control comes before that too.
+		if err := registry.Control("s", holder); err != nil {
+			t.Fatal(err)
+		}
+		one.control(t)
+		two.control(t)
+		const emitted = `{"version":1,"kind":"event","event":"changed","data":{"text":"t","count":1}}`
+		machine.send(t, emitted)
+		one.take(t)
+		two.take(t)
+		_, three := attach(t, registry, "s", "three", session.Observer, 0)
+		if three.holder != "one" || !three.held {
+			t.Fatalf("a consumer attaching was told control is %q, held %v", three.holder, three.held)
+		}
+		if replayed := three.take(t); string(replayed.raw) != emitted {
+			t.Fatalf("what followed was %s", replayed.raw)
+		}
+		three.quiet(t)
+	})
+
+	t.Run("an attachment says what the relay told its consumer", func(t *testing.T) {
+		registry, machine := bind(t, "s")
+		first, one := attach(t, registry, "s", "one", session.Participant, 0)
+		if origin, held := first.Holder(); origin != "" || held {
+			t.Fatalf("an attachment of a session nobody holds says %q, held %v", origin, held)
+		}
+		if first.Sequence() != 0 {
+			t.Fatalf("an attachment delivered nothing stands at %d", first.Sequence())
+		}
+		moved := make(chan string, 4)
+		stop := first.OnControl(func(origin string, held bool) {
+			if !held {
+				moved <- "nobody"
+				return
+			}
+			moved <- origin
+		})
+		if err := registry.Control("s", first); err != nil {
+			t.Fatal(err)
+		}
+		one.control(t)
+		if told := <-moved; told != "one" {
+			t.Fatalf("the registration was told %q", told)
+		}
+		if origin, held := first.Holder(); origin != "one" || !held {
+			t.Fatalf("the attachment says %q, held %v, where its consumer was told one", origin, held)
+		}
+		machine.send(t, `{"version":1,"kind":"event","event":"changed","data":{"text":"t","count":1}}`)
+		one.take(t)
+		if first.Sequence() != one.cursor || first.Sequence() != 1 {
+			t.Fatalf("the attachment stands at %d where its consumer was told %d", first.Sequence(), one.cursor)
+		}
+		// A stopped registration hears nothing of what the consumer is still
+		// told, and the state stands whether anything was registered at all.
+		stop()
+		if err := registry.Control("s", nil); err != nil {
+			t.Fatal(err)
+		}
+		one.control(t)
+		if origin, held := first.Holder(); origin != "" || held {
+			t.Fatalf("the attachment says %q, held %v, where control was released", origin, held)
+		}
+		select {
+		case told := <-moved:
+			t.Fatalf("a stopped registration was told %q", told)
+		default:
+		}
+	})
+
+	t.Run("a consumer reattaches after the cursor it was told, which counting what arrived gets wrong", func(t *testing.T) {
+		// A log bound with four frames in it, the second of them over its
+		// bound and so kept cut: a cut message is no message for a channel
+		// that speaks the family, so three arrive and the session stands at
+		// four. A consumer counting what arrived would reattach at three and
+		// be given the fourth a second time.
+		held := []string{
+			`{"version":1,"kind":"event","event":"changed","data":1}`,
+			`{"version":1,"kind":"event","event":"changed","data":{"text":"well beyond the bound this log was given","count":2}}`,
+			`{"version":1,"kind":"event","event":"changed","data":3}`,
+			`{"version":1,"kind":"event","event":"changed","data":4}`,
+		}
+		log := session.NewMemoryLog(64)
+		for _, message := range held {
+			if _, err := log.Append(context.Background(), session.Frame{Direction: session.Down, Message: []byte(message)}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		registry := session.New(session.Options{})
+		near, far := connect(t, nil)
+		if err := registry.Bind("s", near, governance, log); err != nil {
+			t.Fatal(err)
+		}
+		machine := newSpeaker("machine", far, false)
+		// A consumer holding the whole log, which is replayed nothing and is
+		// where the suite reads that a live frame has been recorded.
+		_, watcher := attach(t, registry, "s", "watcher", session.Observer, int64(len(held)))
+		watcher.quiet(t)
+
+		attachment, one := attach(t, registry, "s", "one", session.Observer, 0)
+		for _, want := range []string{held[0], held[2], held[3]} {
+			if replayed := one.take(t); string(replayed.raw) != want {
+				t.Fatalf("the replay gave %s, not %s", replayed.raw, want)
+			}
+		}
+		one.quiet(t)
+		if one.cursor != 4 || attachment.Sequence() != 4 {
+			t.Fatalf("a consumer given three of four frames was told it stands at %d, and its attachment says %d",
+				one.cursor, attachment.Sequence())
+		}
+		// Nothing of the session's own vocabulary is in the log, so a replay
+		// never gives a stale holder or a cursor of its own: what a consumer
+		// is told is the relay's, made where it is sent.
+		if err := log.Replay(context.Background(), 0, func(frame session.Frame) error {
+			var named struct{ Event string }
+			if json.Unmarshal(frame.Message, &named) == nil && strings.HasPrefix(named.Event, session.Prefix) {
+				t.Errorf("the log kept %s", frame.Message)
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		attachment.Detach()
+		const live = `{"version":1,"kind":"event","event":"changed","data":5}`
+		machine.send(t, live)
+		watcher.take(t)
+		_, again := attach(t, registry, "s", "one", session.Observer, one.cursor)
+		if replayed := again.take(t); string(replayed.raw) != live {
+			t.Fatalf("a consumer resuming after the cursor it was told saw %s", replayed.raw)
+		}
+		again.quiet(t)
+		// And the count a consumer would have kept itself is one short.
+		_, counted := attach(t, registry, "s", "counted", session.Observer, one.cursor-1)
+		if replayed := counted.take(t); string(replayed.raw) != held[3] {
+			t.Fatalf("a consumer resuming after what it counted saw %s", replayed.raw)
+		}
+	})
+
+	t.Run("a machine that sends the session's own vocabulary ends the session", func(t *testing.T) {
+		// The vocabulary is the relay's to produce: a machine speaking it
+		// speaks for the layer above it, which is no frame of the family.
+		for _, sent := range []string{
+			`{"version":1,"kind":"event","event":"session.control","data":{"holder":"one"}}`,
+			`{"version":1,"kind":"event","event":"session.cursor","data":{"sequence":9}}`,
+			`{"version":1,"kind":"request","id":"s:1","method":"session.subscribe","params":{"events":[]}}`,
+		} {
+			registry, machine := bind(t, "s")
+			_, one := attach(t, registry, "s", "one", session.Participant, 0)
+			machine.send(t, sent)
+			named := "session.control"
+			switch {
+			case strings.Contains(sent, session.CursorEvent):
+				named = session.CursorEvent
+			case strings.Contains(sent, "session.subscribe"):
+				named = "session.subscribe"
+			}
+			// The consumer is ended with the session and was given nothing of
+			// what the machine sent, which the log did not keep either.
+			closed := one.ended(t)
+			if closed.Code != duplex.CodeProtocolError || !strings.Contains(closed.Reason, named) {
+				t.Fatalf("%s ended the consumer as %d %q", named, closed.Code, closed.Reason)
+			}
+			if ended := machine.ended(t); ended.Code != duplex.CodeProtocolError {
+				t.Fatalf("%s ended the machine's own side as %d %q", named, ended.Code, ended.Reason)
+			}
 		}
 	})
 }
@@ -969,10 +1214,56 @@ func mustConnection(t *testing.T, connect Connect) duplex.Conn {
 }
 
 // speaker is one end of a connection the suite speaks frames over: a
-// machine, or a consumer.
+// machine, or a consumer. A consumer also reads the session's own
+// vocabulary, and keeps the last cursor it was told, which is what it
+// reattaches after.
+//
+// It reads its end as the frames arrive rather than as the suite asks for
+// them, so that nothing the relay sends waits on the suite's own turn to
+// read: a replay is longer than a connection's buffer, and the attach that
+// carries it does not return until the last of it is sent.
 type speaker struct {
 	name    string
 	channel duplex.Conn
+	// consumer says this end is a consumer's, which is the end a cursor
+	// reaches: the machine's is one side of the family's conversation and
+	// hears nothing of the session's own vocabulary.
+	consumer bool
+	cursor   int64
+	// holder and held are what the last control event this end was sent
+	// said, which is how a case reads the one the attach took.
+	holder string
+	held   bool
+	frames chan *frame
+	ending chan error
+}
+
+// newSpeaker takes one end and begins reading it.
+func newSpeaker(name string, channel duplex.Conn, consumer bool) *speaker {
+	s := &speaker{name: name, channel: channel, consumer: consumer,
+		frames: make(chan *frame, 256), ending: make(chan error, 1)}
+	go s.pump()
+	return s
+}
+
+// pump reads until the end closes, and says how it ended; it holds no t, a
+// test's own goroutine being the only one that may fail it.
+func (s *speaker) pump() {
+	for {
+		received, err := s.channel.Receive(context.Background())
+		if err != nil {
+			s.ending <- err
+			close(s.frames)
+			return
+		}
+		decoded, err := parseFrame(received.Data)
+		if err != nil {
+			s.ending <- fmt.Errorf("%s received %q: %w", s.name, received.Data, err)
+			close(s.frames)
+			return
+		}
+		s.frames <- decoded
+	}
 }
 
 // frame is one frame as it arrived, with its members in the order they were
@@ -996,6 +1287,12 @@ func (f *frame) text(name string) string {
 // was sent.
 func members(t *testing.T, raw []byte) (*frame, error) {
 	t.Helper()
+	return parseFrame(raw)
+}
+
+// parseFrame is that read without a test to fail, which is what a speaker's
+// own goroutine does with what arrives on it.
+func parseFrame(raw []byte) (*frame, error) {
 	d := json.NewDecoder(bytes.NewReader(raw))
 	token, err := d.Token()
 	if err != nil {
@@ -1033,30 +1330,92 @@ func (s *speaker) send(t *testing.T, raw string) {
 	}
 }
 
+// take is the next frame of the family and, where this end is a consumer's,
+// the cursor the relay sends straight after it: the two go under one turn,
+// so a consumer reads them together, and what the cursor said is where this
+// speaker now stands.
 func (s *speaker) take(t *testing.T) *frame {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	received, err := s.channel.Receive(ctx)
-	if err != nil {
-		t.Fatalf("%s received nothing: %v", s.name, err)
+	got := s.alone(t)
+	if s.consumer {
+		s.cursor = s.at(t, got)
 	}
-	decoded, err := members(t, received.Data)
-	if err != nil {
-		t.Fatalf("%s received %q: %v", s.name, received.Data, err)
+	return got
+}
+
+// alone is the next frame with nothing after it: what the relay writes of
+// itself — a refusal, an ask handed again as control moves — has no place in
+// the log and so no cursor.
+func (s *speaker) alone(t *testing.T) *frame {
+	t.Helper()
+	select {
+	case got, ok := <-s.frames:
+		if !ok {
+			t.Fatalf("%s's channel ended where a frame was due: %v", s.name, <-s.ending)
+		}
+		return got
+	case <-time.After(5 * time.Second):
+		t.Fatalf("%s received nothing", s.name)
 	}
-	return decoded
+	return nil
+}
+
+// at holds that a cursor followed the frame just taken and gives the
+// sequence it named, which is the log's own and never a count of frames.
+func (s *speaker) at(t *testing.T, after *frame) int64 {
+	t.Helper()
+	cursor := s.alone(t)
+	if cursor.text("kind") != "event" || cursor.text("event") != session.CursorEvent {
+		t.Fatalf("%s was sent %s after %s, where the cursor was due", s.name, cursor.raw, after.raw)
+	}
+	var data struct{ Sequence int64 }
+	if err := json.Unmarshal(cursor.member["data"], &data); err != nil {
+		t.Fatal(err)
+	}
+	if data.Sequence <= 0 {
+		t.Fatalf("%s was told it stands at %d", s.name, data.Sequence)
+	}
+	return data.Sequence
+}
+
+// control is the next frame, held to being the session's control event, and
+// who it says holds control.
+func (s *speaker) control(t *testing.T) (origin string, held bool) {
+	t.Helper()
+	got := s.alone(t)
+	if got.text("kind") != "event" || got.text("event") != session.ControlEvent {
+		t.Fatalf("%s was sent %s, where who holds control was due", s.name, got.raw)
+	}
+	var data struct{ Holder *string }
+	if err := json.Unmarshal(got.member["data"], &data); err != nil {
+		t.Fatal(err)
+	}
+	if data.Holder != nil {
+		s.holder, s.held = *data.Holder, true
+	} else {
+		s.holder, s.held = "", false
+	}
+	return s.holder, s.held
+}
+
+// joined is the control event every consumer is sent on attach, before its
+// replay and before any frame of the family.
+func (s *speaker) joined(t *testing.T) (origin string, held bool) {
+	t.Helper()
+	return s.control(t)
 }
 
 // quiet holds that nothing reaches this end: what the relay refuses, or
-// routes elsewhere, arrives nowhere.
+// routes elsewhere, arrives nowhere. An end that has closed is quiet as one
+// that sends nothing is.
 func (s *speaker) quiet(t *testing.T) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
-	defer cancel()
-	received, err := s.channel.Receive(ctx)
-	if err == nil {
-		t.Fatalf("%s received %q", s.name, received.Data)
+	select {
+	case got, ok := <-s.frames:
+		if ok {
+			t.Fatalf("%s received %q", s.name, got.raw)
+		}
+	case <-time.After(250 * time.Millisecond):
 	}
 }
 
@@ -1072,14 +1431,16 @@ func (s *speaker) close(t *testing.T, code duplex.Code, reason string) {
 // ended waits for this end's channel to be closed and returns the close.
 func (s *speaker) ended(t *testing.T) *duplex.CloseError {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	received, err := s.channel.Receive(ctx)
-	if err == nil {
-		t.Fatalf("%s received %q where its channel should have ended", s.name, received.Data)
+	select {
+	case got, ok := <-s.frames:
+		if ok {
+			t.Fatalf("%s received %q where its channel should have ended", s.name, got.raw)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("%s's channel never ended", s.name)
 	}
 	var closed *duplex.CloseError
-	if !errors.As(err, &closed) {
+	if err := <-s.ending; !errors.As(err, &closed) {
 		t.Fatalf("%s ended with %v", s.name, err)
 	}
 	return closed

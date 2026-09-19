@@ -126,15 +126,23 @@ func (r *relay) fromMachine(data []byte) {
 		r.end(&duplex.CloseError{Code: duplex.CodeProtocolError, Reason: err.Error()})
 		return
 	}
-	attached := r.record(Down, nil, m, data)
+	// The session's own vocabulary is the relay's to produce: a machine that
+	// sends one speaks for the layer above it, which is no frame of the
+	// family and ends the connection as a malformed one does. It is refused
+	// before the log, being no message of the session either.
+	if name := m.named(); reserved(name) {
+		r.end(&duplex.CloseError{Code: duplex.CodeProtocolError, Reason: "a machine does not send " + name})
+		return
+	}
+	sequence, attached := r.record(Down, nil, m, data)
 	switch m.kind() {
 	case "event":
 		for _, a := range attached {
-			a.deliver(data)
+			a.deliver(sequence, data)
 		}
 	case "response":
 		if at, id, ok := r.resolve(m.id()); ok {
-			at.deliver(m.withID(id))
+			at.deliver(sequence, m.withID(id))
 		}
 	case "request":
 		asking := r.governance.Asks(m.method())
@@ -144,12 +152,12 @@ func (r *relay) fromMachine(data []byte) {
 		}
 		r.askRaised(m, asking)
 		if ok {
-			at.deliver(data)
+			at.deliver(sequence, data)
 			r.askRouted(at, m.id(), m.method(), m.trace())
 		}
 	case "cancel":
 		if at, ok := r.withdraw(m.id()); ok {
-			at.deliver(data)
+			at.deliver(sequence, data)
 		}
 	}
 }
@@ -207,8 +215,9 @@ func (r *relay) fromConsumer(a *Attachment, data []byte) {
 // the consumers there were when that sequence was assigned; one attaching
 // between the two is not among them and takes the frame from the log's
 // replay instead. from is the consumer whose frame it is, and nil for the
-// machine's, which is what the frame's origin is read from.
-func (r *relay) record(direction Direction, from *Attachment, m *message, data []byte) []*Attachment {
+// machine's, which is what the frame's origin is read from. The sequence is
+// what a consumer the frame is delivered to is told its cursor stands at.
+func (r *relay) record(direction Direction, from *Attachment, m *message, data []byte) (int64, []*Attachment) {
 	origin := ""
 	if from != nil {
 		origin = from.Origin
@@ -216,21 +225,21 @@ func (r *relay) record(direction Direction, from *Attachment, m *message, data [
 	r.mu.Lock()
 	if r.closed {
 		r.mu.Unlock()
-		return nil
+		return 0, nil
 	}
 	sequence, err := r.log.Append(r.ctx, Frame{Direction: direction, Origin: origin, At: time.Now().UTC(), Message: data})
 	if err != nil {
 		r.mu.Unlock()
 		// A session whose frames cannot be recorded is not a session.
 		r.end(fmt.Errorf("the session's log refused a frame: %w", err))
-		return nil
+		return 0, nil
 	}
 	r.sequence = sequence
 	attached := make([]*Attachment, len(r.attached))
 	copy(attached, r.attached)
 	r.mu.Unlock()
 	r.frameAppended(sequence, direction, from, m, len(data))
-	return attached
+	return sequence, attached
 }
 
 // sendUp records a consumer's frame and sends it to the machine, one
@@ -265,7 +274,8 @@ func (r *relay) refuse(a *Attachment, m *message, code, reason string) {
 		return
 	}
 	r.refused(a, code, m)
-	a.deliver(data)
+	// The machine never saw it, so it has no place in the log and no cursor.
+	a.deliver(0, data)
 }
 
 func (r *relay) controls(a *Attachment) bool {
@@ -390,16 +400,34 @@ func (r *relay) control(holder *Attachment) error {
 		request.at = holder
 		open = append(open, *request)
 	}
+	// Whom to tell is taken where control moved, so that a consumer
+	// attaching after this is told by its own attach rather than twice.
+	attached := make([]*Attachment, len(r.attached))
+	copy(attached, r.attached)
 	r.mu.Unlock()
 	r.controlChanged(holder)
+	told(attached, holder)
 	if holder == nil {
 		return nil
 	}
 	for _, request := range open {
-		holder.deliver(request.message)
+		// The ask follows control to a consumer already told control moved.
+		// It is the frame the log holds handed again rather than a new place
+		// in the order, and so carries no cursor of its own.
+		holder.deliver(0, request.message)
 		r.askRouted(holder, request.id, request.method, request.trace)
 	}
 	return nil
+}
+
+// told sends the session's control event to every consumer it names, which
+// is what makes who holds control something a consumer has rather than
+// something only an observer of the service is given.
+func told(attached []*Attachment, holder *Attachment) {
+	holding, held := origin(holder), holder != nil
+	for _, a := range attached {
+		a.control(holding, held)
+	}
 }
 
 // holds reports whether an attachment is one of the session's; the caller
@@ -447,12 +475,24 @@ func (r *relay) attach(down duplex.Conn, role Role, origin string, after int64) 
 	}
 	r.attached = append(r.attached, a)
 	ceiling := r.sequence
+	// origin names the attachment's own here, so who holds control is read
+	// off the relay's holder rather than through it.
+	holding, held := "", r.holder != nil
+	if held {
+		holding = r.holder.Origin
+	}
 	r.mu.Unlock()
 	// Told before the replay runs, because the consumer is one of the
 	// session's from here: a frame recorded meanwhile is already its own and
 	// waits behind the replay rather than before the attachment.
 	r.sessionAttached(a, after)
-	err := r.replay(a, after, ceiling)
+	// Who holds control is the first thing on the connection, before the
+	// replay and before any frame of the family, so that the consumer knows
+	// the state it joined before it reads what it missed.
+	err := a.controlHeld(holding, held)
+	if err == nil {
+		err = r.replay(a, after, ceiling)
+	}
 	a.send.Unlock()
 	if err != nil {
 		a.Detach()
@@ -480,7 +520,10 @@ func (r *relay) replay(a *Attachment, after, ceiling int64) error {
 		if frame.Truncated {
 			return nil
 		}
-		return a.sendHeld(frame.Message)
+		if err := a.sendHeld(frame.Message); err != nil {
+			return err
+		}
+		return a.cursorHeld(frame.Sequence)
 	})
 	if errors.Is(err, errReplayed) {
 		return nil
@@ -491,7 +534,7 @@ func (r *relay) replay(a *Attachment, after, ceiling int64) error {
 // detach removes a consumer from the session, releasing control it held —
 // an open ask then waits for the next holder — and dropping what it asked
 // the machine, whose answers no longer have anywhere to go.
-func (r *relay) detach(a *Attachment) (removed, released bool) {
+func (r *relay) detach(a *Attachment) (removed, released bool, remaining []*Attachment) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for i, attached := range r.attached {
@@ -514,7 +557,9 @@ func (r *relay) detach(a *Attachment) (removed, released bool) {
 			open.at = nil
 		}
 	}
-	return removed, released
+	remaining = make([]*Attachment, len(r.attached))
+	copy(remaining, r.attached)
+	return removed, released, remaining
 }
 
 // end ends the session: every consumer's connection is closed with the close
@@ -566,11 +611,20 @@ func (a *Attachment) pump() {
 }
 
 // deliver sends one frame to the consumer, after every frame sent to it
-// before; a consumer that does not take them is detached rather than
-// allowed to hold up the session.
-func (a *Attachment) deliver(data []byte) {
+// before, and where that frame has a place in the session's log the cursor
+// that names it, under one turn so that nothing comes between them; a
+// consumer that does not take them is detached rather than allowed to hold
+// up the session.
+//
+// A frame with no place — the relay's own refusal, a request handed again as
+// control moves — carries none: a cursor says where a consumer stands, and a
+// frame it has already been given is no new place to stand.
+func (a *Attachment) deliver(sequence int64, data []byte) {
 	a.send.Lock()
 	err := a.sendHeld(data)
+	if err == nil && sequence > 0 {
+		err = a.cursorHeld(sequence)
+	}
 	a.send.Unlock()
 	if err != nil {
 		a.end(duplex.CodePolicyViolation, "the consumer did not take the session's frames")
@@ -594,9 +648,10 @@ func (a *Attachment) end(code duplex.Code, reason string) {
 		// ended, once, rather than saying goodbye to each of them. And one
 		// that left holding control leaves the session with nobody holding
 		// it, which is the change releasing control by hand makes.
-		removed, released := a.relay.detach(a)
+		removed, released, remaining := a.relay.detach(a)
 		if released {
 			a.relay.controlChanged(nil)
+			told(remaining, nil)
 		}
 		if removed {
 			a.relay.sessionDetached(a)

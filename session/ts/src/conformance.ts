@@ -19,7 +19,7 @@ import { pipe, type FrameConnection } from '@nightseam/duplex';
 import { DuplexError, DuplexPeer, type Observer, type ObserverEvent } from '@nightseam/runtime';
 import { Tunnel } from '@nightseam/tunnel';
 import { asks, Client, decides, type Handler, type Payload } from '../../../cmd/nightseam/testdata/golden/api/ts/probe-client/src/index.ts';
-import { memoryLog, Registry, type Attachment, type Change, type Governance, type Log, type Role } from './index.ts';
+import { CONTROL_EVENT, CURSOR_EVENT, memoryLog, PREFIX, Registry, type Attachment, type Change, type Governance, type Log, type Role } from './index.ts';
 
 /** The connections a run of the suite is given: each open is one connected pair, the end a peer speaks on and the end the registry is given. */
 export interface Wire {
@@ -79,11 +79,17 @@ export const connections: Connect = async () => {
 /** One message of the profile, as a raw end of the suite reads and writes it. */
 type Envelope = Record<string, unknown>;
 
-/** The envelopes a channel receives, its close, and a promise of the next one not yet taken. */
+/**
+ * The envelopes a channel receives, its close, and a promise of the next one
+ * not yet taken. A consumer's end also reads the session's own vocabulary:
+ * `family` takes one frame of the conversation and the cursor the relay
+ * sends straight after it, and `control` takes who holds control.
+ */
 function listen(channel: FrameConnection) {
   const envelopes: Envelope[] = [];
   const waiters: ((envelope: Envelope) => void)[] = [];
   let taken = 0;
+  let cursor = 0;
   let closed: { code: number; reason: string } | undefined;
   channel.listen({
     frame: frame => {
@@ -94,15 +100,36 @@ function listen(channel: FrameConnection) {
     },
     close: (code, reason) => { closed = { code, reason }; },
   });
+  function next(): Promise<Envelope> {
+    if (taken < envelopes.length) return Promise.resolve(envelopes[taken++]!);
+    taken++;
+    return new Promise<Envelope>(resolve => { waiters.push(resolve); });
+  }
   return {
     envelopes,
-    next(): Promise<Envelope> {
-      if (taken < envelopes.length) return Promise.resolve(envelopes[taken++]!);
-      taken++;
-      return new Promise<Envelope>(resolve => { waiters.push(resolve); });
+    next,
+    /** One frame of the family and the cursor that names its place, which is where this consumer now stands. */
+    async family(): Promise<Envelope> {
+      const frame = await next();
+      const stamped = await next();
+      assert.equal(stamped.event, CURSOR_EVENT, `${JSON.stringify(frame)} was followed by ${JSON.stringify(stamped)}, not by a cursor`);
+      cursor = (stamped.data as { sequence: number }).sequence;
+      return frame;
     },
+    /** Who the next frame, held to being the session's control event, says holds control. */
+    async control(): Promise<string | null> {
+      const frame = await next();
+      assert.equal(frame.event, CONTROL_EVENT, `${JSON.stringify(frame)} was sent where who holds control was due`);
+      return (frame.data as { holder: string | null }).holder;
+    },
+    get cursor() { return cursor; },
     get closed() { return closed; },
   };
+}
+
+/** What a consumer was given of the family's conversation, the session's own vocabulary passed over. */
+function conversation(envelopes: Envelope[]): Envelope[] {
+  return envelopes.filter(envelope => typeof envelope.event !== 'string' || !envelope.event.startsWith(PREFIX));
 }
 
 /** say writes one envelope to a channel, as a peer of the family would. */
@@ -200,10 +227,18 @@ export function run(connect: Connect): void {
     return { wire, registry, log, machine };
   }
 
-  /** A consumer attached to that session: the end it speaks on, and what the registry knows it by. */
-  async function consumer(wire: Wire, registry: Registry, role: Role, origin: string, after = 0): Promise<{ near: FrameConnection; attachment: Attachment }> {
+  /**
+   * A consumer attached to that session: the end it speaks on, what the
+   * registry knows it by, what it is reading and who it was told holds
+   * control. It listens before it attaches, because the attach sends who
+   * holds control and then everything the consumer missed.
+   */
+  async function consumer(wire: Wire, registry: Registry, role: Role, origin: string, after = 0):
+  Promise<{ near: FrameConnection; at: ReturnType<typeof listen>; attachment: Attachment; joined: string | null }> {
     const { near, far } = await wire.open(after);
-    return { near, attachment: registry.attach('s', far, role, origin, after) };
+    const at = listen(near);
+    const attachment = registry.attach('s', far, role, origin, after);
+    return { near, at, attachment, joined: await at.control() };
   }
 
   /** The machine of the suite: a peer of the profile serving the family's server side over the up connection. */
@@ -221,19 +256,25 @@ export function run(connect: Connect): void {
     const one = await consumer(wire, registry, 'participant', 'one');
     const two = await consumer(wire, registry, 'observer', 'two');
     registry.control('s', one.attachment);
-    const heard = listen(two.near);
+    assert.equal(await two.at.control(), 'one');
     const client = await Client.attach(one.near, {}, answering);
     assert.deepEqual(await client.echo(payload('value')), { text: 'machine:value', count: 1 });
     await peer.emit('changed', payload('moved', 2));
     // What the peer sends is the peer's — a trace context among it — so the
     // event is held to what it is, not to the members it arrives with.
-    const event = await heard.next();
+    const event = await two.at.family();
     assert.equal(event.kind, 'event');
     assert.equal(event.event, 'changed');
     assert.deepEqual(event.data, { text: 'moved', count: 2 });
     await tick();
-    // The observer saw the event and nothing of the exchange it was not part of.
-    assert.deepEqual(heard.envelopes.map(envelope => envelope.kind), ['event']);
+    // The observer saw the event and nothing of the exchange it was not part
+    // of, beside the session's own vocabulary: who held control when it
+    // joined, who holds it now, and where the event stood.
+    assert.deepEqual(two.at.envelopes.map(envelope => envelope.event ?? envelope.kind),
+      [CONTROL_EVENT, CONTROL_EVENT, 'changed', CURSOR_EVENT]);
+    // A generated client of a family that declares none of this sees events
+    // it has no listener for and drops them, as the profile says it does.
+    assert.deepEqual(await client.noArgs(), 'ok');
     wire.close();
   });
 
@@ -277,18 +318,22 @@ export function run(connect: Connect): void {
     const peer = await serving(machine);
     const one = await consumer(wire, registry, 'participant', 'one');
     const two = await consumer(wire, registry, 'participant', 'two');
-    const atOne = listen(one.near);
-    const atTwo = listen(two.near);
+    const atOne = one.at;
+    const atTwo = two.at;
     assert.deepEqual(registry.attention(), []);
     registry.control('s', one.attachment);
+    assert.deepEqual([await atOne.control(), await atTwo.control()], ['one', 'one']);
     const answer = peer.call('reverse', payload('deliver'));
-    const asked = await atOne.next();
+    const asked = await atOne.family();
     assert.equal(asked.method, 'reverse');
     assert.deepEqual(registry.attention(), ['s']);
-    // Control moves while the ask is open: it is asked of the new holder
-    // under the id the machine gave it, and the one it was asked of no
-    // longer answers it.
+    // Control moves while the ask is open: every consumer is told, and the
+    // ask is asked of the new holder under the id the machine gave it, while
+    // the one it was asked of no longer answers it.
     registry.control('s', two.attachment);
+    assert.deepEqual([await atOne.control(), await atTwo.control()], ['two', 'two']);
+    // The frame the log already holds, handed again: no new place in the
+    // order, and so no cursor of its own.
     const again = await atTwo.next();
     assert.deepEqual(again, asked);
     say(one.near, { version: 1, kind: 'response', id: asked.id, result: payload('too late') });
@@ -297,8 +342,10 @@ export function run(connect: Connect): void {
     say(two.near, { version: 1, kind: 'response', id: again.id, result: payload('reveiled') });
     assert.deepEqual(await answer, { text: 'reveiled', count: 1 });
     assert.deepEqual(registry.attention(), []);
-    // An observer is never given control.
+    // A consumer attaching afterwards is told who holds control before any
+    // frame at all; an observer is never given it.
     const watching = await consumer(wire, registry, 'observer', 'watching');
+    assert.equal(watching.joined, 'two');
     assert.throws(() => registry.control('s', watching.attachment), (error: unknown) => error instanceof DuplexError && error.code === 'not_controlling');
     wire.close();
   });
@@ -308,8 +355,8 @@ export function run(connect: Connect): void {
     const atMachine = listen(machine);
     const one = await consumer(wire, registry, 'participant', 'one');
     const two = await consumer(wire, registry, 'participant', 'two');
-    const atOne = listen(one.near);
-    const atTwo = listen(two.near);
+    const atOne = one.at;
+    const atTwo = two.at;
     say(one.near, { version: 1, kind: 'request', id: 'c:1', method: 'seen', params: { of: 'one' } });
     const first = await atMachine.next();
     say(two.near, { version: 1, kind: 'request', id: 'c:1', method: 'seen', params: { of: 'two' } });
@@ -319,8 +366,8 @@ export function run(connect: Connect): void {
     // Answered in the other order, each answer still reaches the one that asked.
     say(machine, { version: 1, kind: 'response', id: second.id, result: 'for two' });
     say(machine, { version: 1, kind: 'response', id: first.id, result: 'for one' });
-    assert.deepEqual(await atOne.next(), { version: 1, kind: 'response', id: 'c:1', result: 'for one' });
-    assert.deepEqual(await atTwo.next(), { version: 1, kind: 'response', id: 'c:1', result: 'for two' });
+    assert.deepEqual(await atOne.family(), { version: 1, kind: 'response', id: 'c:1', result: 'for one' });
+    assert.deepEqual(await atTwo.family(), { version: 1, kind: 'response', id: 'c:1', result: 'for two' });
     wire.close();
   });
 
@@ -328,8 +375,9 @@ export function run(connect: Connect): void {
     const { wire, registry, machine } = await bound();
     const atMachine = listen(machine);
     const one = await consumer(wire, registry, 'participant', 'one');
-    const atOne = listen(one.near);
+    const atOne = one.at;
     registry.control('s', one.attachment);
+    await atOne.control();
     const sent = {
       version: 1,
       kind: 'request',
@@ -346,7 +394,7 @@ export function run(connect: Connect): void {
     assert.deepEqual({ ...arrived, id: sent.id }, sent);
     const emitted = { version: 1, kind: 'event', event: 'changed', data: payload('back'), traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000001-01' };
     say(machine, emitted);
-    assert.deepEqual(await atOne.next(), emitted);
+    assert.deepEqual(await atOne.family(), emitted);
     wire.close();
   });
 
@@ -355,6 +403,7 @@ export function run(connect: Connect): void {
     const atMachine = listen(machine);
     const one = await consumer(wire, registry, 'participant', 'one');
     registry.control('s', one.attachment);
+    await one.at.control();
     for (const text of ['first', 'second', 'third']) {
       say(one.near, { version: 1, kind: 'request', id: 'c:1', method: 'echo', params: payload(text) });
       const request = await atMachine.next();
@@ -367,11 +416,15 @@ export function run(connect: Connect): void {
     // The consumer attaches holding the first two frames, and the machine
     // speaks before the replay could have finished.
     const two = await consumer(wire, registry, 'observer', 'two', 2);
-    const atTwo = listen(two.near);
+    const atTwo = two.at;
     const live = { version: 1, kind: 'event', event: 'changed', data: payload('live') };
     say(machine, live);
-    for (let i = 0; i < recorded.length + 1; i++) await atTwo.next();
-    assert.deepEqual(atTwo.envelopes, [...recorded, live]);
+    for (let i = 0; i < recorded.length + 1; i++) await atTwo.family();
+    assert.deepEqual(conversation(atTwo.envelopes), [...recorded, live]);
+    // The cursor it was told is the log's own sequence, which is where it
+    // reattaches after and never a count of what arrived.
+    assert.equal(atTwo.cursor, 7);
+    assert.equal(two.attachment.sequence, 7);
     wire.close();
   });
 
@@ -389,26 +442,26 @@ export function run(connect: Connect): void {
     // A consumer resuming from nothing, before the machine has spoken at all,
     // is given every frame the log holds.
     const all = await consumer(wire, registry, 'observer', 'all');
-    const atAll = listen(all.near);
-    for (const message of held) assert.deepEqual(await atAll.next(), message);
+    const atAll = all.at;
+    for (const message of held) assert.deepEqual(await atAll.family(), message);
     // And one holding all but the last two takes exactly those two.
     const late = await consumer(wire, registry, 'observer', 'late', held.length - 2);
-    const atLate = listen(late.near);
-    for (const message of held.slice(-2)) assert.deepEqual(await atLate.next(), message);
+    const atLate = late.at;
+    for (const message of held.slice(-2)) assert.deepEqual(await atLate.family(), message);
     await tick();
-    assert.deepEqual([atAll.envelopes.length, atLate.envelopes.length], [held.length, 2]);
+    assert.deepEqual([conversation(atAll.envelopes).length, conversation(atLate.envelopes).length], [held.length, 2]);
     // The session goes on from the log's end rather than from nothing: the
     // machine's next frame takes the sequence after the head, which is what a
     // consumer holding the whole log is replayed nothing before.
     const live = { version: 1, kind: 'event', event: 'changed', data: payload('live', held.length + 1) };
     say(machine, live);
-    assert.deepEqual(await atAll.next(), live);
-    assert.deepEqual(await atLate.next(), live);
+    assert.deepEqual(await atAll.family(), live);
+    assert.deepEqual(await atLate.family(), live);
     const after = await consumer(wire, registry, 'observer', 'after', held.length);
-    const atAfter = listen(after.near);
-    assert.deepEqual(await atAfter.next(), live);
+    const atAfter = after.at;
+    assert.deepEqual(await atAfter.family(), live);
     await tick();
-    assert.deepEqual(atAfter.envelopes, [live]);
+    assert.deepEqual(conversation(atAfter.envelopes), [live]);
     wire.close();
   });
 
@@ -434,16 +487,19 @@ export function run(connect: Connect): void {
     const { wire, registry, machine } = await bound();
     const one = await consumer(wire, registry, 'participant', 'one');
     const two = await consumer(wire, registry, 'participant', 'two');
-    const atTwo = listen(two.near);
+    const atTwo = two.at;
     registry.control('s', one.attachment);
+    assert.equal(await atTwo.control(), 'one');
     one.near.close(1000, 'done with it');
     await tick();
-    // The session stands: what the one that left held is released, and the
-    // other consumer is where it was.
+    // The session stands: what the one that left held is released, which the
+    // consumer still attached is told, and it is where it was.
+    assert.equal(await atTwo.control(), null);
+    assert.equal(two.attachment.holder, null);
     assert.throws(() => registry.control('s', one.attachment), (error: unknown) => error instanceof DuplexError && error.code === 'not_attached');
     const live = { version: 1, kind: 'event', event: 'changed', data: payload('still here') };
     say(machine, live);
-    assert.deepEqual(await atTwo.next(), live);
+    assert.deepEqual(await atTwo.family(), live);
     machine.close(4001, 'the machine went away');
     await tick();
     assert.deepEqual(atTwo.closed, { code: 4001, reason: 'the machine went away' });
@@ -561,24 +617,21 @@ export function run(connect: Connect): void {
     const one = await consumer(wire, registry, 'participant', 'one');
     const two = await consumer(wire, registry, 'observer', 'two');
     registry.control('s', one.attachment);
+    assert.deepEqual([await one.at.control(), await two.at.control()], ['one', 'one']);
     const carried = { tenant: 'acme', idempotency: 'k-1' };
     say(one.near, { version: 1, kind: 'request', id: 'c:9', method: 'echo', params: payload('t'), meta: carried });
     assert.deepEqual((await atMachine.next()).meta, carried);
-    // The listeners are in place before the frame is said, or a consumer that
-    // was delivered synchronously has nothing left to hear.
-    const atConsumers = [listen(one.near), listen(two.near)];
     say(machine, { version: 1, kind: 'event', event: 'changed', data: payload('t'), meta: { cause: 'nightly' } });
-    for (const at of atConsumers) {
-      assert.deepEqual((await at.next()).meta, { cause: 'nightly' });
+    for (const at of [one.at, two.at]) {
+      assert.deepEqual((await at.family()).meta, { cause: 'nightly' });
     }
     // The log keeps each message whole, so a consumer that was not there is
     // replayed the carriage with it — the request the relay recorded on its way
     // to the machine and then the event — which is why a meta that holds a
     // credential wants a Log that redacts, as docs/session.md says.
     const late = await consumer(wire, registry, 'observer', 'late');
-    const atLate = listen(late.near);
-    assert.deepEqual((await atLate.next()).meta, carried);
-    assert.deepEqual((await atLate.next()).meta, { cause: 'nightly' });
+    assert.deepEqual((await late.at.family()).meta, carried);
+    assert.deepEqual((await late.at.family()).meta, { cause: 'nightly' });
     wire.close();
   });
 
@@ -653,5 +706,128 @@ export function run(connect: Connect): void {
     await tick();
     assert.deepEqual(seen.lines, ['bound', 'attached one #0', 'control_changed one', 'frame_appended one echo #1', 'refused one echo']);
     wire.close();
+  });
+
+  test('every consumer is told who holds control, and one attaching is told before anything else', async () => {
+    const { wire, registry, machine } = await bound();
+    const one = await consumer(wire, registry, 'participant', 'one');
+    const two = await consumer(wire, registry, 'observer', 'two');
+    // A consumer that joins a session nobody holds is told exactly that,
+    // which is what a holder absent means and what an origin alone could not
+    // say of a consumer attached under no name.
+    assert.deepEqual([one.joined, two.joined], [null, null]);
+    registry.control('s', one.attachment);
+    assert.deepEqual([await one.at.control(), await two.at.control()], ['one', 'one']);
+    registry.control('s', null);
+    assert.deepEqual([await one.at.control(), await two.at.control()], [null, null]);
+    // Given again, so that a consumer attaching after it joins a session
+    // somebody holds, and with one frame in the log so that its replay is
+    // not empty: who holds control comes before that too.
+    registry.control('s', one.attachment);
+    await one.at.control();
+    await two.at.control();
+    const emitted = { version: 1, kind: 'event', event: 'changed', data: payload('t') };
+    say(machine, emitted);
+    await one.at.family();
+    await two.at.family();
+    const three = await consumer(wire, registry, 'observer', 'three');
+    assert.equal(three.joined, 'one');
+    assert.deepEqual(await three.at.family(), emitted);
+    await tick();
+    assert.deepEqual(conversation(three.at.envelopes), [emitted]);
+    wire.close();
+  });
+
+  test('an attachment says what the relay told its consumer', async () => {
+    const { wire, registry, machine } = await bound();
+    const one = await consumer(wire, registry, 'participant', 'one');
+    assert.equal(one.attachment.holder, null);
+    assert.equal(one.attachment.sequence, 0);
+    const moved: (string | null)[] = [];
+    const stop = one.attachment.onControl(holder => { moved.push(holder); });
+    registry.control('s', one.attachment);
+    assert.equal(await one.at.control(), 'one');
+    assert.deepEqual(moved, ['one']);
+    assert.equal(one.attachment.holder, 'one');
+    say(machine, { version: 1, kind: 'event', event: 'changed', data: payload('t') });
+    await one.at.family();
+    assert.deepEqual([one.attachment.sequence, one.at.cursor], [1, 1]);
+    // A stopped registration hears nothing of what the consumer is still
+    // told, and the state stands whether anything is registered at all.
+    stop();
+    registry.control('s', null);
+    assert.equal(await one.at.control(), null);
+    assert.equal(one.attachment.holder, null);
+    assert.deepEqual(moved, ['one']);
+    wire.close();
+  });
+
+  test('a consumer reattaches after the cursor it was told, which counting what arrived gets wrong', async () => {
+    // A log bound with four frames in it, the second of them over its bound
+    // and so kept cut: a cut message is no message for a channel that speaks
+    // the family, so three arrive and the session stands at four. A consumer
+    // counting what arrived would reattach at three and be given the fourth
+    // a second time.
+    const wire = await connect();
+    const registry = new Registry();
+    const log = memoryLog(64);
+    const held: Envelope[] = [
+      { version: 1, kind: 'event', event: 'changed', data: 1 },
+      { version: 1, kind: 'event', event: 'changed', data: { text: 'well beyond the bound this log was given', count: 2 } },
+      { version: 1, kind: 'event', event: 'changed', data: 3 },
+      { version: 1, kind: 'event', event: 'changed', data: 4 },
+    ];
+    for (const message of held) await log.append({ sequence: 0, direction: 'down', origin: '', at: new Date(), message, truncated: false });
+    const { near: machine, far: up } = await wire.open();
+    registry.bind('s', up, governance, log);
+    // A consumer holding the whole log, which is replayed nothing and is
+    // where the suite reads that a live frame has been recorded.
+    const watcher = await consumer(wire, registry, 'observer', 'watcher', held.length);
+    const one = await consumer(wire, registry, 'observer', 'one');
+    for (const message of [held[0], held[2], held[3]]) assert.deepEqual(await one.at.family(), message);
+    await tick();
+    assert.deepEqual([one.at.cursor, one.attachment.sequence], [4, 4]);
+    assert.deepEqual(conversation(one.at.envelopes).length, 3);
+    // Nothing of the session's own vocabulary is in the log, so a replay
+    // never gives a stale holder or a cursor of its own: what a consumer is
+    // told is the relay's, made where it is sent.
+    const kept: Envelope[] = [];
+    await log.replay(0, frame => { kept.push(frame.message as Envelope); return Promise.resolve(); });
+    assert.deepEqual(conversation(kept).length, kept.length);
+
+    one.attachment.detach();
+    const live = { version: 1, kind: 'event', event: 'changed', data: 5 };
+    say(machine, live);
+    await watcher.at.family();
+    const again = await consumer(wire, registry, 'observer', 'one', one.at.cursor);
+    assert.deepEqual(await again.at.family(), live);
+    await tick();
+    assert.deepEqual(conversation(again.at.envelopes), [live]);
+    // And the count a consumer would have kept itself is one short.
+    const counted = await consumer(wire, registry, 'observer', 'counted', one.at.cursor - 1);
+    assert.deepEqual(await counted.at.family(), held[3]);
+    wire.close();
+  });
+
+  test("a machine that sends the session's own vocabulary ends the session", async () => {
+    // The vocabulary is the relay's to produce: a machine speaking it speaks
+    // for the layer above it, which is no frame of the family.
+    const refused: Envelope[] = [
+      { version: 1, kind: 'event', event: CONTROL_EVENT, data: { holder: 'one' } },
+      { version: 1, kind: 'event', event: CURSOR_EVENT, data: { sequence: 9 } },
+      { version: 1, kind: 'request', id: 's:1', method: 'session.subscribe', params: { events: [] } },
+    ];
+    for (const sent of refused) {
+      const { wire, registry, machine } = await bound();
+      const one = await consumer(wire, registry, 'participant', 'one');
+      say(machine, sent);
+      await tick();
+      const named = (sent.event ?? sent.method) as string;
+      // The consumer is ended with the session and was given nothing of what
+      // the machine sent, which the log did not keep either.
+      assert.deepEqual(one.at.closed, { code: 1002, reason: `a machine does not send ${named}` });
+      assert.deepEqual(conversation(one.at.envelopes), []);
+      wire.close();
+    }
   });
 }
