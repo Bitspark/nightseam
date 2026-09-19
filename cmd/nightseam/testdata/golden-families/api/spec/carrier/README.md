@@ -77,9 +77,13 @@ export interface Attachment<S extends AnyFamily = AnyFamily> {
 
 For example:
 
+Example bindings: `S = family probe`.
+
 ```json
 {
-  "connection": "‹S.Handle›",
+  "connection": {
+    "channel": 0
+  },
   "last": 0
 }
 ```
@@ -115,10 +119,27 @@ export interface Frame<S extends AnyFamily = AnyFamily> {
 
 For example:
 
+Example bindings: `S = family probe`.
+
 ```json
 {
   "sequence": 0,
-  "message": "‹S.Envelope›"
+  "message": {
+    "version": 0,
+    "kind": "‹kind›",
+    "id": "‹id›",
+    "method": "‹method›",
+    "params": {},
+    "result": {},
+    "error": {},
+    "event": "‹event›",
+    "data": {},
+    "traceparent": "‹traceparent›",
+    "tracestate": "‹tracestate›",
+    "meta": {
+      "‹key›": "‹meta›"
+    }
+  }
 }
 ```
 
@@ -144,11 +165,28 @@ export type Frames<S extends AnyFamily = AnyFamily> = Array<Frame<S>>;
 
 For example:
 
+Example bindings: `S = family probe`.
+
 ```json
 [
   {
     "sequence": 0,
-    "message": "‹S.Envelope›"
+    "message": {
+      "version": 0,
+      "kind": "‹kind›",
+      "id": "‹id›",
+      "method": "‹method›",
+      "params": {},
+      "result": {},
+      "error": {},
+      "event": "‹event›",
+      "data": {},
+      "traceparent": "‹traceparent›",
+      "tracestate": "‹tracestate›",
+      "meta": {
+        "‹key›": "‹meta›"
+      }
+    }
   }
 ]
 ```
@@ -268,6 +306,8 @@ The server implements these methods and emits these events.
 
 ### `attach` on the wire
 
+Example bindings: `S = family probe`.
+
 The client sends:
 
 ```json
@@ -290,7 +330,9 @@ The server answers:
   "kind": "response",
   "id": "c:1",
   "result": {
-    "connection": "‹S.Handle›",
+    "connection": {
+      "channel": 0
+    },
     "last": 0
   }
 }
@@ -312,6 +354,8 @@ await client.attach(params)
 
 ### `relay` on the wire
 
+Example bindings: `S = family probe`.
+
 The client sends:
 
 ```json
@@ -322,7 +366,22 @@ The client sends:
   "method": "relay",
   "params": {
     "sequence": 0,
-    "message": "‹S.Envelope›"
+    "message": {
+      "version": 0,
+      "kind": "‹kind›",
+      "id": "‹id›",
+      "method": "‹method›",
+      "params": {},
+      "result": {},
+      "error": {},
+      "event": "‹event›",
+      "data": {},
+      "traceparent": "‹traceparent›",
+      "tracestate": "‹tracestate›",
+      "meta": {
+        "‹key›": "‹meta›"
+      }
+    }
   }
 }
 ```
@@ -369,6 +428,8 @@ await client.relay(params)
 
 ### `frame.relayed` on the wire
 
+Example bindings: `S = family probe`.
+
 The server emits:
 
 ```json
@@ -378,7 +439,22 @@ The server emits:
   "event": "frame.relayed",
   "data": {
     "sequence": 0,
-    "message": "‹S.Envelope›"
+    "message": {
+      "version": 0,
+      "kind": "‹kind›",
+      "id": "‹id›",
+      "method": "‹method›",
+      "params": {},
+      "result": {},
+      "error": {},
+      "event": "‹event›",
+      "data": {},
+      "traceparent": "‹traceparent›",
+      "tracestate": "‹tracestate›",
+      "meta": {
+        "‹key›": "‹meta›"
+      }
+    }
   }
 }
 ```
