@@ -13,10 +13,11 @@ export async function waitForRegistries(tag, {
   goProxy = "https://proxy.golang.org",
   timeoutMs = 120_000,
   log = console.log,
+  clock = { now: () => performance.now(), sleep: after },
 } = {}) {
-  const start = performance.now();
+  const start = clock.now();
   const deadline = start + timeoutMs;
-  const elapsed = () => ((performance.now() - start) / 1000).toFixed(1);
+  const elapsed = () => ((clock.now() - start) / 1000).toFixed(1);
   const version = tag.slice(1);
   const targets = packages.map(directory => {
     const { name } = JSON.parse(readFileSync(join(root, directory, "package.json"), "utf8"));
@@ -31,9 +32,9 @@ export async function waitForRegistries(tag, {
   const pending = new Set(targets);
   let delay = 1000;
   log(`waiting up to ${timeoutMs / 1000}s for ${targets.length} packages and modules to propagate`);
-  while (pending.size && performance.now() < deadline) {
+  while (pending.size && clock.now() < deadline) {
     await Promise.all([...pending].map(async target => {
-      const remaining = deadline - performance.now();
+      const remaining = deadline - clock.now();
       if (remaining <= 0) return;
       try {
         // The timeout covers headers and the response body. A slow registry
@@ -57,11 +58,14 @@ export async function waitForRegistries(tag, {
       }
     }));
     if (!pending.size) return;
-    const remaining = deadline - performance.now();
+    const remaining = deadline - clock.now();
     if (remaining <= 0) break;
     const pause = Math.min(delay, remaining);
     log(`${pending.size} still unavailable after ${elapsed()}s; retrying in ${(pause / 1000).toFixed(1)}s`);
-    await after(pause);
+    // Timers can wake before a fractional delay has elapsed. Hold the
+    // scheduled wakeup, especially the final deadline, before retrying.
+    const wakeAt = Math.min(clock.now() + pause, deadline);
+    while (clock.now() < wakeAt) await clock.sleep(Math.ceil(wakeAt - clock.now()));
     delay = Math.min(delay * 2, 10_000);
   }
   throw new Error(`registry propagation timed out after ${elapsed()}s:\n${[...pending].map(target => `  ${target.name}: ${target.last ?? "no response"}`).join("\n")}`);

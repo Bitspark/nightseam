@@ -81,6 +81,26 @@ test("a propagation timeout names every package still unavailable and the last r
   });
 });
 
+test("an early timer wakeup does not start another request at the deadline", async t => {
+  const fake = await registry(t, (path, count, res) => {
+    if (path === runtime) res.writeHead(404).end();
+    else ready(path, res);
+  });
+  let now = 0;
+  let firstSleep = true;
+  const clock = {
+    now: () => now,
+    sleep: async milliseconds => {
+      // Timers truncate fractional milliseconds. The first wakeup is early;
+      // waiting for the remaining fraction must not send another request.
+      now += firstSleep ? milliseconds - 0.5 : milliseconds;
+      firstSleep = false;
+    },
+  };
+  await assert.rejects(waitForRegistries(tag, { ...fake.options, timeoutMs: 500, clock }), /registry propagation timed out.*HTTP 404/s);
+  assert.equal(fake.calls.get(runtime), 1, "the final backoff must reach its deadline before another request can start");
+});
+
 for (const phase of ["headers", "body"]) {
   test(`the deadline also bounds a registry that stalls its ${phase}`, { timeout: 5_000 }, async t => {
     const fake = await registry(t, (path, count, res) => {
