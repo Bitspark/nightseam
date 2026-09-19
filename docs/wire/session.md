@@ -163,7 +163,10 @@ before replay. Later registration receives subsequent changes and cannot
 recover the initial event. [The generated surface](../declaration/generated.md#session-control)
 names both language APIs.
 
-Automatic cursor state on a generated client remains the next lane (#45).
+Generated session clients retain the latest processed cursor automatically:
+Go `Sequence()` and TypeScript `sequence`, initially zero. Tracking starts
+before reading begins and precedes user cursor callbacks, including callbacks
+registered later. The constructor does not wait for replay to finish.
 `session.subscribe` and `session.unsubscribe`, by which a consumer narrows
 which application events reach it, follow in #51.
 

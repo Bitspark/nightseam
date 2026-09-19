@@ -231,7 +231,11 @@ func emitClient(f *file) {
 	f.imports(false)
 	f.line("export * from './types.ts';")
 	f.line("export { DuplexError };")
-	f.line("/** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */")
+	if fam.Session != nil {
+		f.line("/** Typed user callbacks installed before the client reads its first frame. Cursor tracking is always installed. */")
+	} else {
+		f.line("/** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */")
+	}
 	f.w.Block(fmt.Sprintf("export interface %s%s {", identEvents, decl), "}", func() {
 		for _, e := range fam.Server.Events {
 			f.linef("%s?: (data: %s, context: EventContext) => void | Promise<void>;", p.operations[e.Name], f.spell(e.Type))
@@ -281,6 +285,11 @@ func emitClient(f *file) {
 	}
 	f.w.Block(fmt.Sprintf("export class %s%s implements %s%s {", identClient, decl, identCaller, args), "}", func() {
 		f.linef("readonly %s: DuplexPeer;", identPeer)
+		if fam.Session != nil {
+			f.linef("#%s = 0;", identSequence)
+			f.line("/** The latest relay cursor processed by this client, initially zero. */")
+			f.linef("get %s(): number { return this.#%s; }", identSequence, identSequence)
+		}
 		var made []string
 		if fam.Generic {
 			for _, name := range names {
@@ -301,6 +310,9 @@ func emitClient(f *file) {
 			for _, m := range fam.Client.Methods {
 				f.line("if (!handler) throw new Error('reverse-call handler is required');")
 				f.linef("peer.handle(%s, async (params, context) => { try { %s(%s, params%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, context); %s(%s, result%s); return result; });", quote(m.Name), identValidateWire, requestExpression(m), slots, p.operations[m.Name], f.request(m), identValidateWire, expression(m.Result), slots)
+			}
+			if fam.Session != nil {
+				f.linef("this.%s%s(data => { this.#%s = data.sequence; });", identOn, upperFirst(p.operations["session.cursor"]), identSequence)
 			}
 			for _, e := range fam.Server.Events {
 				f.linef("if (events.%s) this.%s%s(events.%s);", p.operations[e.Name], identOn, upperFirst(p.operations[e.Name]), p.operations[e.Name])

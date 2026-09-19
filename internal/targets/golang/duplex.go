@@ -61,8 +61,27 @@ func emitClient(f *file) {
 	p, fam := f.plan, f.family
 	decl, args, open := declare(fam.Uses), apply(fam.Uses), f.entry(fam.Uses)
 	runtime, ctx := f.runtime(), f.std("context")
-	f.linef("type %s%s struct{ %s *%s.Peer }", identClient, decl, identPeer, runtime)
-	f.linef("// %s installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.", identEvents)
+	clientParam, clientArg, peerResult := "", "", "peer"
+	clientValue := "&" + identClient + args + "{" + identPeer + ": peer}"
+	if fam.Session != nil {
+		clientParam, clientArg, peerResult = "client *"+identClient+args+", ", "client, ", "_"
+		clientValue = "client"
+		f.w.Block(fmt.Sprintf("type %s%s struct {", identClient, decl), "}", func() {
+			f.linef("%s *%s.Peer", identPeer, runtime)
+			f.linef("%s %s.Int64", identSequenceField, f.use("atomic", "sync/atomic"))
+			for _, e := range fam.Server.Events {
+				if e.Name == "session.cursor" {
+					f.linef("%s %s.Pointer[func(%s.Context, %s)]", identCursorHandler, f.use("atomic", "sync/atomic"), ctx, f.spell(e.Type))
+				}
+			}
+		})
+		f.linef("// %s is the latest relay cursor processed by this client, initially zero.", identSequence)
+		f.linef("func (c *%s%s) %s() int64 { return c.%s.Load() }", identClient, args, identSequence, identSequenceField)
+		f.linef("// %s installs typed user callbacks before the client reads its first frame; cursor tracking is always installed.", identEvents)
+	} else {
+		f.linef("type %s%s struct{ %s *%s.Peer }", identClient, decl, identPeer, runtime)
+		f.linef("// %s installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.", identEvents)
+	}
 	f.w.Block(fmt.Sprintf("type %s%s struct {", identEvents, decl), "}", func() {
 		for _, e := range fam.Server.Events {
 			f.linef("%s func(%s.Context, %s)", p.operations[e.Name], ctx, f.spell(e.Type))
@@ -104,20 +123,23 @@ func emitClient(f *file) {
 	// made with and labels every name of the family with it; Dial and Attach
 	// share it.
 	f.linef("// %s registers the reverse-call handlers on the options a peer is made with and labels its names with the family.", identInstall)
-	f.w.Block(fmt.Sprintf("func %s%s(handler %s%s, events %s%s, options *%s.Options) error {", identInstall, decl, identHandler, args, identEvents, args, runtime), "}", func() {
+	f.w.Block(fmt.Sprintf("func %s%s(%shandler %s%s, events %s%s, options *%s.Options) error {", identInstall, decl, clientParam, identHandler, args, identEvents, args, runtime), "}", func() {
 		if len(fam.Client.Methods) > 0 {
 			f.linef("if handler == nil { return %s.Errorf(\"reverse-call handler is required\") }", f.std("fmt"))
 		}
 		f.linef("handlers := map[string]%s.Handler{}", runtime)
 		f.line("for name, existing := range options.Handlers { handlers[name] = existing }")
 		for _, m := range fam.Client.Methods {
-			f.registration(m, "handler", "&"+identClient+args+"{"+identPeer+": peer}")
+			f.registration(m, "handler", clientValue)
 		}
 		f.line("options.Handlers = handlers")
 		f.labels()
 		f.line("prepare := options.Prepare")
 		f.w.Block(fmt.Sprintf("options.Prepare = func(peer *%s.Peer) error {", runtime), "}", func() {
-			if len(fam.Server.Events) > 0 {
+			if fam.Session != nil {
+				f.linef("client.%s = peer", identPeer)
+				f.linef("if err := client.%s(); err != nil { return err }", identTrackCursor)
+			} else if len(fam.Server.Events) > 0 {
 				f.linef("client := &%s%s{%s: peer}", identClient, args, identPeer)
 			}
 			for _, e := range fam.Server.Events {
@@ -131,17 +153,23 @@ func emitClient(f *file) {
 	})
 	f.linef("// %s connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.", identDial)
 	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, url string, options %s.DialOptions, handler %s%s, events %s%s) (*%s%s, error) {", identDial, open, ctx, runtime, identHandler, args, identEvents, args, identClient, args), "}", func() {
-		f.linef("if err := %s%s(handler, events, &options.Options); err != nil { return nil, err }", identInstall, args)
-		f.linef("peer, response, err := %s.Dial(ctx, url, options)", runtime)
+		if fam.Session != nil {
+			f.linef("client := &%s%s{}", identClient, args)
+		}
+		f.linef("if err := %s%s(%shandler, events, &options.Options); err != nil { return nil, err }", identInstall, args, clientArg)
+		f.linef("%s, response, err := %s.Dial(ctx, url, options)", peerResult, runtime)
 		f.line("if err != nil { if response != nil && response.Body != nil { _ = response.Body.Close() }; return nil, err }")
-		f.linef("return &%s%s{%s: peer}, nil", identClient, args, identPeer)
+		f.linef("return %s, nil", clientValue)
 	})
 	f.linef("// %s speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.", identAttach)
 	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, conn %s.Conn, options %s.Options, handler %s%s, events %s%s) (*%s%s, error) {", identAttach, open, ctx, f.seam(), runtime, identHandler, args, identEvents, args, identClient, args), "}", func() {
-		f.linef("if err := %s%s(handler, events, &options); err != nil { return nil, err }", identInstall, args)
-		f.linef("peer, err := %s.NewPeer(ctx, conn, %s.ClientRole, options)", runtime, runtime)
+		if fam.Session != nil {
+			f.linef("client := &%s%s{}", identClient, args)
+		}
+		f.linef("if err := %s%s(%shandler, events, &options); err != nil { return nil, err }", identInstall, args, clientArg)
+		f.linef("%s, err := %s.NewPeer(ctx, conn, %s.ClientRole, options)", peerResult, runtime, runtime)
 		f.line("if err != nil { return nil, err }")
-		f.linef("return &%s%s{%s: peer}, nil", identClient, args, identPeer)
+		f.linef("return %s, nil", clientValue)
 	})
 	f.linef("// %s resolves a handle to the channel it names on a tunnel and speaks the family over it.", identOpen)
 	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, t *%s.Tunnel, handle %sHandle, options %s.Options, handler %s%s, events %s%s) (*%s%s, error) {", identOpen, open, ctx, f.tunnel(), f.proto(), runtime, identHandler, args, identEvents, args, identClient, args), "}", func() {
@@ -254,15 +282,39 @@ func (f *file) events(receiver string, received, sent []render.Event) {
 		f.linef("func (c *%s) %s%s(ctx %s.Context, data %s) error { if err := %s.%s(%s%s(%s), data); err != nil { return err }; return c.%s.Emit(ctx, %q, data) }", receiver, identEmit, p.operations[e.Name], ctx, f.spell(e.Type), f.boundSchema(f.uses), identValidateValue, f.proto(), identMustTypeExpression, expression(e.Type), identPeer, e.Name)
 	}
 	for _, e := range received {
-		runtime, json, ctx := f.runtime(), f.std("json"), f.std("context")
+		ctx := f.std("context")
 		data := f.spell(e.Type)
+		if f.family.Session != nil && receiver == identClient+apply(f.family.Uses) && e.Name == "session.cursor" {
+			// The runtime has one primary handler per event. Keep the tracker
+			// installed and register the caller's callback independently of it.
+			f.w.Block(fmt.Sprintf("func (c *%s) %s%s(handler func(%s.Context, %s)) error {", receiver, identOn, p.operations[e.Name], ctx, data), "}", func() {
+				f.linef("if handler == nil { return %s.Errorf(\"invalid duplex event handler\") }", f.std("fmt"))
+				f.linef("if err := c.%s.Err(); err != nil { return err }", identPeer)
+				f.linef("if !c.%s.CompareAndSwap(nil, &handler) { return %s.Errorf(\"event %%q already registered\", %q) }; return nil", identCursorHandler, f.std("fmt"), e.Name)
+			})
+			f.w.Block(fmt.Sprintf("func (c *%s) %s() error {", receiver, identTrackCursor), "}", func() {
+				f.eventHandler(e, func() {
+					f.linef("c.%s.Store(data.Sequence)", identSequenceField)
+					f.linef("if handler := c.%s.Load(); handler != nil { (*handler)(ctx, data) }", identCursorHandler)
+				})
+			})
+			continue
+		}
 		f.w.Block(fmt.Sprintf("func (c *%s) %s%s(handler func(%s.Context, %s)) error {", receiver, identOn, p.operations[e.Name], ctx, data), "}", func() {
-			f.w.Block(fmt.Sprintf("return c.%s.HandleEvent(%q, func(ctx %s.Context, peer *%s.Peer, raw %s.RawMessage) {", identPeer, e.Name, ctx, runtime, json), "})", func() {
-				f.linef("if err := %s.%s(%s%s(%s), raw); err != nil { _ = peer.Close(); return }", f.boundSchema(f.uses), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(e.Type))
-				f.linef("var data %s", data)
-				f.linef("if err := %s.Unmarshal(raw, &data); err != nil { _ = peer.Close(); return }", json)
+			f.eventHandler(e, func() {
 				f.line("handler(ctx, data)")
 			})
 		})
 	}
+}
+
+// eventHandler installs the typed validation path shared by internal and
+// user callbacks, retaining the payload's declaring family.
+func (f *file) eventHandler(e render.Event, callback func()) {
+	f.w.Block(fmt.Sprintf("return c.%s.HandleEvent(%q, func(ctx %s.Context, peer *%s.Peer, raw %s.RawMessage) {", identPeer, e.Name, f.std("context"), f.runtime(), f.std("json")), "})", func() {
+		f.linef("if err := %s.%s(%s%s(%s), raw); err != nil { _ = peer.Close(); return }", f.boundSchema(f.uses), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(e.Type))
+		f.linef("var data %s", f.spell(e.Type))
+		f.linef("if err := %s.Unmarshal(raw, &data); err != nil { _ = peer.Close(); return }", f.std("json"))
+		callback()
+	})
 }

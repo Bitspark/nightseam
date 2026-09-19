@@ -46,6 +46,10 @@ const (
 	identOpen                  = "Open"
 	identPeer                  = "Peer"
 	identClose                 = "Close"
+	identSequence              = "Sequence"
+	identSequenceField         = "sequence"
+	identCursorHandler         = "cursorHandler"
+	identTrackCursor           = "trackCursor"
 	identEmit                  = "Emit"
 	identOn                    = "On"
 )
@@ -81,7 +85,7 @@ func Reserved() []string {
 		identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identErrors, identIsError,
 		identRemote, identHandler, identEvents, identInstall, identNewHandler, identServe,
 		identClient, identCaller, identDecides, identAsks, identConversation, identDial, identAttach, identOpen,
-		identPeer, identClose,
+		identPeer, identClose, identSequence, identSequenceField, identCursorHandler, identTrackCursor,
 	}
 }
 
@@ -103,6 +107,9 @@ func planFamily(f *render.Family, seen map[*render.Family]bool) (*plan, []diag.D
 	p.packages.Fix("generated declaration", identTag, identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identErrors, identIsError)
 	p.client.Fix("generated client field", identPeer)
 	p.client.Fix("generated client method", identClose)
+	if f.Session != nil {
+		p.client.Fix("generated session client member", identSequence, identSequenceField, identCursorHandler, identTrackCursor)
+	}
 	p.remote.Fix("generated remote field", identPeer)
 	p.plan()
 	// Imported names retain their source overrides. Check that source's

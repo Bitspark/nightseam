@@ -22,12 +22,12 @@ func TestGeneratedSessionControl(t *testing.T) {
 		typescript.New(typescript.Config{Scope: scope}),
 	} {
 		t.Run(target.Name(), func(t *testing.T) {
-			testGeneratedSessionControl(t, root, tsc, target)
+			testGeneratedSession(t, root, tsc, target, goSessionControlFixture, tsSessionControlFixture)
 		})
 	}
 }
 
-func testGeneratedSessionControl(t *testing.T, root, tsc string, target spi.Target) {
+func testGeneratedSession(t *testing.T, root, tsc string, target spi.Target, goFixture, tsFixture string) {
 	t.Helper()
 	directory := t.TempDir()
 	for _, family := range []string{"probe", "plain"} {
@@ -35,6 +35,9 @@ func testGeneratedSessionControl(t *testing.T, root, tsc string, target spi.Targ
 		writeFixture(t, directory, "api/contracts/"+family+"/protocol.json", []byte(`{"profile":"nightseam.duplex/1","server":{"events":{"changed":{"type":"string"}}}}`))
 	}
 	writeFixture(t, directory, "api/contracts/probe/session.json", []byte(`{}`))
+	writeFixture(t, directory, "api/contracts/generic/model.json", []byte(`{"nightseam":2}`))
+	writeFixture(t, directory, "api/contracts/generic/protocol.json", []byte(`{"profile":"nightseam.duplex/1","parameters":[{"name":"T"}],"server":{"methods":{"echo":{"result":"T"}}},"client":{"methods":{"sequence_read":{"result":"integer"}}}}`))
+	writeFixture(t, directory, "api/contracts/generic/session.json", []byte(`{}`))
 	k := kernel.New(target)
 	world := k.Load(os.DirFS(directory), "api/contracts")
 	for _, name := range world.Names {
@@ -46,7 +49,7 @@ func testGeneratedSessionControl(t *testing.T, root, tsc string, target spi.Targ
 	}
 	if target.Name() == golang.Name {
 		fixtureModule(t, directory, root)
-		writeFixture(t, directory, "session_control_test.go", []byte(goSessionControlFixture))
+		writeFixture(t, directory, "session_control_test.go", []byte(goFixture))
 		runFixture(t, directory, "go", "test", "-count=1", "./...")
 		return
 	}
@@ -67,7 +70,7 @@ func testGeneratedSessionControl(t *testing.T, root, tsc string, target spi.Targ
 		},
 		"include":["api/ts/**/*.ts","session-control.ts"]
 	}`))
-	writeFixture(t, directory, "session-control.ts", []byte(tsSessionControlFixture))
+	writeFixture(t, directory, "session-control.ts", []byte(tsFixture))
 	writeFixture(t, directory, "runtime-loader.mjs", []byte(sessionControlLoader))
 	runFixture(t, directory, "node", tsc, "--project", "tsconfig.json")
 	runFixture(t, directory, "node", "--loader", "./runtime-loader.mjs", "session-control.ts")

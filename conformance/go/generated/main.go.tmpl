@@ -15,8 +15,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -186,7 +188,7 @@ func (s *served) shutdown() {
 
 // A relay-backed endpoint uses the real generated binding as its machine.
 // Each accepted consumer is named by its connection order, consumer1, ... .
-func (s *served) sessionHandler() (http.Handler, error) {
+func (s *served) sessionHandler(prefill json.RawMessage) (http.Handler, error) {
 	registry, err := session.New(session.Options{})
 	if err != nil {
 		return nil, err
@@ -201,7 +203,29 @@ func (s *served) sessionHandler() (http.Handler, error) {
 	}
 	s.machine, s.remote = peer, &binding.Remote{Peer: peer}
 	log := session.NewMemoryLog(1 << 20)
-	_, err = log.Append(context.Background(), session.Frame{Direction: session.Down, Message: json.RawMessage(`{"version":1,"kind":"event","event":"changed","data":{"text":"replay","count":1}}`)})
+	frames := []struct{ Direction, Origin, Text string }{{Direction: "down", Text: `{"version":1,"kind":"event","event":"changed","data":{"text":"replay","count":1}}`}}
+	if len(prefill) != 0 {
+		err = json.Unmarshal(prefill, &frames)
+	}
+	for _, frame := range frames {
+		if err != nil {
+			break
+		}
+		direction := session.Down
+		switch frame.Direction {
+		case "", "down":
+		case "up":
+			direction = session.Up
+		default:
+			err = fmt.Errorf("prefill direction is up or down")
+			continue
+		}
+		if !json.Valid([]byte(frame.Text)) {
+			err = fmt.Errorf("prefill text is the frame's message")
+			break
+		}
+		_, err = log.Append(context.Background(), session.Frame{Direction: direction, Origin: frame.Origin, Message: json.RawMessage(frame.Text)})
+	}
 	if err == nil {
 		err = registry.Bind("generated", up, session.Governance{Decides: client.Decides, Asks: client.Asks}, log)
 	}
@@ -211,6 +235,15 @@ func (s *served) sessionHandler() (http.Handler, error) {
 		return nil, err
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var after int64
+		if value := r.URL.Query().Get("after"); value != "" {
+			var err error
+			after, err = strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				http.Error(w, "invalid after", http.StatusBadRequest)
+				return
+			}
+		}
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
 		if err != nil {
 			return
@@ -220,7 +253,7 @@ func (s *served) sessionHandler() (http.Handler, error) {
 		origin := fmt.Sprintf("consumer%d", s.connections)
 		s.mu.Unlock()
 		down := ws.New(conn, 1<<20)
-		attachment, err := registry.Attach("generated", down, session.Participant, origin, 0)
+		attachment, err := registry.Attach("generated", down, session.Participant, origin, after)
 		if err != nil {
 			_ = down.Abort()
 			return
@@ -257,6 +290,9 @@ type dialled struct {
 func (d *dialled) shutdown() { _ = d.client.Close(); d.cancel() }
 func (d *dialled) control(_ context.Context, data sessionprotocol.Control) {
 	d.notification("session.control", decoded(data))
+}
+func (d *dialled) cursor(_ context.Context, data sessionprotocol.Cursor) {
+	d.notification("session.cursor", decoded(data))
 }
 func (d *dialled) notification(event string, data any) {
 	d.notificationMu.Lock()
@@ -335,7 +371,7 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		var handler http.Handler
 		var err error
 		if sessionMode {
-			handler, err = s.sessionHandler()
+			handler, err = s.sessionHandler(raw["prefill"])
 		} else {
 			handler, err = binding.NewHandler(&server{noticed: s.noticed}, runtime.ServerOptions{
 				Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
@@ -383,14 +419,34 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		if control {
 			events.SessionControl = d.control
 		}
-		c, err := client.Dial(ctx, str(raw, "url"), runtime.DialOptions{}, clientHandler{}, events)
+		var cursor bool
+		_ = json.Unmarshal(raw["cursor"], &cursor)
+		if cursor {
+			events.SessionCursor = d.cursor
+		}
+		endpoint, err := url.Parse(str(raw, "url"))
+		if err != nil {
+			cancel()
+			return nil, fail("invalid", "%v", err)
+		}
+		if value, ok := raw["after"]; ok {
+			var after int64
+			if err := json.Unmarshal(value, &after); err != nil {
+				cancel()
+				return nil, fail("invalid", "after is an integer")
+			}
+			query := endpoint.Query()
+			query.Set("after", strconv.FormatInt(after, 10))
+			endpoint.RawQuery = query.Encode()
+		}
+		c, err := client.Dial(ctx, endpoint.String(), runtime.DialOptions{}, clientHandler{}, events)
 		if err != nil {
 			cancel()
 			return nil, fail("failed", "%v", err)
 		}
 		d.client = c
 		return map[string]any{"handle": t.mint("cl", d)}, nil
-	case "client.echo", "client.seen", "client.no_args", "client.emit_noticed", "client.await_changed", "client.await_notification", "client.on_control", "client.close":
+	case "client.echo", "client.seen", "client.no_args", "client.emit_noticed", "client.await_changed", "client.await_notification", "client.on_control", "client.on_cursor", "client.sequence", "client.close":
 		object, ok := t.lookup(str(raw, "on"))
 		d, is := object.(*dialled)
 		if !ok || !is {
@@ -399,6 +455,10 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		ctx, cancel := context.WithTimeout(context.Background(), within(raw))
 		defer cancel()
 		switch op {
+		case "client.sequence":
+			return map[string]any{"sequence": d.client.Sequence()}, nil
+		case "client.on_cursor":
+			return nil, d.client.OnSessionCursor(d.cursor)
 		case "client.on_control":
 			return nil, d.client.OnSessionControl(d.control)
 		case "client.await_notification":
