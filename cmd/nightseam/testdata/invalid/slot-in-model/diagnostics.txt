@@ -1,2 +1,2 @@
-x/model.json#/types/Held/fields/0/type: A model declaration draws on parameter S; a parameter is of the protocol tier, and a declaration refers to its own tier or a lower one. [tier_violation]
+x/model.json#/types/Held/fields/0/type: A model declaration draws on parameter S; a parameter of a tier is of the protocol tier, and a declaration refers to its own tier or a lower one. [tier_violation]
 error: 1 problems

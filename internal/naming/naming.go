@@ -51,3 +51,23 @@ func capitalise(word string) string {
 	}
 	return strings.ToUpper(word[:1]) + word[1:]
 }
+
+// Derived is the name a shape written inline is generated under: the upper
+// camel of the path to it, joined. A path is the declaration the shape sits
+// in and then each step that names something — a field's name, a union's
+// variant tag, an operation and the role the shape plays in it — while the
+// steps that name nothing, `array`, `map`, `nullable` and an application's
+// slot, are passed over, so that wrapping a shape in a list does not rename
+// it. One rule, so that every language spells a derived name one way:
+//
+//	Derived("EchoRequest", "note")   → EchoRequestNote
+//	Derived("echo", "request")       → EchoRequest
+//	Derived("frame.relayed", "event") → FrameRelayedEvent
+//	Derived("Part", "text", "body")  → PartTextBody
+func Derived(path ...string) string {
+	var out strings.Builder
+	for _, step := range path {
+		out.WriteString(UpperCamel(step))
+	}
+	return out.String()
+}

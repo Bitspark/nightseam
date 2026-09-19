@@ -1,0 +1,1 @@
+{"nightseam": 2, "imports": ["duplex"], "types": {"Held": {"kind": "record", "fields": [{"name": "message", "type": "Envelope"}]}}}

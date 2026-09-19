@@ -8,6 +8,50 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- The declaration language gained the type language of #55's eight
+  verdicts, whole and in one lane. **Unions**: `{"kind": "union", "tag":
+  "type", "variants": {…}}`, internally tagged with a declared
+  discriminator, a variant any type expression, a payload that is not an
+  object under a `value` member, a variant record that declares the tag
+  member as its own literal taking no wrapper, a union extending another by
+  adding variants, and `enum` unchanged as the union of variants with no
+  payload. **Parameters**: one mechanism at every level — a family, a
+  record, a union and an alias each declare `parameters`, of two sorts,
+  which `of` names: a type parameter filled by a type expression, or a
+  family parameter `of` any tier a family carries, filled by a family and
+  drawn through as `S.Envelope`; one `{"apply": X, "with": {…}}` fills, one
+  `P.Type` draws, refused on a type parameter. **Nullness**: `{"nullable":
+  T}` is a type expression and a field's `nullable: true` is its sugar, so
+  a collection of values that may be null can be declared. **Shapes without
+  a name**: a record, an enum or a union may be written where a value's
+  type is declared, named by one derivation rule from the path to it, held
+  by the `derived` rows of `conformance/tables/naming.json`. **Literals**:
+  `{"literal": "text"}`, the type of one string value. **Composition**: a
+  protocol side may `extends` another family's, taking its operations under
+  their own names. **The `pattern` dialect**: ECMAScript syntax without
+  lookaround and without backreferences, Nightseam's own
+  regular-expression language, refused in both directions by `check` and
+  held by the `patterns` rows of `conformance/tables/validator.json`. Seven
+  pages under `docs/decisions/` record the eight verdicts, and one
+  `cmd/nightseam/testdata/invalid/<rule>/` per new rule says what the tool
+  refuses. No target renders the new forms yet: each refuses a family that
+  uses one, naming the form and itself, and the render lanes replace each
+  refusal with rendering.
+- **What a tier brings a family is imported, not injected.** The profile,
+  the tunnel and the session are families Nightseam declares of itself, in
+  the declaration language, under `internal/model/builtin/<name>/` as
+  ordinary tier files held to the same shape schemas. A family that has a
+  tier file imports that tier's built-in with no `imports` line;
+  `model.Injected()` is gone, `duplex.Envelope` and `duplex.Handle` take
+  the one import code path every other reference takes, a diagnostic that
+  points into a built-in locates it as `nightseam:duplex/model.json`, a
+  family's specification prints the types it carries with their members,
+  and `conformance/tables/frames.json` is held to `duplex`'s envelope by a
+  test rather than kept in step by hand. Naming a built-in in `imports`, or
+  declaring a type one carries, is refused. Every generated package now
+  carries the profile's own descriptions, which is the only movement in the
+  golden corpus.
+
 - Generated TypeScript siblings use relative file dependencies by default;
   `--ts-sibling` selects file, workspace or version resolution consistently
   for generation and stale-output checks.

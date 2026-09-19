@@ -108,13 +108,14 @@ func (t *target) Family(p string) (string, bool) {
 	return "", false
 }
 
-// Check has nothing to refuse: a document is written of any family the
-// neutral checks accept.
+// Check refuses the forms of the declaration language the document does not
+// write yet, naming the form and this target; a document is written of any
+// other family the neutral checks accept.
 func (t *target) Check(f *render.Family) []diag.Diagnostic {
 	if err := t.config.Validate(); err != nil {
 		return []diag.Diagnostic{{Family: f.Name, Code: "invalid_config", Message: err.Error()}}
 	}
-	return nil
+	return render.Unrendered(f, Name)
 }
 
 // Reserved is what the target reserves: nothing.
@@ -148,6 +149,9 @@ func (d *doc) render() {
 	d.linef("A family of the `nightseam.duplex/1` profile, declared in %s.", d.tiers())
 	if len(f.References) > 0 {
 		d.linef("It imports %s.", d.families(f.References))
+	}
+	if len(f.Carries) > 0 {
+		d.linef("The tiers it declares bring the built-in %s, imported implicitly.", d.list(f.Carries, "family", "families"))
 	}
 	if f.Generic {
 		d.line("")
@@ -202,6 +206,22 @@ func (d *doc) tiers() string {
 	return strings.Join(names, ", ")
 }
 
+// list names a set of families as prose: one family, or several joined.
+func (d *doc) list(names []string, one, many string) string {
+	word := many
+	if len(names) == 1 {
+		word = one
+	}
+	if len(names) < 2 {
+		return word + " " + d.families(names)
+	}
+	quoted := make([]string, len(names))
+	for i, name := range names {
+		quoted[i] = "`" + name + "`"
+	}
+	return word + " " + strings.Join(quoted[:len(quoted)-1], ", ") + " and " + quoted[len(quoted)-1]
+}
+
 func (d *doc) families(names []string) string {
 	var out []string
 	for _, name := range names {
@@ -212,18 +232,30 @@ func (d *doc) families(names []string) string {
 
 func (d *doc) types() {
 	f := d.f
-	var own []*render.Type
+	var own, carried []*render.Type
 	for _, t := range f.Types {
-		if !t.Injected {
+		if t.Carried {
+			carried = append(carried, t)
+		} else {
 			own = append(own, t)
 		}
 	}
-	if len(own) == 0 {
-		return
+	if len(own) > 0 {
+		d.line("")
+		d.line("## Types")
+		d.declarations(own)
 	}
-	d.line("")
-	d.line("## Types")
-	for _, t := range own {
+	if len(carried) > 0 {
+		d.line("")
+		d.line("## Carried types")
+		d.line("")
+		d.linef("These are this family's own types, declared in the same language by a built-in family Nightseam declares of itself and imported by the tier that brings it, with no `imports` line. A declaration of this family may not declare one and names it by the built-in that declares it — `%s.%s`.", carried[0].From, carried[0].Name)
+		d.declarations(carried)
+	}
+}
+
+func (d *doc) declarations(types []*render.Type) {
+	for _, t := range types {
 		d.line("")
 		d.linef("### %s", t.Name)
 		d.line("")
@@ -240,6 +272,9 @@ func (d *doc) types() {
 				names = append(names, "`"+use.Parameter+"."+use.Type+"`")
 			}
 			what += ", generic in " + strings.Join(names, ", ")
+		}
+		if t.Carried {
+			what += ", carried from the built-in `" + t.From + "` family"
 		}
 		d.linef("%s %s.%s", article(what), what, suffix(t.Description))
 		switch t.Kind {
@@ -275,10 +310,6 @@ func (d *doc) types() {
 			d.line("")
 			d.linef("An alias of %s.", spell(t.Alias))
 		}
-	}
-	if len(f.Types) > len(own) {
-		d.line("")
-		d.line("Every family with a protocol also carries `Envelope`, one message of the profile, and `Handle`, a reference to a channel that speaks it.")
 	}
 }
 

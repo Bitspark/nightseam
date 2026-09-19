@@ -1,0 +1,1 @@
+{"profile": "nightseam.duplex/1", "parameters": [{"name": "S", "of": "transport"}], "types": {"A": {"kind": "record", "fields": [{"name": "m", "type": "S.Envelope"}]}}}

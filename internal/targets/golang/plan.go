@@ -133,7 +133,7 @@ func (p *plan) plan() {
 	for _, t := range f.Types {
 		name, at := p.resolve(t.Name, t.Name, t.At)
 		p.types[t.Name] = name
-		if t.Injected {
+		if t.Carried {
 			continue
 		}
 		if p.identifier(name, at, "Type name", true) {
@@ -146,7 +146,7 @@ func (p *plan) plan() {
 			for _, field := range t.Own {
 				name, at := p.resolve(t.Name+"."+field.Name, naming.UpperCamel(field.Name), field.At)
 				p.fields[t.Name+"."+field.Name] = name
-				if t.Injected {
+				if t.Carried {
 					continue
 				}
 				if !p.identifier(name, at, "Field name", true) {
@@ -160,7 +160,7 @@ func (p *plan) plan() {
 				}
 			}
 		case "enum":
-			if t.Injected {
+			if t.Carried {
 				continue
 			}
 			for i, value := range t.Values {
@@ -175,7 +175,7 @@ func (p *plan) plan() {
 	// Each record's Go fields, along every inheritance path: a diamond
 	// carries a field twice on the wire and twice in Go.
 	for _, t := range f.Types {
-		if t.Injected || (t.Kind != "record" && t.Kind != "entity") {
+		if t.Carried || (t.Kind != "record" && t.Kind != "entity") {
 			continue
 		}
 		fields := emit.NewNamespace("record " + t.Name)

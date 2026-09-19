@@ -1,0 +1,28 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "channel.open": {"description": "Opens a channel that speaks a family.", "request": "Open", "result": "Opened", "errors": ["channel_invalid", "channel_exists", "channel_refused"]}
+    },
+    "events": {
+      "channel.frame": {"description": "One inner frame, opaque to the tunnel.", "type": "Frame"},
+      "channel.credit": {"description": "Credit returned for frames taken.", "type": "Credit"},
+      "channel.close": {"description": "The close of a channel.", "type": "Close"}
+    }
+  },
+  "client": {
+    "methods": {
+      "channel.open": {"description": "Opens a channel that speaks a family; either side may open.", "request": "Open", "result": "Opened", "errors": ["channel_invalid", "channel_exists", "channel_refused"]}
+    },
+    "events": {
+      "channel.frame": {"description": "One inner frame, opaque to the tunnel.", "type": "Frame"},
+      "channel.credit": {"description": "Credit returned for frames taken.", "type": "Credit"},
+      "channel.close": {"description": "The close of a channel.", "type": "Close"}
+    }
+  },
+  "errors": {
+    "channel_invalid": "The open is malformed, or names an id of the accepting side's parity.",
+    "channel_exists": "The id is open.",
+    "channel_refused": "Nobody here has taken the channels already opened, up to the accept capacity."
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Payload": {
+      "kind": "record",
+      "description": "What a probe carries.",
+      "fields": [
+        {"name": "text", "type": "string"}
+      ]
+    }
+  }
+}

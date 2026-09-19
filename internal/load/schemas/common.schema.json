@@ -63,6 +63,31 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "nullable"
+          ],
+          "properties": {
+            "nullable": {
+              "$ref": "#/$defs/expr"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "literal"
+          ],
+          "properties": {
+            "literal": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
             "ref"
           ],
           "properties": {
@@ -81,16 +106,25 @@
           "properties": {
             "apply": {
               "type": "string",
-              "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\.[A-Z][A-Za-z0-9_]*$"
+              "pattern": "^(?:[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\.)?[A-Z][A-Za-z0-9_]*$"
             },
             "with": {
               "type": "object",
               "additionalProperties": {
-                "type": "string",
-                "pattern": "^(?:[A-Z][A-Za-z0-9]*|[a-z][a-z0-9]*(?:-[a-z0-9]+)*)$"
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/familyName"
+                  },
+                  {
+                    "$ref": "#/$defs/expr"
+                  }
+                ]
               }
             }
           }
+        },
+        {
+          "$ref": "#/$defs/type"
         }
       ]
     },
@@ -176,6 +210,9 @@
             },
             "open": {
               "type": "boolean"
+            },
+            "parameters": {
+              "$ref": "#/$defs/parameters"
             }
           }
         },
@@ -212,6 +249,9 @@
             },
             "open": {
               "type": "boolean"
+            },
+            "parameters": {
+              "$ref": "#/$defs/parameters"
             }
           }
         },
@@ -256,6 +296,51 @@
             },
             "type": {
               "$ref": "#/$defs/expr"
+            },
+            "parameters": {
+              "$ref": "#/$defs/parameters"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "tag",
+            "variants"
+          ],
+          "properties": {
+            "kind": {
+              "const": "union"
+            },
+            "description": {
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/parameters"
+            },
+            "tag": {
+              "$ref": "#/$defs/memberName"
+            },
+            "value": {
+              "$ref": "#/$defs/memberName"
+            },
+            "extends": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/typeName"
+              }
+            },
+            "variants": {
+              "type": "object",
+              "propertyNames": {
+                "$ref": "#/$defs/wireName"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/expr"
+              }
             }
           }
         }
@@ -268,6 +353,28 @@
       },
       "additionalProperties": {
         "$ref": "#/$defs/type"
+      }
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "#/$defs/parameterName"
+          },
+          "of": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          }
+        }
       }
     }
   }

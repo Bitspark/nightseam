@@ -15,7 +15,8 @@ alternative cost), **serves** (the goal it is a step toward), **since** (the
 version, issue or event it dates from). A decision is recorded when a page
 of the state gives a reason for it; a reason with no page here is a page
 missing, and a decision whose reason nobody can state is a design issue,
-not a record.
+not a record. One page may record two verdicts where one reason covers
+both, and says so at the top.
 
 | decision | serves | since |
 | --- | --- | --- |
@@ -39,5 +40,12 @@ not a record.
 | [Generated files carry no version](generated-files-carry-no-version.md) | [declarative](../goals/declarative.md) | 0.3.0 |
 | [A specification is rendered, not written](a-specification-is-rendered-not-written.md) | [declarative](../goals/declarative.md) | 0.2.0 |
 | [One reference form](one-reference-form.md) | [declarative](../goals/declarative.md) | v2 |
+| [A tier is a built-in family](a-tier-is-a-built-in-family.md) | [declarative](../goals/declarative.md), [boundary](../goals/boundary.md) | 0.4.0, #62 |
+| [A side may extend another family's](a-side-may-extend-another-familys.md) | [composability](../goals/composability.md) | 0.4.0, #61 |
+| [One parameter mechanism, of two sorts](one-parameter-mechanism-of-two-sorts.md) | [declarative](../goals/declarative.md), [agnosticism](../goals/agnosticism.md) | 0.4.0, #57 and #59 |
+| [A union is internally tagged](a-union-is-internally-tagged.md) | [agnosticism](../goals/agnosticism.md) | 0.4.0, #56 |
+| [Nullness is a fact of a value](nullness-is-a-fact-of-a-value.md) | [declarative](../goals/declarative.md) | 0.4.0, #58 |
+| [A shape without a name is named by where it sits](a-shape-is-named-by-where-it-sits.md) | [declarative](../goals/declarative.md) | 0.4.0, #60 |
+| [A pattern has one dialect](a-pattern-has-one-dialect.md) | [agnosticism](../goals/agnosticism.md) | 0.4.0, #71 |
 | [Generic families render once and commute](generic-families-render-once-and-commute.md) | [agnosticism](../goals/agnosticism.md) | v2 |
 | [Tiers are promises, not rankings](tiers-are-promises-not-rankings.md) | [agnosticism](../goals/agnosticism.md) | 0.3.0 |

@@ -59,7 +59,7 @@ The input side: the tier files, the tool, and what comes out.
 | page | what |
 | --- | --- |
 | [families.md](declaration/families.md) | a family in tiers: the files, the tier rule, `model.json`, `protocol.json`, `session.json`, the per-target names |
-| [generics.md](declaration/generics.md) | a family generic in others: parameters, `apply` and `with`, how each language instantiates it, the diagram that commutes |
+| [generics.md](declaration/generics.md) | the holes in a declaration: parameters of two sorts at every level, `apply` and `with`, how each language instantiates them, the diagram that commutes |
 | [generator.md](declaration/generator.md) | the commands and their flags, which version rendered this, what the packages own, the specification |
 | [generated.md](declaration/generated.md) | what the generated packages export in each language: the protocol, binding and client packages in Go, the client package in TypeScript, the errors |
 | [pipeline.md](declaration/pipeline.md) | how the generator renders and the packages it is made of — for whoever changes it |

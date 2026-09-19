@@ -1,12 +1,16 @@
 package load
 
 import (
+	"errors"
+	"io/fs"
+	"path"
 	"strings"
 	"testing"
 	"testing/fstest"
 
 	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/model"
+	"github.com/Bitspark/nightseam/internal/model/builtin"
 )
 
 func checkout(files map[string]string) fstest.MapFS {
@@ -158,4 +162,35 @@ func TestTiersAreATable(t *testing.T) {
 		}
 	}
 	var _ diag.Location
+}
+
+// TestBuiltinFamiliesAreHeldToTheSameShapes: the families Nightseam
+// declares of itself are tier files like a consumer's and are held to the
+// same shape schemas — so that the declaration language cannot be stretched
+// for the built-ins and then refused to everybody else.
+func TestBuiltinFamiliesAreHeldToTheSameShapes(t *testing.T) {
+	files := builtin.Files()
+	checked := 0
+	for _, name := range builtin.Names() {
+		for _, tier := range model.Tiers {
+			data, err := fs.ReadFile(files, path.Join(name, tier.File))
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			problems := diag.List{Family: name}
+			if shape(builtin.Locate(name, tier.File), schemas[tier.Name], data, &problems) == nil {
+				t.Errorf("%s does not read as a %s tier file", builtin.Locate(name, tier.File), tier.Name)
+			}
+			for _, d := range problems.Diagnostics {
+				t.Errorf("%s", d)
+			}
+			checked++
+		}
+	}
+	if checked < len(builtin.Names()) {
+		t.Fatalf("held %d built-in tier files to their schemas", checked)
+	}
 }

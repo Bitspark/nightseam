@@ -1,0 +1,1 @@
+{"profile": "nightseam.duplex/1", "types": {"Envelope": {"kind": "record", "fields": [{"name": "mine", "type": "string"}]}}, "server": {"methods": {"hold": {"result": "string"}}}}

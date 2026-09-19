@@ -66,7 +66,7 @@ func declare(uses []render.Use) string {
 	for i, name := range names {
 		var drawn []string
 		for _, use := range uses {
-			if use.Parameter == name && !model.IsInjected(use.Type) {
+			if use.Parameter == name && !model.Carried(use.Type) {
 				drawn = append(drawn, quote(use.Type)+": unknown")
 			}
 		}
@@ -123,10 +123,10 @@ func (f *file) spell(e model.TypeExpr) string {
 	case model.Apply:
 		var args []string
 		for _, argument := range f.family.Arguments(x) {
-			if argument.Filler.Parameter != "" {
-				args = append(args, argument.Filler.Parameter)
+			if argument.Parameter != "" {
+				args = append(args, argument.Parameter)
 			} else {
-				args = append(args, alias(argument.Filler.Family)+"."+identFamily)
+				args = append(args, alias(argument.Family)+"."+identFamily)
 			}
 		}
 		rendered := alias(x.Family) + "." + x.Name

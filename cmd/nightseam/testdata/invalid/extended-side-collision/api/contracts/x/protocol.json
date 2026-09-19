@@ -1,0 +1,1 @@
+{"profile": "nightseam.duplex/1", "server": {"extends": ["base"], "methods": {"echo": {"request": "Own", "result": "Own"}}}}

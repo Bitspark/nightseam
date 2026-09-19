@@ -1,6 +1,8 @@
 package check
 
 import (
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -74,7 +76,7 @@ func TestRules(t *testing.T) {
 		"a value cycle":                       {map[string]string{"model.json": m(`"A": {"kind": "record", "fields": [{"name": "b", "type": {"array": "B"}}]}, "B": {"kind": "record", "fields": [{"name": "a", "type": "A"}]}`)}, "cyclic_type@model.json#/types/B"},
 		"a field twice":                       {map[string]string{"model.json": m(`"A": {"kind": "record", "fields": [{"name": "x", "type": "string"}]}, "B": {"kind": "record", "extends": ["A"], "fields": [{"name": "x", "type": "string"}]}`)}, "field_collision@model.json#/types/B/fields/0/name"},
 		"an inherited key":                    {map[string]string{"model.json": m(`"Base": {"kind": "record", "fields": [{"name": "id", "type": "string"}]}, "A": {"kind": "entity", "key": "id", "extends": ["Base"], "fields": []}`)}, ""},
-		"a pattern that is no expression":     {map[string]string{"model.json": m(`"A": {"kind": "record", "fields": [{"name": "a", "type": "string", "pattern": "("}]}`)}, "invalid_constraint@model.json#/types/A/fields/0/pattern"},
+		"a pattern that is no expression":     {map[string]string{"model.json": m(`"A": {"kind": "record", "fields": [{"name": "a", "type": "string", "pattern": "("}]}`)}, "invalid_pattern@model.json#/types/A/fields/0/pattern"},
 		"a bad key":                           {map[string]string{"model.json": m(`"A": {"kind": "entity", "key": "id", "fields": [{"name": "id", "type": "string", "nullable": true}]}, "B": {"kind": "entity", "key": "nope", "fields": []}`)}, "invalid_key@model.json#/types/A/key invalid_key@model.json#/types/B/key"},
 		"a ref to a record":                   {map[string]string{"model.json": m(`"A": {"kind": "record", "fields": [{"name": "r", "type": {"ref": "A"}}, {"name": "n", "type": {"ref": "Nope"}}]}`)}, "invalid_ref@model.json#/types/A/fields/0/type unresolved_type@model.json#/types/A/fields/1/type"},
 		"constraints that do not fit":         {map[string]string{"model.json": m(`"A": {"kind": "record", "fields": [{"name": "a", "type": "string", "min": 1}, {"name": "b", "type": "integer", "length": {"max": 3}}, {"name": "c", "type": "boolean", "pattern": "x"}, {"name": "d", "type": "string", "unique": true}]}`)}, "invalid_constraint@model.json#/types/A/fields/0 invalid_constraint@model.json#/types/A/fields/1/length invalid_constraint@model.json#/types/A/fields/2/pattern invalid_constraint@model.json#/types/A/fields/3/unique"},
@@ -131,4 +133,38 @@ func TestLocate(t *testing.T) {
 		}
 	}
 	var _ model.TypeExpr
+}
+
+// TestPatternDialectIsTheTable holds the dialect a `pattern` is written in
+// to conformance/tables/validator.json, whose patterns rows every runtime's
+// validator reads too: the same spellings are refused at check time and at
+// validate time, in both directions, so that a family that passes check
+// means one thing in every language.
+func TestPatternDialectIsTheTable(t *testing.T) {
+	data, err := os.ReadFile("../../conformance/tables/validator.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var table struct {
+		Patterns []struct {
+			Pattern string
+			Valid   bool
+			Why     string
+		}
+	}
+	if err := json.Unmarshal(data, &table); err != nil {
+		t.Fatal(err)
+	}
+	if len(table.Patterns) == 0 {
+		t.Fatal("the validator table has no patterns rows")
+	}
+	for _, row := range table.Patterns {
+		err := Pattern(row.Pattern)
+		if row.Valid && err != nil {
+			t.Errorf("%s is in the dialect (%s) and was refused: %v", row.Pattern, row.Why, err)
+		}
+		if !row.Valid && err == nil {
+			t.Errorf("%s is outside the dialect (%s) and was accepted", row.Pattern, row.Why)
+		}
+	}
 }

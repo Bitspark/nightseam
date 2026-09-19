@@ -1,0 +1,4 @@
+{"nightseam": 2, "types": {
+  "Box": {"kind": "record", "parameters": [{"name": "T"}], "fields": [{"name": "inner", "type": "T.Envelope"}]},
+  "Boxed": {"kind": "alias", "type": {"apply": "Box", "with": {"T": "string"}}}
+}}

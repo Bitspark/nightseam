@@ -3,7 +3,6 @@ package model
 import (
 	"encoding/json"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 )
@@ -22,8 +21,12 @@ func TestTypeExprRoundTrips(t *testing.T) {
 		`{"array":"string"}`:          Array{Elem: Primitive("string")},
 		`{"map":{"array":"Project"}}`: Map{Elem: Array{Elem: Named{Name: "Project"}}},
 		`{"ref":"Project"}`:           Ref{Entity: "Project"},
-		`{"apply":"carrier.Frame","with":{"S":"B"}}`:     Apply{Family: "carrier", Name: "Frame", With: map[string]Filler{"S": {Parameter: "B"}}},
+		`{"apply":"carrier.Frame","with":{"S":"B"}}`:     Apply{Family: "carrier", Name: "Frame", With: map[string]Filler{"S": {Type: Named{Name: "B"}}}},
 		`{"apply":"carrier.Frame","with":{"S":"probe"}}`: Apply{Family: "carrier", Name: "Frame", With: map[string]Filler{"S": {Family: "probe"}}},
+		`{"nullable":"string"}`:                          Nullable{Elem: Primitive("string")},
+		`{"array":{"nullable":"Payload"}}`:               Array{Elem: Nullable{Elem: Named{Name: "Payload"}}},
+		`{"literal":"text"}`:                             Literal{Value: "text"},
+		`{"apply":"Page","with":{"T":{"array":"User"}}}`: Apply{Name: "Page", With: map[string]Filler{"T": {Type: Array{Elem: Named{Name: "User"}}}}},
 	} {
 		got, err := Decode(json.RawMessage(source))
 		if err != nil {
@@ -39,6 +42,58 @@ func TestTypeExprRoundTrips(t *testing.T) {
 	}
 }
 
+// TestInlineShapesAreTypeExpressions: a record, an enum or a union written
+// where a type is named decodes to the shape it declares and marshals back
+// as the validator reads it — the declaration, not a second spelling of it.
+func TestInlineShapesAreTypeExpressions(t *testing.T) {
+	for _, source := range []string{
+		`{"kind":"record","fields":[{"name":"n","type":"integer","required":true}]}`,
+		`{"kind":"enum","values":["a","b"]}`,
+		`{"kind":"union","tag":"type","variants":{"count":"integer","text":"TextPart"}}`,
+		`{"kind":"union","tag":"type","value":"payload","variants":{"count":"integer"}}`,
+	} {
+		e, err := Decode(json.RawMessage(source))
+		if err != nil {
+			t.Errorf("%s: %v", source, err)
+			continue
+		}
+		inline, ok := e.(Inline)
+		if !ok {
+			t.Errorf("%s decoded to %#v, not an inline shape", source, e)
+			continue
+		}
+		if inline.Type.Name != "" {
+			t.Errorf("%s carries the name %q; a shape written inline has none", source, inline.Type.Name)
+		}
+		if back := String(e); back != source {
+			t.Errorf("%s marshals back as %s", source, back)
+		}
+	}
+}
+
+// TestUnionsCarryTheirDiscriminator: a union decodes its tag, its value
+// member and its variants by tag, and a union that names no value member
+// carries a payload that is not an object under `value`.
+func TestUnionsCarryTheirDiscriminator(t *testing.T) {
+	types, err := DecodeTypes(ModelFile, json.RawMessage(`{"Part": {"kind": "union", "tag": "type", "extends": ["Base"], "variants": {"text": "TextPart", "count": "integer"}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	part := types["Part"]
+	if part.Kind != KindUnion || part.Tag != "type" || part.ValueMember() != DefaultValueMember {
+		t.Fatalf("Part is %+v", part)
+	}
+	if len(part.Variants) != 2 || part.Variants[0].Tag != "count" || part.Variants[1].Tag != "text" {
+		t.Fatalf("the variants are %+v, and they are read in tag order", part.Variants)
+	}
+	if v, ok := part.Variant("count"); !ok || !Equal(v.Type, Primitive("integer")) {
+		t.Fatalf("the count variant is %+v", v)
+	}
+	if part.Variants[0].At.String() != ModelFile+"#/types/Part/variants/count" {
+		t.Fatalf("a variant is located at %s", part.Variants[0].At)
+	}
+}
+
 // TestTypeExprRefuses: what is not one form is refused with a reason.
 func TestTypeExprRefuses(t *testing.T) {
 	for source, reason := range map[string]string{
@@ -46,12 +101,13 @@ func TestTypeExprRefuses(t *testing.T) {
 		`null`:                                "required",
 		`""`:                                  "required",
 		`42`:                                  "string or an object",
-		`{}`:                                  "one of array, map, ref",
-		`{"array":"A","map":"B"}`:             "one of array, map, ref",
-		`{"envelope":"S"}`:                    "one of array, map, ref",
+		`{}`:                                  "one of array, map, nullable",
+		`{"array":"A","map":"B"}`:             "one of array, map, nullable",
+		`{"envelope":"S"}`:                    "one of array, map, nullable",
 		`{"apply":"carrier.Frame"}`:           "apply needs with",
-		`{"apply":"Frame","with":{}}`:         "family.Type",
-		`{"apply":"S.Frame","with":{}}`:       "family.Type",
+		`{"apply":"frame","with":{}}`:         "upper camel case",
+		`{"apply":".Frame","with":{}}`:        "Type or family.Type",
+		`{"apply":"S.Frame","with":{}}`:       "Type or family.Type",
 		`{"apply":"c.Frame","with":{"S":""}}`: "filled by nothing",
 		`{"ref":"other.User"}`:                "entity of this family",
 		`"a.b.c"`:                             "family.Type or Param.Type",
@@ -76,10 +132,10 @@ func TestReferenceFormByCase(t *testing.T) {
 	if !IsParameter("S") || !IsParameter("Session") || IsParameter("probe") || IsParameter("") {
 		t.Fatal("IsParameter tells the cases apart wrong")
 	}
-	if fillerOf("B") != (Filler{Parameter: "B"}) || fillerOf("probe") != (Filler{Family: "probe"}) {
-		t.Fatal("fillerOf tells the cases apart wrong")
+	if MustDecode(`{"apply":"c.F","with":{"S":"B"}}`).(Apply).With["S"].Name() != "B" || MustDecode(`{"apply":"c.F","with":{"S":"probe"}}`).(Apply).With["S"].Family != "probe" {
+		t.Fatal("a filler tells the cases apart wrong")
 	}
-	if fillerOf("B").String() != "B" || fillerOf("probe").String() != "probe" {
+	if (Filler{Type: Named{Name: "B"}}).String() != "B" || (Filler{Family: "probe"}).String() != "probe" {
 		t.Fatal("a filler spells itself as it was written")
 	}
 }
@@ -258,40 +314,6 @@ func TestExpressions(t *testing.T) {
 	}
 	if !reflect.DeepEqual(sites, want) {
 		t.Fatalf("visited:\n%s", strings.Join(sites, "\n"))
-	}
-}
-
-// TestInjectedTypes: the types every family with a protocol carries are the
-// two it may not declare, the envelope spelling one nightseam.duplex/1
-// message field for field — the trace context it carries among them,
-// optional strings like any other, and the meta a request or an event
-// carries, an optional flat map of strings — and the handle a channel
-// reference.
-func TestInjectedTypes(t *testing.T) {
-	injected := Injected()
-	if len(injected) != 2 || !IsInjected(EnvelopeType) || !IsInjected(HandleType) || IsInjected("Payload") {
-		t.Fatalf("the injected types are %v", injected)
-	}
-	var names []string
-	for _, field := range injected[EnvelopeType].Fields {
-		names = append(names, field.Name)
-	}
-	want := []string{"version", "kind", "id", "method", "params", "result", "error", "event", "data", "traceparent", "tracestate", "meta"}
-	if !reflect.DeepEqual(names, want) {
-		t.Fatalf("the envelope's fields are %v", names)
-	}
-	for _, name := range []string{"traceparent", "tracestate"} {
-		field := injected[EnvelopeType].Fields[slices.Index(names, name)]
-		if field.Required || !Equal(field.Type, Primitive("string")) {
-			t.Errorf("%s is %+v, not an optional string", name, field)
-		}
-	}
-	meta := injected[EnvelopeType].Fields[slices.Index(names, "meta")]
-	if meta.Required || !Equal(meta.Type, Map{Elem: Primitive("string")}) {
-		t.Errorf("meta is %+v, not an optional map of strings", meta)
-	}
-	if fields := injected[HandleType].Fields; len(fields) != 1 || fields[0].Name != "channel" {
-		t.Fatalf("the handle's fields are %v", fields)
 	}
 }
 

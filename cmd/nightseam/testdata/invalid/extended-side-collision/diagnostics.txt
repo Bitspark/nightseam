@@ -1,0 +1,2 @@
+x/protocol.json#/server/methods/echo: Operation echo collides with the one at protocol.json#/server/extends/0: both flow client to server under one name. [operation_collision]
+error: 1 problems

@@ -1,0 +1,3 @@
+x/model.json#/imports/0: Family duplex is built in and is imported by the tier that brings it, with no imports line. [implicit_import]
+x/model.json#/types/Held/fields/0/type: Type Envelope is carried from the built-in duplex family; write duplex.Envelope. [implicit_import]
+error: 2 problems

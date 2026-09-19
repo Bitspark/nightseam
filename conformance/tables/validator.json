@@ -1,5 +1,5 @@
 {
-  "description": "The conformance table of the wire validator every runtime carries: one family's wire description, one imported family's, and cases of a type expression, a JSON value, and whether the value is valid. The imported family's envelope carries the trace context and the meta every injected envelope carries, so that a slot of it is held to accepting traceparent, tracestate and a flat map of strings, and to refusing any of them at another type. The reserved nightseam. prefix of a meta key is the peer's rule and no facet of the type, so a reserved key passes the slot here and the frame carrying it is refused by the peer; tables/frames.json holds that. Both runtimes read this file. An invalid case carries the message the runtimes print for it, pointer and text as one string: the pointer names the member that was wrong and the text states the fact, and both runtimes are held to it word for word, so that a consumer whose server is in one language and client in the other reads one spelling of one refusal. A case crossing into an imported family carries the one pointer the value was handed in at, not a root per family it crossed. A type drawn from a parameter is not among the cases: the TypeScript validator holds it to the binding of the parameter and the Go validator passes it through, since a generated Go codec validates it where the generic type is instantiated; each runtime tests its own way.",
+  "description": "The conformance table of the wire validator every runtime carries: one family's wire description, one imported family's, and cases of a type expression, a JSON value, and whether the value is valid. The imported family's envelope carries the trace context and the meta every injected envelope carries, so that a slot of it is held to accepting traceparent, tracestate and a flat map of strings, and to refusing any of them at another type. The reserved nightseam. prefix of a meta key is the peer's rule and no facet of the type, so a reserved key passes the slot here and the frame carrying it is refused by the peer; tables/frames.json holds that. Both runtimes read this file. An invalid case carries the message the runtimes print for it, pointer and text as one string: the pointer names the member that was wrong and the text states the fact, and both runtimes are held to it word for word, so that a consumer whose server is in one language and client in the other reads one spelling of one refusal. A case crossing into an imported family carries the one pointer the value was handed in at, not a root per family it crossed. A type drawn from a parameter is not among the cases: the TypeScript validator holds it to the binding of the parameter and the Go validator passes it through, since a generated Go codec validates it where the generic type is instantiated; each runtime tests its own way. The patterns rows are the dialect a `pattern` facet is written in: ECMAScript syntax without lookaround and without backreferences, Nightseam's own regular-expression language, so that one declaration means one thing in every runtime. They are invalid at check time — the generator refuses a family that writes one, in both directions, the spellings only an RE2 engine reads and the ones only an ECMAScript engine reads alike — and a runtime refuses the same at validate time, since a descriptor can be hand-written or come from a target that skipped check.",
   "wire": {
     "Base": {"kind": "record", "fields": [{"name": "text", "type": "string", "required": true}]},
     "Payload": {"kind": "record", "extends": ["Base"], "fields": [
@@ -24,6 +24,22 @@
       "Box": {"kind": "record", "fields": [{"name": "item", "type": "S.Envelope", "required": true}]}
     }
   },
+  "patterns": [
+    {"pattern": "^[a-z]+$", "valid": true, "why": "plain syntax both engines read the same way"},
+    {"pattern": "^[A-Za-z0-9_.-]{1,64}$", "valid": true, "why": "classes, a bounded repetition and anchors, all in the dialect"},
+    {"pattern": "^(a|b)+c*d?$", "valid": true, "why": "groups, alternation and quantifiers"},
+    {"pattern": "^\\d{3}-\\d{4}$", "valid": true, "why": "escapes both engines read the same way"},
+    {"pattern": "^[[:alpha:]]+$", "valid": false, "why": "a POSIX class: RE2 reads a class of letters, ECMAScript an ordinary class of [ : a l p h, and both compile — the silent disagreement the dialect exists to remove"},
+    {"pattern": "(?P<x>a)b", "valid": false, "why": "a named group of RE2; ECMAScript throws on it"},
+    {"pattern": "^(?i)abc$", "valid": false, "why": "inline flags of RE2; ECMAScript throws on them"},
+    {"pattern": "^(?<name>a)b$", "valid": false, "why": "a named group of ECMAScript; RE2 does not read it"},
+    {"pattern": "^a(?=b)", "valid": false, "why": "a lookahead: ECMAScript only, and the dialect has no lookaround"},
+    {"pattern": "^(?<=a)b$", "valid": false, "why": "a lookbehind: ECMAScript only, and the dialect has no lookaround"},
+    {"pattern": "^(a)\\1$", "valid": false, "why": "a backreference: ECMAScript only, and the dialect has none"},
+    {"pattern": "^\\p{L}+$", "valid": false, "why": "a Unicode class ECMAScript reads only under a flag the dialect does not carry"},
+    {"pattern": "\\Aabc\\z", "valid": false, "why": "anchors of RE2; ECMAScript does not read them — write ^ and $"},
+    {"pattern": "^[a-$", "valid": false, "why": "not a regular expression at all"}
+  ],
   "cases": [
     {"expression": "string", "value": "x", "valid": true},
     {"expression": "string", "value": 1, "valid": false, "message": "$: expected string"},

@@ -11,25 +11,40 @@ export interface Both<S extends AnyFamily = SessionFamily, T extends AnyFamily =
 export interface Echo<T extends AnyFamily = SessionFamily> {
   "heard": T["Envelope"];
 }
+/** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */
 export interface Envelope {
+  /** The profile's version, 1. */
   "version": number;
+  /** request, response, event or cancel. */
   "kind": string;
+  /** What correlates a response or a cancel with its request. */
   "id"?: string;
+  /** The method a request names. */
   "method"?: string;
+  /** A request's parameters. */
   "params"?: unknown;
+  /** A response's result. */
   "result"?: unknown;
+  /** A response's error. */
   "error"?: unknown;
+  /** The event an event frame names. */
   "event"?: string;
+  /** An event's data. */
   "data"?: unknown;
+  /** The W3C Trace Context of the frame. */
   "traceparent"?: string;
+  /** The vendor state of that trace. */
   "tracestate"?: string;
+  /** What a request or an event carries about the call, delivered to the handler beside the payload. */
   "meta"?: Record<string, string>;
 }
 export interface Frame<S extends AnyFamily = SessionFamily> {
   "message": S["Envelope"];
   "back": S["Handle"];
 }
+/** A reference to a channel on the connection that carries the message holding it. */
 export interface Handle {
+  /** The channel's id on that connection. */
   "channel": number;
 }
 export interface Named {

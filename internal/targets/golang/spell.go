@@ -91,10 +91,10 @@ func (f *file) spell(e model.TypeExpr) string {
 	case model.Apply:
 		var args []string
 		for _, argument := range f.family.Arguments(x) {
-			if argument.Filler.Parameter != "" {
-				args = append(args, parameterName(render.Use{Parameter: argument.Filler.Parameter, Type: argument.Use.Type}))
+			if argument.Parameter != "" {
+				args = append(args, parameterName(render.Use{Parameter: argument.Parameter, Type: argument.Use.Type}))
 			} else {
-				args = append(args, f.peer(argument.Filler.Family)+"."+argument.Use.Type)
+				args = append(args, f.peer(argument.Family)+"."+argument.Use.Type)
 			}
 		}
 		rendered := f.peer(x.Family) + "." + x.Name

@@ -1,0 +1,3 @@
+x/model.json#/types/A/extends/0: Union A extends B, which extends this one, directly or through what it extends. [extends_cycle]
+x/model.json#/types/B/extends/0: Union B extends A, which extends this one, directly or through what it extends. [extends_cycle]
+error: 2 problems

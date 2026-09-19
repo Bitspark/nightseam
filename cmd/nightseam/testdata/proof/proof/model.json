@@ -1,0 +1,71 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Option": {
+      "kind": "union",
+      "description": "A value, or nothing: a generic union, declared in the language rather than built in.",
+      "parameters": [{"name": "T", "description": "What the value is, where there is one."}],
+      "tag": "kind",
+      "variants": {
+        "some": "T",
+        "none": {"kind": "record", "fields": []}
+      }
+    },
+    "Result": {
+      "kind": "union",
+      "description": "What came of a call: two type parameters on one declaration.",
+      "parameters": [{"name": "T"}, {"name": "E"}],
+      "tag": "kind",
+      "variants": {
+        "ok": "T",
+        "err": "E"
+      }
+    },
+    "TextPart": {
+      "kind": "record",
+      "description": "A part that carries its own tag, so it is a variant without a wrapper.",
+      "fields": [
+        {"name": "type", "description": "The discriminator, declared as the literal of this variant.", "type": {"literal": "text"}},
+        {"name": "body", "type": "string", "length": {"min": 1}}
+      ]
+    },
+    "Part": {
+      "kind": "union",
+      "description": "One part of a message: a record that carries its own tag, a shape written inline, and a payload that is not an object.",
+      "tag": "type",
+      "variants": {
+        "text": "TextPart",
+        "image": {"kind": "record", "fields": [
+          {"name": "url", "type": "string", "pattern": "^https://[A-Za-z0-9.-]+/[^ ]*$"},
+          {"name": "alt", "type": {"nullable": "string"}, "required": false}
+        ]},
+        "count": "integer"
+      }
+    },
+    "RichPart": {
+      "kind": "union",
+      "description": "Part widened: an extending union adds variants, and a value of the base validates against it.",
+      "extends": ["Part"],
+      "tag": "type",
+      "variants": {
+        "table": {"kind": "record", "fields": [
+          {"name": "rows", "description": "A collection of values that may be null.", "type": {"array": {"nullable": "string"}}}
+        ]}
+      }
+    },
+    "Page": {
+      "kind": "record",
+      "description": "A page of anything: a type parameter filled by a type expression.",
+      "parameters": [{"name": "T"}],
+      "fields": [
+        {"name": "items", "type": {"array": "T"}},
+        {"name": "next", "type": {"nullable": "string"}, "required": false}
+      ]
+    },
+    "Parts": {
+      "kind": "alias",
+      "description": "A page of parts: a generic type of this family, filled here.",
+      "type": {"apply": "Page", "with": {"T": "Part"}}
+    }
+  }
+}
