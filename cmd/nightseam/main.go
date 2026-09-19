@@ -55,21 +55,21 @@ func main() {
 // packages are rooted: the Go module and the npm scope.
 type app struct{ root, module, scope, sibling string }
 
-// kernel composes the targets for this checkout, settling the module and
-// the scope a command left to their defaults: the module is read from the
-// checkout's go.mod, the scope is the module's last element behind an @.
-func (a *app) kernel() (*kernel.Kernel, error) {
+// settle fixes the module and the scope a command left to their defaults:
+// the module is read from the checkout's go.mod, the scope is the module's
+// last element behind an @.
+func (a *app) settle() error {
 	if a.module == "" {
 		module, err := moduleOf(filepath.Join(a.root, "go.mod"))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		a.module = module
 	}
 	if a.scope == "" {
 		a.scope = "@" + path.Base(a.module)
 	}
-	return toolKernel(a.module, a.scope, a.sibling), nil
+	return nil
 }
 
 // moduleOf reads the module path a go.mod declares.
@@ -99,13 +99,30 @@ func (a *app) contracts() string { return filepath.Join(a.root, filepath.FromSla
 // is needed for that.
 func (a *app) load() *kernel.World { return kernel.Load(os.DirFS(a.root), contracts, targetNames) }
 
-// world composes the kernel and loads the checkout for it.
+// world loads the checkout and composes the kernel with its config; what
+// composing had to say is among the checkout's own diagnostics.
 func (a *app) world() (*kernel.Kernel, *kernel.World, error) {
-	k, err := a.kernel()
+	if err := a.settle(); err != nil {
+		return nil, nil, err
+	}
+	world := a.load()
+	k, diagnostics := toolKernel(world.Config, a.module, a.scope, a.sibling)
+	kernel.Configure(world, diagnostics)
+	return k, world, nil
+}
+
+// ready is world for a command that renders: a checkout with a diagnostic
+// of its own — its config, its contracts directory — is refused before any
+// family is, since what the targets are composed with is in question.
+func (a *app) ready() (*kernel.Kernel, *kernel.World, error) {
+	k, world, err := a.world()
 	if err != nil {
 		return nil, nil, err
 	}
-	return k, a.load(), nil
+	if diagnostics := kernel.Checkout(world); len(diagnostics) != 0 {
+		return nil, nil, fmt.Errorf("invalid checkout: %s", diagnostics[0])
+	}
+	return k, world, nil
 }
 
 // families names the families of the checkout, in order: each directory
@@ -167,7 +184,7 @@ func (a *app) render(names []string) (map[string][]byte, error) {
 // targets' roots: a file of one of them that nothing rendered, or of a
 // family that no longer exists.
 func (a *app) renderAndStale(names []string) (map[string][]byte, []string, error) {
-	k, world, err := a.world()
+	k, world, err := a.ready()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -345,6 +362,10 @@ Nightseam's runtime. Nothing is written that is already up to date.`,
 					return err
 				}
 				problems := 0
+				for _, d := range kernel.Checkout(world) {
+					fmt.Fprintln(cmd.ErrOrStderr(), d)
+					problems++
+				}
 				for _, name := range names {
 					for _, d := range k.Validate(world, name) {
 						fmt.Fprintln(cmd.ErrOrStderr(), d)
@@ -376,7 +397,7 @@ func initCommand(a *app, family func(*cobra.Command, []string, string) ([]string
 			if _, err := a.chosen(args); err != nil {
 				return err
 			}
-			k, world, err := a.world()
+			k, world, err := a.ready()
 			if err != nil {
 				return err
 			}

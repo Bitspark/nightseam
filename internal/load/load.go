@@ -2,8 +2,10 @@
 // typed model. A family is a directory under the contracts root; each tier
 // is one file of it, named in the Tiers table with its rank, the sections it
 // may carry and the schema its shape is held to. A target's override file
-// is read raw for the target to decode. Nothing here resolves a name or
-// checks a rule beyond the shape of a file; that is analysis and check.
+// is read raw for the target to decode, and so is the checkout's own config,
+// nightseam.json beside the families, in which a target's section is the
+// target's to read. Nothing here resolves a name or checks a rule beyond the
+// shape of a file; that is analysis and check.
 package load
 
 import (
@@ -45,6 +47,9 @@ var sessionSchema []byte
 //go:embed schemas/overrides.schema.json
 var overridesSchema []byte
 
+//go:embed schemas/checkout.schema.json
+var checkoutSchema []byte
+
 type offlineLoader struct{}
 
 func (offlineLoader) Load(url string) (any, error) {
@@ -61,6 +66,7 @@ var compiled = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 		"urn:nightseam:v1:protocol":  protocolSchema,
 		"urn:nightseam:v1:session":   sessionSchema,
 		"urn:nightseam:v1:overrides": overridesSchema,
+		"urn:nightseam:v1:checkout":  checkoutSchema,
 	}
 	for id, source := range sources {
 		var value any
@@ -87,10 +93,36 @@ var compiled = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 	return schemas, nil
 })
 
-// World is every family of a checkout, by name, and their names in order.
+// World is every family of a checkout, by name, and their names in order,
+// with the checkout's own config.
 type World struct {
 	Families map[string]*model.Family
 	Names    []string
+	Config   Config
+}
+
+// ConfigFile is the checkout's own config, beside the families under the
+// contracts root.
+const ConfigFile = "nightseam.json"
+
+// Config is the checkout's config as read: the targets disabled, which the
+// kernel reads, and each target's own section, raw, which the target reads
+// — the rule of a family's override file, at the checkout. A section is
+// keyed by the target's name; one keyed by no target the tool is composed
+// with is reported, since it configures nothing.
+type Config struct {
+	Disabled []string
+	Targets  map[string]json.RawMessage
+}
+
+// Disables reports whether the config disables a target.
+func (c Config) Disables(target string) bool {
+	for _, name := range c.Disabled {
+		if name == target {
+			return true
+		}
+	}
+	return false
 }
 
 // Checkout reads every family under the contracts directory of a
@@ -112,6 +144,17 @@ func Checkout(fsys fs.FS, contracts string, targets []string) (*World, []diag.Di
 	for _, entry := range entries {
 		name := entry.Name()
 		if !entry.IsDir() {
+			if name == ConfigFile {
+				data, err := fs.ReadFile(fsys, path.Join(contracts, name))
+				if err != nil {
+					diagnostics = append(diagnostics, diag.Diagnostic{File: name, Code: "unreadable", Message: err.Error()})
+					continue
+				}
+				var problems diag.List
+				world.Config = config(data, targets, &problems)
+				diagnostics = append(diagnostics, problems.Diagnostics...)
+				continue
+			}
 			if family, ok := strayFile(name); ok {
 				diagnostics = append(diagnostics, diag.Diagnostic{Family: family, File: name, Code: "stray_file", Message: fmt.Sprintf("%s is a file; a family is a directory of tier files, %s/%s/.", name, contracts, family)})
 			}
@@ -127,6 +170,51 @@ func Checkout(fsys fs.FS, contracts string, targets []string) (*World, []diag.Di
 	sort.Strings(world.Names)
 	diag.Sort(diagnostics)
 	return world, diagnostics
+}
+
+// config reads the checkout's config: its shape held to the schema, each
+// name under disabled and each section under targets held to the targets
+// the tool is composed with, and each section kept raw for its target.
+func config(data []byte, targets []string, problems *diag.List) Config {
+	sections := shape(ConfigFile, "urn:nightseam:v1:checkout", data, problems)
+	if sections == nil {
+		return Config{}
+	}
+	known := func(name string) bool {
+		for _, target := range targets {
+			if target == name {
+				return true
+			}
+		}
+		return false
+	}
+	var c Config
+	if raw, ok := sections["disabled"]; ok {
+		_ = json.Unmarshal(raw, &c.Disabled)
+		for i, name := range c.Disabled {
+			if !known(name) {
+				problems.Addf(diag.Location{File: ConfigFile}.Sub("disabled", i), "unknown_target", "No target named %q is composed; the targets are %s.", name, strings.Join(targets, ", "))
+			}
+		}
+	}
+	if raw, ok := sections["targets"]; ok {
+		_ = json.Unmarshal(raw, &c.Targets)
+		for _, name := range sortedNames(c.Targets) {
+			if !known(name) {
+				problems.Addf(diag.Location{File: ConfigFile}.Sub("targets", name), "unknown_target", "No target named %q is composed, so its section configures nothing; the targets are %s.", name, strings.Join(targets, ", "))
+			}
+		}
+	}
+	return c
+}
+
+func sortedNames(m map[string]json.RawMessage) []string {
+	names := make([]string, 0, len(m))
+	for name := range m {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // strayFile reads the family a misplaced <family>[.suffix].json was meant for.

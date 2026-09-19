@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/Bitspark/nightseam/internal/compose"
+	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/doc"
+	"github.com/Bitspark/nightseam/internal/load"
 	"github.com/Bitspark/nightseam/internal/spi"
 )
 
@@ -33,8 +35,9 @@ func (roster) Checkout(c *doc.Checkout) ([]spi.File, error) {
 // rather than removed when a family goes, since the checkout remains.
 func TestCheckoutPagesAreRenderedWhole(t *testing.T) {
 	previous := toolTargets
-	toolTargets = func(module, scope, sibling string) []spi.Target {
-		return append(compose.Targets(module, scope, sibling), doc.Target(roster{}))
+	toolTargets = func(c load.Config, module, scope, sibling string) ([]spi.Target, []diag.Diagnostic) {
+		targets, diagnostics := compose.Configure(c, module, scope, sibling)
+		return append(targets, doc.Target(roster{})), diagnostics
 	}
 	defer func() { toolTargets = previous }()
 
@@ -77,5 +80,43 @@ func TestCheckoutPagesAreRenderedWhole(t *testing.T) {
 	writeFixture(t, root, "api/contracts/codex/model.json", []byte(`{"nightseam": 2, "types": {"X": {"kind": "record", "fields": [{"name": "y", "type": "Nope"}]}}}`))
 	if _, _, err := run(t, root, "generate", "probe"); err == nil || !strings.Contains(err.Error(), "codex: invalid family") {
 		t.Fatalf("an invalid family did not refuse the checkout's page: %v", err)
+	}
+}
+
+// TestTheCheckoutsConfigShapesTheTool: nightseam.json beside the families
+// reaches the targets — a section moves the Markdown writer's pages, a
+// disabled target renders nothing and what it rendered before is left
+// alone — and a config with a problem is reported by validate as the
+// checkout's own and refuses generate before any family.
+func TestTheCheckoutsConfigShapesTheTool(t *testing.T) {
+	root := t.TempDir()
+	writeFamily(t, root, "probe")
+	writeFixture(t, root, "api/contracts/nightseam.json", []byte(`{"targets": {"markdown": {"layout": "docs/{family}"}}}`))
+	if out, _, err := run(t, root, "generate"); err != nil || !strings.Contains(out, "generated docs/probe/README.md") || strings.Contains(out, "api/spec") {
+		t.Fatalf("the section did not move the pages: %v\n%s", err, out)
+	}
+	// Disabled, the writer renders nothing, and what it rendered before is
+	// neither stale nor removed: its roots are nobody's to walk.
+	writeFixture(t, root, "api/contracts/nightseam.json", []byte(`{"disabled": ["markdown"]}`))
+	writeFixture(t, root, "api/spec/probe/README.md", []byte("written by hand while the writer is disabled\n"))
+	if out, errs, err := run(t, root, "check"); err != nil || out != "" || errs != "" {
+		t.Fatalf("check touched what a disabled writer would own: %v\n%s%s", err, out, errs)
+	}
+	if out, _, err := run(t, root, "generate"); err != nil || strings.Contains(out, "README.md") {
+		t.Fatalf("a disabled writer rendered, or its old page was removed: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "docs", "probe", "README.md")); err != nil {
+		t.Fatalf("the disabled writer's old page went: %v", err)
+	}
+	writeFixture(t, root, "api/contracts/nightseam.json", []byte(`{"targets": {"rust": {}}}`))
+	_, errs, err := run(t, root, "validate")
+	if err == nil || !strings.Contains(err.Error(), "1 problems") || !strings.Contains(errs, `nightseam.json#/targets/rust: No target named "rust" is composed`) {
+		t.Fatalf("validate did not report the checkout's own problem: %v\n%s", err, errs)
+	}
+	if _, _, err := run(t, root, "generate"); err == nil || !strings.HasPrefix(err.Error(), "invalid checkout: nightseam.json#/targets/rust") {
+		t.Fatalf("generate rendered a checkout with a problem of its own: %v", err)
+	}
+	if _, _, err := run(t, root, "init", "probe"); err == nil || !strings.HasPrefix(err.Error(), "invalid checkout:") {
+		t.Fatalf("init scaffolded a checkout with a problem of its own: %v", err)
 	}
 }

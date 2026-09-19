@@ -23,18 +23,19 @@ import (
 )
 
 // World is every family of a checkout as loaded, with what the loader had
-// to say about each.
+// to say about each, and the checkout's own config.
 type World struct {
 	Families analysis.World
 	Names    []string
 	Problems map[string][]diag.Diagnostic // the loader's diagnostics by family; "" for the checkout's own
+	Config   load.Config
 }
 
 // Load reads the checkout under a filesystem. The targets name the
 // override files a family may carry.
 func Load(fsys fs.FS, contracts string, targets []string) *World {
 	loaded, problems := load.Checkout(fsys, contracts, targets)
-	world := &World{Families: analysis.World{}, Names: loaded.Names, Problems: map[string][]diag.Diagnostic{}}
+	world := &World{Families: analysis.World{}, Names: loaded.Names, Problems: map[string][]diag.Diagnostic{}, Config: loaded.Config}
 	for name, family := range loaded.Families {
 		world.Families[name] = family
 	}
@@ -42,6 +43,22 @@ func Load(fsys fs.FS, contracts string, targets []string) *World {
 		world.Problems[problem.Family] = append(world.Problems[problem.Family], problem)
 	}
 	return world
+}
+
+// Checkout reports the diagnostics of the checkout as a whole, which are
+// no family's: what the loader had to say of the contracts directory and
+// of the checkout's config, and what composing the targets with that
+// config had to say, once Configure has added it.
+func Checkout(world *World) []diag.Diagnostic { return world.Problems[""] }
+
+// Configure records what composing the targets with the checkout's config
+// had to say, as the checkout's own diagnostics.
+func Configure(world *World, diagnostics []diag.Diagnostic) {
+	world.Problems[""] = append(world.Problems[""], diagnostics...)
+	diag.Sort(world.Problems[""])
+	if len(world.Problems[""]) == 0 {
+		delete(world.Problems, "")
+	}
 }
 
 // Validate reports every diagnostic of one family: the loader's, or else
