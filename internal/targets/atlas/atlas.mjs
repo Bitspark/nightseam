@@ -387,7 +387,9 @@ function exchangeHTML(atlas, f, x, lens) {
   ].filter(Boolean);
   const names = [
     chip(`wire: ${x.name}`),
-    ...Object.entries(op.Languages ?? {}).map(([name, lang]) => chip(`${name}: ${lang.Name}`)),
+    ...Object.entries(op.Languages ?? {})
+      .filter(([, lang]) => lang.Name)
+      .map(([name, lang]) => chip(`${name}: ${lang.Name}`)),
   ].join('');
   const result = x.kind === 'method' ? typeText(op.DeclaredResult) : typeText(op.Declared);
   const left =
