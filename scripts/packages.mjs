@@ -22,6 +22,37 @@ export const packages = components
   .filter(directory => existsSync(join(root, directory, "package.json")))
   .filter(directory => !JSON.parse(readFileSync(join(root, directory, "package.json"), "utf8")).private);
 
+/**
+ * Every specifier a consumer may import a package by, as a suffix of its
+ * name: `""` for the package itself, `"/live"` for a subpath it publishes.
+ *
+ * It reads `publishConfig.exports` and falls back to `exports`, because the
+ * two differ on purpose: in the workspace a package exports its TypeScript
+ * source and may expose helpers — `./conformance` — that are this
+ * repository's fixtures and not entry points anybody installs, and
+ * `publishConfig` swaps the whole map for the one the tarball carries. What
+ * a consumer can import is therefore the published map alone, and it is the
+ * published map the release smoke holds.
+ *
+ * `./package.json` is a manifest rather than a module and is left out; so is
+ * a subpath exported as `null`, which is the spelling for one deliberately
+ * withheld.
+ */
+export function publishedEntryPoints(manifest) {
+  const exported = manifest.publishConfig?.exports ?? manifest.exports;
+  // No map at all: `main`/`types` name the one entry point, which is the
+  // package itself.
+  if (exported === undefined || typeof exported === "string") return [""];
+  const keys = Object.keys(exported);
+  // A map whose keys are conditions — `import`, `types`, `default` — describes
+  // the root and nothing else; one whose keys are subpaths describes each.
+  if (!keys.some(key => key.startsWith("."))) return [""];
+  return keys
+    .filter(key => key.startsWith(".") && key !== "./package.json" && exported[key] !== null)
+    .map(key => (key === "." ? "" : key.slice(1)))
+    .sort();
+}
+
 /** Lay down the repository notices in every package before packing or publishing. */
 export function copyNotices() {
   for (const directory of packages) {
