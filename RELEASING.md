@@ -86,8 +86,9 @@ with the rest, `scripts/release-prepare.mjs` holds them to the tag, and
    installs, runs both tiers and each nested module's, builds, checks what
    provenance needs, **installs what is about to be published** —
    `node scripts/smoke-packed.mjs`, described under *Rehearsing one* —
-   publishes the packages with the repository's `NPM_TOKEN` secret and
-   `--provenance`, creates the GitHub release with that version's changelog
+   publishes the packages with `--provenance` — every run of it waits in
+   the `release` environment for its required reviewer — creates the GitHub
+   release with that version's changelog
    section as its notes, and then **makes the round trip**:
    `node scripts/smoke-registry.mjs $TAG --open-issue` installs the same
    example again, this time from npm and from the module proxy with nothing
@@ -224,8 +225,18 @@ is the same thing written for the consumer.
 
 ## Once, before the first release
 
-- The `@nightseam` organization exists on npm; an automation token for it
-  is stored as the `NPM_TOKEN` secret of this repository.
+- The `@nightseam` organization exists on npm. The first publish of each
+  package name is made with a granular access token — read and write on the
+  `@nightseam` scope alone, one day's expiry — stored as the `NPM_TOKEN`
+  secret for that one run, because npm's trusted publishing is configured on
+  a package that already exists. Once the five exist, each is given this
+  repository's `release.yml` in the `release` environment as its trusted
+  publisher, the secret is deleted, and every later publish authenticates
+  by OIDC with no credential stored anywhere; that needs npm 11.5.1 and
+  Node 22.14 or later on the runner.
+- The GitHub environment `release` exists with the maintainer as its
+  required reviewer, so that no run of the release workflow — a tag's or a
+  rehearsal's — publishes without a person approving it.
 - The repository is public. Three things wait on that one setting, and all
   three are done in the same sitting as the flip rather than remembered
   afterwards, because the documents that depend on them ship with the first

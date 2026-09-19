@@ -1,7 +1,9 @@
 # A release is a tag: v<major.minor.patch>, pushed. The workflow holds every
 # spelling of the version to the tag, runs both tiers, builds the TypeScript
-# packages, publishes them to the @nightseam organization with the
-# repository's NPM_TOKEN secret and with provenance, and creates the GitHub
+# packages, publishes them to the @nightseam organization with provenance —
+# through the `release` environment, whose required reviewer approves every
+# run, and with the NPM_TOKEN secret only while a name has no trusted
+# publisher yet, which is its first publish — and creates the GitHub
 # release with the tag's changelog section as its notes. The Go module needs
 # no upload: the tag is its release, and so is the second tag that releases
 # the nested module. Nothing here runs on a push to a branch. RELEASING.md
@@ -36,6 +38,9 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Every run, a tag's or a rehearsal's, waits here for the reviewer the
+    # environment names before a step runs.
+    environment: release
     env:
       # The tag being released, or the one being rehearsed. Every step reads
       # this rather than the ref, which on a rehearsal is a branch.

@@ -5,10 +5,12 @@
 [![npm](https://img.shields.io/npm/v/@nightseam/runtime.svg)](https://www.npmjs.com/package/@nightseam/runtime)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Declare a duplex API once, in tiers of JSON. Get a typed client and a typed
-server in Go and in TypeScript, both speaking one wire profile —
-`nightseam.duplex/1`, JSON frames carrying requests, responses, events and
-cancellation over a WebSocket, a tunnel channel or an in-memory pipe.
+Declare a duplex API once, in tiers of JSON. Get a typed server and a typed
+client in Go and a typed client in TypeScript — every one of them typed in
+both directions, since a client serves what the server calls — all speaking
+one wire profile: `nightseam.duplex/1`, JSON frames carrying requests,
+responses, events and cancellation over a WebSocket, a tunnel channel or an
+in-memory pipe.
 
 Duplex means both ends call. The server calls the client with the machinery
 the client calls the server with, declared in the same file and typed the
