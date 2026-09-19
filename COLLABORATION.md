@@ -114,13 +114,22 @@ committed.
 
 The index is shared as well as the tree. Two lanes each stage by path and
 the first to run a bare `git commit` carries the other's staged files under
-its own message — it happened on 2026-09-19. So a commit is by path too:
-`git commit -F message -- <paths>` commits the working-tree state of exactly
-those paths and nothing else the index holds (a new file is `git add`ed
-first), and `git diff --cached --stat` is read before every commit as the
-question "is every line of this mine?". Where a sibling is mid-edit in the
-same file, rebuild HEAD plus your own hunks and stage that as a blob rather
-than the file.
+its own message — it happened on 2026-09-19. Two ways to commit only what
+is yours, and which one depends on where your change is:
+
+- Your change is in the **working tree** and nobody else is in those files:
+  `git commit -F message -- <paths>` commits the working-tree state of
+  exactly those paths and nothing else the index holds (a new file is
+  `git add`ed first).
+- A sibling is mid-edit in the **same file**: do not touch the working tree.
+  Rebuild HEAD plus your own hunks, stage that as a blob
+  (`git hash-object -w` and `git update-index --cacheinfo`), confirm with
+  `git diff --cached --name-only` that the index holds your files alone,
+  and then a bare `git commit` — a pathspec would commit the working tree,
+  which is the union, and undo the point of the rebuild.
+
+Either way, `git diff --cached --stat` is read before every commit as the
+question "is every line of this mine?".
 
 ## Commits
 
