@@ -37,7 +37,6 @@ pages and [the driver protocol](../conformance/DRIVER.md), and nothing else.
 | --- | --- |
 | [profile.md](wire/profile.md) | `nightseam.duplex/1`: the seam beneath, the subprotocol, the envelope, ids and correlation, requests and their errors, events, limits and backpressure, trace context, request metadata, close codes, a frame on the wire |
 | [tunnel.md](wire/tunnel.md) | channels over one peer: the four operations, ids by parity, credit, limits and closes |
-| [session.md](wire/session.md) | a session over any connection of the seam: the roles, the relay's ten rules, `session.control` and `session.cursor`, the log, what is refused and how a connection ends |
 | [vocabulary.md](wire/vocabulary.md) | how a layer speaks on the wire: the test that decides whether something new is the profile's, a layer's own vocabulary or a header, and the rules a layer's vocabulary follows |
 
 ## What a consumer calls — `runtime/`
@@ -49,8 +48,7 @@ fact once, with both spellings.
 | --- | --- |
 | [peer.md](runtime/peer.md) | the peer: the seam beneath, making one, the order it starts in, options and limits, the subprotocol surface, the server's hooks, errors, request metadata, the propagator, the validator |
 | [tunnel.md](runtime/tunnel.md) | the tunnel: making one and when, the surface, options, credit in each language |
-| [session.md](runtime/session.md) | the session: the surface, options, the `Log` interface and the memory log, every refusal code, what a consumer builds on it, which observer a session tells |
-| [observer.md](runtime/observer.md) | the observer across the three layers: the rule, order, taking one, the console and `slog` adapters, the OpenTelemetry adapter, every event in both languages, a layer of your own, the session's changes told twice |
+| [observer.md](runtime/observer.md) | the observer across the layers: the rule, order, taking one, the console and `slog` adapters, the OpenTelemetry adapter, every event in both languages, a layer of your own |
 
 ## What a consumer declares — `declaration/`
 
@@ -58,7 +56,7 @@ The input side: the tier files, the tool, and what comes out.
 
 | page | what |
 | --- | --- |
-| [families.md](declaration/families.md) | a family in tiers: the files, the tier rule, `model.json`, `protocol.json`, `session.json`, the per-target names |
+| [families.md](declaration/families.md) | a family in tiers: the files, the tier rule, `model.json`, `protocol.json`, the per-target names |
 | [generics.md](declaration/generics.md) | the holes in a declaration: parameters of two sorts at every level, `apply` and `with`, how each language instantiates them, the diagram that commutes |
 | [generator.md](declaration/generator.md) | the commands and their flags, which version rendered this, what the packages own, the specification |
 | [generated.md](declaration/generated.md) | what the generated packages export in each language: the protocol, binding and client packages in Go, the client package in TypeScript, the errors |

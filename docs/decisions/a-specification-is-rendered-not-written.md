@@ -1,7 +1,7 @@
 # A specification is rendered, not written
 
 **The question.** A family needs a document a human reads — its types, its
-two sides, its errors, how a session of it is governed. Who writes it?
+two sides, its errors. Who writes it?
 
 **Decided.** A third target, `spec`, renders it as Markdown at
 `api/spec/<family>/README.md` from the declaration alone, beside the Go and

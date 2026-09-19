@@ -45,7 +45,7 @@ per-family placements, without requiring a registry publication.
 
 | value | emitted dependency | use |
 | --- | --- | --- |
-| `file` (default) | `file:../session-client` | local packages, supported by npm and pnpm |
+| `file` (default) | `file:../probe-client` | local packages, supported by npm and pnpm |
 | `workspace` | `workspace:*` | pnpm or Yarn workspaces that discover the generated packages; npm does not support this protocol |
 | `version` | `0.0.0` | the generated sibling's version, for a workspace configured to link matching versions or a registry that supplies it |
 
@@ -110,7 +110,7 @@ fields and constraints, an example value of it and where it is used; the
 two sides with their operations and errors, each operation as the frames
 of the profile carry it — the request, the response, a refusal per error
 the method declares, an event's frame — and how much each side says; the
-parameters a family is generic in; the governance of a session of it. All
+parameters a family is generic in. All
 of it comes from the declaration alone, so that no page is ever behind it,
 and the examples are synthesized deterministically — a placeholder string
 is its member's name between angle quotes, `‹text›`, a number its lower
@@ -140,8 +140,8 @@ descriptions; the URL fragment links to a family, exchange, type or error.
 The type drawer follows references with breadcrumbs. A name lens and code
 blocks appear for the language metadata available in the document; without
 it the page shows wire names. No language spelling is derived in the page.
-Referenced built-in families appear once in the checkout document, so an
-inherited session operation's payload links to its complete definition.
+Referenced built-in families appear once in the checkout document, so a
+carried type links to its complete definition.
 
 The atlas uses local fonts and makes no network requests by default. Its
 checkout config sets a title, enables optional Newsreader and IBM Plex Mono
@@ -168,9 +168,9 @@ explicit opt-in to remote fonts. The page follows the system color theme,
 offers a theme switch, and honors reduced motion. Add `"atlas"` to
 `disabled` to omit it.
 
-The specification includes inherited fields, union variants, operations,
-errors and session governance, while retaining the declared bases and the
-origin of inherited members. Shapes written inline appear under their
+The specification includes inherited fields, union variants, operations and
+errors, while retaining the declared bases and the origin of inherited
+members. Shapes written inline appear under their
 derived names; nullable values, literals, both parameter sorts and explicit
 applications keep their declaration meaning. The generated header records
 the actual source directory, including a custom contracts root.
@@ -179,12 +179,6 @@ The same writer renders the complete [built-in family references](builtins/READM
 including each family's operations and types. Their generated headers name the
 embedded `nightseam:` source, and the fast test tier holds the documents to
 those declarations. The reference index names the regeneration command.
-
-Rendering a session family also renders its implicit built-in session
-dependency through each target, including the shared payload package its
-typed callbacks import. Generating a different family alone preserves that
-dependency while any family still needs it; removing the last session tier
-makes the unused built-in output stale like any other generated package.
 
 ## The checkout's config
 

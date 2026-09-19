@@ -126,9 +126,6 @@ over any connection of the seam, `Open` over a handle resolved on a tunnel.
 All three take `Events`, installed through `Prepare` before the first frame,
 then run any caller-supplied `Prepare`. An empty `Events{}` handles none.
 `OnX` is for later registration; it cannot recover already delivered events.
-`Decides`, `Asks` and `Conversation` are the session tier's governance,
-rendered as functions for a session's relay to be given
-([the session's surface](../runtime/session.md)).
 
 ## TypeScript: one package
 
@@ -204,45 +201,6 @@ params and result, a reverse call's, an event's data — and installs the
 `Handler` and `Events` before the peer has a connection, so the server's first reverse call or event meets them. Pass `{}` for no event handlers;
 use `onX` for later registration, before the event-producing flow begins. The `families` option is filled in for the observer, so a
 frame event names the family.
-
-## Session control
-
-A family with `session.json` implicitly extends the built-in session
-family's side. Its client has the ordinary typed callbacks below, with the
-payload types from the generated session package. A protocol-only family
-has neither callback, even when it extends a session family's application
-side. The generator writes the shared built-in package alongside every
-session family that needs it.
-
-| | Go | TypeScript |
-| --- | --- | --- |
-| At construction | `Events{SessionControl: callback}` | `{sessionControl: callback}` |
-| Later registration | `client.OnSessionControl(callback)` | `client.onSessionControl(callback)` |
-| Control payload | `sessionprotocol.Control` | `Control` from the session package |
-
-The Go payload's `Holder.Null` says nobody holds control; otherwise
-`Holder.Value` is the holder's origin. TypeScript's `holder` is `string | null`.
-Construction callbacks receive current control before the first replayed
-application event. Later registration receives subsequent transfers and
-releases. The same imported side provides `SessionCursor` / `sessionCursor`
-callbacks and `OnSessionCursor` / `onSessionCursor` for later registration.
-These callbacks use the same `Events` setup and `OnX` registration as every
-other event, including the caller's Go `Prepare` hook.
-
-A session client exposes `client.Sequence()` in Go and `client.sequence`
-in TypeScript. Both start at zero and retain the exact sequence from the
-latest processed `session.cursor`, including a replay-ending cursor sent
-without an application event. They do not count frames. The internal typed
-callback is installed before reading begins, even when `Events` omits a
-cursor callback; state is updated before the user's callback runs. Removing
-a TypeScript user callback leaves the tracker installed. In Go, registering
-a second user cursor callback returns the usual duplicate-event error.
-
-Save that value to resume through the consumer's attachment mechanism. A
-constructor does not wait for replay to finish, and reconnecting creates a
-new client whose sequence remains zero until its first cursor arrives. Keep
-the saved cursor until the new connection reports progress. A protocol-only
-client has no cursor state or getter.
 
 ## Errors
 

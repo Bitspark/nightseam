@@ -6,8 +6,8 @@ application, a reference. May *operations*? A family that offers everything
 two drift.
 
 **Decided.** A protocol side may `extends` another family's same side: its
-methods and events arrive under their own names, its errors with them, and
-its governance where the session tier is extended too. The extending
+methods and events arrive under their own names, and its errors with them.
+The extending
 family's surface is a superset, so a consumer of the base may speak to it.
 The family it extends is one it imports; a side that extends its own
 family's, a chain that returns, and a name that means two things across the
@@ -25,13 +25,12 @@ base only. [#136](https://github.com/Bitspark/nightseam/issues/136) extends
 parameter spelling never supplies a binding. A diamond may reach the same
 operation declaration with the same binding; different bindings collide.
 
-A session's governance resolves names on the inherited sides as well as
-its own. Its conversation definition follows the side carrying the event,
-through intermediate bases too. The same event and path may arrive more
-than once; different definitions cannot both describe the session's one
-conversation source and are refused as `incompatible_governance`, at the
-extending edge or the family's own conflicting definition. This is held by
-`TestInheritedSessionGovernance` and the `session-governance` invalid fixture.
+> **Superseded in one clause.** The session tier a governed family extended,
+> and the `incompatible_governance` refusal that held one conversation source
+> across an inheritance chain, were removed with the session in 0.5.0
+> ([#196](https://github.com/Bitspark/nightseam/issues/196)). Side inheritance
+> itself — what this page decided — is unchanged, and a later tier that carries
+> operations inherits through the same mechanism.
 
 **Why.** Deferring it "until a second family asks" was the safe answer and
 it forfeits the experiment: what `includes` has to mean at the concern
@@ -46,7 +45,9 @@ family's side as the built-in `session` family's side extended — and
 turning that on would have added operations to every session family in the
 tree before any target could render one. So the mechanism landed and that
 use of it did not; [a tier is a built-in
-family](a-tier-is-a-built-in-family.md) records where the line fell.
+family](a-tier-is-a-built-in-family.md) records where the line fell. That
+use is moot since 0.5.0: no tier has a built-in whose types a family does
+not carry.
 
 **Serves.** Composability — a family is built from families, in operations
 as well as in types.

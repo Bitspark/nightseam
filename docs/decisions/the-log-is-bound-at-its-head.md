@@ -1,5 +1,12 @@
 # The log is bound at its head
 
+> **Superseded.** The session's log was removed whole in 0.5.0
+> ([#196](https://github.com/Bitspark/nightseam/issues/196),
+> [#200](https://github.com/Bitspark/nightseam/issues/200)): there is no `Bind`,
+> no `Replay` and no durable log, and `Tunnel.Open` no longer carries the
+> resume cursor that existed only to seat a consumer in one. The page is kept
+> for the reasoning; what it decided no longer describes the tree.
+
 **The question.** A session is bound with a log that already holds frames —
 a durable one, after a restart. Where does the session stand: at nothing,
 or at the log's end?
@@ -8,9 +15,7 @@ or at the log's end?
 `Replay` from after zero, and seats the session at the last sequence that
 read delivered; the read happens before the machine's connection is read
 and under the relay's own lock. Delivering in ascending sequence order is
-the whole of what a durable log owes beyond storing frames. [The
-session](../wire/session.md#the-log) and [the
-surface](../runtime/session.md#the-log).
+the whole of what a durable log owes beyond storing frames.
 
 **Why.** A session bound at nothing after a restart would have given a
 consumer attaching with `after: 0` before the machine spoke again nothing

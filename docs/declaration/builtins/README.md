@@ -5,11 +5,10 @@ generator by the same `spec` target that documents a consumer's family:
 
 - [duplex](duplex/README.md): the profile's envelope and channel handle.
 - [tunnel](tunnel/README.md): opening channels, credit, and their wire types.
-- [session](session/README.md): control, the delivered cursor, and their wire types.
 
 Their source addresses begin with `nightseam:`, so a declaration or
 diagnostic referring to one cannot be mistaken for a file in the consumer's
-`api/contracts/`. A tier imports its built-in family implicitly; [a tier is
+`api/contracts/`. A tier carries its built-in family implicitly; [a tier is
 a built-in family](../../decisions/a-tier-is-a-built-in-family.md) explains
 the relationship.
 

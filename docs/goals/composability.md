@@ -13,8 +13,7 @@ any other thing that carries frames, whatever it is made of.
 ## The dimensions
 
 - **Independence.** Whether a part is usable with nothing above it — a
-  peer without a tunnel, a tunnel without a session, a seam with no peer
-  over it — and whether a part requires a specific part beneath it or only
+  peer without a tunnel, a seam with no peer over it — and whether a part requires a specific part beneath it or only
   a shape.
 - **Substitutability.** Whether what carries frames, what stores them, what
   watches them, what puts a trace on them can each be swapped for a

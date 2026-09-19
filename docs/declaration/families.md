@@ -2,8 +2,7 @@
 
 A family of API is declared in tiers of JSON under `api/contracts/<family>/`
 of the consuming checkout. This page is the reference for what may be
-written there — the tiers, the types, the two sides, the governance of a
-session, the per-target names. [The holes in a declaration](generics.md) is
+written there — the tiers, the types, the two sides, the per-target names. [The holes in a declaration](generics.md) is
 the rest of the language; [the generator](generator.md) says how a
 declaration is rendered, [the generated packages](generated.md) what comes
 out, and the [README](../../README.md) is the short path.
@@ -22,7 +21,6 @@ one file per tier and, where the convention is not enough, one per target:
 ```
 api/contracts/probe/model.json       tier 1: the types
 api/contracts/probe/protocol.json    tier 2: the two sides, the errors, the parameters
-api/contracts/probe/session.json     tier 3: how a session is governed
 api/contracts/probe/go.json          not a tier: what the Go rendering names otherwise than the convention does
 api/contracts/probe/typescript.json  not a tier: the same for TypeScript (and markdown.json for the specification)
 ```
@@ -228,30 +226,23 @@ base family is explicitly filled. A bare family name selects a nongeneric
 base only.
 
 A side may **`extends`** another family's same side: its methods and events
-arrive under their own names, with its errors, and with its governance
-where the session tier is extended too. The extending family's surface is a
-superset, so a consumer of the base may speak to it. The family it extends
-is one this family imports; a side that extends its own family's, a chain
-that returns, and a name that means two things across the join are each
-refused ([a side may extend another
-family's](../decisions/a-side-may-extend-another-familys.md)). Session governance
-may name inherited operations on the selected sides, including through
-another base. A conversation definition follows the side that carries its
-event. Repeating the same event and path is compatible; inheriting or
-declaring a different one is an `incompatible_governance` diagnostic. A
-protocol-only family does not acquire a session tier by extending a side.
+arrive under their own names, with its errors. The extending family's
+surface is a superset, so a consumer of the base may speak to it. The family
+it extends is one this family imports; a side that extends its own family's,
+a chain that returns, and a name that means two things across the join are
+each refused ([a side may extend another
+family's](../decisions/a-side-may-extend-another-familys.md)).
 
 ### What a tier brings
 
 A tier's own vocabulary is declared as a **built-in family** — `duplex` for
-the profile, `tunnel` for the tunnel, `session` for the session — written
-in this same language, carried in the binary and held to the same shape
-schemas. A family that has a tier file **imports** that tier's built-in,
-with no `imports` line; naming one in `imports` is refused, since it is
-already there.
+the profile, `tunnel` for the tunnel — written in this same language,
+carried in the binary and held to the same shape schemas. A family that has
+a tier file **carries** that tier's built-in, with no `imports` line; naming
+one in `imports` is refused, since it is already there.
 
-The names `duplex`, `tunnel` and `session` are reserved for these built-ins;
-a family of the checkout must use another directory name.
+The names `duplex` and `tunnel` are reserved for these built-ins; a family
+of the checkout must use another directory name.
 
 The protocol tier's built-in is **carried**: `duplex`'s `Envelope`, one
 message of the profile, and `Handle`, a reference to a channel that speaks
@@ -264,27 +255,8 @@ which is plainly not a file of the checkout. [A tier is a built-in
 family](../decisions/a-tier-is-a-built-in-family.md) is the record, and
 `internal/model/builtin/` the declarations.
 
-The session tier's built-in remains a shared family. A family with
-`session.json` implicitly extends its protocol sides, so `session.control`
-and `session.cursor` arrive as ordinary typed events whose payloads are
-`session.Control` and `session.Cursor`. Generation emits the shared session
-package beside the application packages. Extending an application's side
-alone does not acquire its session tier. Consumer declarations may not use
-the `session.` method or event prefix, whether they have that tier or not.
-
-## session.json
-
-```json
-{"decides": ["echo"], "asks": ["reverse"], "conversation": {"event": "changed", "path": "text"}}
-```
-
-`decides` names the methods that need control to send; `asks` the client
-methods — the ones the server sends — that raise a request the holder of
-control must answer; `conversation` where the conversation id arrives. An
-`extensions` member is carried through for other tools and read by nothing
-here. A family with a session tier carries the `session` tier, which a
-family parameter binds to. What a session does with `decides` and `asks` is
-[the session](../wire/session.md).
+Every tier that names a built-in carries it, so a built-in's types are
+always the carrying family's own and never a second family's operations.
 
 ## go.json and typescript.json
 
@@ -314,5 +286,5 @@ The settled forms are combined in one family in the shared corpus and
 driven through generated clients and bindings. [The proof findings](proof-findings.md)
 record the native forms in each language, the mixed-parameter equivalence,
 the measured rename when an inline shape moves, and what side inheritance
-means for a binding and session governance. Each finding links to the
+means for a binding. Each finding links to the
 fixture or cross-wire scenario that holds it.

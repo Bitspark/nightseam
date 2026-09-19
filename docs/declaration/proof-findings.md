@@ -74,14 +74,13 @@ it does not reverse the inline-shape ruling.
 The [base-client scenario](../../conformance/scenarios/generated/proof-side-extends.json)
 dials the proof binding with an unchanged generated `probe` client.
 Inherited requests retain `probe`'s payload types and wire names. An
-extended side is enough to provide those operations; it does not turn the
-proof family into a session family.
+extended side is enough to provide those operations and brings nothing of
+the base beyond them.
 
-`TestProofInheritanceKeepsGovernanceOnItsTierAndSide` adds governance to
-the base in a copy of the fixture. Proof has no session until its own
-session tier is added. Then `decides: echo` and the server-side conversation
-arrive with the extended server side; `asks: reverse` from the unextended
-client side does not. This is held in the same [diagram fixture](../../cmd/nightseam/proof_diagram_test.go).
+A second finding, that a tier of the base did not travel with an extended
+side, was measured against the governed session tier and went with it in
+0.5.0 ([#196](https://github.com/Bitspark/nightseam/issues/196)); side
+inheritance carries a side's operations and errors and nothing else.
 
 ## Refusal is part of the proof
 

@@ -1,5 +1,14 @@
 # The session's vocabulary is not logged
 
+> **Superseded.** The governed session layer this records was removed whole in
+> 0.5.0 ([#196](https://github.com/Bitspark/nightseam/issues/196),
+> [#200](https://github.com/Bitspark/nightseam/issues/200)): there is no relay,
+> no log, no `session.control` and no `session.cursor`, and the `session.`
+> namespace is reserved by nothing. The page is kept for the reasoning, which a
+> later layer that speaks its own vocabulary on the wire still answers to
+> ([how a layer speaks](../wire/vocabulary.md)); what it decided no longer
+> describes the tree.
+
 **The question.** The relay tells a consumer who holds control and where it
 stands, on the wire, as `session.control` and `session.cursor`. Do those
 frames take a place in the session's log, and may a machine send one?
@@ -7,7 +16,7 @@ frames take a place in the session's log, and may a machine send one?
 **Decided.** Neither is logged, neither is a family event, the machine
 never sends one, and the cursor is the log's sequence rather than a count.
 A machine that sends any `session.*` frame is ended with 1002 and a reason
-naming the frame. [The session](../wire/session.md#the-sessions-own-vocabulary).
+naming the frame.
 
 **Why.** The log holds the family's frames and nothing else, so that a
 replay never gives a stale holder or a cursor of its own: a consumer that

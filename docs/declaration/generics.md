@@ -7,14 +7,14 @@ used. One mechanism at every level, and a parameter is of one of two
 
 ```json
 "parameters": [
-  {"name": "S", "of": "session", "description": "The family whose messages are carried."},
+  {"name": "S", "of": "protocol", "description": "The family whose messages are carried."},
   {"name": "T", "description": "What a page holds."}
 ]
 ```
 
 - **A family parameter** — it has `of`. It is filled by a **family**, one
-  that carries the tier `of` names: `protocol`, `session`, whatever tier
-  comes next ([a family in tiers](families.md#the-files) has the table). A
+  that carries the tier `of` names: `protocol`, and whatever tier comes next
+  ([a family in tiers](families.md#the-files) has the table). A
   type is drawn *through* it, `S.Envelope` — one message of the family bound
   to `S` — `S.Handle` a channel that speaks it, `S.Payload` any record or
   enum `Payload` of it, which every family that may bind `S` is then held to
@@ -33,7 +33,7 @@ and the reason the answer is written here rather than left as two
 mechanisms with a note.
 
 ```json
-"parameters": [{"name": "S", "of": "session"}, {"name": "T", "of": "session"}],
+"parameters": [{"name": "S", "of": "protocol"}, {"name": "T", "of": "protocol"}],
 "types": {
   "Frame": {"kind": "record", "fields": [
     {"name": "message", "type": "S.Envelope"},
@@ -79,9 +79,9 @@ family must carry it. A type parameter cannot fill a family slot.
 
 A family with exactly one family parameter may refer to a generic imported
 type plainly only when every parameter the imported type needs is a family
-parameter and that one bound guarantees every required tier. A session
-bound can fill a protocol slot, since carrying a tier requires its lower
-tiers too; a protocol bound cannot fill a session slot. A type slot always
+parameter and that one bound guarantees every required tier. A bound of a
+higher tier can fill a slot of a lower one, since carrying a tier requires
+its lower tiers too, and not the other way about. A type slot always
 needs an explicit application, whether the type declares it or captures it
 from its family, including through other types or inline shapes. A mixed
 declaration needs explicit arguments too. With any other number of caller
@@ -96,11 +96,11 @@ Nightseam renders such a family once, generically, and a consumer
 instantiates it:
 
 - TypeScript has associated types, so one family parameter is one type
-  parameter whatever it is drawn at: `Frame<S extends AnyFamily = SessionFamily>`
+  parameter whatever it is drawn at: `Frame<S extends AnyFamily = AnyFamily>`
   with `message: S["Envelope"]` and `last: S["Payload"]`, the bound narrowed
   to `AnyFamily & { "Payload": unknown }` where a type beyond the ones every
-  family carries is drawn, `SessionFamily` the union of the session families
-  of the world, and one binding argument per parameter,
+  family carries is drawn and the parameter defaulting to that same bound,
+  and one binding argument per parameter,
   `Client.dial(url, probe.family, codex.family, …)`, whose validators then
   validate what fills each slot.
 - Go has none, so a family parameter becomes one type parameter per type

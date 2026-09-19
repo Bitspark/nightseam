@@ -30,7 +30,7 @@ for its answer before sending the next; a testee never writes unasked.
 
 A request is an object with `id` (an integer the answer repeats), `op`, and
 the op's arguments as further members — so no op names an argument `id` or
-`op`; a session is named by `session`. An answer is `{"id", "ok": …}` with
+`op`. An answer is `{"id", "ok": …}` with
 the op's result, or `{"id", "error": {"code", "message"}}`. The codes the
 protocol itself defines:
 
@@ -47,7 +47,7 @@ The first request is always `hello`, and the testee answers with what it is:
 
 ```
 → {"id": 1, "op": "hello"}
-← {"id": 1, "ok": {"driver": 1, "language": "go", "layers": ["seam", "peer", "tunnel", "session"],
+← {"id": 1, "ok": {"driver": 1, "language": "go", "layers": ["seam", "peer", "tunnel"],
                    "features": ["listen", "pipe", "observer", "propagator", "lazy"]}}
 ```
 
@@ -64,7 +64,7 @@ lacks one. The features:
 | `lazy` | `consume: "lazy"` on a connection |
 
 Between scenarios the runner sends `reset`: the testee closes and forgets
-everything it holds — every connection, peer, listener, registry — and
+everything it holds — every connection, peer, listener, tunnel — and
 answers `{}` with nothing left running, so that one process serves a whole
 run and no scenario sees another's state. The last request is `bye`; the
 testee resets and exits 0. A testee that exits before `bye`, or writes a
@@ -75,7 +75,7 @@ again for the next.
 
 Everything a testee makes is a **handle**, a string it mints and the runner
 passes back as `on`: a connection, a listener, a peer, a tunnel, a channel,
-a registry, an attachment, a call. A channel is also a connection, and takes
+a call. A channel is also a connection, and takes
 every `conn.*` op. Handles are never reused within a process.
 
 ## Values
@@ -99,13 +99,13 @@ answers `{"error": {"code": "timeout"}}` when it passes, never hangs: the
 runner is blocked on the answer, and a testee that waits forever is a
 scenario that never ends. The default is 5000. Every `await_*` op takes it;
 so do `conn.send`, `conn.close`, `peer.emit`, `peer.accept`, `conn.accept`,
-`tunnel.open`, `tunnel.accept`, `session.bind` and `session.attach`, each of
-which can block on the peer process.
+`tunnel.open` and `tunnel.accept`, each of which can block on the peer
+process.
 
 The testee is **pull-based**. It keeps, per handle, what arrived while the
 runner was not asking: frames received on a connection, events received on
-a peer, the lifecycle of every request a canned handler served, what an
-observer was told, the changes a registry made. An `await_*` op returns the
+a peer, the lifecycle of every request a canned handler served, and what an
+observer was told. An `await_*` op returns the
 first entry that matches, removing it; a `drain` op returns everything held
 and empties it. Nothing is reported unasked and nothing is lost between
 asks. An op that reads what is held without waiting — `peer.observed`,
@@ -289,7 +289,7 @@ every language, lower snake case, `at` stripped:
 | `event.emitted`, `event.delivered` | `name`, `bytes`, `family` |
 | `backpressure` | `queued`, `stalled`, `deadline` |
 | `handler.panic` | `method`, `value`, `family` |
-| a tunnel's or a session's | as its layer says, below |
+| a tunnel's | as its layer says, below |
 
 `bytes` is reported as `true` when positive, `duration` and `deadline` as
 `true` when non-negative: a scenario holds that a size or a time was
@@ -309,13 +309,13 @@ Channels multiplexed over one peer: `tunnel/go`, `@nightseam/tunnel`.
 | op | arguments | answer |
 |---|---|---|
 | `tunnel.over` | **`on`** peer, `options` (`window`, `max_frame_bytes`, `accept_capacity`) | `{"handle"}` |
-| `tunnel.open` | **`on`**, **`family`**, `after`, `consume`, `within_ms` | `{"handle", "id"}` — the channel, a connection handle |
-| `tunnel.accept` | **`on`**, `consume`, `within_ms` | `{"handle", "id", "family", "after"}` |
+| `tunnel.open` | **`on`**, **`family`**, `consume`, `within_ms` | `{"handle", "id"}` — the channel, a connection handle |
+| `tunnel.accept` | **`on`**, `consume`, `within_ms` | `{"handle", "id", "family"}` |
 
 A channel takes every `conn.*` op, and `peer.over` makes a peer of it. A
 tunnel observes through its peer's observer; its events reach
-`peer.observed` on that peer: `channel.opened` (`family`, `id`, `after`,
-`opener`), `channel.accepted` (`family`, `id`, `after`), `channel.closed`
+`peer.observed` on that peer: `channel.opened` (`family`, `id`,
+`opener`), `channel.accepted` (`family`, `id`), `channel.closed`
 (`family`, `id`, `code`, `reason`), `credit.stall` (`family`, `id`,
 `waiting`), `open.refused` (`family`, `reason`).
 
@@ -326,86 +326,6 @@ the wire is to write a `channel.frame` event on the peer the tunnel runs over,
 naming the channel by the `id` `tunnel.open` answered with. That is what a peer
 of another making may do, and what the receiving side is held to refusing.
 
-### Session — `session.*`, `attachment.*`
-
-The session component: `session/go`, `@nightseam/session`.
-
-| op | arguments | answer |
-|---|---|---|
-| `session.new` | `options` (`max_attachments`, `max_inflight`) | `{"handle"}` a registry |
-| `session.bind` | **`on`**, **`session`**, **`channel`**, **`governance`** `{"decides": […], "asks": […]}`, `log` `{"max_frame_bytes", "prefill"}`, `within_ms` | `{}` |
-| `session.attach` | **`on`**, **`session`**, **`channel`**, **`role`** `"participant"`\|`"observer"`, **`origin`**, `after`, `within_ms` | `{"handle"}` an attachment; the replay has been delivered when it answers |
-| `session.control` | **`on`**, **`session`**, `attachment` (a handle, or `null` to release) | `{}` |
-| `session.attention` | **`on`** | `["id", …]` |
-| `session.changes` | **`on`**, `trace`, `drain` | `[change, …]` normalized: `kind` (`bound`, `unbound`, `attached`, `detached`, `ask_raised`, `ask_routed`, `ask_answered`, `control_changed`, `frame_appended`, `refused`), `session`, and of `origin`, `role`, `sequence`, `method`, `trace` what the change carries |
-| `session.await_change` | **`on`**, **`kind`**, `within_ms` | the first such change, removed |
-| `attachment.state` | **`on`** an attachment | `{"holder": "<origin>"\|null, "sequence"}` — what the relay last told that consumer of the session's own vocabulary |
-| `attachment.detach` | **`on`** | `{}` |
-
-A `role` that is neither is handed to the session rather than refused by the
-testee, and so is a negative `after`: what those are refused with is the
-layer's, `role_invalid` and `sequence_invalid`, and a scenario holds the code
-the session gives rather than the testee's own reading of an argument.
-Negative registry limits likewise reach `session.new`'s constructor rather
-than being refused by the testee. The refusals of `session.new`,
-`session.bind`, `session.attach` and `session.control` are
-answered under *any other* above — the session's code verbatim, the same ten
-names in every language: `invalid_options`, `no_session`, `not_attached`,
-`not_controlling`, `origin_invalid`, `role_invalid`, `sequence_invalid`,
-`session_exists`, `session_invalid`, `too_many_attachments`.
-
-A session speaks its own vocabulary on the wire, as the tunnel speaks
-`channel.open`: ordinary events of the profile under the `session.` prefix,
-which the relay produces, a consumer reads and neither the log keeps nor the
-machine may send. A scenario reads them off a consumer's channel with
-`conn.receive` like any other frame:
-
-- `{"version":1,"kind":"event","event":"session.control","data":{"holder":
-  "<origin>"|null}}` reaches every attachment when control changes, and one
-  consumer on attach before its replay begins.
-- `{"version":1,"kind":"event","event":"session.cursor","data":{"sequence":
-  N}}` reaches the one attachment a frame was just delivered to, replay and
-  live alike, naming that frame's sequence in the log. What the relay writes
-  of itself carries none — a refusal, an ask handed again as control moves —
-  and neither does a frame the replay passed over, which is delivered as
-  nothing. Where such frames are a replay's last, the replay ends with one
-  cursor naming where it reached and no frame before it.
-
-A replay hands a channel what that consumer would have been delivered live:
-every event the machine sent down, and nothing else. An up frame is a
-consumer's and goes to the machine, never down; a response of the machine's
-answers a request another consumer sent, under that consumer's id; a request
-of the machine's stands with the holder of control, and reaches a new holder
-where control moves rather than through a replay. A scenario that prefills a
-log with `up` frames is prefilling what no consumer is replayed.
-
-`attachment.state` is the same two facts as the attachment holds them, so a
-scenario can hold what a consumer was told and what its attachment says to
-each other: `holder` is null where nobody holds control, and `sequence` is
-zero where nothing has been delivered.
-
-A machine that sends any `session.*` frame has its connection ended with
-1002 and a reason naming the frame, which every consumer of that session is
-ended with.
-
-`session.bind`'s `log.prefill` is a list of frames appended to the log
-before the session is bound over it, each `{"text"}` — the message as it
-went over the channel — with `direction` (`down` where it is left out) and
-`origin`. It is the durable log a session is bound over after the process
-that wrote those frames ended, which a testee has no other way to say; the
-component's own suites build theirs the same way, by appending through the
-`Log` interface.
-
-A session observes through the peer its machine's channel runs over; its
-events reach `peer.observed` there: `session.bound`, `session.unbound`
-(`code`, `reason`), `session.attached` (`role`, `origin`, `after`),
-`session.detached` (`role`, `origin`), `ask.raised` (`id`, `method`,
-`asking`), `ask.routed` (`id`, `method`, `origin`), `ask.answered` (`id`,
-`method`, `origin`), `control.changed` (`origin`, `held`), `frame.appended`
-(`sequence`, `direction`, `origin`, `bytes`, `method`), `session.refused`
-(`code`, `method`, `role`, `origin`) — each with `session`, and `trace` when
-asked for and the frame carried one.
-
 ### Generated code — `gen.*`, `client.*`
 
 A language's second testee links the packages the generator renders for the
@@ -415,25 +335,19 @@ in `testee.json` before the `generated` scenarios run.
 
 | op | arguments | answer |
 |---|---|---|
-| `gen.serve` | `behaviors`, `session`, `prefill` | `{"handle", "url"}` — the binding served at `url` with the canned handler set below; `session: true` places a relay before it |
-| `gen.dial` | **`url`**, `options`, `control`, `cursor`, `after` | `{"handle"}` a generated client, its reverse-call handler canned; `control: false` omits the construction-time control callback; `cursor: true` installs the cursor callback; `after` resumes a session |
+| `gen.serve` | `behaviors` | `{"handle", "url"}` — the binding served at `url` with the canned handler set below |
+| `gen.dial` | **`url`**, `options` | `{"handle"}` a generated client, its reverse-call handler canned |
 | `client.echo` | **`on`**, **`params`** | `{"result"}` or `{"error"}` as the typed call ended |
 | `client.no_args` | **`on`** | the same |
 | `client.seen` | **`on`**, **`params`** | the same |
 | `client.emit_noticed` | **`on`**, **`data`** | `{}` |
 | `client.await_changed` | **`on`**, `within_ms` | `{"data"}` |
-| `client.await_notification` | **`on`**, `within_ms` | `{"event", "data"}` — the next typed `changed`, `session.control` or registered `session.cursor` callback, in delivery order |
-| `client.on_control` | **`on`** | `{}` — installs the generated control callback after construction |
-| `client.on_cursor` | **`on`** | `{}` — installs the generated cursor callback after construction |
-| `client.sequence` | **`on`** | `{"sequence"}` — the generated client's retained relay cursor, initially zero |
+| `client.await_notification` | **`on`**, `within_ms` | `{"event", "data"}` — the next typed callback, in delivery order |
 | `client.close` | **`on`** | `{}` |
 | `server.reverse` | **`on`** the served handle, **`params`** | `{"result"}` or `{"error"}` — the binding calls the connected client's `reverse` |
 | `server.emit_changed` | **`on`**, **`data`** | `{}` |
 | `server.await_noticed` | **`on`**, `within_ms` | `{"data"}` |
-| `server.control` | **`on`** the served handle, `origin` | `{}` — gives the session's control to that consumer, or releases it when null |
 | `gen.validate` | **`type`**, **`value`** | `{"valid": true}` or `{"valid": false, "message"}` — the protocol package's validator on a type expression |
-| `gen.decides` / `gen.asks` | **`method`** | `{"value": bool}` |
-| `gen.conversation` | | `{"event", "path"}` |
 | `gen.errors` | | `["code", …]` the family's public errors, sorted |
 | `gen.is_error` | **`code`** | `{"value": bool}` — whether the code is one the family declares, which the rendering names |
 
@@ -444,22 +358,7 @@ answers the payload with `text` prefixed by the language's name and a colon,
 and a `noticed` event for `server.await_noticed`. A scenario does not know
 which language is on each side, so it holds the prefix with a pattern.
 
-With `session: true`, the server binds that machine behind a real session
-relay whose log begins with one `changed` event, `{text:"replay",count:1}`.
-An explicit `prefill` list replaces that default; each entry has `text`
-(a serialized profile frame), `direction` (`down` by default, or `up`) and
-an optional `origin`, as in the session testee's log prefill. The endpoint
-reads the test harness's `after` query parameter to resume from that cursor.
-Consumers are named `consumer1`, `consumer2`, and so on in connection order.
-The generated client's typed `session.control` callback is installed during
-construction by default; `control: false` allows a scenario to exercise
-later registration through `client.on_control`. The ordered notification
-queue holds initial control before replay and subsequent transfer/release,
-independently of `client.await_changed`'s existing queue. A language without
-a binding answers `gen.serve` with `unsupported`, as for the ordinary server.
-The client retains cursors even without a user cursor callback. A callback
-installed at construction or through `client.on_cursor` receives the same
-typed cursor after that state is updated; it does not own the tracker.
+A language without a binding answers `gen.serve` with `unsupported`.
 
 The generated testee lies under `conformance/<lang>/generated/`, and the
 runner lays those files beside the probe rendering in `{rendered}` before

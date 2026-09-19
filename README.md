@@ -14,15 +14,16 @@ in-memory pipe.
 
 Duplex means both ends call. The server calls the client with the machinery
 the client calls the server with, declared in the same file and typed the
-same way — which is what a browser session, an agent and a relay need, and
+same way — which is what a browser, an agent and a forwarder need, and
 what a request-and-response contract has no way to state.
 
 Version 0.4.0 releases the consumer improvements described in the
 [changelog](CHANGELOG.md). Its checker and specification renderer support
 the new declaration forms; complete Go/TypeScript generation and value
-validation for those forms, and the remaining typed session operations,
-continue in [0.5.0](https://github.com/Bitspark/nightseam/milestone/6).
-Until implemented, the code targets report `unrendered_form` for those forms.
+validation for those forms continue in
+[0.5.0](https://github.com/Bitspark/nightseam/milestone/6), which also
+removes the governed session layer. Until implemented, the code targets
+report `unrendered_form` for those forms.
 
 ### Declare it
 
@@ -83,7 +84,7 @@ Pre-1.0. The declaration language, the generated surface and the profile
 move with minor versions; `CHANGELOG.md` says what each version holds. What
 is already held fixed is the agreement between the languages: the
 conformance suite under [conformance/](conformance/) holds every language's
-seam, runtime, tunnel, session and generated packages to Go's over a real socket,
+seam, runtime, tunnel and generated packages to Go's over a real socket,
 scenario by scenario, so a peer of any language is held to the reference
 before it is released; `conformance/matrix.json` is the last run's standing
 of each language in each profile.
@@ -136,8 +137,7 @@ the tunnel, and on nothing else.
 | [`@nightseam/duplex`](duplex/ts) | [`duplex/go`](duplex/go) | the seam: ordered frames both ways, an explicit close with a code and a reason, a WebSocket adapter and an in-memory pipe |
 | [`@nightseam/runtime`](runtime/ts) | [`runtime/go`](runtime/go) | the peer of the profile: correlation, cancellation, backpressure, presence, trace context, the wire validator, the observer and its console and slog adapters |
 | [`@nightseam/tunnel`](tunnel/ts) | [`tunnel/go`](tunnel/go) | channels multiplexed over one peer, each one a connection of the seam, with per-channel credit |
-| [`@nightseam/session`](session/ts) | [`session/go`](session/go) | a session over a tunnel's channels: the relay, the registry, the holder of control, the log, and the changes it reports |
-| [`@nightseam/otel`](otel/ts) | [`otel/go`](otel/go) | the OpenTelemetry adapter, the one component a consumer opts into: a propagator over the W3C trace context propagator and an observer that opens a span per request, so that the four above pull in no telemetry backend — on npm they depend on nothing at all, and in Go on one third-party module, the WebSocket transport |
+| [`@nightseam/otel`](otel/ts) | [`otel/go`](otel/go) | the OpenTelemetry adapter, the one component a consumer opts into: a propagator over the W3C trace context propagator and an observer that opens a span per request, so that the three above pull in no telemetry backend — on npm they depend on nothing at all, and in Go on one third-party module, the WebSocket transport |
 | — | [`cmd/nightseam`](cmd/nightseam) | the generator |
 
 Every published component exists in both languages and both are held to one
@@ -151,8 +151,8 @@ is the order to do it in.
 ## Using it
 
 A family is a directory of tier files, `api/contracts/<family>/` — the
-types, the protocol over them, how a session of them is governed, and what
-each target names otherwise than the convention does. The generator renders
+types, the protocol over them, and what each target names otherwise than the
+convention does. The generator renders
 it into packages it owns wholesale: `api/go/<f>-protocol`, `-binding` and
 `-client`, `api/ts/<f>-client`, and the family's specification as Markdown at
 `api/spec/<f>/README.md`.
@@ -178,8 +178,8 @@ who reads it:
 | set | for | what |
 | --- | --- | --- |
 | [docs/goals/](docs/goals/) | a reviewer, a designer | the north stars: what Nightseam is for, in eight respects, at the limit — abstract, never done, and what a review measures the tree against |
-| [docs/wire/](docs/wire/) | a runtime in any language | what crosses the wire: the profile `nightseam.duplex/1`, the tunnel's operations, the session's rules and vocabulary, and the test that says where something new on the wire belongs |
-| [docs/runtime/](docs/runtime/) | a consumer of the packages | the surface of the peer, the tunnel, the session and the observer, Go and TypeScript side by side |
+| [docs/wire/](docs/wire/) | a runtime in any language | what crosses the wire: the profile `nightseam.duplex/1`, the tunnel's operations, and the test that says where something new on the wire belongs |
+| [docs/runtime/](docs/runtime/) | a consumer of the packages | the surface of the peer, the tunnel and the observer, Go and TypeScript side by side |
 | [docs/declaration/](docs/declaration/) | a consumer declaring a family | the tier files, a family generic in others, the generator's commands, what the generated packages export, and the pipeline for whoever changes it |
 | [docs/languages/](docs/languages/) | a consumer choosing a language, a contributor bringing one | the four promises, profiles and tiers, and how a language joins |
 | [docs/decisions/](docs/decisions/) | anyone asking why | the record: one page per decision — the question, what was decided, what the alternative cost, since when |
