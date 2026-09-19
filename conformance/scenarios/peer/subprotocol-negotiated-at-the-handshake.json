@@ -1,7 +1,7 @@
 {
   "name": "a subprotocol both sides name is selected at the handshake, and a server naming one still takes a client that names none",
   "layer": "peer",
-  "description": "What the handshake selected is what both peers report, and the profile is spoken over the connection either way: nothing about it turns on a subprotocol. The case a suite cannot hold is a client that offers meeting a server that selects none — a browser and Node's WebSocket refuse that handshake and Go's client takes it, so offering and selecting are one decision the two sides take together (docs/profile.md).",
+  "description": "What the handshake selected is what both peers report, and the profile is spoken over the connection either way: nothing about it turns on a subprotocol. The case a suite cannot hold is a client that offers meeting a server that selects none — a browser and Node's WebSocket refuse that handshake and Go's client takes it, so offering and selecting are one decision the two sides take together (docs/wire/profile.md).",
   "needs": ["peer", "listen"],
   "steps": [
     {"on": "a", "op": "peer.listen", "args": {"subprotocols": ["x.one", "x.two"]}, "bind": {"handle": "l", "url": "url"}},

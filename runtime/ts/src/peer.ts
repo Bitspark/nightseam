@@ -8,7 +8,7 @@ export type { WebSocketLike } from '@nightseam/duplex';
 
 /** The endpoint selects this profile; it is offered as no subprotocol by default. */
 export const DUPLEX_PROFILE = 'nightseam.duplex/1';
-/** The limits a peer runs with unless its options say otherwise; docs/profile.md lists them. */
+/** The limits a peer runs with unless its options say otherwise; docs/runtime/peer.md tables them. */
 export const DUPLEX_DEFAULTS = Object.freeze({
   maxConcurrentHandlers: 64,
   maxPendingRequests: 128,
@@ -82,7 +82,7 @@ export interface PeerOptions {
    * default. A server that selects none leaves the connection with none and
    * the profile is spoken over it either way — but a browser refuses a
    * handshake whose offer went unselected, so a client that offers must be
-   * met by a server that selects (docs/profile.md).
+   * met by a server that selects (docs/wire/profile.md).
    */
   subprotocols?: string[];
   maxConcurrentHandlers?: number;
@@ -425,7 +425,7 @@ export class DuplexPeer {
     // peer tells it: an event is emitted, then its frame is sent. The frame
     // itself is observed by the writer, immediately before the bytes leave —
     // one serialization point per peer, so that nothing a frame draws can be
-    // observed received ahead of it (docs/observability.md).
+    // observed received ahead of it (docs/runtime/observer.md).
     if (this.observer && kind === 'event') this.observe({ type: 'event.emitted', at: new Date(), name, bytes, trace, family });
     const observeSent = this.observer
       ? () => this.observe({ type: 'frame.sent', at: new Date(), kind, name, bytes, id: envelope.id as string | undefined, trace, family })

@@ -3,7 +3,7 @@
 // says of each row, and the table a consumer sees. Nothing here runs the
 // suite — `conformance/go` writes the file, from `TestMain`, after a run —
 // so a table is only ever as fresh as the run that wrote it, which is what
-// the check in CI is for. docs/tiers.md says what a profile and a tier mean.
+// the check in CI is for. docs/languages/tiers.md says what a profile and a tier mean.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { root } from "./packages.mjs";
@@ -104,7 +104,7 @@ export function planned(profiles) {
 }
 
 /**
- * What the tier table says of a matrix at release time, per docs/tiers.md:
+ * What the tier table says of a matrix at release time, per docs/languages/tiers.md:
  * a failure in a profile the tier *requires* is what its `onFailure` says —
  * `stop` refuses the tag, `provisional` ships and marks the language in the
  * notes — and a failure elsewhere is what its `otherwise` says, `stop-next`

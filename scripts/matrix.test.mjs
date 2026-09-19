@@ -2,7 +2,7 @@
 // here are matrices no run has produced yet — a tier 2 language lagging, a
 // tier 3 one provisional — because the gate they exercise is what refuses a
 // release, and a gate first exercised by the release it refuses is a gate
-// nobody has run. docs/tiers.md is what these hold.
+// nobody has run. docs/languages/tiers.md is what these hold.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cell, columns, gate, missing, planned, table, unrun } from "./matrix.mjs";

@@ -1,5 +1,5 @@
 {
-  "$comment": "What each language promises and how the suite holds it; docs/tiers.md says what this means. A profile is a set of scenarios by layer, or by a feature a scenario needs; a tier is what a language guarantees and when. The runner reads this on every run and refuses a scenario no profile places.",
+  "$comment": "What each language promises and how the suite holds it; docs/languages/tiers.md says what this means. A profile is a set of scenarios by layer, or by a feature a scenario needs; a tier is what a language guarantees and when. The runner reads this on every run and refuses a scenario no profile places.",
   "profiles": {
     "core": {"layers": ["seam", "peer"], "promise": "wire"},
     "generator": {"layers": ["generated"], "promise": "generated"},

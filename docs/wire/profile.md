@@ -3,21 +3,22 @@
 The profile is what a peer speaks over a connection of the seam: JSON text
 frames, each one envelope, carrying requests, responses, events and
 cancellations both ways. It is what every generated package binds to and
-what the runtimes implement — `runtime/go` and `@nightseam/runtime` — held
-to each other over a real socket. A consumer speaks it through the generated
-code and rarely needs this page; a runtime for another language needs
-nothing else.
+what every language's runtime implements, each held to the reference over a
+real socket by the conformance suite. This page is the wire — what a peer of
+any language sends, accepts and refuses — and names no runtime: what a
+consumer calls, in each language, is [the peer](../runtime/peer.md). A
+runtime for another language needs this page, [the tunnel](tunnel.md), [the
+session](session.md), [how a layer speaks](vocabulary.md) and [the driver
+protocol](../../conformance/DRIVER.md), and nothing else.
 
 ## The connection beneath
 
 A frames duplex connection: ordered, message-framed, bidirectional, closed
-explicitly with a code and a reason, and nothing else — `duplex.Conn` in Go,
-`FrameConnection` in TypeScript. A WebSocket is one; an in-memory pipe and a
-tunnel channel are others; every transport is held to one conformance suite
-per language — `duplex/go/duplextest` and `duplex/ts/src/conformance.ts`,
-each run by the pipe, the WebSocket adapter and the tunnel channel. Close
-codes are the WebSocket registry's numbers on every transport: 1000 normal,
-1001 going away, 1002 protocol error, 1003 unsupported data, 1006 abnormal
+explicitly with a code and a reason, and nothing else — the seam. A
+WebSocket is one; an in-memory pipe and a tunnel channel are others, and
+every transport of a language is held to the seam's own suite. Close codes
+are the WebSocket registry's numbers on every transport: 1000 normal, 1001
+going away, 1002 protocol error, 1003 unsupported data, 1006 abnormal
 closure, 1008 policy violation, 1009 too large, 1011 internal, and 4000–4999
 for what runs above the seam; the profile itself closes with **4011** when
 the other side broke it.
@@ -45,45 +46,14 @@ reading a frame — the profile's own name, or the family's service and
 contract version, as every other WebSocket protocol family does it — and a
 browser client's ticket, which has nowhere else to travel, a browser being
 unable to set a header on an upgrade. The server reads the ticket off the
-request as it reads everything else, with `Authenticate`.
-
-The surface is the transport's, on both sides: `ServerOptions.Subprotocols`
-and `DialOptions.Subprotocols` in Go, `PeerOptions.subprotocols` in
-TypeScript, and what was selected is `Peer.Subprotocol()` and
-`peer.subprotocol`, `""` when none was. A ticket is not a list, so the
-server's selection may be a function of the request:
-`ServerOptions.SelectSubprotocol` answers with the one token to select out
-of what that request offered, `""` for none, which is how a ticket comes
-back unchanged.
+request as it reads everything else that authenticates a connection.
 
 The trap is the browser's, and it is the reason the defaults are what they
 are: a client that offers a subprotocol must be met by a server that selects
 one of them, or the browser refuses the connection. Offering and selecting
-are one decision, taken on both sides together.
-
-## When a peer starts reading
-
-A peer reads the connection from the moment it exists, so what it must serve
-is installed before it exists, not after. Both constructors run in one order:
-the options are taken, **`Prepare` runs on the peer**, the read and write
-loops start, and only then does the caller get the peer — `Accept` calls
-`OnConnect`, `Dial` returns. `Prepare` is `runtime.Options.Prepare` in Go,
-reached through the embedded `Options` of `ServerOptions` and `DialOptions`,
-and it holds a peer nothing has reached: `Handle`, `HandleEvent` and a
-`tunnel.New` over the peer cannot miss a frame there. An error from it fails
-the construction — no peer is returned, and a socket the handshake already
-answered is closed with 1008 rather than left open in silence.
-
-`OnConnect` is the other half and means what it always meant: the peer is
-live, has read frames and may have answered them. A handler installed there
-is installed on a peer the other side may already have called, which is
-`method_not_found` for the first request of a consumer that opens a channel
-the moment it sees the `101`. Install in `Prepare`, use in `OnConnect`.
-
-TypeScript has the same order by construction rather than by a hook: a
-`DuplexPeer` is made, `handle` and `onEvent` register on it, and `attach` or
-`connect` gives it a connection — handlers first, frames second. Attaching a
-peer that already has one is refused `already_connected`.
+are one decision, taken on both sides together. A ticket is not a list, so a
+server's selection may be a function of the request — how each runtime
+exposes that is [the peer](../runtime/peer.md#the-subprotocol).
 
 ## The envelope
 
@@ -97,10 +67,10 @@ One JSON object per frame, with `version` `1` and a `kind`:
 | `cancel` | `id` | the request it withdraws |
 
 Every kind may carry `traceparent` and `tracestate`, and a `request` and an
-`event` may carry `meta` (§§ below). No other member is allowed; a member of another kind, a duplicate member, an unknown
-member or trailing content after the object makes the frame malformed. A
-malformed frame ends the connection — a peer that sends one is not a peer
-to keep talking to — with 4011.
+`event` may carry `meta` (§§ below). No other member is allowed; a member of
+another kind, a duplicate member, an unknown member or trailing content after
+the object makes the frame malformed. A malformed frame ends the connection
+— a peer that sends one is not a peer to keep talking to — with 4011.
 
 Payloads — `params`, `result`, `error.data`, `data` — are any JSON value
 the family declares; the profile carries them and the generated validators
@@ -119,7 +89,8 @@ request it withdraws, and an id with the wrong prefix for its kind is
 malformed.
 
 Ids are per connection. A relay that carries frames across connections mints
-its own on the way out and maps the responses back (`docs/session.md`).
+its own on the way out and maps the responses back ([the
+session](session.md)).
 
 ## Requests
 
@@ -136,10 +107,10 @@ the handler does not:
 | `request_timeout` | the caller's own deadline passed; its own error, never a frame it received |
 | `internal` | the handler failed with an error that is not public, or panicked; the message says nothing more |
 
-A handler's own error crosses the wire only when it is a public one —
-`runtime.PublicError` in Go, `DuplexError` in TypeScript — with its `code`,
-`message` and optional `data`; the family's declared errors are these, by
-name, in the generated packages.
+A handler's own error crosses the wire only when it is a public one — a
+value each runtime names for the purpose, carrying `code`, `message` and
+optional `data` — and the family's declared errors are these, by name, in
+the generated packages.
 
 A **cancel** is best effort: it withdraws a request the receiver may already
 have answered. The receiver cancels the handler's context; the handler's
@@ -160,34 +131,18 @@ wire when it passes is `cancelled`, the request having been abandoned.
 
 An event carries a name and data, expects no answer, and is delivered in
 the order it was sent. Handlers run one at a time in that order; an event
-with no handler is dropped. An event says nothing about receipt: the
-sender's `Emit` resolves when the frame was accepted for sending.
+with no handler is dropped. An event says nothing about receipt: sending
+one completes when the frame was accepted for sending.
 
 ## Limits and backpressure
 
 Every queue is bounded, per connection, and by default: 128 outgoing frames,
 128 events waiting for their handlers, 128 calls outstanding at once, 64
-requests being handled at once, frames of at most 1 MiB.
-
-Each bound is one option under one name in both languages, the way the
-observer's events are one name in both (docs/observability.md):
-
-| Go | TypeScript | default | what it bounds |
-| --- | --- | --- | --- |
-| `MaxConcurrentHandlers` | `maxConcurrentHandlers` | 64 | requests being handled at once; the one past it is answered `busy` |
-| `MaxPendingRequests` | `maxPendingRequests` | 128 | calls outstanding at once; the one past it is refused `busy` where it stands |
-| `QueueCapacity` | `queueCapacity` | 128 | outgoing frames, and events waiting for their handlers |
-| `MaxFrameBytes` | `maxFrameBytes` | 1 MiB | a received frame; a larger one ends the connection |
-| `RequestTimeout` | `requestTimeoutMs` | 30s | a call's own deadline, past which it fails `request_timeout` |
-| `WriteTimeout` | `writeTimeoutMs` | 10s | how long a full queue is paced before its consumer is stalled |
-| `ConnectTimeout` | `connectTimeoutMs` | 30s | the handshake; a dial past it is refused `connect_timeout` |
-
-The first six are the peer's — `runtime.Options` in Go, `PeerOptions` in
-TypeScript — and the last is the dial's, `runtime.DialOptions` in Go and the
-same `PeerOptions` in TypeScript, a browser peer having no context to carry
-it. Go takes a `time.Duration` where TypeScript counts milliseconds, and a
-zero in Go selects the default where TypeScript's options take positive
-integers; a negative one is refused in either.
+requests being handled at once, frames of at most 1 MiB; a call's own
+deadline is 30 seconds, a full queue's write deadline 10, and a dial's
+handshake 30. Each bound is one option under one name in both languages,
+the way the observer's events are one name in both — [the
+peer](../runtime/peer.md#options-and-limits) tables them.
 
 A producer that fills a queue is **paced for one write deadline** (10
 seconds); a consumer that still has not drained it by then is disconnected
@@ -233,8 +188,8 @@ The runtimes propagate them and read nothing into them:
 
 The default propagator mints a random 16-byte trace id and 8-byte span id
 and correlates with no tracing library installed; an adapter for one
-replaces it (`Options.Propagator` in Go, `PeerOptions.propagator` in
-TypeScript) and the runtime imports none.
+replaces it — [the peer](../runtime/peer.md#trace-context-and-the-propagator)
+says where — and the runtime imports none.
 
 ## Request metadata
 
@@ -254,30 +209,27 @@ the connection with **4011**, as any malformed frame does. Keys beginning
 `nightseam.` are reserved for what the profile and its components may define
 later — a deadline, a cause — and this version defines none, so a frame
 carrying one is refused rather than read as a consumer's. `meta` counts toward
-the peer's `MaxFrameBytes` and nothing else bounds it.
+the peer's frame limit and nothing else bounds it.
 
 What carries a frame carries `meta` with it: a relay forwards the member
 verbatim, as it forwards a member it does not know, and an observer is told a
 frame's name, id, size and trace and never a `meta` key or value — the rule
 that no payload reaches an observer covers this carriage too.
 
-A sender says what a frame carries and nothing carries it on by itself:
-`runtime.WithMeta(ctx, map[string]string)` in Go and `{ meta }` on a call or an
-emit in TypeScript say what the next frame takes, and `runtime.MetaFrom(ctx)`
-and a handler's `context.meta` are what arrived. A handler's own calls carry
-none of it unless the handler says so — `WithMeta(ctx, MetaFrom(ctx))`, or
-`{ meta: context.meta }` — because a trace is the peer's to propagate and a
-credential is the consumer's to pass on deliberately. A reserved key given to
-either is dropped rather than sent.
+A sender says what a frame carries and nothing carries it on by itself: a
+handler's own calls carry none of what arrived unless the handler says so,
+because a trace is the peer's to propagate and a credential is the consumer's
+to pass on deliberately. A reserved key given to a sender is dropped rather
+than sent. The two operations — say what the next frame takes, read what
+arrived — are [the peer's](../runtime/peer.md#request-metadata).
 
 ## What the profile does not do
 
 No retry, no reconnection, no acknowledgment of delivery, no
 authentication: a connection is authenticated by whatever opened it — the
-HTTP upgrade in Go takes an `Authenticate` hook — and the profile begins
-once it is open. Resumption after a reconnect is a family's operation
-(`after` on a tunnel's `channel.open`, a session's log), not the
-profile's.
+upgrade, before the profile begins — and the profile begins once it is open.
+Resumption after a reconnect is a family's operation (`after` on a tunnel's
+`channel.open`, a session's log), not the profile's.
 
 ## A frame, on the wire
 
@@ -293,11 +245,11 @@ profile's.
 
 ## Observing it
 
-A peer takes one `Observer` and tells it ten things about the traffic it
+A peer takes one observer and tells it ten things about the traffic it
 carries — a connection opened and closed, a frame sent and received, a
 request started and ended, an event emitted and delivered, backpressure, and
 a handler that threw — each carrying names, ids, sizes, durations, outcomes
 and the frame's trace, and none of them a payload. The tunnel and the session
 running over the peer emit their own events through the same observer, so a
-consumer chooses one. [observability.md](observability.md) has the rule and
+consumer chooses one. [The observer](../runtime/observer.md) has the rule and
 every event of every layer.

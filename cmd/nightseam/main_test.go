@@ -612,7 +612,7 @@ func TestVersionOfBuildInfo(t *testing.T) {
 // in the header would rewrite every generated file of every consumer on
 // every release, and would fail a check over bytes that are otherwise
 // identical — the failure the command explains rather than one to add.
-// docs/generator.md states the split, and this holds it.
+// docs/declaration/generator.md states the split, and this holds it.
 func TestGeneratedFilesNameNoVersion(t *testing.T) {
 	root := t.TempDir()
 	writeFamily(t, root, "probe")

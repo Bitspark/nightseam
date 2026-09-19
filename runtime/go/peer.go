@@ -26,7 +26,7 @@ import (
 
 // Profile names what this package speaks: JSON text frames carrying requests,
 // responses, events and cancellations both ways over a connection of the seam.
-// docs/profile.md is its specification.
+// docs/wire/profile.md is its specification.
 const Profile = "nightseam.duplex/1"
 
 // Role is the side of a connection a peer takes. It decides the prefix of the
@@ -171,7 +171,7 @@ type frame struct {
 // the frame they were rendered from. The two travel together so that the send
 // is observed by the one goroutine that writes, immediately before the bytes
 // leave — one serialization point per peer, which is what makes the observer's
-// events one order (docs/observability.md).
+// events one order (docs/runtime/observer.md).
 type queuedFrame struct {
 	data  []byte
 	frame frame
@@ -311,7 +311,7 @@ func (p *Peer) fail(err error) { p.end(err, codeAborted, "") }
 // envelope, an id that correlates with nothing, a frame of the wrong kind. The
 // other side broke the profile and is told so, with 4011 and a reason, because
 // a gateway or a proxy between the two can act on a code and can act on
-// nothing at all (docs/profile.md).
+// nothing at all (docs/wire/profile.md).
 func (p *Peer) refuse(err error) { p.end(err, duplex.CodeDuplex, err.Error()) }
 
 // abandon releases a peer that never ran: Prepare failed, the loops were

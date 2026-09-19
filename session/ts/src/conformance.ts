@@ -628,7 +628,7 @@ export function run(connect: Connect): void {
     // The log keeps each message whole, so a consumer that was not there is
     // replayed the carriage with it — the request the relay recorded on its way
     // to the machine and then the event — which is why a meta that holds a
-    // credential wants a Log that redacts, as docs/session.md says.
+    // credential wants a Log that redacts, as docs/wire/session.md says.
     const late = await consumer(wire, registry, 'observer', 'late');
     assert.deepEqual((await late.at.family()).meta, carried);
     assert.deepEqual((await late.at.family()).meta, { cause: 'nightly' });

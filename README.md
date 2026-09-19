@@ -86,7 +86,8 @@ A language is in Nightseam when it is in this table, and what it promises is
 its **tier**: 1 guarantees every profile with no lag, 2 guarantees `core` and
 `generator` always and every other profile within a minor release, and 3 and
 4 are one band — *reference-held* — that the `generator` column tells apart.
-[docs/tiers.md](docs/tiers.md) says what each promise and each profile is.
+[docs/languages/tiers.md](docs/languages/tiers.md) says what each promise
+and each profile is.
 
 <!-- matrix:start -->
 | language | tier | core | generator | tunnel | session | observability | verdict |
@@ -136,7 +137,8 @@ suite; the suite's own testees live at `conformance/<lang>`, private. A third
 language is `<component>/<lang>` for each of these, a target under
 `internal/targets/` (Go's is `golang`, and `spec` is a target that is no
 language), and a testee under `conformance/<lang>`; nothing
-else moves, and [docs/tiers.md](docs/tiers.md) is the order to do it in.
+else moves, and [docs/languages/onboarding.md](docs/languages/onboarding.md)
+is the order to do it in.
 
 ## Using it
 
@@ -162,17 +164,16 @@ publishes can be used.
 
 ## Documentation
 
-| page | what |
-| --- | --- |
-| [docs/language.md](docs/language.md) | the declaration language: the tiers, the types, the two sides, a session's governance, per-target names, and a family generic in others |
-| [docs/generator.md](docs/generator.md) | the commands and their flags, the pipeline, and what the generated packages own |
-| [docs/profile.md](docs/profile.md) | `nightseam.duplex/1`: the envelope, ids and correlation, limits and backpressure, trace context, the subprotocol, close codes |
-| [docs/tunnel.md](docs/tunnel.md) | channels over one peer: the four operations, ids by parity, credit |
-| [docs/session.md](docs/session.md) | a session over a tunnel's channels: the relay's rules, the log, what a consumer builds on it |
-| [docs/observability.md](docs/observability.md) | one observer across the three layers: the rule, every event in both languages, the console and slog adapters, the OpenTelemetry one beside them, the session's changes, and how a layer of your own joins it |
-| [docs/tiers.md](docs/tiers.md) | languages, profiles and tiers: what a language of each tier promises, and how the conformance suite holds it |
-| [docs/layers.md](docs/layers.md) | what belongs where: the test that decides whether something new on the wire is the profile's, a layer's own, or a header |
-| [conformance/DRIVER.md](conformance/DRIVER.md) | the conformance suite: the protocol a language's testee speaks to the runner, every op, and how a language joins |
+[docs/README.md](docs/README.md) is the map. The reference is in sets by
+who reads it:
+
+| set | for | what |
+| --- | --- | --- |
+| [docs/wire/](docs/wire/) | a runtime in any language | what crosses the wire: the profile `nightseam.duplex/1`, the tunnel's operations, the session's rules and vocabulary, and the test that says where something new on the wire belongs |
+| [docs/runtime/](docs/runtime/) | a consumer of the packages | the surface of the peer, the tunnel, the session and the observer, Go and TypeScript side by side |
+| [docs/declaration/](docs/declaration/) | a consumer declaring a family | the tier files, a family generic in others, the generator's commands, what the generated packages export, and the pipeline for whoever changes it |
+| [docs/languages/](docs/languages/) | a consumer choosing a language, a contributor bringing one | the four promises, profiles and tiers, and how a language joins |
+| [conformance/DRIVER.md](conformance/DRIVER.md) | a testee's author | the conformance suite: the protocol a language's testee speaks to the runner, every op |
 
 ## Working on Nightseam
 

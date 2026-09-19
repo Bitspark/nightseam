@@ -1,9 +1,11 @@
 # The generator
 
-How a declaration becomes packages: the pipeline that renders it, what the
-rendered packages own, where the wire validator lives, and the commands that
-drive it. [The declaration language](language.md) is what they read; the
-[README](../README.md) is the short path.
+How a declaration becomes packages: the commands that drive it, what the
+rendered packages own, and the specification it renders beside them. [A
+family in tiers](families.md) is what it reads; [the generated
+packages](generated.md) are what comes out, in each language; [the
+pipeline](pipeline.md) is how it renders, for whoever changes it; the
+[README](../../README.md) is the short path.
 
 ## The commands
 
@@ -23,7 +25,8 @@ npm scope, `--scope`, the module's last element unless given.
 
 `generate` writes only what changed and removes what a target owns and
 nothing renders any more, along with a directory it leaves empty. `check` is
-the same pass without the writing, for CI.
+the same pass without the writing, for CI. A family with any diagnostic is
+refused before a target renders.
 
 `init <family>` writes the hand-written side of a family's slots — the Go
 server's `Handler`, a type implementing the binding package's interface with
@@ -51,27 +54,7 @@ this command exists to explain, not one to add. So the tool reports the
 version and its output does not carry it: when a `check` disagrees across two
 machines, `nightseam version` on each is what answers why.
 
-## How it renders
-
-The generator is a pipeline of small packages, each owning one level:
-`load` reads a checkout's tier files into the typed `model`, holding each
-file to its tier's shape schema; `analysis` gives a family its world —
-imports resolved transitively, the injected types, inheritance flattened,
-and what is generic in it, computed once; `check` holds it to the model's
-rules and each concern's; `render` presents it to the targets once, with
-every fact they need and nothing target-specific; each target plans every
-identifier it will declare — into the namespace it lands in, so that a
-collision is a diagnostic and what is reserved is what is emitted — and
-then emits, registering imports where it uses them; the `kernel` runs the
-pipeline and refuses a rendered path outside the directories the target
-owns. A family with any diagnostic is refused before a target renders.
-Targets are composed in `internal/compose` and nowhere else; the seam
-between them and the kernel is `internal/spi`, and a test holds the
-package graph to that. The composition root is a package rather than the
-command so that the conformance suite imports it too: what the suite
-renders for a language's generated testee is what the tool renders, down
-to each target's config, and a target added or defaulted differently
-reaches the two together.
+## What the packages own
 
 The generated packages own their directories wholesale —
 `api/go/<f>-protocol`, `-binding`, `-client` and `api/ts/<f>-client` — and
@@ -84,38 +67,16 @@ beside a client, `node_modules`, is nobody's and stays.
 
 The wire validator lives in each runtime, once, and reads the family's
 wire description the protocol package embeds; both are held to
-`conformance/tables/validator.json`. A type drawn from a parameter is
-validated by the binding of the family that fills it in TypeScript, and by
-that family's codec where the generic type is instantiated in Go.
+`conformance/tables/validator.json`. A generated package depends on the
+protocol types, the runtime and the tunnel, and on nothing else — Nightseam
+is developer tooling and never a runtime dependency of its own generator.
 
-### The specification
+## The specification
 
 A third target, `spec`, renders each family's specification as Markdown at
 `api/spec/<family>/README.md` — its types with their fields and
 constraints, the two sides with their operations and errors, the parameters
 it is generic in, the governance of a session of it — from the declaration
 alone, so that the document is never behind it. It reserves nothing and
-refuses nothing.
-
-
-## The pipeline
-
-Each package owns one level, and the package graph is held to the seam
-between them:
-
-```
-cmd/nightseam/          the generator: generate, check, validate, init, version; the corpus and its goldens under testdata
-internal/model/         the typed declaration of a family: the tiers, the sealed type-expression AST, the decoders
-internal/load/          files to families: the tier table, the shape schemas, the world of a checkout
-internal/analysis/      a family within its world: imports resolved, inheritance flattened, what is generic in it
-internal/check/         the rules, one function per tier and one for the override files
-internal/render/        a family as a target sees it, computed once
-internal/spi/           the seam between the kernel and a target
-internal/targets/       golang, typescript and spec: each renders a family, names the others never
-internal/kernel/        load, analyse, check, render
-internal/compose/       the composition root: the only place a target is named, imported by the tool and by the conformance suite
-internal/emit/          a writer, an import set, a namespace: what every target writes with
-internal/naming/        the convention every target derives names by
-internal/diag/          where a problem is: family, tier file, pointer, code
-internal/oracle/        test support: the left path of the diagram a generic rendering commutes with
-```
+refuses nothing, and it is a target that is no language: the example of
+what a target is, beyond a rendering into code.

@@ -87,7 +87,7 @@ type Envelope = Record<string, unknown>;
  * The session's own vocabulary on the wire. A layer that speaks on the wire
  * does it as the tunnel does — ordinary frames of the profile under a prefix
  * the layer reserves, which the peer forwards and reads nothing into
- * (docs/layers.md); `channel.open` and `channel.credit` are the tunnel's.
+ * (docs/wire/vocabulary.md); `channel.open` and `channel.credit` are the tunnel's.
  * These two are the relay's alone: the relay produces them, a consumer reads
  * them, a machine that sends one has its connection ended, and neither is
  * logged, a session's own frames being state rather than messages of it.

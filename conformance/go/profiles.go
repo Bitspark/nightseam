@@ -14,7 +14,7 @@ import (
 
 // Profiles is conformance/profiles.json: what each language promises and
 // how the suite holds it. A profile is a set of scenarios, by layer or by
-// a feature they need; a tier is what a language guarantees; docs/tiers.md
+// a feature they need; a tier is what a language guarantees; docs/languages/tiers.md
 // says what each means. The runner places every scenario in exactly one
 // profile and refuses one it cannot place, so nothing is unclassified.
 type Profiles struct {

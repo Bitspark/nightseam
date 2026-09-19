@@ -3,7 +3,7 @@
 // spelling the script holds — the manifests, the generator's constant, each
 // nested module's requirement, the changelog section — passes and the matrix
 // is the only thing under test. What the fixtures hold is the tier table of
-// docs/tiers.md, which no release has yet had occasion to apply.
+// docs/languages/tiers.md, which no release has yet had occasion to apply.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";

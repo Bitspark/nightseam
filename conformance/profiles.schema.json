@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:nightseam:conformance:profiles:1",
-  "title": "What each language promises and how the suite holds it; docs/tiers.md says what this means.",
+  "title": "What each language promises and how the suite holds it; docs/languages/tiers.md says what this means.",
   "type": "object",
   "additionalProperties": false,
   "required": ["profiles", "tiers", "languages"],

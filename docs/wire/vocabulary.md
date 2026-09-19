@@ -1,13 +1,13 @@
-# What belongs where: the profile, the layers over it, and the test that decides
+# How a layer speaks on the wire
 
 Nightseam is a stack: the seam carries frames, the profile correlates them,
 the tunnel multiplexes channels over one peer, the session governs a
-conversation over a tunnel's channels — or, since #48, over any connection
-of the seam. Each layer is built on the one beneath and speaks it; none
-knows the ones above. This page says what that means for the one question
-that comes up whenever a layer needs to say something new on the wire:
-**where does it go?** It was written after two wrong answers in one day, so
-that the third person to ask reads the test rather than repeating them.
+conversation over a tunnel's channels — or over any connection of the seam.
+Each layer is built on the one beneath and speaks it; none knows the ones
+above. This page says what that means for the one question that comes up
+whenever a layer needs to say something new on the wire: **where does it
+go?** It was written after two wrong answers in one day, so that the third
+person to ask reads the test rather than repeating them.
 
 ## The test
 
@@ -30,20 +30,20 @@ The test, applied in order:
    names in that layer's reserved prefix. The tunnel is the model:
    `channel.open` is a request, `channel.credit` an event, and the profile
    knows nothing of channels. A session's control and its cursor are the
-   same kind of thing (`docs/session.md`).
+   same kind of thing ([the session](session.md#the-sessions-own-vocabulary)).
 3. **Is it a consumer's fact about a call, with no layer to carry it?**
    Then it is a **header**: a member on the request or event it is about,
    which the peer delivers to the handler beside the payload and reads
    nothing into. There is one, `meta` (#49) — a flat string map, validated
-   by form alone, delivered as `MetaFrom(ctx)` in Go and the handler's
-   context in TypeScript, so that the peer does act on it, in the one way a
-   header is acted on: it reaches the handler without being the payload.
-   That is what keeps it on the right side of the test, and why a second
-   header should be a key of `meta` and not a member of its own. It is also
-   why a header does not propagate: delivering is the peer's one action on
-   it, and a header is a fact about *this* call — a credential, a tenant —
-   not about the calls a handler makes in turn, which is the opposite of a
-   trace. A handler that means to pass one on says so (`docs/profile.md`).
+   by form alone, delivered to the handler beside its context, so that the
+   peer does act on it, in the one way a header is acted on: it reaches the
+   handler without being the payload. That is what keeps it on the right
+   side of the test, and why a second header should be a key of `meta` and
+   not a member of its own. It is also why a header does not propagate:
+   delivering is the peer's one action on it, and a header is a fact about
+   *this* call — a credential, a tenant — not about the calls a handler
+   makes in turn, which is the opposite of a trace. A handler that means to
+   pass one on says so ([the profile](profile.md#request-metadata)).
 
 Two things that look like members and are not:
 
@@ -59,11 +59,11 @@ Two things that look like members and are not:
 A layer that speaks on the wire does it as the tunnel does:
 
 - **A reserved prefix**, one per layer: `channel.` for the tunnel,
-  `session.` for the session. The generator refuses a family that declares a
-  method or event under a reserved prefix, so the namespace is never
-  contested — a rule #50 lands with the session's first operations; today
-  `internal/check` refuses neither, and `cmd/nightseam/testdata/reserved`
-  holds each target's identifiers, not yet the prefixes.
+  `session.` for the session. The namespace is the layer's, so that it is
+  never contested; today the generator does not yet refuse a family that
+  declares a method or an event under a reserved prefix (#50) — it holds
+  each target's own identifiers under `cmd/nightseam/testdata/reserved`,
+  not yet the prefixes.
 - **Ordinary frames of the profile.** A layer's request is a request, its
   event an event, minted, correlated and cancelled by the peer like any
   other. The layer registers its handlers on the peer it runs over (the
@@ -74,9 +74,10 @@ A layer that speaks on the wire does it as the tunnel does:
   generated code — a session family's client exposing `onControl` — it is
   because the layer's tier *injects* the operations into the family's
   protocol, as the protocol tier injects the `Envelope` and `Handle` types
-  (`internal/model/tiers.go`, `Injected()`): a family that has the tier
-  carries them, one that does not does not, and no family declares them by
-  hand. The observer then labels them with the family, as any operation.
+  ([the declaration](../declaration/families.md#protocoljson)): a family
+  that has the tier carries them, one that does not does not, and no family
+  declares them by hand. The observer then labels them with the family, as
+  any operation.
 - **Never logged as the family's.** A session's log holds the family's
   frames; the session's own frames are state, not messages, and replay
   never reports them stale.
@@ -85,22 +86,12 @@ A layer that speaks on the wire does it as the tunnel does:
   `session.cursor` are produced by the relay and never forwarded up from
   anyone. The vocabulary belongs to the layer that defined it.
 
-## Why now, and how a change is made
+## How a change to the wire is made
 
-Nightseam has no released consumer. That is not a caveat but the working
-condition: there is nothing to stay compatible with, so a change to the
-wire is made *directly* — both peers, both validators, the tables, the
-generator and the docs in one lane, emitting what they accept in the same
-commit — and a change to a surface changes every caller in the same commit.
-No "older runtime" is provided for, no accept-before-emit rollout is
-staged, no optional parameter is added to spare a call site. Any of those
-would be machinery for consumers that do not exist, kept forever once
-written.
-
-The same condition is why the boundary is settled now. The profile has two
-runtimes and will have eight; every member of the envelope is a promise all
-of them keep. A design is chosen here for being right, never for being
-cheap to roll out — which is the opposite of the instinct that put
-`sequence` in the envelope for an afternoon. A rewrite today is cheaper
-than it will ever be again, and this page is rewritten with the model, not
-kept stable against it.
+Directly and whole, in one lane — both peers, both validators, the tables,
+the generator and the docs, emitting what they accept in the same commit —
+because there is nothing to stay compatible with, and a design is chosen
+for being right rather than for being cheap to roll out. That working
+condition, and why the boundary is settled now rather than later, is
+[COLLABORATION.md](../../COLLABORATION.md)'s; this page is rewritten with
+the model, not kept stable against it.

@@ -29,7 +29,7 @@ type ServerOptions struct {
 	// preference, from what a client offers; empty selects none, which is
 	// the default and what every consumer that sets nothing keeps. The
 	// profile names itself here nowhere and refuses nothing on this ground
-	// (docs/profile.md).
+	// (docs/wire/profile.md).
 	Subprotocols []string
 	// SelectSubprotocol answers with the one subprotocol to select out of
 	// what this request offered, "" for none. It is the selection, not a
@@ -142,7 +142,7 @@ type DialOptions struct {
 	// default offers none. A server that selects none leaves the connection
 	// with none and the profile is spoken over it either way — but a browser
 	// refuses a handshake whose offer went unselected, so a client that
-	// offers must be met by a server that selects (docs/profile.md).
+	// offers must be met by a server that selects (docs/wire/profile.md).
 	Subprotocols []string
 }
 

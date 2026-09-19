@@ -376,7 +376,7 @@ func Run(t *testing.T, connect Connect) {
 		// The log keeps each message whole, so a consumer that was not there is
 		// replayed the carriage with it — the request the relay recorded on its
 		// way to the machine and then the event — which is why a meta that holds
-		// a credential wants a Log that redacts, as docs/session.md says.
+		// a credential wants a Log that redacts, as docs/wire/session.md says.
 		_, late := attach(t, registry, "s", "late", session.Observer, 0)
 		replayed := []string{string(late.take(t).raw), string(late.take(t).raw)}
 		if !strings.Contains(replayed[0], `"meta":{"tenant":"acme","idempotency":"k-1"}`) {

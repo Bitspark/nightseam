@@ -1,4 +1,4 @@
-# Observing a peer
+# The observer
 
 One observer sees everything a connection carries, at every layer above it.
 The peer of the profile takes it; the tunnel and the session declare events
