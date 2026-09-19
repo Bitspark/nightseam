@@ -137,6 +137,7 @@ the tunnel, and on nothing else.
 | [`@nightseam/runtime`](runtime/ts) | [`runtime/go`](runtime/go) | the peer of the profile: correlation, cancellation, backpressure, presence, trace context, the wire validator, the observer and its console and slog adapters |
 | [`@nightseam/tunnel`](tunnel/ts) | [`tunnel/go`](tunnel/go) | channels multiplexed over one peer, each one a connection of the seam, with per-channel credit |
 | [`@nightseam/session`](session/ts) | [`session/go`](session/go) | a session over a tunnel's channels: the relay, the registry, the holder of control, the log, and the changes it reports |
+| [`@nightseam/live`](live/ts) | [`live/go`](live/go) | callable values across one connection: a scope over a peer, exported bindings, imported references, release and forwarding |
 | [`@nightseam/otel`](otel/ts) | [`otel/go`](otel/go) | the OpenTelemetry adapter, the one component a consumer opts into: a propagator over the W3C trace context propagator and an observer that opens a span per request, so that the four above pull in no telemetry backend — on npm they depend on nothing at all, and in Go on one third-party module, the WebSocket transport |
 | — | [`cmd/nightseam`](cmd/nightseam) | the generator |
 

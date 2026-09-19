@@ -58,7 +58,7 @@ member](../decisions/meta-is-a-header-not-a-member.md) the one header's.
 A layer that speaks on the wire does it as the tunnel does:
 
 - **A reserved prefix**, one per layer: `channel.` for the tunnel,
-  `session.` for the session. The namespace is the layer's, so that it is
+  `session.` for the session, `live.` for the live layer. The namespace is the layer's, so that it is
   never contested. The generator refuses consumer methods and events under
   `session.`, including in families without a session tier. The built-in
   family owns that namespace. Each target also holds its own identifiers

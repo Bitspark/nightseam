@@ -203,6 +203,16 @@ The tunnel's five, of the channels over one peer:
 | `CreditStall` | `credit.stall` | a frame found the other side's window exhausted and waits, and how many wait |
 | `OpenRefused` | `open.refused` | an open did not become a channel, here or at the side it reached |
 
+The live layer's four, of the bindings over one connection. They say which
+binding of which contract, and never what it was asked or what it answered:
+
+| Go | TypeScript | what it says |
+| --- | --- | --- |
+| `LiveExported` | `live.exported` | a binding exists, on the side that exported it |
+| `LiveImported` | `live.imported` | an attachment to a binding was made here, once per binding however often it arrives |
+| `LiveReleased` | `live.released` | a binding ended, by a release here or the other side's word that it released |
+| `LiveRefused` | `live.refused` | an export, an import or an invocation that did not happen, with the code it was refused under |
+
 The session's ten, of the conversation over a tunnel's channels:
 
 | Go | TypeScript | what it says |

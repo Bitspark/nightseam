@@ -173,7 +173,7 @@ func opening(t *testing.T, ctx context.Context, from, to *tunnel.Tunnel, family 
 }
 
 // A channel opened, accepted, exchanged over and closed is told of on both
-// sides, in that order and with the id, the family and the sequence the opener
+// sides, in that order and with the id and the family the opener
 // named — and the frames that crossed it are told of by neither tunnel: what a
 // channel carries is the business of the peers speaking over it.
 func TestAChannelIsToldOfOnBothSides(t *testing.T) {
