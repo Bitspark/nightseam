@@ -27,6 +27,18 @@ that keep it abstract, and how a review is asked for and what it returns.
 | [extensibility.md](goals/extensibility.md) | a language, a target, a transport, a layer, an adapter joins at one named point, and nothing that exists moves |
 | [observability.md](goals/observability.md) | any question about what a peer did can be answered after the fact, at every layer, in one order, from one place, without seeing what was said |
 
+## What is admitted — `admission.md`
+
+Between the goals and the state: the test a concept passes to be
+Nightseam's — in scope at its level and not composable from the justified
+primitives beneath it — the four classes a concept ends in, and every concept
+the tree has or has proposed in its class. A design issue that admits a
+concept supplies this page's six answers.
+
+| page | what |
+| --- | --- |
+| [admission.md](admission.md) | the test: scope, the basis one level down with nothing grandfathered, the composition attempt, what an obstruction is and is not, the smallest primitive, the alternatives; primitive, composition, domain semantics, unresolved candidate; the session's concepts, what stays beneath them, the data level and the live layer, each classified |
+
 ## What crosses the wire — `wire/`
 
 What a peer of any language sends, accepts and refuses, in the wire's own
@@ -53,6 +65,7 @@ fact once, with both spellings.
 | [session.md](runtime/session.md) | the session: the surface, options, the `Log` interface and the memory log, every refusal code, what a consumer builds on it, which observer a session tells |
 | [live.md](runtime/live.md) | the live layer: making a scope and when, the surface, a reference that is minted and never constructed, the rules a consumer relies on, bounds |
 | [observer.md](runtime/observer.md) | the observer across the three layers: the rule, order, taking one, the console and `slog` adapters, the OpenTelemetry adapter, every event in both languages, a layer of your own, the session's changes told twice |
+| [compositions.md](runtime/compositions.md) | what a consumer composes out of them: a callback supplied and an interface returned, the rules that construction keeps and who keeps them, the three cancellations, interface, stream, cell and topic side by side, forwarding, and where the basis stops short |
 
 ## What a consumer declares — `declaration/`
 
@@ -80,7 +93,7 @@ question, what was decided, what the alternative cost, the goal it serves,
 and since when. A state page keeps the rule and one sentence of why and
 points here for the argument; a review reads this record before proposing
 what was already tried. [decisions/README.md](decisions/README.md) indexes
-the twenty-two.
+the thirty-one.
 
 ## Around the repository
 

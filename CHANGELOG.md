@@ -8,6 +8,17 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- The packed-install smoke imports every published package from outside the
+  workspace, at every entry point its `publishConfig.exports` declares:
+  type-checked with library checking on, then loaded by Node. A package the
+  getting-started example does not itself import is no longer packed,
+  installed and never opened.
+- `scripts/first-publish.mjs` asks the public registry which of the published
+  names it has never served. The release workflow runs it before the install,
+  on a rehearsal as well as on a tag, and on a tag refuses the run when a new
+  name has no credential to make its first publish — npm attaches a trusted
+  publisher to a package that already exists, and `pnpm -r publish` reaches a
+  new name after the tag is pushed.
 - `live/go` and `@nightseam/live`: callable values across one connection. A
   scope over a peer, bindings exported from it, references that name them
   inside an ordinary payload, imports that share one dispatch per binding,

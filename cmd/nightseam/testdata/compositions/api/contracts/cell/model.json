@@ -1,0 +1,13 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Value": {
+      "kind": "record",
+      "description": "What the cell holds, and the version it was written at.",
+      "fields": [
+        {"name": "text", "type": "string"},
+        {"name": "version", "type": "integer", "min": 0}
+      ]
+    }
+  }
+}

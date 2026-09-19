@@ -1,0 +1,12 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Ticket": {
+      "kind": "record",
+      "fields": [
+        {"name": "label", "type": "string"},
+        {"name": "steps", "type": "integer", "min": 1, "max": 16}
+      ]
+    }
+  }
+}
