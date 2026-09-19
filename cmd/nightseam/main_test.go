@@ -380,7 +380,7 @@ func TestImportDirection(t *testing.T) {
 		"check":              {"diag": true, "model": true, "analysis": true, "pattern": true},
 		"render":             {"diag": true, "model": true, "analysis": true},
 		"emit":               {"diag": true},
-		"spi":                {"diag": true, "render": true},
+		"spi":                {"diag": true, "model": true, "render": true},
 		"targets/golang":     {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
 		"targets/typescript": {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
 		"doc":                {"diag": true, "model": true, "render": true, "spi": true},
