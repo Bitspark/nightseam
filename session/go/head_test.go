@@ -38,7 +38,10 @@ func TestBindPrefersHead(t *testing.T) {
 		}
 	}
 	log := &countedHeadLog{Log: beneath, head: 3}
-	registry := session.New(session.Options{})
+	registry, err := session.New(session.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	up, machine := duplex.Pipe(1 << 20)
 	t.Cleanup(func() { _ = machine.Abort() })
 	governance := session.Governance{Decides: func(string) bool { return false }, Asks: func(string) bool { return false }}
@@ -71,11 +74,14 @@ func TestBindRefusesAnUnavailableHead(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			log := &countedHeadLog{Log: session.NewMemoryLog(0), head: tc.head, err: tc.err}
-			registry := session.New(session.Options{})
+			registry, err := session.New(session.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
 			up, machine := duplex.Pipe(1 << 20)
 			t.Cleanup(func() { _ = machine.Abort() })
 			governance := session.Governance{Decides: func(string) bool { return false }, Asks: func(string) bool { return false }}
-			err := registry.Bind("s", up, governance, log)
+			err = registry.Bind("s", up, governance, log)
 			if !errors.Is(err, &session.Error{Code: session.ErrorSessionInvalid}) || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("bind returned %v", err)
 			}
