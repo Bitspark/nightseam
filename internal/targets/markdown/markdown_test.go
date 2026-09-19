@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -9,6 +10,29 @@ import (
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
 	"github.com/Bitspark/nightseam/internal/render"
 )
+
+func TestExampleBindingsAndUnavailabilityAreVisible(t *testing.T) {
+	bound := doc.ExampleInfo{ExampleBindings: map[string]doc.ExampleBinding{"T": {Type: "string"}, "S": {Family: "probe"}}}
+	unavailable := doc.ExampleInfo{ExampleUnavailable: &doc.ExampleUnavailable{Kind: "limit", Reason: "no witness in the search budget"}}
+	f := &doc.Family{Name: "x", Protocol: true, Types: []*doc.Type{
+		{Name: "Bound", Kind: "alias", ExampleInfo: bound, Example: json.RawMessage(`"witness"`)},
+		{Name: "Missing", Kind: "alias", ExampleInfo: unavailable},
+	}, Server: doc.Side{Methods: []doc.Method{{Name: "missing", ExampleInfo: unavailable}}, Events: []doc.Event{{Name: "changed", ExampleInfo: unavailable}}}}
+	files, err := New(Config{}).Family(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(files[0].Data)
+	if !strings.Contains(text, "Example bindings: `S = family probe`, `T = string`.") {
+		t.Fatal(text)
+	}
+	if strings.Count(text, "Example unavailable (limit): no witness in the search budget.") != 3 {
+		t.Fatal(text)
+	}
+	if strings.Count(text, "```json") != 1 {
+		t.Fatal("an unavailable example emitted a JSON block")
+	}
+}
 
 // TestWritesThePage: one page per family, under api/spec, carrying every
 // tier — the entity with its key and constraints, an example of it and

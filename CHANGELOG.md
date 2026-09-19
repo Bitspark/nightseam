@@ -7,6 +7,12 @@ are one number. Entries are in the words of the commits that landed them.
 ## Unreleased
 ### Added
 
+- Document examples carry visible concrete type and family bindings, or an
+  explicit synthesis-limit reason. A derived table accounts for every corpus
+  value, union arm and operation frame; both runtime validators check the
+  same bytes and bindings. Markdown and the atlas show unavailable examples
+  without inventing JSON, and synthesis bounds recursive and large values.
+
 - The **live tier**, `live.json`, and the `callable` kind: a declaration whose
   values are not data but implementations the other side of a connection can
   invoke. A callable declares a `request`, a `result` and the `errors` it may

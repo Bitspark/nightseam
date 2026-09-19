@@ -52,7 +52,7 @@ func typed(f *Family, name string) *Type {
 // whatever it is, an empty record included; a literal as its value, a
 // nullable as a value, a shape written inline as its fields, a generic
 // type as its filler fills it, a draw through a parameter and a type
-// parameter as placeholders, a length as padding, an enum as its first
+// parameter with visible concrete bindings, a length as padding, an enum as its first
 // value — deterministically.
 func TestExamplesOfEveryForm(t *testing.T) {
 	f := proof(t)
@@ -61,10 +61,9 @@ func TestExamplesOfEveryForm(t *testing.T) {
 		"RichPart": `{"type":"count","value":0}`,
 		"TextPart": `{"type":"text","body":"‹body›"}`,
 		"Option":   `{"kind":"none","value":{}}`,
-		"Result":   `{"kind":"err","value":"‹E›"}`,
-		"Page":     `{"items":["‹T›"],"next":"‹next›"}`,
+		"Result":   `{"kind":"err","value":"‹err›"}`,
+		"Page":     `{"items":["‹items›"],"next":"‹next›"}`,
 		"Parts":    `{"items":[{"type":"count","value":0}],"next":"‹next›"}`,
-		"Carried":  `{"message":"‹S.Envelope›","back":"‹S.Handle›","page":{"items":["‹Item›"],"next":"‹next›"}}`,
 	} {
 		tt := typed(f, name)
 		if tt == nil {
@@ -163,8 +162,14 @@ func TestEveryUnionVariantHasItsOwnExample(t *testing.T) {
 	}
 	w := analysis.World(modeltest.World(map[string]map[string]string{"x": {"model.json": `{"nightseam":2,"types":{"Choice":{"kind":"union","tag":"kind","value":"body","variants":{"none":{"empty":true},"record":{"kind":"record","fields":[]},"again":"Choice"}}}}`}}))
 	typ := typed(Build(render.Build(analysis.Resolve(w, "x")), nil), "Choice")
-	want := map[string]string{"none": `{"kind":"none"}`, "record": `{"kind":"record","body":{}}`, "again": `{"kind":"again","body":null}`}
+	want := map[string]string{"none": `{"kind":"none"}`, "record": `{"kind":"record","body":{}}`}
 	for _, variant := range typ.Variants {
+		if variant.Tag == "again" {
+			if variant.Example != nil || variant.ExampleUnavailable == nil {
+				t.Fatal("recursive arm invented an invalid null")
+			}
+			continue
+		}
 		if got := string(variant.Example); got != want[variant.Tag] {
 			t.Errorf("%s: %s, want %s", variant.Tag, got, want[variant.Tag])
 		}

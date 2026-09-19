@@ -205,7 +205,29 @@ test(
     );
     const alternate = result.variants.find((v) => v.tag === 'ok');
     assert(alternate.declarationExample);
-    assert.equal(alternate.children[1].type, 'T');
+    assert.equal(alternate.children[1].type, 'string');
     assert.equal(alternate.children[1].children.length, 0);
   },
 );
+
+test('example bindings and unavailable reasons are visible and escaped', () => {
+  const doc = structuredClone(checkout);
+  const type = doc.Families[0].Types[0];
+  type.ExampleBindings = { T: { Type: 'string' }, S: { Family: 'alpha' } };
+  let atlas = buildAtlas(doc);
+  let html = typeHTML(atlas, 'alpha', 'Text');
+  assert(html.includes('T = string') && html.includes('S = family alpha'));
+  type.Example = null;
+  type.ExampleUnavailable = { Kind: 'limit', Reason: '<budget exhausted>' };
+  const op = doc.Families[0].Server.Methods[0];
+  op.ExampleBindings = type.ExampleBindings;
+  op.ExampleUnavailable = type.ExampleUnavailable;
+  op.Frames = {};
+  atlas = buildAtlas(doc);
+  html = typeHTML(atlas, 'alpha', 'Text');
+  assert(html.includes('Example unavailable (limit): &lt;budget exhausted&gt;'));
+  assert(!html.includes('<pre><code>null'));
+  const page = familyHTML(atlas, 'alpha');
+  assert(page.includes('Example unavailable (limit): &lt;budget exhausted&gt;'));
+  assert(page.includes('S = family alpha'));
+});

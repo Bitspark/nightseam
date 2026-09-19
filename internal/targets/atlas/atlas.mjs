@@ -267,10 +267,16 @@ export function annotate(atlas, family, expression, value, options = {}) {
               presence: 'required',
               // The alternate example belongs to the generic declaration.
               // Only the selected value was instantiated by doc's exampler.
-              bindings: declarationExample ? new Map() : r.bindings,
+              bindings: declarationExample ? exampleBindings(r.family, v) : r.bindings,
             }),
           );
-        return { tag: v.Tag, example, children, declarationExample };
+        return {
+          tag: v.Tag,
+          example,
+          children: !selected && v.ExampleUnavailable ? [] : children,
+          declarationExample,
+          info: selected ? null : v,
+        };
       });
     }
     if (t.Kind === 'enum') row.values = list(t.Values);
@@ -378,7 +384,7 @@ export function annotationHTML(row, depth = 0) {
   const variants = list(row.variants)
     .map(
       (v) =>
-        `<div class="variant"><span class="small-label">${esc(v.tag)}${v.declarationExample ? ' · declaration example' : ''}</span>${v.children.map((c) => annotationHTML(c, depth + 1)).join('')}</div>`,
+        `<div class="variant"><span class="small-label">${esc(v.tag)}${v.declarationExample ? ' · declaration example' : ''}</span>${exampleInfoHTML(v.info)}${v.children.map((c) => annotationHTML(c, depth + 1)).join('')}</div>`,
     )
     .join('');
   if (!children && !variants) return line;
@@ -390,9 +396,29 @@ function parametersHTML(parameters) {
   return `<div class="parameters"><span class="small-label">Parameters</span>${parameters.map((p) => `<p><strong>${esc(p.Name)}</strong> · ${esc(p.Of || 'type')}${p.Description ? ` — ${esc(p.Description)}` : ''}${list(p.Drawn).length ? `<br><span class="references">Draws ${esc(p.Drawn.join(', '))}</span>` : ''}</p>`).join('')}</div>`;
 }
 
-function frameHTML(atlas, family, title, speaker, frame, expr, member) {
+function exampleBindings(family, info) {
+  return new Map(
+    Object.entries(info?.ExampleBindings ?? {}).map(([name, binding]) => [
+      name,
+      { family, expr: binding.Family || binding.Type, bindings: new Map() },
+    ]),
+  );
+}
+
+function exampleInfoHTML(info) {
+  const bindings = Object.entries(info?.ExampleBindings ?? {}).sort(([a], [b]) => a.localeCompare(b));
+  const shown = bindings.length
+    ? `<p class="references">Example bindings: ${bindings.map(([name, binding]) => esc(`${name} = ${binding.Family ? `family ${binding.Family}` : binding.Type}`)).join(' · ')}</p>`
+    : '';
+  const reason = info?.ExampleUnavailable;
+  return (
+    shown + (reason ? `<p class="empty">Example unavailable (${esc(reason.Kind)}): ${esc(reason.Reason)}.</p>` : '')
+  );
+}
+
+function frameHTML(atlas, family, title, speaker, frame, expr, member, info) {
   if (frame == null) return '';
-  return `<div class="frame"><h4 class="${speaker}"><span class="dot"></span>${esc(title)}</h4>${code(json(frame))}${expr ? `<div class="annotation">${annotationHTML(annotate(atlas, family, expr, frame[member], { name: member }))}</div>` : ''}</div>`;
+  return `<div class="frame"><h4 class="${speaker}"><span class="dot"></span>${esc(title)}</h4>${code(json(frame))}${expr ? `<div class="annotation">${annotationHTML(annotate(atlas, family, expr, frame[member], { name: member, bindings: exampleBindings(family, info) }))}</div>` : ''}</div>`;
 }
 
 function exchangeHTML(atlas, f, x, lens) {
@@ -415,7 +441,7 @@ function exchangeHTML(atlas, f, x, lens) {
       : `<span class="response-label">${esc(result)}</span>`;
   const frames =
     x.kind === 'event'
-      ? frameHTML(atlas, f.Name, `${x.initiator} → ${opposite} · event`, x.initiator, op.Frame, op.Declared, 'data')
+      ? frameHTML(atlas, f.Name, `${x.initiator} → ${opposite} · event`, x.initiator, op.Frame, op.Declared, 'data', op)
       : frameHTML(
           atlas,
           f.Name,
@@ -424,6 +450,7 @@ function exchangeHTML(atlas, f, x, lens) {
           op.Frames?.Request,
           op.DeclaredRequest,
           'params',
+          op,
         ) +
         frameHTML(
           atlas,
@@ -433,12 +460,13 @@ function exchangeHTML(atlas, f, x, lens) {
           op.Frames?.Response,
           op.DeclaredResult,
           'result',
+          op,
         );
   const refusals = list(op.Frames?.Refusals)
     .map((r) => frameHTML(atlas, f.Name, `refusal · ${r.Code}`, opposite, r.Frame))
     .join('');
   const invocation = op.Languages?.[lens]?.Invoke;
-  return `<details class="exchange" id="${esc(x.id)}"><summary>${left}<span class="direction"><span>${x.initiator === 'client' ? '→' : '←'} ${esc(x.kind)}</span></span>${right}</summary><div class="anatomy"><p class="description">${esc(x.description)}</p><div class="chips">${names}${op.Origin?.Family && op.Origin.Family !== f.Name ? chip(`from ${op.Origin.Family}`) : ''}${link(x.href, 'Permalink', 'class="chip"')}</div>${list(op.Errors).length ? `<p class="references">Can fail with ${op.Errors.map((e) => link(route(f.Name, 'error', e), e)).join(' · ')}</p>` : ''}<div class="frames">${frames}</div>${refusals ? `<h3 class="declaration">Failures on the wire</h3><div class="frames">${refusals}</div>` : ''}${invocation ? `<div class="frames declaration">${invocation.Call ? `<div><h3>Call</h3>${code(invocation.Call)}</div>` : ''}${invocation.Handle ? `<div><h3>Handle</h3>${code(invocation.Handle)}</div>` : ''}</div>` : ''}</div></details>`;
+  return `<details class="exchange" id="${esc(x.id)}"><summary>${left}<span class="direction"><span>${x.initiator === 'client' ? '→' : '←'} ${esc(x.kind)}</span></span>${right}</summary><div class="anatomy"><p class="description">${esc(x.description)}</p><div class="chips">${names}${op.Origin?.Family && op.Origin.Family !== f.Name ? chip(`from ${op.Origin.Family}`) : ''}${link(x.href, 'Permalink', 'class="chip"')}</div>${list(op.Errors).length ? `<p class="references">Can fail with ${op.Errors.map((e) => link(route(f.Name, 'error', e), e)).join(' · ')}</p>` : ''}${exampleInfoHTML(op)}<div class="frames">${frames}</div>${refusals ? `<h3 class="declaration">Failures on the wire</h3><div class="frames">${refusals}</div>` : ''}${invocation ? `<div class="frames declaration">${invocation.Call ? `<div><h3>Call</h3>${code(invocation.Call)}</div>` : ''}${invocation.Handle ? `<div><h3>Handle</h3>${code(invocation.Handle)}</div>` : ''}</div>` : ''}</div></details>`;
 }
 
 export function familyHTML(atlas, name, lens = 'wire') {
@@ -512,5 +540,5 @@ export function typeHTML(atlas, family, name, lens = 'wire') {
   ]
     .filter(Boolean)
     .join(' ');
-  return `<span class="eyebrow">${esc(family)} / ${esc(t.Kind)}</span><h2 id="drawer-title">${esc(language?.Name || t.Name)}</h2><p class="description">${esc(t.Description)}</p><div class="type-meta">${esc(metadata)}</div>${parametersHTML(t.Parameters)}${code(json(t.Example))}<div class="annotation">${annotationHTML(annotate(atlas, family, name, t.Example))}</div>${list(t.Values).length ? `<p>Values: ${esc(t.Values.map((v) => JSON.stringify(v)).join(' · '))}</p>` : ''}${list(t.UsedBy).length ? `<h3 class="declaration">Used by</h3><div class="references">${t.UsedBy.map((r) => link(refRoute(family, r), `${r.Name} · ${r.At}`)).join('')}</div>` : ''}${language?.Declare ? `<h3 class="declaration">Declaration · ${esc(lens)}</h3>${code(language.Declare)}` : ''}`;
+  return `<span class="eyebrow">${esc(family)} / ${esc(t.Kind)}</span><h2 id="drawer-title">${esc(language?.Name || t.Name)}</h2><p class="description">${esc(t.Description)}</p><div class="type-meta">${esc(metadata)}</div>${parametersHTML(t.Parameters)}${exampleInfoHTML(t)}${t.ExampleUnavailable ? '' : `${code(json(t.Example))}<div class="annotation">${annotationHTML(annotate(atlas, family, name, t.Example, { bindings: exampleBindings(family, t) }))}</div>`}${list(t.Values).length ? `<p>Values: ${esc(t.Values.map((v) => JSON.stringify(v)).join(' · '))}</p>` : ''}${list(t.UsedBy).length ? `<h3 class="declaration">Used by</h3><div class="references">${t.UsedBy.map((r) => link(refRoute(family, r), `${r.Name} · ${r.At}`)).join('')}</div>` : ''}${language?.Declare ? `<h3 class="declaration">Declaration · ${esc(lens)}</h3>${code(language.Declare)}` : ''}`;
 }
