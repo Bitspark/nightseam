@@ -103,7 +103,7 @@ func TestRenderUnionAndSideDeclarations(t *testing.T) {
 		"x": {
 			"model.json": `{"nightseam":2,"types":{
 				"Message":{"kind":"record","fields":[{"name":"kind","type":{"literal":"text"}},{"name":"body","type":"string"}]},
-				"Choice":{"kind":"union","tag":"kind","value":"payload","variants":{"text":"Message","count":"integer"}}
+				"Choice":{"kind":"union","tag":"kind","value":"payload","variants":{"text":"Message","count":"integer","json":"json","map":{"map":"string"},"maybe":{"nullable":"Message"}}}
 			}}`,
 			"protocol.json": modeltest.Protocol(`"imports":["base"],"server":{"extends":["base"],"methods":{"choose":{"result":"Choice"}}}`),
 		},
@@ -115,8 +115,13 @@ func TestRenderUnionAndSideDeclarations(t *testing.T) {
 	document := string(files[0].Data)
 	for _, want := range []string{
 		"The `kind` member identifies the variant.",
-		"non-object payload is carried in `payload`",
+		"The complete payload is carried in `payload` beside the tag, including records, maps, JSON and null.",
+		"A record's own literal tag remains inside its payload.",
+		"A variant without a payload has only the tag; `payload` is absent.",
 		"| `\"count\"` | `integer` |",
+		"| `\"json\"` | `json` |",
+		"| `\"map\"` | map of `string` |",
+		"| `\"maybe\"` | nullable `Message` |",
 		"| `\"text\"` | `Message` |",
 		"Extends the server side of `base`.",
 	} {

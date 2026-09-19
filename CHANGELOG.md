@@ -23,7 +23,9 @@ are one number. Entries are in the words of the commits that landed them.
   the settled language: nullable expressions, literals, both parameter sorts,
   applications, derived inline shapes, inherited unions, extended protocol
   sides and their session governance. Its source addresses and inherited
-  entity references retain their declaration provenance.
+  entity references retain their declaration provenance. Union specifications
+  describe the complete payload under the value member, including records,
+  according to the lossless carrier verdict.
 - The declaration language gained the type language of #55's eight
   verdicts, whole and in one lane. **Unions**: `{"kind": "union", "tag":
   "type", "variants": {…}}`, internally tagged with a declared

@@ -364,7 +364,7 @@ func (d *doc) declarations(types []*render.Type) {
 			d.linef("An alias of %s.", d.spell(t.Alias, t.Origin.Family, t.Scope))
 		case "union":
 			d.line("")
-			d.linef("The `%s` member identifies the variant. A non-object payload is carried in `%s` beside the tag; an object payload contributes its members directly. A record declaring the tag itself carries the matching literal.", t.Tag, t.Value)
+			d.linef("The `%s` member identifies the variant. The complete payload is carried in `%s` beside the tag, including records, maps, JSON and null. A record's own literal tag remains inside its payload. A variant without a payload has only the tag; `%s` is absent.", t.Tag, t.Value, t.Value)
 			d.line("")
 			d.line("| Tag | Payload | Declared by |")
 			d.line("|---|---|---|")
