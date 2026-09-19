@@ -1,0 +1,16 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "describe": {
+        "description": "Ordinary RPC: self-contained data, usable with no live runtime.",
+        "request": "Ticket",
+        "result": "string"
+      }
+    }
+  },
+  "errors": {
+    "denied": "The caller is denied.",
+    "gone": "The job is no longer there."
+  }
+}
