@@ -1,0 +1,168 @@
+{
+  "profile": "nightseam.duplex/1",
+  "imports": [
+    "notes"
+  ],
+  "types": {
+    "Start": {
+      "kind": "record",
+      "description": "A ticket, and the sink the caller has already served on a channel of this connection.",
+      "fields": [
+        {
+          "name": "ticket",
+          "type": "Ticket"
+        },
+        {
+          "name": "progress",
+          "type": "duplex.Handle"
+        }
+      ]
+    },
+    "Started": {
+      "kind": "record",
+      "description": "The job the worker has served on a channel of this connection, for the caller to resolve.",
+      "fields": [
+        {
+          "name": "job",
+          "type": "duplex.Handle"
+        },
+        {
+          "name": "accepted",
+          "type": "boolean"
+        }
+      ]
+    },
+    "Sunk": {
+      "kind": "record",
+      "description": "A reference inside a sum. The variant would be duplex.Handle itself but for #210, which refuses to render a carried built-in as a union variant; a record around it carries the reference just as transitively.",
+      "fields": [
+        {
+          "name": "at",
+          "type": "duplex.Handle"
+        }
+      ]
+    },
+    "Either": {
+      "kind": "union",
+      "tag": "kind",
+      "description": "A reference or a value, in the same sum.",
+      "variants": {
+        "sink": "Sunk",
+        "note": "notes.Note",
+        "nothing": {
+          "empty": true
+        }
+      }
+    },
+    "Held": {
+      "kind": "record",
+      "description": "Every position the language admits a reference in, in one message.",
+      "fields": [
+        {
+          "name": "one",
+          "type": "duplex.Handle"
+        },
+        {
+          "name": "many",
+          "type": {
+            "array": "duplex.Handle"
+          }
+        },
+        {
+          "name": "by_name",
+          "type": {
+            "map": "duplex.Handle"
+          }
+        },
+        {
+          "name": "maybe",
+          "type": "duplex.Handle",
+          "required": false,
+          "nullable": true
+        },
+        {
+          "name": "either",
+          "type": "Either"
+        },
+        {
+          "name": "inline",
+          "type": {
+            "kind": "record",
+            "fields": [
+              {
+                "name": "held",
+                "type": "duplex.Handle"
+              },
+              {
+                "name": "label",
+                "type": "string"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "Counted": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "resolved",
+          "type": "integer"
+        },
+        {
+          "name": "refused",
+          "type": "integer"
+        }
+      ]
+    },
+    "Forward": {
+      "kind": "record",
+      "description": "A sink this worker is to re-export into the connection it holds to another worker.",
+      "fields": [
+        {
+          "name": "progress",
+          "type": "duplex.Handle"
+        },
+        {
+          "name": "ticket",
+          "type": "Ticket"
+        }
+      ]
+    }
+  },
+  "server": {
+    "methods": {
+      "start": {
+        "request": "Start",
+        "result": "Started",
+        "errors": [
+          "unknown_reference"
+        ],
+        "description": "Take a sink, answer with a job."
+      },
+      "collect": {
+        "request": "Held",
+        "result": "Counted",
+        "description": "Resolve every reference in the message and say how many were resolved and how many refused."
+      },
+      "forward": {
+        "request": "Forward",
+        "result": "Counted",
+        "errors": [
+          "unknown_reference",
+          "no_origin"
+        ],
+        "description": "Re-export the sink into another connection's scope and have the worker there report through it."
+      },
+      "slow": {
+        "request": "Ticket",
+        "result": "string",
+        "description": "A call that does not answer until its own cancellation, so that cancelling it can be told from releasing a reference."
+      }
+    }
+  },
+  "errors": {
+    "unknown_reference": "The reference names no channel of this connection, or one that speaks another family.",
+    "no_origin": "This worker holds no connection to forward into."
+  }
+}
