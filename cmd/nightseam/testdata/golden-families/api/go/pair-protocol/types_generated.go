@@ -76,17 +76,18 @@ func (v *Echo[TEnvelope]) UnmarshalJSON(data []byte) error {
 func (Echo[TEnvelope]) Of() Tag { return Tag{} }
 
 type Envelope struct {
-	Version     int64                    `json:"version"`
-	Kind        string                   `json:"kind"`
-	ID          runtime.Optional[string] `json:"id,omitzero"`
-	Method      runtime.Optional[string] `json:"method,omitzero"`
-	Params      runtime.Optional[any]    `json:"params,omitzero"`
-	Result      runtime.Optional[any]    `json:"result,omitzero"`
-	Error       runtime.Optional[any]    `json:"error,omitzero"`
-	Event       runtime.Optional[string] `json:"event,omitzero"`
-	Data        runtime.Optional[any]    `json:"data,omitzero"`
-	Traceparent runtime.Optional[string] `json:"traceparent,omitzero"`
-	Tracestate  runtime.Optional[string] `json:"tracestate,omitzero"`
+	Version     int64                               `json:"version"`
+	Kind        string                              `json:"kind"`
+	ID          runtime.Optional[string]            `json:"id,omitzero"`
+	Method      runtime.Optional[string]            `json:"method,omitzero"`
+	Params      runtime.Optional[any]               `json:"params,omitzero"`
+	Result      runtime.Optional[any]               `json:"result,omitzero"`
+	Error       runtime.Optional[any]               `json:"error,omitzero"`
+	Event       runtime.Optional[string]            `json:"event,omitzero"`
+	Data        runtime.Optional[any]               `json:"data,omitzero"`
+	Traceparent runtime.Optional[string]            `json:"traceparent,omitzero"`
+	Tracestate  runtime.Optional[string]            `json:"tracestate,omitzero"`
+	Meta        runtime.Optional[map[string]string] `json:"meta,omitzero"`
 }
 
 func (v Envelope) MarshalJSON() ([]byte, error) {
