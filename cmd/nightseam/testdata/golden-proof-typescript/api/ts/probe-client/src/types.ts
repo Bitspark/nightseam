@@ -3,6 +3,9 @@ import { createValidator, type AnyFamily, type FamilyBinding, type TypeBinding, 
 export type { AnyFamily, FamilyBinding, TypeBinding, Slots, TypeExpression };
 import type * as session from "@example/session-client";
 import { validateWire as validate_session } from "@example/session-client";
+export interface Base {
+  "text": string;
+}
 /** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */
 export interface Envelope {
   /** The profile's version, 1. */
@@ -35,14 +38,22 @@ export interface Handle {
   /** The channel's id on that connection. */
   "channel": number;
 }
-/** What a probe carries. */
+export interface OpenRecord {
+  "id": string;
+  "note"?: string;
+  [key: string]: unknown;
+}
 export interface Payload {
   "text": string;
+  "count": number;
+  "note"?: string | null;
 }
+export type Payloads = Array<Payload>;
+export type Status = "ready" | "done" | "context.example";
 /** The family: its name and the wire types a slot of it draws on. */
-export interface Family { readonly name: "probe"; Envelope: Envelope; Handle: Handle; Payload: Payload }
+export interface Family { readonly name: "probe"; Base: Base; Envelope: Envelope; Handle: Handle; OpenRecord: OpenRecord; Payload: Payload; Payloads: Payloads; Status: Status }
 
-const contractTypes = {"types":{"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Payload":{"kind":"record","fields":[{"name":"text","type":"string","required":true}]}}} as unknown as WireFamily;
+const contractTypes = {"types":{"Base":{"kind":"record","fields":[{"name":"text","type":"string","required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"OpenRecord":{"kind":"record","fields":[{"name":"id","type":"string","required":true},{"name":"note","type":"string","required":false}],"open":true},"Payload":{"kind":"record","fields":[{"name":"count","type":"integer","required":true},{"name":"note","type":"string","required":false,"nullable":true}],"extends":["Base"]},"Payloads":{"kind":"alias","type":{"array":"Payload"}},"Status":{"kind":"enum","values":["ready","done","context.example"]}}} as unknown as WireFamily;
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
 export const validateWire = createValidator(contractTypes, { "session": validate_session });
 /** This family bound: its name and its validator, to fill a slot of the session role in another family's client. */

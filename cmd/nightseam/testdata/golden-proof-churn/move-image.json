@@ -1,0 +1,60 @@
+{
+  "move": "model.json#/types/Part/variants/image -\u003e model.json#/types/RichPart/variants/image",
+  "before_inline_names": [
+    "OptionNone",
+    "PartImage",
+    "PartsRequest",
+    "RichPartTable"
+  ],
+  "after_inline_names": [
+    "OptionNone",
+    "PartsRequest",
+    "RichPartImage",
+    "RichPartTable"
+  ],
+  "changed_files": [
+    {
+      "path": "api/go/proof-protocol/types_generated.go",
+      "removed_public_declarations": [
+        "const PartKindImage PartKind = \"image\"",
+        "func (*PartImage) UnmarshalJSON(data []byte) error",
+        "func (PartImage) MarshalJSON() ([]byte, error)",
+        "func (PartImage) Of() Tag",
+        "func (PartImage) WireType() runtime.TypeBinding",
+        "type Part struct{Count *PartCountValue; Image *PartImage; Text *TextPart}",
+        "type PartImage struct{URL string `json:\"url\"`; Alt runtime.Optional[runtime.Nullable[string]] `json:\"alt,omitzero\"`}",
+        "type RichPart struct{Count *PartCountValue; Image *PartImage; Text *TextPart; Table *RichPartTable}"
+      ],
+      "added_public_declarations": [
+        "func (*RichPartImage) UnmarshalJSON(data []byte) error",
+        "func (RichPartImage) MarshalJSON() ([]byte, error)",
+        "func (RichPartImage) Of() Tag",
+        "func (RichPartImage) WireType() runtime.TypeBinding",
+        "type Part struct{Count *PartCountValue; Text *TextPart}",
+        "type RichPart struct{Count *PartCountValue; Text *TextPart; Image *RichPartImage; Table *RichPartTable}",
+        "type RichPartImage struct{URL string `json:\"url\"`; Alt runtime.Optional[runtime.Nullable[string]] `json:\"alt,omitzero\"`}"
+      ]
+    },
+    {
+      "path": "api/go/proof-protocol/validation_generated.go"
+    },
+    {
+      "path": "api/spec/proof/README.md"
+    },
+    {
+      "path": "api/ts/proof-client/src/types.ts",
+      "removed_public_declarations": [
+        "export interface Family { readonly name: \"proof\"; Envelope: Envelope; Handle: Handle; OptionNone: OptionNone; Part: Part; PartImage: PartImage; Parts: Parts; PartsRequest: PartsRequest; RichPart: RichPart; RichPartTable: RichPartTable; TextPart: TextPart }",
+        "export interface PartImage {",
+        "export type Part = { \"type\": \"count\"; \"value\": number } | { \"type\": \"image\"; \"value\": PartImage } | { \"type\": \"text\"; \"value\": TextPart };",
+        "export type RichPart = { \"type\": \"count\"; \"value\": number } | { \"type\": \"image\"; \"value\": PartImage } | { \"type\": \"text\"; \"value\": TextPart } | { \"type\": \"table\"; \"value\": RichPartTable };"
+      ],
+      "added_public_declarations": [
+        "export interface Family { readonly name: \"proof\"; Envelope: Envelope; Handle: Handle; OptionNone: OptionNone; Part: Part; Parts: Parts; PartsRequest: PartsRequest; RichPart: RichPart; RichPartImage: RichPartImage; RichPartTable: RichPartTable; TextPart: TextPart }",
+        "export interface RichPartImage {",
+        "export type Part = { \"type\": \"count\"; \"value\": number } | { \"type\": \"text\"; \"value\": TextPart };",
+        "export type RichPart = { \"type\": \"count\"; \"value\": number } | { \"type\": \"text\"; \"value\": TextPart } | { \"type\": \"image\"; \"value\": RichPartImage } | { \"type\": \"table\"; \"value\": RichPartTable };"
+      ]
+    }
+  ]
+}
