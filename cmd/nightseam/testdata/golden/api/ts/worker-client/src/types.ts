@@ -149,9 +149,11 @@ export const contractRename = "worker/Rename";
 export function exportRename(scope: LiveScope, value: Rename): unknown {
   const reference = scope.export(contractRename, async (request, options) => {
     validateWire("Ticket", request);
-    const result = await value(request as Ticket, options);
-    validateWire("Ticket", result);
-    return result;
+    const argument = request as Ticket;
+    const result = await value(argument, options);
+    const sent = result;
+    validateWire("Ticket", sent);
+    return sent;
   });
   return reference.toJSON();
 }
@@ -159,8 +161,9 @@ export function exportRename(scope: LiveScope, value: Rename): unknown {
 export function importRename(scope: LiveScope, raw: unknown): Rename {
   const invoke = scope.import(scope.decode(raw), contractRename);
   return async (request: Ticket, options?: { signal?: AbortSignal }) => {
-    validateWire("Ticket", request);
-    const result = await invoke(request, options);
+    const sent = request;
+    validateWire("Ticket", sent);
+    const result = await invoke(sent, options);
     validateWire("Ticket", result);
     return result as Ticket;
   };
@@ -171,7 +174,8 @@ export const contractReport = "worker/Report";
 export function exportReport(scope: LiveScope, value: Report): unknown {
   const reference = scope.export(contractReport, async (request, options) => {
     validateWire("Percent", request);
-    await value(request as Percent, options);
+    const argument = request as Percent;
+    await value(argument, options);
     return undefined;
   });
   return reference.toJSON();
@@ -180,8 +184,9 @@ export function exportReport(scope: LiveScope, value: Report): unknown {
 export function importReport(scope: LiveScope, raw: unknown): Report {
   const invoke = scope.import(scope.decode(raw), contractReport);
   return async (request: Percent, options?: { signal?: AbortSignal }) => {
-    validateWire("Percent", request);
-    await invoke(request, options);
+    const sent = request;
+    validateWire("Percent", sent);
+    await invoke(sent, options);
     return;
   };
 }

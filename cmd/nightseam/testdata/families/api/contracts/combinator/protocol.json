@@ -1,0 +1,11 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "name": {"description": "Ordinary RPC, so the family has a data surface too.", "result": "string"}
+    }
+  },
+  "errors": {
+    "refused": "The combinator refuses."
+  }
+}

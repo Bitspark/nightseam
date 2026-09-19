@@ -31,23 +31,31 @@ import (
 const GeneratedModule = "example.test/generated"
 const GeneratedScope = "@example"
 
-// renderProofAndProbe renders the shared proof against the conformance probe into dir.
-func renderProofAndProbe(checkout, dir string) error {
+// renderTestees renders the families a generated testee links: the probe
+// and the proof for the type language, the worker for live values and the
+// combinator for callables that take and answer callables.
+func renderTestees(checkout, dir string) error {
 	k := compose.Kernel(GeneratedModule, GeneratedScope, "")
 	corpus := filepath.Join(checkout, "cmd", "nightseam", "testdata", "corpus")
 	world := k.Load(os.DirFS(corpus), "api/contracts")
-	proof := k.Load(os.DirFS(filepath.Join(checkout, "cmd", "nightseam", "testdata", "families")), "api/contracts")
-	world.Families["proof"] = proof.Families["proof"]
-	world.Problems["proof"] = proof.Problems["proof"]
-	world.Names = append(world.Names, "proof")
-	worker := world.Families["worker"]
-	if worker == nil {
-		return fmt.Errorf("render proof and probe: the corpus has no worker family")
+	// The corpus has the probe and the worker; the proof and the combinator
+	// are declared among the families, and are lifted in beside them.
+	families := k.Load(os.DirFS(filepath.Join(checkout, "cmd", "nightseam", "testdata", "families")), "api/contracts")
+	for _, name := range []string{"proof", "combinator"} {
+		if families.Families[name] == nil {
+			return fmt.Errorf("render the testees: no %s family among the families", name)
+		}
+		world.Families[name] = families.Families[name]
+		world.Problems[name] = families.Problems[name]
+		world.Names = append(world.Names, name)
 	}
-	for _, name := range []string{"probe", "proof", "worker"} {
+	if world.Families["worker"] == nil {
+		return fmt.Errorf("render the testees: the corpus has no worker family")
+	}
+	for _, name := range []string{"probe", "proof", "worker", "combinator"} {
 		result, err := k.Render(world, name)
 		if err != nil {
-			return fmt.Errorf("render proof and probe: %w", err)
+			return fmt.Errorf("render the testees: %w", err)
 		}
 		for p, data := range result.Files {
 			file := filepath.Join(dir, filepath.FromSlash(p))
@@ -137,7 +145,7 @@ func (s *Suite) PrepareGenerated(t *testing.T) []string {
 		if err := os.RemoveAll(places.Rendered); err != nil {
 			t.Fatal(err)
 		}
-		if err := renderProofAndProbe(s.Checkout, places.Rendered); err != nil {
+		if err := renderTestees(s.Checkout, places.Rendered); err != nil {
 			t.Fatal(err)
 		}
 		if err := layGenerated(s.Checkout, from, places.Rendered); err != nil {

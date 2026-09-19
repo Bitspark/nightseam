@@ -198,10 +198,10 @@ func ExportNotice(scope *live.Scope, v Notice) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Notice: no implementation to export")
 	}
 	reference, err := scope.Export(ContractNotice, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-		var argument Payload
 		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Payload\""), request); err != nil {
 			return nil, err
 		}
+		var argument Payload
 		if err := json.Unmarshal(request, &argument); err != nil {
 			return nil, err
 		}

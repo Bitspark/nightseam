@@ -1,0 +1,6 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Count": {"kind": "alias", "description": "What a unary callable takes and answers.", "type": "integer"}
+  }
+}

@@ -98,17 +98,18 @@ func (f *file) emitCallable(t *render.Type) {
 		f.linef("if v == nil { return nil, %s.Errorf(\"%s: no implementation to export\") }", f.std("fmt"), name)
 		f.w.Block(fmt.Sprintf("reference, err := scope.Export(%s, func(ctx %s.Context, request %s.RawMessage) (%s.RawMessage, error) {", f.plan.contracts[t.Name], f.std("context"), json, json), "})", func() {
 			if t.Request != nil {
-				f.linef("var argument %s", f.spell(t.Request))
 				f.linef("if err := %s; err != nil { return nil, err }", f.validateExpression(t.Request, "request"))
-				f.linef("if err := %s.Unmarshal(request, &argument); err != nil { return nil, err }", json)
+				// A callable's own request is converted like any other
+				// position: a callable that takes a callable is handed a
+				// native function, not a reference.
+				f.liveExpr(t.Request, "request", "argument", false, "nil")
 			}
 			if t.Result == nil {
 				f.linef("return nil, v(ctx%s)", callArgument(t))
 			} else {
 				f.linef("result, err := v(ctx%s)", callArgument(t))
 				f.line("if err != nil { return nil, err }")
-				f.linef("data, err := %s.MarshalJSON(result)", f.runtime())
-				f.line("if err != nil { return nil, err }")
+				f.liveExpr(t.Result, "result", "data", true, "nil")
 				f.linef("if err := %s; err != nil { return nil, err }", f.validateExpression(t.Result, "data"))
 				f.line("return data, nil")
 			}
@@ -125,16 +126,17 @@ func (f *file) emitCallable(t *render.Type) {
 		f.linef("invoke, err := scope.Import(reference, %s)", f.plan.contracts[t.Name])
 		f.line("if err != nil { return nil, err }")
 		f.w.Block(fmt.Sprintf("return func(ctx %s.Context, %s) %s {", f.std("context"), f.callableParam(t), f.callableResult(t)), "}, nil", func() {
-			zero := ""
+			zero, fail := "", ""
 			if t.Result != nil {
 				f.linef("var zero %s", f.spell(t.Result))
-				zero = "zero, "
+				zero, fail = "zero, ", "zero"
 			}
 			if t.Request == nil {
 				f.linef("result, err := invoke(ctx, nil)")
 			} else {
-				f.linef("request, err := %s.MarshalJSON(params)", f.runtime())
-				f.linef("if err != nil { return %serr }", zero)
+				// And what a caller sends: a callable it passes becomes a
+				// binding of this scope, as it would in any other position.
+				f.liveExpr(t.Request, "params", "request", true, fail)
 				f.linef("if err := %s; err != nil { return %serr }", f.validateExpression(t.Request, "request"), zero)
 				f.line("result, err := invoke(ctx, request)")
 			}
@@ -145,8 +147,7 @@ func (f *file) emitCallable(t *render.Type) {
 				return
 			}
 			f.linef("if err := %s; err != nil { return zero, err }", f.validateExpression(t.Result, "result"))
-			f.linef("var answer %s", f.spell(t.Result))
-			f.linef("if err := %s.Unmarshal(result, &answer); err != nil { return zero, err }", f.std("json"))
+			f.liveExpr(t.Result, "result", "answer", false, "zero")
 			f.line("return answer, nil")
 		})
 	})
@@ -321,8 +322,12 @@ func (f *file) memberType(field render.Field) string {
 func (f *file) liveExpr(e model.TypeExpr, src, dst string, export bool, fail string) {
 	json := f.std("json")
 	failure := func() string {
-		if fail == "nil" {
+		switch fail {
+		case "nil":
 			return "nil, err"
+		case "":
+			// A proxy of a callable that answers nothing returns error alone.
+			return "err"
 		}
 		return fail + ", err"
 	}

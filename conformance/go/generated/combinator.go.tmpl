@@ -1,0 +1,231 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"net/url"
+	"sync"
+
+	combinatorbinding "example.test/generated/api/go/combinator-binding"
+	combinatorclient "example.test/generated/api/go/combinator-client"
+	combinator "example.test/generated/api/go/combinator-protocol"
+	"github.com/Bitspark/nightseam/runtime/go"
+)
+
+// The higher-order half of the Go generated testee: a callable whose own
+// request or result is another callable.
+//
+// This is the position nothing exercised before. A record of callables and a
+// callback retained past its call both go through one conversion each; a
+// callable that *takes* or *answers* a callable goes through a conversion
+// nested inside a conversion, on the far side of a binding that was itself
+// exported. The generated code compiled long before it worked, which is why
+// this is driven rather than only built.
+
+// combinatorServer answers a toolkit of higher-order callables. Each one is
+// an ordinary Go function that takes or returns an ordinary Go function.
+type combinatorServer struct {
+	mu      sync.Mutex
+	applied []int64
+}
+
+func (s *combinatorServer) Name(context.Context, *combinatorbinding.Remote) (string, error) {
+	return "combinator", nil
+}
+
+func (s *combinatorServer) Toolkit(_ context.Context, _ *combinatorbinding.Remote, params combinator.ToolkitRequest) (combinator.Toolkit, error) {
+	seed := params.Seed
+	return combinator.Toolkit{
+		// Takes a callable and answers one: the argument arrives as a native
+		// function, and what is returned is exported as a new binding.
+		Twice: func(_ context.Context, once combinator.Unary) (combinator.Unary, error) {
+			return func(ctx context.Context, value combinator.Count) (combinator.Count, error) {
+				first, err := once(ctx, value)
+				if err != nil {
+					return 0, err
+				}
+				return once(ctx, first)
+			}, nil
+		},
+		// Answers a callable and takes none.
+		Identity: func(context.Context) (combinator.Unary, error) {
+			return func(_ context.Context, value combinator.Count) (combinator.Count, error) {
+				return value, nil
+			}, nil
+		},
+		// Takes a callable and answers nothing; calls it with the seed the
+		// toolkit was made for, so the caller can read back what its own
+		// function was asked.
+		Apply: func(ctx context.Context, each combinator.Unary) error {
+			value, err := each(ctx, seed)
+			if err != nil {
+				return err
+			}
+			s.mu.Lock()
+			s.applied = append(s.applied, value)
+			s.mu.Unlock()
+			return nil
+		},
+	}, nil
+}
+
+type combinatorServed struct {
+	http   *http.Server
+	server *combinatorServer
+	url    string
+}
+
+type combinatorDialled struct {
+	client   *combinatorclient.Client
+	cancel   context.CancelFunc
+	mu       sync.Mutex
+	toolkits map[string]combinator.Toolkit
+	next     int
+}
+
+func (d *combinatorDialled) hold(toolkit combinator.Toolkit) string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.next++
+	name := fmt.Sprintf("toolkit%d", d.next)
+	if d.toolkits == nil {
+		d.toolkits = map[string]combinator.Toolkit{}
+	}
+	d.toolkits[name] = toolkit
+	return name
+}
+
+func (d *combinatorDialled) toolkit(name string) (combinator.Toolkit, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	toolkit, ok := d.toolkits[name]
+	return toolkit, ok
+}
+
+func (t *testee) combinatorDispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	switch op {
+	case "gen.combinator_serve":
+		s := &combinatorServed{server: &combinatorServer{}}
+		handler, err := combinatorbinding.NewHandler(s.server, runtime.ServerOptions{
+			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
+			CheckOrigin:  func(*http.Request) bool { return true },
+		})
+		if err != nil {
+			return nil, fail("failed", "%v", err)
+		}
+		socket, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		s.url = "ws://" + socket.Addr().String()
+		s.http = &http.Server{Handler: handler}
+		go func() { _ = s.http.Serve(socket) }()
+		return map[string]any{"handle": t.mint("combsrv", s), "url": s.url}, nil
+	case "gen.combinator_dial":
+		ctx, cancel := context.WithCancel(context.Background())
+		endpoint, err := url.Parse(str(raw, "url"))
+		if err != nil {
+			cancel()
+			return nil, fail("invalid", "%v", err)
+		}
+		c, err := combinatorclient.Dial(ctx, endpoint.String(), runtime.DialOptions{}, combinatorHandler{}, combinatorclient.Events{})
+		if err != nil {
+			cancel()
+			return nil, fail("failed", "%v", err)
+		}
+		return map[string]any{"handle": t.mint("combcl", &combinatorDialled{client: c, cancel: cancel})}, nil
+	case "client.combinator_toolkit":
+		d, err := liveOf[*combinatorDialled](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		toolkit, callErr := d.client.Toolkit(context.Background(), combinator.ToolkitRequest{Seed: number(raw, "seed")})
+		if callErr != nil {
+			return map[string]any{"error": callError(callErr)}, nil
+		}
+		return map[string]any{"toolkit": d.hold(toolkit)}, nil
+	case "client.combinator_twice":
+		d, toolkit, err := combinatorToolkit(t, raw)
+		if err != nil {
+			return nil, err
+		}
+		_ = d
+		add := number(raw, "add")
+		// A callable of this peer's, handed to a callable of the other's.
+		twice, callErr := toolkit.Twice(context.Background(), func(_ context.Context, value combinator.Count) (combinator.Count, error) {
+			return value + add, nil
+		})
+		if callErr != nil {
+			return map[string]any{"error": callError(callErr)}, nil
+		}
+		// And the callable it answered, invoked here.
+		value, callErr := twice(context.Background(), number(raw, "with"))
+		if callErr != nil {
+			return map[string]any{"error": callError(callErr)}, nil
+		}
+		return map[string]any{"value": value}, nil
+	case "client.combinator_identity":
+		_, toolkit, err := combinatorToolkit(t, raw)
+		if err != nil {
+			return nil, err
+		}
+		identity, callErr := toolkit.Identity(context.Background())
+		if callErr != nil {
+			return map[string]any{"error": callError(callErr)}, nil
+		}
+		value, callErr := identity(context.Background(), number(raw, "with"))
+		if callErr != nil {
+			return map[string]any{"error": callError(callErr)}, nil
+		}
+		return map[string]any{"value": value}, nil
+	case "client.combinator_apply":
+		_, toolkit, err := combinatorToolkit(t, raw)
+		if err != nil {
+			return nil, err
+		}
+		factor := number(raw, "factor")
+		if callErr := toolkit.Apply(context.Background(), func(_ context.Context, value combinator.Count) (combinator.Count, error) {
+			return value * factor, nil
+		}); callErr != nil {
+			return map[string]any{"error": callError(callErr)}, nil
+		}
+		return map[string]any{}, nil
+	case "gen.combinator_seen":
+		s, err := liveOf[*combinatorServed](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		s.server.mu.Lock()
+		defer s.server.mu.Unlock()
+		return map[string]any{"applied": append([]int64{}, s.server.applied...)}, nil
+	}
+	return nil, nil
+}
+
+// combinatorToolkit resolves the client and the toolkit an op names.
+func combinatorToolkit(t *testee, raw map[string]json.RawMessage) (*combinatorDialled, combinator.Toolkit, error) {
+	d, err := liveOf[*combinatorDialled](t, raw)
+	if err != nil {
+		return nil, combinator.Toolkit{}, err
+	}
+	toolkit, ok := d.toolkit(str(raw, "toolkit"))
+	if !ok {
+		return nil, combinator.Toolkit{}, fail("invalid", "no toolkit %s", str(raw, "toolkit"))
+	}
+	return d, toolkit, nil
+}
+
+// number reads a whole number an op carries.
+func number(raw map[string]json.RawMessage, name string) int64 {
+	var value int64
+	_ = json.Unmarshal(raw[name], &value)
+	return value
+}
+
+// combinatorHandler is what the server may call on this client. The family
+// declares no client method, so it answers nothing; the client still serves
+// one, because a client serves what the server calls.
+type combinatorHandler struct{}
