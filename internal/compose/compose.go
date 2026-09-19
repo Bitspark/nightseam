@@ -68,11 +68,17 @@ func Configure(c load.Config, module, scope, sibling string) ([]spi.Target, []di
 	ts.Scope, ts.Sibling = scope, sibling
 	report(typescript.Name, ts.Validate())
 	compose(typescript.Name, func() spi.Target { return typescript.New(ts) })
+	spellers := map[string]spi.Speller{}
+	for _, target := range targets {
+		if speller, ok := target.(spi.Speller); ok {
+			spellers[target.Name()] = speller
+		}
+	}
 
 	var md markdown.Config
 	report(markdown.Name, section(c, markdown.Name, &md))
 	report(markdown.Name, markdown.New(md).Layout().Validate())
-	compose(markdown.Name, func() spi.Target { return doc.Target(markdown.New(md)) })
+	compose(markdown.Name, func() spi.Target { return doc.Target(markdown.New(md), spellers) })
 
 	return targets, diagnostics
 }

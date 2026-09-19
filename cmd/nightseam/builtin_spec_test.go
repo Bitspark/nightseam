@@ -20,7 +20,7 @@ import (
 func TestBuiltinSpecificationsGolden(t *testing.T) {
 	root := repositoryRoot(t)
 	world := analysis.World(builtin.Families())
-	target := doc.Target(markdown.New(markdown.Config{Layout: "docs/declaration/builtins/{family}"}))
+	target := doc.Target(markdown.New(markdown.Config{Layout: "docs/declaration/builtins/{family}"}), nil)
 	for _, name := range builtin.Names() {
 		t.Run(name, func(t *testing.T) {
 			family := analysis.Resolve(world, name)

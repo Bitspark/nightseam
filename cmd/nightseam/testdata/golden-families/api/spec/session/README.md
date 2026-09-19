@@ -15,6 +15,24 @@ A record. Who holds control of the session, or nobody.
 |---|---|---|---|---|
 | `holder` | nullable `string` | required | — | The origin that holds control, null where nobody does. |
 
+In `go`:
+
+```go
+type Control struct {
+	Holder runtime.Nullable[string] `json:"holder"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** Who holds control of the session, or nobody. */
+export interface Control {
+  /** The origin that holds control, null where nobody does. */
+  "holder": string | null;
+}
+```
+
 ### Cursor
 
 A record. Where an attachment stands in the log.
@@ -22,6 +40,24 @@ A record. Where an attachment stands in the log.
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `sequence` | `integer` | required | — | The sequence of the frame just delivered, or the last the replay read. |
+
+In `go`:
+
+```go
+type Cursor struct {
+	Sequence int64 `json:"sequence"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** Where an attachment stands in the log. */
+export interface Cursor {
+  /** The sequence of the frame just delivered, or the last the replay read. */
+  "sequence": number;
+}
+```
 
 ## Carried types
 
@@ -46,6 +82,57 @@ A record, carried from the built-in `duplex` family. One message of the nightsea
 | `tracestate` | `string` | optional | — | The vendor state of that trace. |
 | `meta` | map of `string` | optional | — | What a request or an event carries about the call, delivered to the handler beside the payload. |
 
+In `go`:
+
+```go
+type Envelope struct {
+	Version     int64                               `json:"version"`
+	Kind        string                              `json:"kind"`
+	ID          runtime.Optional[string]            `json:"id,omitzero"`
+	Method      runtime.Optional[string]            `json:"method,omitzero"`
+	Params      runtime.Optional[any]               `json:"params,omitzero"`
+	Result      runtime.Optional[any]               `json:"result,omitzero"`
+	Error       runtime.Optional[any]               `json:"error,omitzero"`
+	Event       runtime.Optional[string]            `json:"event,omitzero"`
+	Data        runtime.Optional[any]               `json:"data,omitzero"`
+	Traceparent runtime.Optional[string]            `json:"traceparent,omitzero"`
+	Tracestate  runtime.Optional[string]            `json:"tracestate,omitzero"`
+	Meta        runtime.Optional[map[string]string] `json:"meta,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */
+export interface Envelope {
+  /** The profile's version, 1. */
+  "version": number;
+  /** request, response, event or cancel. */
+  "kind": string;
+  /** What correlates a response or a cancel with its request. */
+  "id"?: string;
+  /** The method a request names. */
+  "method"?: string;
+  /** A request's parameters. */
+  "params"?: unknown;
+  /** A response's result. */
+  "result"?: unknown;
+  /** A response's error. */
+  "error"?: unknown;
+  /** The event an event frame names. */
+  "event"?: string;
+  /** An event's data. */
+  "data"?: unknown;
+  /** The W3C Trace Context of the frame. */
+  "traceparent"?: string;
+  /** The vendor state of that trace. */
+  "tracestate"?: string;
+  /** What a request or an event carries about the call, delivered to the handler beside the payload. */
+  "meta"?: Record<string, string>;
+}
+```
+
 ### Handle
 
 A record, carried from the built-in `duplex` family. A reference to a channel on the connection that carries the message holding it.
@@ -53,6 +140,24 @@ A record, carried from the built-in `duplex` family. A reference to a channel on
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `channel` | `integer` | required | — | The channel's id on that connection. |
+
+In `go`:
+
+```go
+type Handle struct {
+	Channel int64 `json:"channel"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** A reference to a channel on the connection that carries the message holding it. */
+export interface Handle {
+  /** The channel's id on that connection. */
+  "channel": number;
+}
+```
 
 ## Server side
 
@@ -78,6 +183,18 @@ The server emits:
 }
 ```
 
+In `go`:
+
+```go
+remote.EmitSessionControl(ctx, data)
+```
+
+In `typescript`:
+
+```typescript
+client.onSessionControl(handler)
+```
+
 ### `session.cursor` on the wire
 
 The server emits:
@@ -91,4 +208,16 @@ The server emits:
     "sequence": 0
   }
 }
+```
+
+In `go`:
+
+```go
+remote.EmitSessionCursor(ctx, data)
+```
+
+In `typescript`:
+
+```typescript
+client.onSessionCursor(handler)
 ```

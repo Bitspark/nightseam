@@ -21,6 +21,7 @@ import (
 
 	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/render"
+	"github.com/Bitspark/nightseam/internal/spi"
 )
 
 // Checkout is every family of a checkout, documented, by name.
@@ -61,6 +62,7 @@ type Parameter struct {
 
 // Type is one type, with its wire fields flattened.
 type Type struct {
+	Languages               map[string]Language // target names, declarations and invocation code
 	Name, Kind, Description string
 	Key                     string           // entity: the field that identifies it
 	Open                    bool             // record, entity: fields beyond the declared ones are kept
@@ -124,6 +126,7 @@ type Side struct {
 
 // Method is one operation of a side, its own or inherited.
 type Method struct {
+	Languages         map[string]Language
 	Name, Description string
 	Request           model.TypeExpr // resolved; nil: takes nothing
 	Result            model.TypeExpr
@@ -138,6 +141,7 @@ type Method struct {
 
 // Event is one notification of a side, its own or inherited.
 type Event struct {
+	Languages         map[string]Language
 	Name, Description string
 	Type              model.TypeExpr // resolved
 	Declared          model.TypeExpr // as declared, bound where inherited
@@ -166,16 +170,16 @@ type Inherited struct{ Family, Side string }
 type Conversation struct{ Event, Path string }
 
 // BuildCheckout documents every family of a checkout.
-func BuildCheckout(w *render.World) *Checkout {
+func BuildCheckout(w *render.World, spellers map[string]spi.Speller) *Checkout {
 	c := &Checkout{}
 	for _, f := range w.Families {
-		c.Families = append(c.Families, Build(f))
+		c.Families = append(c.Families, Build(f, spellers))
 	}
 	return c
 }
 
 // Build documents one family as render presents it.
-func Build(f *render.Family) *Family {
+func Build(f *render.Family, spellers map[string]spi.Speller) *Family {
 	d := &Family{Name: f.Name, Source: f.Source, Builtin: f.Builtin, Files: f.Files, Imports: f.References, Carries: f.Carries, Generic: f.Generic, Protocol: f.HasProtocol()}
 	for _, p := range f.Parameters {
 		d.Parameters = append(d.Parameters, Parameter{Name: p.Name, Of: p.Of, Description: p.Description, Drawn: drawn(p.Uses, p.Name)})
@@ -222,6 +226,7 @@ func Build(f *render.Family) *Family {
 			d.Session.Inherited = append(d.Session.Inherited, Inherited{Family: inherited.Family, Side: inherited.Side})
 		}
 	}
+	addLanguages(d, f, spellers)
 	return d
 }
 

@@ -25,6 +25,28 @@ A record, generic in `S.Envelope`, `S.Handle`, `Item`. One message of S with a p
 | `back` | nullable `S.Handle` | required | — | A handle that may be absent from the value rather than from the member. |
 | `page` | `Page` with T=`Item` | required | — |  |
 
+In `go`:
+
+```go
+type Carried[SEnvelope, SHandle, Item any] struct {
+	Message SEnvelope                 `json:"message"`
+	Back    runtime.Nullable[SHandle] `json:"back"`
+	Page    Page[Item]                `json:"page"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** One message of S with a page of Item beside it. */
+export interface Carried<S extends AnyFamily = AnyFamily, Item = unknown> {
+  "message": S["Envelope"];
+  /** A handle that may be absent from the value rather than from the member. */
+  "back": S["Handle"] | null;
+  "page": Page<Item>;
+}
+```
+
 For example:
 
 ```json
@@ -57,6 +79,22 @@ The `kind` member identifies the variant. The complete payload is carried in `va
 | `"none"` | `OptionNone` | `Option` |
 | `"some"` | `T` | `Option` |
 
+In `go`:
+
+```go
+type Option[T any] struct {
+	None *OptionNone
+	Some *OptionSomeValue[T]
+}
+```
+
+In `typescript`:
+
+```typescript
+/** A value, or nothing: a generic union, declared in the language rather than built in. */
+export type Option<T = unknown> = { "kind": "none"; "value": OptionNone } | { "kind": "some"; "value": T };
+```
+
 For example:
 
 ```json
@@ -73,6 +111,19 @@ Used by `relay` (result).
 A record.
 
 Declared inline; its name is derived from its declaration path.
+
+In `go`:
+
+```go
+type OptionNone struct {
+}
+```
+
+In `typescript`:
+
+```typescript
+export type OptionNone = Record<string, never>;
+```
 
 For example:
 
@@ -92,6 +143,25 @@ A record, generic in `T`. A page of anything: a type parameter filled by a type 
 |---|---|---|---|---|
 | `items` | array of `T` | required | — |  |
 | `next` | nullable `string` | optional | — |  |
+
+In `go`:
+
+```go
+type Page[T any] struct {
+	Items []T                                        `json:"items"`
+	Next  runtime.Optional[runtime.Nullable[string]] `json:"next,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** A page of anything: a type parameter filled by a type expression. */
+export interface Page<T = unknown> {
+  "items": Array<T>;
+  "next"?: string | null;
+}
+```
 
 For example:
 
@@ -118,6 +188,23 @@ The `type` member identifies the variant. The complete payload is carried in `va
 | `"image"` | `PartImage` | `Part` |
 | `"text"` | `TextPart` | `Part` |
 
+In `go`:
+
+```go
+type Part struct {
+	Count *PartCountValue
+	Image *PartImage
+	Text  *TextPart
+}
+```
+
+In `typescript`:
+
+```typescript
+/** One part of a message: a record with a literal field, a shape written inline, and a scalar payload. */
+export type Part = { "type": "count"; "value": number } | { "type": "image"; "value": PartImage } | { "type": "text"; "value": TextPart };
+```
+
 For example:
 
 ```json
@@ -140,6 +227,24 @@ Declared inline; its name is derived from its declaration path.
 | `url` | `string` | required | matches `^https://[A-Za-z0-9.-]+/[^ ]*$` |  |
 | `alt` | nullable `string` | optional | — |  |
 
+In `go`:
+
+```go
+type PartImage struct {
+	URL string                                     `json:"url"`
+	Alt runtime.Optional[runtime.Nullable[string]] `json:"alt,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface PartImage {
+  "url": string;
+  "alt"?: string | null;
+}
+```
+
 For example:
 
 ```json
@@ -154,6 +259,19 @@ For example:
 An alias. A page of parts: a generic type of this family, filled here.
 
 An alias of `Page` with T=`Part`.
+
+In `go`:
+
+```go
+type Parts = Page[Part]
+```
+
+In `typescript`:
+
+```typescript
+/** A page of parts: a generic type of this family, filled here. */
+export type Parts = Page<Part>;
+```
 
 For example:
 
@@ -181,6 +299,22 @@ Declared inline; its name is derived from its declaration path.
 |---|---|---|---|---|
 | `after` | nullable `string` | optional | — |  |
 
+In `go`:
+
+```go
+type PartsRequest struct {
+	After runtime.Optional[runtime.Nullable[string]] `json:"after,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface PartsRequest {
+  "after"?: string | null;
+}
+```
+
 For example:
 
 ```json
@@ -204,6 +338,22 @@ The `kind` member identifies the variant. The complete payload is carried in `va
 |---|---|---|
 | `"err"` | `E` | `Result` |
 | `"ok"` | `T` | `Result` |
+
+In `go`:
+
+```go
+type Result[T, E any] struct {
+	Err *ResultErrValue[T, E]
+	Ok  *ResultOkValue[T, E]
+}
+```
+
+In `typescript`:
+
+```typescript
+/** What came of a call: two type parameters on one declaration. */
+export type Result<T = unknown, E = unknown> = { "kind": "err"; "value": E } | { "kind": "ok"; "value": T };
+```
 
 For example:
 
@@ -231,6 +381,24 @@ The `type` member identifies the variant. The complete payload is carried in `va
 | `"text"` | `TextPart` | `Part` |
 | `"table"` | `RichPartTable` | `RichPart` |
 
+In `go`:
+
+```go
+type RichPart struct {
+	Count *PartCountValue
+	Image *PartImage
+	Text  *TextPart
+	Table *RichPartTable
+}
+```
+
+In `typescript`:
+
+```typescript
+/** Part widened: an extending union adds variants, and a value of the base validates against it. */
+export type RichPart = { "type": "count"; "value": number } | { "type": "image"; "value": PartImage } | { "type": "text"; "value": TextPart } | { "type": "table"; "value": RichPartTable };
+```
+
 For example:
 
 ```json
@@ -252,6 +420,23 @@ Declared inline; its name is derived from its declaration path.
 |---|---|---|---|---|
 | `rows` | array of nullable `string` | required | — | A collection of values that may be null. |
 
+In `go`:
+
+```go
+type RichPartTable struct {
+	Rows []runtime.Nullable[string] `json:"rows"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface RichPartTable {
+  /** A collection of values that may be null. */
+  "rows": Array<string | null>;
+}
+```
+
 For example:
 
 ```json
@@ -270,6 +455,26 @@ A record. A part with its own literal type field, retained inside the union payl
 |---|---|---|---|---|
 | `type` | the literal `"text"` | required | — | A literal field of the payload; the union has its own discriminator. |
 | `body` | `string` | required | length ≥ 1 |  |
+
+In `go`:
+
+```go
+type TextPart struct {
+	Type LiteralText `json:"type"`
+	Body string      `json:"body"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** A part with its own literal type field, retained inside the union payload. */
+export interface TextPart {
+  /** A literal field of the payload; the union has its own discriminator. */
+  "type": "text";
+  "body": string;
+}
+```
 
 For example:
 
@@ -305,6 +510,57 @@ A record, carried from the built-in `duplex` family. One message of the nightsea
 | `tracestate` | `string` | optional | — | The vendor state of that trace. |
 | `meta` | map of `string` | optional | — | What a request or an event carries about the call, delivered to the handler beside the payload. |
 
+In `go`:
+
+```go
+type Envelope struct {
+	Version     int64                               `json:"version"`
+	Kind        string                              `json:"kind"`
+	ID          runtime.Optional[string]            `json:"id,omitzero"`
+	Method      runtime.Optional[string]            `json:"method,omitzero"`
+	Params      runtime.Optional[any]               `json:"params,omitzero"`
+	Result      runtime.Optional[any]               `json:"result,omitzero"`
+	Error       runtime.Optional[any]               `json:"error,omitzero"`
+	Event       runtime.Optional[string]            `json:"event,omitzero"`
+	Data        runtime.Optional[any]               `json:"data,omitzero"`
+	Traceparent runtime.Optional[string]            `json:"traceparent,omitzero"`
+	Tracestate  runtime.Optional[string]            `json:"tracestate,omitzero"`
+	Meta        runtime.Optional[map[string]string] `json:"meta,omitzero"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */
+export interface Envelope {
+  /** The profile's version, 1. */
+  "version": number;
+  /** request, response, event or cancel. */
+  "kind": string;
+  /** What correlates a response or a cancel with its request. */
+  "id"?: string;
+  /** The method a request names. */
+  "method"?: string;
+  /** A request's parameters. */
+  "params"?: unknown;
+  /** A response's result. */
+  "result"?: unknown;
+  /** A response's error. */
+  "error"?: unknown;
+  /** The event an event frame names. */
+  "event"?: string;
+  /** An event's data. */
+  "data"?: unknown;
+  /** The W3C Trace Context of the frame. */
+  "traceparent"?: string;
+  /** The vendor state of that trace. */
+  "tracestate"?: string;
+  /** What a request or an event carries about the call, delivered to the handler beside the payload. */
+  "meta"?: Record<string, string>;
+}
+```
+
 ### Handle
 
 A record, carried from the built-in `duplex` family. A reference to a channel on the connection that carries the message holding it.
@@ -312,6 +568,24 @@ A record, carried from the built-in `duplex` family. A reference to a channel on
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `channel` | `integer` | required | — | The channel's id on that connection. |
+
+In `go`:
+
+```go
+type Handle struct {
+	Channel int64 `json:"channel"`
+}
+```
+
+In `typescript`:
+
+```typescript
+/** A reference to a channel on the connection that carries the message holding it. */
+export interface Handle {
+  /** The channel's id on that connection. */
+  "channel": number;
+}
+```
 
 ## Server side
 
@@ -373,6 +647,20 @@ Or refuses with `denied`:
 }
 ```
 
+In `go`:
+
+```go
+client.Echo(ctx, params)
+
+func (Handler[SEnvelope, SHandle, Item]) Echo(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item], params probeprotocol.Payload) (probeprotocol.Payload, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.echo(params)
+```
+
 ### `parts` on the wire
 
 The client sends:
@@ -401,6 +689,20 @@ The server answers:
     "value": "‹err›"
   }
 }
+```
+
+In `go`:
+
+```go
+client.Parts(ctx, params)
+
+func (Handler[SEnvelope, SHandle, Item]) Parts(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item], params protocol.PartsRequest) (protocol.Result[protocol.Parts, string], error)
+```
+
+In `typescript`:
+
+```typescript
+await client.parts(params)
 ```
 
 ### `relay` on the wire
@@ -440,6 +742,20 @@ The server answers:
 }
 ```
 
+In `go`:
+
+```go
+client.Relay(ctx, params)
+
+func (Handler[SEnvelope, SHandle, Item]) Relay(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item], params protocol.Carried[SEnvelope, SHandle, Item]) (protocol.Option[protocol.Envelope], error)
+```
+
+In `typescript`:
+
+```typescript
+await client.relay(params)
+```
+
 ### `changed` on the wire
 
 The server emits:
@@ -453,6 +769,18 @@ The server emits:
     "text": "‹text›"
   }
 }
+```
+
+In `go`:
+
+```go
+remote.EmitChanged(ctx, data)
+```
+
+In `typescript`:
+
+```typescript
+client.onChanged(handler)
 ```
 
 ### `part.added` on the wire
@@ -469,6 +797,18 @@ The server emits:
     "value": 0
   }
 }
+```
+
+In `go`:
+
+```go
+remote.EmitPartAdded(ctx, data)
+```
+
+In `typescript`:
+
+```typescript
+client.onPartAdded(handler)
 ```
 
 ## Errors

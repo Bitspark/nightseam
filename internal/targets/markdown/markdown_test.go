@@ -24,7 +24,7 @@ func TestWritesThePage(t *testing.T) {
 		},
 	}))
 	f := render.Build(analysis.Resolve(world, "x"))
-	target := doc.Target(New(Config{}))
+	target := doc.Target(New(Config{}), nil)
 	if diagnostics := target.Check(f); len(diagnostics) != 0 {
 		t.Fatal(diagnostics)
 	}
@@ -74,7 +74,7 @@ func TestWritesThePage(t *testing.T) {
 // found at its own pattern and nowhere else, and a pattern that names no
 // family is refused before a page is written.
 func TestPlacedFamiliesLiveWhereTheConfigSays(t *testing.T) {
-	target := doc.Target(New(Config{Place: map[string]string{"x": "docs/{family}"}}))
+	target := doc.Target(New(Config{Place: map[string]string{"x": "docs/{family}"}}), nil)
 	if family, ok := target.Family("docs/x/README.md"); !ok || family != "x" {
 		t.Fatal("the placed page is not known as x's")
 	}
@@ -86,7 +86,7 @@ func TestPlacedFamiliesLiveWhereTheConfigSays(t *testing.T) {
 	}
 	world := analysis.World(modeltest.World(map[string]map[string]string{"x": {"model.json": `{"nightseam": 2, "types": {}}`}}))
 	f := render.Build(analysis.Resolve(world, "x"))
-	bad := doc.Target(New(Config{Layout: "docs/spec"}))
+	bad := doc.Target(New(Config{Layout: "docs/spec"}), nil)
 	if diagnostics := bad.Check(f); len(diagnostics) != 1 || diagnostics[0].Code != "invalid_config" {
 		t.Fatalf("a layout without {family} was not refused: %v", diagnostics)
 	}

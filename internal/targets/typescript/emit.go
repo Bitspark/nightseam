@@ -84,63 +84,7 @@ func emitTypes(f *file) {
 	f.linef("export type { %s, %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots)
 	f.imports(true)
 	for _, t := range fam.Types {
-		name := p.types[t.Name]
-		f.scope = t.Scope
-		switch t.Kind {
-		case "record", "entity":
-			if t.Description != "" {
-				f.linef("/** %s */", comment(t.Description))
-			}
-			if len(t.Fields) == 0 && !t.Open {
-				f.linef("export type %s%s = Record<string, never>;", name, f.declare(t.Uses))
-				continue
-			}
-			f.w.Block(fmt.Sprintf("export interface %s%s {", name, f.declare(t.Uses)), "}", func() {
-				for _, field := range t.Fields {
-					optional, null := "", ""
-					if !field.Required {
-						optional = "?"
-					}
-					if field.Nullable {
-						null = " | null"
-					}
-					if field.Description != "" {
-						f.linef("/** %s */", comment(field.Description))
-					}
-					f.linef("%s%s: %s%s;", quote(field.Name), optional, f.spell(field.Type), null)
-				}
-				if t.Open {
-					f.line("[key: string]: unknown;")
-				}
-			})
-		case "enum":
-			values := make([]string, len(t.Values))
-			for i, v := range t.Values {
-				values[i] = quote(v)
-			}
-			if t.Description != "" {
-				f.linef("/** %s */", comment(t.Description))
-			}
-			f.linef("export type %s = %s;", name, strings.Join(values, " | "))
-		case "union":
-			if t.Description != "" {
-				f.linef("/** %s */", comment(t.Description))
-			}
-			var variants []string
-			for _, variant := range t.Variants {
-				members := quote(t.Tag) + ": " + quote(variant.Tag)
-				if variant.Form != render.VariantEmpty {
-					members += "; " + quote(t.Value) + ": " + f.spell(variant.Type)
-				}
-				variants = append(variants, "{ "+members+" }")
-			}
-			f.linef("export type %s%s = %s;", name, f.declare(t.Uses), strings.Join(variants, " | "))
-		case "alias":
-			if t.Description != "" {
-				f.linef("/** %s */", comment(t.Description))
-			}
-			f.linef("export type %s%s = %s;", name, f.declare(t.Uses), f.spell(t.Alias))
-		}
+		f.emitType(t)
 	}
 	// The family as a slot of another family sees it: its descriptor and,
 	// for a generic family, the session families' union, which a parameter
@@ -175,6 +119,68 @@ func emitTypes(f *file) {
 	f.linef("export const %s = createValidator(contractTypes, { %s });", identValidateWire, strings.Join(validators, ", "))
 	f.line("/** This family bound: its name and its validator, to fill a slot of the session role in another family's client. */")
 	f.linef("export const %s = { name: %s, validate: %s } as const;", identFamilyValue, quote(fam.Name), identValidateWire)
+}
+
+// emitType is the declaration shared by package generation and documents.
+func (f *file) emitType(t *render.Type) {
+	p := f.plan
+	name := p.types[t.Name]
+	f.scope = t.Scope
+	switch t.Kind {
+	case "record", "entity":
+		if t.Description != "" {
+			f.linef("/** %s */", comment(t.Description))
+		}
+		if len(t.Fields) == 0 && !t.Open {
+			f.linef("export type %s%s = Record<string, never>;", name, f.declare(t.Uses))
+			return
+		}
+		f.w.Block(fmt.Sprintf("export interface %s%s {", name, f.declare(t.Uses)), "}", func() {
+			for _, field := range t.Fields {
+				optional, null := "", ""
+				if !field.Required {
+					optional = "?"
+				}
+				if field.Nullable {
+					null = " | null"
+				}
+				if field.Description != "" {
+					f.linef("/** %s */", comment(field.Description))
+				}
+				f.linef("%s%s: %s%s;", quote(field.Name), optional, f.spell(field.Type), null)
+			}
+			if t.Open {
+				f.line("[key: string]: unknown;")
+			}
+		})
+	case "enum":
+		values := make([]string, len(t.Values))
+		for i, v := range t.Values {
+			values[i] = quote(v)
+		}
+		if t.Description != "" {
+			f.linef("/** %s */", comment(t.Description))
+		}
+		f.linef("export type %s = %s;", name, strings.Join(values, " | "))
+	case "union":
+		if t.Description != "" {
+			f.linef("/** %s */", comment(t.Description))
+		}
+		var variants []string
+		for _, variant := range t.Variants {
+			members := quote(t.Tag) + ": " + quote(variant.Tag)
+			if variant.Form != render.VariantEmpty {
+				members += "; " + quote(t.Value) + ": " + f.spell(variant.Type)
+			}
+			variants = append(variants, "{ "+members+" }")
+		}
+		f.linef("export type %s%s = %s;", name, f.declare(t.Uses), strings.Join(variants, " | "))
+	case "alias":
+		if t.Description != "" {
+			f.linef("/** %s */", comment(t.Description))
+		}
+		f.linef("export type %s%s = %s;", name, f.declare(t.Uses), f.spell(t.Alias))
+	}
 }
 
 func comment(text string) string { return strings.ReplaceAll(text, "*/", "* /") }

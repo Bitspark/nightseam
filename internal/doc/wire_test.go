@@ -35,7 +35,7 @@ func proof(t *testing.T) *Family {
 			families[name][entry.Name()] = string(data)
 		}
 	}
-	return Build(render.Build(analysis.Resolve(analysis.World(modeltest.World(families)), "proof")))
+	return Build(render.Build(analysis.Resolve(analysis.World(modeltest.World(families)), "proof")), nil)
 }
 
 func typed(f *Family, name string) *Type {
@@ -158,7 +158,7 @@ func TestRefusalsAndReferences(t *testing.T) {
 			"protocol.json": modeltest.Protocol(`"server": {"methods": {"get": {"request": "Account", "result": {"array": "Account"}, "errors": ["not_found", "denied"]}}, "events": {"changed": {"type": {"ref": "Account"}}}}, "client": {"methods": {"confirm": {"request": "Holder", "result": "Status"}}}, "errors": {"not_found": "No such account.", "denied": ""}`),
 		},
 	}))
-	f := Build(render.Build(analysis.Resolve(world, "x")))
+	f := Build(render.Build(analysis.Resolve(world, "x")), nil)
 	get := f.Server.Methods[0]
 	if len(get.Frames.Refusals) != 2 || get.Frames.Refusals[0].Code != "not_found" || string(get.Frames.Refusals[0].Frame) != `{"version":1,"kind":"response","id":"c:1","error":{"code":"not_found","message":"No such account."}}` {
 		t.Errorf("get's refusals are %+v", get.Frames.Refusals)

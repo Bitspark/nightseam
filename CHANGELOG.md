@@ -20,6 +20,11 @@ are one number. Entries are in the words of the commits that landed them.
   `Sequence()` and TypeScript `sequence`, including replay-ending cursors
   and gaps from skipped frames. Tracking starts before reading and updates
   state before user callbacks; protocol-only clients gain no session state.
+- Language targets supply their own names, declarations and invocation
+  snippets to the document through `spi.Speller`. Markdown shows the
+  enabled languages beside types and operations; declarations and handler
+  signatures come from generated sources, and every call snippet is held
+  to the language's compiler.
 - The specification is a document the generator builds once from the
   declaration, `internal/doc`, and writers render: every type with an
   example value of it and where it is used, every operation as the frames
