@@ -1,5 +1,0 @@
-active/protocol.json#/client/methods/session.future: Operation session.future is in the namespace of the built-in session family; its operations come from the session tier and may not be declared by a consumer. [reserved_name]
-active/protocol.json#/server/events/session.control: Operation session.control is in the namespace of the built-in session family; its operations come from the session tier and may not be declared by a consumer. [reserved_name]
-plain/protocol.json#/client/events/session.future: Operation session.future is in the namespace of the built-in session family; its operations come from the session tier and may not be declared by a consumer. [reserved_name]
-plain/protocol.json#/server/methods/session.subscribe: Operation session.subscribe is in the namespace of the built-in session family; its operations come from the session tier and may not be declared by a consumer. [reserved_name]
-error: 4 problems
