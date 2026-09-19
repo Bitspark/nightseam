@@ -2,7 +2,6 @@ package typescript
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/naming"
@@ -335,10 +334,19 @@ func (f *file) liveCast(t *render.Type, export bool) string {
 }
 
 // liveConversion is what the client wraps a value in when an operation
-// carries callables, or the value itself when it does not.
+// carries callables, or the value itself when it does not. An operation may
+// be live in one direction only — a request carrying a callback whose result
+// is ordinary data — and on the way in the untouched side arrives as unknown,
+// so it is named there.
 func (f *file) liveConversion(e model.TypeExpr, src string, export bool) string {
-	if e == nil || !f.family.IsLive(e) {
+	if e == nil {
 		return src
+	}
+	if !f.family.IsLive(e) {
+		if export {
+			return src
+		}
+		return src + " as " + f.spell(e)
 	}
 	return f.liveExpr(e, src, export)
 }
@@ -360,6 +368,3 @@ func (f *file) liveNeeded(parts ...model.TypeExpr) bool {
 	}
 	return false
 }
-
-var _ = strings.TrimSpace
-var _ = fmt.Sprintf

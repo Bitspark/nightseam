@@ -8,6 +8,48 @@ The tiers it declares bring the built-in family `duplex`, imported implicitly.
 
 ## Types
 
+### RelieveRequest
+
+A record.
+
+Declared inline; its name is derived from its declaration path.
+
+| Field | Type | Presence | Constraints | Description |
+|---|---|---|---|---|
+| `shift` | `Shift` | required | — |  |
+| `sink` | `worker.ProgressSink` | required | — |  |
+
+In `go`:
+
+```go
+type RelieveRequest struct {
+	Shift Shift                       `json:"shift"`
+	Sink  workerprotocol.ProgressSink `json:"sink"`
+}
+```
+
+In `typescript`:
+
+```typescript
+export interface RelieveRequest {
+  "shift": Shift;
+  "sink": worker.ProgressSink;
+}
+```
+
+For example:
+
+```json
+{
+  "shift": {
+    "name": "‹name›"
+  },
+  "sink": {
+    "report": null
+  }
+}
+```
+
 ### Shift
 
 A record. Self-contained data, declared where data belongs.
@@ -41,7 +83,7 @@ For example:
 }
 ```
 
-Used by `Watch.shift`, `shift` (request).
+Used by `RelieveRequest.shift`, `Watch.shift`, `shift` (request), `relieve` (request, result).
 
 ### Watch
 
@@ -201,6 +243,7 @@ The server implements these methods and emits these events.
 | Method | Request | Result | Errors | Description |
 |---|---|---|---|---|
 | `shift` | `Shift` | `string` | — | Ordinary RPC that needs no live runtime. |
+| `relieve` | `RelieveRequest` | `Shift` | — | A shape written inline that carries a callable: named by where it sits, like any other, and converted at the boundary like any other. |
 | `watch` | `Watch` | `worker.Job` | `refused` | Takes an imported callback record. |
 
 ### `shift` on the wire
@@ -242,6 +285,54 @@ In `typescript`:
 
 ```typescript
 await client.shift(params)
+```
+
+### `relieve` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "relieve",
+  "params": {
+    "shift": {
+      "name": "‹name›"
+    },
+    "sink": {
+      "report": null
+    }
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "name": "‹name›"
+  }
+}
+```
+
+In `go`:
+
+```go
+client.Relieve(ctx, params)
+
+func (Handler) Relieve(ctx context.Context, remote *binding.Remote, params protocol.RelieveRequest) (protocol.Shift, error)
+```
+
+In `typescript`:
+
+```typescript
+await client.relieve(params)
 ```
 
 ### `watch` on the wire
