@@ -24,4 +24,24 @@ const result = await client.echo({ text: 'hello', count: 1 });
 console.log('echo    ->', result.text);
 console.log('changed ->', (await changed).text);
 
+// The third level. `notice` is written here as an ordinary function and
+// handed over inside the request; the generated client exported it into the
+// connection's live scope, so what the server received is a reference to this
+// implementation and not a copy of anything. `stop` comes back the same way.
+const notices: Payload[] = [];
+const subscription = await client.watch({
+  label: 'demo',
+  watcher: { notice: async (payload: Payload) => { notices.push(payload); } },
+});
+
+console.log('notice  ->', notices.at(-1)?.text);
+
+// Calling it runs server code written before this line existed, which calls
+// `notice` again — the reference this client handed over is still good after
+// the call that carried it returned. That is what makes it live rather than a
+// callback for the duration of one request.
+await subscription.stop();
+
+console.log('stopped ->', notices.at(-1)?.text);
+
 client.close();

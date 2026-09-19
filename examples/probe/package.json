@@ -12,6 +12,7 @@
     "start": "node --experimental-strip-types --disable-warning=ExperimentalWarning client/src/main.ts"
   },
   "dependencies": {
+    "@nightseam/live": "0.4.0",
     "@nightseam/runtime": "0.4.0",
     "@nightseam/tunnel": "0.4.0"
   },

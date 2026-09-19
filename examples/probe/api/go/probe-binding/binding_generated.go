@@ -7,6 +7,7 @@ import (
 	protocol "example.com/probe/api/go/probe-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
+	live "github.com/Bitspark/nightseam/live/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 	http "net/http"
 )
@@ -16,6 +17,8 @@ type Remote struct{ Peer *runtime.Peer }
 type Handler interface {
 	// Echo: Returns the payload, its text reversed by the caller.
 	Echo(ctx context.Context, remote *Remote, params protocol.Payload) (protocol.Payload, error)
+	// Watch: Takes a callback and answers a record of callables: a live reference travels in each direction within one call.
+	Watch(ctx context.Context, remote *Remote, params protocol.Watch) (protocol.Subscription, error)
 }
 
 // Reverse: Asks the client to reverse a payload.
@@ -66,15 +69,44 @@ func install(handler Handler, options *runtime.Options) error {
 		}
 		return result, nil
 	}
+	if _, exists := handlers["watch"]; exists {
+		return fmt.Errorf("duplicate handler %s", "watch")
+	}
+	handlers["watch"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
+		scope, ok := live.ScopeOf(peer)
+		if !ok {
+			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
+		}
+		params, err := protocol.ImportWatch(scope, raw)
+		if err != nil {
+			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+		}
+		result, err := handler.Watch(ctx, &Remote{Peer: peer}, params)
+		if err != nil {
+			return nil, err
+		}
+		return protocol.ExportSubscription(scope, result)
+	}
 	options.Handlers = handlers
 	families := map[string]string{}
 	for name, existing := range options.Families {
 		families[name] = existing
 	}
 	families["echo"] = "probe"
+	families["watch"] = "probe"
 	families["reverse"] = "probe"
 	families["changed"] = "probe"
 	options.Families = families
+	prepare := options.Prepare
+	options.Prepare = func(peer *runtime.Peer) error {
+		if _, err := live.Over(peer, live.Options{}); err != nil {
+			return err
+		}
+		if prepare != nil {
+			return prepare(peer)
+		}
+		return nil
+	}
 	return nil
 }
 
