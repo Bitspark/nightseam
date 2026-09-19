@@ -155,7 +155,7 @@ func (f *file) imports(validators bool) {
 // family's wire description by the runtime.
 func emitTypes(f *file) {
 	p, fam := f.plan, f.family
-	f.linef("import { createValidator, type %s, type %s, type %s, type TypeExpression, type WireType } from %s;", identAnyFamily, identFamilyBinding, identSlots, quote(f.config.Runtime))
+	f.linef("import { createValidator, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identSlots, quote(f.config.Runtime))
 	f.linef("export type { %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identSlots)
 	f.imports(true)
 	for _, t := range fam.Types {
@@ -223,7 +223,7 @@ func emitTypes(f *file) {
 		f.linef("export type %s = %s;", identSessionFamily, union)
 	}
 	f.line("")
-	f.linef("const contractTypes = %s as unknown as Record<string, WireType>;", fam.Wire)
+	f.linef("const contractTypes = %s as unknown as WireFamily;", fam.Wire)
 	var validators []string
 	for _, family := range fam.References {
 		validators = append(validators, quote(family)+": validate_"+alias(family))

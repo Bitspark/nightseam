@@ -140,10 +140,12 @@ func emitValidation(f *file) {
 	runtime := f.runtime()
 	var imported []string
 	for _, family := range f.family.References {
-		imported = append(imported, fmt.Sprintf("%q: %s.%s", family, f.peer(family), identValidateRaw))
+		imported = append(imported, fmt.Sprintf("%q: %s.%s()", family, f.peer(family), identWireSchema))
 	}
 	f.line("// schema is the family's wire description, as the runtime validates it; a type of another family is validated by that family's own validator.")
-	f.linef("var schema = %s.MustSchema(%s, map[string]%s.Imported{%s})", runtime, quote(f.family.Wire), runtime, strings.Join(imported, ", "))
+	f.linef("var schema = %s.MustSchema(%s, map[string]*%s.Schema{%s})", runtime, quote(f.family.Wire), runtime, strings.Join(imported, ", "))
+	f.linef("// %s supplies the family's descriptor and imports for scoped validation.", identWireSchema)
+	f.linef("func %s() *%s.Schema { return schema }", identWireSchema, runtime)
 	f.line("")
 	f.linef("// %s verifies a named contract value, including null and field presence; at roots the diagnostic where a family that imports this one holds the value.", identValidateRaw)
 	f.linef("func %s(name string, data []byte, at ...string) error { return schema.%s(name, data, at...) }", identValidateRaw, identValidateRaw)

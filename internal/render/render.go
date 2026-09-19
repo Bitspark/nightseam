@@ -349,7 +349,10 @@ func wire(f *analysis.Family) string {
 	for _, name := range f.TypeNames() {
 		types[name] = f.Types[name]
 	}
-	data, _ := json.Marshal(types)
+	data, _ := json.Marshal(struct {
+		Types      map[string]*model.Type `json:"types"`
+		Parameters []model.Parameter      `json:"parameters,omitempty"`
+	}{types, f.Parameters()})
 	return string(data)
 }
 
