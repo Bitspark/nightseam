@@ -286,3 +286,23 @@ test('an open that becomes no channel is refused where it was refused and where 
   assert.equal(asked[1]!.reason, 'a channel is opened for a family');
   assert.deepEqual(seenByClient.of('channel.opened').map(event => event.family), ['probe']);
 });
+
+test('a frame beyond the window ends the channel, and what is held is one window deep', async () => {
+  // The receiver holds what nobody has listened for, one window deep, as the
+  // Go channel's inbox does: a sender that ignores the credit it was granted
+  // is refused rather than held without bound.
+  const { client, ct, st } = await tunnels({ window: 2 });
+  const [opened, accepted] = await pair(ct, st);
+  const atClient = collect(opened);
+  opened.send({ kind: 'text', data: '1' });
+  opened.send({ kind: 'text', data: '2' });
+  await tick();
+  assert.equal(accepted.state, 'open', 'a window\'s worth is held, not refused');
+  // One more, past the credit the receiver granted. Only the outer peer can
+  // send it: the channel's own send would wait for credit that never comes.
+  await client.emit('channel.frame', { channel: opened.id, text: 'beyond' });
+  await tick();
+  assert.equal(accepted.state, 'closed');
+  assert.equal(atClient.closed?.code, 1002);
+  assert.equal(atClient.closed?.reason, 'a frame beyond the window of 2');
+});

@@ -1,0 +1,138 @@
+{
+  "name": "a frame beyond the window ends the channel, and the window's worth held before it is still delivered",
+  "layer": "tunnel",
+  "needs": [
+    "lazy",
+    "peer",
+    "seam",
+    "tunnel"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "tunnel.over",
+      "args": {
+        "on": "$pa",
+        "options": {
+          "window": 2
+        }
+      },
+      "bind": "ta"
+    },
+    {
+      "on": "b",
+      "op": "tunnel.over",
+      "args": {
+        "on": "$pb",
+        "options": {
+          "window": 2
+        }
+      },
+      "bind": "tb"
+    },
+    {
+      "on": "b",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$tb",
+        "family": "probe",
+        "consume": "eager"
+      },
+      "bind": {
+        "handle": "cb",
+        "id": "id"
+      },
+      "note": "the sender reads its own end of the channel, which is how it is told the channel ended"
+    },
+    {
+      "on": "a",
+      "op": "tunnel.accept",
+      "args": {
+        "on": "$ta",
+        "consume": "lazy"
+      },
+      "bind": {
+        "handle": "ca"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "text",
+        "text": "1"
+      }
+    },
+    {
+      "on": "b",
+      "op": "conn.send",
+      "args": {
+        "on": "$cb",
+        "kind": "text",
+        "text": "2"
+      },
+      "note": "a window's worth, which the receiver holds since nobody reads it"
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "channel.frame",
+        "data": {
+          "channel": "$id",
+          "text": "beyond"
+        }
+      },
+      "note": "one past the credit the receiver granted; only the outer peer can send it, since the channel's own send would wait for credit that never comes, and this is what a peer of another making may do"
+    },
+    {
+      "on": "b",
+      "op": "conn.await_close",
+      "args": {
+        "on": "$cb"
+      },
+      "expect": {
+        "code": 1002,
+        "reason": "a frame beyond the window of 2"
+      },
+      "note": "the sender learns of the refusal from its own end of the channel, under the code and the reason the receiver decided"
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "1"
+      },
+      "note": "what the window held is delivered; the refusal is of the frame beyond it and not of the ones it had room for"
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "2"
+      },
+      "note": "what the window held is delivered in order; the refusal is of the frame beyond it and not of the ones it had room for"
+    }
+  ]
+}

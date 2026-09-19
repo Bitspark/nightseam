@@ -303,6 +303,13 @@ tunnel observes through its peer's observer; its events reach
 (`family`, `id`, `code`, `reason`), `credit.stall` (`family`, `id`,
 `waiting`), `open.refused` (`family`, `reason`).
 
+A scenario provokes a credit violation with `peer.emit` on the outer peer
+rather than with `conn.send` on the channel: a channel's own send waits for
+credit it was not granted, so the only way to put a frame beyond the window on
+the wire is to write a `channel.frame` event on the peer the tunnel runs over,
+naming the channel by the `id` `tunnel.open` answered with. That is what a peer
+of another making may do, and what the receiving side is held to refusing.
+
 ### Session — `session.*`, `attachment.*`
 
 The session component: `session/go`, `@nightseam/session`.

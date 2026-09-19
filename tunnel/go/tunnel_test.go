@@ -280,3 +280,31 @@ func TestOpenIsRefusedWhenNobodyAccepts(t *testing.T) {
 		t.Fatal("a channel of no family opened")
 	}
 }
+
+// TestAFrameBeyondTheWindowEndsTheChannel: the receiver's inbox is one window
+// deep, so a sender that ignores the credit it was granted is refused rather
+// than held without bound. The frame beyond it goes out on the outer peer
+// itself, which is the only way past this side's own credit and is what a peer
+// of another making may do; nothing here receives, so the window stays full.
+func TestAFrameBeyondTheWindowEndsTheChannel(t *testing.T) {
+	client, server := peers(t, tunnel.Options{Window: 2})
+	a, _ := pair(t, client, server)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for i := 0; i < 2; i++ {
+		if err := a.Send(ctx, duplex.Frame{Kind: duplex.Text, Data: []byte("x")}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := client.Peer().Emit(ctx, tunnel.FrameEvent, map[string]any{"channel": a.ID, "text": "beyond"}); err != nil {
+		t.Fatal(err)
+	}
+	// The sender learns of the refusal from its own end of the channel.
+	var closed *duplex.CloseError
+	if _, err := a.Receive(ctx); !errors.As(err, &closed) {
+		t.Fatalf("the sender's channel ended with %v", err)
+	}
+	if closed.Code != duplex.CodeProtocolError || closed.Reason != "a frame beyond the window of 2" {
+		t.Fatalf("the channel ended with %d %q", int(closed.Code), closed.Reason)
+	}
+}

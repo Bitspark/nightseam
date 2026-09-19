@@ -344,10 +344,13 @@ func (t *Tunnel) onFrame(_ context.Context, _ *runtime.Peer, raw json.RawMessage
 		c.fail(duplex.CodeTooLarge, fmt.Sprintf("a frame of %d bytes exceeds the limit of %d", len(frame.Data), t.options.MaxFrameBytes))
 		return
 	}
+	// The inbox is one window deep, so a sender that ignores the credit this
+	// side returned finds no room rather than a queue that grows to its
+	// choosing; the TypeScript channel bounds what it holds the same way.
 	select {
 	case c.inbox <- frame:
 	default:
-		c.fail(duplex.CodeProtocolError, "a frame beyond the window")
+		c.fail(duplex.CodeProtocolError, fmt.Sprintf("a frame beyond the window of %d", t.options.Window))
 	}
 }
 

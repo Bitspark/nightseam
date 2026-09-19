@@ -273,7 +273,7 @@ export class Channel implements FrameConnection {
   private credit: number;
   private taken = 0;
   private readonly queued: Frame[] = [];
-  /** Frames that arrived before anyone listened, delivered — and credited — when someone does; a close that arrived after them waits behind them. */
+  /** Frames that arrived before anyone listened, delivered — and credited — when someone does; a close that arrived after them waits behind them. One window deep, as the Go channel's inbox is. */
   private readonly held: Frame[] = [];
   private heldClose?: { code: number; reason: string };
   private readonly listeners = new Set<ConnectionHandlers>();
@@ -345,6 +345,15 @@ export class Channel implements FrameConnection {
   deliver(frame: Frame): void {
     if (this.current !== 'open') return;
     if (this.listeners.size === 0) {
+      // What nobody has listened for yet is one window deep, as the Go
+      // channel's inbox is: a sender that ignores the credit this side
+      // returned finds no room rather than a queue that grows to its
+      // choosing, so what a channel holds is this side's window and never
+      // the other side's choice.
+      if (this.held.length >= this.tunnel.limits.window) {
+        this.fail(1002, `a frame beyond the window of ${this.tunnel.limits.window}`);
+        return;
+      }
       this.held.push(frame);
       return;
     }
@@ -390,6 +399,13 @@ export class Channel implements FrameConnection {
     this.queued.length = 0;
     this.tunnel.remove(this.id);
     void this.tunnel.emit(CLOSE_EVENT, { channel: this.id, code, reason }).catch(() => { /* The outer peer reports its own failure. */ });
+    // What was held is still delivered, and the refusal comes behind it, as a
+    // close from the other side does: a channel refused while nobody listened
+    // tells the first listener why it ended rather than ending silently.
+    if (this.listeners.size === 0 && this.held.length > 0) {
+      this.heldClose = { code, reason };
+      return;
+    }
     this.ended(code, reason);
   }
 

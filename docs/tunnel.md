@@ -85,10 +85,12 @@ buffer — it stalls its own sender and nothing else.
   once and the other side sees 1006, as it would a dropped transport.
 - The outer connection closing ends every channel with 1001, going away,
   and each side's connection sees it.
-- What arrives before anyone receives is held: in Go a channel has an inbox
-  of a window's frames; in TypeScript a channel holds frames until the first
-  listener, delivers and credits them then, and a close that arrived behind
-  them comes last.
+- What arrives before anyone receives is held, one window deep in both: in
+  Go a channel's inbox is a window's frames, in TypeScript a channel holds as
+  many until the first listener and delivers and credits them then, and a
+  frame arriving beyond them is the refusal above rather than a queue that
+  grows to the sender's choosing. A close that arrived behind them comes
+  last, the refusal of the frame that overran the window among them.
 - A channel the other side opened is taken by `Accept` or by resolving its
   id (`Channel(id)` in Go, `channel(id)` in TypeScript — which is what the
   generated `Open` does with a handle); channels nobody has taken are bounded
