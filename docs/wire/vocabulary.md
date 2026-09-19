@@ -11,7 +11,10 @@ person to ask reads the test rather than repeating them.
 
 ## The test
 
-A member belongs in the profile's envelope when, and only when, **the peer
+This is the wire's instance of the general test for what is Nightseam's,
+[admitting a concept](../admission.md): a member the peer acts on is a
+primitive of the profile, and a layer's own vocabulary is a composition of
+it. A member belongs in the profile's envelope when, and only when, **the peer
 acts on it**. Every member of every kind is there because the peer
 correlates, cancels, dispatches or propagates by it: `id` correlates a
 response to its request, `method` dispatches, `traceparent` is propagated
