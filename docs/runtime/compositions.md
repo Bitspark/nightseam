@@ -7,13 +7,18 @@ invokes in both directions, a tunnel that multiplexes channels over it, and
 `protocol.json` tier, `{"channel": N}` on the wire.
 
 This page is that construction, and it is held by running code rather than
-described: `cmd/nightseam/testdata/compositions/` is a checkout of six
-families and two programs, rendered by the generator and run in Go and in
-TypeScript over real sockets by
-[`TestComposedLiveReferences`](../../cmd/nightseam/composition_test.go).
-Every rule below names the case that holds it. Where the construction falls
+described. `cmd/nightseam/testdata/compositions/` is a checkout of six
+families and two languages' programs, rendered by the generator and run over
+real sockets by
+[`TestComposedLiveReferences`](../../cmd/nightseam/composition_test.go);
+every rule below names the case that holds it. Where the construction falls
 short, the page says so and names the issue it was handed to, because a
 composition proof is only worth what its failures are worth.
+
+It is also the composition attempt that [admitting a
+concept](../admission.md#3-the-composition-attempt) requires before a live
+binding may be called a primitive. That page's live-layer table carries what
+it found.
 
 ## The exchange
 
