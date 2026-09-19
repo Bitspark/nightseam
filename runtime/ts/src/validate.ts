@@ -190,6 +190,14 @@ function checkPattern(value: string): void {
     } else if (!inClass) {
       if (outsidePattern.some((prefix) => rest.startsWith(prefix))) refuse();
       if (/^\(\?[imsUu-]+[):]/.test(rest)) refuse();
+      // Compare decimal bounds exactly; engines may saturate large counts
+      // before checking their order, admitting a reversed interval.
+      const bounds = /^\{([0-9]+),([0-9]+)\}/.exec(rest);
+      if (bounds) {
+        const lower = bounds[1]!.replace(/^0+/, '') || '0';
+        const upper = bounds[2]!.replace(/^0+/, '') || '0';
+        if (lower.length > upper.length || (lower.length === upper.length && lower > upper)) refuse();
+      }
       if (value[index] === '[') inClass = true;
     } else if (value[index] === ']') inClass = false;
   }
