@@ -483,7 +483,12 @@ function validate(expression: Expression, value: unknown, location: string): voi
         }
         if (reference['contract'] !== definition.contract) {
           throw new Error(
-            location + '.contract: the reference carries ' + reference['contract'] + ' where ' + definition.contract + ' is expected',
+            location +
+              '.contract: the reference carries ' +
+              reference['contract'] +
+              ' where ' +
+              definition.contract +
+              ' is expected',
           );
         }
         for (const key of Object.keys(reference).sort()) {
