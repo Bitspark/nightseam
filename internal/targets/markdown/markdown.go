@@ -302,7 +302,9 @@ func (p *page) example(t *doc.Type) {
 	}
 	p.line("")
 	p.line("For example:")
-	p.json(t.Example)
+	if p.exampleInfo(t.ExampleInfo) {
+		p.json(t.Example)
+	}
 	if len(t.UsedBy) == 0 {
 		return
 	}
@@ -329,6 +331,35 @@ func (p *page) example(t *doc.Type) {
 	}
 	p.line("")
 	p.linef("Used by %s.", strings.Join(uses, ", "))
+}
+
+// exampleInfo displays exactly the bindings used to synthesize and validate
+// the value. False means no JSON value exists for this example.
+func (p *page) exampleInfo(info doc.ExampleInfo) bool {
+	var names []string
+	for name := range info.ExampleBindings {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var bindings []string
+	for _, name := range names {
+		binding := info.ExampleBindings[name]
+		value := binding.Type
+		if binding.Family != "" {
+			value = "family " + binding.Family
+		}
+		bindings = append(bindings, code(name+" = "+value))
+	}
+	if len(bindings) != 0 {
+		p.line("")
+		p.linef("Example bindings: %s.", strings.Join(bindings, ", "))
+	}
+	if reason := info.ExampleUnavailable; reason != nil {
+		p.line("")
+		p.linef("Example unavailable (%s): %s.", reason.Kind, reason.Reason)
+		return false
+	}
+	return true
 }
 
 // json writes a value as a fenced block, indented for a reader.
@@ -397,6 +428,10 @@ func (p *page) side(name, intro string, side doc.Side) {
 	for _, m := range side.Methods {
 		p.line("")
 		p.linef("### `%s` on the wire", m.Name)
+		if !p.exampleInfo(m.ExampleInfo) {
+			p.languageBlocks(m.Languages)
+			continue
+		}
 		p.line("")
 		p.linef("The %s sends:", caller)
 		p.json(m.Frames.Request)
@@ -413,6 +448,10 @@ func (p *page) side(name, intro string, side doc.Side) {
 	for _, e := range side.Events {
 		p.line("")
 		p.linef("### `%s` on the wire", e.Name)
+		if !p.exampleInfo(e.ExampleInfo) {
+			p.languageBlocks(e.Languages)
+			continue
+		}
 		p.line("")
 		p.linef("The %s emits:", callee)
 		p.json(e.Frame)

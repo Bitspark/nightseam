@@ -53,10 +53,11 @@ const Timestamp = "2026-01-01T00:00:00Z"
 // order, an array, or a scalar as its JSON text. It is serialized once,
 // canonically, when the document takes it.
 type value struct {
-	members []member // an object's, in order; nil for an object with none
-	items   []value  // an array's
-	scalar  json.RawMessage
-	kind    byte // 'o', 'a' or 's'
+	unavailable *ExampleUnavailable
+	members     []member // an object's, in order; nil for an object with none
+	items       []value  // an array's
+	scalar      json.RawMessage
+	kind        byte // 'o', 'a' or 's'
 }
 
 // member is one member of an example object.
@@ -72,6 +73,9 @@ func text(s string) value            { data, _ := json.Marshal(s); return value{
 func placeholder(name string) value  { return text("‹" + name + "›") }
 func (v value) isObject() bool       { return v.kind == 'o' }
 func (v value) raw() json.RawMessage {
+	if v.problem() != nil {
+		return nil
+	}
 	var b bytes.Buffer
 	v.write(&b)
 	return json.RawMessage(b.Bytes())
@@ -109,6 +113,9 @@ func (v value) write(b *bytes.Buffer) {
 // weight counts the values an example carries: every scalar that is not
 // null, an empty object or array counting nothing.
 func (v value) weight() int {
+	if v.problem() != nil {
+		return 0
+	}
 	switch v.kind {
 	case 'o':
 		n := 0
@@ -132,27 +139,28 @@ func (v value) weight() int {
 // exampler synthesizes example values of a family's types. A placeholder
 // string is the member's name between angle quotes, ‹text›, so that a
 // reader sees which member a value stands for; a number is its lower bound
-// or zero; an enum is its first value; a union is its first variant by
-// tag, which is the order the model holds them in, a declaration's
-// variants being members of an object; a recursion is folded to null where
-// the type reappears on the path.
+// or zero; an enum is its first value; a union tries its variants in model
+// order. Recursion makes a candidate unavailable, allowing a nullable value,
+// optional field, empty container or another union arm to end the example.
 type exampler struct {
 	f     *render.Family
 	trail map[string]bool
 	// subst is a type's parameters as an application fills them: each an
 	// example of the filler, taken in the applying family's scope, which is
 	// where the filler was spelled.
-	subst map[string]filler
+	subst     map[string]filler
+	remaining *int
 }
 
 type filler func(name string, c constraints) value
 
 func newExampler(f *render.Family) *exampler {
-	return &exampler{f: f, trail: map[string]bool{}, subst: map[string]filler{}}
+	remaining := 4096
+	return &exampler{f: f, trail: map[string]bool{}, subst: map[string]filler{}, remaining: &remaining}
 }
 
 func (x *exampler) in(f *render.Family) *exampler {
-	return &exampler{f: f, trail: x.trail, subst: map[string]filler{}}
+	return &exampler{f: f, trail: x.trail, subst: map[string]filler{}, remaining: x.remaining}
 }
 
 // constraints are the constraints a field puts on its value.
@@ -175,7 +183,7 @@ func fieldOf(f render.Field) model.Field {
 func (x *exampler) example(t *render.Type) value { return x.typed(t, t.Name, constraints{}) }
 
 // variantExample starts at a particular arm rather than the first arm.
-// Mark its enclosing declaration before descending so recursion folds at
+// Mark its enclosing declaration before descending so recursion stops at
 // the same boundary as the type's primary example.
 func (x *exampler) variantExample(t *render.Type, v render.Variant) value {
 	key := x.f.Name + "." + t.Name
@@ -187,6 +195,10 @@ func (x *exampler) variantExample(t *render.Type, v render.Variant) value {
 // value is an example of an expression; name is what a placeholder stands
 // for.
 func (x *exampler) value(e model.TypeExpr, name string, c constraints) value {
+	*x.remaining--
+	if *x.remaining < 0 || len(x.trail) > 64 {
+		return unavailable("example exceeds the synthesis budget")
+	}
 	switch v := e.(type) {
 	case nil:
 		return null
@@ -199,14 +211,14 @@ func (x *exampler) value(e model.TypeExpr, name string, c constraints) value {
 		if t := x.f.Type(v.Name); t != nil {
 			return x.typed(t, name, c)
 		}
-		return placeholder(v.Name)
+		return unavailable("no concrete binding for " + v.Name)
 	case model.Imported:
 		return x.applied(model.Apply{Family: v.Family, Name: v.Name}, name, c)
 	case model.Drawn:
 		if filled, ok := x.subst[v.Parameter+"."+v.Name]; ok {
 			return filled(name, c)
 		}
-		return placeholder(v.Parameter + "." + v.Name)
+		return unavailable("no concrete binding for " + v.Parameter + "." + v.Name)
 	case model.Array:
 		n := 1
 		if c.length != nil {
@@ -217,15 +229,29 @@ func (x *exampler) value(e model.TypeExpr, name string, c constraints) value {
 				n = min(n, *c.length.Max)
 			}
 		}
+		if n > *x.remaining {
+			return unavailable("array length exceeds the synthesis budget")
+		}
 		items := make([]value, n)
 		for i := range items {
 			items[i] = x.value(v.Elem, name, constraints{})
+			if items[i].problem() != nil && (c.length == nil || c.length.Min == nil || *c.length.Min == 0) {
+				return array()
+			}
 		}
 		return array(items...)
 	case model.Map:
-		return object(member{"‹key›", x.value(v.Elem, name, c)})
+		item := x.value(v.Elem, name, constraints{})
+		if item.problem() != nil {
+			return object()
+		}
+		return object(member{"‹key›", item})
 	case model.Nullable:
-		return x.value(v.Elem, name, c)
+		item := x.value(v.Elem, name, c)
+		if item.problem() != nil {
+			return null
+		}
+		return item
 	case model.Literal:
 		return text(v.Value)
 	case model.Ref:
@@ -248,10 +274,14 @@ func (x *exampler) value(e model.TypeExpr, name string, c constraints) value {
 func (x *exampler) primitive(p model.Primitive, name string, c constraints) value {
 	switch p {
 	case "string":
+		if c.length != nil && c.length.Min != nil && *c.length.Min > 4096 {
+			return unavailable("string length exceeds the synthesis budget")
+		}
 		if c.pattern != "" {
 			if example, ok := patternExample(c.pattern, c.length); ok {
 				return text(example)
 			}
+			return unavailable("pattern search found no witness within the synthesis budget")
 		}
 		return text(bounded("‹"+name+"›", c.length))
 	case "boolean":
@@ -268,11 +298,11 @@ func (x *exampler) primitive(p model.Primitive, name string, c constraints) valu
 	return null
 }
 
-// typed is an example of a declared type, folded to null where it recurs.
+// typed is an example of a declared type, bounded where it recurs.
 func (x *exampler) typed(t *render.Type, name string, c constraints) value {
 	key := x.f.Name + "." + t.Name
 	if x.trail[key] {
-		return null
+		return unavailable("recursive declaration has no witness within the synthesis budget")
 	}
 	x.trail[key] = true
 	defer delete(x.trail, key)
@@ -313,7 +343,13 @@ func (x *exampler) shape(kind string, fields []model.Field, values []string, ali
 		if len(variants) == 0 {
 			return null
 		}
-		return x.variant(tag, valueMember, variants[0])
+		for _, variant := range variants {
+			candidate := x.variant(tag, valueMember, variant)
+			if candidate.problem() == nil {
+				return candidate
+			}
+		}
+		return unavailable("no union arm has a witness within the synthesis budget")
 	}
 	return null
 }
@@ -322,7 +358,15 @@ func (x *exampler) shape(kind string, fields []model.Field, values []string, ali
 func (x *exampler) record(fields []model.Field) value {
 	var members []member
 	for _, field := range fields {
-		members = append(members, member{field.Name, x.value(field.Type, field.Name, of(field))})
+		item := x.value(field.Type, field.Name, of(field))
+		if item.problem() != nil {
+			if field.Nullable {
+				item = null
+			} else if !field.Required {
+				continue
+			}
+		}
+		members = append(members, member{field.Name, item})
 	}
 	return object(members...)
 }
