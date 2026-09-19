@@ -1,5 +1,16 @@
 {
   "profile": "nightseam.duplex/1",
+  "types": {
+    "Carried": {
+      "kind": "union",
+      "tag": "kind",
+      "variants": {
+        "handle": "duplex.Handle",
+        "envelope": "duplex.Envelope",
+        "none": { "empty": true }
+      }
+    }
+  },
   "server": {
     "methods": {
       "echo": {

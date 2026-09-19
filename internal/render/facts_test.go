@@ -5,12 +5,48 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"testing/fstest"
 
 	"github.com/Bitspark/nightseam/internal/analysis"
 	"github.com/Bitspark/nightseam/internal/load"
 	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
 )
+
+func TestCarriedUnionPayloadsDoNotImportTheirBuiltinOrigin(t *testing.T) {
+	world, diagnostics := load.Checkout(fstest.MapFS{
+		"base/model.json": {Data: []byte(`{"nightseam":2}`)},
+		"base/protocol.json": {Data: []byte(`{"profile":"nightseam.duplex/1","types":{
+			"Carried":{"kind":"union","tag":"kind","variants":{"handle":"duplex.Handle","envelope":"duplex.Envelope","none":{"empty":true}}}
+		}}`)},
+		"derived/model.json": {Data: []byte(`{"nightseam":2}`)},
+		"derived/protocol.json": {Data: []byte(`{"profile":"nightseam.duplex/1","imports":["base"],"types":{
+			"Carried":{"kind":"union","tag":"kind","extends":["base.Carried"],"variants":{"text":"string"}}
+		}}`)},
+	}, ".", nil)
+	if len(diagnostics) != 0 {
+		t.Fatal(diagnostics)
+	}
+	for _, name := range []string{"base", "derived"} {
+		t.Run(name, func(t *testing.T) {
+			r := Build(analysis.Resolve(analysis.World(world.Families), name))
+			var want []string
+			if name == "derived" {
+				want = []string{"base"}
+			}
+			if !reflect.DeepEqual(r.References, want) {
+				t.Fatalf("generated package references = %v, want %v", r.References, want)
+			}
+			for _, variant := range r.Type("Carried").Variants {
+				if variant.Tag == "handle" || variant.Tag == "envelope" {
+					if variant.Payload == nil || !variant.Payload.Carried || variant.Payload.Origin.Family != "duplex" {
+						t.Fatalf("carried payload lost its provenance: %+v", variant)
+					}
+				}
+			}
+		})
+	}
+}
 
 func proof(t *testing.T) *analysis.Family {
 	t.Helper()

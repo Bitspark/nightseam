@@ -191,14 +191,14 @@ operator's verdict on
 [#202](https://github.com/Bitspark/nightseam/issues/202), and this finding is
 the evidence it was decided on.
 
-**4. A carried built-in as a union variant does not render.**
-`{"variants": {"sink": "duplex.Handle"}}` validates and then emits, in both
-languages, an import of a package the generator never renders; the checkout
-does not build. Filed as
-[#210](https://github.com/Bitspark/nightseam/issues/210) with the five-line
-case. This checkout works around it by wrapping the handle in a record
-variant, which carries the reference in a sum just as transitively; the direct
-form belongs to that issue.
+**4. A carried built-in as a union variant imported an absent package.**
+[#210](https://github.com/Bitspark/nightseam/issues/210) traced this to import
+collection treating the payload's built-in provenance as a package dependency.
+Carried payloads now remain local in both languages, and this checkout uses
+`{"variants": {"sink": "duplex.Handle"}}` directly.
+`TestReferencesInProductsSumsAndContainers` and its TypeScript cross-wire
+counterpart exercise that form; the golden corpus also includes
+`duplex.Envelope` as a variant and compiles both renderings.
 
 One further asymmetry is worth writing down even though it does not survive
 the callable verdict on

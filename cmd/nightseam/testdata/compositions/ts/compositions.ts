@@ -196,7 +196,7 @@ const held: Held = {
   many: [references[1]!, { channel: 9999 }],
   by_name: { a: references[2]! },
   maybe: references[3]!,
-  either: { kind: 'sink', value: { at: references[4]! } },
+  either: { kind: 'sink', value: references[4]! },
   inline: { held: references[5]!, label: 'inline' },
 };
 const counted = await client.collect(held);
