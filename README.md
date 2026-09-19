@@ -78,6 +78,30 @@ scenario by scenario, so a peer of any language is held to the reference
 before it is released; `conformance/matrix.json` is the last run's standing
 of each language in each profile.
 
+## Languages
+
+A language is in Nightseam when it is in this table, and what it promises is
+its **tier**: 1 guarantees every profile with no lag, 2 guarantees `core` and
+`generator` always and every other profile within a minor release, and 3 and
+4 are one band — *reference-held* — that the `generator` column tells apart.
+[docs/tiers.md](docs/tiers.md) says what each promise and each profile is.
+
+<!-- matrix:start -->
+| language | tier | core | generator | tunnel | session | observability | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
+| `typescript` | 1 | ✓ | ✓ 4 skipped | ✓ | ✓ | ✓ | ok |
+
+Planned, with no testee yet: `python`, `rust` at tier 2; `cpp`, `csharp`, `haskell`, `java` at tier 4.
+<!-- matrix:end -->
+
+The table is the last conformance run, rendered from
+`conformance/matrix.json` by `node scripts/matrix-table.mjs`; CI fails a pull
+request whose table has drifted from the matrix, as `nightseam check` fails
+one whose generated output is stale. A red cell in a profile the language's
+tier guarantees refuses a release; elsewhere it is what the tier's lag
+allows.
+
 ## Install
 
 ```

@@ -65,6 +65,18 @@ jobs:
         with:
           name: conformance-matrix
           path: conformance/matrix.json
+      # The scripts that read the matrix — the README's table and the release
+      # gate — hold themselves first, on fixture matrices no run has produced
+      # yet, since a gate first exercised by the release it refuses is a gate
+      # nobody has run.
+      - run: node --test 'scripts/*.test.mjs'
+      # The README's Languages table against the matrix the step above just
+      # wrote, as `nightseam check` holds generated output: a table that
+      # drifted fails the pull request that drifted it. This catches a stale
+      # checked-in matrix.json too — the table is rendered from the committed
+      # file and compared against the regenerated one, so a run that moved a
+      # cell shows up here whether or not the file was committed with it.
+      - run: node scripts/matrix-table.mjs --check
       - run: go vet ./...
         working-directory: otel/go
       - run: go test ./...
