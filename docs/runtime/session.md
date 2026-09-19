@@ -15,7 +15,10 @@ is [the session](../wire/session.md).
 ## The surface
 
 ```go
-registry := session.New(session.Options{})
+registry, err := session.New(session.Options{})
+if err != nil {
+    return err
+}
 registry.Bind(id, up, session.Governance{Decides: chatclient.Decides, Asks: chatclient.Asks}, session.NewMemoryLog(1<<20))
 attachment, _ := registry.Attach(id, down, session.Participant, "consumer:7", after)
 attachment.Holder()                // who holds control, as this consumer was told
@@ -61,7 +64,7 @@ attachment from this side.
 The registry is configured by the value passed where it is made:
 `session.Options`, to `session.New`, in Go; `RegistryOptions`, to `new
 Registry(...)`, in TypeScript. Every member is optional and a member left
-out takes the default — zero or less in Go, absent in TypeScript, and `new
+out takes the default — zero in Go, absent in TypeScript, and `new
 Registry()` with nothing at all is the default registry.
 
 | Go | TypeScript | default | meaning |
@@ -71,9 +74,12 @@ Registry()` with nothing at all is the default registry.
 | `SendTimeout` | — | 10s | Go only: how long a frame may wait for a connection; a consumer that does not take its frames is detached, a machine that does not ends the session — a Go send taking a context it can wait on where the TypeScript connection's `send` hands the frame over and returns, leaving nothing to bound |
 | `Observer` | `observer` | none | where a session tells what it does when its machine's connection observes through nothing of its own (§ observing it) |
 
-What a registry settled on is readable back in TypeScript, `registry.limit`,
-and a member that is not a positive integer is refused there with
-`invalid_options` where Go takes it for the default.
+Go's `session.New(options) (*Registry, error)` refuses a negative
+`MaxAttachments`, `MaxInflight` or `SendTimeout` with a nil registry and a
+`*session.Error` whose code is `invalid_options`; zero still selects the
+default. TypeScript refuses an explicitly supplied limit that is not a
+positive integer, including zero, with `invalid_options`. What a registry
+settled on is readable back in TypeScript, `registry.limit`.
 
 ## The log
 
@@ -137,7 +143,7 @@ neighbours in Go.
 
 | code | what it refuses |
 | --- | --- |
-| `invalid_options` | a limit that is not a limit — `maxAttachments` or `maxInflight` in TypeScript, where Go's `Options` reads zero or less as the default — and, in Go, a replay given nowhere to deliver |
+| `invalid_options` | a negative `MaxAttachments`, `MaxInflight` or `SendTimeout` in Go; a supplied `maxAttachments` or `maxInflight` that is not a positive integer in TypeScript; and, in Go, a replay given nowhere to deliver |
 | `no_session` | no session is bound under that id, or the one that was has ended: `Attach` and `Control` both |
 | `not_attached` | control given to a consumer that is not attached to this session, one of another's or one that has left |
 | `not_controlling` | control given to an observer — and, on the wire, a deciding frame from a consumer that does not hold control |

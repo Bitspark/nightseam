@@ -54,16 +54,24 @@ func Run(t *testing.T, connect Connect) {
 	// run over a peer seats the same observer there, where a relay reads it
 	// first; one whose connections do not leaves this the only place it is,
 	// which is the precedence stated and the reason both are given it.
-	observedBy := func(options session.Options, observer runtime.Observer) *session.Registry {
+	observedBy := func(t *testing.T, options session.Options, observer runtime.Observer) *session.Registry {
+		t.Helper()
 		options.Observer = observer
-		return session.New(options)
+		registry, err := session.New(options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return registry
 	}
 
 	// bind makes a registry with one session bound, and returns the machine's
 	// end of its channel.
 	bind := func(t *testing.T, id string) (*session.Registry, *speaker) {
 		t.Helper()
-		registry := session.New(session.Options{})
+		registry, err := session.New(session.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
 		near, far := connect(t, nil)
 		if err := registry.Bind(id, near, governance, session.NewMemoryLog(0)); err != nil {
 			t.Fatal(err)
@@ -373,7 +381,10 @@ func Run(t *testing.T, connect Connect) {
 				t.Fatal(err)
 			}
 		}
-		registry := session.New(session.Options{})
+		registry, err := session.New(session.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
 		near, far := connect(t, nil)
 		if err := registry.Bind("s", near, governance, log); err != nil {
 			t.Fatal(err)
@@ -500,7 +511,10 @@ func Run(t *testing.T, connect Connect) {
 	})
 
 	t.Run("attention is every session the machine asked of", func(t *testing.T) {
-		registry := session.New(session.Options{})
+		registry, err := session.New(session.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
 		machines := map[string]*speaker{}
 		holders := map[string]*speaker{}
 		for _, id := range []string{"one", "two"} {
@@ -549,7 +563,7 @@ func Run(t *testing.T, connect Connect) {
 		// was given, which are one domain change said twice. The scenarios
 		// above, in one run.
 		events := observing()
-		registry := observedBy(session.Options{}, events)
+		registry := observedBy(t, session.Options{}, events)
 		changes := watching(t, registry, "s")
 		near, far := connect(t, events)
 		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
@@ -729,7 +743,7 @@ func Run(t *testing.T, connect Connect) {
 		// consumer's connection runs over hears what that connection carries
 		// and nothing of the session it is attached to.
 		up, down := observing(), observing()
-		registry := observedBy(session.Options{}, up)
+		registry := observedBy(t, session.Options{}, up)
 		near, _ := connect(t, up)
 		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
 			t.Fatal(err)
@@ -755,7 +769,7 @@ func Run(t *testing.T, connect Connect) {
 		// a credential; it is in nothing any change or any event says.
 		const sentinel = "sentinel-6f9c2a"
 		events := observing()
-		registry := observedBy(session.Options{}, events)
+		registry := observedBy(t, session.Options{}, events)
 		changes := watching(t, registry, "s")
 		near, far := connect(t, events)
 		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
@@ -828,7 +842,10 @@ func Run(t *testing.T, connect Connect) {
 	})
 
 	t.Run("a request beyond what a session may have open is refused, and the refusal is a change like any other", func(t *testing.T) {
-		registry := session.New(session.Options{MaxInflight: 1})
+		registry, err := session.New(session.Options{MaxInflight: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
 		changes := watching(t, registry, "s")
 		near, far := connect(t, nil)
 		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
@@ -861,7 +878,10 @@ func Run(t *testing.T, connect Connect) {
 	})
 
 	t.Run("stopping a registration stops it and no other", func(t *testing.T) {
-		registry := session.New(session.Options{})
+		registry, err := session.New(session.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
 		kept := watching(t, registry, "s")
 		stopped := watching(t, registry, "s")
 		stopped.stop()
@@ -1035,7 +1055,10 @@ func Run(t *testing.T, connect Connect) {
 				t.Fatal(err)
 			}
 		}
-		registry := session.New(session.Options{})
+		registry, err := session.New(session.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
 		near, far := connect(t, nil)
 		if err := registry.Bind("s", near, governance, log); err != nil {
 			t.Fatal(err)
@@ -1185,7 +1208,10 @@ func Run(t *testing.T, connect Connect) {
 		refused(t, "control given to a consumer that has left", session.ErrorNotAttached, registry.Control("s", one))
 
 		// No room for another consumer.
-		full := session.New(session.Options{MaxAttachments: 1})
+		full, err := session.New(session.Options{MaxAttachments: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
 		near, far := connect(t, nil)
 		_ = newSpeaker("machine", far, false)
 		if err := full.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {

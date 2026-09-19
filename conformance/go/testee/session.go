@@ -111,7 +111,11 @@ func (t *testee) sessionOps() map[string]func(request) (any, error) {
 					return nil, unsupported("session option " + key)
 				}
 			}
-			reg := &registry{Registry: session.New(options), changes: newInbox[session.Change]()}
+			created, err := session.New(options)
+			if err != nil {
+				return nil, sessionError(err)
+			}
+			reg := &registry{Registry: created, changes: newInbox[session.Change]()}
 			reg.stop = reg.OnChange(func(c session.Change) { reg.changes.put(c) })
 			return map[string]any{"handle": t.mint("reg", reg)}, nil
 		},

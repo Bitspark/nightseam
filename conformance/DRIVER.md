@@ -345,8 +345,10 @@ The session component: `session/go`, `@nightseam/session`.
 A `role` that is neither is handed to the session rather than refused by the
 testee, and so is a negative `after`: what those are refused with is the
 layer's, `role_invalid` and `sequence_invalid`, and a scenario holds the code
-the session gives rather than the testee's own reading of an argument. The
-refusals of `session.bind`, `session.attach` and `session.control` are
+the session gives rather than the testee's own reading of an argument.
+Negative registry limits likewise reach `session.new`'s constructor rather
+than being refused by the testee. The refusals of `session.new`,
+`session.bind`, `session.attach` and `session.control` are
 answered under *any other* above — the session's code verbatim, the same ten
 names in every language: `invalid_options`, `no_session`, `not_attached`,
 `not_controlling`, `origin_invalid`, `role_invalid`, `sequence_invalid`,

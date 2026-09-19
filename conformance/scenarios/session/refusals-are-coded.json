@@ -2,7 +2,7 @@
   "name": "a session refuses with the code its vocabulary names, and the same code in either language",
   "layer": "session",
   "replaces": "session/go/sessiontest and session/ts/src/conformance.ts, across the wire",
-  "description": "What a session call refuses with is the API a consumer's server is written against: a code a program branches on, never prose it would have to match. The six the wire can reach are held here \u2014 no_session, role_invalid, sequence_invalid, too_many_attachments, session_exists and not_controlling \u2014 each provoked on a session that stands, and the session still routing afterwards.",
+  "description": "What a session call refuses with is the API a consumer's server is written against: a code a program branches on, never prose it would have to match. Negative registry limits are refused with invalid_options; no_session, role_invalid, sequence_invalid, too_many_attachments, session_exists and not_controlling are each provoked on a session that stands, and the session still routing afterwards.",
   "needs": [
     "lazy",
     "peer",
@@ -13,6 +13,30 @@
   ],
   "mirror": true,
   "steps": [
+    {
+      "on": "a",
+      "op": "session.new",
+      "args": {
+        "options": {
+          "max_attachments": -1
+        }
+      },
+      "expect_error": {
+        "code": "invalid_options"
+      }
+    },
+    {
+      "on": "a",
+      "op": "session.new",
+      "args": {
+        "options": {
+          "max_inflight": -1
+        }
+      },
+      "expect_error": {
+        "code": "invalid_options"
+      }
+    },
     {
       "on": "runner",
       "op": "pair.peers",
