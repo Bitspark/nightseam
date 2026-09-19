@@ -7,6 +7,7 @@ import (
 	protocol "example.com/probe/api/go/probe-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
+	live "github.com/Bitspark/nightseam/live/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 	tunnel "github.com/Bitspark/nightseam/tunnel/go"
 )
@@ -25,6 +26,7 @@ type Handler interface {
 // Caller is the protocol's caller side: every operation a client sends. Client implements it.
 type Caller interface {
 	Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
+	Watch(ctx context.Context, params protocol.Watch) (protocol.Subscription, error)
 }
 
 var _ Caller = (*Client)(nil)
@@ -64,11 +66,15 @@ func install(handler Handler, events Events, options *runtime.Options) error {
 		families[name] = existing
 	}
 	families["echo"] = "probe"
+	families["watch"] = "probe"
 	families["reverse"] = "probe"
 	families["changed"] = "probe"
 	options.Families = families
 	prepare := options.Prepare
 	options.Prepare = func(peer *runtime.Peer) error {
+		if _, err := live.Over(peer, live.Options{}); err != nil {
+			return err
+		}
 		client := &Client{Peer: peer}
 		if events.Changed != nil {
 			if err := client.OnChanged(events.Changed); err != nil {
@@ -137,6 +143,24 @@ func (c *Client) Echo(ctx context.Context, params protocol.Payload) (protocol.Pa
 		return result, err
 	}
 	return result, nil
+}
+
+// Watch: Takes a callback and answers a record of callables: a live reference travels in each direction within one call.
+func (c *Client) Watch(ctx context.Context, params protocol.Watch) (protocol.Subscription, error) {
+	var result protocol.Subscription
+	scope, ok := live.ScopeOf(c.Peer)
+	if !ok {
+		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
+	}
+	sent, err := protocol.ExportWatch(scope, params)
+	if err != nil {
+		return result, err
+	}
+	var raw json.RawMessage
+	if err := c.Peer.Call(ctx, "watch", sent, &raw); err != nil {
+		return result, err
+	}
+	return protocol.ImportSubscription(scope, raw)
 }
 func (c *Client) OnChanged(handler func(context.Context, protocol.Payload)) error {
 	return c.Peer.HandleEvent("changed", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {

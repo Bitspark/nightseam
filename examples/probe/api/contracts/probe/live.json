@@ -1,0 +1,61 @@
+{
+  "types": {
+    "Notice": {
+      "kind": "callable",
+      "description": "Told about a payload the server saw. The client implements it and hands it over; the server calls it back across the seam.",
+      "request": "Payload"
+    },
+    "Stop": {
+      "kind": "callable",
+      "description": "Asks the server to stop sending notices. Releasing the reference to it is not this, and cancelling the call that returned it is neither."
+    },
+    "Watcher": {
+      "kind": "record",
+      "description": "An interface, which is a record of callable members; each member is its own binding, with its own lifetime.",
+      "fields": [
+        {
+          "name": "notice",
+          "description": "Called once for every payload the server sees while the subscription lasts.",
+          "type": "Notice"
+        }
+      ]
+    },
+    "Subscription": {
+      "kind": "record",
+      "description": "What watch answers: a record of callables the client calls back, held apart from the call that returned it.",
+      "fields": [
+        {
+          "name": "stop",
+          "description": "Ends the subscription.",
+          "type": "Stop"
+        }
+      ]
+    },
+    "Watch": {
+      "kind": "record",
+      "description": "A callable supplied as an argument, beside ordinary data.",
+      "fields": [
+        {
+          "name": "label",
+          "description": "What to call this subscription; data, and carried as data.",
+          "type": "string"
+        },
+        {
+          "name": "watcher",
+          "description": "The interface the server calls back.",
+          "type": "Watcher"
+        }
+      ]
+    }
+  },
+  "server": {
+    "methods": {
+      "watch": {
+        "description": "Takes a callback and answers a record of callables: a live reference travels in each direction within one call.",
+        "request": "Watch",
+        "result": "Subscription",
+        "errors": ["denied"]
+      }
+    }
+  }
+}

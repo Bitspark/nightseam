@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -47,19 +49,45 @@ func TestGeneratedSiblingsInstallLocally(t *testing.T) {
 		t.Run(manager, func(t *testing.T) {
 			dir := t.TempDir()
 			writeAll(t, dir, renderTool(t, corpusRoot))
-			manifestData, err := os.ReadFile(filepath.Join(dir, "api/ts/probe-client/package.json"))
+			// Every @nightseam package any generated manifest declares gets a
+			// stub, read off the manifests rather than listed here: a family that
+			// gains a tier gains a dependency, and the fixture that installs it
+			// offline should not have to be told which.
+			runtimes := map[string]string{}
+			manifests, err := filepath.Glob(filepath.Join(dir, "api/ts/*/package.json"))
 			if err != nil {
 				t.Fatal(err)
 			}
-			var manifest struct{ Dependencies map[string]string }
-			if err := json.Unmarshal(manifestData, &manifest); err != nil {
-				t.Fatal(err)
+			for _, path := range manifests {
+				manifestData, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var manifest struct{ Dependencies map[string]string }
+				if err := json.Unmarshal(manifestData, &manifest); err != nil {
+					t.Fatal(err)
+				}
+				for name, version := range manifest.Dependencies {
+					if strings.HasPrefix(name, "@nightseam/") {
+						runtimes[name] = version
+					}
+				}
+			}
+			if len(runtimes) < 2 {
+				t.Fatalf("the generated manifests declare %v; they declare the runtime and the tunnel at least", runtimes)
+			}
+			names := make([]string, 0, len(runtimes))
+			for name := range runtimes {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			var overrides strings.Builder
+			for _, name := range names {
+				fmt.Fprintf(&overrides, "  '%s': 'workspace:*'\n", name)
+				writeFixture(t, dir, "stubs/"+strings.TrimPrefix(name, "@nightseam/")+"/package.json", []byte(`{"name":"`+name+`","version":"`+runtimes[name]+`","private":true}`))
 			}
 			writeFixture(t, dir, "package.json", []byte(`{"name":"sibling-install","private":true,"workspaces":["api/ts/*","stubs/*"]}`))
-			writeFixture(t, dir, "pnpm-workspace.yaml", []byte("packages:\n  - 'api/ts/*'\n  - 'stubs/*'\nlinkWorkspacePackages: false\noverrides:\n  '@nightseam/runtime': 'workspace:*'\n  '@nightseam/tunnel': 'workspace:*'\n"))
-			for _, name := range []string{"runtime", "tunnel"} {
-				writeFixture(t, dir, "stubs/"+name+"/package.json", []byte(`{"name":"@nightseam/`+name+`","version":"`+manifest.Dependencies["@nightseam/"+name]+`","private":true}`))
-			}
+			writeFixture(t, dir, "pnpm-workspace.yaml", []byte("packages:\n  - 'api/ts/*'\n  - 'stubs/*'\nlinkWorkspacePackages: false\noverrides:\n"+overrides.String()))
 			writeFixture(t, dir, "install.mjs", []byte(`import {spawnSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
