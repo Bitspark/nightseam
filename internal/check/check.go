@@ -27,6 +27,7 @@ type concern struct {
 var concerns = []concern{
 	{Name: "protocol", File: model.ProtocolFile, Check: Protocol},
 	{Name: "session", File: model.SessionFile, Check: Session},
+	{Name: "live", File: model.LiveFile, Check: Live},
 }
 
 // Family runs every check the family's tiers call for, in tier order, and
@@ -138,6 +139,41 @@ func (c *checker) type_(t *model.Type, name string, context int, scope []model.P
 		c.union(t, where)
 	case model.KindAlias:
 		c.expression(t.Alias, t.At.Sub("type"), site{owner: name, context: context, scope: scope, edges: edges})
+	case model.KindCallable:
+		c.callable(t, where)
+	}
+}
+
+// callable holds the live tier's own kind: it is declared in the live tier
+// and nowhere else, it takes no parameters of its own, and its request and
+// result are ordinary type expressions of its tier or below.
+//
+// The tier rule then does the rest of the work with no machinery of its
+// own. A callable is declared in live.json, so its rank is the live tier's,
+// so a record of model.json or an operation of protocol.json that names one
+// is already a tier_violation — which is why ordinary data and RPC stay
+// usable with no live registry anywhere, and why that independence is a
+// consequence of the language rather than a promise about it.
+func (c *checker) callable(t *model.Type, where site) {
+	if t.At.File != model.LiveFile {
+		c.Addf(t.At.Sub("kind"), "callable_tier", "Callable %s is declared in %s; a callable is the live tier's kind and is declared in %s, which is what keeps a value of a lower tier self-contained data.", t.Name, t.At.File, model.LiveFile)
+	}
+	if len(t.Parameters) > 0 {
+		c.Addf(t.At.Sub("parameters", 0), "callable_parameters", "Callable %s declares parameters. A reference to a callable carries the identity of the declaration it implements, and a generic callable has one identity per application rather than one declaration; declare a callable for each filled shape until that is settled.", t.Name)
+	}
+	if t.Request != nil {
+		c.expression(t.Request, t.At.Sub("request"), where)
+	}
+	if t.Result != nil {
+		c.expression(t.Result, t.At.Sub("result"), where)
+	}
+	for i, code := range t.Errors {
+		if c.f.Protocol == nil {
+			continue
+		}
+		if _, declared := c.f.Protocol.Error(code); !declared {
+			c.Addf(t.At.Sub("errors", i), "unknown_error", "Callable %s may return %s, which the family does not declare among its errors.", t.Name, code)
+		}
 	}
 }
 
@@ -320,6 +356,8 @@ func (c *checker) inlineType(t *model.Type, at diag.Location, where site) {
 		}
 	case model.KindAlias:
 		c.Add(at, "inline_not_admissible", "An alias gives a shape a second name; written inline it gives it none.")
+	case model.KindCallable:
+		c.Add(at, "callable_inline", "A callable is declared under a name of its own and referred to by it: a reference to one carries the identity of the declaration it implements, and a callable written inline has no declaration to name. Lift it into the live tier's types and name it here.")
 	default:
 		c.Addf(at, "invalid_shape", "A shape written inline is a record, an enum or a union, not a %s.", t.Kind)
 	}
@@ -665,19 +703,8 @@ func Protocol(f *analysis.Family) []diag.Diagnostic {
 	context := model.Rank(model.ProtocolFile)
 	where := site{context: context, inline: true}
 	wire := map[string]diag.Location{}
-	reserved := func(name string, at diag.Location) {
-		for _, tier := range model.Tiers {
-			if tier.Builtin == "" || tier.Carries || !strings.HasPrefix(name, tier.Builtin+".") {
-				continue
-			}
-			owner, ok := f.Builtin(tier.Builtin)
-			if ok && f.Source != owner.Source {
-				c.Addf(at, "reserved_name", "Operation %s is in the namespace of the built-in %s family; its operations come from the %s tier and may not be declared by a consumer.", name, tier.Builtin, tier.Name)
-			}
-		}
-	}
 	operation := func(direction, name string, at diag.Location) {
-		reserved(name, at)
+		c.reservedOperation(name, at)
 		key := direction + ":" + name
 		if previous, ok := wire[key]; ok {
 			c.Addf(at, "operation_collision", "Operation %s collides with the one at %s: both flow %s under one name.", name, previous, direction)

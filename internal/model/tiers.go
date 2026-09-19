@@ -26,6 +26,7 @@ const (
 	ModelFile    = "model.json"
 	ProtocolFile = "protocol.json"
 	SessionFile  = "session.json"
+	LiveFile     = "live.json"
 )
 
 // Tiers is every tier, lowest first. A concern is added here, with its
@@ -34,6 +35,7 @@ var Tiers = []Tier{
 	{Name: "model", Rank: 0, File: ModelFile, Sections: []string{"nightseam"}},
 	{Name: "protocol", Rank: 1, File: ProtocolFile, Sections: []string{"profile", "parameters", "server", "client", "errors"}, Builtin: "duplex", Carries: true},
 	{Name: "session", Rank: 2, File: SessionFile, Sections: []string{"decides", "asks", "conversation", "extensions"}, Builtin: "session"},
+	{Name: "live", Rank: 3, File: LiveFile, Sections: []string{"server", "client"}},
 }
 
 // TierOf finds a tier by its file name, whether the file is a consumer's or
@@ -83,6 +85,11 @@ const (
 // SessionRole is the tier a family carries when it has a session tier:
 // what a parameter of session binds to.
 const SessionRole = "session"
+
+// LiveRole is the tier a family carries when it has a live tier: what a
+// parameter of live binds to, and what makes a draw through that
+// parameter live.
+const LiveRole = "live"
 
 // TierRoles is every tier a family parameter may be `of` — the tiers above
 // the model, which every family has — in tier order.

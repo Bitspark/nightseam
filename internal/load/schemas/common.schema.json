@@ -359,6 +359,38 @@
               }
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "const": "callable"
+            },
+            "description": {
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/parameters"
+            },
+            "request": {
+              "$ref": "#/$defs/expr"
+            },
+            "result": {
+              "$ref": "#/$defs/expr"
+            },
+            "errors": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
         }
       ]
     },
@@ -460,6 +492,91 @@
           }
         }
       ]
+    },
+    "side": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "extends": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sideInheritance"
+          }
+        },
+        "methods": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/wireName"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "result"
+            ],
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "request": {
+                "$ref": "#/$defs/expr"
+              },
+              "result": {
+                "$ref": "#/$defs/expr"
+              },
+              "errors": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        },
+        "events": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/wireName"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "type": {
+                "$ref": "#/$defs/expr"
+              }
+            }
+          }
+        },
+        "crud": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/typeName"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "list",
+                "get",
+                "create",
+                "update",
+                "delete"
+              ]
+            }
+          }
+        }
+      }
     }
   }
 }

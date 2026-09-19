@@ -1,39 +1,20 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:nightseam:v1:protocol",
+  "$id": "urn:nightseam:v1:live",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "profile"
-  ],
   "properties": {
-    "profile": {
-      "const": "nightseam.duplex/1"
-    },
     "imports": {
       "$ref": "urn:nightseam:v1:common#/$defs/imports"
     },
     "types": {
       "$ref": "urn:nightseam:v1:common#/$defs/types"
     },
-    "parameters": {
-      "$ref": "urn:nightseam:v1:common#/$defs/parameters"
-    },
     "server": {
       "$ref": "urn:nightseam:v1:common#/$defs/side"
     },
     "client": {
       "$ref": "urn:nightseam:v1:common#/$defs/side"
-    },
-    "errors": {
-      "type": "object",
-      "propertyNames": {
-        "type": "string",
-        "minLength": 1
-      },
-      "additionalProperties": {
-        "type": "string"
-      }
     }
   }
 }

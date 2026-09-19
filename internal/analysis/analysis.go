@@ -475,6 +475,10 @@ func (f *Family) Locate(key string) (diag.Location, bool) {
 // which a tier brings to a family that has it.
 func (f *Family) Builtin(name string) (*model.Family, bool) { return builtin.Family(name) }
 
+// Namespaces is the operation namespace of each layer that speaks on the
+// wire, by the prefix it owns: what a consumer's operation may not be in.
+func (f *Family) Namespaces() map[string]string { return builtin.Namespaces() }
+
 // Carriers are the families other than this one that carry a tier — what a
 // family parameter of that tier may bind — by name, resolved once.
 func (f *Family) Carriers(role string) map[string]*Family {
