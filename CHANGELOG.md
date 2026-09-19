@@ -39,6 +39,36 @@ are one number. Entries are in the words of the commits that landed them.
   renders under a directory of its own, since two runs may share one
   checkout; and `matrix.json` is written only by a run that held every
   profile for every language.
+- A getting-started a consumer can run, and the release's own smoke: one
+  family under `examples/probe` — three tier files, the generated Go,
+  TypeScript and Markdown packages committed beside them, the server's
+  behavior where `nightseam init` writes it, served through
+  `binding.NewHandler`, and a TypeScript client that answers the reverse
+  call the server makes inside the request it is serving and hears the
+  event it emitted — the README's three blocks made to run. It carries no
+  `workspace:*` and no `replace`: it names the packages at the released
+  version and resolves against nothing in the tree, which is what lets
+  `scripts/smoke-packed.mjs` pack every published package, copy the example
+  out of the workspace and install it from the tarballs and a `file://`
+  module proxy before a tag exists, and `scripts/smoke-registry.mjs` install
+  it from npm and the module proxy after one — the release workflow runs
+  the first before it publishes and the second after, and the second's
+  failure opens an issue naming the tag.
+- A consumer of a session is told who holds control and where it stands:
+  the relay speaks the session's own vocabulary on the wire as ordinary
+  events under the prefix the session tier reserves — `session.control`
+  `{"holder": "<origin>"|null}` to every attachment when control is given,
+  released or transferred and once to a consumer on attach before its
+  replay, and `session.cursor` `{"sequence": N}` to the one attachment a
+  frame was delivered to, straight after it, naming the log's own sequence
+  so that a cursor never moves backwards. Neither is logged, a session's own
+  frames being state and not messages of it; a machine that sends a
+  `session.` frame is refused. The attachment exposes `Holder()` /
+  `holder`, `OnControl` / `onControl` and `Sequence()` / `sequence` in both
+  languages; the typed generated surface follows in 0.4.0.
+- Go dials with a deadline: `ConnectTimeout` on `DialOptions`, the twin of
+  TypeScript's `connectTimeoutMs`, thirty seconds where zero, refusing a
+  handshake that outlasts it with `connect_timeout` as a `*PublicError`.
 - `docs/layers.md`, the test for where something new on the wire belongs:
   the profile's only when the peer acts on it; a layer's own vocabulary as
   ordinary frames under a reserved prefix when one layer produces it and
@@ -133,6 +163,33 @@ are one number. Entries are in the words of the commits that landed them.
   targets where the tool has three, and would have gone on validating output
   the tool no longer produces with nothing saying so. `TestImportDirection`
   refuses a target named anywhere else.
+- Nothing in the tree is named for a version that was never published: the
+  schema identifiers are `urn:nightseam:v1:*`, the first public version of
+  the declaration language, where they said `v2` of a first shape the tier
+  files replaced before anyone consumed it; `cmd/nightseam`'s composition
+  file and its fixtures are named for the tool rather than for a count.
+- One spelling per limit across the two runtimes: TypeScript's
+  `maxIncomingRequests` is `maxConcurrentHandlers` and `maxQueuedMessages`
+  is `queueCapacity`, the Go names being the reading since they say what is
+  bounded; defaults unchanged at 64 and 128; `docs/profile.md` tables the
+  limits by name in both languages.
+- `runtime/go`'s `TypeExpression` is `MustTypeExpression`, named for the
+  panic it answers an expression it cannot read with, as `MustSchema` beside
+  it is; every generated protocol package re-exports it under that name,
+  its only caller being generated code passing a constant the generator
+  wrote.
+- What npm shows of the five packages is written for the reader who has npm
+  open: each README opens with its install line and links into the
+  repository where it named bare paths; each manifest carries an author and
+  exports `./package.json`; declaration maps are no longer emitted, every
+  one having pointed at a `src` the tarballs do not hold; each build empties
+  `dist` first. `otel/go` has the README its `go get` was without;
+  `.github/CODEOWNERS` routes review to the maintainer.
+- The release workflow runs in the `release` environment, so that every run
+  — a tag's or a rehearsal's — waits for its required reviewer; the first
+  publish of each package name is made with a one-day granular token on the
+  `@nightseam` scope, and once the five exist each names the workflow in
+  that environment as its trusted publisher and the token is deleted.
 - Every exported name a consumer meets first carries its doc comment, in
   `runtime/go` and in the published TypeScript packages — what pkg.go.dev
   and a `.d.ts` show a reader before anything else.
@@ -208,6 +265,55 @@ are one number. Entries are in the words of the commits that landed them.
   channel refused while nobody was listening keeps the close for its first
   listener. Held by a case in each language and by a tunnel scenario that
   writes `channel.frame` on the peer the tunnel runs over, in both pairings.
+- A consumer's server can tell a session's refusals apart in Go as it could
+  in TypeScript: `session/go` returned twenty-three English sentences where
+  `session/ts` throws a `DuplexError` with one of ten codes; the ten are
+  constants of `session/go` too, name for name — `invalid_options`,
+  `no_session`, `not_attached`, `not_controlling`, `origin_invalid`,
+  `role_invalid`, `sequence_invalid`, `session_exists`, `session_invalid`,
+  `too_many_attachments`, with `busy` beside them — and every refusal
+  `Bind`, `Attach`, `Control` and the log return is a `*session.Error` that
+  `errors.As` and `errors.Is` reach; `docs/session.md`'s table names the
+  code on every row; a scenario holds the codes across the wire.
+- A binary frame on a session's connection ends it as unsupported data,
+  1003, in both languages, where TypeScript closed with 1008 and a reason
+  about the message rather than the frame; 1008 stays for text that is not
+  a message; `docs/profile.md` lists 1003 among the close codes, and a
+  session scenario reaches the case in both pairings.
+- One refusal reads one way in both validators: the pointer names the
+  member and the text states the fact — `$.count: required field missing`,
+  `$.note: null is not permitted`, `$.zzz: unknown field` — where the
+  TypeScript validator pointed at the parent and spelled each differently;
+  `conformance/tables/validator.json` carries the message on its invalid
+  rows and both runtimes are held to it. The two also read an absent
+  `required` flag opposite ways, Go as optional and TypeScript as required,
+  latent only because the generator always writes it; TypeScript reads it
+  as Go does, held by rows with a field that carries no flag.
+- The TypeScript pipe carries the backpressure that is the point of a pipe:
+  the bound Go's has, eight frames a direction, and the `buffered` a peer
+  paces on, where `pipe()` declared `buffered = 0` and delivered every send
+  at once; held by the seam suite in TypeScript and a seam scenario that
+  exhausts the bound in both pairings.
+- Three things a release would have tripped on or told wrong: a test in the
+  TypeScript target asserted the literal `0.2.0` that `scripts/version.mjs`
+  never rewrites, which would have failed the tag workflow's own `go test`
+  after the tag existed; `cmd/nightseam`'s package doc named the runtime's
+  import path without its `/go`; and the README and RELEASING.md said the
+  four runtime packages depend on nothing, true on npm and not in Go, where
+  the WebSocket transport is a third-party module.
+- A frame of no kind is refused with one sentinel, `duplex.ErrNoKind`, where
+  three transports spelled it three ways; the registry's 1005 is
+  `CodeNoStatus` in Go and an exported `NO_STATUS` in `@nightseam/duplex`;
+  the three codes `channel.open` is refused with are constants of
+  `@nightseam/tunnel` as they are of `tunnel/go`; the two runtimes' limit
+  refusals say *must not be negative*, which is what they check.
+- The documents say what the code does where an audit found them overtaken:
+  `docs/layers.md` illustrated the session layer with an operation that
+  never existed; `docs/language.md` numbered the tiers wrong and called the
+  override files a tier; `docs/tiers.md` described `profiles.json` as globs
+  and lists; CONTRIBUTING.md's first bullet had lost its dash; COLLABORATION.md
+  sent a report to a form the templates do not have. `gofmt -l` is a gate in
+  CI's fast job.
 
 ## 0.2.0
 
