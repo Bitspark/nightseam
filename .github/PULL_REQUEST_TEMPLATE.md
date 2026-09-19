@@ -20,7 +20,7 @@ the area it changes: `runtime/go: …`, `tunnel/ts: …`, `generator: …`,
 ---
 
 - [ ] Both tiers are green: `go test ./...`, `pnpm -r check && pnpm -r build && pnpm -r test`, and `go vet ./... && go test ./...` inside `otel/go`.
-- [ ] The README's Languages table matches `conformance/matrix.json`: `node scripts/matrix-table.mjs --check`.
+- [ ] The README's Languages table matches `conformance/matrix.json`: `node scripts/matrix-table.mjs --check`; every link in every page resolves: `node scripts/links.mjs`.
 - [ ] **Parity** — a change to one language's runtime component carries its twin, and the shared suite says so; or the change touches neither runtime.
 - [ ] **Goldens** — output-changing work is two commits, the logic and then `goldens: regenerate — feature: <what changed>`; `testdata/surface` changed only if the generated packages' exported surface did.
 - [ ] No generated code was edited by hand.

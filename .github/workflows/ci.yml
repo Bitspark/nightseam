@@ -84,6 +84,12 @@ jobs:
       # file and compared against the regenerated one, so a run that moved a
       # cell shows up here whether or not the file was committed with it.
       - run: node scripts/matrix-table.mjs --check
+      # Every link in every tracked Markdown page resolves to the tree — a
+      # file, a directory, a heading — including the repository's own
+      # absolute URLs, which the package READMEs use so as to render on npm.
+      # A page moved without its inbound links fails the pull request that
+      # moved it, rather than a reader some weeks later.
+      - run: node scripts/links.mjs
       # The getting-started example's checked-in generated output, held the
       # way a consumer's is. The example is a Go module and a pnpm project
       # of its own, so neither `go test ./...` above nor `pnpm -r` enters it.

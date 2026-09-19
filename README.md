@@ -182,6 +182,7 @@ go test ./...                                     # the full tier: both language
 pnpm install && pnpm -r check && pnpm -r build && pnpm -r test
 (cd otel/go && go vet ./... && go test ./...)     # the nested module, which ./... does not enter
 node scripts/matrix-table.mjs --check             # the README's Languages table against the matrix
+node scripts/links.mjs                            # every link in every page resolves to the tree
 ```
 
 The full tier needs Go, Node 22.12 or later and the TypeScript compiler
