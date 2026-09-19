@@ -1,5 +1,9 @@
 # @nightseam/otel
 
+```sh
+npm install @nightseam/otel
+```
+
 The OpenTelemetry adapter for Nightseam: the propagator that puts a trace on
 the wire and the observer that turns what a peer sees into spans. It is a
 package of its own so that `@nightseam/duplex`, `@nightseam/runtime`,

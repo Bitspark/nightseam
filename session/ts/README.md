@@ -1,5 +1,9 @@
 # @nightseam/session
 
+```sh
+npm install @nightseam/session
+```
+
 A session as a thing that outlives connections, over a tunnel's channels:
 one up channel the machine speaks the family on, any number of down channels
 the consumers speak it on in a role each, one holder of control, an ask
@@ -51,5 +55,8 @@ a consumer's only itself.
 It has no authentication, no rule about who may take control or for how
 long, no durable store and no lifecycle of its own: those are the
 consumer's, called in. `Log` is the interface a durable store implements;
-`memoryLog` is the one shipped. The full description is `docs/session.md`
-in the repository.
+`memoryLog` is the one shipped. The full description is
+[docs/session.md](https://github.com/Bitspark/nightseam/blob/main/docs/session.md).
+
+Apache-2.0, with `NOTICE` beside it. The repository is
+[Bitspark/nightseam](https://github.com/Bitspark/nightseam).

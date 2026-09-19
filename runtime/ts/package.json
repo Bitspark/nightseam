@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "description": "The peer of the nightseam.duplex/1 profile for the browser and Node: requests, responses, events, cancellation, trace context, the wire validator.",
   "license": "Apache-2.0",
+  "author": "Bitspark",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Bitspark/nightseam.git",
@@ -39,15 +40,16 @@
         "types": "./dist/index.d.ts",
         "import": "./dist/index.js",
         "default": "./dist/index.js"
-      }
+      },
+      "./package.json": "./package.json"
     }
   },
   "dependencies": {
     "@nightseam/duplex": "workspace:*"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "check": "tsc --noEmit --strict --target ES2022 --module nodenext --allowImportingTsExtensions --skipLibCheck src/index.ts",
-    "test": "node --experimental-strip-types --test src/carriage.test.ts src/console.test.ts src/peer.test.ts src/trace.test.ts src/validate.test.ts"
+    "test": "node --experimental-strip-types --test --test-timeout=10000 src/carriage.test.ts src/console.test.ts src/peer.test.ts src/trace.test.ts src/validate.test.ts"
   }
 }

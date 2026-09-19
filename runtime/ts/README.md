@@ -1,5 +1,9 @@
 # @nightseam/runtime
 
+```sh
+npm install @nightseam/runtime
+```
+
 The peer of the `nightseam.duplex/1` profile for the browser and Node: JSON
 frames carrying requests, responses, events and cancellations both ways over
 a `FrameConnection` of `@nightseam/duplex`, with no third-party dependency.
@@ -41,8 +45,8 @@ initiator's `c:` or `s:` prefix. Errors carry `code`, `message` and optional
 envelope or a binary frame closes the connection. Parsing uses `JSON.parse`,
 so a duplicate member keeps its last value and number precision beyond
 JavaScript's safe integers is lost before the validator sees it; the Go peer
-rejects both. The profile is described in full in `docs/profile.md` of the
-repository.
+rejects both. The profile is described in full in
+[docs/profile.md](https://github.com/Bitspark/nightseam/blob/main/docs/profile.md).
 
 ## Trace context
 
@@ -97,8 +101,9 @@ methods and a clock so that a test captures it with four functions.
 A layer running over the peer — `@nightseam/tunnel`, `@nightseam/session`, or
 one of your own — declares its events into `ObserverEvents` and emits them
 through the same observer, so a `switch (event.type)` stays exhaustive over
-every layer imported. `docs/observability.md` in the repository has the rule
-and every event.
+every layer imported.
+[docs/observability.md](https://github.com/Bitspark/nightseam/blob/main/docs/observability.md) has the
+rule and every event.
 
 ## The connection beneath
 
@@ -110,5 +115,5 @@ it to `attach`; the peer sends the next frame only once `buffered` reads
 zero, and close codes are the WebSocket registry's numbers on every
 transport.
 
-Run `pnpm --filter @nightseam/runtime check` and
-`pnpm --filter @nightseam/runtime test` from the repository root.
+Apache-2.0, with `NOTICE` beside it. The repository is
+[Bitspark/nightseam](https://github.com/Bitspark/nightseam).

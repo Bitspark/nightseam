@@ -1,5 +1,9 @@
 # @nightseam/tunnel
 
+```sh
+npm install @nightseam/tunnel
+```
+
 Channels multiplexed over one peer of the `nightseam.duplex/1` profile.
 Either side opens a channel, naming the family it will speak and the last
 sequence it holds; each channel is a `FrameConnection` of `@nightseam/duplex`,
@@ -42,5 +46,9 @@ beside the runtime's. A layer built over a channel reaches the same observer
 with `channel.observe(event)`.
 
 The Go tunnel and this one are held to each other over a real socket. The
-full description is `docs/tunnel.md` in the repository, and
-`docs/observability.md` has every event of every layer.
+full description is [docs/tunnel.md](https://github.com/Bitspark/nightseam/blob/main/docs/tunnel.md), and
+[docs/observability.md](https://github.com/Bitspark/nightseam/blob/main/docs/observability.md) has every
+event of every layer.
+
+Apache-2.0, with `NOTICE` beside it. The repository is
+[Bitspark/nightseam](https://github.com/Bitspark/nightseam).
