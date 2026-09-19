@@ -39,7 +39,11 @@ The test, applied in order:
    context in TypeScript, so that the peer does act on it, in the one way a
    header is acted on: it reaches the handler without being the payload.
    That is what keeps it on the right side of the test, and why a second
-   header should be a key of `meta` and not a member of its own.
+   header should be a key of `meta` and not a member of its own. It is also
+   why a header does not propagate: delivering is the peer's one action on
+   it, and a header is a fact about *this* call — a credential, a tenant —
+   not about the calls a handler makes in turn, which is the opposite of a
+   trace. A handler that means to pass one on says so (`docs/profile.md`).
 
 Two things that look like members and are not:
 
