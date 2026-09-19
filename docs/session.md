@@ -1,17 +1,27 @@
 # The session
 
 A session is a thing with an identity that outlives connections: one **up**
-channel, the machine's, over which the session's family is spoken; any
-number of **down** channels, the consumers', each in a role; one holder of
-control; an ask routed to the holder; and a log of every frame in one order,
-replayed from a sequence. `session/go` and `@nightseam/session` are the
-runtime component that holds it, beside the tunnel, generic over the family:
-what a family governs reaches it as the two functions the generator renders
-for a session tier, `Decides` and `Asks`.
+connection, the machine's, over which the session's family is spoken; any
+number of **down** connections, the consumers', each in a role; one holder
+of control; an ask routed to the holder; and a log of every frame in one
+order, replayed from a sequence. Each side is a connection of the seam —
+`duplex.Conn` in Go, `FrameConnection` in TypeScript — which a channel of a
+tunnel is, and so are the seam's pipe and a bare socket: the relay sends on
+it, receives from it and closes it, and asks nothing about what multiplexed
+it. The tunnel is the answer where one connection carries many sessions and
+is no requirement where it carries one, so an in-process machine binds the
+pipe it already speaks the profile over and a consumer over a bare socket
+attaches its own. `session/go` and `@nightseam/session` are the runtime
+component that holds it, beside the tunnel, generic over the family: what a
+family governs reaches it as the two functions the generator renders for a
+session tier, `Decides` and `Asks`.
 
 Both are held to one suite — `session/go/sessiontest`,
 `session/ts/src/conformance.ts` — governed by the generator's own probe
-family as the corpus declares it, and to each other over a real socket.
+family as the corpus declares it, and to each other over a real socket. The
+suite is run twice in each language, once over the channels of a tunnel and
+once over the seam's pipe with no tunnel at all, which is what it means for
+the transport to be none of the relay's business.
 
 ## The boundary rule
 
@@ -35,15 +45,16 @@ registry.Control(id, attachment)   // or nil, releasing control
 registry.Attention()               // every session with an unanswered ask
 ```
 
-`Bind` gives a session its own channel, the family's governance and its
-log; it is live from then until that channel closes, and it reads the log
+`Bind` gives a session its own connection, the family's governance and its
+log; it is live from then until that connection closes, and it reads the log
 once on the way in, so that a log bound with frames already in it is bound
 at its head rather than at nothing. Which log is the consumer's:
 `session.NewMemoryLog(maxFrameBytes)` in Go and `memoryLog(maxFrameBytes)`
 in TypeScript are the one the package ships, and *The log* below says what
-is passed in their place when a session's frames must outlive the process. `Attach` adds a consumer over a channel of its
-own, in a role — `Participant`, which may decide while it holds control and
-may be given it, or `Observer`, which never decides and is never given
+is passed in their place when a session's frames must outlive the process.
+`Attach` adds a consumer over a connection of its own, in a role —
+`Participant`, which may decide while it holds control and may be given it,
+or `Observer`, which never decides and is never given
 control — saying what the consumer is, stamped on every frame it sends as
 the log's `Origin`, and the last sequence it holds. `Control` gives one
 participant control, or releases it. Who may attach, who may take control
@@ -55,10 +66,13 @@ The registry itself is configured by the value passed where it is made:
 member left out takes the default — zero or less in Go, absent in
 TypeScript, and `new Registry()` with nothing at all is the default
 registry. `MaxAttachments` and `MaxInflight` — `maxAttachments` and
-`maxInflight` — are 64 and 256, the two the table below gives; Go's
-`SendTimeout` is ten seconds and has no TypeScript member, a Go send
-taking a context it can wait on where the TypeScript channel's `send`
-hands the frame over and returns, leaving nothing to bound. What a
+`maxInflight` — are 64 and 256, the two the table below gives; `Observer`
+and `observer` are where a session tells what it does when the connection
+its machine speaks over observes through nothing of its own, which
+*Observing it* below states; Go's `SendTimeout` is ten seconds and has no
+TypeScript member, a Go send taking a context it can wait on where the
+TypeScript connection's `send` hands the frame over and returns, leaving
+nothing to bound. What a
 registry settled on is readable back in TypeScript, `registry.limit`, and
 a member that is not a positive integer is refused there with
 `invalid_options` where Go takes it for the default.
@@ -88,16 +102,17 @@ Held, one test each, in both languages:
 5. **A consumer resumes from the log before any live frame.** A consumer
    attached with `after` receives the log's frames after that sequence
    first, then what arrives live, in one order and once; a frame the log
-   cut is passed over, a cut message being no message for a channel that
+   cut is passed over, a cut message being no message for a connection that
    speaks the family. A log bound with frames already in it is bound at its
    head, so what it held before the session was bound is among them.
 6. **A frame carrying members the relay does not know arrives with them.**
    The relay reads a frame as a JSON object and rewrites its `id` alone;
    every other member — a trace context, a member of a later profile —
    reaches the other side verbatim, in the place it arrived in.
-7. **The machine's channel ends every consumer, a consumer's only itself.**
-   The up channel closing ends every attached channel with the same code and
-   reason; a consumer's channel closing detaches it and nothing else.
+7. **The machine's connection ends every consumer, a consumer's only
+   itself.** The up connection closing ends every attached connection with
+   the same code and reason; a consumer's connection closing detaches it and
+   nothing else.
 8. **Attention is every session the machine asked of** and nobody has
    answered, by id, in order.
 9. **A message over the log's bound is replayed truncated.**
@@ -133,7 +148,7 @@ It is the log for a session that need not outlive the process: nothing of it
 is written down, and a registry that restarts replays nothing. A log that
 must outlive one is the consumer's own `Log` — the interface above, over
 whatever it stores frames in — passed to `Bind` in its place; nothing else
-changes, the relay holding the up channel across the append and the send
+changes, the relay holding the up connection across the append and the send
 either way, so that what the log says the consumers sent is the order the
 machine saw. Retention, redaction and what `Truncated` means for a reader
 are the consumer's with it, by the boundary rule.
@@ -158,27 +173,46 @@ the relay prefers where a log has it; every `Log` above stays what it is.
 | `busy` | a request beyond the ones the session may have open towards the machine |
 | `MaxAttachments` / `maxAttachments` | 64 consumers on one session; an attach beyond it is refused |
 | `MaxInflight` / `maxInflight` | 256 requests open towards the machine |
-| `SendTimeout` | Go only: 10 seconds a frame may wait for a channel; a consumer that does not take its frames is detached, a machine that does not ends the session |
+| `SendTimeout` | Go only: 10 seconds a frame may wait for a connection; a consumer that does not take its frames is detached, a machine that does not ends the session |
 
 ## What a consumer builds on it
 
-A consumer's server: its attach operation opens the consumer's channel
-through the tunnel and calls `Attach`; its rule for who may take control —
-and a lease, if it wants one — calls `Control`; its frame log is a durable
-`Log`; its attention list is `Attention()`; its machine side opens a channel
-per running session and names the handle in a report, which the server
-passes to `Bind`. Nothing of that is in this package, by the boundary rule.
+A consumer's server: its attach operation opens the consumer's connection —
+a channel through the tunnel where one socket carries several, the socket
+itself where it carries one — and calls `Attach`; its rule for who may take
+control — and a lease, if it wants one — calls `Control`; its frame log is a
+durable `Log`; its attention list is `Attention()`; its machine side hands
+`Bind` a connection per running session, a channel it opened and named in a
+report where the machine is elsewhere, and where the machine is this process
+the near end of a pipe it speaks the profile over itself. Nothing of that is
+in this package, by the boundary rule.
 
 ## Observing it
 
 Beside the changes its registry reports — `Registry.OnChange(fn)` in Go,
 `registry.onChange(fn)` in TypeScript, each handing back the stop that ends
-that registration alone — a session tells the observer of the peer its
-machine speaks over the same ten facts: a session bound and unbound, a
-consumer attached and detached, an ask raised, routed and answered, control
-moved, a frame appended to the log, and a consumer's frame refused. Neither
-says a payload. [observability.md](observability.md) has the rule and every
-event of every layer.
+that registration alone — a session tells its observer the same ten facts:
+a session bound and unbound, a consumer attached and detached, an ask
+raised, routed and answered, control moved, a frame appended to the log, and
+a consumer's frame refused. Neither says a payload.
+[observability.md](observability.md) has the rule and every event of every
+layer.
+
+Which observer that is follows from the connection the session's machine
+speaks over, in this order:
+
+1. **The peer it runs over**, where it runs over one — a tunnel channel,
+   which reports `Peer()` in Go and carries `observe` in TypeScript. That
+   peer's observer is the one the consumer already chose, and a session over
+   such a connection never falls back to the registry's, a peer given no
+   observer observing nothing.
+2. **`Options.Observer` / `RegistryOptions.observer`**, where the connection
+   runs over no peer: the seam's pipe, a bare socket, an in-process machine.
+   Without it the ten facts of such a session would be lost, which is fine
+   for a pipe in a test and is not for a service whose own process is the
+   machine.
+3. **Nothing**, where there is neither — the no-op an observer already
+   means, not a failure.
 
 The `Observer` role above — a consumer that never decides — is a different
 thing from an observer of events, which watches traffic rather than taking

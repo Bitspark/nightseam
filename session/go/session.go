@@ -1,9 +1,12 @@
 // Package session is a session as a thing with an identity that outlives
-// connections: one up channel, the machine's; any number of down channels,
-// the consumers', each in a role; one holder of control; an ask routed to
-// the holder; and a log of every frame in one order, replayed from a
-// sequence. It is a runtime component beside the tunnel, generic over the
-// family: what a family governs reaches it as the two functions the
+// connections: one up connection, the machine's; any number of down
+// connections, the consumers', each in a role; one holder of control; an ask
+// routed to the holder; and a log of every frame in one order, replayed from
+// a sequence. Each side is a connection of the seam — duplex.Conn — which a
+// channel of a tunnel is, and so are the seam's pipe and a bare socket: the
+// relay sends on it, receives from it and closes it, and asks nothing about
+// what multiplexed it. It is a runtime component beside the tunnel, generic
+// over the family: what a family governs reaches it as the two functions the
 // generator renders, Decides and Asks.
 //
 // The boundary rule it is drawn by: Nightseam owns what can be stated in
@@ -33,7 +36,7 @@ import (
 	"time"
 
 	"github.com/Bitspark/nightseam/duplex/go"
-	"github.com/Bitspark/nightseam/tunnel/go"
+	"github.com/Bitspark/nightseam/runtime/go"
 )
 
 // Governance is a family's sess table: the Decides and Asks the generator
@@ -91,6 +94,14 @@ type Options struct {
 	// bounds how long one stalled consumer delays the others, since frames
 	// reach them in one order. Default: ten seconds.
 	SendTimeout time.Duration
+	// Observer is where a session bound over a connection that runs over no
+	// peer — the seam's pipe, a bare socket, an in-process machine — tells
+	// what it does. A connection that runs over one, a tunnel channel being
+	// the one there is, tells that peer's observer instead and never this,
+	// whether or not the peer was given an observer: the peer is the
+	// observer the consumer already chose. Default: none, which observes
+	// nothing and costs nothing, as a peer given no observer does.
+	Observer runtime.Observer
 }
 
 func (o Options) normalized() Options {
@@ -125,22 +136,31 @@ func New(options Options) *Registry {
 	return &Registry{options: options.normalized(), sessions: map[string]*relay{}}
 }
 
-// Bind gives a session its own channel — the machine's — the governance of
-// the family it speaks and the log its frames are kept in. The session is
-// live from here until that channel closes, which ends every consumer
-// attached to it with the same close.
+// Bind gives a session its own connection — the machine's — the governance
+// of the family it speaks and the log its frames are kept in. The session is
+// live from here until that connection closes, which ends every consumer
+// attached to it with the same close. The relay sends on it, receives from
+// it and closes it, and asks nothing about what multiplexed it: a tunnel
+// channel is one such connection, and so are the seam's pipe and a bare
+// socket, which is what an in-process machine binds over.
+//
+// Where the session tells what it does follows from that connection: one
+// that runs over a peer — a tunnel channel, which reports Peer() — tells
+// that peer's observer, as it did when a channel was all this took; one that
+// does not tells Options.Observer; and where there is neither, nothing,
+// which is the no-op an observer already means.
 //
 // The log is read once here, from its beginning, and the session goes on
 // from its head: a durable log bound with frames already in it replays them
 // to a consumer that attaches after nothing, rather than waiting for the
 // machine to speak for the session to learn where it is. A log that cannot
 // be read is not bound.
-func (r *Registry) Bind(id string, up *tunnel.Channel, g Governance, log Log) error {
+func (r *Registry) Bind(id string, up duplex.Conn, g Governance, log Log) error {
 	switch {
 	case id == "":
 		return errors.New("a session is bound under an id")
 	case up == nil:
-		return errors.New("a session is bound to a channel")
+		return errors.New("a session is bound over a connection")
 	case g.Decides == nil || g.Asks == nil:
 		return errors.New("a session is bound with the family's Decides and Asks")
 	case log == nil:
@@ -165,11 +185,14 @@ func (r *Registry) Bind(id string, up *tunnel.Channel, g Governance, log Log) er
 	return nil
 }
 
-// Attach adds a consumer to a session over a channel of its own, in a role,
-// saying what the consumer is — stamped on every frame it sends — and the
-// last sequence it holds, from which the log is replayed to it before any
-// live frame reaches it. Who may attach is checked before calling here.
-func (r *Registry) Attach(id string, down *tunnel.Channel, role Role, origin string, after int64) (*Attachment, error) {
+// Attach adds a consumer to a session over a connection of its own, in a
+// role, saying what the consumer is — stamped on every frame it sends — and
+// the last sequence it holds, from which the log is replayed to it before
+// any live frame reaches it. The connection is the seam's, as the machine's
+// is: a tunnel channel where one connection carries many consumers, a bare
+// socket where it carries one. Who may attach is checked before calling
+// here.
+func (r *Registry) Attach(id string, down duplex.Conn, role Role, origin string, after int64) (*Attachment, error) {
 	relay := r.session(id)
 	if relay == nil {
 		return nil, fmt.Errorf("no session %q is bound", id)
@@ -223,15 +246,15 @@ func (r *Registry) forget(id string, relay *relay) {
 }
 
 // Attachment is one consumer on a session: what it may do, what the caller
-// said it is, and the channel it speaks over.
+// said it is, and the connection it speaks over.
 type Attachment struct {
 	// Role is what the consumer may do.
 	Role Role
 	// Origin is what the caller said the consumer is; every frame it sends
 	// is logged with it.
 	Origin string
-	// Channel is the channel it speaks the family over.
-	Channel *tunnel.Channel
+	// Channel is the connection it speaks the family over.
+	Channel duplex.Conn
 
 	relay  *relay
 	ctx    context.Context
@@ -240,7 +263,7 @@ type Attachment struct {
 	once   sync.Once
 }
 
-// Detach removes the consumer from its session and ends its channel; the
+// Detach removes the consumer from its session and ends its connection; the
 // session and every other consumer go on. Control it held is released, and
 // an open ask waits for the next holder. It may be called more than once.
 func (a *Attachment) Detach() { a.end(duplex.CodeNormal, "detached") }

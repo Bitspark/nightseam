@@ -1,12 +1,13 @@
 // Package sessiontest holds a session component to what a relay promises.
 // An implementation's own tests call Run with a way to make a connected
-// pair of channels; what Run checks is the routing table of the boundary
-// rule and nothing of the transport beneath it, so a consumer written
-// against the component can trust the same things wherever it runs: a
+// pair of the seam's connections; what Run checks is the routing table of
+// the boundary rule and nothing of the transport beneath it, so a consumer
+// written against the component can trust the same things wherever it runs
+// — over a tunnel channel, over the seam's pipe, over a bare socket: a
 // response reaches the one consumer that asked, an event reaches every
 // consumer, control decides what a consumer may send, an ask follows
 // control, ids are the session's own, a consumer resumes from the log, and
-// a channel ending ends what it should and nothing more.
+// a connection ending ends what it should and nothing more.
 //
 // The family the suite governs by is the generator's own probe — decides
 // echo, asks reverse — read from the corpus by the tool's loader, so the
@@ -30,21 +31,33 @@ import (
 	"github.com/Bitspark/nightseam/internal/load"
 	"github.com/Bitspark/nightseam/runtime/go"
 	"github.com/Bitspark/nightseam/session/go"
-	"github.com/Bitspark/nightseam/tunnel/go"
 )
 
-// Connect makes one connected pair of channels of the probe family: near is
-// the end a registry binds or attaches, far the end a machine or a consumer
-// speaks over. The peer near runs over is given observer, which is nil where
-// the suite is not watching — a session emits its events through the peer of
-// the channel its machine speaks on, so that is the end an observer goes on.
-// The suite closes what it opened; the transport may register cleanup with t.
-type Connect func(t *testing.T, observer runtime.Observer) (near, far *tunnel.Channel)
+// Connect makes one connected pair of the seam's connections carrying the
+// probe family: near is the end a registry binds or attaches, far the end a
+// machine or a consumer speaks over. observer is what a session bound over
+// near is to tell, and is nil where the suite is not watching: a transport
+// whose connections run over a peer — a tunnel's channels — gives it to the
+// peer near runs over, and one whose connections run over none — the seam's
+// pipe — ignores it, the suite giving the registry the same observer, which
+// is the order a relay reads the two in. The suite closes what it opened;
+// the transport may register cleanup with t.
+type Connect func(t *testing.T, observer runtime.Observer) (near, far duplex.Conn)
 
 // Run holds a session component to the relay's contract.
 func Run(t *testing.T, connect Connect) {
 	t.Helper()
 	governance := Probe(t)
+
+	// observedBy makes a registry under the limits a scenario asks for,
+	// telling observer what its sessions do. A transport whose connections
+	// run over a peer seats the same observer there, where a relay reads it
+	// first; one whose connections do not leaves this the only place it is,
+	// which is the precedence stated and the reason both are given it.
+	observedBy := func(options session.Options, observer runtime.Observer) *session.Registry {
+		options.Observer = observer
+		return session.New(options)
+	}
 
 	// bind makes a registry with one session bound, and returns the machine's
 	// end of its channel.
@@ -324,7 +337,7 @@ func Run(t *testing.T, connect Connect) {
 		if closed.Code != duplex.CodePolicyViolation || closed.Reason != "the machine went away" {
 			t.Fatalf("the consumer's channel ended as %d %q", closed.Code, closed.Reason)
 		}
-		if _, err := registry.Attach("s", mustChannel(t, connect), session.Participant, "late", 0); err == nil {
+		if _, err := registry.Attach("s", mustConnection(t, connect), session.Participant, "late", 0); err == nil {
 			t.Fatal("a consumer attached to an ended session")
 		}
 	})
@@ -370,14 +383,14 @@ func Run(t *testing.T, connect Connect) {
 		}
 	})
 
-	t.Run("every domain change of a session reaches OnChange and the peer's observer, in the order the registry made them", func(t *testing.T) {
+	t.Run("every domain change of a session reaches OnChange and the session's observer, in the order the registry made them", func(t *testing.T) {
 		// One session from bound to unbound, read twice over: the change the
-		// registry told and the event the observer of the peer the machine's
-		// channel runs over was given, which are one domain change said
-		// twice. The scenarios above, in one run.
-		registry := session.New(session.Options{})
-		changes := watching(t, registry, "s")
+		// registry told and the event the observer of the machine's own side
+		// was given, which are one domain change said twice. The scenarios
+		// above, in one run.
 		events := observing()
+		registry := observedBy(session.Options{}, events)
+		changes := watching(t, registry, "s")
 		near, far := connect(t, events)
 		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
 			t.Fatal(err)
@@ -536,12 +549,12 @@ func Run(t *testing.T, connect Connect) {
 		events.quiet(t)
 	})
 
-	t.Run("a session is observed through the peer its machine speaks over, and through no consumer's", func(t *testing.T) {
-		// A session emits where it stands, which is its own side: the peer a
-		// consumer's channel runs over hears what that peer carries and
-		// nothing of the session the channel is attached to.
-		registry := session.New(session.Options{})
+	t.Run("a session is observed where its machine speaks, and through no consumer's connection", func(t *testing.T) {
+		// A session emits where it stands, which is its own side: what a
+		// consumer's connection runs over hears what that connection carries
+		// and nothing of the session it is attached to.
 		up, down := observing(), observing()
+		registry := observedBy(session.Options{}, up)
 		near, _ := connect(t, up)
 		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
 			t.Fatal(err)
@@ -565,9 +578,9 @@ func Run(t *testing.T, connect Connect) {
 		// answer's result and a refused request's params — and in nothing any
 		// change or any event says.
 		const sentinel = "sentinel-6f9c2a"
-		registry := session.New(session.Options{})
-		changes := watching(t, registry, "s")
 		events := observing()
+		registry := observedBy(session.Options{}, events)
+		changes := watching(t, registry, "s")
 		near, far := connect(t, events)
 		if err := registry.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
 			t.Fatal(err)
@@ -912,18 +925,18 @@ func intact(t *testing.T, sent string, received *frame) {
 	}
 }
 
-// mustChannel takes the registry's end of a fresh pair.
-func mustChannel(t *testing.T, connect Connect) *tunnel.Channel {
+// mustConnection takes the registry's end of a fresh pair.
+func mustConnection(t *testing.T, connect Connect) duplex.Conn {
 	t.Helper()
 	near, _ := connect(t, nil)
 	return near
 }
 
-// speaker is one end of a channel the suite speaks frames over: a machine,
-// or a consumer.
+// speaker is one end of a connection the suite speaks frames over: a
+// machine, or a consumer.
 type speaker struct {
 	name    string
-	channel *tunnel.Channel
+	channel duplex.Conn
 }
 
 // frame is one frame as it arrived, with its members in the order they were

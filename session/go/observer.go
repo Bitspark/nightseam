@@ -6,25 +6,27 @@ import (
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
-// What a session tells the observer of the peer it runs over. They are events
-// of runtime.ObserverEvent, so one observer hears them beside the runtime's
-// own and the tunnel's, and a consumer's type switch covers all three layers;
-// a session takes no observer of its own and observes through its peer or not
-// at all. Every one of them says which session it is of and when it happened;
-// every one that concerns a frame carries that frame's trace verbatim; none of
-// them carries a payload, which is the log's and never a hook's.
+// What a session tells its observer. They are events of
+// runtime.ObserverEvent, so one observer hears them beside the runtime's own
+// and the tunnel's, and a consumer's type switch covers all three layers.
+// Every one of them says which session it is of and when it happened; every
+// one that concerns a frame carries that frame's trace verbatim; none of them
+// carries a payload, which is the log's and never a hook's.
 //
-// The observer is the peer the machine's channel runs over — a session's own
-// side — whichever consumer a given event is about.
+// The observer is the machine's own side — whichever consumer a given event
+// is about — and which observer that is follows from the connection the
+// machine speaks over: the peer it runs over where it runs over one, the
+// registry's Options.Observer where it does not, and none where there is
+// neither. A session is given no observer of its own beyond that.
 
-// SessionBound is a session bound to the channel its machine speaks on, which
-// it stands on until that channel closes.
+// SessionBound is a session bound to the connection its machine speaks on,
+// which it stands on until that connection closes.
 type SessionBound struct {
 	At      time.Time
 	Session string
 }
 
-// SessionUnbound is that channel closed: the session is gone from the registry
+// SessionUnbound is that connection closed: the session is gone from the registry
 // and every consumer of it was ended with this close.
 type SessionUnbound struct {
 	At      time.Time
@@ -43,8 +45,8 @@ type SessionAttached struct {
 	After   int64
 }
 
-// SessionDetached is a consumer leaving one, by detaching or by its channel
-// closing; the session stands. A consumer the session's own ending took with
+// SessionDetached is a consumer leaving one, by detaching or by its
+// connection closing; the session stands. A consumer the session's own ending took with
 // it detaches from nothing, and the session says unbound instead.
 type SessionDetached struct {
 	At      time.Time
@@ -152,13 +154,44 @@ var (
 	_ runtime.ObserverEvent = Refused{}
 )
 
-// observe tells the observer of the peer the machine's channel runs over one
-// event of this session; a session over a peer given no observer does nothing.
-func (r *relay) observe(event runtime.ObserverEvent) { r.up.Peer().Observe(event) }
+// peered is a connection that runs over a peer and says so: a tunnel channel
+// is the one there is, and what a session over it observes through is that
+// peer's observer, which is the observer the consumer already chose. A
+// connection that is not one — the seam's pipe, a bare socket — carries no
+// such choice, and the session takes the registry's instead.
+type peered interface{ Peer() *runtime.Peer }
 
-// observed reports whether that peer was given an observer at all, which
-// every emitter asks before it builds anything.
-func (r *relay) observed() bool { return r.up.Peer().Observer() != nil }
+// observe tells this session's observer one event of it. The connection the
+// machine speaks over decides which observer that is, in this order: the peer
+// it runs over, then the registry's Options.Observer, then none — a
+// connection with a peer never falls back to the registry's, a peer given no
+// observer observing nothing, which is what an observer's no-op default
+// means.
+func (r *relay) observe(event runtime.ObserverEvent) {
+	if up, ok := r.up.(peered); ok {
+		up.Peer().Observe(event)
+		return
+	}
+	if r.options.Observer != nil {
+		tell(r.options.Observer, event)
+	}
+}
+
+// tell hands one event to one observer; an observer that panics is one the
+// session goes on without, as a peer's own emitting does.
+func tell(observer runtime.Observer, event runtime.ObserverEvent) {
+	defer func() { _ = recover() }()
+	observer.Observe(event)
+}
+
+// observed reports whether there is an observer at all, which every emitter
+// asks before it builds anything.
+func (r *relay) observed() bool {
+	if up, ok := r.up.(peered); ok {
+		return up.Peer().Observer() != nil
+	}
+	return r.options.Observer != nil
+}
 
 // origin is what a consumer was attached under, and "" where the change is
 // the machine's or the session's own.

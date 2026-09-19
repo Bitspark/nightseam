@@ -1,13 +1,20 @@
 /**
- * A consumer's switch, and the whole of what it proves: with this package
+ * A consumer's switch, and the whole of what it proves: with these packages
  * imported the runtime's `ObserverEvent` carries the session's ten events
  * beside the runtime's ten and the tunnel's five, every one of them narrows
  * to the fields declared for it, and a switch that answers all twenty-five
  * leaves `never` — so a layer added below is a case the compiler asks the
  * consumer for. It is checked by `pnpm check` and is no part of what the
  * package ships.
+ *
+ * The tunnel is imported here and nowhere else in this package: a session
+ * runs over a connection of the seam, of which a channel is one, so the
+ * session no longer declares the tunnel's five events on a consumer's
+ * behalf. A program that opens channels imports the tunnel itself, and this
+ * is that program.
  */
 import type { ObserverEvent } from '@nightseam/runtime';
+import '@nightseam/tunnel';
 import './index.ts';
 
 export function describe(event: ObserverEvent): string {

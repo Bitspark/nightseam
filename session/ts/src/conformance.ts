@@ -1,11 +1,12 @@
 /**
  * The suite a session component is held to: the routing table of the
- * component — a response to the one channel that asked, an event to every
+ * component — a response to the one consumer that asked, an event to every
  * attached one, an ask to the holder of control, a decision refused where
  * control is not held — the ids it mints, the log it keeps and the closes it
- * carries. It runs over whatever channels a Connect supplies: in-memory
- * pipes here, a real connection where a cross-language gate runs it, and the
- * same suite in either language.
+ * carries. It runs over whatever connections of the seam a Connect supplies:
+ * channels of a tunnel over in-memory pipes, the pipes themselves with no
+ * tunnel at all, a real connection where a cross-language gate runs it, and
+ * the same suite in either language.
  *
  * The family is probe, as the generator renders it from the corpus — its
  * session tier decides `echo` and asks `reverse` — and the consumers of the
@@ -14,24 +15,30 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { pipe } from '@nightseam/duplex';
+import { pipe, type FrameConnection } from '@nightseam/duplex';
 import { DuplexError, DuplexPeer, type Observer, type ObserverEvent } from '@nightseam/runtime';
-import { Tunnel, type Channel } from '@nightseam/tunnel';
+import { Tunnel } from '@nightseam/tunnel';
 import { asks, Client, decides, type Handler, type Payload } from '../../../cmd/nightseam/testdata/golden/api/ts/probe-client/src/index.ts';
 import { memoryLog, Registry, type Attachment, type Change, type Governance, type Log, type Role } from './index.ts';
 
-/** The channels a run of the suite is given: each open is one channel, the end a peer speaks on and the end the registry is given. */
+/** The connections a run of the suite is given: each open is one connected pair, the end a peer speaks on and the end the registry is given. */
 export interface Wire {
-  open(after?: number): Promise<{ near: Channel; far: Channel }>;
+  open(after?: number): Promise<{ near: FrameConnection; far: FrameConnection }>;
   close(): void;
 }
-/** An observer a run is given goes to the peer the registry's channels run over, which is the one a session observes through. */
+/**
+ * An observer a run is given is what a session bound over one of these
+ * connections tells. A transport whose connections observe through something
+ * of their own — a tunnel's channels — seats it on the peer they run over;
+ * one whose connections do not ignores it, and the suite gives the registry
+ * the same observer, which is the order a relay reads the two in.
+ */
 export type Connect = (observer?: Observer) => Promise<Wire>;
 
 /** The probe family's session tier, as its generated client states it. */
 export const governance: Governance = { decides: method => decides.has(method), asks: method => asks.has(method) };
 
-/** Two peers over an in-memory pipe, with a tunnel each: what the suite runs on where there is no connection to hand. */
+/** Two peers over an in-memory pipe, with a tunnel each: channels of a tunnel, which is what a session ran over when it could run over nothing else. */
 export const pipes: Connect = async observer => {
   const [left, right] = pipe();
   const near = new DuplexPeer({ role: 'client' });
@@ -51,11 +58,29 @@ export const pipes: Connect = async observer => {
   };
 };
 
+/**
+ * The seam's pipe and nothing else: connections that observe through nothing
+ * of their own, which is what an in-process machine binds over and what a
+ * consumer over a bare socket attaches over. Each open is one pair, and the
+ * observer a run was given reaches the session through the registry instead.
+ */
+export const connections: Connect = async () => {
+  const opened: FrameConnection[] = [];
+  return {
+    open() {
+      const [near, far] = pipe();
+      opened.push(near, far);
+      return Promise.resolve({ near, far });
+    },
+    close() { for (const end of opened) if (end.state === 'open') end.close(1000, 'the run ended'); },
+  };
+};
+
 /** One message of the profile, as a raw end of the suite reads and writes it. */
 type Envelope = Record<string, unknown>;
 
 /** The envelopes a channel receives, its close, and a promise of the next one not yet taken. */
-function listen(channel: Channel) {
+function listen(channel: FrameConnection) {
   const envelopes: Envelope[] = [];
   const waiters: ((envelope: Envelope) => void)[] = [];
   let taken = 0;
@@ -81,7 +106,7 @@ function listen(channel: Channel) {
 }
 
 /** say writes one envelope to a channel, as a peer of the family would. */
-function say(channel: Channel, envelope: Envelope): void {
+function say(channel: FrameConnection, envelope: Envelope): void {
   channel.send({ kind: 'text', data: JSON.stringify(envelope) });
 }
 
@@ -105,7 +130,7 @@ function words(change: Change): string {
   return JSON.stringify({ ...change, attachment: change.attachment && { role: change.attachment.role, origin: change.attachment.origin } });
 }
 
-/** The events a session declares, which is what a run of the suite reads off the peer its registry runs over; the runtime's own and the tunnel's are that peer's traffic, not the session's. */
+/** The events a session declares, which is what a run of the suite reads off the observer it gave the session; the runtime's own and the tunnel's are a peer's traffic, not the session's. */
 const SESSION_EVENTS = new Set(['session.bound', 'session.unbound', 'session.attached', 'session.detached', 'ask.raised', 'ask.routed', 'ask.answered', 'control.changed', 'frame.appended', 'session.refused']);
 
 /** One session event as a line, the way a change is one: its type and the fields that say which session frame or consumer it is about. */
@@ -125,7 +150,7 @@ function tell(event: ObserverEvent): string {
   return parts.filter((part): part is string => part !== undefined).join(' ');
 }
 
-/** Every session event of the peer a registry runs over, in the order it emitted them. */
+/** Every session event a run is told, in the order the session emitted them. */
 function observing() {
   const lines: string[] = [];
   const events: ObserverEvent[] = [];
@@ -158,12 +183,16 @@ function watching(registry: Registry) {
 const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
 const asked = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b8-01';
 
-/** run registers the suite over the channels connect supplies. */
+/** run registers the suite over the connections connect supplies. */
 export function run(connect: Connect): void {
   /** A bound session: the wire its channels come from, the registry, the log, and the end the machine speaks on. */
   async function bound(maxFrameBytes = 1 << 20, before: (registry: Registry) => void = () => { /* A run that watches the session from before it is bound says so. */ }, observer?: Observer) {
     const wire = await connect(observer);
-    const registry = new Registry();
+    // The registry is given the observer as well as the transport: a
+    // transport whose connections observe through something of their own
+    // seats it there, where a relay reads it first, and one whose
+    // connections do not leaves this the only place it is.
+    const registry = new Registry(observer ? { observer } : {});
     before(registry);
     const log = memoryLog(maxFrameBytes);
     const { near: machine, far: up } = await wire.open();
@@ -172,13 +201,13 @@ export function run(connect: Connect): void {
   }
 
   /** A consumer attached to that session: the end it speaks on, and what the registry knows it by. */
-  async function consumer(wire: Wire, registry: Registry, role: Role, origin: string, after = 0): Promise<{ near: Channel; attachment: Attachment }> {
+  async function consumer(wire: Wire, registry: Registry, role: Role, origin: string, after = 0): Promise<{ near: FrameConnection; attachment: Attachment }> {
     const { near, far } = await wire.open(after);
     return { near, attachment: registry.attach('s', far, role, origin, after) };
   }
 
-  /** The machine of the suite: a peer of the profile serving the family's server side over the up channel. */
-  async function serving(machine: Channel): Promise<DuplexPeer> {
+  /** The machine of the suite: a peer of the profile serving the family's server side over the up connection. */
+  async function serving(machine: FrameConnection): Promise<DuplexPeer> {
     const peer = new DuplexPeer({ role: 'server' });
     peer.handle('echo', params => ({ ...(params as Payload), text: 'machine:' + (params as Payload).text }));
     peer.handle('no_args', () => 'ok');
@@ -424,7 +453,7 @@ export function run(connect: Connect): void {
     wire.close();
   });
 
-  test('every domain change of a session reaches onChange and the observer of the peer it runs over, in the order the registry made them', async () => {
+  test('every domain change of a session reaches onChange and the observer the session was given, in the order the registry made them', async () => {
     let seen!: ReturnType<typeof watching>;
     const told = observing();
     const { wire, registry, machine } = await bound(1 << 20, registry => { seen = watching(registry); }, told.observer);
@@ -473,7 +502,7 @@ export function run(connect: Connect): void {
       'detached one',
       'unbound',
     ]);
-    // The same run, read off the observer of the peer the session runs over:
+    // The same run, read off the observer the session was given:
     // the same changes, said the way the runtime says things, in one order.
     assert.deepEqual(told.lines, [
       'session.bound',

@@ -2,6 +2,11 @@ package session_test
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -16,7 +21,7 @@ import (
 
 // channels is one connected pair of channels over peers nobody observes,
 // which is what every test here but the suite's own asks for.
-func channels(t *testing.T) (near, far *tunnel.Channel) {
+func channels(t *testing.T) (near, far duplex.Conn) {
 	t.Helper()
 	return observed(t, nil)
 }
@@ -25,7 +30,7 @@ func channels(t *testing.T) (near, far *tunnel.Channel) {
 // over a pipe: the transport beneath a session, as the suite asks for it.
 // The near end's peer takes the observer, because that is the end a registry
 // binds and so the peer a session of it emits its events through.
-func observed(t *testing.T, observer runtime.Observer) (near, far *tunnel.Channel) {
+func observed(t *testing.T, observer runtime.Observer) (near, far duplex.Conn) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -59,16 +64,41 @@ func observed(t *testing.T, observer runtime.Observer) (near, far *tunnel.Channe
 	if err != nil {
 		t.Fatal(err)
 	}
-	far = <-accepted
-	if far == nil {
+	// Read as the channel it is rather than into far: an interface holding a
+	// nil channel is not nil, so the one check worth making would not hold.
+	channel := <-accepted
+	if channel == nil {
 		t.Fatal("nobody accepted the channel")
 	}
-	return opened, far
+	return opened, channel
 }
 
-// TestSessionOverPipes holds this package to the relay's contract.
-func TestSessionOverPipes(t *testing.T) {
+// piped is one connected pair of the seam's own pipe: connections that run
+// over no peer at all, which is what an in-process machine binds over and
+// what a consumer over a bare socket attaches over. Nothing is seated with
+// the observer here, a pipe having no peer to seat it on; the suite gives
+// the registry the same one instead, which is the second of the two places
+// a relay looks for it.
+func piped(t *testing.T, _ runtime.Observer) (near, far duplex.Conn) {
+	t.Helper()
+	near, far = duplex.Pipe(1 << 20)
+	t.Cleanup(func() { _ = near.Abort(); _ = far.Abort() })
+	return near, far
+}
+
+// TestSessionOverChannels holds this package to the relay's contract over
+// the channels of a tunnel, which is what a session ran over when it could
+// run over nothing else.
+func TestSessionOverChannels(t *testing.T) {
 	sessiontest.Run(t, observed)
+}
+
+// TestSessionOverPipes holds it to the same contract over the seam's own
+// pipe, with no tunnel anywhere: the relay sends on the connection, receives
+// from it and closes it, and what multiplexed it — nothing, here — is none
+// of its business.
+func TestSessionOverPipes(t *testing.T) {
+	sessiontest.Run(t, piped)
 }
 
 // TestBindTakesASessionOnce: a session is bound under an id, over a
@@ -243,5 +273,285 @@ func TestBindRecordsAboveTheHeadAFrameSentWhileItReads(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("the frame the machine sent while the cursor was seated was never recorded")
+	}
+}
+
+// watcher is an observer that keeps what it was told, so that a test can ask
+// which of a session's events reached it.
+type watcher struct {
+	mu   sync.Mutex
+	seen []string
+}
+
+func (w *watcher) Observe(event runtime.ObserverEvent) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.seen = append(w.seen, fmt.Sprintf("%T", event))
+}
+
+func (w *watcher) told() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return append([]string(nil), w.seen...)
+}
+
+// await waits for one event to have arrived, the last of a session's being
+// told after the close that ends it.
+func (w *watcher) await(t *testing.T, event string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, told := range w.told() {
+			if told == event {
+				return
+			}
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("%s never arrived; the observer was told %v", event, w.told())
+}
+
+// says sends one frame of the family over a connection, as a machine or a
+// consumer of the suite would.
+func says(t *testing.T, over duplex.Conn, message string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := over.Send(ctx, duplex.Frame{Kind: duplex.Text, Data: []byte(message)}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// hears takes the next frame of a connection as the text it carries.
+func hears(t *testing.T, over duplex.Conn) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	frame, err := over.Receive(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(frame.Data)
+}
+
+// drive takes one session of a registry from bound to unbound over pipes,
+// through every event a session has: bound, attached twice, control moved,
+// an ask raised, routed and answered, frames appended, a consumer refused,
+// one detached and the session unbound.
+func drive(t *testing.T, registry *session.Registry) {
+	t.Helper()
+	up, machine := duplex.Pipe(1 << 20)
+	if err := registry.Bind("s", up, sessiontest.Probe(t), session.NewMemoryLog(0)); err != nil {
+		t.Fatal(err)
+	}
+	near, holderEnd := duplex.Pipe(1 << 20)
+	holder, err := registry.Attach("s", near, session.Participant, "one", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idle, idleEnd := duplex.Pipe(1 << 20)
+	if _, err := registry.Attach("s", idle, session.Participant, "two", 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Control("s", holder); err != nil {
+		t.Fatal(err)
+	}
+	says(t, machine, `{"version":1,"kind":"request","id":"s:1","method":"reverse","params":{"text":"t","count":1}}`)
+	hears(t, holderEnd)
+	says(t, holderEnd, `{"version":1,"kind":"response","id":"s:1","result":{"text":"t","count":1}}`)
+	hears(t, machine)
+	// A participant that does not hold control is refused in the machine's
+	// place, which the machine never sees and the observer does.
+	says(t, idleEnd, `{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":"t","count":1}}`)
+	hears(t, idleEnd)
+	holder.Detach()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := machine.Close(ctx, duplex.CodeGoingAway, "the machine went away"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestASessionOverAConnectionWithNoPeerObservesThroughTheRegistry: a session
+// bound over the seam's pipe has no peer to observe through, and tells the
+// registry's observer the ten events it would have told a peer's.
+func TestASessionOverAConnectionWithNoPeerObservesThroughTheRegistry(t *testing.T) {
+	seen := &watcher{}
+	drive(t, session.New(session.Options{Observer: seen, SendTimeout: time.Second}))
+	seen.await(t, "session.SessionUnbound")
+	told := map[string]bool{}
+	for _, event := range seen.told() {
+		told[event] = true
+	}
+	for _, event := range []string{
+		"session.SessionBound", "session.SessionAttached", "session.ControlChanged",
+		"session.AskRaised", "session.AskRouted", "session.AskAnswered",
+		"session.FrameAppended", "session.Refused", "session.SessionDetached",
+		"session.SessionUnbound",
+	} {
+		if !told[event] {
+			t.Errorf("the registry's observer was never told %s; it heard %v", event, seen.told())
+		}
+	}
+}
+
+// TestASessionOverAConnectionWithNeitherObservesNothing: no peer and no
+// registry observer is the no-op an observer already means, not a failure —
+// the same session runs and nothing is told.
+func TestASessionOverAConnectionWithNeitherObservesNothing(t *testing.T) {
+	registry := session.New(session.Options{SendTimeout: time.Second})
+	drive(t, registry)
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
+		if len(registry.Attention()) == 0 && registry.Control("s", nil) != nil {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("the session never ended")
+}
+
+// TestAMachineOverAPipeAndAConsumerOverAWebSocket is the mixed case the
+// seam's connection makes possible: the machine is this process, bound over
+// a pipe with no tunnel and no socket between it and the relay, and the
+// consumer is elsewhere, attached over a channel of a tunnel over a real
+// WebSocket. One session, two transports, and the relay asking neither what
+// carried it: a call up, an event down, an ask answered, and the machine's
+// end ending the consumer.
+func TestAMachineOverAPipeAndAConsumerOverAWebSocket(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	registry := session.New(session.Options{SendTimeout: 5 * time.Second})
+
+	// The machine: a peer of the family in this process, over a pipe it
+	// speaks the profile on and nothing else.
+	up, own := duplex.Pipe(1 << 20)
+	machine, err := runtime.NewPeer(ctx, own, runtime.ServerRole, runtime.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer machine.Close()
+	if err := machine.Handle("echo", func(_ context.Context, _ *runtime.Peer, params json.RawMessage) (any, error) {
+		var said struct {
+			Text  string `json:"text"`
+			Count int    `json:"count"`
+		}
+		if err := json.Unmarshal(params, &said); err != nil {
+			return nil, err
+		}
+		return map[string]any{"text": "machine:" + said.Text, "count": said.Count}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Bind("s", up, sessiontest.Probe(t), session.NewMemoryLog(0)); err != nil {
+		t.Fatal(err)
+	}
+
+	// The consumer: a channel of a tunnel over a WebSocket, which the
+	// service accepts and attaches to the same session.
+	attached := make(chan *session.Attachment, 1)
+	handler, err := runtime.NewHandler(runtime.ServerOptions{
+		Authenticate: func(*http.Request) (context.Context, error) { return ctx, nil },
+		CheckOrigin:  func(*http.Request) bool { return true },
+		OnConnect: func(peer *runtime.Peer) {
+			serving, err := tunnel.New(peer, tunnel.Options{})
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			channel, err := serving.Accept(peer.Context())
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			attachment, err := registry.Attach("s", channel, session.Participant, "consumer", 0)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			attached <- attachment
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	peer, _, err := runtime.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), runtime.DialOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer.Close()
+	dialled, err := tunnel.New(peer, tunnel.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	consumer, err := dialled.Open(ctx, "probe", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attachment *session.Attachment
+	select {
+	case attachment = <-attached:
+	case <-ctx.Done():
+		t.Fatal("the consumer's channel was never attached")
+	}
+	if err := registry.Control("s", attachment); err != nil {
+		t.Fatal(err)
+	}
+
+	// A call: the consumer's request reaches the machine under an id of the
+	// session's own and its answer comes back under the consumer's.
+	says(t, consumer, `{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":"over the seam","count":1}}`)
+	if answered := hears(t, consumer); !strings.Contains(answered, `"id":"c:1"`) || !strings.Contains(answered, `machine:over the seam`) {
+		t.Fatalf("the consumer saw %s", answered)
+	}
+
+	// An event: what the machine emits reaches every consumer attached.
+	if err := machine.Emit(ctx, "changed", map[string]any{"text": "moved", "count": 2}); err != nil {
+		t.Fatal(err)
+	}
+	if event := hears(t, consumer); !strings.Contains(event, `"event":"changed"`) {
+		t.Fatalf("the consumer saw %s", event)
+	}
+
+	// An ask: what the machine asks is routed to the holder of control, and
+	// its answer travels back over the pipe.
+	asked := make(chan error, 1)
+	var reversed struct {
+		Text  string `json:"text"`
+		Count int    `json:"count"`
+	}
+	go func() {
+		asked <- machine.Call(ctx, "reverse", map[string]any{"text": "deliver", "count": 1}, &reversed)
+	}()
+	ask := hears(t, consumer)
+	if !strings.Contains(ask, `"method":"reverse"`) {
+		t.Fatalf("the holder saw %s", ask)
+	}
+	var carried struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(ask), &carried); err != nil {
+		t.Fatal(err)
+	}
+	says(t, consumer, fmt.Sprintf(`{"version":1,"kind":"response","id":%q,"result":{"text":"reveiled","count":1}}`, carried.ID))
+	if err := <-asked; err != nil {
+		t.Fatal(err)
+	}
+	if reversed.Text != "reveiled" {
+		t.Fatalf("the machine was answered %+v", reversed)
+	}
+
+	// The close: the machine's connection ending ends the consumer's
+	// channel, an in-process machine that stops being the dropped transport
+	// the seam calls an abnormal closure.
+	machine.Close()
+	if _, err := consumer.Receive(ctx); err == nil {
+		t.Fatal("the machine's end left the consumer's channel open")
+	} else {
+		var closed *duplex.CloseError
+		if !errors.As(err, &closed) || closed.Code != duplex.CodeAbnormalClosure {
+			t.Fatalf("the consumer's channel ended as %v", err)
+		}
 	}
 }

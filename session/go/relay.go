@@ -11,12 +11,11 @@ import (
 
 	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/runtime/go"
-	"github.com/Bitspark/nightseam/tunnel/go"
 )
 
-// relay is one bound session: the machine's channel, the consumers attached
-// to it, who holds control, and what each side is waiting on. It is the
-// routing table of the boundary rule, and nothing above it.
+// relay is one bound session: the machine's connection, the consumers
+// attached to it, who holds control, and what each side is waiting on. It
+// is the routing table of the boundary rule, and nothing above it.
 //
 // Ids: every peer mints c:N per connection, so two consumers attached over
 // a session's life both send c:1. The relay is the family's client towards
@@ -26,7 +25,7 @@ import (
 type relay struct {
 	registry   *Registry
 	id         string
-	up         *tunnel.Channel
+	up         duplex.Conn
 	governance Governance
 	log        Log
 	options    Options
@@ -35,7 +34,7 @@ type relay struct {
 	cancel context.CancelFunc
 	once   sync.Once
 
-	// upSend is the one goroutine at a time the seam allows on a channel,
+	// upSend is the one goroutine at a time the seam allows on a connection,
 	// and it is held across the log and the send, so that what the log says
 	// the consumers sent is the order the machine saw.
 	upSend sync.Mutex
@@ -69,7 +68,7 @@ type routed struct {
 	at      *Attachment
 }
 
-func newRelay(registry *Registry, id string, up *tunnel.Channel, g Governance, log Log) *relay {
+func newRelay(registry *Registry, id string, up duplex.Conn, g Governance, log Log) *relay {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &relay{registry: registry, id: id, up: up, governance: g, log: log, options: registry.options,
 		ctx: ctx, cancel: cancel, inflight: map[string]*pending{}, routed: map[string]*routed{}}
@@ -102,7 +101,7 @@ func (r *relay) seat() error {
 	return nil
 }
 
-// pump reads the machine's channel until it ends.
+// pump reads the machine's connection until it ends.
 func (r *relay) pump() {
 	for {
 		frame, err := r.up.Receive(r.ctx)
@@ -417,9 +416,9 @@ func (r *relay) holds(a *Attachment) bool {
 // attach adds a consumer and replays the log to it before any live frame
 // reaches it: the frames after its sequence, up to the one the session had
 // reached when it was added, in one order.
-func (r *relay) attach(down *tunnel.Channel, role Role, origin string, after int64) (*Attachment, error) {
+func (r *relay) attach(down duplex.Conn, role Role, origin string, after int64) (*Attachment, error) {
 	if down == nil {
-		return nil, errors.New("a consumer attaches over a channel")
+		return nil, errors.New("a consumer attaches over a connection")
 	}
 	if role != Participant && role != Observer {
 		return nil, fmt.Errorf("unknown role %s", role)
@@ -518,7 +517,7 @@ func (r *relay) detach(a *Attachment) (removed, released bool) {
 	return removed, released
 }
 
-// end ends the session: every consumer's channel is closed with the close
+// end ends the session: every consumer's connection is closed with the close
 // the machine's carried, and the registry forgets it.
 func (r *relay) end(err error) {
 	r.once.Do(func() {
@@ -549,8 +548,8 @@ func (r *relay) end(err error) {
 	})
 }
 
-// pump reads a consumer's channel until it ends; its ending detaches it and
-// nothing else.
+// pump reads a consumer's connection until it ends; its ending detaches it
+// and nothing else.
 func (a *Attachment) pump() {
 	for {
 		frame, err := a.Channel.Receive(a.ctx)

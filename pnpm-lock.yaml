@@ -242,16 +242,15 @@ importers:
 
   session/ts:
     dependencies:
+      '@nightseam/duplex':
+        specifier: workspace:*
+        version: link:../../duplex/ts
       '@nightseam/runtime':
         specifier: workspace:*
         version: link:../../runtime/ts
       '@nightseam/tunnel':
         specifier: workspace:*
         version: link:../../tunnel/ts
-    devDependencies:
-      '@nightseam/duplex':
-        specifier: workspace:*
-        version: link:../../duplex/ts
 
   tunnel/ts:
     dependencies:

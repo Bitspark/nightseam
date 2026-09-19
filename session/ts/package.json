@@ -1,7 +1,7 @@
 {
   "name": "@nightseam/session",
   "version": "0.2.0",
-  "description": "A session over a tunnel's channels: the relay, the registry, the holder of control, an in-memory log.",
+  "description": "A session over the seam's connections: the relay, the registry, the holder of control, an in-memory log.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -42,15 +42,13 @@
     }
   },
   "dependencies": {
+    "@nightseam/duplex": "workspace:*",
     "@nightseam/runtime": "workspace:*",
     "@nightseam/tunnel": "workspace:*"
-  },
-  "devDependencies": {
-    "@nightseam/duplex": "workspace:*"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "check": "tsc --noEmit --strict --target ES2022 --module nodenext --allowImportingTsExtensions --skipLibCheck src/index.ts src/observer.check.ts",
-    "test": "node --experimental-strip-types --test --test-timeout=10000 src/session.test.ts"
+    "test": "node --experimental-strip-types --test --test-timeout=10000 src/session.test.ts src/connection.test.ts src/seam.test.ts"
   }
 }

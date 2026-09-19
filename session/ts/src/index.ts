@@ -1,9 +1,14 @@
 /**
- * A session over the channels of a tunnel: an identity that outlives the
- * connections carrying it. One up channel, the one its machine speaks on;
- * any number of down channels, one per attached consumer, each in a role;
+ * A session over the seam's connections: an identity that outlives the
+ * connections carrying it. One up connection, the one its machine speaks on;
+ * any number of down connections, one per attached consumer, each in a role;
  * one holder of control among them; and a log of every frame the session
  * exchanged, in one order, replayed from a sequence.
+ *
+ * A connection is whatever the seam calls one — a channel of a tunnel where
+ * one connection carries many sessions, a pipe where the machine is this
+ * process, a bare socket where a consumer speaks over its own. The relay
+ * sends, receives and closes, and asks nothing about what multiplexed it.
  *
  * What lives here is mechanism — what can be stated in terms of the profile
  * and a family's session tier, and is the same for every consumer: routing
@@ -16,16 +21,18 @@
  * Every other member — the profile's, a trace's, one a later profile adds —
  * it forwards verbatim, by construction rather than by enumeration.
  */
+import type { FrameConnection } from '@nightseam/duplex';
 import { DuplexError } from '@nightseam/runtime';
-import type { ObserverEvent, Trace } from '@nightseam/runtime';
-import type { Channel } from '@nightseam/tunnel';
+import type { Observer, ObserverEvent, Trace } from '@nightseam/runtime';
 
 /**
- * What a session tells the observer of the peer it runs over, declared into
- * the runtime's registry so that a consumer's `switch (event.type)` covers
- * them beside the runtime's and the tunnel's. The session takes no observer
- * of its own: every one of these goes out through the peer the up channel's
- * tunnel runs over, which is the observer the consumer already chose.
+ * What a session tells its observer, declared into the runtime's registry so
+ * that a consumer's `switch (event.type)` covers them beside the runtime's
+ * and the tunnel's. Which observer that is follows from the connection its
+ * machine speaks over: one that observes through a peer — a tunnel channel,
+ * which carries `observe` — is the observer the consumer already chose, and
+ * where there is none, `RegistryOptions.observer` is, and where there is
+ * neither, nothing is told.
  *
  * They are the changes `onChange` hands a consumer, said the way the runtime
  * says things: an event that concerns a frame carries that frame's trace, and
@@ -34,13 +41,13 @@ import type { Channel } from '@nightseam/tunnel';
  */
 declare module '@nightseam/runtime' {
   interface ObserverEvents {
-    /** A session is bound to the channel its machine speaks on, and stands until that channel closes. */
+    /** A session is bound to the connection its machine speaks on, and stands until that connection closes. */
     'session.bound': { type: 'session.bound'; at: Date; session: string };
-    /** The machine's channel closed, so the session is gone and every consumer of it was ended with this close. */
+    /** The machine's connection closed, so the session is gone and every consumer of it was ended with this close. */
     'session.unbound': { type: 'session.unbound'; at: Date; session: string; code: number; reason: string };
     /** A consumer joined a session in a role, under an origin, resuming from a sequence. */
     'session.attached': { type: 'session.attached'; at: Date; session: string; role: Role; origin: string; after: number };
-    /** A consumer left one, by detaching or by its channel closing; the session stands. */
+    /** A consumer left one, by detaching or by its connection closing; the session stands. */
     'session.detached': { type: 'session.detached'; at: Date; session: string; role: Role; origin: string };
     /** The machine sent a request the holder of control must answer; asking is whether the family's session tier counts it in attention. */
     'ask.raised': { type: 'ask.raised'; at: Date; session: string; id: string; method: string; asking: boolean; trace?: Trace };
@@ -57,8 +64,22 @@ declare module '@nightseam/runtime' {
   }
 }
 
-/** One frame of the seam, as the channel it travels on declares it. */
-type Wire = Parameters<Channel['send']>[0];
+/** One frame of the seam, as the connection it travels on declares it. */
+type Wire = Parameters<FrameConnection['send']>[0];
+
+/**
+ * A connection that observes through something of its own — a tunnel
+ * channel, which hands its events to the peer its tunnel runs over. A
+ * connection that carries no `observe` carries no such choice, and a session
+ * over it takes the registry's observer instead.
+ */
+interface Observing { observe(event: ObserverEvent): void }
+
+/** Whether a connection observes through one of its own. */
+function observes(connection: FrameConnection): connection is FrameConnection & Observing {
+  return typeof (connection as Partial<Observing>).observe === 'function';
+}
+
 /** One message of the profile, read as the plain object it is. */
 type Envelope = Record<string, unknown>;
 
@@ -176,11 +197,25 @@ export interface RegistryOptions {
   maxAttachments?: number;
   /** How many requests a session may have open towards its machine at once; one beyond it is refused with busy. Default: 256. */
   maxInflight?: number;
+  /**
+   * Where a session bound over a connection that observes through nothing of
+   * its own — a pipe, a bare socket, an in-process machine — tells what it
+   * does. A connection that carries `observe`, a tunnel channel being the
+   * one that does, tells through that instead and never this: it is the
+   * observer the consumer already chose. Default: none, which observes
+   * nothing and costs nothing.
+   */
+  observer?: Observer;
 }
+
+/** The bounds a registry settled on, which is what `limit` reads back: an observer is a choice rather than a bound and is not among them. */
+type Limits = Required<Pick<RegistryOptions, 'maxAttachments' | 'maxInflight'>>;
 
 /** The live sessions of one process: an id to the relay that carries it. */
 export class Registry {
-  private readonly limits: Required<RegistryOptions>;
+  private readonly limits: Limits;
+  /** Where a session of this registry tells what it does when its up connection observes through nothing of its own. */
+  private readonly watcher?: Observer;
   private readonly relays = new Map<string, Relay>();
   /** One entry per registration rather than one per function, so that the same hook registered twice is stopped once per registration. */
   private readonly hooks = new Set<{ fn: (change: Change) => void }>();
@@ -190,6 +225,7 @@ export class Registry {
       maxAttachments: positive(options.maxAttachments ?? 64, 'maxAttachments'),
       maxInflight: positive(options.maxInflight ?? 256, 'maxInflight'),
     };
+    if (options.observer !== undefined) this.watcher = options.observer;
   }
 
   /**
@@ -199,8 +235,13 @@ export class Registry {
    * session goes on from its head: a durable log bound with frames already in
    * it replays them to a consumer that attaches after nothing, rather than
    * waiting for the machine to speak for the session to learn where it is.
+   *
+   * The connection is the seam's — a channel of a tunnel, a pipe, a bare
+   * socket — and where the session tells what it does follows from it: one
+   * that carries `observe` tells through that, one that does not tells
+   * `RegistryOptions.observer`, and where there is neither, nothing.
    */
-  bind(id: string, up: Channel, governance: Governance, log: Log): void {
+  bind(id: string, up: FrameConnection, governance: Governance, log: Log): void {
     if (typeof id !== 'string' || id === '') throw new DuplexError('session_invalid', 'A session is bound under an id.');
     if (this.relays.has(id)) throw new DuplexError('session_exists', `Session ${id} is bound.`);
     const relay = new Relay(this, id, up, governance, log);
@@ -208,8 +249,8 @@ export class Registry {
     relay.listen();
   }
 
-  /** Attaches a consumer's channel to a bound session in a role, stamping what it sends with `origin`, after replaying the log from `after`. */
-  attach(id: string, down: Channel, role: Role, origin: string, after: number): Attachment {
+  /** Attaches a consumer's connection to a bound session in a role, stamping what it sends with `origin`, after replaying the log from `after`. */
+  attach(id: string, down: FrameConnection, role: Role, origin: string, after: number): Attachment {
     if (role !== 'participant' && role !== 'observer') throw new DuplexError('role_invalid', 'A consumer attaches as a participant or an observer.');
     if (typeof origin !== 'string') throw new DuplexError('origin_invalid', 'An origin is the caller\'s fact about the consumer, as text.');
     if (!Number.isInteger(after) || after < 0) throw new DuplexError('sequence_invalid', 'after must be a sequence.');
@@ -260,30 +301,33 @@ export class Registry {
   }
 
   /** @internal */
-  get limit(): Readonly<Required<RegistryOptions>> { return this.limits; }
+  get limit(): Readonly<Limits> { return this.limits; }
+
+  /** @internal Where a session of this registry tells what it does when its up connection observes through nothing of its own. */
+  get observer(): Observer | undefined { return this.watcher; }
 
   /** @internal */
   forget(id: string): void { this.relays.delete(id); }
 }
 
-/** One consumer on a session: the channel it speaks on, the role it attached in and the origin its frames carry. */
+/** One consumer on a session: the connection it speaks on, the role it attached in and the origin its frames carry. */
 export class Attachment {
   readonly role: Role;
   readonly origin: string;
-  readonly channel: Channel;
+  readonly channel: FrameConnection;
   private readonly relay: Relay;
   /** What the channel handed back when the relay began listening, so that detaching leaves it as it was found. */
   private unlisten?: () => void;
 
   /** @internal */
-  constructor(relay: Relay, channel: Channel, role: Role, origin: string) {
+  constructor(relay: Relay, channel: FrameConnection, role: Role, origin: string) {
     this.relay = relay;
     this.channel = channel;
     this.role = role;
     this.origin = origin;
   }
 
-  /** Detaches the consumer: the relay stops carrying its channel, releases control if it held it, and the session stands; the channel is closed with 1000 "detached", as the Go twin closes it, so a consumer learns it was let go. */
+  /** Detaches the consumer: the relay stops carrying its connection, releases control if it held it, and the session stands; the connection is closed with 1000 "detached", as the Go twin closes it, so a consumer learns it was let go. */
   detach(): void {
     this.relay.detach(this);
     if (this.channel.state === 'open') this.channel.close(1000, 'detached');
@@ -303,7 +347,7 @@ interface Inflight { at: Attachment; id: string }
 interface Open { message: Envelope; asking: boolean; at: Attachment | null }
 
 /**
- * One bound session: the up channel, the consumers attached to it, the
+ * One bound session: the up connection, the consumers attached to it, the
  * holder of control, and the log. Every frame the relay handles runs on one
  * queue, so that what the log records and what a channel receives are in the
  * same order — including a replay, which is queued before the frames of the
@@ -312,7 +356,7 @@ interface Open { message: Envelope; asking: boolean; at: Attachment | null }
 class Relay {
   readonly id: string;
   private readonly registry: Registry;
-  private readonly up: Channel;
+  private readonly up: FrameConnection;
   private readonly governance: Governance;
   private readonly log: Log;
   private readonly attachments = new Set<Attachment>();
@@ -337,10 +381,19 @@ class Relay {
   private queue: Promise<void> = Promise.resolve();
   private ended = false;
 
-  constructor(registry: Registry, id: string, up: Channel, governance: Governance, log: Log) {
+  constructor(registry: Registry, id: string, up: FrameConnection, governance: Governance, log: Log) {
     this.registry = registry;
     this.id = id;
     this.up = up;
+    // Which observer a session has follows from the connection its machine
+    // speaks over and is settled here, once: the connection's own where it
+    // has one, then the registry's, then none — a connection that observes
+    // through something of its own never falls back to the registry's, that
+    // something being the observer the consumer already chose.
+    const watcher = registry.observer;
+    this.tell = observes(up) ? event => up.observe(event)
+      : watcher ? event => { try { watcher.observe(event); } catch { /* An observer cannot interrupt the session it hears about. */ } }
+        : () => { /* No peer and no registry observer is the no-op an observer already means. */ };
     this.governance = governance;
     this.log = log;
   }
@@ -379,7 +432,7 @@ class Relay {
     this.observe({ type: 'session.bound', at: new Date(), session: this.id });
   }
 
-  attach(down: Channel, role: Role, origin: string, after: number): Attachment {
+  attach(down: FrameConnection, role: Role, origin: string, after: number): Attachment {
     if (this.ended) throw new DuplexError('no_session', `No session ${this.id} is bound.`);
     if (this.attachments.size >= this.registry.limit.maxAttachments) throw new DuplexError('too_many_attachments', 'No room for another consumer on this session.');
     const attachment = new Attachment(this, down, role, origin);
@@ -437,8 +490,11 @@ class Relay {
   /** change tells the registry's hooks one domain change of this session, which the registry stamps with the session and the time. */
   private change(kind: ChangeKind, of: Of = {}): void { this.registry.changed(this.id, kind, of); }
 
-  /** observe tells the observer of the peer the session runs over one event of the session's own; a peer given no observer is told nothing and pays nothing. */
-  private observe(event: ObserverEvent): void { this.up.observe(event); }
+  /** What this session tells its events to, settled where it was bound; an observer that is absent is told nothing and costs nothing. */
+  private readonly tell: (event: ObserverEvent) => void;
+
+  /** observe tells this session's observer one event of its own. */
+  private observe(event: ObserverEvent): void { this.tell(event); }
 
   /** run puts one step on the relay's queue; a step that throws leaves the session standing. */
   private run(step: () => void | Promise<void>): void {
@@ -605,8 +661,8 @@ class Relay {
     this.observe({ type: 'session.refused', at: new Date(), session: this.id, code, method, role: attachment.role, origin: attachment.origin, ...(trace ? { trace } : {}) });
   }
 
-  /** write hands a message to a channel; a channel that refuses it has closed, and its own close detaches it. */
-  private write(channel: Channel, message: unknown): void {
+  /** write hands a message to a connection; one that refuses it has closed, and its own close detaches it. */
+  private write(channel: FrameConnection, message: unknown): void {
     try { channel.send({ kind: 'text', data: JSON.stringify(message) }); } catch { /* The channel's close is what detaches it. */ }
   }
 
@@ -628,7 +684,7 @@ class Relay {
     this.observe({ type: 'session.detached', at: new Date(), session: this.id, role: attachment.role, origin: attachment.origin });
   }
 
-  /** end ends the session: the machine's channel closed, so every consumer's ends with the same close. */
+  /** end ends the session: the machine's connection closed, so every consumer's ends with the same close. */
   private end(code: number, reason: string): void {
     if (this.ended) return;
     this.ended = true;
