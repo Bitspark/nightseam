@@ -1,12 +1,16 @@
 # Contributing
 
 How work is organized in this repository — the boundary rule, parity between
-the languages, the two tiers of tests, the golden discipline, lanes, and
-working in one tree — is in **[COLLABORATION.md](COLLABORATION.md)**. Read
+the languages, the two tiers of tests, the golden discipline, lanes, and how a change
+lands — is in **[COLLABORATION.md](COLLABORATION.md)**. Read
 that first; this page exists so that GitHub links to it.
 
 In short:
 
+- `main` takes no direct push: a change is a branch in a worktree of its own
+  (`node scripts/worktree.mjs add issue-<N>-<slug>`), a pull request, and
+  `gh pr merge --auto --squash --delete-branch`, which lands it when the
+  checks are green — no approval is required, so a green PR does not wait.
 - Both tiers green before a change lands: `go test ./...`,
   `pnpm install && pnpm -r check && pnpm -r build && pnpm -r test`,
   `go vet ./... && go test ./...` inside `otel/go` (a module of its own,

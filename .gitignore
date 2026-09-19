@@ -10,3 +10,4 @@ release-notes.md
 conformance/.out/
 conformance/*/.generated/
 secrets/
+.worktrees/

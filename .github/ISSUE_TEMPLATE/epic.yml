@@ -1,0 +1,25 @@
+name: Epic
+description: A body of work decomposed into lanes, each a sub-issue of this one
+type: Epic
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A parent names the whole and its lanes are its sub-issues (the "Create sub-issue" button, or `gh api` to add an existing one), so that this issue shows its own progress and closes when they do. It carries no lane's detail — that is in the lanes.
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: The whole, in the terms of the code, and why now.
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: The shape every lane builds on
+      description: What is pinned here so that no lane waits on a decision — names, signatures, the order the lanes land in.
+  - type: input
+    id: provenance
+    attributes:
+      label: Provenance
+      description: What this was decomposed from, or who asked.

@@ -1,0 +1,59 @@
+{
+  "_comment": [
+    "The rules that govern main, as code. This file is the source of truth:",
+    "it is applied with `node scripts/protect-main.mjs apply` and CI's",
+    "`protection` job fails when the live ruleset has drifted from it, so a",
+    "required check cannot vanish by a click. COLLABORATION.md says what the",
+    "rules mean; the reasons, in one line each:",
+    "  - a change reaches main only by pull request, so that lanes never share",
+    "    a working tree or an index, which is where every accident of",
+    "    2026-09-19 came from;",
+    "  - the three CI jobs are required, so that a green PR is a PR that passed",
+    "    what main is held to, on both platforms and with the conformance suite;",
+    "  - no approval is required, so that a green, in-scope PR is its author's",
+    "    to merge and a lane never waits on a person — review is a comment,",
+    "    not a gate;",
+    "  - strict is off, so that a PR green against a main that moved is still",
+    "    green, and parallel lanes do not serialise on rebasing;",
+    "  - nobody is exempt, the coordinator included."
+  ],
+  "name": "main",
+  "target": "branch",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/main"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {"type": "deletion"},
+    {"type": "non_fast_forward"},
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false,
+        "allowed_merge_methods": ["squash"]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {"context": "fast (ubuntu-latest)"},
+          {"context": "fast (windows-latest)"},
+          {"context": "full"},
+          {"context": "protection"},
+          {"context": "scope"}
+        ]
+      }
+    }
+  ]
+}

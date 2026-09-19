@@ -24,4 +24,5 @@ the area it changes: `runtime/go: …`, `tunnel/ts: …`, `generator: …`,
 - [ ] **Parity** — a change to one language's runtime component carries its twin, and the shared suite says so; or the change touches neither runtime.
 - [ ] **Goldens** — output-changing work is two commits, the logic and then `goldens: regenerate — feature: <what changed>`; `testdata/surface` changed only if the generated packages' exported surface did.
 - [ ] No generated code was edited by hand.
-- [ ] One lane: this carries no other lane's change.
+- [ ] One lane: this carries no other lane's change, and it was made in a worktree of its own.
+- [ ] Auto-merge is queued (`gh pr merge --auto --squash --delete-branch`), or the reason it is held is in a comment.

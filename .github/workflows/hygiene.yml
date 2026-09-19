@@ -1,0 +1,49 @@
+# A weekly report of remote branches, never a deletion: what is contained in
+# main and safe to remove, and what carries work nobody merged. Branches are
+# deleted by the PR that merges them (delete_branch_on_merge); this catches
+# the ones that were pushed and never got a PR, or whose PR was closed.
+#
+# Containment is by patch id (`git cherry`), not by ancestry: main squash
+# merges every PR, so a merged branch's tip is never an ancestor of main and
+# an ancestor test would call every merged branch unmerged forever. A branch
+# with no `+` line from `git cherry main <branch>` is content-contained.
+#
+# Report only: contents: read, no push, no deletion. A maintainer reads the
+# summary and deletes by hand, tagging a tip first if it carries work.
+name: hygiene
+
+on:
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  branches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Report remote branches
+        run: |
+          git fetch --quiet origin '+refs/heads/*:refs/remotes/origin/*'
+          {
+            echo "## Remote branches other than main"
+            echo
+            echo "| branch | last commit | contained in main | open PR |"
+            echo "| --- | --- | --- | --- |"
+            for b in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin | grep -v '^origin/main$' | grep -v '^origin/HEAD$' | sed 's#^origin/##'); do
+              when=$(git log -1 --format=%cs "origin/$b")
+              unmerged=$(git cherry origin/main "origin/$b" | grep -c '^+' || true)
+              pr=$(gh pr list --head "$b" --state open --json number --jq '.[0].number // ""' 2>/dev/null || echo "")
+              if [ "$unmerged" = "0" ]; then contained="yes — safe to delete"; else contained="no — $unmerged commit(s) not on main"; fi
+              echo "| \`$b\` | $when | $contained | ${pr:+#$pr} |"
+            done
+            echo
+            echo "A branch that is contained and has no open PR is deleted by hand: \`git push origin --delete <branch>\`. One that is not contained is tagged first if the work matters: \`git tag archive/<branch> origin/<branch>\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          GH_TOKEN: ${{ github.token }}
