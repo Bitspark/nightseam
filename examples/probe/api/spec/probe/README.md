@@ -28,7 +28,10 @@ export type Notice = (request: Payload, options?: { signal?: AbortSignal }) => P
 For example:
 
 ```json
-null
+{
+  "binding": "‹binding›",
+  "contract": "probe/Notice"
+}
 ```
 
 Used by `Watcher.notice`.
@@ -95,7 +98,10 @@ export type Stop = (options?: { signal?: AbortSignal }) => Promise<void>;
 For example:
 
 ```json
-null
+{
+  "binding": "‹binding›",
+  "contract": "probe/Stop"
+}
 ```
 
 Used by `Subscription.stop`.
@@ -130,7 +136,10 @@ For example:
 
 ```json
 {
-  "stop": null
+  "stop": {
+    "binding": "‹binding›",
+    "contract": "probe/Stop"
+  }
 }
 ```
 
@@ -172,7 +181,10 @@ For example:
 {
   "label": "‹label›",
   "watcher": {
-    "notice": null
+    "notice": {
+      "binding": "‹binding›",
+      "contract": "probe/Notice"
+    }
   }
 }
 ```
@@ -209,7 +221,10 @@ For example:
 
 ```json
 {
-  "notice": null
+  "notice": {
+    "binding": "‹binding›",
+    "contract": "probe/Notice"
+  }
 }
 ```
 
@@ -386,7 +401,10 @@ The client sends:
   "params": {
     "label": "‹label›",
     "watcher": {
-      "notice": null
+      "notice": {
+        "binding": "‹binding›",
+        "contract": "probe/Notice"
+      }
     }
   }
 }
@@ -400,7 +418,10 @@ The server answers:
   "kind": "response",
   "id": "c:1",
   "result": {
-    "stop": null
+    "stop": {
+      "binding": "‹binding›",
+      "contract": "probe/Stop"
+    }
   }
 }
 ```
