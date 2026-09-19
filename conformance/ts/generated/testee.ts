@@ -11,8 +11,7 @@
  */
 import { proofOps, resetProof, ProofFailure } from './proof.ts';
 import { createInterface } from 'node:readline';
-import { Client, DuplexError, asks, conversation, decides, errors, validateWire, type Payload, type Seen } from './api/ts/probe-client/src/index.ts';
-import type {Control, Cursor} from './api/ts/session-client/src/index.ts';
+import { Client, DuplexError, errors, validateWire, type Payload, type Seen } from './api/ts/probe-client/src/index.ts';
 
 class Failure extends Error {
   readonly code: string;
@@ -33,8 +32,6 @@ class Dialled {
   private readonly notificationWaiters: Array<() => void> = [];
   private readonly waiters: Array<() => void> = [];
   changedEvent(data: Payload): void { this.changed.push(data); for (const w of this.waiters.splice(0)) w(); this.notification('changed',data); }
-  controlEvent(data: Control): void { this.notification('session.control',data); }
-  cursorEvent(data: Cursor): void { this.notification('session.cursor',data); }
   private notification(event:string,data:unknown): void { this.notifications.push({event,data}); for(const w of this.notificationWaiters.splice(0)) w(); }
   awaitNotification(withinMs:number): Promise<{event:string; data:unknown}|undefined> {
     if(this.notifications.length) return Promise.resolve(this.notifications.shift());
@@ -98,11 +95,9 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
   'gen.serve': () => { throw fail('unsupported', 'TypeScript renders a client and no binding'); },
   'gen.dial': async args => {
     const dialled = new Dialled();
-    const endpoint=new URL(String(args.url));
-    if(args.after!==undefined) endpoint.searchParams.set('after',String(args.after));
-    const client = await Client.dial(endpoint.toString(), {}, {
+    const client = await Client.dial(String(args.url), {}, {
       reverse: (params: Payload) => ({ ...params, text: 'typescript:' + params.text }),
-    }, { changed: data => dialled.changedEvent(data), ...(args.control === false ? {} : {sessionControl:(data:Control)=>dialled.controlEvent(data)}), ...(args.cursor === true ? {sessionCursor:(data:Cursor)=>dialled.cursorEvent(data)} : {}) }).catch(error => { throw fail('failed', String(error)); });
+    }, { changed: data => dialled.changedEvent(data) }).catch(error => { throw fail('failed', String(error)); });
     const handle = `cl${++next}`;
     dialled.client = client;
     handles.set(handle, dialled);
@@ -121,9 +116,6 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
     return { data };
   },
   'client.close': args => { dialledOf(args).client.close(); return {}; },
-  'client.on_control': args => { const dialled=dialledOf(args); dialled.client.onSessionControl(data=>dialled.controlEvent(data)); return {}; },
-  'client.on_cursor': args => { const dialled=dialledOf(args); dialled.client.onSessionCursor(data=>dialled.cursorEvent(data)); return {}; },
-  'client.sequence': args => ({sequence:dialledOf(args).client.sequence}),
   'client.await_notification': async args => {
     const notification=await dialledOf(args).awaitNotification(withinOf(args));
     if(notification===undefined) throw fail('timeout','no typed notification');
@@ -137,9 +129,6 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
       return { valid: false, message: String(error) };
     }
   },
-  'gen.decides': args => ({ value: decides.has(String(args.method)) }),
-  'gen.asks': args => ({ value: asks.has(String(args.method)) }),
-  'gen.conversation': () => ({ event: conversation.event, path: conversation.path }),
   'gen.errors': () => Object.values(errors).sort(),
   'gen.is_error': args => ({ value: Object.values(errors).includes(String(args.code) as never) }),
 };

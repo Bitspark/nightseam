@@ -16,7 +16,6 @@ func family(files map[string]string) *render.Family {
 		"probe": {
 			"model.json":    `{"nightseam": 2, "types": {"Payload": {"kind": "record", "fields": [{"name": "text", "type": "string"}]}}}`,
 			"protocol.json": modeltest.Protocol(``),
-			"session.json":  `{}`,
 		},
 	}))
 	return render.Build(analysis.Resolve(world, "x"))
@@ -65,7 +64,7 @@ func TestCheckRejectsWhatTypeScriptCannotGenerate(t *testing.T) {
 		"global type":                      {map[string]string{"model.json": m(`"Array": {"kind": "alias", "type": "string"}`)}, "reserved_name", "model.json#/types/Array"},
 		"error member collision":           {map[string]string{"model.json": fixtureModel, "protocol.json": modeltest.Protocol(`"errors": {"not-found": "", "not_found": ""}`)}, "generated_name_collision", "protocol.json#/errors/not_found"},
 		"a name that is not an identifier": {map[string]string{"model.json": fixtureModel, "protocol.json": fixtureProtocol(``), "typescript.json": `{"names": {"run": "run it"}}`}, "invalid_name", "typescript.json#/names/run"},
-		"a parameter named as a type":      {map[string]string{"model.json": m(`"S": {"kind": "enum", "values": ["v"]}`), "protocol.json": modeltest.Protocol(`"parameters": [{"name": "S", "of": "session"}], "types": {"F": {"kind": "record", "fields": [{"name": "m", "type": "S.Envelope"}]}}`)}, "generated_name_collision", "protocol.json#/parameters/0/name"},
+		"a parameter named as a type":      {map[string]string{"model.json": m(`"S": {"kind": "enum", "values": ["v"]}`), "protocol.json": modeltest.Protocol(`"parameters": [{"name": "S", "of": "protocol"}], "types": {"F": {"kind": "record", "fields": [{"name": "m", "type": "S.Envelope"}]}}`)}, "generated_name_collision", "protocol.json#/parameters/0/name"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			diagnostics := check(c.files)

@@ -55,7 +55,7 @@ func pair(t *testing.T, client, server *tunnel.Tunnel) (opened, accepted *tunnel
 		}
 		done <- c
 	}()
-	opened, err := client.Open(ctx, "probe", 0)
+	opened, err := client.Open(ctx, "probe")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestChannelIsAConnOverWebSocket(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		opened, err := tn.Open(ctx, "probe", 0)
+		opened, err := tn.Open(ctx, "probe")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -130,11 +130,11 @@ func TestBothSidesOpen(t *testing.T) {
 	client, server := peers(t, tunnel.Options{})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	fromClient, err := client.Open(ctx, "probe", 7)
+	fromClient, err := client.Open(ctx, "probe")
 	if err != nil {
 		t.Fatal(err)
 	}
-	fromServer, err := server.Open(ctx, "codex", 0)
+	fromServer, err := server.Open(ctx, "codex")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestBothSidesOpen(t *testing.T) {
 		t.Fatalf("ids %d and %d are not the openers' parities", fromClient.ID, fromServer.ID)
 	}
 	atServer, ok := server.Channel(fromClient.ID)
-	if !ok || atServer.Family != "probe" || atServer.After != 7 {
+	if !ok || atServer.Family != "probe" {
 		t.Fatalf("the server resolved %+v", atServer)
 	}
 	atClient, ok := client.Channel(fromServer.ID)
@@ -268,15 +268,15 @@ func TestOpenIsRefusedWhenNobodyAccepts(t *testing.T) {
 	client, _ := peers(t, tunnel.Options{AcceptCapacity: 1})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if _, err := client.Open(ctx, "probe", 0); err != nil {
+	if _, err := client.Open(ctx, "probe"); err != nil {
 		t.Fatal(err)
 	}
-	_, err := client.Open(ctx, "probe", 0)
+	_, err := client.Open(ctx, "probe")
 	var public *runtime.PublicError
 	if !errors.As(err, &public) || public.Code != tunnel.ErrorRefused {
 		t.Fatalf("the second open: %v", err)
 	}
-	if _, err := client.Open(ctx, "", 0); err == nil {
+	if _, err := client.Open(ctx, ""); err == nil {
 		t.Fatal("a channel of no family opened")
 	}
 }

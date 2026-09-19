@@ -2,9 +2,9 @@
 // README.md under api/spec/<family>, which renders where the tree is read —
 // the types with their fields and constraints, an example of each and
 // where it is used, the two sides with their operations and errors and each
-// operation as the frames of the profile carry it, the parameters a family
-// is generic in, the governance of a session of it — so that what a family
-// means is written once, in the declaration, and the page is never behind
+// operation as the frames of the profile carry it, and the parameters a
+// family is generic in — so that what a family means is written once, in
+// the declaration, and the page is never behind
 // it. It is a doc.Writer, a target by doc.Target, and reserves nothing: it
 // declares no identifier a family could collide with.
 package markdown
@@ -115,24 +115,6 @@ func (p *page) render() {
 			for _, e := range f.Errors {
 				p.linef("| `%s` | %s |", e.Code, cell(e.Description))
 			}
-		}
-	}
-	if s := f.Session; s != nil {
-		p.line("")
-		p.line("## Session")
-		p.line("")
-		p.line("How a session of the family is governed.")
-		p.line("")
-		for _, inherited := range s.Inherited {
-			p.linef("Governance inherited from the %s side of `%s`.", inherited.Side, inherited.Family)
-		}
-		if len(s.Inherited) > 0 {
-			p.line("")
-		}
-		p.linef("- **Decides**: %s — the methods that need control to send.", codes(s.Decides))
-		p.linef("- **Asks**: %s — the methods the server sends that raise a request the holder of control must answer.", codes(s.Asks))
-		if s.Conversation != nil {
-			p.linef("- **Conversation**: the id arrives in the `%s` event, at `%s` of its data.", s.Conversation.Event, s.Conversation.Path)
 		}
 	}
 }

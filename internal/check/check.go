@@ -26,7 +26,6 @@ type concern struct {
 // concerns are the checkers of the tiers above the model, in tier order.
 var concerns = []concern{
 	{Name: "protocol", File: model.ProtocolFile, Check: Protocol},
-	{Name: "session", File: model.SessionFile, Check: Session},
 }
 
 // Family runs every check the family's tiers call for, in tier order, and
@@ -333,7 +332,7 @@ func (c *checker) imported(x model.Imported, at diag.Location, where site) {
 	other, ok := f.Imported[x.Family]
 	if !ok {
 		if _, builtin := f.Builtin(x.Family); builtin {
-			c.Addf(at, "implicit_import", "Family %s is built in: a family that has the tier bringing it carries its types under their own names, and one that does not cannot name them. %s", x.Family, whereBuiltinReaches(x.Family))
+			c.Addf(at, "implicit_import", "Family %s is built in: a family that has the tier bringing it carries its types under their own names, and one that does not cannot name them.", x.Family)
 			return
 		}
 		c.Addf(at, "unresolved_type", "Type %s.%s names a family this family does not import.", x.Family, x.Name)
@@ -534,18 +533,6 @@ func (c *checker) arguments(target string, wanted map[string]model.Parameter, wi
 	}
 }
 
-// whereBuiltinReaches says how a built-in family that is not carried
-// reaches a family that has its tier, so that a diagnostic about one points
-// somewhere rather than only refusing.
-func whereBuiltinReaches(name string) string {
-	for _, tier := range model.Tiers {
-		if tier.Builtin == name && !tier.Carries {
-			return "The " + tier.Name + " tier's vocabulary is one declaration for every family and reaches a family's generated code as a side that extends it, not as types this family names."
-		}
-	}
-	return ""
-}
-
 func applied(x model.Apply) string {
 	if x.Family == "" {
 		return x.Name
@@ -665,19 +652,7 @@ func Protocol(f *analysis.Family) []diag.Diagnostic {
 	context := model.Rank(model.ProtocolFile)
 	where := site{context: context, inline: true}
 	wire := map[string]diag.Location{}
-	reserved := func(name string, at diag.Location) {
-		for _, tier := range model.Tiers {
-			if tier.Builtin == "" || tier.Carries || !strings.HasPrefix(name, tier.Builtin+".") {
-				continue
-			}
-			owner, ok := f.Builtin(tier.Builtin)
-			if ok && f.Source != owner.Source {
-				c.Addf(at, "reserved_name", "Operation %s is in the namespace of the built-in %s family; its operations come from the %s tier and may not be declared by a consumer.", name, tier.Builtin, tier.Name)
-			}
-		}
-	}
 	operation := func(direction, name string, at diag.Location) {
-		reserved(name, at)
 		key := direction + ":" + name
 		if previous, ok := wire[key]; ok {
 			c.Addf(at, "operation_collision", "Operation %s collides with the one at %s: both flow %s under one name.", name, previous, direction)

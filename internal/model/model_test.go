@@ -215,7 +215,7 @@ func TestDecodeTypes(t *testing.T) {
 func TestDecodeProtocol(t *testing.T) {
 	p, err := DecodeProtocol("protocol.json", json.RawMessage(`{
 		"profile": "nightseam.duplex/1",
-		"parameters": [{"name": "S", "of": "session", "description": "carried"}],
+		"parameters": [{"name": "S", "of": "protocol", "description": "carried"}],
 		"server": {
 			"methods": {
 				"echo": {"request": "Payload", "result": "Payload", "errors": ["denied"], "description": "Echoes."},
@@ -266,16 +266,9 @@ func TestDecodeProtocol(t *testing.T) {
 	}
 }
 
-// TestDecodeSessionAndOverrides: the session's sections decode, extensions
-// are carried raw, and an override file refuses a key it does not know.
-func TestDecodeSessionAndOverrides(t *testing.T) {
-	s, err := DecodeSession("session.json", json.RawMessage(`{"decides": ["echo"], "asks": ["reverse"], "conversation": {"event": "changed", "path": "text"}, "extensions": {"options": [1]}}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if s.Decides[0] != "echo" || s.Asks[0] != "reverse" || s.Conversation.Event != "changed" || s.Conversation.Path != "text" || string(s.Extensions) != `{"options": [1]}` {
-		t.Fatalf("session decoded as %+v", s)
-	}
+// TestDecodeOverrides: an override file gives names and refuses a key it
+// does not know.
+func TestDecodeOverrides(t *testing.T) {
 	o, err := DecodeOverrides("go.json", json.RawMessage(`{"names": {"User.id": "ID"}}`))
 	if err != nil || o.Names["User.id"] != "ID" {
 		t.Fatalf("overrides decoded as %+v, %v", o, err)

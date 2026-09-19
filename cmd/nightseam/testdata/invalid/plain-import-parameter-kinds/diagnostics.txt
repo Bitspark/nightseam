@@ -1,4 +1,3 @@
 x/protocol.json#/types/Use/fields/0/type: Type peer.OwnBox needs type parameter Item, which a family parameter cannot fill; supply it with {"apply": "peer.OwnBox", "with": {…}}. [ambiguous_application]
 x/protocol.json#/types/Use/fields/1/type: Type peer.FamilyBox needs type parameter T, which a family parameter cannot fill; supply it with {"apply": "peer.FamilyBox", "with": {…}}. [ambiguous_application]
-x/protocol.json#/types/Use/fields/2/type: Type peer.SessionBox needs parameter P of the session tier, but S guarantees only protocol; supply a suitable family with {"apply": "peer.SessionBox", "with": {…}}. [ambiguous_application]
-error: 3 problems
+error: 2 problems

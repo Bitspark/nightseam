@@ -8,33 +8,11 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/Bitspark/nightseam/internal/analysis"
 	"github.com/Bitspark/nightseam/internal/kernel"
 	"github.com/Bitspark/nightseam/internal/load"
-	"github.com/Bitspark/nightseam/internal/render"
 	"github.com/Bitspark/nightseam/internal/targets/golang"
 	"github.com/Bitspark/nightseam/internal/targets/typescript"
 )
-
-func TestProofInheritanceKeepsGovernanceOnItsTierAndSide(t *testing.T) {
-	source := proofSource(t)
-	source["contracts/probe/session.json"] = &fstest.MapFile{Data: []byte(`{"decides":["echo"],"asks":["reverse"],"conversation":{"event":"changed","path":"text"}}`)}
-	k, _ := toolKernel(load.Config{}, module, scope, "")
-	world := k.Load(source, "contracts")
-	facts := render.Build(analysis.Resolve(analysis.World(world.Families), "proof"))
-	if facts.Session != nil {
-		t.Fatal("extending a side silently acquired a session tier")
-	}
-	source["contracts/proof/session.json"] = &fstest.MapFile{Data: []byte(`{}`)}
-	world = k.Load(source, "contracts")
-	if _, err := k.Render(world, "proof"); err != nil {
-		t.Fatal(err)
-	}
-	facts = render.Build(analysis.Resolve(analysis.World(world.Families), "proof"))
-	if facts.Session == nil || len(facts.Session.Decides) != 1 || facts.Session.Decides[0] != "echo" || len(facts.Session.Asks) != 0 || facts.Session.Conversation == nil || facts.Session.Conversation.Event != "changed" || facts.Session.Conversation.Path != "text" {
-		t.Fatalf("governance did not follow only the extended server side: %#v", facts.Session)
-	}
-}
 
 // proofSource keeps every experiment on the promoted corpus, including its
 // imported probe. Mutations below apply to an in-memory copy of tier files.

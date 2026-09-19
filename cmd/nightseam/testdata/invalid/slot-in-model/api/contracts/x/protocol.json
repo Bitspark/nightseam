@@ -1,1 +1,1 @@
-{"profile": "nightseam.duplex/1", "parameters": [{"name": "S", "of": "session"}], "types": {"Frame": {"kind": "record", "fields": [{"name": "message", "type": "S.Envelope"}]}}}
+{"profile": "nightseam.duplex/1", "parameters": [{"name": "S", "of": "protocol"}], "types": {"Frame": {"kind": "record", "fields": [{"name": "message", "type": "S.Envelope"}]}}}

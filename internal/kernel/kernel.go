@@ -282,18 +282,6 @@ func (k *Kernel) Stale(fsys fs.FS, world *World, chosen []string, rendered map[s
 	for _, name := range chosen {
 		chosenSet[name] = true
 	}
-	implicit := map[string]bool{}
-	for name, family := range world.Families {
-		for _, tier := range model.Tiers {
-			if tier.Builtin == "" || tier.Carries || !family.Has(tier.File) {
-				continue
-			}
-			implicit[tier.Builtin] = true
-			if chosenSet[name] {
-				chosenSet[tier.Builtin] = true
-			}
-		}
-	}
 	var stale []string
 	seen := map[string]bool{}
 	for _, target := range k.targets {
@@ -319,7 +307,6 @@ func (k *Kernel) Stale(fsys fs.FS, world *World, chosen []string, rendered map[s
 					return nil
 				}
 				_, exists := world.Families[family]
-				exists = exists || implicit[family]
 				if family == "" || !exists || chosenSet[family] {
 					seen[p] = true
 					stale = append(stale, p)

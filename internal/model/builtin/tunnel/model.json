@@ -7,7 +7,6 @@
       "fields": [
         {"name": "channel", "description": "The id the opener chose: odd for the client of the outer connection, even for its server.", "type": "integer"},
         {"name": "family", "description": "The family the channel will speak.", "type": "string"},
-        {"name": "after", "description": "The last sequence the opener holds, carried and never acted on.", "type": "integer", "required": false},
         {"name": "window", "description": "How many frames the opener will hold in flight before it returns credit.", "type": "integer"}
       ]
     },
