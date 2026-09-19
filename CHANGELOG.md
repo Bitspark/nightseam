@@ -13,7 +13,8 @@ are one number. Entries are in the words of the commits that landed them.
   Imported arguments retain their declaring scope, and the shared table
   holds generic applications to their bound declarations. Descriptors now
   carry `types` and family `parameters`; generated Go imports use
-  `WireSchema()` instead of opaque validation callbacks.
+  `WireSchema()` instead of opaque validation callbacks. Runtime descriptors
+  also reject forbidden pattern syntax even in unused optional fields.
 
 - The declaration language gained the type language of #55's eight
   verdicts, whole and in one lane. **Unions**: `{"kind": "union", "tag":
