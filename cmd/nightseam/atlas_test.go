@@ -5,7 +5,23 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Bitspark/nightseam/internal/doc"
+	"github.com/Bitspark/nightseam/internal/kernel"
+	"github.com/Bitspark/nightseam/internal/targets/atlas"
 )
+
+// The proof's complete page holds every settled form and every variant's
+// canonical example beside the regular checkout goldens.
+func TestAtlasProofGolden(t *testing.T) {
+	k := kernel.New(doc.Target(atlas.New(atlas.Config{})))
+	world := k.Load(os.DirFS("testdata"), "proof")
+	result, err := k.RenderCheckout(world)
+	if err != nil {
+		t.Fatal(err)
+	}
+	holdGolden(t, "testdata/golden-proof-atlas", result.Files)
+}
 
 func TestAtlasConfigAndCheckoutOwnership(t *testing.T) {
 	root := t.TempDir()
