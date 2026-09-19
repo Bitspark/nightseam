@@ -5,13 +5,14 @@ import { modules, packages, root } from "./packages.mjs";
 
 /**
  * Publishing can finish before either registry serves the new version.
+ * A Go proxy miss can remain cached for many minutes after the tag exists.
  * Hold every package and module to one deadline before the smoke installs
  * anything; endpoints and the budget can be replaced by a local test registry.
  */
 export async function waitForRegistries(tag, {
   npmRegistry = "https://registry.npmjs.org",
   goProxy = "https://proxy.golang.org",
-  timeoutMs = 120_000,
+  timeoutMs = 30 * 60_000,
   log = console.log,
   clock = { now: () => performance.now(), sleep: after },
 } = {}) {
@@ -66,7 +67,7 @@ export async function waitForRegistries(tag, {
     // scheduled wakeup, especially the final deadline, before retrying.
     const wakeAt = Math.min(clock.now() + pause, deadline);
     while (clock.now() < wakeAt) await clock.sleep(Math.ceil(wakeAt - clock.now()));
-    delay = Math.min(delay * 2, 10_000);
+    delay = Math.min(delay * 2, 30_000);
   }
   throw new Error(`registry propagation timed out after ${elapsed()}s:\n${[...pending].map(target => `  ${target.name}: ${target.last ?? "no response"}`).join("\n")}`);
 }
