@@ -39,6 +39,7 @@ both, and says so at the top.
 | [OpenTelemetry is its own package](opentelemetry-is-its-own-package.md) | [agnosticism](../goals/agnosticism.md) | 0.3.0 |
 | [Generated files carry no version](generated-files-carry-no-version.md) | [declarative](../goals/declarative.md) | 0.3.0 |
 | [A specification is rendered, not written](a-specification-is-rendered-not-written.md) | [declarative](../goals/declarative.md) | 0.2.0 |
+| [A specification has a document, and renderers of it](a-specification-has-a-document-and-renderers-of-it.md) | [declarative](../goals/declarative.md), [extensibility](../goals/extensibility.md), [configurability](../goals/configurability.md), [agnosticism](../goals/agnosticism.md) | #154, #155, #156, #157 |
 | [One reference form](one-reference-form.md) | [declarative](../goals/declarative.md) | v2 |
 | [A tier is a built-in family](a-tier-is-a-built-in-family.md) | [declarative](../goals/declarative.md), [boundary](../goals/boundary.md) | 0.4.0, #62 |
 | [A side may extend another family's](a-side-may-extend-another-familys.md) | [composability](../goals/composability.md) | 0.4.0, #61 |
