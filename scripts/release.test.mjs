@@ -24,7 +24,7 @@ const tag = "v" + JSON.parse(readFileSync(join(root, "runtime/ts/package.json"),
 // the fixture and nothing else: the file on disk is the artifact of whatever
 // run last touched the checkout, and a gate's test that moves with it holds
 // the gate to nothing.
-const profiles = ["core", "generator", "observability", "session", "tunnel"];
+const profiles = ["core", "generator", "live", "observability", "session", "tunnel"];
 const green = {
   profiles,
   languages: {

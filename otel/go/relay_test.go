@@ -93,7 +93,7 @@ func (r *relayed) channels() (near, far *tunnel.Channel) {
 		}
 		accepted <- channel
 	}()
-	opened, err := r.opening.Open(r.ctx, "probe", 0)
+	opened, err := r.opening.Open(r.ctx, "probe")
 	if err != nil {
 		r.t.Fatal(err)
 	}
