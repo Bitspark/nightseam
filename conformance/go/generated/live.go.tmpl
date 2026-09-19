@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sort"
 	"sync"
 
 	workerbinding "example.test/generated/api/go/worker-binding"
@@ -280,8 +281,19 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 type liveClientHandler struct{}
 
 func (liveClientHandler) Supervise(_ context.Context, _ *workerclient.Client, params worker.Supervise) (worker.Outcome, error) {
-	for _, sink := range params.Sinks {
-		if err := sink.Report(context.Background(), 1); err != nil {
+	// By key, in order. A map is an object on the wire and its members are
+	// unordered there, so the declaration promises nothing about the order
+	// these are called in — which means a scenario cannot assert one unless
+	// the testee chooses it. Go randomizes map iteration deliberately, so
+	// ranging here made the observable order a coin toss; the TypeScript
+	// testee already sorts, and two testees of one suite answer the same.
+	names := make([]string, 0, len(params.Sinks))
+	for name := range params.Sinks {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if err := params.Sinks[name].Report(context.Background(), 1); err != nil {
 			return worker.Outcome{}, err
 		}
 	}
