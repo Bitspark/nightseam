@@ -23,6 +23,10 @@ func TestTypeExprRoundTrips(t *testing.T) {
 		`{"ref":"Project"}`:           Ref{Entity: "Project"},
 		`{"apply":"carrier.Frame","with":{"S":"B"}}`:     Apply{Family: "carrier", Name: "Frame", With: map[string]Filler{"S": {Type: Named{Name: "B"}}}},
 		`{"apply":"carrier.Frame","with":{"S":"probe"}}`: Apply{Family: "carrier", Name: "Frame", With: map[string]Filler{"S": {Family: "probe"}}},
+		`{"nullable":"string"}`:                          Nullable{Elem: Primitive("string")},
+		`{"array":{"nullable":"Payload"}}`:               Array{Elem: Nullable{Elem: Named{Name: "Payload"}}},
+		`{"literal":"text"}`:                             Literal{Value: "text"},
+		`{"apply":"Page","with":{"T":{"array":"User"}}}`: Apply{Name: "Page", With: map[string]Filler{"T": {Type: Array{Elem: Named{Name: "User"}}}}},
 	} {
 		got, err := Decode(json.RawMessage(source))
 		if err != nil {
@@ -35,6 +39,58 @@ func TestTypeExprRoundTrips(t *testing.T) {
 		if back := String(got); back != source {
 			t.Errorf("%s marshals back as %s", source, back)
 		}
+	}
+}
+
+// TestInlineShapesAreTypeExpressions: a record, an enum or a union written
+// where a type is named decodes to the shape it declares and marshals back
+// as the validator reads it — the declaration, not a second spelling of it.
+func TestInlineShapesAreTypeExpressions(t *testing.T) {
+	for _, source := range []string{
+		`{"kind":"record","fields":[{"name":"n","type":"integer","required":true}]}`,
+		`{"kind":"enum","values":["a","b"]}`,
+		`{"kind":"union","tag":"type","variants":{"count":"integer","text":"TextPart"}}`,
+		`{"kind":"union","tag":"type","value":"payload","variants":{"count":"integer"}}`,
+	} {
+		e, err := Decode(json.RawMessage(source))
+		if err != nil {
+			t.Errorf("%s: %v", source, err)
+			continue
+		}
+		inline, ok := e.(Inline)
+		if !ok {
+			t.Errorf("%s decoded to %#v, not an inline shape", source, e)
+			continue
+		}
+		if inline.Type.Name != "" {
+			t.Errorf("%s carries the name %q; a shape written inline has none", source, inline.Type.Name)
+		}
+		if back := String(e); back != source {
+			t.Errorf("%s marshals back as %s", source, back)
+		}
+	}
+}
+
+// TestUnionsCarryTheirDiscriminator: a union decodes its tag, its value
+// member and its variants by tag, and a union that names no value member
+// carries a payload that is not an object under `value`.
+func TestUnionsCarryTheirDiscriminator(t *testing.T) {
+	types, err := DecodeTypes(ModelFile, json.RawMessage(`{"Part": {"kind": "union", "tag": "type", "extends": ["Base"], "variants": {"text": "TextPart", "count": "integer"}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	part := types["Part"]
+	if part.Kind != KindUnion || part.Tag != "type" || part.ValueMember() != DefaultValueMember {
+		t.Fatalf("Part is %+v", part)
+	}
+	if len(part.Variants) != 2 || part.Variants[0].Tag != "count" || part.Variants[1].Tag != "text" {
+		t.Fatalf("the variants are %+v, and they are read in tag order", part.Variants)
+	}
+	if v, ok := part.Variant("count"); !ok || !Equal(v.Type, Primitive("integer")) {
+		t.Fatalf("the count variant is %+v", v)
+	}
+	if part.Variants[0].At.String() != ModelFile+"#/types/Part/variants/count" {
+		t.Fatalf("a variant is located at %s", part.Variants[0].At)
 	}
 }
 

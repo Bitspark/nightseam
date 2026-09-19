@@ -291,41 +291,16 @@ func OverrideAt(target, path string) diag.Location {
 	return diag.Location{File: model.OverrideFile(target), Pointer: "/names/" + diag.Escape(path)}
 }
 
-// The wire description a validator reads: every type with its own fields,
-// its parents, and each field's expression as written, so that the
-// validator flattens inheritance itself and reads the one reference form.
-
-type wireType struct {
-	Kind    string         `json:"kind"`
-	Key     string         `json:"key,omitempty"`
-	Fields  []wireField    `json:"fields,omitempty"`
-	Extends []string       `json:"extends,omitempty"`
-	Open    bool           `json:"open,omitempty"`
-	Values  []string       `json:"values,omitempty"`
-	Type    model.TypeExpr `json:"type,omitempty"`
-}
-
-type wireField struct {
-	Name     string         `json:"name"`
-	Type     model.TypeExpr `json:"type"`
-	Required bool           `json:"required"`
-	Nullable bool           `json:"nullable,omitempty"`
-	Unique   bool           `json:"unique,omitempty"`
-	Min      *json.Number   `json:"min,omitempty"`
-	Max      *json.Number   `json:"max,omitempty"`
-	Length   *model.Length  `json:"length,omitempty"`
-	Pattern  string         `json:"pattern,omitempty"`
-}
+// The wire description a validator reads: every type as the model marshals
+// it — its own fields, its parents, each field's expression as written, and
+// what a union discriminates on — so that the validator flattens
+// inheritance itself and reads the one reference form. It is the
+// declaration, not a second spelling of it beside it.
 
 func wire(f *analysis.Family) string {
-	types := map[string]wireType{}
+	types := map[string]*model.Type{}
 	for _, name := range f.TypeNames() {
-		t := f.Types[name]
-		w := wireType{Kind: t.Kind, Key: t.Key, Extends: t.Extends, Open: t.Open, Values: t.Values, Type: t.Alias}
-		for _, field := range t.Fields {
-			w.Fields = append(w.Fields, wireField{Name: field.Name, Type: field.Type, Required: field.Required, Nullable: field.Nullable, Unique: field.Unique, Min: field.Min, Max: field.Max, Length: field.Length, Pattern: field.Pattern})
-		}
-		types[name] = w
+		types[name] = f.Types[name]
 	}
 	data, _ := json.Marshal(types)
 	return string(data)
