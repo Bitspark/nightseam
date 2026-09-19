@@ -14,7 +14,12 @@ adding something here, say which side of that line it is on; if it needs a
 consumer's concept to be stated, it belongs in the consumer. The rule is
 the contributor's form of a goal, [docs/goals/boundary.md](docs/goals/boundary.md),
 which says what the line looks like at the limit and what the other goals
-yield to it.
+yield to it. Whether a concept is a primitive of Nightseam's, a composition
+a consumer writes, or a consumer's own is decided by the test in
+[docs/admission.md](docs/admission.md) — scope, the basis one level down,
+a composition attempted, the obstruction shown — and a design issue that
+admits a concept supplies that evidence in its form; being reusable, already
+existing, or owning no state of the consumer's is not the argument.
 
 ## No legacy, and rewrites are cheap
 
