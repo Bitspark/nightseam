@@ -1,8 +1,14 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Bitspark/nightseam/internal/kernel"
+	"github.com/Bitspark/nightseam/internal/spi"
+	"github.com/Bitspark/nightseam/internal/targets/golang"
+	"github.com/Bitspark/nightseam/internal/targets/typescript"
 )
 
 // The relay has already sent control and replay before the generated client
@@ -11,16 +17,39 @@ import (
 func TestGeneratedSessionControl(t *testing.T) {
 	root := repositoryRoot(t)
 	tsc := fixture(t, root, "go", "node", "tsc")
+	for _, target := range []spi.Target{
+		golang.New(golang.Config{Module: module}),
+		typescript.New(typescript.Config{Scope: scope}),
+	} {
+		t.Run(target.Name(), func(t *testing.T) {
+			testGeneratedSessionControl(t, root, tsc, target)
+		})
+	}
+}
+
+func testGeneratedSessionControl(t *testing.T, root, tsc string, target spi.Target) {
+	t.Helper()
 	directory := t.TempDir()
 	for _, family := range []string{"probe", "plain"} {
 		writeFixture(t, directory, "api/contracts/"+family+"/model.json", []byte(`{"nightseam":2}`))
 		writeFixture(t, directory, "api/contracts/"+family+"/protocol.json", []byte(`{"profile":"nightseam.duplex/1","server":{"events":{"changed":{"type":"string"}}}}`))
 	}
 	writeFixture(t, directory, "api/contracts/probe/session.json", []byte(`{}`))
-	if _, errs, err := run(t, directory, "generate"); err != nil {
-		t.Fatalf("generate: %v\n%s", err, errs)
+	k := kernel.New(target)
+	world := k.Load(os.DirFS(directory), "api/contracts")
+	for _, name := range world.Names {
+		result, err := k.Render(world, name)
+		if err != nil {
+			t.Fatalf("generate %s: %v", name, err)
+		}
+		writeAll(t, directory, result.Files)
 	}
-	fixtureModule(t, directory, root)
+	if target.Name() == golang.Name {
+		fixtureModule(t, directory, root)
+		writeFixture(t, directory, "session_control_test.go", []byte(goSessionControlFixture))
+		runFixture(t, directory, "go", "test", "-count=1", "./...")
+		return
+	}
 	for _, component := range []string{"runtime", "duplex", "tunnel", "session"} {
 		copyFixtureTree(t, filepath.Join(root, component, "ts"), filepath.Join(directory, component, "ts"))
 	}
@@ -39,11 +68,9 @@ func TestGeneratedSessionControl(t *testing.T) {
 		"include":["api/ts/**/*.ts","session-control.ts"]
 	}`))
 	writeFixture(t, directory, "session-control.ts", []byte(tsSessionControlFixture))
-	writeFixture(t, directory, "session_control_test.go", []byte(goSessionControlFixture))
 	writeFixture(t, directory, "runtime-loader.mjs", []byte(sessionControlLoader))
 	runFixture(t, directory, "node", tsc, "--project", "tsconfig.json")
 	runFixture(t, directory, "node", "--loader", "./runtime-loader.mjs", "session-control.ts")
-	runFixture(t, directory, "go", "test", "-count=1", "./...")
 }
 
 const sessionControlLoader = `export async function resolve(specifier,context,next){
