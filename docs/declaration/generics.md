@@ -72,11 +72,17 @@ maps each of that type's parameters to what fills it — a **type
 expression** for a type parameter, a **family** for a family parameter, or
 a family parameter of *this* family, which keeps the result generic here. A
 family with exactly one family parameter may refer to a generic imported
-type plainly and fill it with that one; with any other number the plain
-reference is refused rather than guessed, and the diagnostic names the
-application to write. Filling a family parameter with a family that does
-not carry the tier is refused, and so is filling a type parameter with a
-family.
+type plainly only when every parameter the imported type needs is a family
+parameter and that one bound guarantees every required tier. A session
+bound can fill a protocol slot, since carrying a tier requires its lower
+tiers too; a protocol bound cannot fill a session slot. A type slot always
+needs an explicit application, whether the type declares it or captures it
+from its family, including through other types or inline shapes. A mixed
+declaration needs explicit arguments too. With any other number of caller
+family parameters the plain generic reference is refused, and the
+diagnostic names the application to write. Filling a family parameter with
+a family that does not carry the tier is refused, and so is filling a type
+parameter with a family.
 
 ## How each language instantiates it
 
