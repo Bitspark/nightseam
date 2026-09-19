@@ -40,7 +40,7 @@ type Config struct {
 const (
 	DefaultRuntime        = "@nightseam/runtime"
 	DefaultTunnel         = "@nightseam/tunnel"
-	DefaultRuntimeVersion = "0.3.0"
+	DefaultRuntimeVersion = "0.4.0"
 	DefaultLayout         = "api/ts/{family}-client"
 	DefaultSibling        = "file"
 )

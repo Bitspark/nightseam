@@ -6,200 +6,104 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
-### Changed
+## 0.4.0 - 2026-09-19
 
-- Shared rendering facts now retain inline declaration identity, inherited
-  union variants and protocol operations, source ownership and session
-  governance. Explicit applications resolve nested type and family fillers;
-  parameter-use analysis includes type parameters and inline captures for
-  both the checker and renderers. Captured arguments follow nested named
-  types. Generic inheritance explicitly binds its own and captured family
-  parameters, and inherited references retain their lexical owner. Union
-  facts use the adjacent payload carrier from #146 and distinguish the
-  explicit no-payload marker from an empty record or null. Target support remains gated by
-  each renderer's existing refusals.
-- The spec target renders standalone references for the built-in families,
-  held to their embedded declarations by the fast test tier, and describes
-  the settled language: nullable expressions, literals, both parameter sorts,
-  applications, derived inline shapes, inherited unions, extended protocol
-  sides and their session governance. Its source addresses and inherited
-  entity references retain their declaration provenance. Union specifications
-  describe the complete payload under the value member, including records,
-  according to the lossless carrier verdict. Explicit inheritance bindings
-  appear beside their bases, and inherited members retain their substituted
-  type expressions and entity-reference ownership.
-- The declaration language gained the type language of #55's eight
-  verdicts, whole and in one lane. **Unions**: `{"kind": "union", "tag":
-  "type", "variants": {…}}`, internally tagged with a declared
-  discriminator, a variant any type expression, a payload that is not an
-  object under a `value` member, a variant record that declares the tag
-  member as its own literal taking no wrapper, a union extending another by
-  adding variants, and `enum` unchanged as the union of variants with no
-  payload. **Parameters**: one mechanism at every level — a family, a
-  record, a union and an alias each declare `parameters`, of two sorts,
-  which `of` names: a type parameter filled by a type expression, or a
-  family parameter `of` any tier a family carries, filled by a family and
-  drawn through as `S.Envelope`; one `{"apply": X, "with": {…}}` fills, one
-  `P.Type` draws, refused on a type parameter. **Nullness**: `{"nullable":
-  T}` is a type expression and a field's `nullable: true` is its sugar, so
-  a collection of values that may be null can be declared. **Shapes without
-  a name**: a record, an enum or a union may be written where a value's
-  type is declared, named by one derivation rule from the path to it, held
-  by the `derived` rows of `conformance/tables/naming.json`. **Literals**:
-  `{"literal": "text"}`, the type of one string value. **Composition**: a
-  protocol side may `extends` another family's, taking its operations under
-  their own names. **The `pattern` dialect**: ECMAScript syntax without
-  lookaround and without backreferences, Nightseam's own
-  regular-expression language, refused in both directions by `check` and
-  held by the `patterns` rows of `conformance/tables/validator.json`. Seven
-  pages under `docs/decisions/` record the eight verdicts, and one
-  `cmd/nightseam/testdata/invalid/<rule>/` per new rule says what the tool
-  refuses. No target renders the new forms yet: each refuses a family that
-  uses one, naming the form and itself, and the render lanes replace each
-  refusal with rendering.
-- **What a tier brings a family is imported, not injected.** The profile,
-  the tunnel and the session are families Nightseam declares of itself, in
-  the declaration language, under `internal/model/builtin/<name>/` as
-  ordinary tier files held to the same shape schemas. A family that has a
-  tier file imports that tier's built-in with no `imports` line;
-  `model.Injected()` is gone, `duplex.Envelope` and `duplex.Handle` take
-  the one import code path every other reference takes, a diagnostic that
-  points into a built-in locates it as `nightseam:duplex/model.json`, a
-  family's specification prints the types it carries with their members,
-  and `conformance/tables/frames.json` is held to `duplex`'s envelope by a
-  test rather than kept in step by hand. Naming a built-in in `imports`, or
-  declaring a type one carries, is refused. Every generated package now
-  carries the profile's own descriptions, which is the only movement in the
-  golden corpus.
+This release makes the consumer improvements landed since 0.3.0 available
+without waiting for the complete declaration-language roadmap. Go and
+TypeScript remain the reference runtimes. The declaration checker and
+specification renderer understand the new type language; complete code
+generation and paired value validation for those forms remain in
+[milestone 0.5.0](https://github.com/Bitspark/nightseam/milestone/6).
 
-- Generated TypeScript siblings use relative file dependencies by default;
-  `--ts-sibling` selects file, workspace or version resolution consistently
-  for generation and stale-output checks.
-- Session binding uses an optional log head lookup in Go and TypeScript,
-  avoiding a full replay where the log already knows its last sequence;
-  memory logs provide it, and a failed lookup cannot start a session at zero.
-- TypeScript checks include every source file, test and conformance helper
-  under the build's shared compiler settings, with Node's test types and a
-  compiler dependency per package; a regression test proves new test files
-  cannot escape the check. Prettier holds handwritten TypeScript formatting
-  in CI, workspace conformance imports use package subpaths, and the three
-  components share option validation while retaining their existing bounds.
-- Attachments expose completion directly through Go `Done()` and TypeScript
-  `done`, including session termination, so consumers can forget them without
-  watching every registry change.
-- `docs/` is sets by reader, each page one kind of thing: `wire/` is what
-  crosses the wire in the wire's own terms and no runtime's — `profile.md`,
-  `tunnel.md`, `session.md`, and `vocabulary.md`, the test that says where
-  something new on the wire belongs; `runtime/` is the surface of each
-  component, Go and TypeScript side by side — `peer.md`, `tunnel.md`,
-  `session.md`, `observer.md`; `declaration/` is the input side —
-  `families.md`, `generics.md`, `generator.md`, `generated.md` (new: what
-  the generated packages export in each language, drawn from the recorded
-  surface), `pipeline.md`; `languages/` is `tiers.md` and `onboarding.md`.
-  The eight flat pages are gone into them: `language.md` into
-  `declaration/families.md` and `generics.md`, `generator.md` into
-  `declaration/generator.md` and `pipeline.md`, `profile.md` into
-  `wire/profile.md` and `runtime/peer.md`, `tunnel.md` and `session.md`
-  each into its `wire/` and `runtime/` halves, `observability.md` into
-  `runtime/observer.md`, `tiers.md` into `languages/tiers.md` and
-  `onboarding.md`, `layers.md` into `wire/vocabulary.md`. Every inbound link
-  moved with them, and `node scripts/links.mjs` holds every link in every
-  page to the tree in CI. The package READMEs published with 0.3.0 name
-  the flat paths until the next publish.
-- `docs/decisions/` is the record of what was decided and why — one page
-  per decision the pages already gave a reason for, twenty-two of them,
-  each the question, what was decided, what the alternative cost, the goal
-  it serves and since when — so that the next person to propose the
-  alternative finds the reason rather than repeats the afternoon; the state
-  pages keep the rule and one sentence of why and point at the record for
-  the argument.
-- `docs/goals/` is the north stars — boundary, layering, composability,
-  agnosticism, declarative, configurability, extensibility, observability
-  — each a page that says what Nightseam is for in that respect at the
-  limit, the dimensions along which the tree can have more or less of it,
-  what it yields to and what it is not, naming nothing in the tree, so that
-  a reviewer can take one page and the tree at any point and say where the
-  tree falls short and how to get closer; `goals/README.md` has the two
-  tests that keep a page abstract and the review protocol, whose output
-  lands as design issues with the goal as provenance. COLLABORATION.md's
-  boundary rule and parity point at the goals they are the contributor's
-  form of.
+### Upgrading from 0.3.0
 
-- The pre-release audit's remaining checks are executable: generated Go
-  surfaces compare through `nightseam-surface`, observer tests wait for
-  notifications, and event pacing uses a controlled clock and completion
-  signals. Internal helpers no longer widen exported surfaces, tunnel
-  members are documented, and a send on a closed TypeScript channel throws
-  `DuplexError` with code `disconnected`. The packed smoke refuses archives
-  missing built entry points, README, LICENSE or NOTICE; CI prepares the
-  notices as release preparation does, and a dry run says it did not.
+- Go's `session.New` now returns `(*Registry, error)`. Handle the error at
+  construction; negative attachment, inflight and send-timeout limits are
+  refused with `invalid_options`, while zero still selects the defaults.
+- Regenerate clients with the matching generator. Supply typed event
+  handlers at construction to observe an immediate replay from its first
+  event; later handler registration remains available.
+- Generated TypeScript sibling packages use relative `file:` dependencies
+  by default. `--ts-sibling` selects `file`, `workspace` or `version`
+  consistently for generation and stale-output checks.
+- Checkout families cannot use the reserved built-in names `duplex`,
+  `tunnel` or `session`. Rename such a family and its references. The
+  checker also refuses invalid or incomplete generic bindings that older
+  versions accepted.
 
-### Fixed
+### Consumer improvements
 
-- Checkout families named `duplex`, `tunnel` or `session` are refused at
-  their declaration with a rename path; imports explain the collision and
-  locate each entry in its original tier file.
+- Session binding uses an optional log head lookup in both languages,
+  avoiding a full read when a durable log already knows its last sequence.
+  Memory logs provide it; a failed lookup cannot start a session at zero.
+- Attachments expose completion through Go `Done()` and TypeScript `done`,
+  including session termination, so callers can forget an attachment
+  without observing every registry change.
+- Generated Go and TypeScript clients install typed event handlers before
+  reading their first frame, preserving events at the start of a replay.
+  Go preparation hooks and later registration remain available.
+- Replay delivers the machine's events to consumers, without replaying
+  other consumers' requests, unrelated replies or pending asks into a live
+  peer. A replay ending in skipped or truncated entries sends its final
+  log cursor so that resumption does not repeatedly scan those entries.
+- Request observers report `request_timeout` for local deadlines and
+  `cancelled` for local cancellation in both directions, and observe an
+  ending before sending its best-effort cancellation frame. TypeScript
+  treats a handler's public `cancelled` refusal as an error, matching Go.
+- TypeScript event names that collide with inherited Object members are
+  refused before generation; a name override preserves the wire name.
+  A send on a closed TypeScript tunnel channel reports `disconnected`.
 
-- Explicit generic applications resolve forwarded family parameters in
-  their declaration scope and require their bounds to guarantee the
-  destination tier, including through inline and nested applications.
-- Plain imported generics require explicit arguments for type slots and
-  incompatible family bounds; shared analysis retains parameter captures
-  through named types, nested applications and inline shapes, and stops
-  when malformed inline inheritance or reference keys form a cycle.
-- Session governance now resolves inherited methods and events on the
-  selected protocol sides and refuses conflicting conversation definitions,
-  while preserving matching definitions through transitive inheritance.
-- Generated clients take typed event handlers at construction in Go and
-  TypeScript, before the first frame is read, so an immediate replay keeps
-  its first event; existing Go preparation hooks and later registration remain.
-- TypeScript event fields that collide with inherited Object members are
-  refused before generation; a name override preserves the wire event and
-  keeps omitted callbacks absent from an empty `Events` object.
-- Union checks refuse nullable discriminator fields and independently
-  redeclared inherited tags, and inspect imported carrier fields in their
-  declaring family instead of a local type with the same name.
-- Go's `session.New` returns `(*Registry, error)` and refuses negative
-  attachment, inflight and send-timeout limits with `invalid_options`;
-  zero still selects the defaults. Both conformance testees preserve the
-  constructor's refusal code, held by the shared session scenario.
-- An observer snapshot repeated until its expectations match preserves its
-  history: the deadline scenario no longer consumes request events before
-  the cancel arrives, and the scenario loader refuses such polling without
-  `drain: false`.
-- Packed-smoke Go modules use a distinct rehearsal version and an isolated,
-  removable module cache, so a rehearsal cannot poison a consumer's release
-  cache. The release workflow refuses a remote tag naming another commit.
-- A replay hands a consumer the machine's events alone, where it handed it
-  every frame the log held: a consumer attaching after another had decided
-  anything was replayed that other consumer's requests, which carry an id the
-  session minted towards the machine — `c:N`, the prefix a consumer's own peer
-  mints under — so the peer ended the connection on the prefix, as the profile
-  says it does for a request from the wrong side, and the consumer that
-  attached from nothing saw the first event or two and then nothing, with no
-  refusal on the wire and everything queued behind the replay lost with it.
-  What a replay hands a channel is now what that consumer would have been
-  delivered live, which the relay is the one place to know, having recorded
-  the direction: every event the machine sent down, and nothing else — no up
-  frame, which goes to the machine and never down; no response of the
-  machine's, which answers a request some other consumer sent under that
-  consumer's id; no request of the machine's, which stands with the holder of
-  control and is handed to a new holder again where control moves. The log
-  keeps recording all of it and `seat` is untouched: only the channel's view
-  is narrowed. `session.cursor` passes every sequence the replay read,
-  delivered or not, and where the frames a replay passed over are its last it
-  ends with one cursor of its own, naming where it reached with no frame
-  before it — so a consumer resuming from the cursor it was told reads the log
-  on rather than over the frames it was never given, which a replay that
-  ended on a truncated frame did too.
-- The release round trip waits up to two minutes with backoff for npm and
-  Go module propagation before installing, names unavailable packages on
-  timeout, and has the workflow permission to file an issue on failure.
-- Request observers in Go and TypeScript report `request_timeout` for local
-  deadlines and `cancelled` for local cancellation, in both directions, and
-  observe the request ending before its best-effort cancel is sent.
-- TypeScript observes a handler's public `cancelled` refusal as an error,
-  matching Go, and distinguishes it from cancellation by the runtime.
+### Declaration and specification foundations
+
+- The declaration model, schemas and checker support unions, literals,
+  nullable expressions, parameters on families and types, applications,
+  inline shapes and inherited protocol sides. Inline names are derived
+  deterministically, and generic inheritance requires explicit bindings.
+- Union declarations use an adjacent tag and complete payload under the
+  declared value member, including record payloads. A payload-free arm has
+  the tag alone. This replaces the earlier flat-record proposal; payload
+  keys cannot collide with the union envelope.
+- Shared rendering facts retain declaration identity, lexical ownership,
+  applied arguments, inherited union variants, operations and governance.
+  Checker fixes cover forwarded family arguments, imported generic bounds,
+  captured parameters, conflicting inherited governance and ambiguous tags.
+- Profile and tier declarations live as built-in families. Carried profile
+  types use ordinary reference resolution, and the envelope table is held
+  to the built-in duplex declaration.
+- The specification target renders the settled forms and standalone
+  references for duplex, tunnel and session, held to their embedded
+  declarations. Applied inheritance, substituted expressions and inherited
+  references retain their source ownership.
+- The Go and TypeScript targets still refuse new forms they do not render,
+  with `unrendered_form` diagnostics. Full new-language value validation,
+  code generation, cross-wire proof and implicit typed session operations
+  are not claimed by this release. Generated session control callbacks,
+  retained cursors and subscription operations continue in 0.5.0.
+
+### Validation, documentation and release reliability
+
+- TypeScript checks cover every source, test and conformance helper under
+  shared compiler settings. Prettier formatting is enforced, and internal
+  helpers no longer widen published surfaces.
+- Timing-sensitive tests use observable completion and controlled pacing;
+  observer polling preserves history until an expectation matches. The
+  two conformance testees report malformed log prefill consistently.
+- Documentation is organized into wire, runtime, declaration, language,
+  decision and goal pages. The link gate checks tracked Markdown links and
+  rejects malformed UTF-8 instead of silently replacing invalid bytes.
+- Every change lands through an isolated worktree and squash pull request;
+  CI checks the live branch rules and merge settings against their file,
+  checks issue scope, and reruns that scope check when a PR body changes.
+- Packed-consumer checks require built entry points, declarations, README,
+  LICENSE and NOTICE. Rehearsals use distinct Go versions and isolated
+  module caches, and published tags cannot be moved to another tree.
+- The registry round trip waits for npm and Go module propagation with
+  backoff before installing and can file an issue when verification fails.
+- The document/writer model, language code examples, HTML atlas and
+  validated documentation examples continue in 0.5.0. Pilot languages are
+  planned for [0.6.0](https://github.com/Bitspark/nightseam/milestone/5).
+
 
 ## 0.3.0
 

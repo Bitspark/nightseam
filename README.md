@@ -17,6 +17,13 @@ the client calls the server with, declared in the same file and typed the
 same way — which is what a browser session, an agent and a relay need, and
 what a request-and-response contract has no way to state.
 
+Version 0.4.0 releases the consumer improvements described in the
+[changelog](CHANGELOG.md). Its checker and specification renderer support
+the new declaration forms; complete Go/TypeScript generation and value
+validation for those forms, and the remaining typed session operations,
+continue in [0.5.0](https://github.com/Bitspark/nightseam/milestone/6).
+Until implemented, the code targets report `unrendered_form` for those forms.
+
 ### Declare it
 
 `api/contracts/probe/protocol.json`

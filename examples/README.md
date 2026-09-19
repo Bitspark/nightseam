@@ -53,10 +53,10 @@ generated packages and the runtime beneath them.
 `pnpm check` type-checks the client and the generated package against the
 declarations the published packages ship.
 
-Until the first release is published there is nothing on either registry for
-`pnpm install` and `go mod download` to find, and they say so. From a clone
-of this repository, `node scripts/smoke-packed.mjs` runs every command above
-against what a release *would* publish — that is what it is for.
+Use the example from a published release tag: the development branch may
+already require a version that is not on the registries. From a clone of
+this repository, `node scripts/smoke-packed.mjs` runs every command above
+against what a release *would* publish.
 
 ## What is where
 
