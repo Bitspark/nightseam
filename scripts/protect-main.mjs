@@ -25,6 +25,8 @@ const repo = process.env.GITHUB_REPOSITORY ?? "Bitspark/nightseam";
 const file = join(root, ".github", "ruleset-main.json");
 const wanted = JSON.parse(readFileSync(file, "utf8"));
 delete wanted._comment;
+const settings = wanted.repository ?? {};
+delete wanted.repository;
 
 /** JSON with every object's keys sorted, so that two equal shapes stringify
  * the same whatever order GitHub or the file spelled them in. */
@@ -73,7 +75,17 @@ function governed(r, shape) {
 const live = list().find(r => r.name === wanted.name && r.source_type === "Repository");
 const mode = process.argv[2];
 
+/** The repository settings the file names, as they are live. */
+function liveSettings() {
+  const r = JSON.parse(gh(["api", `repos/${repo}`]));
+  return Object.fromEntries(Object.keys(settings).map(k => [k, r[k]]));
+}
+
 if (mode === "apply") {
+  if (Object.keys(settings).length) {
+    gh(["api", "--method", "PATCH", `repos/${repo}`, "--input", "-"], JSON.stringify(settings));
+    console.log(`set ${Object.keys(settings).join(", ")} on ${repo}`);
+  }
   const body = JSON.stringify(wanted);
   if (live) {
     gh(["api", "--method", "PUT", `repos/${repo}/rulesets/${live.id}`, "--input", "-"], body);
@@ -87,13 +99,21 @@ if (mode === "apply") {
     console.error(`no live ruleset named ${wanted.name} on ${repo}; run: node scripts/protect-main.mjs apply`);
     process.exit(1);
   }
+  const s1 = canonical(liveSettings()), s2 = canonical(settings);
+  if (s1 !== s2) {
+    console.error(`the repository settings have drifted from ${file}:
+  live: ${s1}
+  file: ${s2}
+run: node scripts/protect-main.mjs apply`);
+    process.exit(1);
+  }
   const a = canonical(governed(get(live.id), wanted));
   const b = canonical(governed(wanted, wanted));
   if (a !== b) {
     console.error(`the live ruleset ${wanted.name} has drifted from ${file}:\n  live: ${a}\n  file: ${b}\nrun: node scripts/protect-main.mjs apply — or change the file, which is the source of truth`);
     process.exit(1);
   }
-  console.log(`ruleset ${wanted.name} matches ${file}`);
+  console.log(`ruleset ${wanted.name} and the repository settings match ${file}`);
 } else {
   console.error("usage: node scripts/protect-main.mjs apply|check");
   process.exit(2);

@@ -11,7 +11,7 @@
 // change lands", is the whole lifecycle; this is its first step.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,8 +29,12 @@ if (mode === "add") {
   }
   const path = join(dir, branch);
   if (existsSync(path)) {
-    console.error(`${path} exists; rm it first, or choose another branch`);
-    process.exit(1);
+    // A directory git does not know is a leftover — an empty dir a shell held
+    // open while rm ran — and is cleared; one git knows is a worktree in use.
+    const known = git("worktree", "list", "--porcelain").includes(path.replaceAll("\\", "/"));
+    if (known) { console.error(`${path} is a worktree in use; rm it first, or choose another branch`); process.exit(1); }
+    rmSync(path, { recursive: true, force: true });
+    git("worktree", "prune");
   }
   mkdirSync(dir, { recursive: true });
   git("fetch", "--quiet", "origin", "main");
@@ -38,9 +42,13 @@ if (mode === "add") {
   console.log(`${path}\non branch ${branch} from origin/main — cd there, work, then: git push -u origin ${branch} && gh pr create --fill && gh pr merge --auto --squash --delete-branch`);
 } else if (mode === "rm") {
   if (!branch) { console.error("usage: node scripts/worktree.mjs rm <branch>"); process.exit(2); }
-  git("worktree", "remove", "--force", join(dir, branch));
-  try { git("branch", "-D", branch); } catch { /* already gone with the PR */ }
-  console.log(`removed .worktrees/${branch}`);
+  const path = join(dir, branch);
+  const had = existsSync(path);
+  if (had) git("worktree", "remove", "--force", path);
+  git("worktree", "prune");
+  let branchGone = false;
+  try { git("branch", "-D", branch); branchGone = true; } catch { /* already gone with the PR */ }
+  console.log(`${had ? "removed" : "no worktree at"} .worktrees/${branch}; local branch ${branchGone ? "deleted" : "already gone"}`);
 } else if (mode === "ls") {
   process.stdout.write(git("worktree", "list"));
 } else {
