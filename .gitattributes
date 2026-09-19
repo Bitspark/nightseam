@@ -3,13 +3,11 @@
 * text=auto eol=lf
 *.go text eol=lf
 *.ts text eol=lf
-*.svelte text eol=lf
 *.json text eol=lf
 *.yaml text eol=lf
+*.yml text eol=lf
+*.mjs text eol=lf
 *.md text eol=lf
-*.png binary
-*.jpg binary
-*.woff2 binary
 *.txt text eol=lf
 # Every fixture the generator's tests compare byte for byte.
 cmd/nightseam/testdata/** text eol=lf
