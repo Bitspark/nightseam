@@ -108,11 +108,11 @@ func (r *Family) complete() {
 		r.Errors = r.resolvedErrors()
 	}
 	r.resolveSession()
-	r.surfaceReferences()
 	r.resolveUses()
 	for _, t := range r.Types {
 		r.resolvePayloads(t)
 	}
+	r.surfaceReferences()
 }
 
 func (r *Family) resolveSession() {
@@ -199,6 +199,11 @@ func (r *Family) resolveSession() {
 
 func (r *Family) surfaceReferences() {
 	names := map[string]bool{}
+	add := func(name string) {
+		if name != "" && name != r.Name {
+			names[name] = true
+		}
+	}
 	for _, name := range r.References {
 		names[name] = true
 	}
@@ -221,6 +226,31 @@ func (r *Family) surfaceReferences() {
 			}
 			return true
 		})
+	}
+	arguments := func(arguments []Argument) {
+		for _, argument := range arguments {
+			visit(argument.Type)
+			add(argument.Family)
+		}
+	}
+	for _, t := range r.Types {
+		for _, field := range t.Fields {
+			visit(field.Type)
+		}
+		visit(t.Alias)
+		for _, base := range t.Bases {
+			add(base.Type.Origin.Family)
+			arguments(base.Type.Arguments)
+		}
+		for _, variant := range t.Variants {
+			visit(variant.Type)
+			add(variant.Origin.Family)
+			arguments(variant.Arguments)
+			if variant.Payload != nil {
+				add(variant.Payload.Origin.Family)
+				arguments(variant.Payload.Arguments)
+			}
+		}
 	}
 	for _, side := range []Side{r.Server, r.Client} {
 		for _, m := range side.Methods {

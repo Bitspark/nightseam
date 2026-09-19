@@ -154,3 +154,16 @@ func TestLocalInheritanceBindsNestedFamilyCaptures(t *testing.T) {
 		}
 	}
 }
+
+func TestInheritedTypesExposeTransitivePackageReferences(t *testing.T) {
+	world := analysis.World(modeltest.World(map[string]map[string]string{
+		"values": {"model.json": `{"nightseam":2,"types":{"Payload":{"kind":"record","fields":[]}}}`},
+		"base":   {"model.json": `{"nightseam":2,"imports":["values"],"types":{"Record":{"kind":"record","fields":[{"name":"payload","type":"values.Payload"}]},"Union":{"kind":"union","tag":"kind","variants":{"text":"string"}}}}`},
+		"middle": {"model.json": `{"nightseam":2,"imports":["base"],"types":{"Record":{"kind":"record","extends":["base.Record"],"fields":[]},"Union":{"kind":"union","tag":"kind","extends":["base.Union"],"variants":{}}}}`},
+		"child":  {"model.json": `{"nightseam":2,"imports":["middle"],"types":{"Record":{"kind":"record","extends":["middle.Record"],"fields":[]},"Union":{"kind":"union","tag":"kind","extends":["middle.Union"],"variants":{}}}}`},
+	}))
+	r := Build(analysis.Resolve(world, "child"))
+	if !reflect.DeepEqual(r.References, []string{"base", "middle", "values"}) {
+		t.Fatalf("inherited wrapper and field packages = %v", r.References)
+	}
+}
