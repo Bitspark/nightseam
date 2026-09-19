@@ -28,8 +28,6 @@ package session
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"sort"
 	"strconv"
 	"sync"
@@ -71,14 +69,6 @@ func (r Role) String() string {
 	}
 	return "role(" + strconv.Itoa(int(r)) + ")"
 }
-
-// The public errors a relay refuses a consumer's frame with. Both are the
-// profile's own vocabulary: the first says the consumer does not hold
-// control, the second that the session has no room for another request.
-const (
-	ErrorNotControlling = "not_controlling"
-	ErrorBusy           = "busy"
-)
 
 // Options limit a registry's sessions. Zero or less selects the default.
 type Options struct {
@@ -158,25 +148,27 @@ func New(options Options) *Registry {
 func (r *Registry) Bind(id string, up duplex.Conn, g Governance, log Log) error {
 	switch {
 	case id == "":
-		return errors.New("a session is bound under an id")
+		return coded(ErrorSessionInvalid, "a session is bound under an id")
 	case up == nil:
-		return errors.New("a session is bound over a connection")
+		return coded(ErrorSessionInvalid, "a session is bound over a connection")
 	case g.Decides == nil || g.Asks == nil:
-		return errors.New("a session is bound with the family's Decides and Asks")
+		return coded(ErrorSessionInvalid, "a session is bound with the family's Decides and Asks")
 	case log == nil:
-		return errors.New("a session is bound with a log")
+		return coded(ErrorSessionInvalid, "a session is bound with a log")
 	}
 	relay := newRelay(r, id, up, g, log)
 	// Before the session is anyone's and before the pump reads a frame, so
 	// that what the machine sends meanwhile is recorded above the head.
 	if err := relay.seat(); err != nil {
 		relay.cancel()
-		return fmt.Errorf("the session's log could not be read at bind: %w", err)
+		return coded(ErrorSessionInvalid, "the session's log could not be read at bind: %v", err)
 	}
 	r.mu.Lock()
 	if _, bound := r.sessions[id]; bound {
 		r.mu.Unlock()
-		return fmt.Errorf("session %q is bound", id)
+		// The relay built above is nobody's, so its context goes with it.
+		relay.cancel()
+		return coded(ErrorSessionExists, "session %q is bound", id)
 	}
 	r.sessions[id] = relay
 	r.mu.Unlock()
@@ -195,7 +187,7 @@ func (r *Registry) Bind(id string, up duplex.Conn, g Governance, log Log) error 
 func (r *Registry) Attach(id string, down duplex.Conn, role Role, origin string, after int64) (*Attachment, error) {
 	relay := r.session(id)
 	if relay == nil {
-		return nil, fmt.Errorf("no session %q is bound", id)
+		return nil, coded(ErrorNoSession, "no session %q is bound", id)
 	}
 	return relay.attach(down, role, origin, after)
 }
@@ -207,7 +199,7 @@ func (r *Registry) Attach(id string, down duplex.Conn, role Role, origin string,
 func (r *Registry) Control(id string, holder *Attachment) error {
 	relay := r.session(id)
 	if relay == nil {
-		return fmt.Errorf("no session %q is bound", id)
+		return coded(ErrorNoSession, "no session %q is bound", id)
 	}
 	return relay.control(holder)
 }

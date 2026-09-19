@@ -1019,6 +1019,91 @@ func Run(t *testing.T, connect Connect) {
 			}
 		}
 	})
+
+	t.Run("every refusal carries the code the session's vocabulary names", func(t *testing.T) {
+		// What a call refuses with is the API a consumer's server is written
+		// against, so it is a code a program branches on and not prose a
+		// program would have to match. Both of the ways Go asks reach it.
+		refused := func(t *testing.T, what, want string, err error) {
+			t.Helper()
+			if err == nil {
+				t.Fatalf("%s was not refused", what)
+			}
+			var refusal *session.Error
+			if !errors.As(err, &refusal) {
+				t.Fatalf("%s was refused with %v, which errors.As does not reach as a *session.Error", what, err)
+			}
+			if refusal.Code != want {
+				t.Fatalf("%s was refused with %q, wanted %q", what, refusal.Code, want)
+			}
+			if !errors.Is(err, &session.Error{Code: want}) {
+				t.Fatalf("errors.Is does not reach %s by its code alone", what)
+			}
+			if refusal.Message == "" {
+				t.Fatalf("%s was refused with a code and nothing for a person to read", what)
+			}
+		}
+
+		registry, _ := bind(t, "s")
+		spare := func(t *testing.T) duplex.Conn {
+			t.Helper()
+			near, _ := connect(t, nil)
+			return near
+		}
+
+		// A session is bound under an id, over a connection, with the
+		// family's governance and a log — four ways of the same refusal.
+		refused(t, "a bind under no id", session.ErrorSessionInvalid,
+			registry.Bind("", spare(t), governance, session.NewMemoryLog(0)))
+		refused(t, "a bind over no connection", session.ErrorSessionInvalid,
+			registry.Bind("t", nil, governance, session.NewMemoryLog(0)))
+		refused(t, "a bind with no governance", session.ErrorSessionInvalid,
+			registry.Bind("t", spare(t), session.Governance{}, session.NewMemoryLog(0)))
+		refused(t, "a bind with no log", session.ErrorSessionInvalid,
+			registry.Bind("t", spare(t), governance, nil))
+		refused(t, "a bind under an id already bound", session.ErrorSessionExists,
+			registry.Bind("s", spare(t), governance, session.NewMemoryLog(0)))
+
+		// No session under that id, whichever call names it.
+		_, err := registry.Attach("nothing", spare(t), session.Participant, "one", 0)
+		refused(t, "an attach to a session nothing bound", session.ErrorNoSession, err)
+		refused(t, "control of a session nothing bound", session.ErrorNoSession, registry.Control("nothing", nil))
+
+		// What a consumer attaches with: a connection, a role, a sequence.
+		_, err = registry.Attach("s", nil, session.Participant, "one", 0)
+		refused(t, "an attach over no connection", session.ErrorSessionInvalid, err)
+		_, err = registry.Attach("s", spare(t), session.Role(-1), "one", 0)
+		refused(t, "an attach in a role that is not one", session.ErrorRoleInvalid, err)
+		_, err = registry.Attach("s", spare(t), session.Participant, "one", -1)
+		refused(t, "an attach after what is no sequence", session.ErrorSequenceInvalid, err)
+
+		// Who may be given control: a consumer of this session, and a
+		// participant.
+		one, _ := attach(t, registry, "s", "one", session.Participant, 0)
+		watcher, _ := attach(t, registry, "s", "watcher", session.Observer, 0)
+		refused(t, "control given to an observer", session.ErrorNotControlling, registry.Control("s", watcher))
+		elsewhere, _ := bind(t, "elsewhere")
+		other, _ := attach(t, elsewhere, "elsewhere", "other", session.Participant, 0)
+		refused(t, "control given to a consumer of another session", session.ErrorNotAttached, registry.Control("s", other))
+		one.Detach()
+		refused(t, "control given to a consumer that has left", session.ErrorNotAttached, registry.Control("s", one))
+
+		// No room for another consumer.
+		full := session.New(session.Options{MaxAttachments: 1})
+		near, far := connect(t, nil)
+		_ = newSpeaker("machine", far, false)
+		if err := full.Bind("s", near, governance, session.NewMemoryLog(0)); err != nil {
+			t.Fatal(err)
+		}
+		attach(t, full, "s", "first", session.Participant, 0)
+		_, err = full.Attach("s", spare(t), session.Participant, "second", 0)
+		refused(t, "an attach beyond what the session holds", session.ErrorTooManyAttachments, err)
+
+		// And what the package's own log refuses: a replay with nowhere to
+		// deliver.
+		refused(t, "a replay with nowhere to deliver", session.ErrorInvalidOptions,
+			session.NewMemoryLog(0).Replay(context.Background(), 0, nil))
+	})
 }
 
 // The trace contexts the change run sends, each on a frame of its own, so

@@ -830,4 +830,60 @@ export function run(connect: Connect): void {
       wire.close();
     }
   });
+
+  test("every refusal carries the code the session's vocabulary names", async () => {
+    // What a call refuses with is the API a consumer's server is written
+    // against, so it is a code a program branches on and not prose a program
+    // would have to match.
+    const refused = async (what: string, want: string, run: () => unknown) => {
+      let caught: unknown;
+      try {
+        await run();
+      } catch (error) {
+        caught = error;
+      }
+      assert.ok(caught !== undefined, `${what} was not refused`);
+      assert.ok(caught instanceof DuplexError, `${what} was refused with ${String(caught)}, which is no DuplexError`);
+      assert.equal((caught as DuplexError).code, want, `${what} was refused with ${(caught as DuplexError).code}`);
+      assert.notEqual((caught as DuplexError).message, '', `${what} was refused with a code and nothing for a person to read`);
+    };
+
+    const { wire, registry } = await bound();
+    const spare = async () => (await wire.open()).far;
+
+    // A session is bound under an id, and under one that is not already bound.
+    await refused('a bind under no id', 'session_invalid', async () => registry.bind('', await spare(), governance, memoryLog(1 << 20)));
+    await refused('a bind under an id already bound', 'session_exists', async () => registry.bind('s', await spare(), governance, memoryLog(1 << 20)));
+
+    // No session under that id, whichever call names it.
+    await refused('an attach to a session nothing bound', 'no_session', async () => registry.attach('nothing', await spare(), 'participant', 'one', 0));
+    await refused('control of a session nothing bound', 'no_session', () => registry.control('nothing', null));
+
+    // What a consumer attaches with: a role, an origin, a sequence.
+    await refused('an attach in a role that is not one', 'role_invalid', async () => registry.attach('s', await spare(), 'holder' as Role, 'one', 0));
+    await refused('an attach under an origin that is no text', 'origin_invalid', async () => registry.attach('s', await spare(), 'participant', 7 as unknown as string, 0));
+    await refused('an attach after what is no sequence', 'sequence_invalid', async () => registry.attach('s', await spare(), 'participant', 'one', -1));
+
+    // Who may be given control: a consumer of this session, and a participant.
+    const one = await consumer(wire, registry, 'participant', 'one');
+    const watcher = await consumer(wire, registry, 'observer', 'watcher');
+    await refused('control given to an observer', 'not_controlling', () => registry.control('s', watcher.attachment));
+    registry.bind('elsewhere', await spare(), governance, memoryLog(1 << 20));
+    const stranger = registry.attach('elsewhere', await spare(), 'participant', 'stranger', 0);
+    await refused('control given to a consumer of another session', 'not_attached', () => registry.control('s', stranger));
+    one.attachment.detach();
+    await tick();
+    await refused('control given to a consumer that has left', 'not_attached', () => registry.control('s', one.attachment));
+
+    // No room for another consumer.
+    const full = new Registry({ maxAttachments: 1 });
+    full.bind('s', await spare(), governance, memoryLog(1 << 20));
+    full.attach('s', await spare(), 'participant', 'first', 0);
+    await refused('an attach beyond what the session holds', 'too_many_attachments', async () => full.attach('s', await spare(), 'participant', 'second', 0));
+
+    // And what a registry is made with.
+    await refused('a limit that is no limit', 'invalid_options', () => new Registry({ maxAttachments: 0 }));
+
+    wire.close();
+  });
 }

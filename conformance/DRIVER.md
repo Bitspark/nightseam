@@ -326,6 +326,16 @@ The session component: `session/go`, `@nightseam/session`.
 | `attachment.state` | **`on`** an attachment | `{"holder": "<origin>"\|null, "sequence"}` — what the relay last told that consumer of the session's own vocabulary |
 | `attachment.detach` | **`on`** | `{}` |
 
+A `role` that is neither is handed to the session rather than refused by the
+testee, and so is a negative `after`: what those are refused with is the
+layer's, `role_invalid` and `sequence_invalid`, and a scenario holds the code
+the session gives rather than the testee's own reading of an argument. The
+refusals of `session.bind`, `session.attach` and `session.control` are
+answered under *any other* above — the session's code verbatim, the same ten
+names in every language: `invalid_options`, `no_session`, `not_attached`,
+`not_controlling`, `origin_invalid`, `role_invalid`, `sequence_invalid`,
+`session_exists`, `session_invalid`, `too_many_attachments`.
+
 A session speaks its own vocabulary on the wire, as the tunnel speaks
 `channel.open`: ordinary events of the profile under the `session.` prefix,
 which the relay produces, a consumer reads and neither the log keeps nor the

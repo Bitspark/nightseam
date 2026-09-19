@@ -232,14 +232,59 @@ recorded above the head and never under a sequence the log already gave out.
 A log that knows its head without a read may one day say so, as something
 the relay prefers where a log has it; every `Log` above stays what it is.
 
-## Errors and limits
+## What it refuses with
+
+A consumer's server drives this layer by calling into it, so what a call
+refuses with is part of the surface it is written against: a code a program
+branches on, never prose it would have to match. There is one vocabulary and
+it is the same in both languages, name for name.
+
+In Go a refusal is a `*session.Error` with `Code` and `Message`, reached by
+either of the ways Go asks —
+
+```go
+var refusal *session.Error
+if errors.As(err, &refusal) && refusal.Code == session.ErrorNoSession { … }
+
+if errors.Is(err, &session.Error{Code: session.ErrorNoSession}) { … }
+```
+
+— `Is` matching by code alone, since a message is the part of a refusal that
+may be reworded. In TypeScript it is a `DuplexError` whose `code` is the
+same string. Every code is a constant: `session.ErrorNoSession` and its nine
+neighbours in Go.
+
+| code | what it refuses |
+| --- | --- |
+| `invalid_options` | a limit that is not a limit — `maxAttachments` or `maxInflight` in TypeScript, where Go's `Options` reads zero or less as the default — and, in Go, a replay given nowhere to deliver |
+| `no_session` | no session is bound under that id, or the one that was has ended: `Attach` and `Control` both |
+| `not_attached` | control given to a consumer that is not attached to this session, one of another's or one that has left |
+| `not_controlling` | control given to an observer — and, on the wire, a deciding frame from a consumer that does not hold control |
+| `origin_invalid` | an origin that is not text; TypeScript only, an origin being a `string` in Go and unable to be anything else |
+| `role_invalid` | a consumer attaching as something that is neither participant nor observer |
+| `sequence_invalid` | an `after` that is no sequence |
+| `session_exists` | a bind under an id already bound |
+| `session_invalid` | a bind without an id, and in Go without a connection, without the family's `Decides` and `Asks`, without a log, or with a log that could not be read; an attach without a connection |
+| `too_many_attachments` | an attach beyond `MaxAttachments` |
+
+`busy` is the one refusal no call returns: the relay answers a consumer's
+request with it, as the profile's error object, where the session already
+has as many open towards the machine as it may. `not_controlling` travels
+both ways — from a call that gave an observer control, and on the wire to a
+consumer that decided without holding it.
+
+A close is not a refusal and carries a code of its own: a frame of the wrong
+kind ends the connection with **1003** and `a session speaks JSON text
+frames`, text that is no message of the profile with **1002** from the
+machine's side and **1008** from a consumer's, each naming what it was.
+[profile.md](profile.md) lists every close code.
+
+## Limits
 
 | | |
 | --- | --- |
-| `not_controlling` | a deciding frame from a consumer that does not hold control |
-| `busy` | a request beyond the ones the session may have open towards the machine |
-| `MaxAttachments` / `maxAttachments` | 64 consumers on one session; an attach beyond it is refused |
-| `MaxInflight` / `maxInflight` | 256 requests open towards the machine |
+| `MaxAttachments` / `maxAttachments` | 64 consumers on one session; an attach beyond it is refused with `too_many_attachments` |
+| `MaxInflight` / `maxInflight` | 256 requests open towards the machine; one beyond it is answered `busy` |
 | `SendTimeout` | Go only: 10 seconds a frame may wait for a connection; a consumer that does not take its frames is detached, a machine that does not ends the session |
 
 ## What a consumer builds on it

@@ -124,8 +124,10 @@ export function sessionOps(t: Testee): Record<string, Op> {
       const reg = registryOf(args);
       const id = stringOf(args, 'session', true);
       const down = channelOf(args);
+      // A role that is not one is handed on rather than refused here, so
+      // that a scenario holds the layer's own refusal and not the testee's
+      // reading of an argument.
       const role = stringOf(args, 'role', true);
-      if (role !== 'participant' && role !== 'observer') throw invalid('role is participant or observer');
       const origin = stringOf(args, 'origin', true);
       const after = intOf(args, 'after', 0);
       let attachment: Attachment;

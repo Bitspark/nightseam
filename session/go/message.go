@@ -21,7 +21,10 @@ type message struct {
 }
 
 // decodeMessage reads a frame's members in the order they were written; a
-// frame that is not an object, or repeats a member, is no frame.
+// frame that is not an object, or repeats a member, is no frame. What it
+// refuses with is internal and reaches no caller of this package: it is the
+// reason the connection the frame arrived on is closed with, a protocol
+// error, which is why it carries no code of the session's vocabulary.
 func decodeMessage(data []byte) (*message, error) {
 	d := json.NewDecoder(bytes.NewReader(data))
 	token, err := d.Token()

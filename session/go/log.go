@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"strconv"
 	"sync"
 	"time"
@@ -103,7 +102,7 @@ func (l *memoryLog) Append(ctx context.Context, frame Frame) (int64, error) {
 
 func (l *memoryLog) Replay(ctx context.Context, after int64, deliver func(Frame) error) error {
 	if deliver == nil {
-		return errors.New("a replay needs somewhere to deliver")
+		return coded(ErrorInvalidOptions, "a replay needs somewhere to deliver")
 	}
 	l.mu.Lock()
 	frames := make([]Frame, 0, len(l.frames))

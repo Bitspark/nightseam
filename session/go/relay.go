@@ -230,7 +230,9 @@ func (r *relay) record(direction Direction, from *Attachment, m *message, data [
 	sequence, err := r.log.Append(r.ctx, Frame{Direction: direction, Origin: origin, At: time.Now().UTC(), Message: data})
 	if err != nil {
 		r.mu.Unlock()
-		// A session whose frames cannot be recorded is not a session.
+		// A session whose frames cannot be recorded is not a session. This
+		// error is the relay's own and reaches no caller: it becomes the
+		// reason the session's connections are closed with.
 		r.end(fmt.Errorf("the session's log refused a frame: %w", err))
 		return 0, nil
 	}
@@ -382,16 +384,16 @@ func (r *relay) control(holder *Attachment) error {
 	r.mu.Lock()
 	if r.closed {
 		r.mu.Unlock()
-		return errors.New("the session ended")
+		return coded(ErrorNoSession, "the session ended")
 	}
 	if holder != nil {
 		if holder.Role != Participant {
 			r.mu.Unlock()
-			return fmt.Errorf("an %s is never given control", holder.Role)
+			return coded(ErrorNotControlling, "an %s is never given control", holder.Role)
 		}
 		if holder.relay != r || !r.holds(holder) {
 			r.mu.Unlock()
-			return errors.New("the holder is not attached to this session")
+			return coded(ErrorNotAttached, "the holder is not attached to this session")
 		}
 	}
 	r.holder = holder
@@ -446,13 +448,13 @@ func (r *relay) holds(a *Attachment) bool {
 // reached when it was added, in one order.
 func (r *relay) attach(down duplex.Conn, role Role, origin string, after int64) (*Attachment, error) {
 	if down == nil {
-		return nil, errors.New("a consumer attaches over a connection")
+		return nil, coded(ErrorSessionInvalid, "a consumer attaches over a connection")
 	}
 	if role != Participant && role != Observer {
-		return nil, fmt.Errorf("unknown role %s", role)
+		return nil, coded(ErrorRoleInvalid, "unknown role %s", role)
 	}
 	if after < 0 {
-		return nil, errors.New("a consumer resumes from a sequence")
+		return nil, coded(ErrorSequenceInvalid, "a consumer resumes from a sequence")
 	}
 	ctx, cancel := context.WithCancel(r.ctx)
 	a := &Attachment{Role: role, Origin: origin, Channel: down, relay: r, ctx: ctx, cancel: cancel}
@@ -466,12 +468,12 @@ func (r *relay) attach(down duplex.Conn, role Role, origin string, after int64) 
 		r.mu.Unlock()
 		a.send.Unlock()
 		cancel()
-		return nil, errors.New("the session ended")
+		return nil, coded(ErrorNoSession, "the session ended")
 	case len(r.attached) >= r.options.MaxAttachments:
 		r.mu.Unlock()
 		a.send.Unlock()
 		cancel()
-		return nil, fmt.Errorf("session %q has %d consumers attached", r.id, len(r.attached))
+		return nil, coded(ErrorTooManyAttachments, "session %q has %d consumers attached", r.id, len(r.attached))
 	}
 	r.attached = append(r.attached, a)
 	ceiling := r.sequence
@@ -503,7 +505,8 @@ func (r *relay) attach(down duplex.Conn, role Role, origin string, after int64) 
 }
 
 // errReplayed ends a replay at the sequence the session had reached when
-// the consumer was added; what came after reaches it live.
+// the consumer was added; what came after reaches it live. It is internal:
+// replay swallows it and no caller is ever handed it.
 var errReplayed = errors.New("the replay reached the session's sequence")
 
 func (r *relay) replay(a *Attachment, after, ceiling int64) error {

@@ -228,7 +228,10 @@ func (t *testee) sessionOps() map[string]func(request) (any, error) {
 			case "observer":
 				role = session.Observer
 			default:
-				return nil, invalid("role is participant or observer")
+				// A role that is not one is handed on rather than refused here,
+				// so that a scenario holds the layer's own refusal and not the
+				// testee's reading of an argument.
+				role = session.Role(-1)
 			}
 			origin, err := r.mustString("origin")
 			if err != nil {
@@ -394,8 +397,16 @@ func set(names []string) func(string) bool {
 	return func(name string) bool { return members[name] }
 }
 
-// sessionError maps what the registry refused onto the driver's codes.
+// sessionError maps what the registry refused onto the driver's codes. The
+// session's own refusals carry a code of its vocabulary and travel as
+// *session.Error, a response the remote answered with as a
+// runtime.PublicError; DRIVER.md's "any other" rule is the same for both,
+// the code verbatim.
 func sessionError(err error) *failure {
+	var refusal *session.Error
+	if errors.As(err, &refusal) {
+		return fail(refusal.Code, "%s", refusal.Message)
+	}
 	var public *runtime.PublicError
 	if errors.As(err, &public) {
 		return fail(public.Code, "%s", public.Message)
