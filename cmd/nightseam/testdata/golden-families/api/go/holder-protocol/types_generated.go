@@ -31,13 +31,13 @@ func (v Envelope) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Envelope", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Envelope) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Envelope", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return err
 	}
 	type wire Envelope
@@ -49,6 +49,9 @@ func (v *Envelope) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Envelope) Of() Tag { return Tag{} }
+func (Envelope) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Envelope"}
+}
 
 // Handle: A reference to a channel on the connection that carries the message holding it.
 type Handle struct {
@@ -61,13 +64,13 @@ func (v Handle) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Handle", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Handle) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Handle", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return err
 	}
 	type wire Handle
@@ -79,6 +82,9 @@ func (v *Handle) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Handle) Of() Tag { return Tag{} }
+func (Handle) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Handle"}
+}
 
 type Held[SEnvelope, SPayload any] struct {
 	Payload SPayload  `json:"payload"`
@@ -93,13 +99,13 @@ func (v Held[SEnvelope, SPayload]) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Held", data); err != nil {
+	if err = schema.Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Payload": runtime.TypeArgument[SPayload]()}, nil).ValidateExpressionRaw("Held", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Held[SEnvelope, SPayload]) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Held", data); err != nil {
+	if err := schema.Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Payload": runtime.TypeArgument[SPayload]()}, nil).ValidateExpressionRaw("Held", data); err != nil {
 		return err
 	}
 	var decoded (struct {
@@ -113,3 +119,6 @@ func (v *Held[SEnvelope, SPayload]) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Held[SEnvelope, SPayload]) Of() Tag { return Tag{} }
+func (Held[SEnvelope, SPayload]) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Payload": runtime.TypeArgument[SPayload]()}, nil), Type: "Held"}
+}

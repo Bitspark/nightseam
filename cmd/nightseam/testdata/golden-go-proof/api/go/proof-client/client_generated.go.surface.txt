@@ -1,0 +1,13 @@
+func (*Client[SEnvelope, SHandle, Item]) Close() error
+func (*Client[SEnvelope, SHandle, Item]) Echo(ctx context.Context, params probeprotocol.Payload) (probeprotocol.Payload, error)
+func (*Client[SEnvelope, SHandle, Item]) OnChanged(handler func(context.Context, probeprotocol.Payload)) error
+func (*Client[SEnvelope, SHandle, Item]) OnPartAdded(handler func(context.Context, protocol.RichPart)) error
+func (*Client[SEnvelope, SHandle, Item]) Parts(ctx context.Context, params protocol.PartsRequest) (protocol.Result[protocol.Parts, string], error)
+func (*Client[SEnvelope, SHandle, Item]) Relay(ctx context.Context, params protocol.Carried[SEnvelope, SHandle, Item]) (protocol.Option[protocol.Envelope], error)
+func Attach[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[SEnvelope, SHandle, Item], events Events[SEnvelope, SHandle, Item]) (*Client[SEnvelope, SHandle, Item], error)
+func Dial[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[SEnvelope, SHandle, Item], events Events[SEnvelope, SHandle, Item]) (*Client[SEnvelope, SHandle, Item], error)
+func Open[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler[SEnvelope, SHandle, Item], events Events[SEnvelope, SHandle, Item]) (*Client[SEnvelope, SHandle, Item], error)
+type Caller[SEnvelope any, SHandle any, Item any] interface{Echo(ctx context.Context, params probeprotocol.Payload) (probeprotocol.Payload, error); Parts(ctx context.Context, params protocol.PartsRequest) (protocol.Result[protocol.Parts, string], error); Relay(ctx context.Context, params protocol.Carried[SEnvelope, SHandle, Item]) (protocol.Option[protocol.Envelope], error)}
+type Client[SEnvelope any, SHandle any, Item any] struct{Peer *runtime.Peer}
+type Events[SEnvelope any, SHandle any, Item any] struct{Changed func(context.Context, probeprotocol.Payload); PartAdded func(context.Context, protocol.RichPart)}
+type Handler[SEnvelope any, SHandle any, Item any] interface{}

@@ -178,15 +178,15 @@ func (f *file) registration(m render.Method, handler, remote string) {
 		params := ""
 		if m.Request != nil {
 			f.linef("var params %s", f.spell(m.Request))
-			f.linef("if err := %s%s(%s%s(%s), raw); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", f.proto(), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(m.Request), runtime)
+			f.linef("if err := %s.%s(%s%s(%s), raw); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", f.boundSchema(f.uses), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(m.Request), runtime)
 			f.linef("if err := %s.Unmarshal(raw, &params); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", json, runtime)
 			params = ", params"
 		} else {
-			f.linef("if err := %s%s(map[string]any{\"empty\": true}, raw); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", f.proto(), identValidateExpressionRaw, runtime)
+			f.linef("if err := %s.%s(map[string]any{\"empty\": true}, raw); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", f.boundSchema(f.uses), identValidateExpressionRaw, runtime)
 		}
 		f.linef("result, err := %s.%s(ctx, %s%s)", handler, p.operations[m.Name], remote, params)
 		f.line("if err != nil { return nil, err }")
-		f.linef("if err = %s%s(%s%s(%s), result); err != nil { return nil, err }", f.proto(), identValidateValue, f.proto(), identMustTypeExpression, expression(m.Result))
+		f.linef("if err = %s.%s(%s%s(%s), result); err != nil { return nil, err }", f.boundSchema(f.uses), identValidateValue, f.proto(), identMustTypeExpression, expression(m.Result))
 		f.line("return result, nil")
 	})
 }
@@ -235,11 +235,11 @@ func (f *file) caller(m render.Method, receiver string) {
 	f.w.Block(fmt.Sprintf("func (c *%s) %s(ctx %s.Context%s) (%s, error) {", receiver, p.operations[m.Name], f.std("context"), f.request(m), result), "}", func() {
 		f.linef("var result %s", result)
 		if m.Request != nil {
-			f.linef("if err := %s%s(%s%s(%s), params); err != nil { return result, err }", f.proto(), identValidateValue, f.proto(), identMustTypeExpression, expression(m.Request))
+			f.linef("if err := %s.%s(%s%s(%s), params); err != nil { return result, err }", f.boundSchema(f.uses), identValidateValue, f.proto(), identMustTypeExpression, expression(m.Request))
 		}
 		f.linef("var raw %s.RawMessage", json)
 		f.linef("if err := c.%s.Call(ctx, %q, %s, &raw); err != nil { return result, err }", identPeer, m.Name, argument(m))
-		f.linef("if err := %s%s(%s%s(%s), raw); err != nil { return result, err }", f.proto(), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(m.Result))
+		f.linef("if err := %s.%s(%s%s(%s), raw); err != nil { return result, err }", f.boundSchema(f.uses), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(m.Result))
 		f.linef("if err := %s.Unmarshal(raw, &result); err != nil { return result, err }", json)
 		f.line("return result, nil")
 	})
@@ -251,14 +251,14 @@ func (f *file) events(receiver string, received, sent []render.Event) {
 	p := f.plan
 	for _, e := range sent {
 		ctx := f.std("context")
-		f.linef("func (c *%s) %s%s(ctx %s.Context, data %s) error { if err := %s%s(%s%s(%s), data); err != nil { return err }; return c.%s.Emit(ctx, %q, data) }", receiver, identEmit, p.operations[e.Name], ctx, f.spell(e.Type), f.proto(), identValidateValue, f.proto(), identMustTypeExpression, expression(e.Type), identPeer, e.Name)
+		f.linef("func (c *%s) %s%s(ctx %s.Context, data %s) error { if err := %s.%s(%s%s(%s), data); err != nil { return err }; return c.%s.Emit(ctx, %q, data) }", receiver, identEmit, p.operations[e.Name], ctx, f.spell(e.Type), f.boundSchema(f.uses), identValidateValue, f.proto(), identMustTypeExpression, expression(e.Type), identPeer, e.Name)
 	}
 	for _, e := range received {
 		runtime, json, ctx := f.runtime(), f.std("json"), f.std("context")
 		data := f.spell(e.Type)
 		f.w.Block(fmt.Sprintf("func (c *%s) %s%s(handler func(%s.Context, %s)) error {", receiver, identOn, p.operations[e.Name], ctx, data), "}", func() {
 			f.w.Block(fmt.Sprintf("return c.%s.HandleEvent(%q, func(ctx %s.Context, peer *%s.Peer, raw %s.RawMessage) {", identPeer, e.Name, ctx, runtime, json), "})", func() {
-				f.linef("if err := %s%s(%s%s(%s), raw); err != nil { _ = peer.Close(); return }", f.proto(), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(e.Type))
+				f.linef("if err := %s.%s(%s%s(%s), raw); err != nil { _ = peer.Close(); return }", f.boundSchema(f.uses), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(e.Type))
 				f.linef("var data %s", data)
 				f.linef("if err := %s.Unmarshal(raw, &data); err != nil { _ = peer.Close(); return }", json)
 				f.line("handler(ctx, data)")

@@ -18,10 +18,12 @@ import (
 const (
 	identTag                   = "Tag"
 	identOf                    = "Of"
+	identWireType              = "WireType"
 	identMarshalJSON           = "MarshalJSON"
 	identUnmarshalJSON         = "UnmarshalJSON"
 	identAdditionalFields      = "AdditionalFields"
 	identValidateRaw           = "ValidateRaw"
+	identWireSchema            = "WireSchema"
 	identValidateExpressionRaw = "ValidateExpressionRaw"
 	identValidateValue         = "ValidateValue"
 	identMustTypeExpression    = "MustTypeExpression"
@@ -50,19 +52,22 @@ const (
 
 // plan is every identifier the rendering of one family declares, resolved
 // from the convention and the override file and held in the namespace it
-// lands in: the three packages' scopes, taken together since a family's
-// name should mean one thing across them; the client's and the remote's
-// members; each record's fields.
+// lands in: the protocol package's declarations, the client and remote
+// members, and each record's fields. A protocol type may share a name
+// with an entry point in another package, as the built-in tunnel's Open
+// request does with the client's Open helper.
 type plan struct {
 	family     *render.Family
-	packages   *emit.Namespace // what the protocol, binding and client packages declare
+	packages   *emit.Namespace // declarations in the protocol package
 	client     *emit.Namespace // members of Client
 	remote     *emit.Namespace // members of Remote
 	types      map[string]string
-	fields     map[string]string // "Type.field" → Go field
-	constants  map[string]string // "Enum.value" → constant
-	operations map[string]string // method or event name → Go name
-	errors     map[string]string // code → constant
+	unions     map[string]unionPlan
+	literals   map[string]literalPlan // literal wire value → its Go type and constant
+	fields     map[string]string      // "Type.field" → Go field
+	constants  map[string]string      // "Enum.value" → constant
+	operations map[string]string      // method or event name → Go name
+	errors     map[string]string      // code → constant
 	typeParams map[render.Use]string
 	diag.List
 }
@@ -72,8 +77,8 @@ type plan struct {
 // when an emitter declares something new.
 func Reserved() []string {
 	return []string{
-		identTag, identOf, identMarshalJSON, identUnmarshalJSON, identAdditionalFields,
-		identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identErrors, identIsError,
+		identTag, identOf, identWireType, identMarshalJSON, identUnmarshalJSON, identAdditionalFields,
+		identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identErrors, identIsError,
 		identRemote, identHandler, identEvents, identInstall, identNewHandler, identServe,
 		identClient, identCaller, identDecides, identAsks, identConversation, identDial, identAttach, identOpen,
 		identPeer, identClose,
@@ -81,20 +86,34 @@ func Reserved() []string {
 }
 
 func newPlan(f *render.Family) (*plan, []diag.Diagnostic) {
+	return planFamily(f, map[*render.Family]bool{})
+}
+
+func planFamily(f *render.Family, seen map[*render.Family]bool) (*plan, []diag.Diagnostic) {
+	seen[f] = true
 	p := &plan{
 		family:   f,
-		packages: emit.NewNamespace("generated packages"),
+		packages: emit.NewNamespace("protocol package"),
 		client:   emit.NewNamespace("client"),
 		remote:   emit.NewNamespace("remote"),
 		types:    map[string]string{}, fields: map[string]string{}, constants: map[string]string{},
 		operations: map[string]string{}, errors: map[string]string{}, typeParams: map[render.Use]string{},
 		List: diag.List{Family: f.Name},
 	}
-	p.packages.Fix("generated declaration", identTag, identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identErrors, identIsError, identRemote, identHandler, identEvents, identInstall, identNewHandler, identServe, identClient, identCaller, identDecides, identAsks, identConversation, identDial, identAttach, identOpen)
+	p.packages.Fix("generated declaration", identTag, identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identErrors, identIsError)
 	p.client.Fix("generated client field", identPeer)
 	p.client.Fix("generated client method", identClose)
 	p.remote.Fix("generated remote field", identPeer)
 	p.plan()
+	// Imported names retain their source overrides. Check that source's
+	// declarations too, once even when several inheritance paths reach it.
+	for _, name := range f.References {
+		source := f.ReferencedFamily(name)
+		if source != nil && !seen[source] {
+			_, diagnostics := planFamily(source, seen)
+			p.Diagnostics = append(p.Diagnostics, diagnostics...)
+		}
+	}
 	diag.Sort(p.Diagnostics)
 	return p, p.Diagnostics
 }
@@ -106,6 +125,22 @@ func (p *plan) resolve(path, conventional string, declaredAt diag.Location) (str
 		return name, render.OverrideAt(Name, path)
 	}
 	return conventional, declaredAt
+}
+
+func (p *plan) resolveOrigin(origin render.Origin, path, conventional string, at diag.Location) (string, diag.Location) {
+	if origin.Family != "" && origin.Family != p.family.Name {
+		if source := p.family.ReferencedFamily(origin.Family); source != nil {
+			if name, ok := source.Override(Name, path); ok {
+				return name, render.OverrideAt(Name, path)
+			}
+			return conventional, at
+		}
+	}
+	return p.resolve(path, conventional, at)
+}
+
+func (p *plan) fieldName(field render.Field) (string, diag.Location) {
+	return p.resolveOrigin(field.Origin, field.Owner+"."+field.Name, naming.UpperCamel(field.Name), field.At)
 }
 
 func (p *plan) declare(ns *emit.Namespace, ident string, at diag.Location, what string) {
@@ -140,6 +175,8 @@ func (p *plan) plan() {
 			p.declare(p.packages, name, at, "type")
 		}
 	}
+	p.planUnions()
+	p.planLiterals()
 	for _, t := range f.Types {
 		switch t.Kind {
 		case "record", "entity":
@@ -152,7 +189,7 @@ func (p *plan) plan() {
 				if !p.identifier(name, at, "Field name", true) {
 					continue
 				}
-				if name == identMarshalJSON || name == identUnmarshalJSON || name == identOf {
+				if name == identMarshalJSON || name == identUnmarshalJSON || name == identOf || name == identWireType {
 					p.Addf(at, "reserved_name", "Field name %s collides with a generated method.", name)
 				}
 				if t.Open && name == identAdditionalFields {
@@ -183,11 +220,7 @@ func (p *plan) plan() {
 			fields.Fix("generated field", identAdditionalFields)
 		}
 		for _, field := range t.Fields {
-			name := p.fields[field.Owner+"."+field.Name]
-			at := field.At
-			if _, overridden := f.Override(Name, field.Owner+"."+field.Name); overridden {
-				at = render.OverrideAt(Name, field.Owner+"."+field.Name)
-			}
+			name, at := p.fieldName(field)
 			p.declare(fields, name, at, "field")
 		}
 	}
@@ -195,6 +228,8 @@ func (p *plan) plan() {
 	// shadow any type of the same name in the generated package; so does
 	// the tag an entry point takes for each.
 	generated := map[string]string{}
+	entries := emit.NewNamespace("entry-point packages")
+	entries.Fix("generated declaration", identRemote, identHandler, identEvents, identInstall, identNewHandler, identServe, identClient, identCaller, identDecides, identAsks, identConversation, identDial, identAttach, identOpen)
 	for _, use := range f.Uses {
 		p.typeParams[use] = parameterName(use)
 		at := diag.Location{}
@@ -203,10 +238,37 @@ func (p *plan) plan() {
 				at = parameter.At.Sub("name")
 			}
 		}
-		for _, name := range []string{parameterName(use), tagName(use.Parameter)} {
+		names := []string{parameterName(use)}
+		if use.Type != "" {
+			names = append(names, tagName(use.Parameter))
+		}
+		for _, name := range names {
 			if what, taken := p.packages.Reserved(name); taken {
 				p.Addf(at, "generated_name_collision", "Generated Go type parameter %s collides with the %s.", name, what)
+			} else if what, taken := entries.Reserved(name); taken {
+				p.Addf(at, "generated_name_collision", "Generated Go type parameter %s collides with the %s in an entry-point package.", name, what)
 			} else if previous, exists := generated[name]; exists && previous != use.Parameter {
+				p.Addf(at, "generated_name_collision", "Generated Go type parameter %s is also generated for parameter %s.", name, previous)
+			}
+			generated[name] = use.Parameter
+		}
+	}
+	for _, t := range f.Types {
+		generated := map[string]string{}
+		for _, use := range t.Uses {
+			name := parameterName(use)
+			at, own := t.At, false
+			for _, parameter := range t.Parameters {
+				if parameter.Name == use.Parameter {
+					at, own = parameter.At.Sub("name"), true
+				}
+			}
+			if own {
+				if what, taken := p.packages.Reserved(name); taken {
+					p.Addf(at, "generated_name_collision", "Generated Go type parameter %s collides with the %s.", name, what)
+				}
+			}
+			if previous, exists := generated[name]; exists && previous != use.Parameter {
 				p.Addf(at, "generated_name_collision", "Generated Go type parameter %s is also generated for parameter %s.", name, previous)
 			}
 			generated[name] = use.Parameter
@@ -215,7 +277,7 @@ func (p *plan) plan() {
 	// A public error becomes a constant of the protocol package, beside the
 	// types and the enum constants.
 	for _, e := range f.Errors {
-		name, at := p.resolve("errors."+e.Code, "Error"+naming.UpperCamel(e.Code), e.At)
+		name, at := p.resolveOrigin(e.Origin, "errors."+e.Code, "Error"+naming.UpperCamel(e.Code), e.At)
 		p.errors[e.Code] = name
 		if name == "Error" {
 			p.Addf(at, "invalid_name", "Public error code %s yields no Go identifier.", e.Code)
@@ -229,27 +291,27 @@ func (p *plan) plan() {
 	// remote's methods to implement; the client's methods the reverse.
 	// Events add receive helpers as well as emit helpers, so their receiver
 	// namespace crosses the sides.
-	operation := func(name string, at diag.Location, what string) (string, diag.Location) {
-		goName, at := p.resolve(name, naming.UpperCamel(name), at)
+	operation := func(name string, origin render.Origin, at diag.Location, what string) (string, diag.Location) {
+		goName, at := p.resolveOrigin(origin, name, naming.UpperCamel(name), at)
 		p.operations[name] = goName
 		p.identifier(goName, at, what, true)
 		return goName, at
 	}
 	for _, m := range f.Server.Methods {
-		name, at := operation(m.Name, m.At, "Method name")
+		name, at := operation(m.Name, m.Origin, m.At, "Method name")
 		p.declare(p.client, name, at, "method")
 	}
 	for _, m := range f.Client.Methods {
-		name, at := operation(m.Name, m.At, "Method name")
+		name, at := operation(m.Name, m.Origin, m.At, "Method name")
 		p.declare(p.remote, name, at, "method")
 	}
 	for _, e := range f.Server.Events {
-		name, at := operation(e.Name, e.At, "Event name")
+		name, at := operation(e.Name, e.Origin, e.At, "Event name")
 		p.declare(p.client, identOn+name, at, "event handler")
 		p.declare(p.remote, identEmit+name, at, "event emitter")
 	}
 	for _, e := range f.Client.Events {
-		name, at := operation(e.Name, e.At, "Event name")
+		name, at := operation(e.Name, e.Origin, e.At, "Event name")
 		p.declare(p.client, identEmit+name, at, "event emitter")
 		p.declare(p.remote, identOn+name, at, "event handler")
 	}

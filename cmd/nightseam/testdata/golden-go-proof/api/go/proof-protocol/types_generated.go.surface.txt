@@ -1,0 +1,101 @@
+const ErrorDenied = "denied"
+const LiteralTextValue LiteralText = "text"
+const OptionKindNone OptionKind = "none"
+const OptionKindSome OptionKind = "some"
+const PartKindCount PartKind = "count"
+const PartKindImage PartKind = "image"
+const PartKindText PartKind = "text"
+const ResultKindErr ResultKind = "err"
+const ResultKindOk ResultKind = "ok"
+const RichPartKindCount RichPartKind = "count"
+const RichPartKindImage RichPartKind = "image"
+const RichPartKindTable RichPartKind = "table"
+const RichPartKindText RichPartKind = "text"
+func (*Carried[SEnvelope, SHandle, Item]) UnmarshalJSON(data []byte) error
+func (*Envelope) UnmarshalJSON(data []byte) error
+func (*Handle) UnmarshalJSON(data []byte) error
+func (*LiteralText) UnmarshalJSON(data []byte) error
+func (*OptionNone) UnmarshalJSON(data []byte) error
+func (*Option[T]) UnmarshalJSON(data []byte) error
+func (*Page[T]) UnmarshalJSON(data []byte) error
+func (*Part) UnmarshalJSON(data []byte) error
+func (*PartImage) UnmarshalJSON(data []byte) error
+func (*PartsRequest) UnmarshalJSON(data []byte) error
+func (*Result[T, E]) UnmarshalJSON(data []byte) error
+func (*RichPart) UnmarshalJSON(data []byte) error
+func (*RichPartTable) UnmarshalJSON(data []byte) error
+func (*TextPart) UnmarshalJSON(data []byte) error
+func (Carried[SEnvelope, SHandle, Item]) MarshalJSON() ([]byte, error)
+func (Carried[SEnvelope, SHandle, Item]) Of() Tag
+func (Carried[SEnvelope, SHandle, Item]) WireType() runtime.TypeBinding
+func (Envelope) MarshalJSON() ([]byte, error)
+func (Envelope) Of() Tag
+func (Envelope) WireType() runtime.TypeBinding
+func (Handle) MarshalJSON() ([]byte, error)
+func (Handle) Of() Tag
+func (Handle) WireType() runtime.TypeBinding
+func (LiteralText) MarshalJSON() ([]byte, error)
+func (LiteralText) Of() Tag
+func (LiteralText) WireType() runtime.TypeBinding
+func (OptionNone) MarshalJSON() ([]byte, error)
+func (OptionNone) Of() Tag
+func (OptionNone) WireType() runtime.TypeBinding
+func (Option[T]) Kind() OptionKind
+func (Option[T]) MarshalJSON() ([]byte, error)
+func (Option[T]) Of() Tag
+func (Option[T]) WireType() runtime.TypeBinding
+func (Page[T]) MarshalJSON() ([]byte, error)
+func (Page[T]) Of() Tag
+func (Page[T]) WireType() runtime.TypeBinding
+func (Part) Kind() PartKind
+func (Part) MarshalJSON() ([]byte, error)
+func (Part) Of() Tag
+func (Part) WireType() runtime.TypeBinding
+func (PartImage) MarshalJSON() ([]byte, error)
+func (PartImage) Of() Tag
+func (PartImage) WireType() runtime.TypeBinding
+func (PartsRequest) MarshalJSON() ([]byte, error)
+func (PartsRequest) Of() Tag
+func (PartsRequest) WireType() runtime.TypeBinding
+func (Result[T, E]) Kind() ResultKind
+func (Result[T, E]) MarshalJSON() ([]byte, error)
+func (Result[T, E]) Of() Tag
+func (Result[T, E]) WireType() runtime.TypeBinding
+func (RichPart) Kind() RichPartKind
+func (RichPart) MarshalJSON() ([]byte, error)
+func (RichPart) Of() Tag
+func (RichPart) WireType() runtime.TypeBinding
+func (RichPartTable) MarshalJSON() ([]byte, error)
+func (RichPartTable) Of() Tag
+func (RichPartTable) WireType() runtime.TypeBinding
+func (TextPart) MarshalJSON() ([]byte, error)
+func (TextPart) Of() Tag
+func (TextPart) WireType() runtime.TypeBinding
+func IsError(err error, code string) bool
+func NarrowRichPartToPart(v RichPart) (Part, bool)
+func WidenRichPartFromPart(v Part) RichPart
+type Carried[SEnvelope any, SHandle any, Item any] struct{Message SEnvelope `json:"message"`; Back runtime.Nullable[SHandle] `json:"back"`; Page Page[Item] `json:"page"`}
+type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`; Traceparent runtime.Optional[string] `json:"traceparent,omitzero"`; Tracestate runtime.Optional[string] `json:"tracestate,omitzero"`; Meta runtime.Optional[map[string]string] `json:"meta,omitzero"`}
+type Handle struct{Channel int64 `json:"channel"`}
+type LiteralText string
+type OptionKind string
+type OptionNone struct{}
+type OptionSomeValue[T any] struct{Value T}
+type Option[T any] struct{None *OptionNone; Some *OptionSomeValue[T]}
+type Page[T any] struct{Items []T `json:"items"`; Next runtime.Optional[runtime.Nullable[string]] `json:"next,omitzero"`}
+type Part struct{Count *PartCountValue; Image *PartImage; Text *TextPart}
+type PartCountValue struct{Value int64}
+type PartImage struct{URL string `json:"url"`; Alt runtime.Optional[runtime.Nullable[string]] `json:"alt,omitzero"`}
+type PartKind string
+type Parts Page[Part]
+type PartsRequest struct{After runtime.Optional[runtime.Nullable[string]] `json:"after,omitzero"`}
+type ResultErrValue[T any, E any] struct{Value E}
+type ResultKind string
+type ResultOkValue[T any, E any] struct{Value T}
+type Result[T any, E any] struct{Err *ResultErrValue[T, E]; Ok *ResultOkValue[T, E]}
+type RichPart struct{Count *PartCountValue; Image *PartImage; Text *TextPart; Table *RichPartTable}
+type RichPartKind string
+type RichPartTable struct{Rows []runtime.Nullable[string] `json:"rows"`}
+type Tag struct{}
+type TextPart struct{Type LiteralText `json:"type"`; Body string `json:"body"`}
+var Errors = []string{…}

@@ -31,7 +31,7 @@ func install[AEnvelope, BEnvelope any](handler Handler[AEnvelope, BEnvelope], op
 	}
 	handlers["look"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.Mine[AEnvelope]
-		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Mine\""), raw); err != nil {
+		if err := protocol.WireSchema().Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Mine\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -41,7 +41,7 @@ func install[AEnvelope, BEnvelope any](handler Handler[AEnvelope, BEnvelope], op
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"Both\""), result); err != nil {
+		if err = protocol.WireSchema().Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Both\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil

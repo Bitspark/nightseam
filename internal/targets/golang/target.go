@@ -124,7 +124,7 @@ func expand(pattern, family string) string { return strings.ReplaceAll(pattern, 
 
 func (*target) Name() string { return Name }
 
-func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Protocol, spi.Session} }
+func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Model, spi.Protocol, spi.Session} }
 
 // layout is where a family's packages live: its own placement, or the
 // checkout's layout.
@@ -194,9 +194,6 @@ func (t *target) Check(f *render.Family) []diag.Diagnostic {
 	if err := t.config.Validate(); err != nil {
 		return []diag.Diagnostic{{Family: f.Name, Code: "invalid_config", Message: err.Error()}}
 	}
-	if unrendered := render.Unrendered(f, Name); len(unrendered) > 0 {
-		return unrendered
-	}
 	_, diagnostics := newPlan(f)
 	return diagnostics
 }
@@ -226,6 +223,9 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 	if err := put(protocolDir, "validation_generated.go", t.file(p, f, "protocol", emitValidation)); err != nil {
 		return nil, err
 	}
+	if !f.HasProtocol() {
+		return files, nil
+	}
 	if err := put(bindingDir, "binding_generated.go", t.file(p, f, "binding", emitBinding)); err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 // file renders one Go file: the header, the package clause, the imports the
 // emitter registered, and the body.
 func (t *target) file(p *plan, f *render.Family, suffix string, body func(*file)) string {
-	ctx := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("\t"), imports: &emit.Imports{}}
+	ctx := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("\t"), imports: &emit.Imports{}, uses: f.Uses}
 	if suffix != "protocol" {
 		ctx.prefix = "protocol."
 	}

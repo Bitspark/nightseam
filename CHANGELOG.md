@@ -26,6 +26,18 @@ are one number. Entries are in the words of the commits that landed them.
   member the config lacks, or what the tool's flags set; a problem of it
   is the checkout's own diagnostic, which `validate` now prints first and
   which refuses `generate`, `check` and `init`.
+- Both runtime validators read literals, nullable and inline shapes, scoped
+  type and family applications, explicit generic inheritance and adjacent
+  union payloads. Family descriptors retain parameter and import ownership;
+  generated Go packages expose `WireSchema()`, and `TypeArgument[T]()` binds
+  instantiated Go types without losing named constraints. Both runtimes use
+  the ruled Unicode pattern semantics, held by shared values and Node
+  differential checks, including large counts and surrogate escapes.
+- The Go target renders the settled type language: concrete unions with
+  adjacent payloads and widening/narrowing helpers, literals, nullable and
+  inline shapes, mixed type and family parameters, and inherited sides.
+  Generated codecs retain the supplied types' validation constraints;
+  model-only families generate their types without protocol helpers.
 
 ## 0.4.0 - 2026-09-19
 

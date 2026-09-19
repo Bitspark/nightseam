@@ -66,7 +66,7 @@ func install(handler Handler, events Events, options *runtime.Options) error {
 	}
 	handlers["reverse"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.Payload
-		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -76,7 +76,7 @@ func install(handler Handler, events Events, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"Payload\""), result); err != nil {
+		if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Payload\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -149,14 +149,14 @@ func (c *Client) Close() error { return c.Peer.Close() }
 // Echo: Returns the payload, its text reversed.
 func (c *Client) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error) {
 	var result protocol.Payload
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"Payload\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Payload\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "echo", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -172,7 +172,7 @@ func (c *Client) NoArgs(ctx context.Context) (string, error) {
 	if err := c.Peer.Call(ctx, "no_args", struct{}{}, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"string\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"string\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -182,14 +182,14 @@ func (c *Client) NoArgs(ctx context.Context) (string, error) {
 }
 func (c *Client) Seen(ctx context.Context, params protocol.Seen) (protocol.Payloads, error) {
 	var result protocol.Payloads
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"Seen\""), params); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Seen\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "seen", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Payloads\""), raw); err != nil {
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payloads\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -198,14 +198,14 @@ func (c *Client) Seen(ctx context.Context, params protocol.Seen) (protocol.Paylo
 	return result, nil
 }
 func (c *Client) EmitNoticed(ctx context.Context, data protocol.Seen) error {
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"Seen\""), data); err != nil {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Seen\""), data); err != nil {
 		return err
 	}
 	return c.Peer.Emit(ctx, "noticed", data)
 }
 func (c *Client) OnChanged(handler func(context.Context, protocol.Payload)) error {
 	return c.Peer.HandleEvent("changed", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
-		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
 			_ = peer.Close()
 			return
 		}

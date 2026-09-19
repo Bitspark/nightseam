@@ -89,14 +89,14 @@ func Open[SEnvelope runtime.Of[STag], SPayload runtime.Of[STag], STag any](ctx c
 func (c *Client[SEnvelope, SPayload]) Close() error { return c.Peer.Close() }
 func (c *Client[SEnvelope, SPayload]) Hold(ctx context.Context, params protocol.Held[SEnvelope, SPayload]) (SPayload, error) {
 	var result SPayload
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"Held\""), params); err != nil {
+	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Payload": runtime.TypeArgument[SPayload]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Held\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "hold", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"S.Payload\""), raw); err != nil {
+	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Payload": runtime.TypeArgument[SPayload]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"S.Payload\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {

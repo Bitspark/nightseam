@@ -1,5 +1,6 @@
 Tag
 Of
+WireType
 MarshalJSON
 UnmarshalJSON
 AdditionalFields
@@ -7,6 +8,7 @@ ValidateRaw
 ValidateExpressionRaw
 ValidateValue
 MustTypeExpression
+WireSchema
 Errors
 IsError
 Remote

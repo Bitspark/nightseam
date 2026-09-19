@@ -12,6 +12,7 @@ import (
 	"github.com/Bitspark/nightseam/internal/load"
 	"github.com/Bitspark/nightseam/internal/model/builtin"
 	"github.com/Bitspark/nightseam/internal/render"
+	"github.com/Bitspark/nightseam/internal/targets/golang"
 	"github.com/Bitspark/nightseam/internal/targets/markdown"
 )
 
@@ -35,8 +36,8 @@ func proofWorld(t *testing.T) analysis.World {
 // values that may be null, a type parameter beside a family parameter of
 // the protocol tier on one declaration, a local application, a side that
 // extends another family's, and a pattern in the dialect — is accepted by
-// the neutral checks. The specification has its own golden corpus; the Go
-// and TypeScript render lanes still hold their unsupported forms below.
+// the neutral checks. Go and the specification have their own golden
+// corpora; targets still learning these forms hold their refusals below.
 func TestProofFamilyIsAccepted(t *testing.T) {
 	world := proofWorld(t)
 	for name := range world {
@@ -92,10 +93,10 @@ func TestProofFamilyDerivesItsInlineNames(t *testing.T) {
 	}
 }
 
-// TestEveryTargetRefusesWhatItDoesNotRender: each language target refuses
-// the proof family, once per form it does not render yet, naming the form
-// and itself. The spec target renders the complete proof. These refusals
-// keep the code corpus green while the language render
+// TestEveryTargetRefusesWhatItDoesNotRender: a target still learning the
+// proof family refuses each form it does not render, naming the form and
+// itself. Go and the specification render the complete proof. Refusals
+// keep the code corpus green while the remaining language render
 // lanes catch up — a target that met a form it had never been taught would
 // otherwise emit something that is not what was declared, or nothing at
 // all, and the golden files would say neither.
@@ -104,9 +105,9 @@ func TestEveryTargetRefusesWhatItDoesNotRender(t *testing.T) {
 	forms := len(render.FormsUsed(r))
 	for _, target := range compose.Targets("example.com/api", "@example", "") {
 		diagnostics := target.Check(r)
-		if target.Name() == markdown.Name {
+		if target.Name() == golang.Name || target.Name() == markdown.Name {
 			if len(diagnostics) != 0 {
-				t.Errorf("the specification refuses the proof family: %v", diagnostics)
+				t.Errorf("%s refuses the complete proof: %v", target.Name(), diagnostics)
 			}
 			continue
 		}
@@ -119,6 +120,26 @@ func TestEveryTargetRefusesWhatItDoesNotRender(t *testing.T) {
 			}
 		}
 	}
+}
+
+// The Go half holds the new forms and their exported names before the
+// cross-language gate admits the proof into the shared corpus.
+func TestGoProofRenderingAndSurfaceGolden(t *testing.T) {
+	family := render.Build(analysis.Resolve(proofWorld(t), "proof"))
+	target := golang.New(golang.Config{Module: module})
+	if diagnostics := target.Check(family); len(diagnostics) != 0 {
+		t.Fatal(diagnostics)
+	}
+	files, err := target.Render(family)
+	if err != nil {
+		t.Fatal(err)
+	}
+	goldens := map[string][]byte{}
+	for _, file := range files {
+		goldens[file.Path] = file.Data
+		goldens[file.Path+".surface.txt"] = []byte(strings.Join(goSurface(t, file.Path, string(file.Data)), "\n") + "\n")
+	}
+	holdGolden(t, "testdata/golden-go-proof", goldens)
 }
 
 // TestBuiltinFamiliesPassTheirOwnChecks: the families Nightseam declares of

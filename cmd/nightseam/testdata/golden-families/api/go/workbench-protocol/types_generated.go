@@ -23,13 +23,13 @@ func (v CancelWorkItemParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("CancelWorkItemParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("CancelWorkItemParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *CancelWorkItemParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("CancelWorkItemParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("CancelWorkItemParams", data); err != nil {
 		return err
 	}
 	type wire CancelWorkItemParams
@@ -41,6 +41,9 @@ func (v *CancelWorkItemParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (CancelWorkItemParams) Of() Tag { return Tag{} }
+func (CancelWorkItemParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "CancelWorkItemParams"}
+}
 
 type CreateProjectParams struct {
 	Key         string `json:"key"`
@@ -54,13 +57,13 @@ func (v CreateProjectParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("CreateProjectParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("CreateProjectParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *CreateProjectParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("CreateProjectParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("CreateProjectParams", data); err != nil {
 		return err
 	}
 	type wire CreateProjectParams
@@ -72,6 +75,9 @@ func (v *CreateProjectParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (CreateProjectParams) Of() Tag { return Tag{} }
+func (CreateProjectParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "CreateProjectParams"}
+}
 
 type CreateWorkItemParams struct {
 	Project string                               `json:"project"`
@@ -85,13 +91,13 @@ func (v CreateWorkItemParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("CreateWorkItemParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("CreateWorkItemParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *CreateWorkItemParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("CreateWorkItemParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("CreateWorkItemParams", data); err != nil {
 		return err
 	}
 	type wire CreateWorkItemParams
@@ -103,6 +109,9 @@ func (v *CreateWorkItemParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (CreateWorkItemParams) Of() Tag { return Tag{} }
+func (CreateWorkItemParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "CreateWorkItemParams"}
+}
 
 type Criterion struct {
 	ID          string `json:"id"`
@@ -115,13 +124,13 @@ func (v Criterion) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Criterion", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Criterion", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Criterion) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Criterion", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Criterion", data); err != nil {
 		return err
 	}
 	type wire Criterion
@@ -133,6 +142,9 @@ func (v *Criterion) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Criterion) Of() Tag { return Tag{} }
+func (Criterion) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Criterion"}
+}
 
 // Envelope: One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else.
 type Envelope struct {
@@ -156,13 +168,13 @@ func (v Envelope) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Envelope", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Envelope) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Envelope", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return err
 	}
 	type wire Envelope
@@ -174,6 +186,9 @@ func (v *Envelope) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Envelope) Of() Tag { return Tag{} }
+func (Envelope) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Envelope"}
+}
 
 type Event struct {
 	Sequence   int64     `json:"sequence"`
@@ -191,13 +206,13 @@ func (v Event) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Event", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Event", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Event) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Event", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Event", data); err != nil {
 		return err
 	}
 	type wire Event
@@ -209,6 +224,9 @@ func (v *Event) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Event) Of() Tag { return Tag{} }
+func (Event) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Event"}
+}
 
 type GetWorkItemParams struct {
 	ID string `json:"id"`
@@ -220,13 +238,13 @@ func (v GetWorkItemParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("GetWorkItemParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("GetWorkItemParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *GetWorkItemParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("GetWorkItemParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("GetWorkItemParams", data); err != nil {
 		return err
 	}
 	type wire GetWorkItemParams
@@ -238,6 +256,9 @@ func (v *GetWorkItemParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (GetWorkItemParams) Of() Tag { return Tag{} }
+func (GetWorkItemParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "GetWorkItemParams"}
+}
 
 // Handle: A reference to a channel on the connection that carries the message holding it.
 type Handle struct {
@@ -250,13 +271,13 @@ func (v Handle) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Handle", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Handle) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Handle", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return err
 	}
 	type wire Handle
@@ -268,6 +289,9 @@ func (v *Handle) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Handle) Of() Tag { return Tag{} }
+func (Handle) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Handle"}
+}
 
 type ListEventsParams struct {
 	After   runtime.Optional[int64]  `json:"after,omitzero"`
@@ -281,13 +305,13 @@ func (v ListEventsParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("ListEventsParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("ListEventsParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *ListEventsParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("ListEventsParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("ListEventsParams", data); err != nil {
 		return err
 	}
 	type wire ListEventsParams
@@ -299,6 +323,9 @@ func (v *ListEventsParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (ListEventsParams) Of() Tag { return Tag{} }
+func (ListEventsParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "ListEventsParams"}
+}
 
 type ListProjectsParams struct {
 }
@@ -309,13 +336,13 @@ func (v ListProjectsParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("ListProjectsParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("ListProjectsParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *ListProjectsParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("ListProjectsParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("ListProjectsParams", data); err != nil {
 		return err
 	}
 	type wire ListProjectsParams
@@ -327,6 +354,9 @@ func (v *ListProjectsParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (ListProjectsParams) Of() Tag { return Tag{} }
+func (ListProjectsParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "ListProjectsParams"}
+}
 
 type ListWorkItemsParams struct {
 	Project runtime.Optional[string] `json:"project,omitzero"`
@@ -339,13 +369,13 @@ func (v ListWorkItemsParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("ListWorkItemsParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("ListWorkItemsParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *ListWorkItemsParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("ListWorkItemsParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("ListWorkItemsParams", data); err != nil {
 		return err
 	}
 	type wire ListWorkItemsParams
@@ -357,6 +387,9 @@ func (v *ListWorkItemsParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (ListWorkItemsParams) Of() Tag { return Tag{} }
+func (ListWorkItemsParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "ListWorkItemsParams"}
+}
 
 type Project struct {
 	ID          string    `json:"id"`
@@ -375,13 +408,13 @@ func (v Project) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Project", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Project", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Project) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Project", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Project", data); err != nil {
 		return err
 	}
 	type wire Project
@@ -393,6 +426,9 @@ func (v *Project) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Project) Of() Tag { return Tag{} }
+func (Project) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Project"}
+}
 
 type PublishSpecificationParams struct {
 	ID              string                  `json:"id"`
@@ -405,13 +441,13 @@ func (v PublishSpecificationParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("PublishSpecificationParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("PublishSpecificationParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *PublishSpecificationParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("PublishSpecificationParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("PublishSpecificationParams", data); err != nil {
 		return err
 	}
 	type wire PublishSpecificationParams
@@ -423,6 +459,9 @@ func (v *PublishSpecificationParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (PublishSpecificationParams) Of() Tag { return Tag{} }
+func (PublishSpecificationParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "PublishSpecificationParams"}
+}
 
 type ReopenWorkItemParams struct {
 	ID              string                  `json:"id"`
@@ -436,13 +475,13 @@ func (v ReopenWorkItemParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("ReopenWorkItemParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("ReopenWorkItemParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *ReopenWorkItemParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("ReopenWorkItemParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("ReopenWorkItemParams", data); err != nil {
 		return err
 	}
 	type wire ReopenWorkItemParams
@@ -454,6 +493,9 @@ func (v *ReopenWorkItemParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (ReopenWorkItemParams) Of() Tag { return Tag{} }
+func (ReopenWorkItemParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "ReopenWorkItemParams"}
+}
 
 type SetDependenciesParams struct {
 	ID              string                  `json:"id"`
@@ -467,13 +509,13 @@ func (v SetDependenciesParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("SetDependenciesParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("SetDependenciesParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *SetDependenciesParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("SetDependenciesParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("SetDependenciesParams", data); err != nil {
 		return err
 	}
 	type wire SetDependenciesParams
@@ -485,6 +527,9 @@ func (v *SetDependenciesParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (SetDependenciesParams) Of() Tag { return Tag{} }
+func (SetDependenciesParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "SetDependenciesParams"}
+}
 
 type SetStepsParams struct {
 	ID              string                   `json:"id"`
@@ -499,13 +544,13 @@ func (v SetStepsParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("SetStepsParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("SetStepsParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *SetStepsParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("SetStepsParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("SetStepsParams", data); err != nil {
 		return err
 	}
 	type wire SetStepsParams
@@ -517,6 +562,9 @@ func (v *SetStepsParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (SetStepsParams) Of() Tag { return Tag{} }
+func (SetStepsParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "SetStepsParams"}
+}
 
 type Specification struct {
 	Objective    string      `json:"objective"`
@@ -534,13 +582,13 @@ func (v Specification) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Specification", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Specification", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Specification) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Specification", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Specification", data); err != nil {
 		return err
 	}
 	type wire Specification
@@ -552,6 +600,9 @@ func (v *Specification) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Specification) Of() Tag { return Tag{} }
+func (Specification) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Specification"}
+}
 
 type SpecificationDraft struct {
 	Objective    string      `json:"objective"`
@@ -566,13 +617,13 @@ func (v SpecificationDraft) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("SpecificationDraft", data); err != nil {
+	if err = schema.ValidateExpressionRaw("SpecificationDraft", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *SpecificationDraft) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("SpecificationDraft", data); err != nil {
+	if err := schema.ValidateExpressionRaw("SpecificationDraft", data); err != nil {
 		return err
 	}
 	type wire SpecificationDraft
@@ -584,6 +635,9 @@ func (v *SpecificationDraft) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (SpecificationDraft) Of() Tag { return Tag{} }
+func (SpecificationDraft) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "SpecificationDraft"}
+}
 
 type Step struct {
 	ID           string `json:"id"`
@@ -599,13 +653,13 @@ func (v Step) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Step", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Step", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Step) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Step", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Step", data); err != nil {
 		return err
 	}
 	type wire Step
@@ -616,7 +670,8 @@ func (v *Step) UnmarshalJSON(data []byte) error {
 	*v = Step(decoded)
 	return nil
 }
-func (Step) Of() Tag { return Tag{} }
+func (Step) Of() Tag                       { return Tag{} }
+func (Step) WireType() runtime.TypeBinding { return runtime.TypeBinding{Schema: schema, Type: "Step"} }
 
 type SubscribeParams struct {
 	After   runtime.Optional[int64]  `json:"after,omitzero"`
@@ -629,13 +684,13 @@ func (v SubscribeParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("SubscribeParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("SubscribeParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *SubscribeParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("SubscribeParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("SubscribeParams", data); err != nil {
 		return err
 	}
 	type wire SubscribeParams
@@ -647,6 +702,9 @@ func (v *SubscribeParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (SubscribeParams) Of() Tag { return Tag{} }
+func (SubscribeParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "SubscribeParams"}
+}
 
 type SubscribeResult struct {
 	Subscribed bool `json:"subscribed"`
@@ -658,13 +716,13 @@ func (v SubscribeResult) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("SubscribeResult", data); err != nil {
+	if err = schema.ValidateExpressionRaw("SubscribeResult", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *SubscribeResult) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("SubscribeResult", data); err != nil {
+	if err := schema.ValidateExpressionRaw("SubscribeResult", data); err != nil {
 		return err
 	}
 	type wire SubscribeResult
@@ -676,6 +734,9 @@ func (v *SubscribeResult) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (SubscribeResult) Of() Tag { return Tag{} }
+func (SubscribeResult) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "SubscribeResult"}
+}
 
 type UpdateProjectParams struct {
 	ID              string                   `json:"id"`
@@ -691,13 +752,13 @@ func (v UpdateProjectParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("UpdateProjectParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("UpdateProjectParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *UpdateProjectParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("UpdateProjectParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("UpdateProjectParams", data); err != nil {
 		return err
 	}
 	type wire UpdateProjectParams
@@ -709,6 +770,9 @@ func (v *UpdateProjectParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (UpdateProjectParams) Of() Tag { return Tag{} }
+func (UpdateProjectParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "UpdateProjectParams"}
+}
 
 type UpdateWorkItemParams struct {
 	ID              string                               `json:"id"`
@@ -723,13 +787,13 @@ func (v UpdateWorkItemParams) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("UpdateWorkItemParams", data); err != nil {
+	if err = schema.ValidateExpressionRaw("UpdateWorkItemParams", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *UpdateWorkItemParams) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("UpdateWorkItemParams", data); err != nil {
+	if err := schema.ValidateExpressionRaw("UpdateWorkItemParams", data); err != nil {
 		return err
 	}
 	type wire UpdateWorkItemParams
@@ -741,6 +805,9 @@ func (v *UpdateWorkItemParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (UpdateWorkItemParams) Of() Tag { return Tag{} }
+func (UpdateWorkItemParams) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "UpdateWorkItemParams"}
+}
 
 type User struct {
 	ID    string `json:"id"`
@@ -754,13 +821,13 @@ func (v User) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("User", data); err != nil {
+	if err = schema.ValidateExpressionRaw("User", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *User) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("User", data); err != nil {
+	if err := schema.ValidateExpressionRaw("User", data); err != nil {
 		return err
 	}
 	type wire User
@@ -771,7 +838,8 @@ func (v *User) UnmarshalJSON(data []byte) error {
 	*v = User(decoded)
 	return nil
 }
-func (User) Of() Tag { return Tag{} }
+func (User) Of() Tag                       { return Tag{} }
+func (User) WireType() runtime.TypeBinding { return runtime.TypeBinding{Schema: schema, Type: "User"} }
 
 type WorkItem struct {
 	ID                     string                               `json:"id"`
@@ -797,13 +865,13 @@ func (v WorkItem) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("WorkItem", data); err != nil {
+	if err = schema.ValidateExpressionRaw("WorkItem", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *WorkItem) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("WorkItem", data); err != nil {
+	if err := schema.ValidateExpressionRaw("WorkItem", data); err != nil {
 		return err
 	}
 	type wire WorkItem
@@ -815,6 +883,9 @@ func (v *WorkItem) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (WorkItem) Of() Tag { return Tag{} }
+func (WorkItem) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "WorkItem"}
+}
 
 // The public errors of the family: what a handler returns, as the Code of a *runtime.PublicError, and a caller tells apart with IsError.
 const (

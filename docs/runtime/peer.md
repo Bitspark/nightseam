@@ -171,12 +171,65 @@ adapter](observer.md#the-opentelemetry-adapter) is the one that ships.
 The wire validator lives in each runtime, once, and reads the family's wire
 description the protocol package embeds: `runtime.NewSchema(wire, imported)`
 and `MustSchema` in Go, with `ValidateRaw`, `ValidateExpressionRaw` and
-`ValidateValue`; `createValidator(types, imported)` in TypeScript, which
+`ValidateValue`; `createValidator(description, imported)` in TypeScript, which
 validates calls, replies, reverse calls and events alike. Both are held to
 one conformance table, `conformance/tables/validator.json`. `Optional[T]` and
 `Nullable[T]` in Go carry presence and nullness as the two facts the
 declaration keeps apart; `Raw` passes a payload through unread, which is
 what a relay wants.
+
+The descriptor is `{"types": {...}, "parameters": [...]}`: the types keep
+the declaration's expressions and each parameter keeps its `name` and
+optional `of`. Imports are `map[string]*runtime.Schema` in Go and a map of
+validators returned by `createValidator` in TypeScript. They retain the
+declaring family, so an argument to an imported generic resolves names in
+the caller's scope. Only the family parameters used by that imported type
+need arguments; a local application fills the type's own parameters.
+
+Both validators read nonempty string literals, nullable expressions, inline shapes,
+adjacently tagged unions and nested applications of either parameter sort.
+Every payload, including a record, map, arbitrary JSON or null, is carried
+whole under the union's `value` member; a payload-free `{empty: true}` arm
+carries the tag alone. An empty record is a payload and remains wrapped.
+An extending union accepts its base's
+variants, and the base refuses the added variants. Nullable values do not
+make required fields optional.
+An inheritance edge uses a plain name for a nongeneric base or an explicit
+`{apply, with}` expression for a generic base. Arguments keep their lexical
+scope, so a base parameter can be fixed, renamed or forwarded without
+binding two declarations merely because their parameters share a name.
+
+Go's `schema.Bind(types, families)` supplies bindings for raw validation and
+returns a new schema. TypeScript's fourth validator argument is a `Slots`
+map: a family binding has `name` and `validate`, while a type binding has
+`type` and `validate`, the validator of the family where that expression
+belongs. An explicit application validates its arguments in both runtimes.
+An unbound family slot in a generated Go generic codec is checked by the
+instantiated Go type during marshal or unmarshal; TypeScript requires its
+runtime binding.
+
+Go's `TypeArgument[T]()` supplies an instantiated type automatically. Bind
+its result under the declaration's parameter name, or under a drawn name
+such as `S.Envelope`. Drawn bindings also supply the family scope needed
+when an expression forwards that parameter to another family. A
+`TypeBinding{Schema, Type}` retains an expression's original family;
+`WireType() TypeBinding` metadata retains a named declaration's literals
+and constraints. Discovery is lazy, so recursive generated types need no
+codec registry. Reflection stays inside the runtime; generated callers
+only bind their concrete Go type arguments. Primitive and container
+arguments retain their ordinary wire kinds, and pointers and `Nullable[T]`
+retain nullness. A nil map or slice does not become nullable merely because
+Go's JSON decoder accepts null into it.
+
+A runtime also checks a descriptor's pattern syntax, including constraints
+inside inline shapes and application arguments. An absent optional member
+or an empty collection cannot hide a forbidden pattern. The Go declaration
+checker and runtime share the Unicode parser and engine translation; both
+runtimes read the same syntax and value conformance rows. TypeScript uses
+ECMAScript `u` mode. Go gives `\s`, `\d`, `\w`, their complements, word
+boundaries and dot the same meanings, including NBSP whitespace and
+code-point matching for emoji. The full tier compares the translation to
+Node's Unicode engine over both syntax refusals and matching values.
 
 ## Observing it
 
