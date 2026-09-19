@@ -82,6 +82,9 @@
     }}
   },
   "patternValues": [
+    {"pattern": "^a{999999999999999999999999}$", "value": "aaa", "valid": false},
+    {"pattern": "^(?:a{1001}){1001}$", "value": "a", "valid": false},
+    {"pattern": "^a{0,1001}$", "value": "aaa", "valid": true},
     {"pattern": "^\\s$", "value": "\u00a0", "valid": true},
     {"pattern": "^.$", "value": "😀", "valid": true},
     {"pattern": "^..$", "value": "😀", "valid": false},
@@ -120,6 +123,9 @@
   "patterns": [
     {"pattern": "[(?=]", "valid": true, "why": "lookaround punctuation inside a class is ordinary characters"},
     {"pattern": "a{1001}", "valid": true, "why": "ECMAScript counted repetition is not limited to RE2's 1000"},
+    {"pattern": "a{999999999999999999999999}", "valid": true, "why": "a decimal repetition count is not bounded by a machine integer"},
+    {"pattern": "(?:a{1001}){1001}", "valid": true, "why": "nested counts do not require expanding the pattern to one atom per match"},
+    {"pattern": "a{999999999999999999999999,999999999999999999999998}", "valid": false, "why": "large repetition bounds must still be ordered"},
     {"pattern": "a{0002}", "valid": true, "why": "leading zeroes in repetition bounds are decimal"},
     {"pattern": "^\\u{1F600}$", "valid": true, "why": "Unicode code-point escapes use ECMAScript u syntax"},
     {"pattern": "^\\uD83D\\uDE00$", "valid": true, "why": "a surrogate-pair escape names one Unicode code point"},

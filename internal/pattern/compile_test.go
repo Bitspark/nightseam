@@ -21,6 +21,7 @@ func TestECMAScriptUnicode(t *testing.T) {
 		`[()?=]`, `[(?=]`, `\(\?=`, `\uD83D\uDE00`, `[\uD83D\uDE00]`, `\u{1F600}`,
 		`[\u{1F600}-\u{1F603}]`, `^(a{500}){3}$`, `^a{1001}$`, `a{0002}`, `a{2,0003}`,
 		`^a{999999999999999999999999}$`, `^(?:a{1001}){1001}$`,
+		strings.Repeat("(?:", 1001) + "a" + strings.Repeat(")", 1001),
 	}
 	atoms := []string{`a`, `.`, `é`, `😀`, `[a-z]`, `[^a]`, `[\s]`, `[\S]`, `[\S\s]`, `[^\S]`, `\s`, `\S`, `\d`, `\D`, `\w`, `\W`, `\u0061`, `\x61`, `(?:a|😀)`, `(?:)`}
 	for _, atom := range atoms {
@@ -35,7 +36,7 @@ func TestECMAScriptUnicode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	command := exec.Command("node", "--input-type=module", "-e", `import fs from 'node:fs'; const x=JSON.parse(fs.readFileSync(0,'utf8')); console.log(JSON.stringify(x.Patterns.map(p=>{try{const r=new RegExp(p,'u');return {valid:true,matches:x.Values.map(v=>r.test(v))}}catch{return {valid:false}}})));`)
+	command := exec.Command("node", "--input-type=module", "-e", `import fs from 'node:fs'; const x=JSON.parse(fs.readFileSync(0,'utf8')); console.log(JSON.stringify(x.Patterns.map(p=>{let r;try{r=new RegExp(p,'u')}catch{return {valid:false}}return {valid:true,matches:x.Values.map(v=>r.test(v))}})));`)
 	command.Stdin = bytes.NewReader(input)
 	output, err := command.CombinedOutput()
 	if err != nil {
