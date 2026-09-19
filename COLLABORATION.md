@@ -63,7 +63,9 @@ package under `surface`, what each target reserves, and one checkout per rule
 the tool refuses with what `validate` says. It runs on Linux and Windows in
 CI, since the fixtures are byte comparisons.
 
-`go test ./...` is the full tier: the fixtures compile and run the generated
+`go test ./...` is the full tier — plus `go vet ./... && go test ./...` inside
+`otel/go`, a module of its own that the root's `./...` does not enter, in both
+tiers. It the fixtures compile and run the generated
 packages in both languages, and the conformance suite holds every language's
 testee to Go's — `go test ./conformance/go` alone runs it. They need Node 22.12 or later and the TypeScript
 compiler `pnpm install` brings — and **fail rather than skip** when one is
@@ -110,6 +112,16 @@ it. A file another lane is editing is not yours to reformat. Line endings are
 LF everywhere (`.gitattributes` says so), and a stray binary is never
 committed.
 
+The index is shared as well as the tree. Two lanes each stage by path and
+the first to run a bare `git commit` carries the other's staged files under
+its own message — it happened on 2026-09-19. So a commit is by path too:
+`git commit -F message -- <paths>` commits the working-tree state of exactly
+those paths and nothing else the index holds (a new file is `git add`ed
+first), and `git diff --cached --stat` is read before every commit as the
+question "is every line of this mine?". Where a sibling is mid-edit in the
+same file, rebuild HEAD plus your own hunks and stage that as a blob rather
+than the file.
+
 ## Commits
 
 One commit is one change, and its message says what changed and why, in one
@@ -121,7 +133,8 @@ message needs a paragraph is usually two commits.
 ## Releases
 
 Versions move in lockstep across the published TypeScript packages, the
-generator's `DefaultRuntimeVersion` and the Go module's tag; `RELEASING.md`
+generator's `DefaultRuntimeVersion`, the Go module's tag and every nested Go
+module's requirement on the root module; `RELEASING.md`
 has the procedure. Between releases, `CHANGELOG.md` collects what landed
 under *Unreleased*, in the words of the commits.
 

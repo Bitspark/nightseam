@@ -49,9 +49,10 @@ A `record` has `fields`, may `extends` other records (their fields come
 first, in wire order) and may be `open` (fields beyond the declared ones are
 kept). An `enum` has `values`; an `alias` a `type`. A field is `required`
 unless it says otherwise and never null unless `nullable`: presence and
-nullness are two facts. An `entity` is a record with a `key`; `unique`,
-`min`, `max`, `length` and `pattern` constrain a field, and the validators
-enforce them.
+nullness are two facts. An `entity` is a record with a `key`; `min`,
+`max`, `length` and `pattern` constrain a field, and the validators enforce
+them; `unique` says no two instances of the entity share the value, which is
+the holder's to enforce and not the wire's — a validator sees one value.
 
 A type expression is one of: a primitive (`string`, `boolean`, `integer`,
 `number`, `timestamp`, `json`); a type of this family, `"Payload"`; a type

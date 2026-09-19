@@ -8,6 +8,44 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- The conformance suite, `conformance/`: one Go runner drives a **testee** per
+  language — a peer under remote control, speaking `DRIVER.md`'s JSON lines —
+  through scenarios that are data, over a real socket, and holds every
+  language to Go's on both sides of the wire. The Go and TypeScript testees
+  serve the seam, the peer, the tunnel, the session and the generated
+  packages; the six interop gates the runtimes carried became scenarios and
+  were retired; the suite's first two catches were a TypeScript observer
+  told less than Go's and a TypeScript session log that disagreed with Go's.
+- Profiles and tiers, `docs/tiers.md` and `conformance/profiles.json`: the
+  four promises a language can make, the five profiles the suite holds a
+  language to, and the four tiers that say which a language guarantees and
+  which red cell stops a release. The runner places every scenario in a
+  profile, holds a testee to its tier, and writes `conformance/matrix.json`;
+  the README renders it as the Languages table and CI holds the table to the
+  matrix; the release refuses a tag whose matrix the tier table stops; the
+  full matrix runs nightly and a failure becomes an issue against the
+  scenario. Go and TypeScript are tier 1; Python and Rust are planned for 2,
+  C#, Java, C++ and Haskell for 4.
+- `docs/layers.md`, the test for where something new on the wire belongs:
+  the profile's only when the peer acts on it; a layer's own vocabulary as
+  ordinary frames under a reserved prefix when one layer produces it and
+  another reads it; a header when it is a consumer's fact about a call.
+- `meta`, the one header the profile has: a flat string map a request or an
+  event may carry about the call rather than in it, delivered to the handler
+  beside the payload and read into by nothing, never on a response, never in
+  an observer event, `nightseam.`-prefixed keys reserved and refused. Both
+  peers, both validators, the generated client and binding of both languages
+  pass it through; the session relay forwards it verbatim.
+- The WebSocket transport negotiates a subprotocol: `Subprotocols` on both
+  sides, `SelectSubprotocol` on the server for a browser's ticket, what was
+  selected readable on the peer, none offered or selected by default.
+- A session binds and attaches over any connection of the seam — `Bind` and
+  `Attach` take `duplex.Conn` / `FrameConnection`, a tunnel channel being one
+  — so an in-process machine binds over a pipe; a registry-level observer
+  serves an up side that runs over no peer.
+- A durable log is bound at its head: `Bind` seats the relay's cursor by
+  reading the log before the pump starts, so a consumer attaching to a
+  session bound over a log that already holds frames is replayed them.
 - The OpenTelemetry adapter, the one component a consumer opts into:
   `@nightseam/otel` at `otel/ts` and `github.com/Bitspark/nightseam/otel/go`
   at `otel/go`, a package and a Go module of their own so that the four
@@ -46,6 +84,13 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- No legacy: with no released consumer, a change is made directly and whole
+  — both peers and the validators and the generator in one lane, emitting
+  what they accept in the same commit, every caller changed in the same
+  commit — and a design is chosen for being right, never for being cheap to
+  roll out; `COLLABORATION.md` says so.
+- The root module's Go directive and the nested module's move together;
+  `otel/go` declares 1.26.0 as its dependencies require.
 - The npm publish attaches provenance: the release workflow mints a
   short-lived OIDC token, so each package's npm page names the workflow run,
   the commit and the repository its tarball was built from. It refuses to
@@ -90,7 +135,7 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## 0.2.0
 
-The first published version. Everything below is in it.
+The first version to be published; nothing has been tagged yet. Everything below is in it.
 
 ### The declaration language and the generator
 

@@ -32,7 +32,7 @@ message and data; any other exception a handler throws becomes `internal`.
 
 ## The wire
 
-The endpoint selects the profile; no WebSocket subprotocol is negotiated.
+The endpoint selects the profile; a subprotocol is offered only when `subprotocols` names one, and what the handshake selected is `peer.subprotocol`.
 Text envelopes carry `version: 1` and a `kind`: `request` has `id`, `method`
 and `params`; `response` has `id` and exactly one of `result` or `error`;
 `event` has `event` and `data`; `cancel` has `id`. Request ids carry the

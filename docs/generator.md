@@ -80,7 +80,7 @@ beside a client, `node_modules`, is nobody's and stays.
 
 The wire validator lives in each runtime, once, and reads the family's
 wire description the protocol package embeds; both are held to
-`runtime/testdata/validator-cases.json`. A type drawn from a parameter is
+`conformance/tables/validator.json`. A type drawn from a parameter is
 validated by the binding of the family that fills it in TypeScript, and by
 that family's codec where the generic type is instantiated in Go.
 

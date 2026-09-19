@@ -25,7 +25,9 @@ tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
   rather than take it.
 - **Go**: the module `github.com/Bitspark/nightseam` at the tag; nothing is
   uploaded, a tag is the release. `runtime/go`, `duplex/go`, `tunnel/go`
-  and `session/go` are its importable packages, and `cmd/nightseam` is
+  and `session/go` are its importable packages, with their sub-packages —
+  `duplex/go/ws`, `runtime/go/slogobserver`, and the suites `duplex/go/duplextest`
+  and `session/go/sessiontest`, and `cmd/nightseam` is
   what a consumer adds as a Go tool.
 - **Go, nested**: a component that depends on what the core module may not
   is a module of its own, released by a second tag `<dir>/vX.Y.Z` cut beside
@@ -44,7 +46,8 @@ tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
 ## Cutting a release
 
 1. Be on `main`, clean, with both tiers green: `go test ./...`,
-   `pnpm -r check && pnpm -r test`, and `go vet ./... && go test ./...` in
+   `pnpm -r check && pnpm -r build && pnpm -r test`,
+   `node scripts/matrix-table.mjs --check`, and `go vet ./... && go test ./...` in
    each nested Go module — `otel/go` — which the root module's `./...` does
    not enter. The conformance suite runs with the first of those and writes
    `conformance/matrix.json`; commit it with whatever moved it, since the

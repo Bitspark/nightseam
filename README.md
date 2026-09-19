@@ -73,7 +73,7 @@ Pre-1.0. The declaration language, the generated surface and the profile
 move with minor versions; `CHANGELOG.md` says what each version holds. What
 is already held fixed is the agreement between the languages: the
 conformance suite under [conformance/](conformance/) holds every language's
-runtime, tunnel, session and generated packages to Go's over a real socket,
+seam, runtime, tunnel, session and generated packages to Go's over a real socket,
 scenario by scenario, so a peer of any language is held to the reference
 before it is released; `conformance/matrix.json` is the last run's standing
 of each language in each profile.
@@ -129,8 +129,11 @@ and on nothing else.
 | [`@nightseam/otel`](otel/ts) | [`otel/go`](otel/go) | the OpenTelemetry adapter, the one component a consumer opts into: a propagator over the W3C trace context propagator and an observer that opens a span per request, so that the four above depend on nothing |
 | — | [`cmd/nightseam`](cmd/nightseam) | the generator |
 
-Every component exists in both languages and both are held to one suite. A
-third language is `<component>/<lang>` and nothing else moves.
+Every published component exists in both languages and both are held to one
+suite; the suite's own testees live at `conformance/<lang>`, private. A third
+language is `<component>/<lang>` for each of these, a target under
+`internal/targets/<lang>`, and a testee under `conformance/<lang>`; nothing
+else moves, and [docs/tiers.md](docs/tiers.md) is the order to do it in.
 
 ## Using it
 
@@ -155,10 +158,10 @@ go tool nightseam version             # which version of the tool is running
 | --- | --- |
 | [docs/language.md](docs/language.md) | the declaration language: the tiers, the types, the two sides, a session's governance, per-target names, and a family generic in others |
 | [docs/generator.md](docs/generator.md) | the commands and their flags, the pipeline, and what the generated packages own |
-| [docs/profile.md](docs/profile.md) | `nightseam.duplex/1`: the envelope, ids and correlation, limits and backpressure, trace context, close codes |
+| [docs/profile.md](docs/profile.md) | `nightseam.duplex/1`: the envelope, ids and correlation, limits and backpressure, trace context, the subprotocol, close codes |
 | [docs/tunnel.md](docs/tunnel.md) | channels over one peer: the four operations, ids by parity, credit |
 | [docs/session.md](docs/session.md) | a session over a tunnel's channels: the relay's rules, the log, what a consumer builds on it |
-| [docs/observability.md](docs/observability.md) | one observer across the three layers: the rule, every event in both languages, and how a layer of your own joins it |
+| [docs/observability.md](docs/observability.md) | one observer across the three layers: the rule, every event in both languages, the console and slog adapters, the OpenTelemetry one beside them, the session's changes, and how a layer of your own joins it |
 | [docs/tiers.md](docs/tiers.md) | languages, profiles and tiers: what a language of each tier promises, and how the conformance suite holds it |
 | [docs/layers.md](docs/layers.md) | what belongs where: the test that decides whether something new on the wire is the profile's, a layer's own, or a header |
 | [conformance/DRIVER.md](conformance/DRIVER.md) | the conformance suite: the protocol a language's testee speaks to the runner, every op, and how a language joins |
@@ -167,8 +170,10 @@ go tool nightseam version             # which version of the tool is running
 
 ```
 go test -short ./...                              # the fast tier: Go alone, seconds
-go test ./...                                     # the full tier: both languages, the cross-language gates
-pnpm install && pnpm -r check && pnpm -r test
+go test ./...                                     # the full tier: both languages, the conformance suite
+pnpm install && pnpm -r check && pnpm -r build && pnpm -r test
+(cd otel/go && go vet ./... && go test ./...)     # the nested module, which ./... does not enter
+node scripts/matrix-table.mjs --check             # the README's Languages table against the matrix
 ```
 
 The full tier needs Go, Node 22.12 or later and the TypeScript compiler

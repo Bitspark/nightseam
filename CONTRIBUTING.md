@@ -7,7 +7,7 @@ that first; this page exists so that GitHub links to it.
 
 In short:
 
-- Both tiers green before a change lands: `go test ./...`, and
+Both tiers green before a change lands: `go test ./...`, `pnpm install && pnpm -r check && pnpm -r build && pnpm -r test`, `go vet ./... && go test ./...` inside `otel/go` (a module of its own, which the root's `./...` does not enter), and `node scripts/matrix-table.mjs --check` — the same four steps CI runs.
   `pnpm install && pnpm -r check && pnpm -r test`. The full tier needs Go,
   Node 22.12 or later and the TypeScript compiler `pnpm install` brings, and
   fails rather than skips when one is missing.

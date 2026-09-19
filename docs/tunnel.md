@@ -116,8 +116,8 @@ client, _ := chatclient.Open(ctx, carrier, handle, …)  // or resolves a handle
 ```ts
 const tunnel = new Tunnel(peer);
 const channel = await tunnel.open('chat');
-const client = await Client.attach(channel, chat.family, …);
-const resolved = await Client.open(tunnel, handle, chat.family, …);
+const client = await Client.attach(channel, …);
+const resolved = await Client.open(tunnel, handle, …);
 ```
 
 ## Observing it

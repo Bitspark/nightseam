@@ -10,7 +10,7 @@ five working days with whether it is confirmed and what the fix will be.
 
 ## Scope
 
-The runtimes — `duplex`, `runtime`, `tunnel`, `session`, in both languages —
+The runtimes — `duplex`, `runtime`, `tunnel`, `session` and the `otel` adapter, in both languages —
 carry frames between parties who may not trust each other: a consumer, a
 relay, a machine. What they promise on that front is stated in their
 documentation and held by their suites: a frame over the limit is refused

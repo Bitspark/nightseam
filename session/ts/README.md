@@ -12,7 +12,7 @@ import { Registry, memoryLog } from '@nightseam/session';
 import { decides, asks } from '@example/chat-client';
 
 const registry = new Registry();
-registry.bind('s-1', up, { decides, asks }, memoryLog(1 << 20));
+registry.bind('s-1', up, { decides: m => decides.has(m), asks: m => asks.has(m) }, memoryLog(1 << 20));
 const attachment = registry.attach('s-1', down, 'participant', 'consumer:7', 0);
 registry.control('s-1', attachment);
 registry.attention();     // every session with an unanswered ask
