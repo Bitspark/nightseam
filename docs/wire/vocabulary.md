@@ -69,13 +69,21 @@ A layer that speaks on the wire does it as the tunnel does:
   tunnel's `channel.open` handler) or produces them in its own relay (the
   session's `session.control` and `session.cursor`); either way the peer
   dispatches by name and knows nothing of what the name means.
-- **Injected, not declared.** Where a layer's vocabulary reaches a family's
-  generated code — a session family's client exposing `onControl` — it is
-  because the layer's tier *injects* the operations into the family's
-  protocol, as the protocol tier injects the `Envelope` and `Handle` types
-  ([the declaration](../declaration/families.md#protocoljson)): a family
-  that has the tier carries them, one that does not does not, and no family
-  declares them by hand. The observer then labels them with the family, as
+- **Imported, implicitly.** A layer's vocabulary is a **family**: `duplex`
+  for the profile, `tunnel` for the tunnel, `session` for the session, each
+  declared in the declaration language under `internal/model/builtin/` and
+  carried in the binary. A family that has the layer's tier file imports
+  that family, with no `imports` line, and there is no injection mechanism
+  at all ([a tier is a built-in
+  family](../decisions/a-tier-is-a-built-in-family.md), [the
+  declaration](../declaration/families.md#what-a-tier-brings)). The protocol
+  tier's built-in is *carried* — `duplex.Envelope` and `duplex.Handle` are
+  the carrying family's own types, since a family's envelope is a message of
+  that family — while the session's vocabulary is one declaration for every
+  family and reaches a family's generated code as a side that extends the
+  built-in `session` family's. No family declares any of it by hand, and one
+  that names a built-in in `imports`, or declares a type it carries, is
+  refused. The observer then labels a layer's operations with the family, as
   any operation.
 - **Never logged as the family's.** A session's log holds the family's
   frames; the session's own frames are state, not messages, and replay

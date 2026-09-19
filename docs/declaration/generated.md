@@ -17,8 +17,8 @@ package's `Handler`, and calls through the client package.
 
 ### The protocol package
 
-One Go type per declared type, in wire order, with the profile's two
-injected ones:
+One Go type per declared type, in wire order, with the two the family
+carries from the built-in `duplex` family:
 
 | declared | rendered |
 | --- | --- |
@@ -26,7 +26,7 @@ injected ones:
 | an enum | a string type with one constant per value, `StatusReady Status = "ready"` |
 | an alias | a named type over the expression, `type Payloads []Payload` |
 | a `map` | `map[string]T` |
-| `Envelope`, `Handle` | one message of the profile, and a reference to a channel that speaks it, `Handle{Channel int64}` |
+| `duplex.Envelope`, `duplex.Handle` | one message of the profile, and a reference to a channel that speaks it, `Handle{Channel int64}` — carried, not declared ([a tier is a built-in family](../decisions/a-tier-is-a-built-in-family.md)) |
 
 Every record marshals and unmarshals itself, keeping presence and nullness
 apart on the way through, and every record and enum returns the package's

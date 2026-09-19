@@ -9,8 +9,9 @@ the seam between them by a test.
 
 `load` reads a checkout's tier files into the typed `model`, holding each
 file to its tier's shape schema; `analysis` gives a family its world —
-imports resolved transitively, the injected types, inheritance flattened,
-and what is generic in it, computed once; `check` holds it to the model's
+imports resolved transitively, the types it carries from the built-in
+family of each tier it has, inheritance flattened, the names derived for the
+shapes it writes inline, and what is generic in it, computed once; `check` holds it to the model's
 rules and each concern's; `render` presents it to the targets once, with
 every fact they need and nothing target-specific; each target plans every
 identifier it will declare — into the namespace it lands in, so that a
@@ -32,6 +33,7 @@ reaches the two together.
 ```
 cmd/nightseam/          the generator: generate, check, validate, init, version; the corpus and its goldens under testdata
 internal/model/         the typed declaration of a family: the tiers, the sealed type-expression AST, the decoders
+internal/model/builtin/ the families Nightseam declares of itself: duplex, tunnel and session, as tier files
 internal/load/          files to families: the tier table, the shape schemas, the world of a checkout
 internal/analysis/      a family within its world: imports resolved, inheritance flattened, what is generic in it
 internal/check/         the rules, one function per tier and one for the override files
