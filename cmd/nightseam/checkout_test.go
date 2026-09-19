@@ -48,7 +48,7 @@ func TestCheckoutPagesAreRenderedWhole(t *testing.T) {
 	if out, _, err := run(t, root, "generate"); err != nil || !strings.Contains(out, "generated api/spec/families.txt") {
 		t.Fatalf("generate did not write the checkout's page: %v\n%s", err, out)
 	}
-	if data, err := os.ReadFile(page); err != nil || string(data) != "codex\nprobe\n" {
+	if data, err := os.ReadFile(page); err != nil || string(data) != "codex\nprobe\nsession\n" {
 		t.Fatalf("the page holds %q, %v", data, err)
 	}
 	if out, errs, err := run(t, root, "check"); err != nil || out != "" || errs != "" {
@@ -72,7 +72,7 @@ func TestCheckoutPagesAreRenderedWhole(t *testing.T) {
 	if err != nil || !strings.Contains(out, "removed api/spec/codex/README.md") || strings.Contains(out, "removed api/spec/families.txt") {
 		t.Fatalf("a family removed did not take its own pages and leave the checkout's: %v\n%s", err, out)
 	}
-	if data, err := os.ReadFile(page); err != nil || string(data) != "probe\n" {
+	if data, err := os.ReadFile(page); err != nil || string(data) != "probe\nsession\n" {
 		t.Fatalf("the page holds %q after the family went, %v", data, err)
 	}
 	// An invalid family refuses the checkout's page, naming itself, even

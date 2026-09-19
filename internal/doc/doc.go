@@ -18,6 +18,7 @@ package doc
 
 import (
 	"encoding/json"
+	"sort"
 
 	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/render"
@@ -173,8 +174,29 @@ type Conversation struct{ Event, Path string }
 // BuildCheckout documents every family of a checkout.
 func BuildCheckout(w *render.World, spellers map[string]spi.Speller) *Checkout {
 	c := &Checkout{}
+	families := map[string]*render.Family{}
+	var visit func(*render.Family)
+	visit = func(f *render.Family) {
+		if families[f.Name] != nil {
+			return
+		}
+		families[f.Name] = f
+		for _, name := range f.References {
+			if dependency := f.ReferencedFamily(name); dependency != nil && dependency.Builtin {
+				visit(dependency)
+			}
+		}
+	}
 	for _, f := range w.Families {
-		c.Families = append(c.Families, Build(f, spellers))
+		visit(f)
+	}
+	names := make([]string, 0, len(families))
+	for name := range families {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		c.Families = append(c.Families, Build(families[name], spellers))
 	}
 	return c
 }

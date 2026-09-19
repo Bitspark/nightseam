@@ -26,6 +26,7 @@ func TestAtlasProofGolden(t *testing.T) {
 func TestAtlasConfigAndCheckoutOwnership(t *testing.T) {
 	root := t.TempDir()
 	writeFamily(t, root, "probe")
+	writeFamily(t, root, "codex")
 	writeFixture(t, root, "api/contracts/nightseam.json", []byte(`{"targets":{"atlas":{"title":"Our protocol","tokens":{"--lamp":"#864"}}}}`))
 	if out, errs, err := run(t, root, "generate"); err != nil {
 		t.Fatalf("%v\n%s%s", err, out, errs)
@@ -42,10 +43,13 @@ func TestAtlasConfigAndCheckoutOwnership(t *testing.T) {
 	embedded, _, _ = strings.Cut(embedded, "</script>")
 	var document struct {
 		Families []struct {
-			Name  string
-			Types []struct {
+			Name    string
+			Builtin bool
+			Types   []struct {
 				Name      string
 				Languages map[string]doc.Language
+				Fields    []json.RawMessage
+				Variants  []json.RawMessage
 			}
 		}
 	}
@@ -53,7 +57,23 @@ func TestAtlasConfigAndCheckoutOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	found := false
+	builtins := 0
 	for _, family := range document.Families {
+		if family.Name == "session" {
+			builtins++
+			if !family.Builtin {
+				t.Error("session vocabulary lost its built-in origin")
+			}
+			types := map[string]bool{}
+			for _, typ := range family.Types {
+				types[typ.Name] = len(typ.Fields)+len(typ.Variants) > 0
+			}
+			for _, name := range []string{"Control", "Cursor"} {
+				if !types[name] {
+					t.Errorf("built-in operation payload session.%s has no definition", name)
+				}
+			}
+		}
 		if family.Name != "probe" {
 			continue
 		}
@@ -71,6 +91,9 @@ func TestAtlasConfigAndCheckoutOwnership(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("atlas lost the probe payload")
+	}
+	if builtins != 1 {
+		t.Fatalf("two session families document the built-in vocabulary %d times, want once", builtins)
 	}
 	if _, errs, err := run(t, root, "check"); err != nil {
 		t.Fatalf("check: %v\n%s", err, errs)

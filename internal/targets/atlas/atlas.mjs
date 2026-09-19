@@ -70,7 +70,7 @@ function resolve(atlas, family, expr, bindings = new Map()) {
 }
 
 export function buildAtlas(checkout) {
-  const families = list(checkout.Families);
+  const families = [...list(checkout.Families)].sort((a, b) => Number(!!a.Builtin) - Number(!!b.Builtin));
   const atlas = {
     families,
     types: new Map(families.map((f) => [f.Name, new Map(allTypes(f).map((t) => [t.Name, t]))])),
