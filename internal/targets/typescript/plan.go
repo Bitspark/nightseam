@@ -155,7 +155,12 @@ func (p *plan) plan() {
 		if what, taken := p.module.Reserved(parameter.Name); taken {
 			p.Addf(parameter.At.Sub("name"), "generated_name_collision", "Generated type parameter %s collides with the %s.", parameter.Name, what)
 		}
-		p.client.Fix("binding of parameter "+parameter.Name, bindingName(parameter.Name))
+		binding := bindingName(parameter.Name)
+		if what, taken := p.client.Reserved(binding); taken {
+			p.Addf(parameter.At.Sub("name"), "generated_name_collision", "Generated parameter binding %s collides with the %s.", binding, what)
+		} else {
+			p.client.Fix("binding of parameter "+parameter.Name, binding)
+		}
 	}
 	for _, t := range f.Types {
 		for _, parameter := range t.Parameters {

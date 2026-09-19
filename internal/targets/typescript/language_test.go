@@ -85,6 +85,18 @@ func TestOwnTypeParametersCannotShadowGeneratedNames(t *testing.T) {
 	}
 }
 
+func TestTypeParameterBindingsCannotShadowClientMembers(t *testing.T) {
+	for _, name := range []string{"Peer", "Slots", "Close", "Constructor", "Then"} {
+		t.Run(name, func(t *testing.T) {
+			r := family(map[string]string{"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"parameters":[{"name":"` + name + `"}],"server":{"methods":{"read":{"result":"` + name + `"}}}`)})
+			_, diagnostics := newPlan(r)
+			if !has(diagnostics, "generated_name_collision", "protocol.json#/parameters/0/name") {
+				t.Fatal(diagnostics)
+			}
+		})
+	}
+}
+
 func TestInheritedOperationNamesUseSourceOverrides(t *testing.T) {
 	world := analysis.World(modeltest.World(map[string]map[string]string{
 		"base":  {"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"server":{"methods":{"read":{"result":"string"}},"events":{"changed":{"type":"string"}}},"errors":{"not_found":"Gone"}`), "typescript.json": `{"names":{"read":"fetch","changed":"updated","errors.not_found":"missing"}}`},
