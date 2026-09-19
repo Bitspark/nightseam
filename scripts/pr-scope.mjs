@@ -11,9 +11,13 @@
 //   - nothing in the title or body is a trailer or an attribution line.
 //
 // One thing is reported and never refused: the directories the PR changes
-// against the issue's **Touches** line. A lane out of its box is visible in
-// a comment, not blocked — the issue may have guessed the files wrong, and
-// a lane that knows better should not have to edit the issue to land.
+// against the issue's **Touches**, in either shape the tree holds — the
+// form's `### Touches` heading or a hand-written bold `**Touches:**`, read by
+// scripts/touches.mjs. A lane out of its box is visible in a comment, not
+// blocked — the issue may have guessed the files wrong, and a lane that knows
+// better should not have to edit the issue to land. An issue naming no
+// Touches gets a note saying so, because a check that holds nothing and
+// reports nothing reads exactly like one that passed.
 //
 //   node scripts/pr-scope.mjs <number>       check that PR, exit 1 on a refusal
 //
@@ -22,6 +26,7 @@
 // grants to this job alone.
 
 import { execFileSync } from "node:child_process";
+import { scopeNote } from "./touches.mjs";
 
 const repo = process.env.GITHUB_REPOSITORY ?? "Bitspark/nightseam";
 const number = process.argv[2];
@@ -64,12 +69,7 @@ if (issue && !issue.pull_request) {
   // parseable as one array.
   const files = gh(["api", `repos/${repo}/pulls/${number}/files`, "--paginate", "--jq", ".[].filename"]).split("\n").map(line => line.trim()).filter(Boolean);
   const areas = [...new Set(files.map(f => f.split("/").slice(0, 2).join("/")))].sort();
-  const touches = (issue.body ?? "").match(/\*\*Touches:?\*\*\s*([^\n]+)/i)?.[1] ?? "";
-  const named = [...touches.matchAll(/`([^`]+)`/g)].map(m => m[1].replace(/\/?\*\*$/, "").replace(/\/$/, ""));
-  const outside = named.length ? areas.filter(a => !named.some(n => a.startsWith(n) || n.startsWith(a))) : [];
-  if (outside.length) {
-    note = `Scope note (not a refusal): this PR changes ${outside.map(a => "`" + a + "`").join(", ")}, which #${issue.number}'s **Touches** does not name (${named.map(n => "`" + n + "`").join(", ")}). If that is right, fine — say so in a line here so the next reader knows it was meant; if it is another lane's file, take it out.`;
-  }
+  note = scopeNote(issue, areas);
 }
 
 if (refusals.length) {
