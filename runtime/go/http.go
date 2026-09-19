@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/coder/websocket"
 
@@ -106,11 +107,18 @@ func NewHandler(options ServerOptions) (http.Handler, error) {
 }
 
 // DialOptions is what Dial opens a WebSocket with: the peer's Options, the
-// headers and client of the HTTP upgrade, and the subprotocols to offer.
+// headers and client of the HTTP upgrade, the bound on the handshake, and
+// the subprotocols to offer.
 type DialOptions struct {
 	Options    Options
 	HTTPHeader http.Header
 	HTTPClient *http.Client
+	// ConnectTimeout bounds the handshake alone, as TypeScript's
+	// connectTimeoutMs does, and takes the same default of 30 seconds where
+	// it is zero. A dial that has not become a connection by then is refused
+	// with the code connect_timeout and nothing is opened; the connection's
+	// own lifetime is the context's, as it is without one.
+	ConnectTimeout time.Duration
 	// Subprotocols are offered to the server in order of preference; the
 	// default offers none. A server that selects none leaves the connection
 	// with none and the profile is spoken over it either way — but a browser
@@ -126,12 +134,27 @@ func Dial(ctx context.Context, url string, options DialOptions) (*Peer, *http.Re
 	if ctx == nil {
 		return nil, nil, errors.New("duplex dial requires a context")
 	}
+	if options.ConnectTimeout < 0 {
+		return nil, nil, errors.New("duplex connect timeout must not be negative")
+	}
 	o, err := options.Options.normalized()
 	if err != nil {
 		return nil, nil, err
 	}
-	socket, response, err := websocket.Dial(ctx, url, &websocket.DialOptions{HTTPHeader: options.HTTPHeader, HTTPClient: options.HTTPClient, Subprotocols: options.Subprotocols})
+	timeout := options.ConnectTimeout
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
+	// The deadline is the handshake's and not the connection's: once the
+	// upgrade is answered, net/http stops cancelling the body it handed over,
+	// so the peer below outlives this context and ends with ctx instead.
+	dialing, settled := context.WithTimeout(ctx, timeout)
+	defer settled()
+	socket, response, err := websocket.Dial(dialing, url, &websocket.DialOptions{HTTPHeader: options.HTTPHeader, HTTPClient: options.HTTPClient, Subprotocols: options.Subprotocols})
 	if err != nil {
+		if ctx.Err() == nil && errors.Is(dialing.Err(), context.DeadlineExceeded) {
+			return nil, response, &PublicError{Code: "connect_timeout", Message: "Connection timed out."}
+		}
 		return nil, response, err
 	}
 	conn := ws.New(socket, o.MaxFrameBytes)

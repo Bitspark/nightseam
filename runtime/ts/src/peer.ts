@@ -10,9 +10,9 @@ export type { WebSocketLike } from '@nightseam/duplex';
 export const DUPLEX_PROFILE = 'nightseam.duplex/1';
 /** The limits a peer runs with unless its options say otherwise; docs/profile.md lists them. */
 export const DUPLEX_DEFAULTS = Object.freeze({
-  maxIncomingRequests: 64,
+  maxConcurrentHandlers: 64,
   maxPendingRequests: 128,
-  maxQueuedMessages: 128,
+  queueCapacity: 128,
   maxFrameBytes: 1_048_576,
   requestTimeoutMs: 30_000,
   writeTimeoutMs: 10_000,
@@ -85,9 +85,9 @@ export interface PeerOptions {
    * met by a server that selects (docs/profile.md).
    */
   subprotocols?: string[];
-  maxIncomingRequests?: number;
+  maxConcurrentHandlers?: number;
   maxPendingRequests?: number;
-  maxQueuedMessages?: number;
+  queueCapacity?: number;
   maxFrameBytes?: number;
   requestTimeoutMs?: number;
   writeTimeoutMs?: number;
@@ -397,7 +397,7 @@ export class DuplexPeer {
     let paced = false;
     for (;;) {
       if (!this.isOpen()) throw new DuplexError('not_connected', 'Peer is not connected.');
-      if (this.outgoing.length < this.limits.maxQueuedMessages) break;
+      if (this.outgoing.length < this.limits.queueCapacity) break;
       // Told once per send, however many times it is woken and finds the queue
       // full again: one burst is one thing the observer is told about.
       if (!paced) {
@@ -465,7 +465,7 @@ export class DuplexPeer {
 
   /** Wakes every paced sender once the queue has room; each re-checks for itself. */
   private makeRoom(): void {
-    if (this.outgoing.length >= this.limits.maxQueuedMessages) return;
+    if (this.outgoing.length >= this.limits.queueCapacity) return;
     for (const wake of [...this.waitingForRoom]) wake(true);
   }
 
@@ -526,7 +526,7 @@ export class DuplexPeer {
       this.fail(new DuplexError('invalid_message', 'An incoming request ID is already active.'));
       return;
     }
-    if (this.incoming.size >= this.limits.maxIncomingRequests) {
+    if (this.incoming.size >= this.limits.maxConcurrentHandlers) {
       void this.send(traced({ version: 1, kind: 'response', id, error: { code: 'busy', message: 'Incoming request limit reached.' } }, trace), method).catch(error => this.fail(asError(error)));
       return;
     }
@@ -591,7 +591,7 @@ export class DuplexPeer {
 
   private event(name: string, data: unknown, bytes: number, trace?: Trace, meta?: Meta): void {
     const queued = this.events.length + Number(this.eventActive);
-    if (queued >= this.limits.maxQueuedMessages && !this.stallTimer) {
+    if (queued >= this.limits.queueCapacity && !this.stallTimer) {
       // A full queue can be a healthy transient burst, so the producer is paced
       // for one write deadline before the consumer is declared stalled, as the
       // Go peer paces it. The producer is the remote, and a peer here cannot
@@ -611,7 +611,7 @@ export class DuplexPeer {
 
   /** The queue came back under capacity within its deadline: the burst drained. */
   private drained(): void {
-    if (!this.stallTimer || this.events.length + Number(this.eventActive) >= this.limits.maxQueuedMessages) return;
+    if (!this.stallTimer || this.events.length + Number(this.eventActive) >= this.limits.queueCapacity) return;
     clearTimeout(this.stallTimer);
     this.stallTimer = undefined;
   }

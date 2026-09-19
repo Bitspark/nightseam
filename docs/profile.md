@@ -141,6 +141,26 @@ Every queue is bounded, per connection, and by default: 128 outgoing frames,
 128 events waiting for their handlers, 128 calls outstanding at once, 64
 requests being handled at once, frames of at most 1 MiB.
 
+Each bound is one option under one name in both languages, the way the
+observer's events are one name in both (docs/observability.md):
+
+| Go | TypeScript | default | what it bounds |
+| --- | --- | --- | --- |
+| `MaxConcurrentHandlers` | `maxConcurrentHandlers` | 64 | requests being handled at once; the one past it is answered `busy` |
+| `MaxPendingRequests` | `maxPendingRequests` | 128 | calls outstanding at once; the one past it is refused `busy` where it stands |
+| `QueueCapacity` | `queueCapacity` | 128 | outgoing frames, and events waiting for their handlers |
+| `MaxFrameBytes` | `maxFrameBytes` | 1 MiB | a received frame; a larger one ends the connection |
+| `RequestTimeout` | `requestTimeoutMs` | 30s | a call's own deadline, past which it fails `request_timeout` |
+| `WriteTimeout` | `writeTimeoutMs` | 10s | how long a full queue is paced before its consumer is stalled |
+| `ConnectTimeout` | `connectTimeoutMs` | 30s | the handshake; a dial past it is refused `connect_timeout` |
+
+The first six are the peer's — `runtime.Options` in Go, `PeerOptions` in
+TypeScript — and the last is the dial's, `runtime.DialOptions` in Go and the
+same `PeerOptions` in TypeScript, a browser peer having no context to carry
+it. Go takes a `time.Duration` where TypeScript counts milliseconds, and a
+zero in Go selects the default where TypeScript's options take positive
+integers; a negative one is refused in either.
+
 A producer that fills a queue is **paced for one write deadline** (10
 seconds); a consumer that still has not drained it by then is disconnected
 rather than allowed to hold the connection up. The rule is the same for

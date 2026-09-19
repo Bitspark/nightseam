@@ -170,7 +170,7 @@ test('local request deadline cancels remotely without retrying', async t => {
 });
 
 test('incoming deadlines abort handlers and retain occupied slots until completion', async t => {
-  const { client, server } = await paired({}, { maxIncomingRequests: 1, requestTimeoutMs: 10 });
+  const { client, server } = await paired({}, { maxConcurrentHandlers: 1, requestTimeoutMs: 10 });
   t.after(() => client.close());
   const blocked = deferred();
   let signal: AbortSignal | undefined;
@@ -203,7 +203,7 @@ test('disconnect cancels handlers and rejects pending calls without reconnecting
 });
 
 test('incoming saturation responds busy without blocking responses', async t => {
-  const { client, server } = await paired({}, { maxIncomingRequests: 1 });
+  const { client, server } = await paired({}, { maxConcurrentHandlers: 1 });
   t.after(() => client.close());
   const occupied = deferred();
   const started = deferred();
@@ -220,7 +220,7 @@ test('incoming saturation responds busy without blocking responses', async t => 
 test('output queues are bounded and a stalled socket is paced, then disconnected', async () => {
   const socket = new Socket();
   socket.bufferedAmount = 1;
-  const peer = new DuplexPeer({ maxQueuedMessages: 1, writeTimeoutMs: 40 });
+  const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 40 });
   await peer.attach(socket);
   const first = assert.rejects(peer.emit('first'));
   // The second meets a full queue and is paced for one write deadline before
@@ -233,7 +233,7 @@ test('output queues are bounded and a stalled socket is paced, then disconnected
 test('an outgoing burst that drains within the deadline is paced, not disconnected', async () => {
   const socket = new Socket();
   socket.bufferedAmount = 1;
-  const peer = new DuplexPeer({ maxQueuedMessages: 1, writeTimeoutMs: 1_000 });
+  const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 1_000 });
   await peer.attach(socket);
   const first = peer.emit('first');
   const second = peer.emit('second');
@@ -256,7 +256,7 @@ test('socket output has a write deadline', async () => {
 
 test('event queues are bounded and a slow listener is paced, then disconnected', async () => {
   const socket = new Socket();
-  const peer = new DuplexPeer({ maxQueuedMessages: 1, writeTimeoutMs: 40 });
+  const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 40 });
   const closed = deferred<DuplexError>();
   peer.onClose(closed.resolve);
   await peer.attach(socket);
@@ -276,7 +276,7 @@ test('event queues are bounded and a slow listener is paced, then disconnected',
 
 test('a producer that outruns its consumer for a whole deadline is a stalled consumer', async () => {
   const socket = new Socket();
-  const peer = new DuplexPeer({ maxQueuedMessages: 1, writeTimeoutMs: 40 });
+  const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 40 });
   const closed = deferred<DuplexError>();
   peer.onClose(closed.resolve);
   await peer.attach(socket);
@@ -290,7 +290,7 @@ test('a producer that outruns its consumer for a whole deadline is a stalled con
 
 test('an event burst that drains within the deadline is paced, not disconnected', async () => {
   const socket = new Socket();
-  const peer = new DuplexPeer({ maxQueuedMessages: 1, writeTimeoutMs: 1_000 });
+  const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 1_000 });
   await peer.attach(socket);
   const held = deferred();
   const delivered: string[] = [];
@@ -795,7 +795,7 @@ test('backpressure is observed where the queue fills and where the deadline pass
   const socket = new Socket();
   socket.bufferedAmount = 1;
   const full = recorder();
-  const peer = new DuplexPeer({ maxQueuedMessages: 1, writeTimeoutMs: 40, observer: full });
+  const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 40, observer: full });
   await peer.attach(socket);
   const first = assert.rejects(peer.emit('first'));
   // Paced first and only then disconnected, as the Go peer paces it. The
@@ -823,7 +823,7 @@ test('backpressure is observed where the queue fills and where the deadline pass
   // The event queue is the other side of the same limit.
   const listening = new Socket();
   const queued = recorder();
-  const receiver = new DuplexPeer({ maxQueuedMessages: 1, observer: queued });
+  const receiver = new DuplexPeer({ queueCapacity: 1, observer: queued });
   await receiver.attach(listening);
   const held = deferred();
   receiver.onEvent(() => held.promise);

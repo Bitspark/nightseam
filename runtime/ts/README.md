@@ -61,16 +61,20 @@ options replaces it with an adapter for one.
 
 ## Limits
 
-Defaults are 64 incoming requests being handled, 128 pending calls, 128
-queued events or outgoing frames, 1 MiB frames, 30-second request and
-connection deadlines, and 10-second output and event-handler deadlines; the
-options take positive integers. Cancellation aborts a handler's signal but
-cannot interrupt running JavaScript; a cancelled handler keeps its slot until
-it settles. Incoming saturation answers `busy`; a stalled output or event
-consumer is disconnected. Event listeners run in order and never block the
-routing of responses; a listener that throws is reported through `onError`
-and processing continues, and one that never settles disconnects at its
-deadline.
+Defaults are 64 incoming requests being handled (`maxConcurrentHandlers`),
+128 pending calls (`maxPendingRequests`), 128 queued events or outgoing
+frames (`queueCapacity`), 1 MiB frames (`maxFrameBytes`), 30-second request
+and connection deadlines (`requestTimeoutMs`, `connectTimeoutMs`), and
+10-second output and event-handler deadlines (`writeTimeoutMs`); the options
+take positive integers. Each name is the Go runtime's own, transliterated
+with a duration's unit spelled into it —
+[docs/profile.md](https://github.com/Bitspark/nightseam/blob/main/docs/profile.md)
+tables the pairs. Cancellation aborts a handler's signal but cannot interrupt
+running JavaScript; a cancelled handler keeps its slot until it settles.
+Incoming saturation answers `busy`; a stalled output or event consumer is
+disconnected. Event listeners run in order and never block the routing of
+responses; a listener that throws is reported through `onError` and
+processing continues, and one that never settles disconnects at its deadline.
 
 `emit()` resolves when the frame was accepted and the connection's byte
 buffer drained — not on remote receipt, which the browser cannot report. No

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -559,5 +560,53 @@ func TestSubprotocolIsNoneOverAnyOtherTransport(t *testing.T) {
 	defer server.Close()
 	if client.Subprotocol() != "" || server.Subprotocol() != "" {
 		t.Fatalf("subprotocols over a pipe = %q and %q", client.Subprotocol(), server.Subprotocol())
+	}
+}
+
+// TestDialRefusesAHandshakeThatNeverAnswers: ConnectTimeout is the Go twin of
+// TypeScript's connectTimeoutMs — a listener that takes the connection and
+// never answers the upgrade is refused with the same code, connect_timeout,
+// with nothing opened and the caller's own context untouched, the deadline
+// having been the handshake's and not the connection's. A negative bound is
+// refused before anything is dialled at all.
+func TestDialRefusesAHandshakeThatNeverAnswers(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go func() { <-done; conn.Close() }()
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	url := "ws://" + listener.Addr().String()
+	started := time.Now()
+	peer, _, err := ws.Dial(ctx, url, ws.DialOptions{ConnectTimeout: 50 * time.Millisecond})
+	if peer != nil {
+		t.Fatal("a dial past its bound opened a peer")
+	}
+	var refusal *ws.PublicError
+	if !errors.As(err, &refusal) || refusal.Code != "connect_timeout" {
+		t.Fatalf("dial error = %v, want the code connect_timeout", err)
+	}
+	if elapsed := time.Since(started); elapsed > 5*time.Second {
+		t.Fatalf("the dial waited %v past its 50ms bound", elapsed)
+	}
+	if ctx.Err() != nil {
+		t.Fatal("the handshake's deadline ended the caller's own context")
+	}
+
+	if _, _, err := ws.Dial(ctx, url, ws.DialOptions{ConnectTimeout: -time.Second}); err == nil || !strings.Contains(err.Error(), "must not be negative") {
+		t.Fatalf("a negative connect timeout = %v, want a refusal", err)
 	}
 }
