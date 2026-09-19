@@ -1,0 +1,77 @@
+const ContractCancel = "worker/Cancel"
+const ContractRename = "worker/Rename"
+const ContractReport = "worker/Report"
+const ErrorDenied = "denied"
+const ErrorGone = "gone"
+const OutcomeKindFinished OutcomeKind = "finished"
+const OutcomeKindRunning OutcomeKind = "running"
+func (*Envelope) UnmarshalJSON(data []byte) error
+func (*Handle) UnmarshalJSON(data []byte) error
+func (*Job) UnmarshalJSON(data []byte) error
+func (*Outcome) UnmarshalJSON(data []byte) error
+func (*ProgressSink) UnmarshalJSON(data []byte) error
+func (*Start) UnmarshalJSON(data []byte) error
+func (*Supervise) UnmarshalJSON(data []byte) error
+func (*Ticket) UnmarshalJSON(data []byte) error
+func (Envelope) MarshalJSON() ([]byte, error)
+func (Envelope) Of() Tag
+func (Envelope) WireType() runtime.TypeBinding
+func (Handle) MarshalJSON() ([]byte, error)
+func (Handle) Of() Tag
+func (Handle) WireType() runtime.TypeBinding
+func (Job) MarshalJSON() ([]byte, error)
+func (Job) Of() Tag
+func (Job) WireType() runtime.TypeBinding
+func (Outcome) Kind() OutcomeKind
+func (Outcome) MarshalJSON() ([]byte, error)
+func (Outcome) WireType() runtime.TypeBinding
+func (ProgressSink) MarshalJSON() ([]byte, error)
+func (ProgressSink) Of() Tag
+func (ProgressSink) WireType() runtime.TypeBinding
+func (Start) MarshalJSON() ([]byte, error)
+func (Start) Of() Tag
+func (Start) WireType() runtime.TypeBinding
+func (Supervise) MarshalJSON() ([]byte, error)
+func (Supervise) Of() Tag
+func (Supervise) WireType() runtime.TypeBinding
+func (Ticket) MarshalJSON() ([]byte, error)
+func (Ticket) Of() Tag
+func (Ticket) WireType() runtime.TypeBinding
+func ExportCancel(scope *live.Scope, v Cancel) (json.RawMessage, error)
+func ExportJob(scope *live.Scope, v Job) (json.RawMessage, error)
+func ExportOutcome(scope *live.Scope, v Outcome) (json.RawMessage, error)
+func ExportProgressSink(scope *live.Scope, v ProgressSink) (json.RawMessage, error)
+func ExportRename(scope *live.Scope, v Rename) (json.RawMessage, error)
+func ExportReport(scope *live.Scope, v Report) (json.RawMessage, error)
+func ExportSinks(scope *live.Scope, v Sinks) (json.RawMessage, error)
+func ExportStart(scope *live.Scope, v Start) (json.RawMessage, error)
+func ExportSupervise(scope *live.Scope, v Supervise) (json.RawMessage, error)
+func ExportWatchers(scope *live.Scope, v Watchers) (json.RawMessage, error)
+func ImportCancel(scope *live.Scope, raw json.RawMessage) (Cancel, error)
+func ImportJob(scope *live.Scope, raw json.RawMessage) (Job, error)
+func ImportOutcome(scope *live.Scope, raw json.RawMessage) (Outcome, error)
+func ImportProgressSink(scope *live.Scope, raw json.RawMessage) (ProgressSink, error)
+func ImportRename(scope *live.Scope, raw json.RawMessage) (Rename, error)
+func ImportReport(scope *live.Scope, raw json.RawMessage) (Report, error)
+func ImportSinks(scope *live.Scope, raw json.RawMessage) (Sinks, error)
+func ImportStart(scope *live.Scope, raw json.RawMessage) (Start, error)
+func ImportSupervise(scope *live.Scope, raw json.RawMessage) (Supervise, error)
+func ImportWatchers(scope *live.Scope, raw json.RawMessage) (Watchers, error)
+func IsError(err error, code string) bool
+type Cancel func(ctx context.Context) error
+type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`; Traceparent runtime.Optional[string] `json:"traceparent,omitzero"`; Tracestate runtime.Optional[string] `json:"tracestate,omitzero"`; Meta runtime.Optional[map[string]string] `json:"meta,omitzero"`}
+type Handle struct{Channel int64 `json:"channel"`}
+type Job struct{Ticket string `json:"ticket"`; Cancel Cancel `json:"cancel"`; Rename runtime.Optional[Rename] `json:"rename,omitzero"`}
+type Outcome struct{Finished *struct{}; Running *Job}
+type OutcomeKind string
+type Percent int64
+type ProgressSink struct{Report Report `json:"report"`}
+type Rename func(ctx context.Context, params Ticket) (Ticket, error)
+type Report func(ctx context.Context, params Percent) error
+type Sinks map[string]ProgressSink
+type Start struct{Ticket Ticket `json:"ticket"`; Progress ProgressSink `json:"progress"`; Watchers runtime.Optional[Watchers] `json:"watchers,omitzero"`}
+type Supervise struct{Sinks Sinks `json:"sinks"`}
+type Tag struct{}
+type Ticket struct{ID string `json:"id"`; Label string `json:"label"`}
+type Watchers []runtime.Nullable[Report]
+var Errors = []string{…}

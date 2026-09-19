@@ -103,14 +103,21 @@ func (f *file) emitLive() {
 // emitCallable renders one callable: the function type a consumer writes and
 // calls, the identity a reference to it carries, and the two halves of the
 // boundary.
-func (f *file) emitCallable(t *render.Type) {
-	p := f.plan
-	name := p.types[t.Name]
+func (f *file) emitCallableType(t *render.Type) {
+	name := f.plan.types[t.Name]
 	if t.Description != "" {
 		f.linef("/** %s */", comment(t.Description))
 	}
 	f.line("/** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */")
 	f.linef("export type %s = (%s) => Promise<%s>;", name, f.callableParams(t), f.callableResult(t))
+}
+
+// emitCallable renders what the boundary needs beside the type: the identity
+// a reference to it carries, and the two halves of the conversion. The type
+// itself is emitted with the family's other types, in their order.
+func (f *file) emitCallable(t *render.Type) {
+	p := f.plan
+	name := p.types[t.Name]
 	f.linef("/** The declaration a reference to %s carries. It is nominal: a reference is usable exactly where this callable is expected. */", name)
 	f.linef("export const %s = %s;", p.contracts[t.Name], quote(t.Contract))
 	f.linef("/** Makes a binding of a local %s and answers the reference that names it. */", name)

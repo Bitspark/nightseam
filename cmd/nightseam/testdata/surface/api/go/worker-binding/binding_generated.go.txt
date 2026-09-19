@@ -1,0 +1,6 @@
+func (*Remote) EmitSettled(ctx context.Context, data protocol.Outcome) error
+func (*Remote) Supervise(ctx context.Context, params protocol.Supervise) (protocol.Outcome, error)
+func NewHandler(handler Handler, options runtime.ServerOptions) (http.Handler, error)
+func Serve(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler) (*runtime.Peer, error)
+type Handler interface{Describe(ctx context.Context, remote *Remote, params protocol.Ticket) (string, error); Start(ctx context.Context, remote *Remote, params protocol.Start) (protocol.Job, error)}
+type Remote struct{Peer *runtime.Peer}

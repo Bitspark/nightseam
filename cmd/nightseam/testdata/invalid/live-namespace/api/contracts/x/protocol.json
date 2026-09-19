@@ -1,0 +1,1 @@
+{"profile": "nightseam.duplex/1", "server": {"methods": {"live.invoke": {"request": "Payload", "result": "Payload"}, "channel.open": {"request": "Payload", "result": "Payload"}}}}

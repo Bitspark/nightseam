@@ -17,6 +17,14 @@ In `go`:
 type Cancel = func(ctx context.Context) error
 ```
 
+In `typescript`:
+
+```typescript
+/** Asks the job to stop. Releasing a reference to it is not this, and cancelling the call that returned it is neither. */
+/** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
+export type Cancel = (options?: { signal?: AbortSignal }) => Promise<void>;
+```
+
 For example:
 
 ```json
@@ -175,6 +183,14 @@ In `go`:
 type Rename = func(ctx context.Context, params Ticket) (Ticket, error)
 ```
 
+In `typescript`:
+
+```typescript
+/** Renames the job and answers what it is now called. */
+/** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
+export type Rename = (request: Ticket, options?: { signal?: AbortSignal }) => Promise<Ticket>;
+```
+
 For example:
 
 ```json
@@ -191,6 +207,14 @@ In `go`:
 
 ```go
 type Report = func(ctx context.Context, params Percent) error
+```
+
+In `typescript`:
+
+```typescript
+/** Told how far along the job is. */
+/** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
+export type Report = (request: Percent, options?: { signal?: AbortSignal }) => Promise<void>;
 ```
 
 For example:

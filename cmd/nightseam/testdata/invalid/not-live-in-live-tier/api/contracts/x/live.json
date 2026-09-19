@@ -1,0 +1,1 @@
+{"types": {"Note": {"kind": "record", "fields": [{"name": "text", "type": "string"}]}}, "server": {"methods": {"note": {"request": "Note", "result": "Payload"}}}}

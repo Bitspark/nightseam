@@ -1,0 +1,3 @@
+x/live.json#/server/methods/note: Method note carries no callable, so it needs no live runtime: declare it in protocol.json, where it is usable without one. [not_live]
+x/live.json#/types/Note: Type Note carries no callable, so nothing about it needs the live tier: declare it in model.json or protocol.json, so that a family naming it does not acquire a live dependency it has no use for. [not_live]
+error: 2 problems

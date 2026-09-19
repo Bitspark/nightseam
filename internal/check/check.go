@@ -451,6 +451,7 @@ func (c *checker) drawn(x model.Drawn, at diag.Location, where site) {
 		c.Addf(at, "unresolved_parameter", "Unknown parameter %s: nothing in scope declares a parameter of that name.", x.Parameter)
 		return
 	}
+	c.liveDraw(x, at)
 	if model.Carried(x.Name) {
 		return
 	}
@@ -478,6 +479,7 @@ func (c *checker) drawn(x model.Drawn, at diag.Location, where site) {
 // family parameter.
 func (c *checker) apply(x model.Apply, at diag.Location, where site) {
 	f := c.f
+	c.liveApplication(x, at)
 	target, declared := f.Applied(x)
 	if !declared {
 		if x.Family == "" {
@@ -585,6 +587,45 @@ func lookup(parameters []model.Parameter, name string) (model.Parameter, bool) {
 		}
 	}
 	return model.Parameter{}, false
+}
+
+// liveApplication refuses an application that is live only because of what
+// fills it. A callable declares no parameters, so an applied declaration is
+// never live of itself; Page<Job> is live only through its binding, and the
+// boundary conversion would have to be generic in a way nothing generates.
+// The remedy is a declaration: name the filled shape in the live tier.
+func (c *checker) liveApplication(x model.Apply, at diag.Location) {
+	if !c.f.IsLive(x) {
+		return
+	}
+	name := x.Name
+	if x.Family != "" {
+		name = x.Family + "." + x.Name
+	}
+	c.Addf(at, "live_application", "The application of %s here carries a callable, which it has only from what fills it; a generic declaration of a lower tier has no boundary conversion of its own. Declare the filled shape in %s and name it.", name, model.LiveFile)
+}
+
+// liveDraw refuses drawing a live type through a family parameter. Every
+// family that may bind the parameter declares the drawn type, so whether it
+// is live is known here — and a live one has no conversion at the boundary,
+// since what fills the parameter is the consumer's to choose.
+func (c *checker) liveDraw(x model.Drawn, at diag.Location) {
+	parameter, ok := c.f.Parameter(x.Parameter)
+	if !ok || !parameter.IsFamily() {
+		return
+	}
+	carriers := c.f.Carriers(parameter.Of)
+	names := make([]string, 0, len(carriers))
+	for name := range carriers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if carriers[name].IsLiveType(x.Name) {
+			c.Addf(at, "live_draw", "%s.%s draws %s from %s, which carries a callable; a live type drawn through a family parameter has no boundary conversion, since what fills the parameter is the consumer's to choose. Declare the callable in this family's %s.", x.Parameter, x.Name, x.Name, name, model.LiveFile)
+			return
+		}
+	}
 }
 
 func (c *checker) tierViolation(at diag.Location, context int, name, file string) {

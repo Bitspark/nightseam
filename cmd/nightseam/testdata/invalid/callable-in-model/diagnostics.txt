@@ -1,0 +1,2 @@
+x/model.json#/types/Report/kind: Callable Report is declared in model.json; a callable is the live tier's kind and is declared in live.json, which is what keeps a value of a lower tier self-contained data. [callable_tier]
+error: 1 problems

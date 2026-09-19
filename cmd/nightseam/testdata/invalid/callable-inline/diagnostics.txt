@@ -1,0 +1,2 @@
+x/live.json#/types/Sink/fields/0/type: A callable is declared under a name of its own and referred to by it: a reference to one carries the identity of the declaration it implements, and a callable written inline has no declaration to name. Lift it into the live tier's types and name it here. [callable_inline]
+error: 1 problems

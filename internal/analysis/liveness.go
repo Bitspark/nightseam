@@ -28,9 +28,10 @@ import (
 //     unfilled parameter contributes nothing. `Page<Job>` is live and
 //     `Page<Payload>` is not, from one declaration of `Page`.
 //
-// A draw through a family parameter, `S.T`, is live exactly when the
-// parameter is of the live tier: a family that carries the live tier may
-// draw a live type through it, and one of the protocol tier may not.
+// A draw through a family parameter, `S.T`, is decided where it is written
+// rather than here: every family that may bind the parameter declares the
+// drawn type, so the checker can see whether any of them makes it live and
+// refuse there, naming that family.
 type liveness struct {
 	deciding map[*model.Type]bool
 	decided  map[*model.Type]bool
@@ -118,8 +119,13 @@ func (l *liveness) expr(f *Family, e model.TypeExpr, bound bindings) bool {
 		}
 		return l.typ(other, t, nil)
 	case model.Drawn:
-		parameter, ok := f.Parameter(x.Parameter)
-		return ok && parameter.Of == model.LiveRole
+		// Not live by the tier its parameter is of: a family parameter
+		// `of: "live"` is a family that *has* the live tier, and drawing
+		// data through it is ordinary. Whether the drawn type is live is a
+		// fact of each family that may bind the parameter, refused at the
+		// draw site where that family can be named.
+		_ = x
+		return false
 	case model.Array:
 		return l.expr(f, x.Elem, bound)
 	case model.Map:

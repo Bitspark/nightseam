@@ -1,0 +1,1 @@
+{"types": {"Cancel": {"kind": "callable"}, "Job": {"kind": "record", "fields": [{"name": "cancel", "type": "Cancel"}]}}, "server": {"methods": {"begin": {"request": "Payload", "result": "Job"}}}}

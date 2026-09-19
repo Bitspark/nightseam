@@ -174,6 +174,8 @@ func (f *file) emitType(t *render.Type) {
 			f.linef("/** %s */", comment(t.Description))
 		}
 		f.linef("export type %s%s = %s;", name, f.declare(t.Uses), f.spell(t.Alias))
+	case "callable":
+		f.emitCallableType(t)
 	}
 }
 

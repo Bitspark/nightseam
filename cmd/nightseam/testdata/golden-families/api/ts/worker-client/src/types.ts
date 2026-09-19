@@ -2,6 +2,9 @@
 import { createValidator, type AnyFamily, type FamilyBinding, type TypeBinding, type Slots, type TypeExpression, type WireFamily } from "@nightseam/runtime";
 export type { AnyFamily, FamilyBinding, TypeBinding, Slots, TypeExpression };
 import { LiveScope, type Reference } from "@nightseam/live";
+/** Asks the job to stop. Releasing a reference to it is not this, and cancelling the call that returned it is neither. */
+/** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
+export type Cancel = (options?: { signal?: AbortSignal }) => Promise<void>;
 /** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */
 export interface Envelope {
   /** The profile's version, 1. */
@@ -48,6 +51,12 @@ export type Percent = number;
 export interface ProgressSink {
   "report": Report;
 }
+/** Renames the job and answers what it is now called. */
+/** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
+export type Rename = (request: Ticket, options?: { signal?: AbortSignal }) => Promise<Ticket>;
+/** Told how far along the job is. */
+/** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
+export type Report = (request: Percent, options?: { signal?: AbortSignal }) => Promise<void>;
 /** Callables in a container. */
 export type Sinks = Record<string, ProgressSink>;
 /** A callable supplied as an argument, beside data. */
@@ -68,9 +77,6 @@ export interface Ticket {
 export type Watchers = Array<Report | null>;
 /** The family: its name and the wire types a slot of it draws on. */
 export interface Family { readonly name: "worker"; Cancel: Cancel; Envelope: Envelope; Handle: Handle; Job: Job; Outcome: Outcome; Percent: Percent; ProgressSink: ProgressSink; Rename: Rename; Report: Report; Sinks: Sinks; Start: Start; Supervise: Supervise; Ticket: Ticket; Watchers: Watchers }
-/** Asks the job to stop. Releasing a reference to it is not this, and cancelling the call that returned it is neither. */
-/** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Cancel = (options?: { signal?: AbortSignal }) => Promise<void>;
 /** The declaration a reference to Cancel carries. It is nominal: a reference is usable exactly where this callable is expected. */
 export const contractCancel = "worker/Cancel";
 /** Makes a binding of a local Cancel and answers the reference that names it. */
@@ -136,9 +142,6 @@ export function importProgressSink(scope: LiveScope, raw: unknown): ProgressSink
   out["report"] = importReport(scope, wire["report"]);
   return out as unknown as ProgressSink;
 }
-/** Renames the job and answers what it is now called. */
-/** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Rename = (request: Ticket, options?: { signal?: AbortSignal }) => Promise<Ticket>;
 /** The declaration a reference to Rename carries. It is nominal: a reference is usable exactly where this callable is expected. */
 export const contractRename = "worker/Rename";
 /** Makes a binding of a local Rename and answers the reference that names it. */
@@ -160,9 +163,6 @@ export function importRename(scope: LiveScope, raw: unknown): Rename {
     return result as Ticket;
   };
 }
-/** Told how far along the job is. */
-/** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Report = (request: Percent, options?: { signal?: AbortSignal }) => Promise<void>;
 /** The declaration a reference to Report carries. It is nominal: a reference is usable exactly where this callable is expected. */
 export const contractReport = "worker/Report";
 /** Makes a binding of a local Report and answers the reference that names it. */

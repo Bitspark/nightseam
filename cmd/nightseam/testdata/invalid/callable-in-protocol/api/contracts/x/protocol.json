@@ -1,0 +1,1 @@
+{"profile": "nightseam.duplex/1", "types": {"Report": {"kind": "callable", "request": "Payload"}}, "server": {"methods": {"echo": {"request": "Payload", "result": "Payload"}}}}

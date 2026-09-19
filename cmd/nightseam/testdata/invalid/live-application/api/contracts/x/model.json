@@ -1,0 +1,1 @@
+{"nightseam": 2, "types": {"Payload": {"kind": "record", "fields": [{"name": "text", "type": "string"}]}, "Page": {"kind": "record", "parameters": [{"name": "T"}], "fields": [{"name": "items", "type": {"array": "T"}}]}}}

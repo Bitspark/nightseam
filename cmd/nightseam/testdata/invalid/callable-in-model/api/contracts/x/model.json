@@ -1,0 +1,1 @@
+{"nightseam": 2, "types": {"Payload": {"kind": "record", "fields": [{"name": "text", "type": "string"}]}, "Report": {"kind": "callable", "request": "string"}}}

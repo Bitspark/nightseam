@@ -4,15 +4,11 @@ Handler
 Events
 Family
 AnyFamily
-SessionFamily
 FamilyBinding
 TypeBinding
 Slots
 ErrorCode
 errors
-decides
-asks
-conversation
 family
 validateWire
 Protocol
@@ -35,7 +31,6 @@ String
 peer
 slots
 close
-sequence
 constructor
 then
 __defineGetter__

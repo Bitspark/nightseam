@@ -1,0 +1,19 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [{"name": "S", "of": "live", "description": "A family that carries the live tier, whose messages this one relays."}],
+  "types": {
+    "Carried": {
+      "kind": "record",
+      "description": "A message of the bound family, held as data. The parameter says the family has a live tier; what is drawn through it is data, which is why relaying one needs no live runtime of its own.",
+      "fields": [
+        {"name": "message", "type": "S.Envelope"},
+        {"name": "back", "type": {"nullable": "S.Handle"}}
+      ]
+    }
+  },
+  "server": {
+    "methods": {
+      "relay": {"description": "Relays one message of the bound family.", "request": "Carried", "result": "S.Envelope"}
+    }
+  }
+}
