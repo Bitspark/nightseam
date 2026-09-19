@@ -137,6 +137,15 @@ func (f *Family) IsCarried(typeName string) bool {
 // for a type this family declares.
 func (f *Family) CarriedFrom(typeName string) string { return f.from[typeName] }
 
+// Spell is how a declaration of this family names one of its types: the
+// name, or the built-in that declares it and the name, for a carried one.
+func (f *Family) Spell(typeName string) string {
+	if from := f.from[typeName]; from != "" {
+		return from + "." + typeName
+	}
+	return typeName
+}
+
 // Parameters is the family's parameters, none without a protocol.
 func (f *Family) Parameters() []model.Parameter {
 	if f.Protocol == nil {

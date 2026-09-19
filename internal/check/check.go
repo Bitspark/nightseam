@@ -347,7 +347,7 @@ func (c *checker) expression(e model.TypeExpr, at diag.Location, where site) {
 			return
 		}
 		if f.Rank(x.Name) > where.context {
-			c.tierViolation(at, where.context, x.Name, t.At.File)
+			c.tierViolation(at, where.context, f.Spell(x.Name), t.At.File)
 		}
 		if len(t.Parameters) > 0 {
 			c.Addf(at, "unbound_parameter", "Type %s is generic; say what fills each of its parameters with {\"apply\": \"%s\", \"with\": {…}}.", x.Name, x.Name)
