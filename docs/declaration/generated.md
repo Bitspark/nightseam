@@ -136,6 +136,10 @@ rendered as functions for a session's relay to be given
 `types.ts` and `index.ts` and a `package.json` depending on
 `@nightseam/runtime` and `@nightseam/tunnel`.
 
+A family with only a model tier emits its types, validator and family
+binding in the same package layout. It depends on the runtime alone and
+declares no client or protocol helpers.
+
 `types.ts` is one interface or type per declared type — a field not
 `required` is optional, one `nullable` is `T | null`, an `open` record has
 an index signature, an enum is a union of its string literals, an alias a
@@ -145,6 +149,28 @@ three things the runtime binds by: the `Family` interface naming every type
 of the family, `validateWire`, the family's validator built by the
 runtime's `createValidator` from the embedded wire description, and
 `family`, the binding a generic family's slot is filled with.
+
+A union is a discriminated TypeScript union. Every variant with a payload
+keeps it whole under the declared value member (`value` by default), even
+a record: `{ kind: "some"; value: T }`. A no-payload variant declared with
+`{ "empty": true }` is `{ kind: "none" }`; an empty record still has its
+`value: {}` payload. An extending union includes its inherited variants
+with the base's explicit type and family arguments applied. Literal types
+stay literals, and nullable expressions work inside arrays, maps and type
+arguments as well as on fields. Inline shapes become named declarations
+at their derived names and capture the parameters they use.
+
+A type parameter becomes a TypeScript parameter with an `unknown` default;
+a family parameter exposes associated types such as `S["Envelope"]`.
+Both can appear on the same declaration. A generated generic client takes
+one runtime binding per parameter: `FamilyBinding<S>` for a family, or
+`TypeBinding` containing `{ type, validate }` for a type interpreted in the
+supplied validator's declaration scope. For example, a string binding is
+`{ type: "string", validate: probe.validateWire }`. An explicit TypeScript
+type argument supplies the matching consumer type. Imported type names
+follow the source family's overrides; associated-type keys retain their
+declaration names. Extended sides retain their source operation names and
+validate their fixed or forwarded parameter bindings on calls and events.
 
 `index.ts` re-exports the types and `DuplexError`, and declares:
 

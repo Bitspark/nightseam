@@ -144,7 +144,7 @@ func emitTypes(f *file) {
 	var drawn []string
 	for _, t := range fam.Types {
 		if len(t.Uses) == 0 {
-			drawn = append(drawn, p.types[t.Name]+": "+p.types[t.Name])
+			drawn = append(drawn, t.Name+": "+p.types[t.Name])
 		}
 	}
 	f.line("/** The family: its name and the wire types a slot of it draws on. */")
@@ -343,17 +343,22 @@ func labelled(fam *render.Family) string {
 // methods before each side's events, in the order the sides hold them.
 func operations(fam *render.Family) []string {
 	names := make([]string, 0, len(fam.Server.Methods)+len(fam.Client.Methods)+len(fam.Server.Events)+len(fam.Client.Events))
+	appendName := func(name string) {
+		if !slices.Contains(names, name) {
+			names = append(names, name)
+		}
+	}
 	for _, m := range fam.Server.Methods {
-		names = append(names, m.Name)
+		appendName(m.Name)
 	}
 	for _, m := range fam.Client.Methods {
-		names = append(names, m.Name)
+		appendName(m.Name)
 	}
 	for _, e := range fam.Server.Events {
-		names = append(names, e.Name)
+		appendName(e.Name)
 	}
 	for _, e := range fam.Client.Events {
-		names = append(names, e.Name)
+		appendName(e.Name)
 	}
 	return names
 }

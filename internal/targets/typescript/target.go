@@ -170,9 +170,6 @@ func (t *target) Check(f *render.Family) []diag.Diagnostic {
 	if err := t.config.Validate(); err != nil {
 		return []diag.Diagnostic{{Family: f.Name, Code: "invalid_config", Message: err.Error()}}
 	}
-	if unrendered := render.Unrendered(f, Name); len(unrendered) > 0 {
-		return unrendered
-	}
 	_, diagnostics := newPlan(f)
 	return diagnostics
 }
