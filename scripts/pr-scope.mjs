@@ -59,7 +59,10 @@ if (/co-authored-by|generated with|🤖/i.test(title + "\n" + body)) {
 // Scope, reported not refused: changed top-level areas against the issue's Touches.
 let note = "";
 if (issue && !issue.pull_request) {
-  const files = JSON.parse(gh(["api", `repos/${repo}/pulls/${number}/files`, "--paginate", "--jq", "[.[].filename]"]));
+  // One name per line rather than one JSON array: --paginate concatenates a
+  // document per page, so a pull request past the first page of files is not
+  // parseable as one array.
+  const files = gh(["api", `repos/${repo}/pulls/${number}/files`, "--paginate", "--jq", ".[].filename"]).split("\n").map(line => line.trim()).filter(Boolean);
   const areas = [...new Set(files.map(f => f.split("/").slice(0, 2).join("/")))].sort();
   const touches = (issue.body ?? "").match(/\*\*Touches:?\*\*\s*([^\n]+)/i)?.[1] ?? "";
   const named = [...touches.matchAll(/`([^`]+)`/g)].map(m => m[1].replace(/\/?\*\*$/, "").replace(/\/$/, ""));
@@ -76,7 +79,7 @@ if (refusals.length) {
 console.log(`PR #${number}: closes #${unique[0]} (milestone ${issue.milestone.title}); title ok; no trailer`);
 if (note) {
   // Comment once: skip if the same note is already there.
-  const comments = JSON.parse(gh(["api", `repos/${repo}/issues/${number}/comments`, "--paginate", "--jq", "[.[].body]"]));
+  const comments = gh(["api", `repos/${repo}/issues/${number}/comments`, "--paginate", "--jq", ".[].body"]).split("\n");
   if (!comments.some(c => c.startsWith("Scope note"))) {
     gh(["api", "--method", "POST", `repos/${repo}/issues/${number}/comments`, "-f", `body=${note}`]);
     console.log("scope note posted");
