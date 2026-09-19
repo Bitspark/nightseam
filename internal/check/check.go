@@ -623,13 +623,19 @@ func (c *checker) apply(x model.Apply, at diag.Location, where site) {
 		family := filler.Family
 		if family == "" {
 			named := filler.Name()
+			forwarded, declared := lookup(where.scope, named)
+			if !declared {
+				forwarded, declared = f.Parameter(named)
+			}
 			switch {
-			case named != "" && f.HasFamilyParameter(named):
-				continue
-			case named != "" && model.IsParameter(named) && !f.HasParameter(named):
-				c.Addf(here, "unresolved_parameter", "Unknown parameter %s: this family declares no parameter of that name.", named)
+			case declared && forwarded.IsFamily():
+				if !familyBoundFills(forwarded.Of, parameter.Of) {
+					c.Addf(here, "invalid_filler", "Parameter %s guarantees the %s tier, but parameter %s of %s requires %s.", named, forwarded.Of, name, applied(x), parameter.Of)
+				}
+			case named != "" && model.IsParameter(named) && !declared && f.Types[named] == nil:
+				c.Addf(here, "unresolved_parameter", "Unknown parameter %s: no parameter of that name is in scope.", named)
 			default:
-				c.Addf(here, "invalid_filler", "Parameter %s of %s is filled by a family that carries the %s tier, or by a parameter of this family that is; %s is neither.", name, applied(x), parameter.Of, filler.String())
+				c.Addf(here, "invalid_filler", "Parameter %s of %s is filled by a family that carries the %s tier, or by an in-scope family parameter that guarantees it; %s is neither.", name, applied(x), parameter.Of, filler.String())
 			}
 			continue
 		}

@@ -70,8 +70,14 @@ One operation fills a parameter, at every level:
 `apply` names a generic type of this family or of an imported one; `with`
 maps each of that type's parameters to what fills it — a **type
 expression** for a type parameter, a **family** for a family parameter, or
-a family parameter of *this* family, which keeps the result generic here. A
-family with exactly one family parameter may refer to a generic imported
+a family parameter visible at the application site, which keeps the result
+generic here. That scope includes the enclosing family's parameters and
+the containing record's, union's or alias's own parameters; inline shapes
+and nested applications keep the same scope. A forwarded family parameter
+must guarantee the tier the destination requires, just as a concrete
+family must carry it. A type parameter cannot fill a family slot.
+
+A family with exactly one family parameter may refer to a generic imported
 type plainly only when every parameter the imported type needs is a family
 parameter and that one bound guarantees every required tier. A session
 bound can fill a protocol slot, since carrying a tier requires its lower

@@ -116,6 +116,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Explicit generic applications resolve forwarded family parameters in
+  their declaration scope and require their bounds to guarantee the
+  destination tier, including through inline and nested applications.
 - Plain imported generics require explicit arguments for type slots and
   incompatible family bounds; shared analysis retains parameter captures
   through named types, nested applications and inline shapes, and stops
