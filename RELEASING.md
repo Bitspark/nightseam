@@ -60,7 +60,11 @@ remote tag against its checkout before validation and again before publishing;
 a rehearsal may use a name that has not been published, but cannot reuse one
 that names another commit.
 
-1. Be on `main`, clean, with both tiers green: `go test ./...`,
+1. Start a release issue and its own worktree from `origin/main`, following
+   [COLLABORATION.md](COLLABORATION.md). Keep the release scope fixed while
+   preparing it; unfinished feature lanes may continue in their own
+   worktrees. Hold the candidate to both tiers: `go test -short ./...`,
+   `go test ./...`,
    `pnpm -r check && pnpm -r build && pnpm -r test`,
    `node scripts/matrix-table.mjs --check`, and `go vet ./... && go test ./...` in
    each nested Go module — `otel/go` — which the root module's `./...` does
@@ -68,22 +72,31 @@ that names another commit.
    `conformance/matrix.json`; commit it with whatever moved it, since the
    release is weighed against the matrix the tag carries. *What a release
    refuses*, below, says what a red cell does.
-2. Set the version everywhere: `node scripts/version.mjs 0.3.0`. It rewrites
+2. Set the version everywhere: `node scripts/version.mjs 0.4.0`. It rewrites
    every manifest, the generator's constant, every nested module's
    requirement on the root module, and what the getting-started example
    depends on in both languages — a consumer checkout, so it names the
    version rather than linking to the tree, and a release whose own example
    asks for something else is not one; since the constant is in
    the generated manifests' goldens, then run
-   `go test ./cmd/nightseam -short -run Golden -update` and commit the two
-   together: `release: 0.3.0`, with the changelog's *Unreleased* section
-   moved under the version.
-3. Tag and push, once for the root module and once for each nested one, the
-   root module's first: `git tag v0.3.0 && git push origin main v0.3.0`, then
-   `git tag otel/go/v0.3.0 && git push origin otel/go/v0.3.0`. The order is
+   `go test ./cmd/nightseam -short -run Golden -update`. Commit the version
+   and release notes, then the generated goldens separately, following the
+   golden discipline. Move the changelog's *Unreleased* entries under the
+   version, describing the behavior at the release cutoff and identifying
+   unfinished features. Land this release preparation through its pull
+   request with auto-squash; never push `main` directly.
+3. Record the merged release commit, verify it is on `origin/main`, and
+   rehearse that exact commit through the release workflow before tagging.
+   The rehearsal and publication both retain the release environment's
+   reviewer gate. A later change to `main` does not change the release
+   commit. Tag and push that commit once for the root module and once for
+   each nested one, the root module's first:
+   `git tag v0.4.0 <release-commit>` and `git push origin v0.4.0`, then
+   `git tag otel/go/v0.4.0 <release-commit>` and
+   `git push origin otel/go/v0.4.0`. The order is
    not a formality. A nested module requires the root module at the release's
-   own number, so `go get github.com/Bitspark/nightseam/otel/go@v0.3.0`
-   resolves only once `v0.3.0` is there to be fetched — the `replace` that
+   own number, so `go get github.com/Bitspark/nightseam/otel/go@v0.4.0`
+   resolves only once `v0.4.0` is there to be fetched — the `replace` that
    makes the requirement resolve in this checkout is the repository's own and
    a consumer ignores a dependency's replace, getting what is required. The
    second tag is what that `go get` names, and it publishes nothing of its
@@ -222,7 +235,7 @@ anything about the tarball that only the registry decides: the name it is
 served under, the files it keeps, the version it resolves `^` to.
 
 By hand, and further from what CI does: `node scripts/release-prepare.mjs
-v0.3.0 --dry-run` checks every spelling of the version and the matrix
+v0.4.0 --dry-run` checks every spelling of the version and the matrix
 against the tier table and writes nothing — without `--dry-run` it also
 copies the license files and writes `release-notes.md` — and
 `pnpm -r publish --dry-run --no-git-checks` shows what each tarball
@@ -235,13 +248,13 @@ asserted: both smokes install that example and run it, so the paragraph below
 is the one the release itself walks. [examples/README.md](examples/README.md)
 is the same thing written for the consumer.
 
-- Go: `go get github.com/Bitspark/nightseam@v0.3.0` and
-  `go get -tool github.com/Bitspark/nightseam/cmd/nightseam@v0.3.0`. The
+- Go: `go get github.com/Bitspark/nightseam@v0.4.0` and
+  `go get -tool github.com/Bitspark/nightseam/cmd/nightseam@v0.4.0`. The
   example requires the module and names the tool in its own `go.mod`, with no
   `replace`: a `replace` to a sibling checkout is for development only, and
   an example carrying one would be an example nobody had installed.
 - Go, the OpenTelemetry adapter:
-  `go get github.com/Bitspark/nightseam/otel/go@v0.3.0`, which brings
+  `go get github.com/Bitspark/nightseam/otel/go@v0.4.0`, which brings
   OpenTelemetry with it — and brings none of it to a consumer that does not
   ask for it, which is why it is a module of its own. The round trip `go
   get`s it into a module of its own for the same reason: nothing the example
