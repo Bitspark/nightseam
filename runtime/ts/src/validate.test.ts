@@ -13,6 +13,7 @@ test('validator conformance', () => {
   ) as {
     wire: WireFamily;
     imported: Record<string, WireFamily>;
+    patterns: { pattern: string; valid: boolean }[];
     equivalence: { generic: TypeExpression; bound: TypeExpression; values: unknown[] }[];
     cases: {
       expression: unknown;
@@ -22,6 +23,26 @@ test('validator conformance', () => {
       slots?: Record<string, { type: TypeExpression } | { family: string }>;
     }[];
   };
+  for (const row of table.patterns) {
+    const create = (): Validator =>
+      createValidator({
+        types: {
+          Probe: {
+            kind: 'alias',
+            type: {
+              array: {
+                nullable: {
+                  kind: 'record',
+                  fields: [{ name: 'tag', type: 'string', pattern: row.pattern }],
+                },
+              },
+            },
+          },
+        },
+      });
+    if (row.valid) assert.doesNotThrow(create, row.pattern);
+    else assert.throws(create, /outside Nightseam dialect/, row.pattern);
+  }
   const imported: Record<string, Validator> = {};
   for (const [family, wire] of Object.entries(table.imported)) imported[family] = createValidator(wire, imported);
   const validate = createValidator(table.wire, imported);

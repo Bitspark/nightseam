@@ -202,6 +202,12 @@ An unbound family slot in a generated Go generic codec is checked by the
 instantiated Go type during marshal or unmarshal; TypeScript requires its
 runtime binding.
 
+A runtime also checks a descriptor's pattern syntax, including constraints
+inside inline shapes and application arguments. An absent optional member
+or an empty collection cannot hide a forbidden pattern. The Go declaration
+checker and runtime share the syntax guard; both runtimes read the same
+`patterns` conformance rows.
+
 ## Observing it
 
 `Options.Observer` in Go and `PeerOptions.observer` in TypeScript take one

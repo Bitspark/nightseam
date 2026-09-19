@@ -67,6 +67,9 @@
     }}
   },
   "patterns": [
+    {"pattern": "", "valid": true, "why": "an empty pattern matches without adding a restriction"},
+    {"pattern": "^(?:ab|cd)+$", "valid": true, "why": "noncapturing groups are in both engines and the declared dialect"},
+    {"pattern": "^\\\\1$", "valid": true, "why": "an escaped backslash followed by a digit is not a backreference"},
     {"pattern": "^[a-z]+$", "valid": true, "why": "plain syntax both engines read the same way"},
     {"pattern": "^[A-Za-z0-9_.-]{1,64}$", "valid": true, "why": "classes, a bounded repetition and anchors, all in the dialect"},
     {"pattern": "^(a|b)+c*d?$", "valid": true, "why": "groups, alternation and quantifiers"},
@@ -80,13 +83,16 @@
     {"pattern": "^(a)\\1$", "valid": false, "why": "a backreference: ECMAScript only, and the dialect has none"},
     {"pattern": "^\\p{L}+$", "valid": false, "why": "a Unicode class ECMAScript reads only under a flag the dialect does not carry"},
     {"pattern": "\\Aabc\\z", "valid": false, "why": "anchors of RE2; ECMAScript does not read them — write ^ and $"},
-    {"pattern": "^[a-$", "valid": false, "why": "not a regular expression at all"}
+    {"pattern": "^[a-$", "valid": false, "why": "not a regular expression at all"},
+    {"pattern": "(?s:.)", "valid": false, "why": "scoped inline flags are outside the dialect too"},
+    {"pattern": "\\Qliteral\\E", "valid": false, "why": "RE2 quoted spans are outside the dialect"}
   ],
   "equivalence": [
     {"generic": {"apply": "Box", "with": {"T": "string"}}, "bound": "StringBox", "values": [null, {}, {"item": "x"}, {"item": 1}, {"item": null}, {"item": "x", "extra": true}]},
     {"generic": {"apply": "Result", "with": {"T": "Base"}}, "bound": "BoundResult", "values": [null, {}, {"kind": "ok", "text": "x"}, {"kind": "ok", "text": 1}, {"kind": "ok", "value": {"text": "x"}}, {"kind": "error", "value": "failed"}, {"kind": "error", "value": 3}]}
   ],
   "cases": [
+    {"expression": {"kind": "record", "fields": [{"name": "tag", "type": "string", "pattern": "^a(?=b)"}]}, "value": {}, "valid": false, "message": "pattern \"^a(?=b)\": outside Nightseam dialect"},
     {"expression": {"apply": "Cycle", "with": {"T": "string"}}, "value": "x", "valid": false, "message": "$: expected acyclic type expression"},
     {"expression": {"apply": "Identity", "with": {"T": {"apply": "Identity", "with": {"T": "string"}}}}, "value": "x", "valid": true},
     {"expression": {"literal": "<x>&"}, "value": "wrong", "valid": false, "message": "$: expected literal \"\\u003cx\\u003e\\u0026\""},
