@@ -1,6 +1,8 @@
 package check
 
 import (
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -131,4 +133,38 @@ func TestLocate(t *testing.T) {
 		}
 	}
 	var _ model.TypeExpr
+}
+
+// TestPatternDialectIsTheTable holds the dialect a `pattern` is written in
+// to conformance/tables/validator.json, whose patterns rows every runtime's
+// validator reads too: the same spellings are refused at check time and at
+// validate time, in both directions, so that a family that passes check
+// means one thing in every language.
+func TestPatternDialectIsTheTable(t *testing.T) {
+	data, err := os.ReadFile("../../conformance/tables/validator.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var table struct {
+		Patterns []struct {
+			Pattern string
+			Valid   bool
+			Why     string
+		}
+	}
+	if err := json.Unmarshal(data, &table); err != nil {
+		t.Fatal(err)
+	}
+	if len(table.Patterns) == 0 {
+		t.Fatal("the validator table has no patterns rows")
+	}
+	for _, row := range table.Patterns {
+		err := Pattern(row.Pattern)
+		if row.Valid && err != nil {
+			t.Errorf("%s is in the dialect (%s) and was refused: %v", row.Pattern, row.Why, err)
+		}
+		if !row.Valid && err == nil {
+			t.Errorf("%s is outside the dialect (%s) and was accepted", row.Pattern, row.Why)
+		}
+	}
 }

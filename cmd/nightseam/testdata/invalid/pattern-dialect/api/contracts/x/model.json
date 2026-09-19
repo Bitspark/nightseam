@@ -1,0 +1,6 @@
+{"nightseam": 2, "types": {"A": {"kind": "record", "fields": [
+  {"name": "posix", "type": "string", "pattern": "^[[:alpha:]]+$"},
+  {"name": "flags", "type": "string", "pattern": "^(?i)abc$"},
+  {"name": "ahead", "type": "string", "pattern": "^(?=a)ab$"},
+  {"name": "behind", "type": "string", "pattern": "^(?<=a)b$"}
+]}}}

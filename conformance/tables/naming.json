@@ -1,15 +1,122 @@
 {
-  "description": "How a wire name is spelled in each language, by the convention its target derives names with: a column per language, a row per shape of name. A target's tests read its column; a new language adds a column and fills every row.",
+  "description": "How a wire name is spelled in each language, by the convention its target derives names with: a column per language, a row per shape of name. A target's tests read its column; a new language adds a column and fills every row. The derived rows are the second convention: the name a shape written inline is generated under, one rule for every language \u2014 the upper camel of the path to the shape, the steps that name nothing (array, map, nullable, an application's slot) passed over, so that wrapping a shape in a list does not rename it.",
   "rows": [
-    {"wire": "echo",              "go": "Echo",             "typescript": "echo"},
-    {"wire": "no_args",           "go": "NoArgs",           "typescript": "noArgs"},
-    {"wire": "work_item_id",      "go": "WorkItemID",       "typescript": "workItemId"},
-    {"wire": "frame.relayed",     "go": "FrameRelayed",     "typescript": "frameRelayed"},
-    {"wire": "not_found",         "go": "NotFound",         "typescript": "notFound"},
-    {"wire": "api_url",           "go": "APIURL",           "typescript": "apiUrl"},
-    {"wire": "http_json_uuid",    "go": "HTTPJSONUUID",     "typescript": "httpJsonUuid"},
-    {"wire": "context.example",   "go": "ContextExample",   "typescript": "contextExample"},
-    {"wire": "v2_frame",          "go": "V2Frame",          "typescript": "v2Frame"},
-    {"wire": "already_archived",  "go": "AlreadyArchived",  "typescript": "alreadyArchived"}
+    {
+      "wire": "echo",
+      "go": "Echo",
+      "typescript": "echo"
+    },
+    {
+      "wire": "no_args",
+      "go": "NoArgs",
+      "typescript": "noArgs"
+    },
+    {
+      "wire": "work_item_id",
+      "go": "WorkItemID",
+      "typescript": "workItemId"
+    },
+    {
+      "wire": "frame.relayed",
+      "go": "FrameRelayed",
+      "typescript": "frameRelayed"
+    },
+    {
+      "wire": "not_found",
+      "go": "NotFound",
+      "typescript": "notFound"
+    },
+    {
+      "wire": "api_url",
+      "go": "APIURL",
+      "typescript": "apiUrl"
+    },
+    {
+      "wire": "http_json_uuid",
+      "go": "HTTPJSONUUID",
+      "typescript": "httpJsonUuid"
+    },
+    {
+      "wire": "context.example",
+      "go": "ContextExample",
+      "typescript": "contextExample"
+    },
+    {
+      "wire": "v2_frame",
+      "go": "V2Frame",
+      "typescript": "v2Frame"
+    },
+    {
+      "wire": "already_archived",
+      "go": "AlreadyArchived",
+      "typescript": "alreadyArchived"
+    }
+  ],
+  "derived": [
+    {
+      "path": [
+        "EchoRequest",
+        "note"
+      ],
+      "name": "EchoRequestNote",
+      "why": "a shape written where a field's type is named"
+    },
+    {
+      "path": [
+        "echo",
+        "request"
+      ],
+      "name": "EchoRequest",
+      "why": "a method's request written inline"
+    },
+    {
+      "path": [
+        "echo",
+        "result"
+      ],
+      "name": "EchoResult",
+      "why": "a method's result written inline"
+    },
+    {
+      "path": [
+        "frame.relayed",
+        "event"
+      ],
+      "name": "FrameRelayedEvent",
+      "why": "an event's data written inline, the wire name's dot passed over"
+    },
+    {
+      "path": [
+        "Part",
+        "text"
+      ],
+      "name": "PartText",
+      "why": "a union's variant written inline, named by its tag"
+    },
+    {
+      "path": [
+        "Part",
+        "text",
+        "body"
+      ],
+      "name": "PartTextBody",
+      "why": "a shape inside a shape, the path joined"
+    },
+    {
+      "path": [
+        "Message",
+        "parts"
+      ],
+      "name": "MessageParts",
+      "why": "a shape inside an array: the array names nothing and the field keeps its name"
+    },
+    {
+      "path": [
+        "work_item",
+        "api_url"
+      ],
+      "name": "WorkItemAPIURL",
+      "why": "every step takes the same convention as a name of its own, initialisms in capitals"
+    }
   ]
 }

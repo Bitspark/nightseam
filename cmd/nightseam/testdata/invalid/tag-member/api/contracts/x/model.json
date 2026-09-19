@@ -1,0 +1,4 @@
+{"nightseam": 2, "types": {
+  "Text": {"kind": "record", "fields": [{"name": "type", "type": "string"}, {"name": "body", "type": "string"}]},
+  "Part": {"kind": "union", "tag": "type", "variants": {"text": "Text"}}
+}}

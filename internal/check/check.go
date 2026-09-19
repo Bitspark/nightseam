@@ -89,7 +89,28 @@ func Model(f *analysis.Family) []diag.Diagnostic {
 	}
 	c.cycles(edges)
 	c.fieldCollisions()
+	c.derivedNames()
 	return c.Diagnostics
+}
+
+// derivedNames: a shape written inline is generated under a name derived
+// from the path to it, and that name is a type of the family like any
+// other — so it may not be one the family declares, and two shapes may not
+// derive the same one. The path is in the diagnostic, since a shape with no
+// name has nothing else to be pointed at by.
+func (c *checker) derivedNames() {
+	seen := map[string][]string{}
+	for _, inline := range c.f.Inlines() {
+		path := strings.Join(inline.Path, "/")
+		switch {
+		case c.f.Types[inline.Name] != nil:
+			c.Addf(inline.At, "derived_collision", "The shape at %s is generated under the name %s, which this family declares as a type of its own; name the shape, or rename the type.", path, inline.Name)
+		case seen[inline.Name] != nil:
+			c.Addf(inline.At, "derived_collision", "The shape at %s is generated under the name %s, which the shape at %s already derives; name one of them.", path, inline.Name, strings.Join(seen[inline.Name], "/"))
+		default:
+			seen[inline.Name] = inline.Path
+		}
+	}
 }
 
 // type_ holds one type — declared or written inline — to the rules of its
@@ -139,6 +160,12 @@ func (c *checker) inherits(t *model.Type, i int, parent string, context int, edg
 		if c.reachesUnion(parent, t.Name, map[string]bool{}) {
 			c.Addf(at, "extends_cycle", "Union %s extends %s, which extends this one, directly or through what it extends.", t.Name, parent)
 			return
+		}
+		if t.Tag != "" && inherited.Tag != "" && t.Tag != inherited.Tag {
+			c.Addf(at, "invalid_union", "Union %s discriminates on %s and extends %s, which discriminates on %s; a union that widens another reads the same member.", t.Name, t.Tag, parent, inherited.Tag)
+		}
+		if t.ValueMember() != inherited.ValueMember() {
+			c.Addf(at, "invalid_union", "Union %s carries a payload that is not an object under %s and extends %s, which carries it under %s.", t.Name, t.ValueMember(), parent, inherited.ValueMember())
 		}
 		c.variantCollisions(t, at, parent)
 	default:
@@ -769,10 +796,10 @@ func (c *checker) extendedSide(side *model.Side, server bool, label string, oper
 			inherited = base.Protocol.Client
 		}
 		for _, m := range inherited.Methods {
-			operation(calls, m.Name, at.Sub(m.Name))
+			operation(calls, m.Name, at)
 		}
 		for _, e := range inherited.Events {
-			operation(notifies, e.Name, at.Sub(e.Name))
+			operation(notifies, e.Name, at)
 		}
 	}
 }

@@ -371,7 +371,7 @@ func TestImportDirection(t *testing.T) {
 		"model/builtin":      {"model": true},
 		"model/modeltest":    {"model": true},
 		"load":               {"diag": true, "model": true, "model/builtin": true},
-		"analysis":           {"diag": true, "model": true, "model/builtin": true},
+		"analysis":           {"diag": true, "model": true, "model/builtin": true, "naming": true},
 		"check":              {"diag": true, "model": true, "analysis": true},
 		"render":             {"diag": true, "model": true, "analysis": true},
 		"emit":               {"diag": true},

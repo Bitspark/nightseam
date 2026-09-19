@@ -1,0 +1,3 @@
+x/model.json#/types/Aliased/type: A shape is written inline where a value's type is declared — a field, a variant, an operation's request, result or event — and not here; declare it under a name of its own. [inline_not_admissible]
+x/model.json#/types/Holder/fields/0/type/with/T: A shape is written inline where a value's type is declared — a field, a variant, an operation's request, result or event — and not here; declare it under a name of its own. [inline_not_admissible]
+error: 2 problems

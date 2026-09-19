@@ -1,0 +1,5 @@
+{"nightseam": 2, "types": {
+  "Box": {"kind": "record", "parameters": [{"name": "T"}], "fields": [{"name": "inner", "type": "T"}]},
+  "Aliased": {"kind": "alias", "type": {"kind": "record", "fields": [{"name": "n", "type": "integer"}]}},
+  "Holder": {"kind": "record", "fields": [{"name": "boxed", "type": {"apply": "Box", "with": {"T": {"kind": "record", "fields": []}}}}]}
+}}

@@ -16,6 +16,7 @@ import (
 	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/model/builtin"
+	"github.com/Bitspark/nightseam/internal/naming"
 )
 
 // World is every family of a checkout, by name.
@@ -246,14 +247,14 @@ func (f *Family) IsObject(e model.TypeExpr) bool {
 	switch x := e.(type) {
 	case model.Named:
 		t, ok := f.Types[x.Name]
-		return ok && isRecord(t)
+		return ok && (isRecord(t) || t.Kind == model.KindUnion)
 	case model.Imported:
 		other, ok := f.Imported[x.Family]
 		if !ok {
 			return false
 		}
 		t, ok := other.Types[x.Name]
-		return ok && isRecord(t)
+		return ok && (isRecord(t) || t.Kind == model.KindUnion)
 	case model.Drawn:
 		if model.Carried(x.Name) {
 			return true
@@ -265,12 +266,10 @@ func (f *Family) IsObject(e model.TypeExpr) bool {
 		}
 		return true
 	case model.Apply:
-		other, ok := f.Imported[x.Family]
-		if !ok {
-			return false
-		}
-		t, ok := other.Types[x.Name]
-		return ok && isRecord(t)
+		t, ok := f.Applied(x)
+		return ok && (isRecord(t) || t.Kind == model.KindUnion)
+	case model.Inline:
+		return isRecord(x.Type) || x.Type.Kind == model.KindUnion
 	}
 	return false
 }
@@ -395,6 +394,9 @@ func (f *Family) Generics() Generics {
 				return []Use{{x.Parameter, x.Name}}
 			}
 		case model.Apply:
+			if x.Family == "" {
+				return rename(g.Types[x.Name], x.With)
+			}
 			return rename(g.Imported[x.Family][x.Name], x.With)
 		case model.Imported:
 			return rename(g.Imported[x.Family][x.Name], nil)
@@ -403,6 +405,8 @@ func (f *Family) Generics() Generics {
 		case model.Array:
 			return usesOf(x.Elem)
 		case model.Map:
+			return usesOf(x.Elem)
+		case model.Nullable:
 			return usesOf(x.Elem)
 		}
 		return nil
@@ -419,6 +423,9 @@ func (f *Family) Generics() Generics {
 			}
 			if t.Alias != nil {
 				sets = append(sets, usesOf(t.Alias))
+			}
+			for _, variant := range t.Variants {
+				sets = append(sets, usesOf(variant.Type))
 			}
 			if uses := union(sets...); len(uses) > len(g.Types[name]) {
 				g.Types[name] = uses
@@ -455,6 +462,9 @@ func (f *Family) UsesOf(e model.TypeExpr) []Use {
 			return []Use{{x.Parameter, x.Name}}
 		}
 	case model.Apply:
+		if x.Family == "" {
+			return f.renamed(g.Types[x.Name], x.With)
+		}
 		return f.renamed(g.Imported[x.Family][x.Name], x.With)
 	case model.Imported:
 		return f.renamed(g.Imported[x.Family][x.Name], nil)
@@ -463,6 +473,8 @@ func (f *Family) UsesOf(e model.TypeExpr) []Use {
 	case model.Array:
 		return f.UsesOf(x.Elem)
 	case model.Map:
+		return f.UsesOf(x.Elem)
+	case model.Nullable:
 		return f.UsesOf(x.Elem)
 	}
 	return nil
@@ -660,4 +672,69 @@ func (f *Family) VariantTags(name string) []string {
 	}
 	sort.Strings(tags)
 	return tags
+}
+
+// Inline is one shape written inline: the type as it was declared, the name
+// the generator derives from the path to it, the path itself for a
+// diagnostic, and where it sits.
+type Inline struct {
+	Type *model.Type
+	Name string
+	Path []string
+	At   diag.Location
+}
+
+// Inlines is every shape the family writes inline, in the order the
+// declaration reaches them — its types in byte order, then the server side
+// and the client side, methods before events — each with the name derived
+// from the path to it. A target renders these as types of the family; check
+// holds their names apart from the declared ones.
+func (f *Family) Inlines() []Inline {
+	var out []Inline
+	var walk func(model.TypeExpr, []string, diag.Location)
+	walk = func(e model.TypeExpr, path []string, at diag.Location) {
+		switch x := e.(type) {
+		case model.Array:
+			walk(x.Elem, path, at)
+		case model.Map:
+			walk(x.Elem, path, at)
+		case model.Nullable:
+			walk(x.Elem, path, at)
+		case model.Inline:
+			out = append(out, Inline{Type: x.Type, Name: naming.Derived(path...), Path: path, At: at})
+			for i := range x.Type.Fields {
+				walk(x.Type.Fields[i].Type, append(append([]string{}, path...), x.Type.Fields[i].Name), at.Sub("fields", i, "type"))
+			}
+			for i := range x.Type.Variants {
+				walk(x.Type.Variants[i].Type, append(append([]string{}, path...), x.Type.Variants[i].Tag), at.Sub("variants", x.Type.Variants[i].Tag))
+			}
+		}
+	}
+	for _, name := range f.TypeNames() {
+		if f.IsCarried(name) {
+			continue
+		}
+		t := f.Types[name]
+		for i := range t.Fields {
+			walk(t.Fields[i].Type, []string{name, t.Fields[i].Name}, t.At.Sub("fields", i, "type"))
+		}
+		for i := range t.Variants {
+			walk(t.Variants[i].Type, []string{name, t.Variants[i].Tag}, t.At.Sub("variants", t.Variants[i].Tag))
+		}
+	}
+	if f.Protocol == nil {
+		return out
+	}
+	for _, side := range []*model.Side{&f.Protocol.Server, &f.Protocol.Client} {
+		for i := range side.Methods {
+			m := &side.Methods[i]
+			walk(m.Request, []string{m.Name, "request"}, m.At.Sub("request"))
+			walk(m.Result, []string{m.Name, "result"}, m.At.Sub("result"))
+		}
+		for i := range side.Events {
+			e := &side.Events[i]
+			walk(e.Type, []string{e.Name, "event"}, e.At.Sub("type"))
+		}
+	}
+	return out
 }

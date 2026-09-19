@@ -1,0 +1,2 @@
+x/model.json#/types/Box/fields/0/type: Parameter T is filled by a type, and a type has no types of its own to draw; T.Envelope draws through a parameter of a tier, the one declared with "of". [invalid_draw]
+error: 1 problems
