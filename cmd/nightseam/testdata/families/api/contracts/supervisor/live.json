@@ -13,7 +13,15 @@
   },
   "server": {
     "methods": {
-      "watch": {"description": "Takes an imported callback record.", "request": "Watch", "result": "worker.Job", "errors": ["refused"]}
+      "watch": {"description": "Takes an imported callback record.", "request": "Watch", "result": "worker.Job", "errors": ["refused"]},
+      "relieve": {
+        "description": "A shape written inline that carries a callable: named by where it sits, like any other, and converted at the boundary like any other.",
+        "request": {"kind": "record", "fields": [
+          {"name": "shift", "type": "Shift"},
+          {"name": "sink", "type": "worker.ProgressSink"}
+        ]},
+        "result": "Shift"
+      }
     }
   }
 }
