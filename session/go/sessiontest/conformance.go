@@ -321,6 +321,29 @@ func Run(t *testing.T, connect Connect) {
 		}
 	})
 
+	t.Run("a frame's meta reaches the machine and every consumer verbatim", func(t *testing.T) {
+		// The relay forwards the profile's carriage as it forwards a member it
+		// does not know: it is the consumer's and the machine's, and nothing
+		// between them reads, rewrites or strips it.
+		registry, machine := bind(t, "s")
+		holder, one := attach(t, registry, "s", "one", session.Participant, 0)
+		_, two := attach(t, registry, "s", "two", session.Observer, 0)
+		if err := registry.Control("s", holder); err != nil {
+			t.Fatal(err)
+		}
+		const sent = `{"version":1,"kind":"request","id":"c:9","method":"echo","params":{"text":"t","count":1},"meta":{"tenant":"acme","idempotency":"k-1"}}`
+		one.send(t, sent)
+		asked := machine.take(t)
+		intact(t, sent, asked)
+		const emitted = `{"version":1,"kind":"event","event":"changed","data":{"text":"t","count":1},"meta":{"cause":"nightly"}}`
+		machine.send(t, emitted)
+		for _, consumer := range []*speaker{one, two} {
+			if received := consumer.take(t); string(received.raw) != emitted {
+				t.Fatalf("%s saw %s", consumer.name, received.raw)
+			}
+		}
+	})
+
 	t.Run("the machine's channel ends every consumer, a consumer's only itself", func(t *testing.T) {
 		registry, machine := bind(t, "s")
 		_, one := attach(t, registry, "s", "one", session.Participant, 0)
@@ -575,8 +598,9 @@ func Run(t *testing.T, connect Connect) {
 	t.Run("no change and no event carries what was in a frame", func(t *testing.T) {
 		// The sentinel is in every payload a session carries — a consumer's
 		// params, the machine's result, an event's data, an ask's params, the
-		// answer's result and a refused request's params — and in nothing any
-		// change or any event says.
+		// answer's result and a refused request's params — and in the meta a
+		// frame carries, which is a carriage rather than a payload and may hold
+		// a credential; it is in nothing any change or any event says.
 		const sentinel = "sentinel-6f9c2a"
 		events := observing()
 		registry := observedBy(session.Options{}, events)
@@ -591,11 +615,11 @@ func Run(t *testing.T, connect Connect) {
 		if err := registry.Control("s", holder); err != nil {
 			t.Fatal(err)
 		}
-		one.send(t, fmt.Sprintf(`{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":%q,"count":1}}`, sentinel))
+		one.send(t, fmt.Sprintf(`{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":%q,"count":1},"meta":{"secret":%q}}`, sentinel, sentinel))
 		asked := machine.take(t)
 		machine.send(t, fmt.Sprintf(`{"version":1,"kind":"response","id":%q,"result":{"text":%q,"count":1}}`, asked.text("id"), sentinel))
 		one.take(t)
-		machine.send(t, fmt.Sprintf(`{"version":1,"kind":"event","event":"changed","data":{"text":%q,"count":1}}`, sentinel))
+		machine.send(t, fmt.Sprintf(`{"version":1,"kind":"event","event":"changed","data":{"text":%q,"count":1},"meta":{"secret":%q}}`, sentinel, sentinel))
 		one.take(t)
 		watcher.take(t)
 		machine.send(t, fmt.Sprintf(`{"version":1,"kind":"request","id":"s:1","method":"reverse","params":{"text":%q,"count":1}}`, sentinel))

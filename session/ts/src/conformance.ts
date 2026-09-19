@@ -552,6 +552,28 @@ export function run(connect: Connect): void {
     wire.close();
   });
 
+  test("a frame's meta reaches the machine and every consumer verbatim", async () => {
+    // The relay forwards the profile's carriage as it forwards a member it does
+    // not know: it is the consumer's and the machine's, and nothing between them
+    // reads, rewrites or strips it.
+    const { wire, registry, machine } = await bound(1 << 20);
+    const atMachine = listen(machine);
+    const one = await consumer(wire, registry, 'participant', 'one');
+    const two = await consumer(wire, registry, 'observer', 'two');
+    registry.control('s', one.attachment);
+    const carried = { tenant: 'acme', idempotency: 'k-1' };
+    say(one.near, { version: 1, kind: 'request', id: 'c:9', method: 'echo', params: payload('t'), meta: carried });
+    assert.deepEqual((await atMachine.next()).meta, carried);
+    // The listeners are in place before the frame is said, or a consumer that
+    // was delivered synchronously has nothing left to hear.
+    const atConsumers = [listen(one.near), listen(two.near)];
+    say(machine, { version: 1, kind: 'event', event: 'changed', data: payload('t'), meta: { cause: 'nightly' } });
+    for (const at of atConsumers) {
+      assert.deepEqual((await at.next()).meta, { cause: 'nightly' });
+    }
+    wire.close();
+  });
+
   test('a change and an event say what a frame was and never what it carried', async () => {
     const sentinel = 'squeamish-ossifrage';
     let seen!: ReturnType<typeof watching>;
@@ -561,10 +583,10 @@ export function run(connect: Connect): void {
     const one = await consumer(wire, registry, 'participant', 'one');
     const two = await consumer(wire, registry, 'observer', 'two');
     registry.control('s', one.attachment);
-    say(one.near, { version: 1, kind: 'request', id: 'c:1', method: 'echo', params: payload(sentinel) });
+    say(one.near, { version: 1, kind: 'request', id: 'c:1', method: 'echo', params: payload(sentinel), meta: { secret: sentinel } });
     const request = await atMachine.next();
     say(machine, { version: 1, kind: 'response', id: request.id, result: payload(sentinel) });
-    say(machine, { version: 1, kind: 'event', event: 'changed', data: payload(sentinel) });
+    say(machine, { version: 1, kind: 'event', event: 'changed', data: payload(sentinel), meta: { secret: sentinel } });
     say(machine, { version: 1, kind: 'request', id: 's:1', method: 'reverse', params: payload(sentinel) });
     await tick();
     say(one.near, { version: 1, kind: 'response', id: 's:1', result: payload(sentinel) });

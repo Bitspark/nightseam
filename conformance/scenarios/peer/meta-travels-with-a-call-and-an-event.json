@@ -1,0 +1,154 @@
+{
+  "name": "meta travels with a call and an event, and no further than the handler that read it",
+  "layer": "peer",
+  "needs": [
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "read",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "read",
+        "params": {},
+        "meta": {
+          "tenant": "acme",
+          "idempotency": "k-1"
+        }
+      },
+      "bind": "c1"
+    },
+    {
+      "on": "a",
+      "op": "peer.await_request",
+      "args": {
+        "on": "$pa",
+        "method": "read",
+        "phase": "started"
+      },
+      "expect": {
+        "method": "read",
+        "phase": "started",
+        "meta": {
+          "tenant": "acme",
+          "idempotency": "k-1"
+        }
+      },
+      "note": "the handler is given the carriage its request took, verbatim and whole"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c1"
+      },
+      "expect": {
+        "result": {}
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "read",
+        "params": {}
+      },
+      "bind": "c2"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c2"
+      },
+      "expect": {
+        "result": {}
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_request",
+      "args": {
+        "on": "$pa",
+        "method": "read",
+        "phase": "ended"
+      },
+      "expect": {
+        "method": "read",
+        "outcome": "ok"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "told",
+        "data": 1,
+        "meta": {
+          "cause": "nightly"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_event",
+      "args": {
+        "on": "$pa",
+        "name": "told"
+      },
+      "expect": {
+        "data": 1,
+        "meta": {
+          "cause": "nightly"
+        }
+      },
+      "note": "an event carries the member as a request does, and its listener is told what the frame took"
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "bare",
+        "data": 1
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_event",
+      "args": {
+        "on": "$pa",
+        "name": "bare"
+      },
+      "expect": {
+        "data": 1
+      },
+      "note": "a frame that carried none leaves the member absent rather than empty, in the answer as on the wire"
+    }
+  ]
+}

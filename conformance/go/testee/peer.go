@@ -17,7 +17,7 @@ import (
 // canned handlers saw, and what its observer was told.
 type peer struct {
 	*runtime.Peer
-	events   *inbox[runtime.Event]
+	events   *inbox[delivered]
 	requests *inbox[lifecycle]
 	observer *recorder
 	cancel   context.CancelFunc
@@ -25,10 +25,18 @@ type peer struct {
 
 // lifecycle is one phase of one request a canned handler served.
 type lifecycle struct {
-	ID      string `json:"id"`
-	Method  string `json:"method"`
-	Phase   string `json:"phase"`
-	Outcome string `json:"outcome,omitempty"`
+	ID      string            `json:"id"`
+	Method  string            `json:"method"`
+	Phase   string            `json:"phase"`
+	Outcome string            `json:"outcome,omitempty"`
+	Meta    map[string]string `json:"meta,omitempty"`
+}
+
+// delivered is an event beside the carriage its frame took, which the Event
+// itself does not carry: peer.await_event reports both.
+type delivered struct {
+	event runtime.Event
+	meta  map[string]string
 }
 
 func (p *peer) shutdown() {
@@ -40,6 +48,20 @@ func (p *peer) shutdown() {
 // subprotocols is what a peer.listen selects from or a peer.dial offers at
 // the handshake; absent, none is offered and none selected, as the runtimes
 // default.
+// meta is the carriage a step gave a call or an event, and nil where it gave
+// none: an object of strings, as the profile's member is.
+func (r request) meta() (map[string]string, error) {
+	raw, ok := r.args["meta"]
+	if !ok {
+		return nil, nil
+	}
+	var meta map[string]string
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		return nil, invalid("meta is an object of strings")
+	}
+	return meta, nil
+}
+
 func (r request) subprotocols() ([]string, error) {
 	raw, ok := r.args["subprotocols"]
 	if !ok {
@@ -100,8 +122,10 @@ func (t *testee) options(r request) (runtime.Options, *recorder, error) {
 
 // adopt takes a runtime peer under control: its events into an inbox.
 func (t *testee) adopt(p *runtime.Peer, rec *recorder, cancel context.CancelFunc) *peer {
-	w := &peer{Peer: p, events: newInbox[runtime.Event](), requests: newInbox[lifecycle](), observer: rec, cancel: cancel}
-	p.OnEvent(func(_ context.Context, e runtime.Event) { w.events.put(e) })
+	w := &peer{Peer: p, events: newInbox[delivered](), requests: newInbox[lifecycle](), observer: rec, cancel: cancel}
+	p.OnEvent(func(ctx context.Context, e runtime.Event) {
+		w.events.put(delivered{event: e, meta: runtime.MetaFrom(ctx)})
+	})
 	go func() {
 		<-p.Done()
 		w.events.close()
@@ -338,7 +362,11 @@ func (t *testee) peerOps() map[string]func(request) (any, error) {
 			if params == nil {
 				params = json.RawMessage("null")
 			}
-			ctx, cancel := context.WithCancel(p.Context())
+			meta, err := r.meta()
+			if err != nil {
+				return nil, err
+			}
+			ctx, cancel := context.WithCancel(runtime.WithMeta(p.Context(), meta))
 			if timeout > 0 {
 				ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Millisecond)
 			}
@@ -395,11 +423,15 @@ func (t *testee) peerOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
+			meta, err := r.meta()
+			if err != nil {
+				return nil, err
+			}
 			data := r.raw("data")
 			if data == nil {
 				data = json.RawMessage("null")
 			}
-			ctx, cancel := context.WithTimeout(p.Context(), within)
+			ctx, cancel := context.WithTimeout(runtime.WithMeta(p.Context(), meta), within)
 			defer cancel()
 			if err := p.Emit(ctx, event, data); err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
@@ -422,7 +454,7 @@ func (t *testee) peerOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			e, ok, ended := p.events.await(within, func(e runtime.Event) bool { return e.Name == name })
+			e, ok, ended := p.events.await(within, func(d delivered) bool { return d.event.Name == name })
 			if ended {
 				return nil, fail("disconnected", "the peer ended before %s arrived", name)
 			}
@@ -430,8 +462,12 @@ func (t *testee) peerOps() map[string]func(request) (any, error) {
 				return nil, fail("timeout", "no %s within %s", name, within)
 			}
 			var data any
-			_ = json.Unmarshal(e.Data, &data)
-			return map[string]any{"data": data}, nil
+			_ = json.Unmarshal(e.event.Data, &data)
+			answer := map[string]any{"data": data}
+			if len(e.meta) > 0 {
+				answer["meta"] = e.meta
+			}
+			return answer, nil
 		},
 		"peer.await_request": func(r request) (any, error) {
 			p, err := t.peerOf(r, "on")
@@ -557,7 +593,7 @@ func parseBehavior(raw json.RawMessage) (behavior, error) {
 func canned(p *peer, method string, b behavior) runtime.Handler {
 	return func(ctx context.Context, remote *runtime.Peer, params json.RawMessage) (result any, err error) {
 		id := requestID(ctx)
-		p.requests.put(lifecycle{ID: id, Method: method, Phase: "started"})
+		p.requests.put(lifecycle{ID: id, Method: method, Phase: "started", Meta: runtime.MetaFrom(ctx)})
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				p.requests.put(lifecycle{ID: id, Method: method, Phase: "ended", Outcome: "panic"})

@@ -1,12 +1,12 @@
 /** The peer under control: DuplexPeer, its canned handlers, its observer. */
 import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
-import { DuplexError, DuplexPeer, type Observer, type ObserverEvent, type PeerOptions, type RequestContext, type Trace } from '@nightseam/runtime';
+import { DuplexError, DuplexPeer, type EventContext, type Meta, type Observer, type ObserverEvent, type PeerOptions, type RequestContext, type Trace } from '@nightseam/runtime';
 import { Inbox, fail, invalid, unsupported, boolOf, intOf, stringOf, withinOf, type Args, type Op, type Testee } from './testee.ts';
 import { Conn, asLike, isConn } from './seam.ts';
 
-/** One phase of one request a canned handler served. */
-interface Lifecycle { id: string; method: string; phase: 'started' | 'ended'; outcome?: string }
+/** One phase of one request a canned handler served, and what it carried. */
+interface Lifecycle { id: string; method: string; phase: 'started' | 'ended'; outcome?: string; meta?: Meta }
 
 /** An observer that keeps what it is told, for peer.observed. */
 export class Recorder implements Observer {
@@ -77,7 +77,7 @@ export const normalize = (event: ObserverEvent, withTrace: boolean): Record<stri
 
 /** A peer under control. */
 export class Peer {
-  readonly events = new Inbox<{ name: string; data: unknown }>();
+  readonly events = new Inbox<{ name: string; data: unknown; meta?: Meta }>();
   readonly requests = new Inbox<Lifecycle>();
   readonly peer: DuplexPeer;
   readonly recorder: Recorder;
@@ -86,7 +86,7 @@ export class Peer {
     this.peer = peer;
     this.recorder = recorder;
     this.observable = observable;
-    peer.onEvent((name, data) => { this.events.put({ name, data }); });
+    peer.onEvent((name, data, context: EventContext) => { this.events.put({ name, data, ...(context.meta ? { meta: context.meta } : {}) }); });
     peer.onClose(() => { this.events.close(); this.requests.close(); });
   }
   shutdown(): void { this.peer.close(); }
@@ -148,9 +148,23 @@ const behaviorOf = (args: Args): Behavior => {
   return raw as Behavior;
 };
 
+/**
+ * The carriage a step gave a call or an event, and undefined where it gave
+ * none: an object of strings, as the profile's member is.
+ */
+const metaOf = (args: Args): Meta | undefined => {
+  const raw = args.meta;
+  if (raw === undefined) return undefined;
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw invalid('meta is an object of strings');
+  for (const value of Object.values(raw as Record<string, unknown>)) {
+    if (typeof value !== 'string') throw invalid('meta is an object of strings');
+  }
+  return raw as Meta;
+};
+
 /** A handler that does what its behaviour says and records its lifecycle. */
 const canned = (p: Peer, method: string, b: Behavior) => async (params: unknown, context: RequestContext): Promise<unknown> => {
-  p.requests.put({ id: context.requestId, method, phase: 'started' });
+  p.requests.put({ id: context.requestId, method, phase: 'started', ...(context.meta ? { meta: context.meta } : {}) });
   const ended = (outcome: string) => p.requests.put({ id: context.requestId, method, phase: 'ended', outcome });
   try {
     let result: unknown;
@@ -311,7 +325,8 @@ export function peerOps(t: Testee): Record<string, Op> {
       const method = stringOf(args, 'method', true);
       const timeout = intOf(args, 'timeout_ms', 0);
       const controller = new AbortController();
-      const promise = p.peer.call(method, args.params ?? null, { signal: controller.signal, ...(timeout > 0 ? { timeoutMs: timeout } : {}) });
+      const meta = metaOf(args);
+      const promise = p.peer.call(method, args.params ?? null, { signal: controller.signal, ...(timeout > 0 ? { timeoutMs: timeout } : {}), ...(meta ? { meta } : {}) });
       return { handle: t.mint('call', new Call(p, promise, controller)) };
     },
     'call.await': async args => {
@@ -333,7 +348,7 @@ export function peerOps(t: Testee): Record<string, Op> {
       const p = peerOf(args);
       const event = stringOf(args, 'event', true);
       const settled = await Promise.race([
-        p.peer.emit(event, args.data ?? null).then(() => 'ok' as const, (error: DuplexError) => error),
+        p.peer.emit(event, args.data ?? null, { ...(metaOf(args) ? { meta: metaOf(args) as Meta } : {}) }).then(() => 'ok' as const, (error: DuplexError) => error),
         new Promise<'late'>(resolve => setTimeout(() => resolve('late'), withinOf(args))),
       ]);
       if (settled === 'late') throw fail('timeout', 'the event was not sent');
@@ -346,7 +361,7 @@ export function peerOps(t: Testee): Record<string, Op> {
       const { item, ended } = await p.events.await(withinOf(args), e => e.name === name);
       if (ended && !item) throw fail('disconnected', `the peer ended before ${name} arrived`);
       if (!item) throw fail('timeout', `no ${name}`);
-      return { data: item.data ?? null };
+      return { data: item.data ?? null, ...(item.meta ? { meta: item.meta } : {}) };
     },
     'peer.await_request': async args => {
       const p = peerOf(args);
