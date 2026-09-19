@@ -24,7 +24,7 @@ FrameConnection
 Tunnel
 createValidator
 TypeExpression
-WireType
+WireFamily
 Array
 Record
 Promise
