@@ -1,0 +1,283 @@
+{
+  "name": "the generated client refuses what the contract refuses before it leaves, and the binding refuses it before it is served",
+  "layer": "generated",
+  "replaces": "cmd/nightseam's validation.mjs fixture and the codec cases of goIntegrationFixture",
+  "needs": [
+    "generated"
+  ],
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.serve",
+      "bind": {
+        "handle": "srv",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.dial",
+      "args": {
+        "url": "$url"
+      },
+      "bind": "cl"
+    },
+    {
+      "on": "b",
+      "op": "client.echo",
+      "args": {
+        "on": "$cl",
+        "params": {
+          "text": "bad",
+          "count": 9007199254740992
+        }
+      },
+      "expect": {
+        "error": {
+          "code": "$any"
+        }
+      },
+      "note": "an integer beyond what every language holds exactly is refused, by the client's codec or the binding's"
+    },
+    {
+      "on": "b",
+      "op": "client.echo",
+      "args": {
+        "on": "$cl",
+        "params": {
+          "text": "still",
+          "count": 1
+        }
+      },
+      "expect": {
+        "result": {
+          "text": "llits",
+          "count": 1
+        }
+      },
+      "note": "and the connection serves on"
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"Payload\"",
+        "value": {
+          "text": "t",
+          "count": 4
+        }
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"Payload\"",
+        "value": {
+          "text": "t",
+          "count": 4,
+          "note": null
+        }
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"Payload\"",
+        "value": {
+          "text": "t"
+        }
+      },
+      "expect": {
+        "valid": false
+      },
+      "note": "a required field absent"
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"Payload\"",
+        "value": {
+          "text": "t",
+          "count": 4,
+          "unknown": 1
+        }
+      },
+      "expect": {
+        "valid": false
+      },
+      "note": "a field the record does not declare"
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"Payload\"",
+        "value": {
+          "text": "t",
+          "count": 9007199254740992
+        }
+      },
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"Payload\"",
+        "value": {
+          "text": "t",
+          "count": 1.5
+        }
+      },
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"OpenRecord\"",
+        "value": {
+          "id": "o",
+          "extra": {
+            "kept": true
+          }
+        }
+      },
+      "expect": {
+        "valid": true
+      },
+      "note": "an open record keeps what it does not declare"
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"Status\"",
+        "value": "unknown"
+      },
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"Status\"",
+        "value": "context.example"
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"timestamp\"",
+        "value": "2024-02-30T00:00:00Z"
+      },
+      "expect": {
+        "valid": false
+      },
+      "note": "a date that does not exist"
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"timestamp\"",
+        "value": "2024-02-29T00:00:00Z"
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "{\"array\": \"integer\"}",
+        "value": [
+          1,
+          2
+        ]
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "{\"array\": \"integer\"}",
+        "value": [
+          1,
+          "two"
+        ]
+      },
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"json\"",
+        "value": {
+          "huge": 1e+300
+        }
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"Payloads\"",
+        "value": [
+          {
+            "text": "t",
+            "count": 1
+          }
+        ]
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.validate",
+      "args": {
+        "type": "\"Payloads\"",
+        "value": [
+          {
+            "text": "t"
+          }
+        ]
+      },
+      "expect": {
+        "valid": false
+      }
+    }
+  ],
+  "mirror": true
+}

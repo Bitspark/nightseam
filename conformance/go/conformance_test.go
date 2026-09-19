@@ -24,6 +24,22 @@ func TestStar(t *testing.T) {
 	}
 }
 
+// TestGenerated holds every language's generated testee — what its target
+// renders for the probe family, over its runtime — to Go's, on either side,
+// and Go's to its own.
+func TestGenerated(t *testing.T) {
+	s := Open(t)
+	languages := s.PrepareGenerated(t)
+	for _, a := range languages {
+		for _, b := range languages {
+			if a != "go" && b != "go" {
+				continue
+			}
+			t.Run(pairName(a, b), func(t *testing.T) { s.runGenerated(t, a, b) })
+		}
+	}
+}
+
 // TestMatrix holds every language to every other, with NIGHTSEAM_MATRIX
 // set: what two languages disagree on that each agrees with Go about.
 func TestMatrix(t *testing.T) {

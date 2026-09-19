@@ -15,6 +15,10 @@
       "items": {"enum": ["listen", "pipe", "observer", "propagator", "lazy", "seam", "peer", "tunnel", "session", "generated"]},
       "description": "Layers and features both testees must answer hello with; otherwise the scenario is skipped for that pairing."
     },
+    "mirror": {
+      "type": "boolean", "default": false,
+      "description": "Run the scenario as written and again with a and b exchanged, so that a scenario whose sides differ — one serves, one dials — holds each language in each seat of every pairing."
+    },
     "foreach": {
       "type": "object", "additionalProperties": false, "required": ["table", "as"],
       "properties": {

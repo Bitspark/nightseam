@@ -1,0 +1,169 @@
+{
+  "name": "the generated client speaks to the generated binding: every typed method, a call back, and an event each way",
+  "layer": "generated",
+  "replaces": "cmd/nightseam's goIntegrationFixture and tsRoundtrip, across languages",
+  "needs": [
+    "generated"
+  ],
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.serve",
+      "bind": {
+        "handle": "srv",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.dial",
+      "args": {
+        "url": "$url"
+      },
+      "bind": "cl"
+    },
+    {
+      "on": "b",
+      "op": "client.echo",
+      "args": {
+        "on": "$cl",
+        "params": {
+          "text": "value",
+          "count": 7,
+          "note": null
+        }
+      },
+      "expect": {
+        "result": {
+          "text": "eulav",
+          "count": 7,
+          "note": null
+        }
+      },
+      "note": "the binding's echo reverses the text; a present null note stays a present null"
+    },
+    {
+      "on": "b",
+      "op": "client.echo",
+      "args": {
+        "on": "$cl",
+        "params": {
+          "text": "ab",
+          "count": 1
+        }
+      },
+      "expect": {
+        "result": {
+          "text": "ba",
+          "count": 1,
+          "note": "$absent"
+        }
+      },
+      "note": "an absent optional stays absent through both codecs"
+    },
+    {
+      "on": "b",
+      "op": "client.no_args",
+      "args": {
+        "on": "$cl"
+      },
+      "expect": {
+        "result": "none"
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.seen",
+      "args": {
+        "on": "$cl",
+        "params": {
+          "at": "2024-02-29T00:00:00Z",
+          "status": "ready",
+          "ratio": 0.5,
+          "ok": true
+        }
+      },
+      "expect": {
+        "result": []
+      }
+    },
+    {
+      "on": "a",
+      "op": "server.reverse",
+      "args": {
+        "on": "$srv",
+        "params": {
+          "text": "gate",
+          "count": 2
+        }
+      },
+      "expect": {
+        "result": {
+          "text": "$regex:^(go|typescript):gate$",
+          "count": 2
+        }
+      },
+      "note": "the binding calls back into the client's reverse, which prefixes its language"
+    },
+    {
+      "on": "a",
+      "op": "server.emit_changed",
+      "args": {
+        "on": "$srv",
+        "data": {
+          "text": "changed",
+          "count": 3
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.await_changed",
+      "args": {
+        "on": "$cl"
+      },
+      "expect": {
+        "data": {
+          "text": "changed",
+          "count": 3
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.emit_noticed",
+      "args": {
+        "on": "$cl",
+        "data": {
+          "at": "2024-02-29T00:00:00Z",
+          "status": "done",
+          "ratio": 1,
+          "ok": false
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "server.await_noticed",
+      "args": {
+        "on": "$srv"
+      },
+      "expect": {
+        "data": {
+          "at": "$regex:^2024-02-29T00:00:00(\\.0+)?Z$",
+          "status": "done",
+          "ratio": 1,
+          "ok": false
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.close",
+      "args": {
+        "on": "$cl"
+      }
+    }
+  ],
+  "mirror": true
+}

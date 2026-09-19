@@ -29,6 +29,7 @@ type Scenario struct {
 	Replaces    string
 	Description string
 	Needs       []string
+	Mirror      bool
 	Steps       []Step
 	// Row is what a foreach bound, or nil.
 	Row   map[string]any
@@ -63,6 +64,7 @@ type scenarioFile struct {
 	Replaces    string            `json:"replaces"`
 	Description string            `json:"description"`
 	Needs       []string          `json:"needs"`
+	Mirror      bool              `json:"mirror"`
 	Foreach     *foreachClause    `json:"foreach"`
 	Steps       []json.RawMessage `json:"steps"`
 }
@@ -138,6 +140,22 @@ func Load(root string) ([]Scenario, error) {
 
 var layers = []string{"seam", "peer", "tunnel", "session", "generated"}
 
+// Mirrored is the scenario with a and b exchanged.
+func (s Scenario) Mirrored() Scenario {
+	m := s
+	m.Name = s.Name + " (mirrored)"
+	m.Steps = make([]Step, len(s.Steps))
+	for i, step := range s.Steps {
+		m.Steps[i] = step
+		if step.On == "a" {
+			m.Steps[i].On = "b"
+		} else {
+			m.Steps[i].On = "a"
+		}
+	}
+	return m
+}
+
 func layerRank(layer string) int {
 	for i, known := range layers {
 		if known == layer {
@@ -187,7 +205,7 @@ func parse(root, file string, data []byte, schema *jsonschema.Schema) ([]Scenari
 		}
 		steps = append(steps, step)
 	}
-	base := Scenario{Name: sf.Name, Layer: sf.Layer, Replaces: sf.Replaces, Description: sf.Description, Needs: sf.Needs, Steps: steps, File: file}
+	base := Scenario{Name: sf.Name, Layer: sf.Layer, Replaces: sf.Replaces, Description: sf.Description, Needs: sf.Needs, Mirror: sf.Mirror, Steps: steps, File: file}
 	if sf.Foreach == nil {
 		return []Scenario{base}, nil
 	}

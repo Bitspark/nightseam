@@ -1,0 +1,1 @@
+# The runner copies the checkout's go.sum here, so the rendering resolves what the checkout resolves.

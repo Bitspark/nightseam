@@ -22,6 +22,8 @@ type Suite struct {
 	Placed map[string]string
 	Matrix *Matrix
 	places Places
+	// rendered is where each language's probe rendering lies, once prepared.
+	rendered map[string]string
 }
 
 // Open reads the scenarios and the recipes of the checkout, holds every
@@ -61,7 +63,7 @@ func Open(t *testing.T) *Suite {
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	s := &Suite{Root: root, Checkout: filepath.Dir(root), Recipes: recipes, Scenarios: scenarios, Profiles: profiles, Placed: placed, Matrix: NewMatrix(profiles), places: Places{Checkout: filepath.Dir(root), Out: out}}
+	s := &Suite{Root: root, Checkout: filepath.Dir(root), Recipes: recipes, Scenarios: scenarios, Profiles: profiles, Placed: placed, Matrix: NewMatrix(profiles), places: Places{Checkout: filepath.Dir(root), Out: out}, rendered: map[string]string{}}
 	t.Cleanup(func() { t.Logf("the matrix of this run:\n%s", s.Matrix) })
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -100,6 +102,13 @@ func (s *Suite) pair(t *testing.T, a, b string) {
 	s.run(t, a, b, false, func(sc Scenario) bool { return sc.Layer != "generated" })
 }
 
+// runGenerated runs the generated scenarios with each side's generated
+// testee, over the rendering PrepareGenerated laid for it.
+func (s *Suite) runGenerated(t *testing.T, a, b string) {
+	t.Helper()
+	s.run(t, a, b, true, func(sc Scenario) bool { return sc.Layer == "generated" })
+}
+
 func (s *Suite) run(t *testing.T, a, b string, generated bool, keep func(Scenario) bool) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -109,7 +118,11 @@ func (s *Suite) run(t *testing.T, a, b string, generated bool, keep func(Scenari
 		if testee := testees[language]; testee != nil && testee.Dead() == nil {
 			return testee
 		}
-		testee, err := Start(ctx, s.Recipes[language], s.places, generated)
+		places := s.places
+		if generated {
+			places.Rendered = s.rendered[language]
+		}
+		testee, err := Start(ctx, s.Recipes[language], places, generated)
 		if err != nil {
 			t.Fatalf("start the %s testee: %v", language, err)
 		}
@@ -127,6 +140,20 @@ func (s *Suite) run(t *testing.T, a, b string, generated bool, keep func(Scenari
 		if !keep(sc) {
 			continue
 		}
+		runs := []Scenario{sc}
+		if sc.Mirror {
+			runs = append(runs, sc.Mirrored())
+		}
+		for _, sc := range runs {
+			s.one(t, ctx, sc, a, b, start)
+		}
+	}
+}
+
+// one runs a scenario as one subtest, its outcome into the matrix.
+func (s *Suite) one(t *testing.T, ctx context.Context, sc Scenario, a, b string, start func(string) *Testee) {
+	t.Helper()
+	{
 		t.Run(sc.Layer+"/"+sc.Name, func(t *testing.T) {
 			ta, tb := start(a), start(b)
 			outcome := Run(ctx, ta, tb, sc)

@@ -1,0 +1,404 @@
+// The Go generated testee: what the generator renders for the probe family
+// — its protocol, binding and client packages — under the runner's control
+// over the generated ops of conformance/DRIVER.md. Laid beside the
+// rendering by the runner and built as a module of its own that resolves
+// Nightseam to the checkout, so the runtime beneath it is the real one and
+// only the rendering is the copy under test.
+package main
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	binding "example.test/generated/api/go/probe-binding"
+	client "example.test/generated/api/go/probe-client"
+	protocol "example.test/generated/api/go/probe-protocol"
+	"github.com/Bitspark/nightseam/runtime/go"
+)
+
+func main() {
+	t := &testee{handles: map[string]any{}}
+	in := bufio.NewReaderSize(os.Stdin, 1<<20)
+	out := bufio.NewWriter(os.Stdout)
+	for {
+		line, err := in.ReadBytes('\n')
+		if len(bytes.TrimSpace(line)) > 0 {
+			data, _ := json.Marshal(t.serve(line))
+			out.Write(data)
+			out.WriteByte('\n')
+			out.Flush()
+			if t.bye {
+				t.reset()
+				return
+			}
+		}
+		if err != nil {
+			t.reset()
+			return
+		}
+	}
+}
+
+type failure struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
+}
+
+func (f *failure) Error() string { return f.Code + ": " + f.Message }
+func fail(code, format string, args ...any) *failure {
+	return &failure{Code: code, Message: fmt.Sprintf(format, args...)}
+}
+
+type answer struct {
+	ID    int      `json:"id"`
+	OK    any      `json:"ok,omitempty"`
+	Error *failure `json:"error,omitempty"`
+}
+
+type testee struct {
+	mu      sync.Mutex
+	next    int
+	handles map[string]any
+	bye     bool
+}
+
+func (t *testee) mint(prefix string, object any) string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.next++
+	handle := fmt.Sprintf("%s%d", prefix, t.next)
+	t.handles[handle] = object
+	return handle
+}
+
+type closer interface{ shutdown() }
+
+func (t *testee) reset() {
+	t.mu.Lock()
+	objects := t.handles
+	t.handles = map[string]any{}
+	t.mu.Unlock()
+	for _, object := range objects {
+		if c, ok := object.(closer); ok {
+			c.shutdown()
+		}
+	}
+}
+
+func (t *testee) serve(line []byte) answer {
+	var raw map[string]json.RawMessage
+	decoder := json.NewDecoder(bytes.NewReader(line))
+	decoder.UseNumber()
+	if err := decoder.Decode(&raw); err != nil {
+		return answer{Error: fail("invalid", "not a request: %v", err)}
+	}
+	var id int
+	var op string
+	_ = json.Unmarshal(raw["id"], &id)
+	_ = json.Unmarshal(raw["op"], &op)
+	ok, err := t.dispatch(op, raw)
+	if err != nil {
+		var f *failure
+		if !errors.As(err, &f) {
+			f = fail("internal", "%v", err)
+		}
+		return answer{ID: id, Error: f}
+	}
+	if ok == nil {
+		ok = map[string]any{}
+	}
+	return answer{ID: id, OK: ok}
+}
+
+func str(raw map[string]json.RawMessage, name string) string {
+	var s string
+	_ = json.Unmarshal(raw[name], &s)
+	return s
+}
+
+func within(raw map[string]json.RawMessage) time.Duration {
+	var ms int64 = 5000
+	if v, ok := raw["within_ms"]; ok {
+		_ = json.Unmarshal(v, &ms)
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
+// The canned server: echo answers the payload with its text reversed,
+// no_args answers "none", seen answers []; a noticed event is held.
+type server struct {
+	noticed chan protocol.Seen
+}
+
+func (s *server) Echo(ctx context.Context, remote *binding.Remote, params protocol.Payload) (protocol.Payload, error) {
+	runes := []rune(params.Text)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	params.Text = string(runes)
+	return params, nil
+}
+func (s *server) NoArgs(ctx context.Context, remote *binding.Remote) (string, error) { return "none", nil }
+func (s *server) Seen(ctx context.Context, remote *binding.Remote, params protocol.Seen) (protocol.Payloads, error) {
+	return protocol.Payloads{}, nil
+}
+
+// served is a served binding under control.
+type served struct {
+	http    *http.Server
+	url     string
+	peer    chan *runtime.Peer
+	remote  *binding.Remote
+	noticed chan protocol.Seen
+	mu      sync.Mutex
+}
+
+func (s *served) shutdown() { _ = s.http.Close() }
+
+// The canned client handler: reverse answers the payload with its text
+// prefixed by the language's name.
+type clientHandler struct{}
+
+func (clientHandler) Reverse(ctx context.Context, c *client.Client, params protocol.Payload) (protocol.Payload, error) {
+	params.Text = "go:" + params.Text
+	return params, nil
+}
+
+// dialled is a generated client under control.
+type dialled struct {
+	client  *client.Client
+	changed chan protocol.Payload
+	cancel  context.CancelFunc
+}
+
+func (d *dialled) shutdown() { _ = d.client.Close(); d.cancel() }
+
+func (t *testee) lookup(handle string) (any, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	o, ok := t.handles[handle]
+	return o, ok
+}
+
+// callError maps how a typed call ended: the public error's code and data.
+func callError(err error) map[string]any {
+	var public *runtime.PublicError
+	if errors.As(err, &public) {
+		out := map[string]any{"code": public.Code, "message": public.Message}
+		if len(public.Data) > 0 {
+			var data any
+			_ = json.Unmarshal(public.Data, &data)
+			out["data"] = data
+		}
+		return out
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return map[string]any{"code": "request_timeout", "message": err.Error()}
+	}
+	return map[string]any{"code": "failed", "message": err.Error()}
+}
+
+// decoded returns what a typed value encodes to, as a JSON value.
+func decoded(v any) any {
+	data, _ := json.Marshal(v)
+	var out any
+	_ = json.Unmarshal(data, &out)
+	return out
+}
+
+func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	switch op {
+	case "hello":
+		return map[string]any{"driver": 1, "language": "go", "layers": []string{"generated"}, "features": []string{"listen"}}, nil
+	case "reset":
+		t.reset()
+		return nil, nil
+	case "bye":
+		t.bye = true
+		return nil, nil
+	case "gen.serve":
+		s := &served{peer: make(chan *runtime.Peer, 1), noticed: make(chan protocol.Seen, 16)}
+		handler, err := binding.NewHandler(&server{noticed: s.noticed}, runtime.ServerOptions{
+			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
+			CheckOrigin:  func(*http.Request) bool { return true },
+			OnConnect: func(p *runtime.Peer) {
+				remote := &binding.Remote{Peer: p}
+				_ = remote.OnNoticed(func(_ context.Context, data protocol.Seen) { s.noticed <- data })
+				s.mu.Lock()
+				s.remote = remote
+				s.mu.Unlock()
+				select {
+				case s.peer <- p:
+				default:
+				}
+			},
+		})
+		if err != nil {
+			return nil, fail("failed", "%v", err)
+		}
+		socket, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		s.url = "ws://" + socket.Addr().String()
+		s.http = &http.Server{Handler: handler}
+		go func() { _ = s.http.Serve(socket) }()
+		return map[string]any{"handle": t.mint("srv", s), "url": s.url}, nil
+	case "gen.dial":
+		// The dialling context is the connection's lifetime, so it lives as
+		// long as the client does.
+		ctx, cancel := context.WithCancel(context.Background())
+		c, err := client.Dial(ctx, str(raw, "url"), runtime.DialOptions{}, clientHandler{})
+		if err != nil {
+			cancel()
+			return nil, fail("failed", "%v", err)
+		}
+		d := &dialled{client: c, changed: make(chan protocol.Payload, 16), cancel: cancel}
+		_ = c.OnChanged(func(_ context.Context, data protocol.Payload) { d.changed <- data })
+		return map[string]any{"handle": t.mint("cl", d)}, nil
+	case "client.echo", "client.seen", "client.no_args", "client.emit_noticed", "client.await_changed", "client.close":
+		object, ok := t.lookup(str(raw, "on"))
+		d, is := object.(*dialled)
+		if !ok || !is {
+			return nil, fail("unknown_handle", "%s", str(raw, "on"))
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), within(raw))
+		defer cancel()
+		switch op {
+		case "client.echo":
+			var params protocol.Payload
+			if err := json.Unmarshal(raw["params"], &params); err != nil {
+				return map[string]any{"error": map[string]any{"code": "invalid_params", "message": err.Error()}}, nil
+			}
+			result, err := d.client.Echo(ctx, params)
+			if err != nil {
+				return map[string]any{"error": callError(err)}, nil
+			}
+			return map[string]any{"result": decoded(result)}, nil
+		case "client.seen":
+			var params protocol.Seen
+			if err := json.Unmarshal(raw["params"], &params); err != nil {
+				return map[string]any{"error": map[string]any{"code": "invalid_params", "message": err.Error()}}, nil
+			}
+			result, err := d.client.Seen(ctx, params)
+			if err != nil {
+				return map[string]any{"error": callError(err)}, nil
+			}
+			return map[string]any{"result": decoded(result)}, nil
+		case "client.no_args":
+			result, err := d.client.NoArgs(ctx)
+			if err != nil {
+				return map[string]any{"error": callError(err)}, nil
+			}
+			return map[string]any{"result": result}, nil
+		case "client.emit_noticed":
+			var data protocol.Seen
+			if err := json.Unmarshal(raw["data"], &data); err != nil {
+				return nil, fail("invalid_params", "%v", err)
+			}
+			if err := d.client.EmitNoticed(ctx, data); err != nil {
+				return nil, fail("disconnected", "%v", err)
+			}
+			return nil, nil
+		case "client.await_changed":
+			select {
+			case data := <-d.changed:
+				return map[string]any{"data": decoded(data)}, nil
+			case <-ctx.Done():
+				return nil, fail("timeout", "no changed event")
+			}
+		case "client.close":
+			_ = d.client.Close()
+			return nil, nil
+		}
+	case "server.emit_changed", "server.await_noticed", "server.reverse":
+		object, ok := t.lookup(str(raw, "on"))
+		s, is := object.(*served)
+		if !ok || !is {
+			return nil, fail("unknown_handle", "%s", str(raw, "on"))
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), within(raw))
+		defer cancel()
+		s.mu.Lock()
+		remote := s.remote
+		s.mu.Unlock()
+		if remote == nil {
+			select {
+			case <-s.peer:
+				s.mu.Lock()
+				remote = s.remote
+				s.mu.Unlock()
+			case <-ctx.Done():
+				return nil, fail("timeout", "nobody connected")
+			}
+		}
+		switch op {
+		case "server.emit_changed":
+			var data protocol.Payload
+			if err := json.Unmarshal(raw["data"], &data); err != nil {
+				return nil, fail("invalid_params", "%v", err)
+			}
+			if err := remote.EmitChanged(ctx, data); err != nil {
+				return nil, fail("disconnected", "%v", err)
+			}
+			return nil, nil
+		case "server.await_noticed":
+			select {
+			case data := <-s.noticed:
+				return map[string]any{"data": decoded(data)}, nil
+			case <-ctx.Done():
+				return nil, fail("timeout", "no noticed event")
+			}
+		case "server.reverse":
+			var params protocol.Payload
+			if err := json.Unmarshal(raw["params"], &params); err != nil {
+				return map[string]any{"error": map[string]any{"code": "invalid_params", "message": err.Error()}}, nil
+			}
+			result, err := remote.Reverse(ctx, params)
+			if err != nil {
+				return map[string]any{"error": callError(err)}, nil
+			}
+			return map[string]any{"result": decoded(result)}, nil
+		}
+	case "gen.validate":
+		// type is the expression's JSON as a string: "\"Payload\"", or
+		// "{\"array\": \"integer\"}".
+		expression := protocol.TypeExpression(str(raw, "type"))
+		if err := protocol.ValidateExpressionRaw(expression, raw["value"]); err != nil {
+			return map[string]any{"valid": false, "message": err.Error()}, nil
+		}
+		return map[string]any{"valid": true}, nil
+	case "gen.decides":
+		return map[string]any{"value": client.Decides(str(raw, "method"))}, nil
+	case "gen.asks":
+		return map[string]any{"value": client.Asks(str(raw, "method"))}, nil
+	case "gen.conversation":
+		return map[string]any{"event": client.Conversation.Event, "path": client.Conversation.Path}, nil
+	case "gen.errors":
+		codes := append([]string(nil), protocol.Errors...)
+		sort.Strings(codes)
+		return codes, nil
+	case "gen.is_error":
+		// Whether the code is one the family declares: what a caller may tell
+		// apart by name.
+		for _, code := range protocol.Errors {
+			if code == str(raw, "code") {
+				return map[string]any{"value": true}, nil
+			}
+		}
+		return map[string]any{"value": false}, nil
+	}
+	return nil, fail("unsupported", "no such op: %s", strings.TrimSpace(op))
+}

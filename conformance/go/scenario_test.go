@@ -51,7 +51,7 @@ func allowedAcross(layer, op string) bool {
 		"peer":      {"conn", "peer", "call"},
 		"tunnel":    {"conn", "peer", "call", "tunnel"},
 		"session":   {"conn", "peer", "call", "tunnel", "session", "attachment"},
-		"generated": {"conn", "peer", "call", "gen", "client"},
+		"generated": {"gen", "client", "server"},
 	}
 	for _, f := range beneath[layer] {
 		if f == family {

@@ -289,17 +289,29 @@ in `testee.json` before the `generated` scenarios run.
 | `client.emit_noticed` | **`on`**, **`data`** | `{}` |
 | `client.await_changed` | **`on`**, `within_ms` | `{"data"}` |
 | `client.close` | **`on`** | `{}` |
+| `server.reverse` | **`on`** the served handle, **`params`** | `{"result"}` or `{"error"}` — the binding calls the connected client's `reverse` |
+| `server.emit_changed` | **`on`**, **`data`** | `{}` |
+| `server.await_noticed` | **`on`**, `within_ms` | `{"data"}` |
 | `gen.validate` | **`type`**, **`value`** | `{"valid": true}` or `{"valid": false, "message"}` — the protocol package's validator on a type expression |
 | `gen.decides` / `gen.asks` | **`method`** | `{"value": bool}` |
 | `gen.conversation` | | `{"event", "path"}` |
 | `gen.errors` | | `["code", …]` the family's public errors, sorted |
+| `gen.is_error` | **`code`** | `{"value": bool}` — whether the code is one the family declares, which the rendering names |
 
 The canned server: `echo` answers the payload with `text` reversed;
 `no_args` answers `"none"`; `seen` answers `[]`; `reverse` on a client
 answers the payload with `text` prefixed by the language's name and a colon,
 `"go:"`, `"typescript:"`; a `changed` event is held for `client.await_changed`
-and a `noticed` event on the server for `peer.await_event` on `gen.serve`'s
-handle. The scenario knows the language on each side and holds the prefix.
+and a `noticed` event for `server.await_noticed`. A scenario does not know
+which language is on each side, so it holds the prefix with a pattern.
+
+The generated testee lies under `conformance/<lang>/generated/`, and the
+runner lays those files beside the probe rendering in `{rendered}` before
+the recipe's `generated.build` runs: a `.tmpl` suffix is dropped,
+`{checkout}` and `{go}` (the checkout's go directive) are filled in every
+file, and a file named `go.sum.checkout` is replaced by the checkout's
+`go.sum`. The rendering is rooted at module `example.test/generated` and
+scope `@example`.
 
 ## `testee.json`
 
