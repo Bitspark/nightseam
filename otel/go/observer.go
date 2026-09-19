@@ -22,8 +22,8 @@ import (
 // application emitted or was delivered is a span of no duration under the
 // trace its frame carried; the connection is a span of its own, from the peer
 // taking the connection over to the close that ended it; and everything else
-// a peer, a tunnel or a session tells — a frame, backpressure, a handler that
-// gave up, a channel, a session's ten changes — is a span event on the
+// a peer or a tunnel tells — a frame, backpressure, a handler that
+// gave up, a channel — is a span event on the
 // enclosing span, which is the request's where the event names one still open
 // here and the connection's otherwise. Where there is no enclosing span the
 // event is not recorded: an adapter never told a connection opened has
@@ -152,9 +152,9 @@ func (o *observer) Observe(event runtime.ObserverEvent) {
 	default:
 		// An event this package has no case for is recorded as what it is
 		// rather than dropped: its Go type name, and the fields of it a name, a
-		// count or a flag could be — so that a tunnel's events, a session's ten
-		// and a later profile's reach a span before this package knows anything
-		// about them, and nothing larger reaches one at all.
+		// count or a flag could be — so that a tunnel's events and a later
+		// profile's reach a span before this package knows anything about
+		// them, and nothing larger reaches one at all.
 		at, attributes := reflected(event)
 		o.record("", at, fmt.Sprintf("%T", event), attributes)
 	}

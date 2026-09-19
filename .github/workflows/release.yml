@@ -77,6 +77,19 @@ jobs:
       # cannot pass fails the tag anyway.
       - name: Hold the versions and the matrix to the tag
         run: node scripts/release-prepare.mjs "$TAG"
+      # Whether npm has ever served each of the names this release publishes.
+      # A name it has not cannot authenticate by OIDC — npm attaches a trusted
+      # publisher to a package that already exists — and `pnpm -r publish`
+      # reaches such a name after the tag is pushed and after the names before
+      # it are already uploaded, which is the one failure a tag cannot answer.
+      # So it is asked here, before the install and on a rehearsal too; on a
+      # tag it also refuses the run when the token that would make the first
+      # publish is not set. RELEASING.md, *A name npm has not served*.
+      - name: Ask npm which names are a first publish
+        run: node scripts/first-publish.mjs $REQUIRE_CREDENTIAL
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          REQUIRE_CREDENTIAL: ${{ github.event_name == 'push' && '--require-credential' || '' }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r check
       - run: pnpm -r test

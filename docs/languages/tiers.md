@@ -17,7 +17,7 @@ tier is a bundle of them:
 |---|---|---|
 | **P1 wire** | a peer of this language speaks `nightseam.duplex/1` with a peer of any other | interoperation |
 | **P2 generated** | the generator has a target for it; the packages it renders build against the language's runtime and hold the round trip and the generic-versus-bound equivalence | `nightseam generate` for this language |
-| **P3 complete** | every component exists — tunnel, session, observability — and every scenario of the suite passes | never asking "does X exist here" |
+| **P3 complete** | every component exists — tunnel, observability — and every scenario of the suite passes | never asking "does X exist here" |
 | **P4 simultaneous** | a feature lands in this language before it is released, not within a release after | this language is never behind |
 
 The promises nest: P2 assumes P1, P3 assumes P2, P4 assumes P3. There is no
@@ -34,8 +34,7 @@ built and how a consumer adopts it:
 |---|---|---|
 | `core` | the seam (`seam/*`) and the peer (`peer/*`): frames, correlation, cancellation, close codes, backpressure, the wire validator held to `tables/validator.json`, the malformed frames of `tables/frames.json` | P1 |
 | `generator` | `generated/*`: the target renders the corpus, the output builds against the language's runtime, the round trip and the diagram hold; names follow `tables/naming.json` | P2 |
-| `tunnel` | `tunnel/*`: channels over one peer, credit, `after`, the tunnel's observer events | P3 |
-| `session` | `session/*`: the relay's rules, the log, the changes, the cross-language gate | P3 |
+| `tunnel` | `tunnel/*`: channels over one peer, credit, closure, the tunnel's observer events | P3 |
 | `observability` | the scenarios that `needs` `observer` or `propagator`, in any layer: trace propagation, the observer and its no-payload rule, the shipped adapter | P3 |
 
 A scenario's `layer` places it in a profile; `core` is the two lowest

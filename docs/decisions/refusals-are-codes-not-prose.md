@@ -10,9 +10,9 @@ each code a constant. In Go a `*session.Error` with `Code` and `Message`
 reached by `errors.As` and by `errors.Is` matching on the code alone; in
 TypeScript a `DuplexError` whose `code` is the same string. A close is not a
 refusal and carries a code of its own, and the reason a close carries is
-one closed set of sentences in both languages, word for word. [The session's
-surface](../runtime/session.md#what-it-refuses-with) and [the
-session](../wire/session.md#what-is-refused-and-how-a-connection-ends).
+one closed set of sentences in both languages, word for word. The session's
+own pages went with the layer in 0.5.0; the rule is what any layer's
+refusals are held to.
 
 **Why.** What a call refuses with is part of the surface a consumer writes
 against, and a consumer cannot ask which runtime wrote the relay it called

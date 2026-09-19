@@ -1,5 +1,14 @@
 # The relay mints its own ids
 
+> **Superseded.** The relay this records was removed whole in 0.5.0
+> ([#196](https://github.com/Bitspark/nightseam/issues/196),
+> [#200](https://github.com/Bitspark/nightseam/issues/200)): nothing between
+> two peers re-mints ids, and a peer's own ids are per connection as the
+> profile has always said. The page is kept for the reasoning — a forwarder
+> rewrites exactly the member it owns and forwards the rest verbatim — which a
+> later forwarding layer still answers to; what it decided no longer describes
+> the tree.
+
 **The question.** Every peer mints request ids per connection with its
 role's prefix, so two consumers attached to one session over its life both
 send `c:1`. The relay forwards both towards one machine. Whose ids does
@@ -9,8 +18,7 @@ the machine see?
 the ids it sends up itself, unique per session, keeping which consumer's
 request each stands for and mapping the responses back; the machine's own
 ids, `s:N`, travel down as they are. Everything else in a frame reaches
-the other side verbatim, in the place it arrived in. [The
-session](../wire/session.md#the-rules), rules 4 and 6.
+the other side verbatim, in the place it arrived in.
 
 **Why.** Ids are per connection by the profile's rule, and a session is a
 thing that outlives connections: a relay that forwarded consumers' ids

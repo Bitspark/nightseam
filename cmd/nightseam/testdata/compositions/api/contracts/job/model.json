@@ -1,0 +1,20 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Status": {
+      "kind": "record",
+      "fields": [
+        {"name": "state", "type": "string"},
+        {"name": "delivered", "type": "integer"}
+      ]
+    },
+    "Cancelled": {
+      "kind": "record",
+      "description": "What the application's own cancellation did, which is not what releasing a reference does.",
+      "fields": [
+        {"name": "stopped", "type": "boolean"},
+        {"name": "delivered", "type": "integer"}
+      ]
+    }
+  }
+}

@@ -1,32 +1,55 @@
 {
   "name": "callables survive a container and a sum, and the reverse direction carries them too",
   "layer": "generated",
-  "needs": ["generated"],
-  "note": "Sinks is a map of records of callables and Outcome is a union one of whose arms carries them, so this drives the positions a live value is permitted in beyond a plain field. It also runs the other way: the server calls supervise on the client, handing it callables the client then calls.",
+  "description": "Sinks is a map of records of callables and Outcome is a union one of whose arms carries them, so this drives the positions a live value is permitted in beyond a plain field. It also runs the other way: the server calls supervise on the client, handing it callables the client then calls.",
+  "needs": [
+    "generated"
+  ],
   "steps": [
     {
       "on": "a",
       "op": "gen.live_serve",
-      "bind": {"handle": "srv", "url": "url"}
+      "bind": {
+        "handle": "srv",
+        "url": "url"
+      }
     },
     {
       "on": "b",
       "op": "gen.live_dial",
-      "args": {"url": "$url"},
+      "args": {
+        "url": "$url"
+      },
       "bind": "cl"
     },
     {
       "on": "a",
       "op": "gen.live_supervise",
-      "args": {"on": "$srv", "sinks": ["east", "west"]},
-      "expect": {"state": "finished"},
+      "args": {
+        "on": "$srv",
+        "sinks": [
+          "east",
+          "west"
+        ]
+      },
+      "expect": {
+        "state": "finished"
+      },
       "note": "a map of callables in the request, a union in the result"
     },
     {
       "on": "a",
       "op": "gen.live_seen",
-      "args": {"on": "$srv"},
-      "expect": {"started": 0, "calls": ["east:1", "west:1"]},
+      "args": {
+        "on": "$srv"
+      },
+      "expect": {
+        "started": 0,
+        "calls": [
+          "east:1",
+          "west:1"
+        ]
+      },
       "note": "the client called each callable the server handed it, in key order"
     }
   ]

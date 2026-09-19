@@ -16,7 +16,7 @@ that the answer exists when the question is asked.
 - **Completeness.** Whether every fact of every layer is told: a connection
   opened and ended and how, a frame sent and received, a request begun and
   ended and with what outcome, an event emitted and delivered, a queue
-  that filled, a channel that opened, a session that moved control. A fact
+  that filled, a channel that opened. A fact
   a consumer would have to infer from two others is a fact not told.
 - **Order.** Whether the facts of one peer are one order, told before the
   effect leaves — so that a reply is never seen before the request that
@@ -29,7 +29,7 @@ that the answer exists when the question is asked.
   how big it was and how it ended. The line is what lets any watcher be
   attached to any peer without auditing the family first.
 - **Correlation.** Across layers, by the names a fact carries — which
-  family, which channel, which session; across peers, by the trace a frame
+  family, which channel; across peers, by the trace a frame
   carries, minted where none arrived and continued where one did.
 - **Cost.** Whether the telling is cheap enough to be always on, and
   whether an absent watcher costs nothing at all; a peer that must be

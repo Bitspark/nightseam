@@ -22,7 +22,6 @@ body:
         - duplex (the seam)
         - runtime (the peer of the profile)
         - tunnel (channels over one peer)
-        - session (the relay, the registry, control)
         - the generator (nightseam generate / check / validate / init)
         - the generated code
         - the documentation

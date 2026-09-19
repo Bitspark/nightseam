@@ -6,6 +6,20 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Added
+
+- The packed-install smoke imports every published package from outside the
+  workspace, at every entry point its `publishConfig.exports` declares:
+  type-checked with library checking on, then loaded by Node. A package the
+  getting-started example does not itself import is no longer packed,
+  installed and never opened.
+- `scripts/first-publish.mjs` asks the public registry which of the published
+  names it has never served. The release workflow runs it before the install,
+  on a rehearsal as well as on a tag, and on a tag refuses the run when a new
+  name has no credential to make its first publish — npm attaches a trusted
+  publisher to a package that already exists, and `pnpm -r publish` reaches a
+  new name after the tag is pushed.
+
 ### Fixed
 
 - Documentation examples honor array lengths and explicit family bindings,
@@ -19,16 +33,38 @@ are one number. Entries are in the words of the commits that landed them.
 - `nightseam init` skips Go handler scaffolds for model-only families,
   which have no generated binding package to implement.
 
+### Removed
+
+- The governed session layer, whole: the `session` tier and its `decides`,
+  `asks` and `conversation` declarations; controller, participant and
+  observer roles, holder selection, attention and question handover; the
+  fixed upstream/consumer topology and the lifecycle it imposed; the
+  `session/go` and `@nightseam/session` packages with their registry,
+  attachments, log and replay; the built-in `session` family, the reserved
+  `session.` namespace and the generated `Decides`, `Asks`, `Conversation`,
+  cursor and control helpers; the session observer events and their OTel
+  spans; and the `session` conformance profile with its scenarios, driver
+  ops and testee halves. Nightseam has no released consumer, so this is a
+  clean break with no shim and no migration; the live layer that replaces it
+  is designed in #201 and #202. The decision records of the removed layer are
+  kept and marked superseded.
+- `Tunnel.Open`'s `after` cursor and `channel.open`'s `after` member, in both
+  languages, the built-in `tunnel` declaration, the driver and the tables.
+  They existed only so an attaching consumer could resume a governed log, and
+  the tunnel never read them; a layer that needs to resume says so in its own
+  vocabulary.
+- The `holder` corpus family, which drew a declared type through an unbound
+  family parameter. The rule it exercised — every family that may bind a
+  parameter declares what is drawn through it — is unchanged and still held by
+  `internal/check`; with `protocol` the only tier role, no checkout of more
+  than one family can satisfy it for a type the built-ins do not carry.
+
 ### Changed
 
 - The full type-language proof joins the shared family corpus, with compiled
   generated cross-wire scenarios, a mixed family/type binding diagram, and
   measured inline-name churn in Go and TypeScript.
 
-- Generated session clients retain the relay's exact cursor through Go
-  `Sequence()` and TypeScript `sequence`, including replay-ending cursors
-  and gaps from skipped frames. Tracking starts before reading and updates
-  state before user callbacks; protocol-only clients gain no session state.
 - Language targets supply their own names, declarations and invocation
   snippets to the document through `spi.Speller`. Markdown shows the
   enabled languages beside types and operations; declarations and handler
@@ -56,12 +92,6 @@ are one number. Entries are in the words of the commits that landed them.
   member the config lacks, or what the tool's flags set; a problem of it
   is the checkout's own diagnostic, which `validate` now prints first and
   which refuses `generate`, `check` and `init`.
-- Session families expose typed `session.control` and `session.cursor`
-  callbacks through the built-in family's ordinary protocol side. Initial
-  control is available before replay through construction-time events;
-  later callbacks observe transfers and releases. Generation includes the
-  shared session payload package, and the checker reserves `session.` for
-  the layer's own operations in every consumer family.
 - Both runtime validators read literals, nullable and inline shapes, scoped
   type and family applications, explicit generic inheritance and adjacent
   union payloads. Family descriptors retain parameter and import ownership;

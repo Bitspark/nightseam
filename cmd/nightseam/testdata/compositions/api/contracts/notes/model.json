@@ -1,0 +1,25 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Note": {
+      "kind": "record",
+      "description": "A note: self-contained data, with no reference to anything live.",
+      "fields": [
+        {"name": "id", "type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        {"name": "body", "type": "string"},
+        {"name": "tags", "type": {"array": "string"}},
+        {"name": "revision", "type": "integer", "min": 0}
+      ]
+    },
+    "Notebook": {
+      "kind": "record",
+      "description": "Notes in every container the language has, and nothing that needs a connection.",
+      "fields": [
+        {"name": "title", "type": "string"},
+        {"name": "notes", "type": {"array": "Note"}},
+        {"name": "by_id", "type": {"map": "Note"}},
+        {"name": "latest", "type": "Note", "required": false, "nullable": true}
+      ]
+    }
+  }
+}

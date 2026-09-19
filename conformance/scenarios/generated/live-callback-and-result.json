@@ -1,60 +1,105 @@
 {
   "name": "a callable supplied as an argument is called by the other peer, and one returned in the result is called back",
   "layer": "generated",
-  "needs": ["generated"],
-  "note": "#196's example, whole, through generated code in both languages: the client hands the server a ProgressSink it implemented, the server calls report on it, the server answers a Job whose cancel and rename the client then calls. Neither peer sees a reference; both write and receive ordinary functions.",
+  "description": "#196's example, whole, through generated code in both languages: the client hands the server a ProgressSink it implemented, the server calls report on it, the server answers a Job whose cancel and rename the client then calls. Neither peer sees a reference; both write and receive ordinary functions.",
+  "needs": [
+    "generated"
+  ],
   "steps": [
     {
       "on": "a",
       "op": "gen.live_serve",
-      "bind": {"handle": "srv", "url": "url"}
+      "bind": {
+        "handle": "srv",
+        "url": "url"
+      }
     },
     {
       "on": "b",
       "op": "gen.live_dial",
-      "args": {"url": "$url"},
+      "args": {
+        "url": "$url"
+      },
       "bind": "cl"
     },
     {
       "on": "b",
       "op": "client.live_describe",
-      "args": {"on": "$cl", "id": "t-1", "label": "nightly"},
-      "expect": {"label": "nightly"},
+      "args": {
+        "on": "$cl",
+        "id": "t-1",
+        "label": "nightly"
+      },
+      "expect": {
+        "label": "nightly"
+      },
       "note": "ordinary RPC over a family that has a live tier: self-contained data, no binding made on either side"
     },
     {
       "on": "b",
       "op": "client.live_start",
-      "args": {"on": "$cl", "id": "t-1", "label": "nightly"},
-      "expect": {"ticket": "t-1"},
-      "bind": {"job": "job"},
+      "args": {
+        "on": "$cl",
+        "id": "t-1",
+        "label": "nightly"
+      },
+      "expect": {
+        "ticket": "t-1"
+      },
+      "bind": {
+        "job": "job"
+      },
       "note": "the request carries a callable and the result carries two"
     },
     {
       "on": "b",
       "op": "client.live_reports",
-      "args": {"on": "$cl"},
-      "expect": {"values": [50]},
+      "args": {
+        "on": "$cl"
+      },
+      "expect": {
+        "values": [
+          50
+        ]
+      },
       "note": "the server called the client's own function while start was still running"
     },
     {
       "on": "b",
       "op": "client.live_rename",
-      "args": {"on": "$cl", "job": "$job", "id": "t-1", "label": "renamed"},
-      "expect": {"label": "renamed"},
+      "args": {
+        "on": "$cl",
+        "job": "$job",
+        "id": "t-1",
+        "label": "renamed"
+      },
+      "expect": {
+        "label": "renamed"
+      },
       "note": "a callable returned in the result, called by the peer that received it, with a request and a result of its own"
     },
     {
       "on": "b",
       "op": "client.live_cancel",
-      "args": {"on": "$cl", "job": "$job"},
+      "args": {
+        "on": "$cl",
+        "job": "$job"
+      },
       "note": "Job.cancel is an application operation; it is not release, and it is not cancelling the call that returned the job"
     },
     {
       "on": "a",
       "op": "gen.live_seen",
-      "args": {"on": "$srv"},
-      "expect": {"started": 1, "calls": ["renamed", "cancelled"]}
+      "args": {
+        "on": "$srv"
+      },
+      "expect": {
+        "started": 1,
+        "calls": [
+          "renamed",
+          "cancelled"
+        ]
+      }
     }
   ]
 }

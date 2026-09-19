@@ -1,0 +1,44 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Progress": {
+      "kind": "record",
+      "description": "How far a job has come.",
+      "fields": [
+        {"name": "percent", "type": "integer", "min": 0, "max": 100},
+        {"name": "note", "type": "string", "required": false, "nullable": true}
+      ]
+    },
+    "Update": {
+      "kind": "record",
+      "description": "A value and the version it was written at.",
+      "fields": [
+        {"name": "at", "type": "string"},
+        {"name": "version", "type": "integer"}
+      ]
+    },
+    "Item": {
+      "kind": "union",
+      "tag": "kind",
+      "description": "What a sink is told: one of several shapes, adjacently tagged.",
+      "variants": {
+        "progress": "Progress",
+        "update": "Update",
+        "text": "string",
+        "nothing": {"empty": true}
+      }
+    },
+    "Done": {"kind": "record", "fields": [{"name": "delivered", "type": "integer"}]},
+    "Failure": {"kind": "record", "fields": [{"name": "reason", "type": "string"}]},
+    "Ending": {
+      "kind": "union",
+      "tag": "how",
+      "description": "How a sink was ended: the completion the composition states, not one the wire implies.",
+      "variants": {
+        "done": "Done",
+        "failed": "Failure",
+        "cancelled": {"empty": true}
+      }
+    }
+  }
+}

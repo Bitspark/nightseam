@@ -13,8 +13,7 @@ any other thing that carries frames, whatever it is made of.
 ## The dimensions
 
 - **Independence.** Whether a part is usable with nothing above it — a
-  peer without a tunnel, a tunnel without a session, a seam with no peer
-  over it — and whether a part requires a specific part beneath it or only
+  peer without a tunnel, a seam with no peer over it — and whether a part requires a specific part beneath it or only
   a shape.
 - **Substitutability.** Whether what carries frames, what stores them, what
   watches them, what puts a trace on them can each be swapped for a
@@ -36,7 +35,9 @@ any other thing that carries frames, whatever it is made of.
 Layering: a part composes with what is beneath it, never sideways, and a
 composition that would have a part know a sibling is refused however
 convenient. The boundary: a part is a mechanism, and a part that exists to
-carry one consumer's policy is that consumer's, outside. Where composing
+carry one consumer's policy is that consumer's, outside — and a part is a
+primitive only when no assembly of the parts beneath it could have been it,
+which is decided by [admitting a concept](../admission.md). Where composing
 would cost a copy or a hop at every seam, the seam is made cheap rather
 than the composition being made special.
 
