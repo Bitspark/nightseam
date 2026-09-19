@@ -8,6 +8,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Registry smoke consumers have their own pnpm workspace boundary, so an
+  install beneath an existing workspace leaves its manifest, settings and
+  lockfile unchanged while retaining the release's dependency declarations.
 - Release verification waits up to thirty minutes for registry propagation,
   with retry backoff capped at thirty seconds, so cached Go proxy misses
   have time to expire after a tag is published.
