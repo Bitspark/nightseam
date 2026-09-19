@@ -36,6 +36,7 @@ What holds of every event, at every layer:
   | `ConnectionOpened`, `ConnectionClosed`, `Backpressure` | — | — |
   | the runtime's `FrameSent`, `FrameReceived`, `RequestStarted`, `RequestEnded`, `EventEmitted`, `EventDelivered`, `HandlerPanic` | its family | ✓ |
   | the tunnel's five channel events | its family | — |
+  | the live layer's four binding events | — | — |
 
   A channel is opened *for* a family, so a family is the one thing every
   channel event knows. `Options.Families` in Go and
@@ -154,8 +155,9 @@ what the frame carries, and ends it where the peer says the request ended,
 with the outcome as the status and the error code as an attribute; a
 connection is a span from the peer taking it over to the close that ended it,
 an event emitted or delivered is a span of no duration, and everything else
-the two layers tell — frames, backpressure, a handler that gave up and the
-tunnel's five — is a span event on the span it belongs to.
+the layers tell — frames, backpressure, a handler that gave up, the tunnel's
+channels and the live layer's bindings — is a span event on the span it
+belongs to.
 
 What reaches a backend is what the events carry and no more: a field that is
 a name, a count, a flag, a duration or a trace becomes an attribute and a
