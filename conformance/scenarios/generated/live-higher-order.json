@@ -1,0 +1,56 @@
+{
+  "name": "a supplied callable outlives the call that supplied it, and the server invokes it afterwards",
+  "layer": "generated",
+  "needs": ["generated"],
+  "note": "The reference survives the call that introduced it until its binding is released or its scope closes. The server keeps the ProgressSink it was handed, start returns, and only then does the server call report again — which is what makes a callback a reference rather than an argument of one invocation.",
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.live_serve",
+      "bind": {"handle": "srv", "url": "url"}
+    },
+    {
+      "on": "b",
+      "op": "gen.live_dial",
+      "args": {"url": "$url"},
+      "bind": "cl"
+    },
+    {
+      "on": "b",
+      "op": "client.live_start",
+      "args": {"on": "$cl", "id": "t-2", "label": "long"},
+      "expect": {"ticket": "t-2"},
+      "bind": {"job": "job"}
+    },
+    {
+      "on": "b",
+      "op": "client.live_reports",
+      "args": {"on": "$cl"},
+      "expect": {"values": [50]}
+    },
+    {
+      "on": "a",
+      "op": "gen.live_report_again",
+      "args": {"on": "$srv"},
+      "note": "start returned long ago; the binding is the scope's, not the call's"
+    },
+    {
+      "on": "b",
+      "op": "client.live_reports",
+      "args": {"on": "$cl"},
+      "expect": {"values": [50, 100]}
+    },
+    {
+      "on": "b",
+      "op": "client.live_cancel",
+      "args": {"on": "$cl", "job": "$job"},
+      "note": "the returned callable is still usable too, for the same reason"
+    },
+    {
+      "on": "a",
+      "op": "gen.live_seen",
+      "args": {"on": "$srv"},
+      "expect": {"started": 1, "calls": ["cancelled"]}
+    }
+  ]
+}

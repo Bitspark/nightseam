@@ -40,7 +40,11 @@ func renderProofAndProbe(checkout, dir string) error {
 	world.Families["proof"] = proof.Families["proof"]
 	world.Problems["proof"] = proof.Problems["proof"]
 	world.Names = append(world.Names, "proof")
-	for _, name := range []string{"probe", "proof"} {
+	worker := world.Families["worker"]
+	if worker == nil {
+		return fmt.Errorf("render proof and probe: the corpus has no worker family")
+	}
+	for _, name := range []string{"probe", "proof", "worker"} {
 		result, err := k.Render(world, name)
 		if err != nil {
 			return fmt.Errorf("render proof and probe: %w", err)
