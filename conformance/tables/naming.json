@@ -118,5 +118,39 @@
       "name": "WorkItemAPIURL",
       "why": "every step takes the same convention as a name of its own, initialisms in capitals"
     }
-  ]
+  ],
+  "goUnions": {
+    "description": "A concrete Go union uses exported pointers for its variants and Kind() returns its generated string kind type. The kind type and constants derive from the final Go union name, including a type-name override; each pointer field derives from the wire variant tag. Kind, MarshalJSON, UnmarshalJSON and Of are methods reserved in the union's member namespace. The codec must refuse zero or multiple selected variants. Payload wrappers and inheritance helpers are outside these rows.",
+    "rows": [
+      {
+        "name": "Part",
+        "tag": "text",
+        "kindType": "PartKind",
+        "field": "Text",
+        "constant": "PartKindText"
+      },
+      {
+        "name": "Part",
+        "tag": "work_item_id",
+        "kindType": "PartKind",
+        "field": "WorkItemID",
+        "constant": "PartKindWorkItemID"
+      },
+      {
+        "name": "Packet",
+        "tag": "frame.relayed",
+        "kindType": "PacketKind",
+        "field": "FrameRelayed",
+        "constant": "PacketKindFrameRelayed"
+      },
+      {
+        "name": "Part",
+        "override": "Message",
+        "tag": "json",
+        "kindType": "MessageKind",
+        "field": "JSON",
+        "constant": "MessageKindJSON"
+      }
+    ]
+  }
 }

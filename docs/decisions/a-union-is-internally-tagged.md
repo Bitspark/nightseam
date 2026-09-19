@@ -38,9 +38,10 @@ nests twice, and the tag cannot be read without unwrapping. An untagged
 `oneOf` is ambiguous on the wire and undecidable for a validator the moment
 two variants overlap. Internal tagging is what each planned language renders
 natively or nearly: a discriminated union in TypeScript, `#[serde(tag)]` in
-Rust, a sealed hierarchy in Haskell and Swift, an interface with a decode
-switch in Go, a `Literal`-tagged union in Python. `std::variant` in C++ has
-no tag of its own and is the case the form was pushed against: it reads the
+Rust, a sealed hierarchy in Haskell and Swift, a value that owns its codec
+and switches on its kind in Go, a `Literal`-tagged union in Python.
+`std::variant` in C++ has no tag of its own and is the case the form was
+pushed against: it reads the
 declared discriminator and selects the alternative, which is more code than
 the others write and is not a different wire form — which is the test a form
 has to pass, and the reason the reach was taken to its limit here rather
@@ -50,4 +51,8 @@ than discovered at the eighth language.
 `json` field each consumer reads its own way.
 
 **Since.** 0.4.0, [#56](https://github.com/Bitspark/nightseam/issues/56),
-landed by #101.
+landed by #101. The concrete Go value is the verdict of
+[#140](https://github.com/Bitspark/nightseam/issues/140), with implementation
+tracked in [#102](https://github.com/Bitspark/nightseam/issues/102): its
+codec composes through generic declarations without extra codec arguments. The Go target
+still refuses unions until that renderer is complete.

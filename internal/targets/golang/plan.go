@@ -59,6 +59,7 @@ type plan struct {
 	client     *emit.Namespace // members of Client
 	remote     *emit.Namespace // members of Remote
 	types      map[string]string
+	unions     map[string]unionPlan
 	fields     map[string]string // "Type.field" → Go field
 	constants  map[string]string // "Enum.value" → constant
 	operations map[string]string // method or event name → Go name
@@ -140,6 +141,7 @@ func (p *plan) plan() {
 			p.declare(p.packages, name, at, "type")
 		}
 	}
+	p.planUnions()
 	for _, t := range f.Types {
 		switch t.Kind {
 		case "record", "entity":
