@@ -85,6 +85,7 @@ interface Expression {
   schema: Schema;
   value: TypeExpression;
   scope: Scope;
+  aliases?: ReadonlySet<WireType>;
 }
 interface Resolved extends Expression {
   definition?: WireType;
@@ -271,16 +272,8 @@ function named(expression: Expression, name: string, location: string): [Express
 }
 
 function resolve(expression: Expression, location: string): Resolved {
-  const seen: { schema: Schema; scope: Scope; value: TypeExpression }[] = [];
-  const aliases = new Set<WireType>();
+  let aliases = new Set(expression.aliases);
   for (;;) {
-    if (
-      seen.some(
-        (old) => old.schema === expression.schema && old.scope === expression.scope && old.value === expression.value,
-      )
-    )
-      bad(location, 'acyclic type expression');
-    seen.push(expression);
     let definition: WireType, name: string;
     const value = expression.value;
     if (typeof value === 'string') {
@@ -288,7 +281,7 @@ function resolve(expression: Expression, location: string): Resolved {
       if (argument) {
         if (!('type' in argument)) bad(location, 'type argument');
         expression = argument.type;
-        aliases.clear();
+        aliases = new Set(expression.aliases);
         continue;
       }
       if (['json', 'string', 'boolean', 'number', 'integer', 'timestamp'].includes(value)) return expression;
@@ -308,7 +301,9 @@ function resolve(expression: Expression, location: string): Resolved {
           if (!Object.hasOwn(value.with, parameter.name)) bad(location, 'an argument for ' + parameter.name);
           const filler = value.with[parameter.name]!;
           if (!parameter.of) {
-            scope[parameter.name] = { type: child(expression, filler) };
+            // Restore the argument's ancestry on substitution: Id<Id<T>>
+            // terminates, while A<T> = Id<A<T>> expands A a second time.
+            scope[parameter.name] = { type: { ...child(expression, filler), aliases: new Set(aliases) } };
           } else {
             if (typeof filler !== 'string') bad(location, 'family argument for ' + parameter.name);
             const argument = expression.scope[filler];
@@ -467,7 +462,11 @@ function validate(expression: Expression, value: unknown, location: string): voi
       return;
     }
     if ('literal' in type) {
-      if (value !== type.literal) bad(location, 'literal ' + JSON.stringify(type.literal));
+      const literal = JSON.stringify(type.literal).replace(
+        /[<>&\u2028\u2029]/g,
+        (character) => '\\u' + character.charCodeAt(0).toString(16).padStart(4, '0'),
+      );
+      if (value !== type.literal) bad(location, 'literal ' + literal);
       return;
     }
     if ('array' in type) {
