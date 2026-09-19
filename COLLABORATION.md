@@ -109,6 +109,11 @@ so.
 Generated code is never edited by hand, here or in a consumer: behavior is
 written against the interfaces the generated packages declare.
 
+To compare the generated Go surface shared by two consumer checkouts, run
+[`nightseam-surface`](cmd/nightseam-surface/README.md). It uses the golden
+suite's declaration reader and reports differences without regenerating
+either checkout.
+
 ## Lanes
 
 Work is cut into lanes, one issue each, of a size one session lands by

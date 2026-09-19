@@ -64,7 +64,7 @@ func TestResolveGivesAFamilyItsWorld(t *testing.T) {
 		t.Fatalf("members are %v", album.Members)
 	}
 	probe := Resolve(world, "probe")
-	if len(probe.Members) != 1 || probe.Members["codex"] == nil || !probe.IsSession() || album.IsSession() {
+	if len(probe.Members) != 1 || probe.Members["codex"] == nil || probe.Session == nil || album.Session != nil {
 		t.Fatal("a session family's members are the other session families")
 	}
 	if album.Types[model.EnvelopeType] == nil || album.Rank(model.EnvelopeType) != 1 || album.Rank("Mine") != 1 || probe.Rank("Base") != 0 || probe.Rank("Missing") != -1 {
@@ -155,7 +155,7 @@ func TestGenericsFollowTheParameters(t *testing.T) {
 	if probe.Generic() || len(probe.Types) != 0 {
 		t.Error("probe is generic")
 	}
-	if uses := Resolve(world, "album").UsesOf(model.MustDecode(`{"array":{"apply":"carrier.Frame","with":{"S":"A"}}}`)); !reflect.DeepEqual(uses, []Use{{"A", "Envelope"}}) {
+	if uses := Resolve(world, "album").UsesOf(mustDecode(`{"array":{"apply":"carrier.Frame","with":{"S":"A"}}}`)); !reflect.DeepEqual(uses, []Use{{"A", "Envelope"}}) {
 		t.Errorf("UsesOf an application is %v", uses)
 	}
 }
@@ -179,7 +179,7 @@ func TestObjectsOnTheWire(t *testing.T) {
 		`"Nothing"`:        false,
 		`"nobody.Thing"`:   false,
 	} {
-		if got := album.IsObject(model.MustDecode(source)); got != want {
+		if got := album.IsObject(mustDecode(source)); got != want {
 			t.Errorf("%s is an object: %v", source, got)
 		}
 	}
@@ -191,4 +191,12 @@ func TestReferencesAreTheImports(t *testing.T) {
 	if got := strings.Join(Resolve(slotWorld(), "album").References(), ","); got != "carrier,probe" {
 		t.Fatalf("references are %s", got)
 	}
+}
+
+func mustDecode(source string) model.TypeExpr {
+	expr, err := model.Decode([]byte(source))
+	if err != nil {
+		panic(err)
+	}
+	return expr
 }

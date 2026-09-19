@@ -9,6 +9,21 @@ import { Tunnel, type Channel, type TunnelOptions } from './index.ts';
 /** The five a tunnel adds to the runtime's ten, which is how they are told apart here. */
 const TUNNEL_EVENTS = new Set(['channel.opened', 'channel.accepted', 'channel.closed', 'credit.stall', 'open.refused']);
 
+test('a send on a closed channel is a coded disconnection', async (t) => {
+  const { client, server, ct, st } = await tunnels();
+  t.after(() => {
+    client.close();
+    server.close();
+  });
+  const [channel] = await pair(ct, st);
+  channel.close();
+  assert.throws(() => channel.send({ kind: 'text', data: 'late' }), {
+    name: 'DuplexError',
+    code: 'disconnected',
+    message: 'Channel is not open.',
+  });
+});
+
 /** Everything one peer's observer was told, in order; a tunnel observes through no other. */
 function watching() {
   const events: ObserverEvent[] = [];

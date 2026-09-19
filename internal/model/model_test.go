@@ -76,10 +76,10 @@ func TestReferenceFormByCase(t *testing.T) {
 	if !IsParameter("S") || !IsParameter("Session") || IsParameter("probe") || IsParameter("") {
 		t.Fatal("IsParameter tells the cases apart wrong")
 	}
-	if FillerOf("B") != (Filler{Parameter: "B"}) || FillerOf("probe") != (Filler{Family: "probe"}) {
-		t.Fatal("FillerOf tells the cases apart wrong")
+	if fillerOf("B") != (Filler{Parameter: "B"}) || fillerOf("probe") != (Filler{Family: "probe"}) {
+		t.Fatal("fillerOf tells the cases apart wrong")
 	}
-	if FillerOf("B").String() != "B" || FillerOf("probe").String() != "probe" {
+	if fillerOf("B").String() != "B" || fillerOf("probe").String() != "probe" {
 		t.Fatal("a filler spells itself as it was written")
 	}
 }
@@ -205,7 +205,7 @@ func TestDecodeProtocol(t *testing.T) {
 	if p.Server.CRUD["Project"][0] != "list" {
 		t.Fatal("crud is not carried")
 	}
-	if names := p.ParameterNames(); len(names) != 1 || names[0] != "S" {
+	if len(p.Parameters) != 1 || p.Parameters[0].Name != "S" {
 		t.Fatal("parameter names are wrong")
 	}
 }
@@ -293,4 +293,13 @@ func TestInjectedTypes(t *testing.T) {
 	if fields := injected[HandleType].Fields; len(fields) != 1 || fields[0].Name != "channel" {
 		t.Fatalf("the handle's fields are %v", fields)
 	}
+}
+
+// MustDecode decodes a type expression a test writes by hand.
+func MustDecode(source string) TypeExpr {
+	expr, err := Decode(json.RawMessage(source))
+	if err != nil {
+		panic(err)
+	}
+	return expr
 }

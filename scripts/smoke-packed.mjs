@@ -31,6 +31,7 @@ import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { examples, packages, root } from "./packages.mjs";
 import { layProxy } from "./modzip.mjs";
+import { holdTarball } from "./tarball.mjs";
 
 const keep = process.argv.includes("--keep");
 const manifest = directory => JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
@@ -89,6 +90,7 @@ async function smoke() {
     pnpm(["pack", "--pack-destination", tarballs], { cwd: join(root, directory) });
     const file = readdirSync(tarballs).find(candidate => candidate === `${name.replace("@", "").replace("/", "-")}-${version}.tgz`);
     if (!file) throw new Error(`${name} packed no tarball for ${version}; the directory holds ${readdirSync(tarballs).join(", ") || "nothing"}`);
+    holdTarball(join(tarballs, file));
     packed[name] = file;
   }
 

@@ -79,9 +79,6 @@ func resolve(world World, name string, resolved map[string]*Family) *Family {
 	return f
 }
 
-// IsSession reports whether the family carries the session role.
-func (f *Family) IsSession() bool { return f.Session != nil }
-
 // TypeNames is every type name, injected ones included, in byte order.
 func (f *Family) TypeNames() []string {
 	names := make([]string, 0, len(f.Types))
@@ -214,16 +211,16 @@ func (f *Family) References() []string {
 // a type parameter. A family generic in S and T, where S is drawn at its
 // Envelope and its Handle and T at its Envelope, has the uses {S,Envelope},
 // {S,Handle}, {T,Envelope} — in that order, by the parameter's declaration
-// and then by DrawnBefore.
+// and then by drawnBefore.
 type Use struct {
 	Parameter string
 	Type      string
 }
 
-// DrawnBefore orders the types a parameter is drawn at, which is the order
+// drawnBefore orders the types a parameter is drawn at, which is the order
 // a language declares the type parameters they become: Envelope, Handle,
 // then the rest by name.
-func DrawnBefore(a, b string) bool {
+func drawnBefore(a, b string) bool {
 	rank := func(name string) int {
 		switch name {
 		case model.EnvelopeType:
@@ -308,7 +305,7 @@ func (f *Family) Generics() Generics {
 			if out[i].Parameter != out[j].Parameter {
 				return order[out[i].Parameter] < order[out[j].Parameter]
 			}
-			return DrawnBefore(out[i].Type, out[j].Type)
+			return drawnBefore(out[i].Type, out[j].Type)
 		})
 		return out
 	}

@@ -291,14 +291,19 @@ func TestBindRecordsAboveTheHeadAFrameSentWhileItReads(t *testing.T) {
 // watcher is an observer that keeps what it was told, so that a test can ask
 // which of a session's events reached it.
 type watcher struct {
-	mu   sync.Mutex
-	seen []string
+	changed chan struct{}
+	mu      sync.Mutex
+	seen    []string
 }
 
 func (w *watcher) Observe(event runtime.ObserverEvent) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.seen = append(w.seen, fmt.Sprintf("%T", event))
+	if w.changed != nil {
+		close(w.changed)
+		w.changed = nil
+	}
 }
 
 func (w *watcher) told() []string {
@@ -307,20 +312,35 @@ func (w *watcher) told() []string {
 	return append([]string(nil), w.seen...)
 }
 
+// next captures a notification before reading the state, so no update is lost.
+func (w *watcher) next() <-chan struct{} {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.changed == nil {
+		w.changed = make(chan struct{})
+	}
+	return w.changed
+}
+
 // await waits for one event to have arrived, the last of a session's being
 // told after the close that ends it.
 func (w *watcher) await(t *testing.T, event string) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	for {
+		next := w.next()
 		for _, told := range w.told() {
 			if told == event {
 				return
 			}
 		}
-		time.Sleep(time.Millisecond)
+		select {
+		case <-next:
+		case <-deadline.C:
+			t.Fatalf("%s never arrived; the observer was told %v", event, w.told())
+		}
 	}
-	t.Fatalf("%s never arrived; the observer was told %v", event, w.told())
 }
 
 // says sends one frame of the family over a connection, as a machine or a
@@ -459,14 +479,22 @@ func TestASessionOverAConnectionWithNeitherObservesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	drive(t, registry)
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
-		if len(registry.Attention()) == 0 && registry.Control("s", nil) != nil {
-			return
+	ended := make(chan struct{})
+	stop := registry.OnChange(func(change session.Change) {
+		if change.Kind == session.ChangeUnbound {
+			close(ended)
 		}
-		time.Sleep(time.Millisecond)
+	})
+	defer stop()
+	drive(t, registry)
+	select {
+	case <-ended:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the session never ended")
 	}
-	t.Fatal("the session never ended")
+	if len(registry.Attention()) != 0 || registry.Control("s", nil) == nil {
+		t.Fatal("the unbound session remains in the registry")
+	}
 }
 
 // TestAMachineOverAPipeAndAConsumerOverAWebSocket is the mixed case the

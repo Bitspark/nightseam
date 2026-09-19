@@ -24,6 +24,7 @@ const sentinel = "payload-sentinel-4bf92f35"
 // adapter should do. Observe is called from whichever goroutine the event
 // happened on, so it holds a lock of its own.
 type recorder struct {
+	changed  chan struct{}
 	mu       sync.Mutex
 	observed []ws.ObserverEvent
 }
@@ -32,6 +33,10 @@ func (r *recorder) Observe(event ws.ObserverEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.observed = append(r.observed, event)
+	if r.changed != nil {
+		close(r.changed)
+		r.changed = nil
+	}
 }
 
 func (r *recorder) all() []ws.ObserverEvent {
@@ -51,19 +56,32 @@ func (r *recorder) lines() []string {
 	return lines
 }
 
+// next captures a notification before reading the state, so no update is lost.
+func (r *recorder) next() <-chan struct{} {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.changed == nil {
+		r.changed = make(chan struct{})
+	}
+	return r.changed
+}
+
 // await waits until at least count events were observed, so that a test never
 // reads a sequence the peer is still writing.
 func (r *recorder) await(t *testing.T, count int) []ws.ObserverEvent {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
 	for {
+		next := r.next()
 		if observed := r.all(); len(observed) >= count {
 			return observed
 		}
-		if time.Now().After(deadline) {
+		select {
+		case <-next:
+		case <-deadline.C:
 			t.Fatalf("observed %d events, want %d:\n%s", len(r.all()), count, strings.Join(r.lines(), "\n"))
 		}
-		time.Sleep(time.Millisecond)
 	}
 }
 

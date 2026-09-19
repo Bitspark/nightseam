@@ -58,6 +58,15 @@ are one number. Entries are in the words of the commits that landed them.
   boundary rule and parity point at the goals they are the contributor's
   form of.
 
+- The pre-release audit's remaining checks are executable: generated Go
+  surfaces compare through `nightseam-surface`, observer tests wait for
+  notifications, and event pacing uses a controlled clock and completion
+  signals. Internal helpers no longer widen exported surfaces, tunnel
+  members are documented, and a send on a closed TypeScript channel throws
+  `DuplexError` with code `disconnected`. The packed smoke refuses archives
+  missing built entry points, README, LICENSE or NOTICE; CI prepares the
+  notices as release preparation does, and a dry run says it did not.
+
 ### Fixed
 
 - Go's `session.New` returns `(*Registry, error)` and refuses negative
