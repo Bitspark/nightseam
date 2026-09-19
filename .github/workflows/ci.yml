@@ -8,7 +8,11 @@ name: ci
 on:
   push:
     branches: [main]
+  # edited is among them because scope reads the pull request's body: the
+  # fix for a scope refusal is to write Closes #N there, and an edit that
+  # reached no workflow left the check red on a PR that satisfied it.
   pull_request:
+    types: [opened, synchronize, reopened, edited]
 
 jobs:
   fast:
