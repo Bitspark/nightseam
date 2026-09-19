@@ -408,23 +408,94 @@ export function run(connect: Connect): void {
       say(one.near, { version: 1, kind: 'request', id: 'c:1', method: 'echo', params: payload(text) });
       const request = await atMachine.next();
       say(machine, { version: 1, kind: 'response', id: request.id, result: payload(text) });
+      say(machine, { version: 1, kind: 'event', event: 'changed', data: payload(text) });
       await tick();
     }
-    const recorded: unknown[] = [];
-    await log.replay(2, frame => { recorded.push(frame.message); return Promise.resolve(); });
-    assert.equal(recorded.length, 4);
+    const recorded: Envelope[] = [];
+    await log.replay(2, frame => { recorded.push(frame.message as Envelope); return Promise.resolve(); });
+    assert.equal(recorded.length, 7);
+    // Of the seven frames the log holds after that sequence, the ones the
+    // machine sent down as events are what a channel that speaks the family
+    // can take; the rest are one consumer's conversation with the machine,
+    // under ids of the session's own.
+    const given = recorded.filter(message => message.kind === 'event');
+    assert.equal(given.length, 3);
     // The consumer attaches holding the first two frames, and the machine
     // speaks before the replay could have finished.
     const two = await consumer(wire, registry, 'observer', 'two', 2);
     const atTwo = two.at;
     const live = { version: 1, kind: 'event', event: 'changed', data: payload('live') };
     say(machine, live);
-    for (let i = 0; i < recorded.length + 1; i++) await atTwo.family();
-    assert.deepEqual(conversation(atTwo.envelopes), [...recorded, live]);
+    for (let i = 0; i < given.length + 1; i++) await atTwo.family();
+    assert.deepEqual(conversation(atTwo.envelopes), [...given, live]);
     // The cursor it was told is the log's own sequence, which is where it
     // reattaches after and never a count of what arrived.
-    assert.equal(atTwo.cursor, 7);
-    assert.equal(two.attachment.sequence, 7);
+    assert.equal(atTwo.cursor, 10);
+    assert.equal(two.attachment.sequence, 10);
+    wire.close();
+  });
+
+  test("a replay hands a consumer the machine's events alone, and the cursor passes what it was not given", async () => {
+    // The log holds every kind of frame a session records, and a replay is not
+    // a reading of it: a channel that speaks the family takes what the machine
+    // sent down to every consumer, and nothing that went up, an up frame on a
+    // down channel being a request from the wrong side.
+    const { wire, registry, machine } = await bound();
+    const peer = await serving(machine);
+    const one = await consumer(wire, registry, 'participant', 'one');
+    registry.control('s', one.attachment);
+    await one.at.control();
+    const holding = await Client.attach(one.near, {}, answering);
+    assert.equal((await holding.echo(payload('t'))).text, 'machine:t');
+    await peer.emit('changed', payload('one'));
+    assert.deepEqual((await peer.call('reverse', payload('deliver'))), { text: 'reviled', count: 1 });
+    await peer.emit('changed', payload('two'));
+    await tick();
+    // Six frames, of which the machine's two events are what a consumer
+    // attaching is given; the sixth being one of them, the replay ends on a
+    // frame it delivered and the cursor that names it.
+    const late = await consumer(wire, registry, 'observer', 'late');
+    for (const text of ['one', 'two']) {
+      const replayed = await late.at.family();
+      assert.equal(replayed.event, 'changed');
+      assert.deepEqual(replayed.data, payload(text));
+    }
+    await tick();
+    assert.equal(late.at.cursor, 6);
+    assert.equal(conversation(late.at.envelopes).length, 2);
+    // A request that went up after the last event, and the response that came
+    // down to the one consumer that sent it, are passed over all the same, and
+    // the replay ends by saying where it reached: a consumer resuming from
+    // that cursor reads the log on rather than over the frames it was never
+    // given.
+    assert.equal((await holding.echo(payload('u'))).text, 'machine:u');
+    await tick();
+    const last = await consumer(wire, registry, 'observer', 'last', 6);
+    const stood = await last.at.next();
+    assert.equal(stood.event, CURSOR_EVENT);
+    assert.deepEqual(stood.data, { sequence: 8 });
+    await tick();
+    assert.deepEqual(conversation(last.at.envelopes), []);
+    // And a consumer whose end is a peer of the family lives through it. A
+    // request of another consumer's carries an id the session minted for the
+    // machine — c:N, the prefix a consumer's own peer mints under — so a peer
+    // handed one as a request of the machine's ends the connection on the
+    // prefix, and the consumer that attached from nothing is left with the
+    // first frames of the replay and no session.
+    // The peer is made and listening before the session attaches its end, as
+    // the register-then-attach ordering of the runtime says: the replay is on
+    // the connection before the attach returns.
+    const { near, far } = await wire.open(0);
+    const client = await Client.attach(near, {}, answering);
+    const arrived: Payload[] = [];
+    const settled = new Promise<void>(resolve => {
+      client.onChanged(data => { arrived.push(data); if (arrived.length === 2) resolve(); });
+    });
+    registry.attach('s', far, 'observer', 'peer', 0);
+    await settled;
+    assert.deepEqual(arrived, [payload('one'), payload('two')]);
+    // The connection the replay ran over is still there to speak on.
+    assert.equal(await client.noArgs(), 'ok');
     wire.close();
   });
 
@@ -626,12 +697,14 @@ export function run(connect: Connect): void {
       assert.deepEqual((await at.family()).meta, { cause: 'nightly' });
     }
     // The log keeps each message whole, so a consumer that was not there is
-    // replayed the carriage with it — the request the relay recorded on its way
-    // to the machine and then the event — which is why a meta that holds a
-    // credential wants a Log that redacts, as docs/session.md says.
+    // replayed the carriage with it: the event, which is what a replay hands a
+    // channel. The request the relay recorded on its way to the machine is in
+    // the log with its own all the same — the replay passes over it and the
+    // cursor passes it — which is why a meta that holds a credential wants a
+    // Log that redacts, as docs/session.md says.
     const late = await consumer(wire, registry, 'observer', 'late');
-    assert.deepEqual((await late.at.family()).meta, carried);
     assert.deepEqual((await late.at.family()).meta, { cause: 'nightly' });
+    assert.equal(late.at.cursor, 2);
     wire.close();
   });
 

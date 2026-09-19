@@ -444,8 +444,8 @@ func (r *relay) holds(a *Attachment) bool {
 }
 
 // attach adds a consumer and replays the log to it before any live frame
-// reaches it: the frames after its sequence, up to the one the session had
-// reached when it was added, in one order.
+// reaches it: the frames after its sequence that this consumer can take, up
+// to the one the session had reached when it was added, in one order.
 func (r *relay) attach(down duplex.Conn, role Role, origin string, after int64) (*Attachment, error) {
 	if down == nil {
 		return nil, coded(ErrorSessionInvalid, "a consumer attaches over a connection")
@@ -513,25 +513,71 @@ func (r *relay) replay(a *Attachment, after, ceiling int64) error {
 	if ceiling <= after {
 		return nil
 	}
+	// stood is the last sequence a frame was delivered at, passed the last
+	// the replay read: a replay that passes over its last frames ends by
+	// saying where it reached, so that resuming from the cursor reads the log
+	// on from there rather than over the frames it already passed.
+	stood, passed := after, after
 	err := r.log.Replay(r.ctx, after, func(frame Frame) error {
 		if frame.Sequence > ceiling {
 			return errReplayed
 		}
-		// A cut message is not a message: what the log truncated is there for
-		// a consumer that reads the log, not for a channel that speaks the
-		// family.
-		if frame.Truncated {
+		passed = frame.Sequence
+		if !replayable(frame) {
 			return nil
 		}
 		if err := a.sendHeld(frame.Message); err != nil {
 			return err
 		}
+		stood = frame.Sequence
 		return a.cursorHeld(frame.Sequence)
 	})
 	if errors.Is(err, errReplayed) {
-		return nil
+		err = nil
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	if passed > stood {
+		return a.cursorHeld(passed)
+	}
+	return nil
+}
+
+// replayable reports whether a frame of the log reaches the channel a
+// replay is running on: what the consumer there would have been delivered
+// live, which is the machine's events and nothing else.
+//
+// The relay is the one place that knows which frames are which, having
+// recorded the direction, so what a replay hands a channel is mechanism and
+// not policy. What it passes over, it passes over for a reason of the
+// routing table's own:
+//
+//   - An up frame is a consumer's, and a consumer's frame goes to the
+//     machine and never down. Its id is the session's own — c:N, minted for
+//     the machine — which on a consumer's channel is the prefix that channel
+//     mints under, so a peer reading a replayed request of another
+//     consumer's ends the connection on the prefix (docs/profile.md) and the
+//     replay takes the consumer with it.
+//   - A response of the machine's answers a request the session sent for one
+//     consumer, under that consumer's own id. It means nothing under any
+//     other, whose peer holds no such request.
+//   - A request of the machine's, and a cancel of one, stand with the holder
+//     of control; a consumer attaching holds none, and one given control is
+//     handed every open request again where control moves.
+//   - A cut message is not a message: what the log truncated is there for a
+//     consumer that reads the log, not for a channel that speaks the family.
+//     Text that is no message of the profile is passed over for the same
+//     reason — a log the session did not fill may hold one.
+//
+// The log still records every frame: only the channel's view is narrowed,
+// and the cursor still passes what the channel is not given.
+func replayable(frame Frame) bool {
+	if frame.Truncated || frame.Direction != Down {
+		return false
+	}
+	m, err := decodeMessage(frame.Message)
+	return err == nil && m.kind() == "event"
 }
 
 // detach removes a consumer from the session, releasing control it held —

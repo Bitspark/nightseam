@@ -244,16 +244,20 @@ func Run(t *testing.T, connect Connect) {
 		one.take(t)
 		machine.send(t, `{"version":1,"kind":"event","event":"changed","data":{"text":"one","count":1}}`)
 		one.take(t)
-		// Three frames are in the log: the request as the machine saw it, its
-		// response, and the event.
+		// Three frames are in the log — the request as the machine saw it, its
+		// response, and the event — and one of them is the machine's event,
+		// which is the whole of what a replay hands a channel that speaks the
+		// family. The other two are the one consumer's conversation with the
+		// machine, under ids of the session's own.
 		_, late := attach(t, registry, "s", "late", session.Observer, 0)
-		replayed := []*frame{late.take(t), late.take(t), late.take(t)}
-		if replayed[0].text("method") != "no_args" || replayed[0].text("id") != asked.text("id") {
-			t.Fatalf("the replay began with %s", replayed[0].raw)
+		replayed := late.take(t)
+		if replayed.text("event") != "changed" || string(replayed.member["data"]) != `{"text":"one","count":1}` {
+			t.Fatalf("the replay gave %s", replayed.raw)
 		}
-		if replayed[1].text("kind") != "response" || replayed[2].text("event") != "changed" {
-			t.Fatalf("the replay went %s then %s", replayed[1].raw, replayed[2].raw)
+		if late.cursor != 3 {
+			t.Fatalf("the replayed event left the consumer standing at %d", late.cursor)
 		}
+		late.quiet(t)
 		machine.send(t, `{"version":1,"kind":"event","event":"changed","data":{"text":"two","count":2}}`)
 		if live := late.take(t); string(live.member["data"]) != `{"text":"two","count":2}` {
 			t.Fatalf("the live frame after the replay was %s", live.raw)
@@ -265,6 +269,92 @@ func Run(t *testing.T, connect Connect) {
 		}
 		if later.cursor != 3 {
 			t.Fatalf("a consumer replayed the third frame was told it stands at %d", later.cursor)
+		}
+	})
+
+	t.Run("a replay hands a consumer the machine's events alone, and the cursor passes what it was not given", func(t *testing.T) {
+		// The log holds every kind of frame a session records, and a replay is
+		// not a reading of it: a channel that speaks the family takes what the
+		// machine sent down to every consumer, and nothing that went up, an up
+		// frame on a down channel being a request from the wrong side.
+		registry, machine := bind(t, "s")
+		holder, one := attach(t, registry, "s", "one", session.Participant, 0)
+		if err := registry.Control("s", holder); err != nil {
+			t.Fatal(err)
+		}
+		one.control(t)
+		one.send(t, `{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":"t","count":1}}`)
+		asked := machine.take(t)
+		machine.send(t, fmt.Sprintf(`{"version":1,"kind":"response","id":%q,"result":{"text":"t","count":1}}`, asked.text("id")))
+		one.take(t)
+		machine.send(t, `{"version":1,"kind":"event","event":"changed","data":{"text":"one","count":1}}`)
+		one.take(t)
+		machine.send(t, `{"version":1,"kind":"request","id":"s:1","method":"reverse","params":{"text":"t","count":1}}`)
+		one.take(t)
+		one.send(t, `{"version":1,"kind":"response","id":"s:1","result":{"text":"t","count":1}}`)
+		machine.take(t)
+		machine.send(t, `{"version":1,"kind":"event","event":"changed","data":{"text":"two","count":2}}`)
+		one.take(t)
+		// Six frames, of which the machine's two events are what a consumer
+		// attaching is given; the sixth being one of them, the replay ends on a
+		// frame it delivered and the cursor that names it.
+		_, late := attach(t, registry, "s", "late", session.Observer, 0)
+		for _, want := range []string{`{"text":"one","count":1}`, `{"text":"two","count":2}`} {
+			replayed := late.take(t)
+			if replayed.text("event") != "changed" || string(replayed.member["data"]) != want {
+				t.Fatalf("the replay gave %s, where the event carrying %s was due", replayed.raw, want)
+			}
+		}
+		if late.cursor != 6 {
+			t.Fatalf("the replay left the consumer standing at %d", late.cursor)
+		}
+		late.quiet(t)
+		// A frame that went up after the last event is passed over all the
+		// same, and the replay ends by saying where it reached: a consumer
+		// resuming from that cursor reads the log on rather than over the
+		// frames it was never given.
+		one.send(t, `{"version":1,"kind":"request","id":"c:2","method":"echo","params":{"text":"u","count":1}}`)
+		machine.take(t)
+		_, last := attach(t, registry, "s", "last", session.Observer, 6)
+		if stood := last.stands(t); stood != 7 {
+			t.Fatalf("a replay that gave nothing ended naming %d", stood)
+		}
+		last.quiet(t)
+		// And a consumer whose end is a peer of the profile lives through it.
+		// A request of another consumer's carries an id the session minted for
+		// the machine — c:N, the prefix a consumer's own peer mints under — so
+		// a peer handed one as a request of the machine's ends the connection
+		// on the prefix, and the consumer that attached from nothing is left
+		// with the first frames of the replay and no session.
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		near, far := connect(t, nil)
+		peer, err := runtime.NewPeer(ctx, far, runtime.ClientRole, runtime.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = peer.Close() })
+		arrived := make(chan string, 8)
+		peer.HandleEvent("changed", func(_ context.Context, _ *runtime.Peer, data json.RawMessage) { arrived <- string(data) })
+		if _, err := registry.Attach("s", near, session.Observer, "peer", 0); err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{`{"text":"one","count":1}`, `{"text":"two","count":2}`} {
+			select {
+			case got := <-arrived:
+				if got != want {
+					t.Fatalf("the consumer's peer was given %s, where %s was due", got, want)
+				}
+			case <-peer.Done():
+				t.Fatalf("the consumer's peer ended during the replay: %v", peer.Err())
+			case <-time.After(5 * time.Second):
+				t.Fatalf("the replay reached the consumer's peer with nothing carrying %s", want)
+			}
+		}
+		select {
+		case <-peer.Done():
+			t.Fatalf("the consumer's peer ended after the replay: %v", peer.Err())
+		case <-time.After(250 * time.Millisecond):
 		}
 	})
 
@@ -374,16 +464,17 @@ func Run(t *testing.T, connect Connect) {
 			}
 		}
 		// The log keeps each message whole, so a consumer that was not there is
-		// replayed the carriage with it — the request the relay recorded on its
-		// way to the machine and then the event — which is why a meta that holds
-		// a credential wants a Log that redacts, as docs/session.md says.
+		// replayed the carriage with it: the event, which is what a replay
+		// hands a channel. The request the relay recorded on its way to the
+		// machine is in the log with its own all the same — the replay passes
+		// over it and the cursor passes it, which is why a meta that holds a
+		// credential wants a Log that redacts, as docs/session.md says.
 		_, late := attach(t, registry, "s", "late", session.Observer, 0)
-		replayed := []string{string(late.take(t).raw), string(late.take(t).raw)}
-		if !strings.Contains(replayed[0], `"meta":{"tenant":"acme","idempotency":"k-1"}`) {
-			t.Fatalf("the log replayed the request as %s", replayed[0])
+		if replayed := late.take(t); string(replayed.raw) != emitted {
+			t.Fatalf("the log replayed the event as %s", replayed.raw)
 		}
-		if replayed[1] != emitted {
-			t.Fatalf("the log replayed the event as %s", replayed[1])
+		if late.cursor != 2 {
+			t.Fatalf("the replayed event left the consumer standing at %d, where the request it was not given is the first frame", late.cursor)
 		}
 	})
 
@@ -563,14 +654,19 @@ func Run(t *testing.T, connect Connect) {
 		events.expect(t, session.AskRouted{Session: "s", ID: "s:1", Method: "reverse", Origin: "one",
 			Trace: runtime.Trace{Parent: askTrace}})
 
-		// A consumer resuming from nothing takes the eight frames from the
-		// log, which is no change of the session's: a replay is what one
-		// consumer is told, not something that happened to the session.
+		// A consumer resuming from nothing takes the one of the log's eight
+		// frames a channel of the family can take — the event — and then the
+		// cursor that ends the replay where it reached. Neither is a change of
+		// the session's: a replay is what one consumer is told, not something
+		// that happened to the session.
 		next, three := attach(t, registry, "s", "three", session.Participant, 0)
 		changes.expect(t, expected{kind: session.ChangeAttached, origin: "three"})
 		events.expect(t, session.SessionAttached{Session: "s", Role: session.Participant, Origin: "three"})
-		for i := 0; i < 8; i++ {
-			three.take(t)
+		if replayed := three.take(t); string(replayed.raw) != emitted {
+			t.Fatalf("the replay gave %s", replayed.raw)
+		}
+		if stood := three.stands(t); stood != 8 {
+			t.Fatalf("the replay ended naming %d, where the log stands at eight", stood)
 		}
 
 		// Control moving asks the open request afresh of whoever holds it
@@ -1533,13 +1629,27 @@ func (s *speaker) alone(t *testing.T) *frame {
 	return nil
 }
 
+// stands is a cursor with nothing before it: what a replay ends with where
+// the frames it passed over are its last, so that a consumer resuming from
+// it reads the log on rather than over them again.
+func (s *speaker) stands(t *testing.T) int64 {
+	t.Helper()
+	s.cursor = s.at(t, nil)
+	return s.cursor
+}
+
 // at holds that a cursor followed the frame just taken and gives the
 // sequence it named, which is the log's own and never a count of frames.
+// after is the frame it names, and nil where the cursor stands alone.
 func (s *speaker) at(t *testing.T, after *frame) int64 {
 	t.Helper()
 	cursor := s.alone(t)
 	if cursor.text("kind") != "event" || cursor.text("event") != session.CursorEvent {
-		t.Fatalf("%s was sent %s after %s, where the cursor was due", s.name, cursor.raw, after.raw)
+		named := "the replay's end"
+		if after != nil {
+			named = string(after.raw)
+		}
+		t.Fatalf("%s was sent %s after %s, where the cursor was due", s.name, cursor.raw, named)
 	}
 	var data struct{ Sequence int64 }
 	if err := json.Unmarshal(cursor.member["data"], &data); err != nil {

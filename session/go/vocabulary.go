@@ -26,8 +26,10 @@ const (
 	ControlEvent = "session.control"
 	// CursorEvent says where in the session's one order the frame delivered
 	// just before it stood: {"sequence": N}, the log's own sequence, which is
-	// what a consumer resumes from. A frame the log cut is delivered as
-	// nothing and carries none, the next cursor naming the next sequence.
+	// what a consumer resumes from. A frame a replay passed over is delivered
+	// as nothing and carries none, the next cursor naming the next sequence;
+	// where such frames are a replay's last, it ends with one cursor naming
+	// where it reached and no frame before it.
 	CursorEvent = "session.cursor"
 )
 
@@ -94,11 +96,11 @@ func (a *Attachment) Holder() (origin string, held bool) {
 	return a.holder, a.held
 }
 
-// Sequence is the log's sequence of the last frame delivered to this
-// consumer — what the last session.cursor said — and zero where it has been
-// delivered none. It is what the consumer reattaches after, and the relay's
-// own count rather than one kept by counting frames, which a message the log
-// cut would put out by one.
+// Sequence is where in the session's one order this consumer stands — what
+// the last session.cursor said — and zero where it has been told none. It is
+// what the consumer reattaches after, and the relay's own count rather than
+// one kept by counting frames, which every frame a replay passed over would
+// put out by one.
 func (a *Attachment) Sequence() int64 {
 	a.state.Lock()
 	defer a.state.Unlock()
@@ -161,8 +163,10 @@ func (a *Attachment) controlHeld(holder string, held bool) error {
 	return a.sendHeld(frame)
 }
 
-// cursorHeld says where the frame just delivered stood, with the turn taken,
-// so that nothing comes between a frame and the cursor that names it.
+// cursorHeld says where this consumer stands, with the turn taken, so that
+// nothing comes between a frame and the cursor that names it — and so that a
+// replay which ends on frames it passed over says where it reached with
+// nothing before the cursor.
 func (a *Attachment) cursorHeld(sequence int64) error {
 	frame := cursorFrame(sequence)
 	a.state.Lock()

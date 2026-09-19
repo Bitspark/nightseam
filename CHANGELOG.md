@@ -6,7 +6,30 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
-Nothing yet.
+### Fixed
+
+- A replay hands a consumer the machine's events alone, where it handed it
+  every frame the log held: a consumer attaching after another had decided
+  anything was replayed that other consumer's requests, which carry an id the
+  session minted towards the machine — `c:N`, the prefix a consumer's own peer
+  mints under — so the peer ended the connection on the prefix, as the profile
+  says it does for a request from the wrong side, and the consumer that
+  attached from nothing saw the first event or two and then nothing, with no
+  refusal on the wire and everything queued behind the replay lost with it.
+  What a replay hands a channel is now what that consumer would have been
+  delivered live, which the relay is the one place to know, having recorded
+  the direction: every event the machine sent down, and nothing else — no up
+  frame, which goes to the machine and never down; no response of the
+  machine's, which answers a request some other consumer sent under that
+  consumer's id; no request of the machine's, which stands with the holder of
+  control and is handed to a new holder again where control moves. The log
+  keeps recording all of it and `seat` is untouched: only the channel's view
+  is narrowed. `session.cursor` passes every sequence the replay read,
+  delivered or not, and where the frames a replay passed over are its last it
+  ends with one cursor of its own, naming where it reached with no frame
+  before it — so a consumer resuming from the cursor it was told reads the log
+  on rather than over the frames it was never given, which a replay that
+  ended on a truncated frame did too.
 
 ## 0.3.0
 

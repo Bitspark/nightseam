@@ -101,12 +101,24 @@ Held, one test each, in both languages:
    relay is the family's client towards the machine and mints the ids it
    sends up itself, unique per session, keeping which consumer's request
    each stands for; the machine's own ids, `s:N`, travel down as they are.
-5. **A consumer resumes from the log before any live frame.** A consumer
-   attached with `after` receives the log's frames after that sequence
-   first, then what arrives live, in one order and once; a frame the log
-   cut is passed over, a cut message being no message for a connection that
-   speaks the family. A log bound with frames already in it is bound at its
-   head, so what it held before the session was bound is among them.
+5. **A consumer resumes from the log before any live frame, and is
+   replayed what it would have been delivered live.** A consumer attached
+   with `after` receives the log's frames after that sequence first, then
+   what arrives live, in one order and once. A replay is not a reading of
+   the log: a channel that speaks the family takes what the machine sent
+   down to every consumer, which is its events, and nothing else. The
+   frames it is not given it is not given for a reason of the routing
+   table's own — an up frame is a consumer's and goes to the machine, never
+   down, and carries an id the session minted for the machine, which is the
+   prefix a consumer's own peer mints under and so ends its connection; a
+   response of the machine's answers a request some other consumer sent,
+   under that consumer's id; a request of the machine's stands with the
+   holder of control, and a consumer given control is handed every open one
+   again where control moves; a frame the log cut is no message for a
+   connection that speaks the family. The log keeps recording all of it:
+   only the channel's view is narrowed. A log bound with frames already in
+   it is bound at its head, so what it held before the session was bound is
+   among them.
 6. **A frame carrying members the relay does not know arrives with them.**
    The relay reads a frame as a JSON object and rewrites its `id` alone;
    every other member — a trace context, a member of a later profile —
@@ -139,12 +151,12 @@ kind were each tried for an afternoon.
 | frame | data | who is sent it | when |
 | --- | --- | --- | --- |
 | `session.control` | `{"holder": "<origin>"}`, or `{"holder": null}` where nobody holds it | every attachment | once on attach, before the replay begins, and on every change — given, released, transferred |
-| `session.cursor` | `{"sequence": N}` | the one attachment a frame was just delivered to | straight after each frame it is delivered, replay and live alike, in the same order |
+| `session.cursor` | `{"sequence": N}` | the one attachment a frame was just delivered to, or whose replay just ended | straight after each frame it is delivered, replay and live alike, in the same order; and once alone where a replay ended on frames it passed over |
 
 Four rules hold of both:
 
 - **Neither is logged.** The log holds the family's frames and nothing else,
-  so a replay never gives a stale holder or a cursor of its own: a consumer
+  so a replay never gives a stale holder or a stale cursor: a consumer
   that reattaches is told both afresh, by the relay, where it now stands.
 - **Neither is a family event.** No family declares them, so a generated
   client sees an event it has no listener for and drops it, which is what
@@ -155,12 +167,18 @@ Four rules hold of both:
   and its connection is ended with 1002 and a reason naming the frame —
   which ends every consumer of that session, as any close of the machine's
   connection does. The frame reaches neither the log nor a consumer.
-- **The cursor is the log's sequence, not a count.** A frame the log cut is
-  delivered as nothing and carries no cursor; the cursor after the next
-  frame names that frame's own sequence, so a consumer that counted what
-  arrived would stand one short after every truncation. A frame with no
-  place in the log carries none either — the relay's own refusal, an ask
-  handed again as control moves — so a cursor never moves backwards.
+- **The cursor is the log's sequence, not a count.** A frame the replay
+  passed over is delivered as nothing and carries no cursor of its own; the
+  cursor after the next frame delivered names that frame's own sequence, so
+  a consumer that counted what arrived would stand one short after every
+  frame it was not given. A frame with no place in the log carries none
+  either — the relay's own refusal, an ask handed again as control moves —
+  so a cursor never moves backwards. Where the frames a replay passed over
+  are its last, the replay ends by saying where it reached: one cursor of
+  the relay's own, naming the last sequence it read, with no frame before
+  it — the one cursor a consumer is sent alone — so that a consumer
+  resuming from the cursor it was told reads the log on from there rather
+  than over the frames it was never given.
 
 Both are readable off the attachment, set from what the relay sent, so a
 consumer reading the state and one reading the wire agree: Go
@@ -189,7 +207,7 @@ declare a method or an event under (#50 and #45's other half, which waits on
 ```go
 type Frame struct {
     Sequence  int64
-    Direction Direction   // Up: from the machine; Down: from a consumer
+    Direction Direction   // Up: towards the machine, what a consumer sent; Down: from it
     Origin    string      // what the consumer was attached as, or the machine's
     At        time.Time
     Message   json.RawMessage
