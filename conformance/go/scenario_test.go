@@ -71,9 +71,12 @@ func TestScenariosLoad(t *testing.T) {
 func allowedAcross(layer, op string) bool {
 	family, _, _ := strings.Cut(op, ".")
 	beneath := map[string][]string{
-		"seam":      {"conn"},
-		"peer":      {"conn", "peer", "call"},
-		"tunnel":    {"conn", "peer", "call", "tunnel"},
+		"seam":   {"conn"},
+		"peer":   {"conn", "peer", "call"},
+		"tunnel": {"conn", "peer", "call", "tunnel"},
+		// The live layer runs over a peer and not over a tunnel: a binding is
+		// an ordinary request of the profile, not a channel of its own.
+		"live":      {"conn", "peer", "call", "live"},
 		"generated": {"gen", "client", "server"},
 	}
 	if family == "pair" {

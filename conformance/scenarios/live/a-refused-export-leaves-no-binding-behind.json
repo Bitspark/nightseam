@@ -1,0 +1,167 @@
+{
+  "name": "a refused export and a refused import leave no binding behind",
+  "layer": "live",
+  "description": "The bounds are the cleanup proof: what a scope refuses it does not half-register, and the counts after a refusal are the counts before it.",
+  "needs": [
+    "live",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.over",
+      "args": {
+        "on": "$pa",
+        "options": {
+          "max_exports": 1
+        }
+      },
+      "bind": "la"
+    },
+    {
+      "on": "b",
+      "op": "live.over",
+      "args": {
+        "on": "$pb",
+        "options": {
+          "max_imports": 1
+        }
+      },
+      "bind": "lb"
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report",
+        "behavior": {
+          "kind": "echo"
+        }
+      },
+      "bind": {
+        "reference": "r"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report",
+        "behavior": {
+          "kind": "echo"
+        }
+      },
+      "expect_error": {
+        "code": "too_many_exports"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.counts",
+      "args": {
+        "on": "$la"
+      },
+      "expect": {
+        "exports": 1,
+        "imports": 0
+      },
+      "note": "the refused export registered nothing"
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": ""
+      },
+      "expect_error": {
+        "code": "contract_invalid"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.counts",
+      "args": {
+        "on": "$la"
+      },
+      "expect": {
+        "exports": 1,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": "$r",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "handle": "at"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": {
+          "binding": "deadbeefdeadbeef.9",
+          "contract": "probe/Report"
+        },
+        "contract": "probe/Report"
+      },
+      "expect_error": {
+        "code": "too_many_imports"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 1
+      },
+      "note": "and the refused import attached nothing"
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$at",
+        "request": 1
+      },
+      "bind": {
+        "handle": "c"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c"
+      },
+      "expect": {
+        "result": 1
+      },
+      "note": "what was admitted still works"
+    }
+  ]
+}

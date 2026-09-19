@@ -1,10 +1,20 @@
 # What a consumer composes
 
-A reference to something a peer can call is not a thing Nightseam has. It is
-a thing a consumer builds, out of three that Nightseam does have: a peer that
-invokes in both directions, a tunnel that multiplexes channels over it, and
-`duplex.Handle` — the one reference form the language has, carried by every
-`protocol.json` tier, `{"channel": N}` on the wire.
+A reference to something a peer can call is a thing a consumer *can* build, out
+of three that Nightseam has anyway: a peer that invokes in both directions, a
+tunnel that multiplexes channels over it, and `duplex.Handle` — the one
+reference form the language has, carried by every `protocol.json` tier,
+`{"channel": N}` on the wire.
+
+Nightseam now also has [the live layer](live.md), which is the thing itself
+rather than the materials: a scope over a peer, bindings exported from it, and
+references that name them. **This page is not how to use that** — it is the
+composition attempt [admitting a concept](../admission.md#3-the-composition-attempt)
+requires, kept because what it found is why the layer has the shape it has.
+Three of its four findings below are answered by the layer, and the fourth is
+somebody else's bug. A consumer writing new code reaches for
+[`live/go` and `@nightseam/live`](live.md); a reader asking *why* that exists,
+and what it costs to do without it, reads on.
 
 This page is that construction, and it is held by running code rather than
 described. `cmd/nightseam/testdata/compositions/` is a checkout of six
@@ -139,7 +149,10 @@ tier cannot name one, and the existing tier rule is what stops it.
 
 Four findings, each reproduced by code in this checkout and handed to the
 issue that owns it. None of them is a missing primitive; three are repairs to
-things that already exist, and one is a property of the reference form.
+things that already exist, and one is a property of the reference form. The
+first three are what [the live layer](live.md) was built to answer, and each
+says below how it answers them — the composition was right that nothing was
+missing from the wire, and right about what was missing above it.
 
 **1. Generated `Open` attaches once per call.** `Open` is `Channel(id)` then
 `Attach`, and `Attach` makes a *new* peer — so importing one reference twice
@@ -148,6 +161,9 @@ through it leaves two peers reading one channel, taking each other's replies.
 opposite. `TestGeneratedOpenAttachesOncePerCall` holds the current behavior so
 that the day it changes, this page is what gets rewritten. Until then an
 application must keep the table itself, which is what `scope.imported` is.
+**Answered:** `Scope.Import` keeps that table, and the same binding imported
+twice gives the same function back — held by `live/aliases` in the conformance
+suite and by the shared case of the same name in both languages.
 
 **2. Generated `Open` checks no contract.** It never compares the channel's
 family to the family it is about to speak, although `Channel.Family` and
@@ -165,7 +181,15 @@ connection's own binding. Nothing crosses, because the table is per connection;
 but nothing refuses either, and an application that kept one table for every
 connection would cross. `TestWrongContractOwnAndForeignReferences` runs exactly
 that replay and asserts where it lands. Whatever a live reference's wire form
-becomes, freshness has to be *in* it or the check cannot exist.
+becomes, freshness has to be *in* it or the check cannot exist. **Answered,
+twice over:** a live binding id carries its scope's random nonce, so an id of an
+ended connection is in no later scope's table and is refused
+`reference_unknown`; and a `Reference` has no public constructor, so there is no
+detached token to replay in the first place — it comes from an export or from a
+scope's own decode and is refused `reference_foreign` anywhere else. That is the
+operator's verdict on
+[#202](https://github.com/Bitspark/nightseam/issues/202), and this finding is
+the evidence it was decided on.
 
 **4. A carried built-in as a union variant does not render.**
 `{"variants": {"sink": "duplex.Handle"}}` validates and then emits, in both

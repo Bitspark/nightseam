@@ -59,11 +59,11 @@ member](../decisions/meta-is-a-header-not-a-member.md) the one header's.
 
 A layer that speaks on the wire does it as the tunnel does:
 
-- **A reserved prefix**, one per layer: `channel.` for the tunnel. The
-  namespace is the layer's, so that it is never contested, and a layer that
-  takes one is what makes the generator refuse a consumer's operation under
-  it. Each target also holds its own identifiers under
-  `cmd/nightseam/testdata/reserved`.
+- **A reserved prefix**, one per layer: `channel.` for the tunnel, `live.`
+  for the live layer. The namespace is the layer's, so that it is never
+  contested, and a layer that takes one is what makes the generator refuse a
+  consumer's operation under it. Each target also holds its own identifiers
+  under `cmd/nightseam/testdata/reserved`.
 - **Ordinary frames of the profile.** A layer's request is a request, its
   event an event, minted, correlated and cancelled by the peer like any
   other. The layer registers its handlers on the peer it runs over — the

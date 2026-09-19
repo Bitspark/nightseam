@@ -1,0 +1,141 @@
+{
+  "name": "forwarding gives the destination a binding of its own over the origin",
+  "layer": "live",
+  "description": "A binding forwarded into another scope has a lifetime of its own: releasing it leaves the origin exactly as it was, which is what taking no ownership means.",
+  "needs": [
+    "live",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.over",
+      "args": {
+        "on": "$pa"
+      },
+      "bind": "la"
+    },
+    {
+      "on": "b",
+      "op": "live.over",
+      "args": {
+        "on": "$pb"
+      },
+      "bind": "lb"
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report",
+        "behavior": {
+          "kind": "echo"
+        }
+      },
+      "bind": {
+        "reference": "origin"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": "$origin",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "handle": "at_origin"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.forward",
+      "args": {
+        "on": "$lb",
+        "contract": "probe/Report",
+        "attachment": "$at_origin"
+      },
+      "bind": {
+        "reference": "forwarded"
+      },
+      "note": "a binding of the destination's own, over the origin this side imported"
+    },
+    {
+      "on": "a",
+      "op": "live.import",
+      "args": {
+        "on": "$la",
+        "reference": "$forwarded",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "handle": "through"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.invoke",
+      "args": {
+        "on": "$through",
+        "request": 3
+      },
+      "bind": {
+        "handle": "c1"
+      }
+    },
+    {
+      "on": "a",
+      "op": "call.await",
+      "args": {
+        "on": "$c1"
+      },
+      "expect": {
+        "result": 3
+      },
+      "note": "through the forwarded binding into the origin"
+    },
+    {
+      "on": "b",
+      "op": "live.release",
+      "args": {
+        "on": "$lb",
+        "reference": "$forwarded"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$at_origin",
+        "request": 4
+      },
+      "bind": {
+        "handle": "c2"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c2"
+      },
+      "expect": {
+        "result": 4
+      },
+      "note": "the origin is untouched by the forwarded binding ending"
+    }
+  ]
+}

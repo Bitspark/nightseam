@@ -107,7 +107,7 @@ const normalize = (event: ObserverEvent, withTrace: boolean): Record<string, unk
 };
 
 /** A peer under control. */
-class Peer {
+export class Peer {
   readonly events = new Inbox<{ name: string; data: unknown; meta?: Meta }>();
   readonly requests = new Inbox<Lifecycle>();
   readonly peer: DuplexPeer;
@@ -146,8 +146,8 @@ class PeerListener {
 
 const isPeerListener = (object: unknown): object is PeerListener => object instanceof PeerListener;
 
-/** One call in flight. */
-class Call {
+/** One call in flight. A live invocation is one of these too: it is a call like any other. */
+export class Call {
   readonly peer: Peer;
   readonly promise: Promise<unknown>;
   readonly controller: AbortController;
@@ -161,7 +161,7 @@ class Call {
   }
 }
 
-const isCall = (object: unknown): object is Call => object instanceof Call;
+export const isCall = (object: unknown): object is Call => object instanceof Call;
 
 /** How a call ended, as the driver's codes. */
 const callError = (error: DuplexError, peer: Peer): Record<string, unknown> => {

@@ -270,6 +270,7 @@ of things, so that a testee is a peer under control and not a script engine:
 | `{"kind": "panic", "value": "…"}` | panics, throws — whatever the language does when a handler gives up — with that value |
 | `{"kind": "reverse", "method", "params"}` | calls `method` on the remote **from the request's own context**, so the call is a child of the request's trace, with `params` or, absent, its own; answers with what came back, or fails with what came back |
 | `{"kind": "emit", "event", "data", "then": …}` | emits `event` from the request's context, then answers `then` |
+| `{"kind": "through", "attachment"}` | only for a live binding: invokes the imported binding `attachment` names and answers with what came back — which is how a callable that was *returned* reaches a callable that was *supplied* |
 
 Every canned handler records its lifecycle for `peer.await_request`: `started`
 when invoked, `ended` when it answered, with the outcome. An event handler
@@ -325,6 +326,53 @@ credit it was not granted, so the only way to put a frame beyond the window on
 the wire is to write a `channel.frame` event on the peer the tunnel runs over,
 naming the channel by the `id` `tunnel.open` answered with. That is what a peer
 of another making may do, and what the receiving side is held to refusing.
+
+### Live — `live.*`
+
+Callable values across one connection: `live/go`, `@nightseam/live`. A binding
+is one function made addressable from the other side; the layer speaks
+`live.invoke` and `live.release` as ordinary frames of the profile, so a live
+scope is made over a **peer** and needs no tunnel.
+
+| op | arguments | answer |
+|---|---|---|
+| `live.over` | **`on`** peer, `options` (`max_exports`, `max_imports`) | `{"handle"}` |
+| `live.export` | **`on`** scope, **`contract`**, `behavior` | `{"reference"}` — the reference as it travels in a payload |
+| `live.import` | **`on`** scope, **`reference`**, **`contract`** | `{"handle"}` an attachment |
+| `live.invoke` | **`on`** attachment, `request`, `timeout_ms` | `{"handle"}` a call, in flight |
+| `live.release` | **`on`** scope, **`reference`** | `{}` |
+| `live.forward` | **`on`** the destination scope, **`contract`**, **`attachment`** | `{"reference"}` |
+| `live.counts` | **`on`** scope | `{"exports", "imports"}` |
+| `live.await_invocation` | **`on`** scope, `contract`, `within_ms` | `{"contract", "outcome"}` — what an exported binding was asked |
+| `live.close` | **`on`** scope | `{}` |
+
+An invocation **is a call**: `live.invoke` answers with a call handle, and
+`call.await` and `call.cancel` act on it as they do on `peer.call`'s. That is
+not a convenience of the driver — it is the layer's contract, and it is how a
+scenario holds that withdrawing an invocation and releasing a binding are two
+different things.
+
+A `reference` is the value a `live.export` answered with, passed along by the
+scenario; a testee decodes it through the scope it is importing into, since a
+reference of no scope is not a reference. A scenario may also write one by hand
+to name a binding nobody exported, which is the stale token.
+
+`behavior` is the same canned set a peer's handler takes, plus `through`. A
+binding that `wait`s never settles of its own accord, and one that `hold`s waits
+for the remote to emit its `until` event however it is cancelled.
+
+`live.counts` is the suite's leak assertion: every `live.*` scenario ends by
+naming what each scope still holds, so a retained binding fails a scenario whose
+payloads all matched. A refusal that left something half-registered is visible
+there and nowhere else.
+
+The refusals are the layer's own codes, answered under *any other* above:
+`contract_invalid`, `contract_mismatch`, `reference_unknown`,
+`reference_foreign`, `reference_released`, `scope_closed`, `too_many_exports`,
+`too_many_imports`. A scope observes through the peer it runs over; its events
+reach `peer.observed` there: `live.exported` (`contract`, `binding`),
+`live.imported`, `live.released` and `live.refused` (`contract`, `code`,
+`reason`).
 
 ### Generated code — `gen.*`, `client.*`
 

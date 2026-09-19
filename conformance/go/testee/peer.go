@@ -579,6 +579,9 @@ type behavior struct {
 	Event   string          `json:"event"`
 	Then    json.RawMessage `json:"then"`
 	Until   string          `json:"until"`
+	// Attachment is the imported binding a live "through" binding calls, which
+	// is how a callable that was returned reaches a callable that was supplied.
+	Attachment string `json:"attachment"`
 }
 
 func parseBehavior(raw json.RawMessage) (behavior, error) {

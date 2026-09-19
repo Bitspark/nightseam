@@ -49,6 +49,7 @@ pages and [the driver protocol](../conformance/DRIVER.md), and nothing else.
 | --- | --- |
 | [profile.md](wire/profile.md) | `nightseam.duplex/1`: the seam beneath, the subprotocol, the envelope, ids and correlation, requests and their errors, events, limits and backpressure, trace context, request metadata, close codes, a frame on the wire |
 | [tunnel.md](wire/tunnel.md) | channels over one peer: the four operations, ids by parity, credit, limits and closes |
+| [live.md](wire/live.md) | callable values across one connection: a binding, a scope and a reference, `live.invoke` and `live.release`, what is refused, and why a binding is not a channel |
 | [vocabulary.md](wire/vocabulary.md) | how a layer speaks on the wire: the test that decides whether something new is the profile's, a layer's own vocabulary or a header, and the rules a layer's vocabulary follows |
 
 ## What a consumer calls — `runtime/`
@@ -60,6 +61,7 @@ fact once, with both spellings.
 | --- | --- |
 | [peer.md](runtime/peer.md) | the peer: the seam beneath, making one, the order it starts in, options and limits, the subprotocol surface, the server's hooks, errors, request metadata, the propagator, the validator |
 | [tunnel.md](runtime/tunnel.md) | the tunnel: making one and when, the surface, options, credit in each language |
+| [live.md](runtime/live.md) | the live layer: making a scope and when, the surface, a reference that is minted and never constructed, the rules a consumer relies on, bounds |
 | [observer.md](runtime/observer.md) | the observer across the layers: the rule, order, taking one, the console and `slog` adapters, the OpenTelemetry adapter, every event in both languages, a layer of your own |
 | [compositions.md](runtime/compositions.md) | what a consumer composes out of them: a callback supplied and an interface returned, the rules that construction keeps and who keeps them, the three cancellations, interface, stream, cell and topic side by side, forwarding, and where the basis stops short |
 

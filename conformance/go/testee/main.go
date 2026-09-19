@@ -160,7 +160,7 @@ func (t *testee) dispatch(r request) (any, error) {
 		return map[string]any{
 			"driver":   driverVersion,
 			"language": "go",
-			"layers":   []string{"seam", "peer", "tunnel"},
+			"layers":   []string{"seam", "peer", "tunnel", "live"},
 			"features": []string{"listen", "pipe", "observer", "propagator", "lazy"},
 		}, nil
 	case "reset":
