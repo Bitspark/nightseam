@@ -10,6 +10,7 @@ import (
 // Tag is this family, as a type: what every record and enum of the package returns from Of, and what an entry point of a package generic in a family holds its type arguments to.
 type Tag struct{}
 
+// Envelope: One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else.
 type Envelope struct {
 	Version     int64                               `json:"version"`
 	Kind        string                              `json:"kind"`
@@ -50,6 +51,7 @@ func (v *Envelope) UnmarshalJSON(data []byte) error {
 }
 func (Envelope) Of() Tag { return Tag{} }
 
+// Handle: A reference to a channel on the connection that carries the message holding it.
 type Handle struct {
 	Channel int64 `json:"channel"`
 }
