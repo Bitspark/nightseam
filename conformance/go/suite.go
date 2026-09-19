@@ -6,9 +6,28 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 )
+
+var (
+	matrixOnce     sync.Once
+	matrix         *Matrix
+	matrixProfiles *Profiles
+	matrixRoot     string
+)
+
+// WriteMatrix writes the matrix of everything the run held, as
+// conformance/matrix.json, and says it on stderr; nothing, when no suite
+// was opened. TestMain calls it once the tests are done.
+func WriteMatrix() error {
+	if matrix == nil {
+		return nil
+	}
+	fmt.Fprintf(os.Stderr, "the matrix of this run:\n%s", matrix)
+	return matrix.Write(matrixProfiles, filepath.Join(matrixRoot, "matrix.json"))
+}
 
 // Suite is one run of the scenarios: the recipes that take part, built
 // once, and the places their placeholders stand for.
@@ -51,20 +70,30 @@ func Open(t *testing.T) *Suite {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := profiles.Cover(scenarios); err != nil {
+		t.Fatal(err)
+	}
 	placed := map[string]string{}
 	for _, sc := range scenarios {
 		profile, err := profiles.Place(sc)
 		if err != nil {
 			t.Fatal(err)
 		}
-		placed[sc.Layer+"/"+sc.Name] = profile
+		placed[sc.Key()] = profile
 	}
 	out := filepath.Join(root, ".out")
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	s := &Suite{Root: root, Checkout: filepath.Dir(root), Recipes: recipes, Scenarios: scenarios, Profiles: profiles, Placed: placed, Matrix: NewMatrix(profiles), places: Places{Checkout: filepath.Dir(root), Out: out}, rendered: map[string]string{}}
-	t.Cleanup(func() { t.Logf("the matrix of this run:\n%s", s.Matrix) })
+	// One matrix for the whole run, whichever tests open a suite: TestMain
+	// writes it once they are done.
+	matrixOnce.Do(func() { matrix = NewMatrix(profiles); matrixProfiles = profiles; matrixRoot = root })
+	s := &Suite{Root: root, Checkout: filepath.Dir(root), Recipes: recipes, Scenarios: scenarios, Profiles: profiles, Placed: placed, Matrix: matrix, places: Places{Checkout: filepath.Dir(root), Out: out}, rendered: map[string]string{}}
+	t.Cleanup(func() {
+		if blocking := s.Matrix.Blocking(s.Profiles); len(blocking) > 0 {
+			t.Errorf("the tier table stops a release on: %v", blocking)
+		}
+	})
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	for _, language := range s.Languages() {
@@ -126,6 +155,15 @@ func (s *Suite) run(t *testing.T, a, b string, generated bool, keep func(Scenari
 		if err != nil {
 			t.Fatalf("start the %s testee: %v", language, err)
 		}
+		// A testee of a tier is held to what the tier requires: a layer it
+		// lacks fails the run rather than skipping its scenarios. The
+		// generated testee carries the generated layer alone.
+		if !generated {
+			if err := s.Profiles.HoldToTier(language, testee.Hello); err != nil {
+				testee.Kill()
+				t.Fatal(err)
+			}
+		}
 		testees[language] = testee
 		return testee
 	}
@@ -163,7 +201,7 @@ func (s *Suite) one(t *testing.T, ctx context.Context, sc Scenario, a, b string,
 			if a == "go" && b != "go" {
 				held = b
 			}
-			s.Matrix.Record(held, s.Placed[sc.Layer+"/"+sc.Name], outcome)
+			s.Matrix.Record(held, s.Placed[sc.Key()], outcome)
 			if outcome.Skipped != "" {
 				t.Skip(outcome.Skipped)
 			}

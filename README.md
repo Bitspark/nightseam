@@ -71,10 +71,12 @@ the declaration — or the second language's copy of any of it.
 
 Pre-1.0. The declaration language, the generated surface and the profile
 move with minor versions; `CHANGELOG.md` says what each version holds. What
-is already held fixed is the agreement between the two languages: both
-runtimes' wire validators are held to one conformance table, and the Go and
-TypeScript components to one suite over a real socket, so a peer of either
-language is held to its twin before either is released.
+is already held fixed is the agreement between the languages: the
+conformance suite under [conformance/](conformance/) holds every language's
+runtime, tunnel, session and generated packages to Go's over a real socket,
+scenario by scenario, so a peer of any language is held to the reference
+before it is released; `conformance/matrix.json` is the last run's standing
+of each language in each profile.
 
 ## Install
 
@@ -130,6 +132,7 @@ go tool nightseam version             # which version of the tool is running
 | [docs/session.md](docs/session.md) | a session over a tunnel's channels: the relay's rules, the log, what a consumer builds on it |
 | [docs/observability.md](docs/observability.md) | one observer across the three layers: the rule, every event in both languages, and how a layer of your own joins it |
 | [docs/tiers.md](docs/tiers.md) | languages, profiles and tiers: what a language of each tier promises, and how the conformance suite holds it |
+| [conformance/DRIVER.md](conformance/DRIVER.md) | the conformance suite: the protocol a language's testee speaks to the runner, every op, and how a language joins |
 
 ## Working on Nightseam
 

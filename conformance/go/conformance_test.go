@@ -1,9 +1,22 @@
 package conformance
 
 import (
+	"fmt"
 	"os"
 	"testing"
 )
+
+// TestMain writes the matrix once every test that opened a suite is done.
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if err := WriteMatrix(); err != nil {
+		fmt.Fprintln(os.Stderr, "write matrix.json:", err)
+		if code == 0 {
+			code = 1
+		}
+	}
+	os.Exit(code)
+}
 
 // TestSelf holds the Go testee to every scenario on both sides of the
 // wire: the reference passes its own suite before anyone is held to it.

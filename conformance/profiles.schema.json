@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nightseam:conformance:profiles:1",
+  "title": "What each language promises and how the suite holds it; docs/tiers.md says what this means.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profiles", "tiers", "languages"],
+  "properties": {
+    "$comment": {"type": "string"},
+    "profiles": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^[a-z][a-z0-9-]*$"},
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false, "required": ["promise"],
+        "properties": {
+          "layers": {"type": "array", "uniqueItems": true, "items": {"enum": ["seam", "peer", "tunnel", "session", "generated"]}},
+          "needs": {"type": "array", "uniqueItems": true, "items": {"enum": ["listen", "pipe", "observer", "propagator", "lazy"]}},
+          "promise": {"enum": ["wire", "generated", "complete"]}
+        },
+        "anyOf": [{"required": ["layers"]}, {"required": ["needs"]}],
+        "description": "A set of scenarios: those of its layers, or those needing one of its features."
+      }
+    },
+    "tiers": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[1-9][0-9]*$"},
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false, "required": ["requires", "onFailure"],
+        "properties": {
+          "requires": {"type": "array", "uniqueItems": true, "items": {"type": "string"}, "description": "Profiles a language of this tier holds; each must be declared above."},
+          "lag": {"type": "integer", "minimum": 0},
+          "onFailure": {"enum": ["stop", "provisional", "stop-next"]},
+          "otherwise": {"enum": ["stop", "provisional", "stop-next"]}
+        }
+      }
+    },
+    "languages": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[a-z][a-z0-9]*$"},
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false, "required": ["tier"],
+        "properties": {
+          "tier": {"type": "integer", "minimum": 1},
+          "reference": {"type": "boolean"}
+        }
+      },
+      "description": "Every language with a testee under conformance/<lang>/testee.json and a tier assigned; one named here without a testee is refused."
+    },
+    "planned": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[a-z][a-z0-9]*$"},
+      "additionalProperties": {"type": "integer", "minimum": 1},
+      "description": "Languages not yet in the matrix and the tier each is planned at; informational until a testee exists."
+    }
+  }
+}

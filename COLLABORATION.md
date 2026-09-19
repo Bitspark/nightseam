@@ -16,15 +16,22 @@ consumer's concept to be stated, it belongs in the consumer.
 ## Parity
 
 Every runtime component exists in Go and in TypeScript, and the two are held
-to one suite: the seam to `duplex/go/duplextest` and its twin
-`duplex/ts/src/conformance.ts`, the wire validator to
-`runtime/testdata/validator-cases.json`, the session component to
-`session/go/sessiontest` and its twin `session/ts/src/conformance.ts`, the
-tunnel and the session to a cross-language gate over a real socket. A change
-to one language is not done until its twin has it and the shared suite says
-so. A third language joins by implementing the suite, in its own directory
-under each component — at the tier it can hold: what each tier promises and
-how the suite enforces it is [docs/tiers.md](docs/tiers.md).
+to one suite: [conformance/](conformance/), scenarios as data under
+`conformance/scenarios`, run by one Go runner against a **testee** of each
+language over the protocol of [conformance/DRIVER.md](conformance/DRIVER.md)
+— Go's testee the reference, every language held to it on either side of a
+real socket, and what the generator renders for each language held the
+same way. The tables under `conformance/tables` — the wire validator's
+cases, every envelope a peer accepts or refuses, the naming conventions —
+are what each language's own tests read too. The in-process suites,
+`duplex/go/duplextest`, `session/go/sessiontest` and their TypeScript
+twins, stay as each component's unit suite. A change to one language is not
+done until its twin has it and the conformance suite says so; a scenario
+is written once, for every language. A third language joins by writing a
+testee, `conformance/<lang>/testee.json` and the program it names — at the
+tier it can hold: what each tier promises and how the suite enforces it is
+[docs/tiers.md](docs/tiers.md), and the last run's matrix is
+`conformance/matrix.json`.
 
 ## The two tiers of tests
 
@@ -37,8 +44,8 @@ the tool refuses with what `validate` says. It runs on Linux and Windows in
 CI, since the fixtures are byte comparisons.
 
 `go test ./...` is the full tier: the fixtures compile and run the generated
-packages in both languages, and the gates hold the Go and TypeScript
-components to each other. They need Node 22.12 or later and the TypeScript
+packages in both languages, and the conformance suite holds every language's
+testee to Go's — `go test ./conformance/go` alone runs it. They need Node 22.12 or later and the TypeScript
 compiler `pnpm install` brings — and **fail rather than skip** when one is
 missing, since a skip nobody reads is a gate nobody passes.
 

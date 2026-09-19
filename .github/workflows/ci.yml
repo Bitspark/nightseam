@@ -56,6 +56,15 @@ jobs:
       - run: pnpm -r build
       - run: pnpm -r test
       - run: go test ./...
+      # The conformance suite is in go test ./... above; it is run again by
+      # name so that a failure of the matrix reads as one, and its
+      # matrix.json is kept as the run's artifact.
+      - run: go test ./conformance/go -run 'TestSelf|TestStar|TestGenerated' -count=1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conformance-matrix
+          path: conformance/matrix.json
       - run: go vet ./...
         working-directory: otel/go
       - run: go test ./...

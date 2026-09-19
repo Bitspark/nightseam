@@ -27,12 +27,12 @@ func TestScenariosLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := profiles.Cover(scenarios); err != nil {
+		t.Error(err)
+	}
 	byLayer := map[string]int{}
 	for _, s := range scenarios {
 		byLayer[s.Layer]++
-		if _, err := profiles.Place(s); err != nil {
-			t.Error(err)
-		}
 		for i, step := range s.Steps {
 			if !strings.HasPrefix(step.Op, s.Layer+".") && !allowedAcross(s.Layer, step.Op) {
 				t.Errorf("%s step %d: %s is not an op of layer %s or one beneath it", s.Name, i, step.Op, s.Layer)

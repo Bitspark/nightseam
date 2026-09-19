@@ -156,6 +156,12 @@ func (s Scenario) Mirrored() Scenario {
 	return m
 }
 
+// Key names the scenario as the profile placement and the matrix know it,
+// the same whether or not its sides are exchanged.
+func (s Scenario) Key() string {
+	return s.Layer + "/" + strings.TrimSuffix(s.Name, " (mirrored)")
+}
+
 func layerRank(layer string) int {
 	for i, known := range layers {
 		if known == layer {
@@ -166,6 +172,10 @@ func layerRank(layer string) int {
 }
 
 func loadSchema(file string) (*jsonschema.Schema, error) {
+	return loadSchemaFile(file, "scenario.schema.json")
+}
+
+func loadSchemaFile(file, name string) (*jsonschema.Schema, error) {
 	data, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
@@ -175,10 +185,10 @@ func loadSchema(file string) (*jsonschema.Schema, error) {
 		return nil, err
 	}
 	compiler := jsonschema.NewCompiler()
-	if err := compiler.AddResource("scenario.schema.json", document); err != nil {
+	if err := compiler.AddResource(name, document); err != nil {
 		return nil, err
 	}
-	return compiler.Compile("scenario.schema.json")
+	return compiler.Compile(name)
 }
 
 func parse(root, file string, data []byte, schema *jsonschema.Schema) ([]Scenario, error) {

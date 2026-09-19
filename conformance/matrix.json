@@ -1,0 +1,73 @@
+{
+  "profiles": [
+    "core",
+    "generator",
+    "observability",
+    "session",
+    "tunnel"
+  ],
+  "languages": {
+    "go": {
+      "tier": 1,
+      "verdict": "ok",
+      "cells": {
+        "core": {
+          "passed": 71,
+          "skipped": 0,
+          "failed": 0
+        },
+        "generator": {
+          "passed": 5,
+          "skipped": 0,
+          "failed": 0
+        },
+        "observability": {
+          "passed": 8,
+          "skipped": 0,
+          "failed": 0
+        },
+        "session": {
+          "passed": 4,
+          "skipped": 0,
+          "failed": 0
+        },
+        "tunnel": {
+          "passed": 4,
+          "skipped": 0,
+          "failed": 0
+        }
+      }
+    },
+    "typescript": {
+      "tier": 1,
+      "verdict": "ok",
+      "cells": {
+        "core": {
+          "passed": 142,
+          "skipped": 0,
+          "failed": 0
+        },
+        "generator": {
+          "passed": 6,
+          "skipped": 4,
+          "failed": 0
+        },
+        "observability": {
+          "passed": 16,
+          "skipped": 0,
+          "failed": 0
+        },
+        "session": {
+          "passed": 8,
+          "skipped": 0,
+          "failed": 0
+        },
+        "tunnel": {
+          "passed": 8,
+          "skipped": 0,
+          "failed": 0
+        }
+      }
+    }
+  }
+}
