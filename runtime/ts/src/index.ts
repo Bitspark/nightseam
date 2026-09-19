@@ -1,6 +1,6 @@
 export { DuplexPeer, DuplexError, DUPLEX_PROFILE, DUPLEX_DEFAULTS } from './peer.ts';
 export type {
-  PeerOptions, CallOptions, EmitOptions, RequestContext, RequestHandler, Dispatcher,
+  PeerOptions, CallOptions, EmitOptions, RequestContext, EventContext, Meta, RequestHandler, Dispatcher,
   EventListener, PeerStatus,
 } from './peer.ts';
 export { NO_OBSERVER } from './observer.ts';

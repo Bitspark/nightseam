@@ -264,7 +264,9 @@ func TestExpressions(t *testing.T) {
 // TestInjectedTypes: the types every family with a protocol carries are the
 // two it may not declare, the envelope spelling one nightseam.duplex/1
 // message field for field — the trace context it carries among them,
-// optional strings like any other — and the handle a channel reference.
+// optional strings like any other, and the meta a request or an event
+// carries, an optional flat map of strings — and the handle a channel
+// reference.
 func TestInjectedTypes(t *testing.T) {
 	injected := Injected()
 	if len(injected) != 2 || !IsInjected(EnvelopeType) || !IsInjected(HandleType) || IsInjected("Payload") {
@@ -274,7 +276,7 @@ func TestInjectedTypes(t *testing.T) {
 	for _, field := range injected[EnvelopeType].Fields {
 		names = append(names, field.Name)
 	}
-	want := []string{"version", "kind", "id", "method", "params", "result", "error", "event", "data", "traceparent", "tracestate"}
+	want := []string{"version", "kind", "id", "method", "params", "result", "error", "event", "data", "traceparent", "tracestate", "meta"}
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("the envelope's fields are %v", names)
 	}
@@ -283,6 +285,10 @@ func TestInjectedTypes(t *testing.T) {
 		if field.Required || !Equal(field.Type, Primitive("string")) {
 			t.Errorf("%s is %+v, not an optional string", name, field)
 		}
+	}
+	meta := injected[EnvelopeType].Fields[slices.Index(names, "meta")]
+	if meta.Required || !Equal(meta.Type, Map{Elem: Primitive("string")}) {
+		t.Errorf("meta is %+v, not an optional map of strings", meta)
 	}
 	if fields := injected[HandleType].Fields; len(fields) != 1 || fields[0].Name != "channel" {
 		t.Fatalf("the handle's fields are %v", fields)

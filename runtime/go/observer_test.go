@@ -125,7 +125,9 @@ func found[T ws.ObserverEvent](observed []ws.ObserverEvent) (T, bool) {
 
 // A params object must not reach an observer by any path: not through a call,
 // not through what answers it, not through an error's data, not through an
-// event's, and not through the value a handler panicked with.
+// event's, not through the value a handler panicked with, and not through the
+// meta a frame carries, which is a consumer's carriage and may hold a
+// credential.
 func TestAnObserverIsToldNoPayload(t *testing.T) {
 	payload := map[string]string{"secret": sentinel}
 	delivered := make(chan struct{})
@@ -143,18 +145,19 @@ func TestAnObserverIsToldNoPayload(t *testing.T) {
 			"tick": func(context.Context, *ws.Peer, json.RawMessage) { close(delivered) },
 		},
 	}, ws.Options{Observer: client})
+	carrying := ws.WithMeta(context.Background(), ws.Meta{"secret": sentinel})
 	var result map[string]string
-	if err := peer.Call(context.Background(), "echo", payload, &result); err != nil || result["secret"] != sentinel {
+	if err := peer.Call(carrying, "echo", payload, &result); err != nil || result["secret"] != sentinel {
 		t.Fatalf("echo = %v, error=%v", result, err)
 	}
 	var denied *ws.PublicError
-	if err := peer.Call(context.Background(), "deny", payload, nil); !errors.As(err, &denied) || !strings.Contains(string(denied.Data), sentinel) {
+	if err := peer.Call(carrying, "deny", payload, nil); !errors.As(err, &denied) || !strings.Contains(string(denied.Data), sentinel) {
 		t.Fatalf("deny = %v", err)
 	}
-	if err := peer.Call(context.Background(), "boom", payload, nil); err == nil {
+	if err := peer.Call(carrying, "boom", payload, nil); err == nil {
 		t.Fatal("a panicking handler answered without an error")
 	}
-	if err := peer.Emit(context.Background(), "tick", payload); err != nil {
+	if err := peer.Emit(carrying, "tick", payload); err != nil {
 		t.Fatal(err)
 	}
 	receive(t, delivered)

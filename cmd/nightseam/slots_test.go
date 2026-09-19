@@ -44,6 +44,10 @@ func TestDiagramCommutesInGo(t *testing.T) {
 		 if err:=carrier.ValidateRaw("Frame",[]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"extra\":true}}"));err==nil{t.Fatal("an unknown envelope field passed")}
 		 if err:=carrier.ValidateRaw("Frame",[]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{},\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\",\"tracestate\":\"vendor=1\"}}"));err!=nil{t.Fatalf("an envelope carrying the trace context did not pass the slot: %v",err)}
 		 if err:=carrier.ValidateRaw("Frame",[]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{},\"traceparent\":1}}"));err==nil{t.Fatal("a non-string traceparent passed the slot")}
+		 if err:=carrier.ValidateRaw("Frame",[]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"read\",\"params\":{},\"meta\":{\"tenant\":\"acme\"}}}"));err!=nil{t.Fatalf("an envelope carrying meta did not pass the slot: %v",err)}
+		 if err:=carrier.ValidateRaw("Frame",[]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{},\"meta\":{}}}"));err!=nil{t.Fatalf("an empty carriage did not pass the slot: %v",err)}
+		 if err:=carrier.ValidateRaw("Frame",[]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{},\"meta\":{\"attempt\":2}}}"));err==nil{t.Fatal("a non-string meta value passed the slot")}
+		 if err:=carrier.ValidateRaw("Frame",[]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{},\"meta\":\"acme\"}}"));err==nil{t.Fatal("a meta that is no object passed the slot")}
 		 if err:=carrier.ValidateExpressionRaw("probe.Nope",[]byte("{}"));err==nil{t.Fatal("an unknown imported type passed")}
 		 if err:=carrier.ValidateExpressionRaw("nobody.Envelope",[]byte("{}"));err==nil{t.Fatal("an unknown family passed")}
 		}`))
@@ -238,6 +242,8 @@ func TestInstantiationValidatesThroughTheFamily(t *testing.T) {
  if err := json.Unmarshal([]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{}}}"), &frame); err != nil { t.Fatal(err) }
  if err := json.Unmarshal([]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{},\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\",\"tracestate\":\"vendor=1\"}}"), &frame); err != nil { t.Fatalf("an envelope carrying the trace context did not pass probe's codec: %v", err) }
  if err := json.Unmarshal([]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{},\"traceparent\":1}}"), &frame); err == nil { t.Fatal("a non-string traceparent passed probe's codec") }
+ if err := json.Unmarshal([]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"read\",\"params\":{},\"meta\":{\"tenant\":\"acme\"}}}"), &frame); err != nil { t.Fatalf("an envelope carrying meta did not pass probe's codec: %v", err) }
+ if err := json.Unmarshal([]byte("{\"sequence\":1,\"message\":{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{},\"meta\":{\"attempt\":2}}}"), &frame); err == nil { t.Fatal("a non-string meta value passed probe's codec") }
  var opaque right.Frame[runtime.Raw]
  if err := json.Unmarshal([]byte("{\"sequence\":1,\"message\":{\"version\":1}}"), &opaque); err != nil { t.Fatalf("the opaque instantiation did not pass a message through: %v", err) }
  if string(opaque.Message) != "{\"version\":1}" { t.Fatalf("passed through %s", opaque.Message) }
@@ -289,6 +295,10 @@ func TestDiagramCommutesInTypeScript(t *testing.T) {
 		assert.throws(()=>validateWire('Frame',{sequence:1,message:{version:1,kind:'event',extra:true}}));
 		validateWire('Frame',{sequence:1,message:{version:1,kind:'event',event:'changed',data:{},traceparent:'00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',tracestate:'vendor=1'}});
 		assert.throws(()=>validateWire('Frame',{sequence:1,message:{version:1,kind:'event',event:'changed',data:{},traceparent:1}}));
+		validateWire('Frame',{sequence:1,message:{version:1,kind:'request',id:'c:1',method:'read',params:{},meta:{tenant:'acme'}}});
+		validateWire('Frame',{sequence:1,message:{version:1,kind:'event',event:'changed',data:{},meta:{}}});
+		assert.throws(()=>validateWire('Frame',{sequence:1,message:{version:1,kind:'event',event:'changed',data:{},meta:{attempt:2}}}));
+		assert.throws(()=>validateWire('Frame',{sequence:1,message:{version:1,kind:'event',event:'changed',data:{},meta:'acme'}}));
 		assert.throws(()=>validateWire('probe.Nope',{}));assert.throws(()=>validateWire('nobody.Envelope',{}));
 		`))
 			runFixture(t, directory, "node", "--loader", "./loader.mjs", "delegation.mjs")
@@ -302,6 +312,8 @@ func TestDiagramCommutesInTypeScript(t *testing.T) {
 		assert.throws(() => validateWire('Frame', {sequence: 1, message: {version: 1, kind: 'event', extra: true}}, '$', {S: probe}));
 		validateWire('Frame', {sequence: 1, message: {version: 1, kind: 'event', event: 'changed', data: {}, traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01', tracestate: 'vendor=1'}}, '$', {S: probe});
 		assert.throws(() => validateWire('Frame', {sequence: 1, message: {version: 1, kind: 'event', event: 'changed', data: {}, traceparent: 1}}, '$', {S: probe}));
+		validateWire('Frame', {sequence: 1, message: {version: 1, kind: 'request', id: 'c:1', method: 'read', params: {}, meta: {tenant: 'acme'}}}, '$', {S: probe});
+		assert.throws(() => validateWire('Frame', {sequence: 1, message: {version: 1, kind: 'event', event: 'changed', data: {}, meta: {attempt: 2}}}, '$', {S: probe}));
 		assert.throws(() => validateWire('Frame', good), /binding of the parameter S/);
 		assert.throws(() => validateWire('probe.Envelope', {version: 1}));
 		validateWire('probe.Envelope', good.message);

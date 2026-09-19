@@ -68,8 +68,8 @@ One JSON object per frame, with `version` `1` and a `kind`:
 | `event` | `event`, `data` | `data` is present, `null` where there is none |
 | `cancel` | `id` | the request it withdraws |
 
-Every kind may carry `traceparent` and `tracestate` (§ below). No other
-member is allowed; a member of another kind, a duplicate member, an unknown
+Every kind may carry `traceparent` and `tracestate`, and a `request` and an
+`event` may carry `meta` (§§ below). No other member is allowed; a member of another kind, a duplicate member, an unknown
 member or trailing content after the object makes the frame malformed. A
 malformed frame ends the connection — a peer that sends one is not a peer
 to keep talking to — with 4011.
@@ -161,6 +161,40 @@ The default propagator mints a random 16-byte trace id and 8-byte span id
 and correlates with no tracing library installed; an adapter for one
 replaces it (`Options.Propagator` in Go, `PeerOptions.propagator` in
 TypeScript) and the runtime imports none.
+
+## Request metadata
+
+A `request` and an `event` may carry `meta`, a flat object whose every value
+is a string: what is about the call rather than the call — a tenant, an
+idempotency key, a credential that is per request — carried outside the
+family's declared types, so that a payload a consumer signs does not sign its
+own carriage and a family generic in others can carry one for types it did
+not declare. A `response` carries none, since what a server wants to say
+about an answer is the result's business, and a `cancel` withdraws a call
+rather than making one.
+
+The form is the whole rule, and the profile reads no meaning into a key or a
+value. An empty object is a carriage like any other; `null`, a list, a string,
+a number, and any value that is not a string make the frame malformed and end
+the connection with **4011**, as any malformed frame does. Keys beginning
+`nightseam.` are reserved for what the profile and its components may define
+later — a deadline, a cause — and this version defines none, so a frame
+carrying one is refused rather than read as a consumer's. `meta` counts toward
+the peer's `MaxFrameBytes` and nothing else bounds it.
+
+What carries a frame carries `meta` with it: a relay forwards the member
+verbatim, as it forwards a member it does not know, and an observer is told a
+frame's name, id, size and trace and never a `meta` key or value — the rule
+that no payload reaches an observer covers this carriage too.
+
+A sender says what a frame carries and nothing carries it on by itself:
+`runtime.WithMeta(ctx, map[string]string)` in Go and `{ meta }` on a call or an
+emit in TypeScript say what the next frame takes, and `runtime.MetaFrom(ctx)`
+and a handler's `context.meta` are what arrived. A handler's own calls carry
+none of it unless the handler says so — `WithMeta(ctx, MetaFrom(ctx))`, or
+`{ meta: context.meta }` — because a trace is the peer's to propagate and a
+credential is the consumer's to pass on deliberately. A reserved key given to
+either is dropped rather than sent.
 
 ## What the profile does not do
 

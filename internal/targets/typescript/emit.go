@@ -272,7 +272,7 @@ func emitClient(f *file) {
 		binding = strings.Join(bind, ", ") + ", "
 		pass = strings.Join(give, ", ") + ", "
 	}
-	f.linef("import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type RequestContext, type FrameConnection } from %s;", quote(f.config.Runtime))
+	f.linef("import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection } from %s;", quote(f.config.Runtime))
 	f.linef("import type { Tunnel } from %s;", quote(f.config.Tunnel))
 	f.linef("import { %s } from './types.ts';", identValidateWire)
 	if fam.Generic {
@@ -366,11 +366,11 @@ func emitClient(f *file) {
 			f.linef("async %s(%s): Promise<%s> { %s%s(%s, params%s); const result = await this.%s.call<%s>(%s, params, options); %s(%s, result%s); return result; }", p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, identValidateWire, requestExpression(m), slots, identPeer, f.spell(m.Result), quote(m.Name), identValidateWire, expression(m.Result), slots)
 		}
 		for _, e := range fam.Client.Events {
-			f.linef("async %s%s(data: %s): Promise<void> { %s(%s, data%s); await this.%s.emit(%s, data); }", identEmit, upperFirst(p.operations[e.Name]), f.spell(e.Type), identValidateWire, expression(e.Type), slots, identPeer, quote(e.Name))
+			f.linef("async %s%s(data: %s, options?: EmitOptions): Promise<void> { %s(%s, data%s); await this.%s.emit(%s, data, options); }", identEmit, upperFirst(p.operations[e.Name]), f.spell(e.Type), identValidateWire, expression(e.Type), slots, identPeer, quote(e.Name))
 		}
 		for _, e := range fam.Server.Events {
 			data := f.spell(e.Type)
-			f.linef("%s%s(handler: (data: %s) => void | Promise<void>): () => void { return this.%s.onEvent(%s, (data) => { try { %s(%s, data%s); } catch(error) { this.%s.close(); throw error; } return handler(data as %s); }); }", identOn, upperFirst(p.operations[e.Name]), data, identPeer, quote(e.Name), identValidateWire, expression(e.Type), slots, identPeer, data)
+			f.linef("%s%s(handler: (data: %s, context: EventContext) => void | Promise<void>): () => void { return this.%s.onEvent(%s, (data, context) => { try { %s(%s, data%s); } catch(error) { this.%s.close(); throw error; } return handler(data as %s, context); }); }", identOn, upperFirst(p.operations[e.Name]), data, identPeer, quote(e.Name), identValidateWire, expression(e.Type), slots, identPeer, data)
 		}
 	})
 }

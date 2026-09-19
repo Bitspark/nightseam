@@ -1,5 +1,5 @@
 {
-  "description": "Every envelope a peer must accept or refuse, as raw text: what the frame is, whether it is valid, and which side it is addressed to — a server (it carries a client's ids, c:N, and answers a server's, s:N), a client, or either. A refused frame ends the connection; the harness sends each row over a raw connection to a peer of the named role and holds that the peer ended, or did not.",
+  "description": "Every envelope a peer must accept or refuse, as raw text: what the frame is, whether it is valid, and which side it is addressed to — a server (it carries a client's ids, c:N, and answers a server's, s:N), a client, or either. The meta rows hold the carriage a request and an event may take: an object of strings, empty or not, refused on a response and a cancel, in any other form, and under the reserved nightseam. prefix. A refused frame ends the connection; the harness sends each row over a raw connection to a peer of the named role and holds that the peer ended, or did not.",
   "rows": [
     {
       "name": "request",
@@ -427,6 +427,111 @@
       "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"notice\",\"data\":null,\"tracestate\":7}",
       "valid": false,
       "why": ""
+    },
+    {
+      "name": "request with meta",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"read\",\"params\":{},\"meta\":{\"tenant\":\"acme\",\"idempotency\":\"k-1\"}}",
+      "valid": true,
+      "why": ""
+    },
+    {
+      "name": "request with meta empty",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"read\",\"params\":{},\"meta\":{}}",
+      "valid": true,
+      "why": "a carriage with nothing in it is a carriage"
+    },
+    {
+      "name": "event with meta",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"updated\",\"data\":1,\"meta\":{\"cause\":\"nightly\"}}",
+      "valid": true,
+      "why": ""
+    },
+    {
+      "name": "event with meta and trace",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"updated\",\"data\":1,\"meta\":{\"tenant\":\"acme\"},\"traceparent\":\"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\"}",
+      "valid": true,
+      "why": "the members are independent; a frame may carry both"
+    },
+    {
+      "name": "response with meta",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"result\":1,\"meta\":{\"tenant\":\"acme\"}}",
+      "valid": false,
+      "why": "what a server wants to say about an answer is the result's business"
+    },
+    {
+      "name": "cancel with meta",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"cancel\",\"id\":\"c:1\",\"meta\":{\"tenant\":\"acme\"}}",
+      "valid": false,
+      "why": "meta is about a call, and a cancel withdraws one rather than making it"
+    },
+    {
+      "name": "request with meta not an object",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"read\",\"params\":{},\"meta\":\"acme\"}",
+      "valid": false,
+      "why": "meta is an object of strings"
+    },
+    {
+      "name": "request with meta an array",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"read\",\"params\":{},\"meta\":[\"acme\"]}",
+      "valid": false,
+      "why": "meta is an object of strings"
+    },
+    {
+      "name": "request with meta null",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"read\",\"params\":{},\"meta\":null}",
+      "valid": false,
+      "why": "a member spelled null is a member in another form, not an absent one"
+    },
+    {
+      "name": "request with meta a number value",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"read\",\"params\":{},\"meta\":{\"attempt\":2}}",
+      "valid": false,
+      "why": "every value of meta is a string"
+    },
+    {
+      "name": "request with meta a null value",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"read\",\"params\":{},\"meta\":{\"tenant\":null}}",
+      "valid": false,
+      "why": "every value of meta is a string"
+    },
+    {
+      "name": "event with meta a boolean value",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"updated\",\"data\":1,\"meta\":{\"live\":true}}",
+      "valid": false,
+      "why": "every value of meta is a string"
+    },
+    {
+      "name": "event with meta an object value",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"updated\",\"data\":1,\"meta\":{\"who\":{\"id\":\"u1\"}}}",
+      "valid": false,
+      "why": "meta is flat; a value is a string and never a payload"
+    },
+    {
+      "name": "request with a reserved meta key",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"read\",\"params\":{},\"meta\":{\"nightseam.deadline\":\"2026-01-01T00:00:00Z\"}}",
+      "valid": false,
+      "why": "keys under nightseam. are the profile's and this version defines none"
+    },
+    {
+      "name": "event with a reserved meta key",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"updated\",\"data\":1,\"meta\":{\"nightseam.cause\":\"nightly\"}}",
+      "valid": false,
+      "why": "keys under nightseam. are the profile's and this version defines none"
     }
   ]
 }

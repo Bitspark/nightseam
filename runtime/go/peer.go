@@ -121,6 +121,9 @@ type frame struct {
 	// W3C Trace Context, which every kind may carry and none requires.
 	Traceparent string `json:"traceparent,omitempty"`
 	Tracestate  string `json:"tracestate,omitempty"`
+	// What is about a call rather than the call, which a request and an event
+	// may carry. The peer keeps it for what reads it above and emits none.
+	Meta map[string]string `json:"meta,omitempty"`
 }
 
 // queuedEvent keeps an event's trace beside it across the bounded queue: the
@@ -129,6 +132,7 @@ type frame struct {
 type queuedEvent struct {
 	event Event
 	trace Trace
+	meta  Meta
 }
 
 type pendingResult struct {
@@ -320,7 +324,7 @@ func (p *Peer) Call(ctx context.Context, method string, params, result any) erro
 	defer func() { p.mu.Lock(); delete(p.pending, id); p.mu.Unlock() }()
 	started := p.requestStarted(id, method, false, trace)
 	err = p.await(ctx, id, trace, reply, frame{Version: 1, Kind: "request", ID: id, Method: method, Params: data,
-		Traceparent: trace.Parent, Tracestate: trace.State}, result)
+		Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}, result)
 	p.requestEnded(started, id, method, false, trace, err)
 	return err
 }
@@ -383,7 +387,7 @@ func (p *Peer) Emit(ctx context.Context, event string, data any) error {
 	}
 	trace := p.options.Propagator.Inject(ctx)
 	f := frame{Version: 1, Kind: "event", Event: event, Data: encoded,
-		Traceparent: trace.Parent, Tracestate: trace.State}
+		Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}
 	// The application emitted it here; the frame carrying it is sent when the
 	// queue takes it, which is one event of its own and may not happen at all.
 	p.observeEmitted(f)
@@ -505,7 +509,7 @@ func (p *Peer) readLoop() {
 		case "request":
 			p.startRequest(f)
 		case "event":
-			if !p.enqueueEvent(queuedEvent{event: Event{Name: f.Event, Data: f.Data}, trace: Trace{Parent: f.Traceparent, State: f.Tracestate}}) {
+			if !p.enqueueEvent(queuedEvent{event: Event{Name: f.Event, Data: f.Data}, trace: Trace{Parent: f.Traceparent, State: f.Tracestate}, meta: f.Meta}) {
 				return
 			}
 		}
@@ -594,8 +598,11 @@ func (p *Peer) startRequest(f frame) {
 		p.rejectRequest(f.ID, trace, refusal)
 		return
 	}
-	// What the handler sends is a child of the request that ran it.
-	ctx, cancel := context.WithTimeout(p.options.Propagator.Extract(p.ctx, trace), p.options.RequestTimeout)
+	// What the handler sends is a child of the request that ran it, and carries
+	// the request's meta only where the handler says so: a trace is the peer's
+	// to propagate, a carriage the consumer's.
+	handling := withIncomingMeta(p.options.Propagator.Extract(p.ctx, trace), f.Meta)
+	ctx, cancel := context.WithTimeout(handling, p.options.RequestTimeout)
 	p.mu.Lock()
 	p.incoming[f.ID] = cancel
 	p.mu.Unlock()
@@ -690,7 +697,7 @@ func (p *Peer) eventLoop() {
 			return
 		case queued := <-p.events:
 			event := queued.event
-			ctx := p.options.Propagator.Extract(p.ctx, queued.trace)
+			ctx := withIncomingMeta(p.options.Propagator.Extract(p.ctx, queued.trace), queued.meta)
 			p.observeDelivered(queued)
 			p.mu.Lock()
 			handler := p.eventHandlers[event.Name]
@@ -739,20 +746,20 @@ func decodeFrame(data []byte) (frame, error) {
 	allowed := map[string]bool{"version": true, "kind": true, "traceparent": true, "tracestate": true}
 	switch f.Kind {
 	case "request":
-		allowed["id"], allowed["method"], allowed["params"] = true, true, true
+		allowed["id"], allowed["method"], allowed["params"], allowed["meta"] = true, true, true, true
 		valid = f.ID != "" && f.Method != "" && len(f.Params) > 0 && len(f.Result) == 0 && f.Error == nil && f.Event == "" && len(f.Data) == 0
 	case "response":
 		allowed["id"], allowed["result"], allowed["error"] = true, true, true
-		valid = f.ID != "" && f.Method == "" && len(f.Params) == 0 && (len(f.Result) > 0) != (f.Error != nil) && f.Event == "" && len(f.Data) == 0
+		valid = f.ID != "" && f.Method == "" && len(f.Params) == 0 && (len(f.Result) > 0) != (f.Error != nil) && f.Event == "" && len(f.Data) == 0 && f.Meta == nil
 		_, hasResult := fields["result"]
 		_, hasError := fields["error"]
 		valid = valid && hasResult != hasError
 	case "event":
-		allowed["event"], allowed["data"] = true, true
+		allowed["event"], allowed["data"], allowed["meta"] = true, true, true
 		valid = f.ID == "" && f.Method == "" && len(f.Params) == 0 && len(f.Result) == 0 && f.Error == nil && f.Event != "" && len(f.Data) > 0
 	case "cancel":
 		allowed["id"] = true
-		valid = f.ID != "" && f.Method == "" && len(f.Params) == 0 && len(f.Result) == 0 && f.Error == nil && f.Event == "" && len(f.Data) == 0
+		valid = f.ID != "" && f.Method == "" && len(f.Params) == 0 && len(f.Result) == 0 && f.Error == nil && f.Event == "" && len(f.Data) == 0 && f.Meta == nil
 	}
 	for name := range fields {
 		if !allowed[name] {
@@ -765,6 +772,12 @@ func decodeFrame(data []byte) (frame, error) {
 	// A trace the peer cannot read is a trace it would carry wrongly; tracestate
 	// has no form of its own and travels alone when an intermediary strips one.
 	if _, traced := fields["traceparent"]; traced && !validTraceparent(f.Traceparent) {
+		valid = false
+	}
+	// Meta maps names to strings and may be empty; keys under the reserved
+	// prefix are the profile's to define and it defines none in this version,
+	// so a frame carrying one is refused rather than read as a consumer's.
+	if raw, carried := fields["meta"]; carried && !validMeta(raw) {
 		valid = false
 	}
 	if !valid {

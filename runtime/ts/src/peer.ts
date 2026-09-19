@@ -33,18 +33,36 @@ export class DuplexError extends Error {
 
 export type PeerStatus = 'disconnected' | 'connecting' | 'connected';
 /** A context makes the frame a child of the request the caller is serving. */
-export interface CallOptions { signal?: AbortSignal; timeoutMs?: number; context?: RequestContext }
-export interface EmitOptions { context?: RequestContext }
+/**
+ * What a frame carries about a call rather than of it: a flat map of strings —
+ * a tenant, an idempotency key, a credential that is per request — which the
+ * profile carries verbatim and reads nothing into.
+ */
+export type Meta = Record<string, string>;
+export interface CallOptions { signal?: AbortSignal; timeoutMs?: number; context?: RequestContext; meta?: Meta }
+export interface EmitOptions { context?: RequestContext; meta?: Meta }
 export interface RequestContext {
   signal: AbortSignal;
   peer: DuplexPeer;
   requestId: string;
   /** What the propagator read from the frame that started this request. */
   trace?: Trace;
+  /**
+   * What the frame that started this request carried, and absent where it
+   * carried none. Passing it on is the handler's to say — `{ meta: context.meta }`
+   * — since a trace is the peer's to propagate and a credential is not.
+   */
+  meta?: Meta;
+}
+/** What an event's listeners are told about the frame that carried it. */
+export interface EventContext {
+  peer: DuplexPeer;
+  trace?: Trace;
+  meta?: Meta;
 }
 export type RequestHandler = (params: unknown, context: RequestContext) => unknown | Promise<unknown>;
 export type Dispatcher = (method: string, params: unknown, context: RequestContext) => unknown | Promise<unknown>;
-export type EventListener = (event: string, data: unknown) => void | Promise<void>;
+export type EventListener = (event: string, data: unknown, context: EventContext) => void | Promise<void>;
 export interface PeerOptions {
   role?: 'client' | 'server';
   dispatch?: Dispatcher;
@@ -104,7 +122,7 @@ interface Outgoing {
   resolve: () => void;
   reject: (error: DuplexError) => void;
 }
-interface QueuedEvent { name: string; data: unknown; bytes: number; trace?: Trace }
+interface QueuedEvent { name: string; data: unknown; bytes: number; trace?: Trace; meta?: Meta }
 
 /**
  * A bounded full-duplex peer. Message routing never awaits application handlers.
@@ -249,13 +267,13 @@ export class DuplexPeer {
   }
 
   onEvent(listener: EventListener): () => void;
-  onEvent(event: string, listener: (data: unknown) => void | Promise<void>): () => void;
-  onEvent(eventOrListener: string | EventListener, listener?: (data: unknown) => void | Promise<void>): () => void {
+  onEvent(event: string, listener: (data: unknown, context: EventContext) => void | Promise<void>): () => void;
+  onEvent(eventOrListener: string | EventListener, listener?: (data: unknown, context: EventContext) => void | Promise<void>): () => void {
     let callback: EventListener;
     if (typeof eventOrListener === 'string') {
       requireName(eventOrListener, 'event');
       if (!listener) throw new DuplexError('invalid_listener', 'An event listener is required.');
-      callback = (event, data) => { if (event === eventOrListener) return listener(data); };
+      callback = (event, data, context) => { if (event === eventOrListener) return listener(data, context); };
     } else {
       callback = eventOrListener;
     }
@@ -295,7 +313,7 @@ export class DuplexPeer {
         options.signal.addEventListener('abort', abort, { once: true });
         pending.removeAbort = () => options.signal!.removeEventListener('abort', abort);
       }
-      void this.send(traced({ version: 1, kind: 'request', id, method, params }, trace), method).catch(failure => {
+      void this.send(carrying(traced({ version: 1, kind: 'request', id, method, params }, trace), options.meta), method).catch(failure => {
         const unsent = this.takePending(id);
         if (!unsent) return;
         const error = asError(failure, 'send_failed');
@@ -308,7 +326,7 @@ export class DuplexPeer {
   /** Resolves when accepted by the socket and its reported byte buffer drains. */
   emit(event: string, data: unknown = null, options: EmitOptions = {}): Promise<void> {
     try { requireName(event, 'event'); } catch (error) { return Promise.reject(error); }
-    return this.send(traced({ version: 1, kind: 'event', event, data }, this.propagator.inject(options.context)), event);
+    return this.send(carrying(traced({ version: 1, kind: 'event', event, data }, this.propagator.inject(options.context)), options.meta), event);
   }
 
   private isOpen(): boolean { return this.state === 'connected' && this.connection?.state === 'open'; }
@@ -435,12 +453,12 @@ export class DuplexPeer {
         }
         break;
       }
-      case 'request': this.request(frame.id as string, frame.method as string, frame.params, trace); break;
-      case 'event': this.event(frame.event as string, frame.data, bytes, trace); break;
+      case 'request': this.request(frame.id as string, frame.method as string, frame.params, trace, frame.meta as Meta | undefined); break;
+      case 'event': this.event(frame.event as string, frame.data, bytes, trace, frame.meta as Meta | undefined); break;
     }
   }
 
-  private request(id: string, method: string, params: unknown, trace?: Trace): void {
+  private request(id: string, method: string, params: unknown, trace?: Trace, meta?: Meta): void {
     if (this.incoming.has(id)) {
       this.fail(new DuplexError('invalid_message', 'An incoming request ID is already active.'));
       return;
@@ -464,6 +482,7 @@ export class DuplexPeer {
     this.incoming.set(id, incoming);
     if (this.observer) this.observe({ type: 'request.started', at: new Date(), id, method, incoming: true, trace, family: this.family(method) });
     const context: RequestContext = { peer: this, signal: controller.signal, requestId: id };
+    if (meta) context.meta = meta;
     this.propagator.extract(context, trace);
     void Promise.resolve().then(() => {
       // The peer can close or cancel before the handler's first microtask.
@@ -503,13 +522,13 @@ export class DuplexPeer {
     void this.send(traced(frame, incoming.trace), '').catch(error => this.fail(asError(error)));
   }
 
-  private event(name: string, data: unknown, bytes: number, trace?: Trace): void {
+  private event(name: string, data: unknown, bytes: number, trace?: Trace, meta?: Meta): void {
     if (this.events.length + Number(this.eventActive) >= this.limits.maxQueuedMessages) {
       if (this.observer) this.pressure(this.events.length + Number(this.eventActive), true);
       this.fail(new DuplexError('busy', 'Event consumer is stalled; queue limit reached.'));
       return;
     }
-    this.events.push({ name, data, bytes, trace });
+    this.events.push({ name, data, bytes, trace, meta });
     this.drainEvents();
   }
 
@@ -526,6 +545,9 @@ export class DuplexPeer {
       this.fail(new DuplexError('stalled_consumer', 'Event handler deadline exceeded.'));
     }, this.limits.writeTimeoutMs);
     const listeners = [...this.listeners];
+    const context: EventContext = { peer: this };
+    if (event.trace) context.trace = event.trace;
+    if (event.meta) context.meta = event.meta;
     let index = 0;
     const finish = () => {
       if (generation !== this.generation) return;
@@ -538,7 +560,7 @@ export class DuplexPeer {
       while (index < listeners.length) {
         if (!this.isOpen() || generation !== this.generation) return;
         try {
-          const result = listeners[index++](event.name, event.data);
+          const result = listeners[index++](event.name, event.data, context);
           if (result && typeof result.then === 'function') {
             void result.then(next, () => {
               this.notifyError(new DuplexError('event_handler_failed', 'An event handler failed.'));
@@ -647,8 +669,9 @@ export class DuplexPeer {
 
 /**
  * One frame of the profile, validated by kind. Every kind may carry W3C trace
- * context; the members are kept on the envelope for a caller that propagates
- * them, and the peer itself reads neither. Not part of the package surface.
+ * context, and a request and an event a `meta` of strings; the members are
+ * kept on the envelope for a caller that propagates them, and the peer itself
+ * reads none of them. Not part of the package surface.
  */
 export function decodeEnvelope(data: string, localPrefix: string, remotePrefix: string): Envelope {
   const value: unknown = JSON.parse(data);
@@ -659,7 +682,7 @@ export function decodeEnvelope(data: string, localPrefix: string, remotePrefix: 
   const frame: Envelope = value;
   switch (frame.kind) {
     case 'request':
-      keys(frame, ['version', 'kind', 'id', 'method', 'params', ...TRACE]);
+      keys(frame, ['version', 'kind', 'id', 'method', 'params', 'meta', ...TRACE]);
       requestID(frame.id, remotePrefix);
       requireName(frame.method, 'method');
       if (!Object.hasOwn(frame, 'params')) throw new Error();
@@ -680,13 +703,14 @@ export function decodeEnvelope(data: string, localPrefix: string, remotePrefix: 
       requestID(frame.id, remotePrefix);
       break;
     case 'event':
-      keys(frame, ['version', 'kind', 'event', 'data', ...TRACE]);
+      keys(frame, ['version', 'kind', 'event', 'data', 'meta', ...TRACE]);
       requireName(frame.event, 'event');
       if (!Object.hasOwn(frame, 'data')) throw new Error();
       break;
     default: throw new Error();
   }
   trace(frame);
+  carriage(frame);
   return frame;
 }
 
@@ -742,6 +766,12 @@ const CLOSE_REASON = 'Duplex connection closed';
 function describe(value: unknown): string {
   try { return String(value); } catch { return '[unprintable value]'; }
 }
+/**
+ * The meta keys the profile and its components keep for themselves — a
+ * deadline, a cause — so that a consumer's key and one defined later never
+ * collide. This version defines none, so every key under it is refused.
+ */
+const META_RESERVED = 'nightseam.';
 /** W3C Trace Context, verbatim: an optional member of every kind, never of an error. */
 const TRACE = ['traceparent', 'tracestate'];
 const TRACEPARENT = /^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/;
@@ -750,6 +780,36 @@ function trace(frame: Envelope): void {
     throw new Error('Invalid traceparent.');
   }
   if (Object.hasOwn(frame, 'tracestate') && typeof frame.tracestate !== 'string') throw new Error('Invalid tracestate.');
+}
+/**
+ * What a frame sent from here carries. The map is copied, so a later write to
+ * the caller's does not reach a frame already sent; keys under META_RESERVED
+ * are the profile's and are dropped rather than sent, since the peer at the
+ * far end refuses a frame carrying one, and a carriage left with nothing in it
+ * is not sent at all.
+ */
+function carrying(envelope: Envelope, meta: Meta | undefined): Envelope {
+  if (!meta) return envelope;
+  const carried: Meta = {};
+  for (const [key, value] of Object.entries(meta)) {
+    if (!key.startsWith(META_RESERVED)) carried[key] = value;
+  }
+  if (Object.keys(carried).length > 0) envelope.meta = carried;
+  return envelope;
+}
+/**
+ * A call's metadata, verbatim: `meta` maps names to strings and may be empty,
+ * and nothing here reads a value of it. Keys under META_RESERVED are the
+ * profile's to define and it defines none in this version, so a frame carrying
+ * one is refused rather than read as a consumer's.
+ */
+function carriage(frame: Envelope): void {
+  if (!Object.hasOwn(frame, 'meta')) return;
+  const meta = frame.meta;
+  if (!isObject(meta)) throw new Error('Invalid meta.');
+  for (const [key, value] of Object.entries(meta)) {
+    if (typeof value !== 'string' || key.startsWith(META_RESERVED)) throw new Error('Invalid meta.');
+  }
 }
 function requireName(value: unknown, field: string): asserts value is string {
   if (typeof value !== 'string' || value.length === 0) throw new DuplexError('invalid_message', `${field} must be a nonempty string.`);
