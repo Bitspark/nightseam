@@ -24,7 +24,7 @@ func (t *target) Scaffold(f *render.Family, dir string) ([]spi.File, error) {
 	if len(diagnostics) != 0 {
 		return nil, fmt.Errorf("the family does not pass the Go target's check: %s", diagnostics[0])
 	}
-	ctx := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("\t"), imports: &emit.Imports{}, prefix: "protocol."}
+	ctx := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("\t"), imports: &emit.Imports{}, prefix: "protocol.", uses: f.Uses}
 	binding := ctx.use("binding", t.config.Module+"/"+expand(t.config.layout(f.Name).Binding, f.Name))
 	decl, args := declare(f.Uses), apply(f.Uses)
 	ctx.linef("// Handler is the behavior of the %s family's server side: what its", f.Name)
