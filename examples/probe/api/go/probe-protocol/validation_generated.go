@@ -2,11 +2,12 @@
 package probeprotocol
 
 import (
+	sessionprotocol "example.com/probe/api/go/session-protocol"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 )
 
 // schema is the family's wire description, as the runtime validates it; a type of another family is validated by that family's own validator.
-var schema = runtime.MustSchema("{\"types\":{\"Envelope\":{\"kind\":\"record\",\"fields\":[{\"name\":\"version\",\"type\":\"integer\",\"required\":true},{\"name\":\"kind\",\"type\":\"string\",\"required\":true},{\"name\":\"id\",\"type\":\"string\",\"required\":false},{\"name\":\"method\",\"type\":\"string\",\"required\":false},{\"name\":\"params\",\"type\":\"json\",\"required\":false},{\"name\":\"result\",\"type\":\"json\",\"required\":false},{\"name\":\"error\",\"type\":\"json\",\"required\":false},{\"name\":\"event\",\"type\":\"string\",\"required\":false},{\"name\":\"data\",\"type\":\"json\",\"required\":false},{\"name\":\"traceparent\",\"type\":\"string\",\"required\":false},{\"name\":\"tracestate\",\"type\":\"string\",\"required\":false},{\"name\":\"meta\",\"type\":{\"map\":\"string\"},\"required\":false}]},\"Handle\":{\"kind\":\"record\",\"fields\":[{\"name\":\"channel\",\"type\":\"integer\",\"required\":true}]},\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true},{\"name\":\"count\",\"type\":\"integer\",\"required\":true}]}}}", map[string]*runtime.Schema{})
+var schema = runtime.MustSchema("{\"types\":{\"Envelope\":{\"kind\":\"record\",\"fields\":[{\"name\":\"version\",\"type\":\"integer\",\"required\":true},{\"name\":\"kind\",\"type\":\"string\",\"required\":true},{\"name\":\"id\",\"type\":\"string\",\"required\":false},{\"name\":\"method\",\"type\":\"string\",\"required\":false},{\"name\":\"params\",\"type\":\"json\",\"required\":false},{\"name\":\"result\",\"type\":\"json\",\"required\":false},{\"name\":\"error\",\"type\":\"json\",\"required\":false},{\"name\":\"event\",\"type\":\"string\",\"required\":false},{\"name\":\"data\",\"type\":\"json\",\"required\":false},{\"name\":\"traceparent\",\"type\":\"string\",\"required\":false},{\"name\":\"tracestate\",\"type\":\"string\",\"required\":false},{\"name\":\"meta\",\"type\":{\"map\":\"string\"},\"required\":false}]},\"Handle\":{\"kind\":\"record\",\"fields\":[{\"name\":\"channel\",\"type\":\"integer\",\"required\":true}]},\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true},{\"name\":\"count\",\"type\":\"integer\",\"required\":true}]}}}", map[string]*runtime.Schema{"session": sessionprotocol.WireSchema()})
 
 // WireSchema supplies the family's descriptor and imports for scoped validation.
 func WireSchema() *runtime.Schema { return schema }

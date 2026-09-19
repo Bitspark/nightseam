@@ -5,6 +5,7 @@ import (
 	context "context"
 	json "encoding/json"
 	protocol "example.test/generated/api/go/probe-protocol"
+	sessionprotocol "example.test/generated/api/go/session-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
@@ -15,7 +16,9 @@ type Client struct{ Peer *runtime.Peer }
 
 // Events installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.
 type Events struct {
-	Changed func(context.Context, protocol.Payload)
+	SessionControl func(context.Context, sessionprotocol.Control)
+	SessionCursor  func(context.Context, sessionprotocol.Cursor)
+	Changed        func(context.Context, protocol.Payload)
 }
 type Handler interface {
 	Reverse(ctx context.Context, client *Client, params protocol.Payload) (protocol.Payload, error)
@@ -72,11 +75,23 @@ func install(handler Handler, events Events, options *runtime.Options) error {
 	families["echo"] = "probe"
 	families["no_args"] = "probe"
 	families["reverse"] = "probe"
+	families["session.control"] = "probe"
+	families["session.cursor"] = "probe"
 	families["changed"] = "probe"
 	options.Families = families
 	prepare := options.Prepare
 	options.Prepare = func(peer *runtime.Peer) error {
 		client := &Client{Peer: peer}
+		if events.SessionControl != nil {
+			if err := client.OnSessionControl(events.SessionControl); err != nil {
+				return err
+			}
+		}
+		if events.SessionCursor != nil {
+			if err := client.OnSessionCursor(events.SessionCursor); err != nil {
+				return err
+			}
+		}
 		if events.Changed != nil {
 			if err := client.OnChanged(events.Changed); err != nil {
 				return err
@@ -156,6 +171,34 @@ func (c *Client) NoArgs(ctx context.Context) (string, error) {
 		return result, err
 	}
 	return result, nil
+}
+func (c *Client) OnSessionControl(handler func(context.Context, sessionprotocol.Control)) error {
+	return c.Peer.HandleEvent("session.control", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"session.Control\""), raw); err != nil {
+			_ = peer.Close()
+			return
+		}
+		var data sessionprotocol.Control
+		if err := json.Unmarshal(raw, &data); err != nil {
+			_ = peer.Close()
+			return
+		}
+		handler(ctx, data)
+	})
+}
+func (c *Client) OnSessionCursor(handler func(context.Context, sessionprotocol.Cursor)) error {
+	return c.Peer.HandleEvent("session.cursor", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"session.Cursor\""), raw); err != nil {
+			_ = peer.Close()
+			return
+		}
+		var data sessionprotocol.Cursor
+		if err := json.Unmarshal(raw, &data); err != nil {
+			_ = peer.Close()
+			return
+		}
+		handler(ctx, data)
+	})
 }
 func (c *Client) OnChanged(handler func(context.Context, protocol.Payload)) error {
 	return c.Peer.HandleEvent("changed", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
