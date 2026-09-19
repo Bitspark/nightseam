@@ -11,7 +11,7 @@ import (
 // The commuting diagram: binding a family's parameters to families in the
 // declaration and rendering it plain — the left path, oracle.Substitute —
 // must give what rendering it generically and instantiating gives — the
-// right path. testdata/families holds the carrier, generic in one session
+// right path. testdata/families holds the carrier, generic in one protocol
 // family, and probe, which fills it.
 
 // TestDiagramCommutesInGo holds the diagram in Go: both paths compile in one
@@ -336,7 +336,6 @@ export const frames: Equals<right.Frames<probe.Family>, left.Frames> = true;
 export const params: Equals<right.AttachParams, left.AttachParams> = true;
 export const caller: Equals<right.Caller<probe.Family>, left.Caller> = true;
 export const handler: Equals<right.Handler<probe.Family>, left.Handler> = true;
-export const role: Equals<right.SessionFamily, probe.Family> = true;
 export const bound: Equals<right.FamilyBinding<probe.Family>["name"], "probe"> = true;
 `
 

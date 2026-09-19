@@ -16,7 +16,7 @@ import (
 
 // Each fixture compiles the actual generated packages against the runtime,
 // then executes values through those same packages, including the built-in
-// dependencies that the kernel emits beside a session family.
+// dependencies that the kernel emits beside a family.
 func typescriptLanguageFixture(t *testing.T, world analysis.World, source, script string) {
 	t.Helper()
 	root := repositoryRoot(t)
@@ -89,8 +89,9 @@ func TestTypeScriptProofGolden(t *testing.T) {
 func TestTypeScriptBuiltinFamilies(t *testing.T) {
 	typescriptLanguageFixture(t, analysis.World(builtin.Families()), `
 import type {Envelope} from '@example/duplex-client';
-import type {Control, Cursor} from '@example/session-client';
+import type {Open} from '@example/tunnel-client';
 const envelope: Envelope = {version:1, kind:'event', event:'changed', data:{}};
+const open: Open = {channel:1, family:'probe', window:32};
 `, `
 import assert from 'node:assert/strict';
 import * as duplex from '@example/duplex-client';
@@ -261,9 +262,9 @@ assert.throws(() => validateWire({apply:'Choice',with:{T:'json'}},{tag:'extra',b
 
 func TestTypeScriptLocalFamilyParametersAndDrawnNames(t *testing.T) {
 	world := analysis.World(modeltest.World(map[string]map[string]string{
-		"probe": {"model.json": `{"nightseam":2,"types":{"Payload":{"kind":"record","fields":[{"name":"text","type":"string"}]}}}`, "protocol.json": modeltest.Protocol(""), "session.json": `{}`, "typescript.json": `{"names":{"Payload":"Data"}}`},
+		"probe": {"model.json": `{"nightseam":2,"types":{"Payload":{"kind":"record","fields":[{"name":"text","type":"string"}]}}}`, "protocol.json": modeltest.Protocol(""), "typescript.json": `{"names":{"Payload":"Data"}}`},
 		"carrier": {"model.json": `{"nightseam":2,"imports":["probe"]}`, "protocol.json": modeltest.Protocol(`
-		 "parameters":[{"name":"S","of":"session"},{"name":"Item"}],
+		 "parameters":[{"name":"S","of":"protocol"},{"name":"Item"}],
 		 "types":{
 		  "Drawn":{"kind":"record","fields":[{"name":"payload","type":"S.Payload"}]},
 		  "Local":{"kind":"record","parameters":[{"name":"F","of":"protocol"},{"name":"T"}],"fields":[{"name":"message","type":"F.Envelope"},{"name":"handle","type":"F.Handle"},{"name":"value","type":"T"}]},
