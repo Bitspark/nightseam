@@ -18,6 +18,14 @@ are one number. Entries are in the words of the commits that landed them.
   facts use the adjacent payload carrier from #146 and distinguish the
   explicit no-payload marker from an empty record or null. Target support remains gated by
   each renderer's existing refusals.
+
+- Both runtime validators read tagged unions, literals, nullable expressions,
+  inline shapes and nested applications with type and family arguments.
+  Imported arguments retain their declaring scope, and the shared table
+  holds generic applications to their bound declarations. Descriptors now
+  carry `types` and family `parameters`; generated Go imports use
+  `WireSchema()` instead of opaque validation callbacks.
+
 - The declaration language gained the type language of #55's eight
   verdicts, whole and in one lane. **Unions**: `{"kind": "union", "tag":
   "type", "variants": {…}}`, internally tagged with a declared
