@@ -1235,7 +1235,19 @@ export function typeHTML(atlas, family, name, lens = 'wire') {
   const t = lookup(atlas, family, name);
   if (!t) return '<h2 id="drawer-title">Type not found</h2>';
   const language = t.Languages?.[lens];
-  return `<span class="eyebrow">${esc(family)} / ${esc(t.Kind)}</span><h2 id="drawer-title">${esc(language?.Name || t.Name)}</h2><p class="description">${esc(t.Description)}</p><div class="type-meta">${esc(t.Inline ? 'Derived from an inline shape. ' : '')}${esc(t.Open ? 'Open record. ' : '')}${t.Key ? `Identity: ${esc(t.Key)}. ` : ''}${list(t.Extends).length ? `Extends ${esc(t.Extends.map(typeText).join(', '))}.` : ''}</div>${parametersHTML(t.Parameters)}${code(json(t.Example))}<div class="annotation">${annotationHTML(annotate(atlas, family, name, t.Example))}</div>${list(t.Values).length ? `<p>Values: ${esc(t.Values.map((v) => JSON.stringify(v)).join(' · '))}</p>` : ''}${list(t.UsedBy).length ? `<h3 class="declaration">Used by</h3><div class="references">${t.UsedBy.map((r) => link(refRoute(family, r), `${r.Name} · ${r.At}`)).join('')}</div>` : ''}${language?.Declare ? `<h3 class="declaration">Declaration · ${esc(lens)}</h3>${code(language.Declare)}` : ''}`;
+  const metadata = [
+    t.Inline ? 'Derived from an inline shape.' : '',
+    t.Open ? 'Open record.' : '',
+    t.Key ? `Identity: ${t.Key}.` : '',
+    t.Alias ? `Alias of ${typeText(t.Alias)}.` : '',
+    list(t.Extends).length ? `Extends ${t.Extends.map(typeText).join(', ')}.` : '',
+    list(t.Uses).length
+      ? `Uses ${t.Uses.map((u) => (u.Type ? `${u.Parameter}.${u.Type}` : u.Parameter)).join(', ')}.`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return `<span class="eyebrow">${esc(family)} / ${esc(t.Kind)}</span><h2 id="drawer-title">${esc(language?.Name || t.Name)}</h2><p class="description">${esc(t.Description)}</p><div class="type-meta">${esc(metadata)}</div>${parametersHTML(t.Parameters)}${code(json(t.Example))}<div class="annotation">${annotationHTML(annotate(atlas, family, name, t.Example))}</div>${list(t.Values).length ? `<p>Values: ${esc(t.Values.map((v) => JSON.stringify(v)).join(' · '))}</p>` : ''}${list(t.UsedBy).length ? `<h3 class="declaration">Used by</h3><div class="references">${t.UsedBy.map((r) => link(refRoute(family, r), `${r.Name} · ${r.At}`)).join('')}</div>` : ''}${language?.Declare ? `<h3 class="declaration">Declaration · ${esc(lens)}</h3>${code(language.Declare)}` : ''}`;
 }
 
 // Thin DOM layer; the builders above also run in Node without a browser.
@@ -1290,6 +1302,7 @@ function navigate({ force = false } = {}) {
     document.getElementById('breadcrumbs').innerHTML =
       link(route(name), name) + ' / ' + breadcrumbs.map((b) => link(b.href, b.name)).join(' / ');
     document.getElementById('type-detail').innerHTML = typeHTML(atlas, name, parts[2], lens);
+    drawer.scrollTop = 0;
     if (!drawer.open) {
       returnFocus = [...main.querySelectorAll('a')].find((a) => a.getAttribute('href') === focusHref) || main;
       drawer.showModal();
