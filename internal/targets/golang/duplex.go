@@ -62,6 +62,12 @@ func emitClient(f *file) {
 	decl, args, open := declare(fam.Uses), apply(fam.Uses), f.entry(fam.Uses)
 	runtime, ctx := f.runtime(), f.std("context")
 	f.linef("type %s%s struct{ %s *%s.Peer }", identClient, decl, identPeer, runtime)
+	f.linef("// %s installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.", identEvents)
+	f.w.Block(fmt.Sprintf("type %s%s struct {", identEvents, decl), "}", func() {
+		for _, e := range fam.Server.Events {
+			f.linef("%s func(%s.Context, %s)", p.operations[e.Name], ctx, f.spell(e.Type))
+		}
+	})
 	f.w.Block(fmt.Sprintf("type %s%s interface {", identHandler, decl), "}", func() {
 		for _, m := range fam.Client.Methods {
 			if m.Description != "" {
@@ -98,7 +104,7 @@ func emitClient(f *file) {
 	// made with and labels every name of the family with it; Dial and Attach
 	// share it.
 	f.linef("// %s registers the reverse-call handlers on the options a peer is made with and labels its names with the family.", identInstall)
-	f.w.Block(fmt.Sprintf("func %s%s(handler %s%s, options *%s.Options) error {", identInstall, decl, identHandler, args, runtime), "}", func() {
+	f.w.Block(fmt.Sprintf("func %s%s(handler %s%s, events %s%s, options *%s.Options) error {", identInstall, decl, identHandler, args, identEvents, args, runtime), "}", func() {
 		if len(fam.Client.Methods) > 0 {
 			f.linef("if handler == nil { return %s.Errorf(\"reverse-call handler is required\") }", f.std("fmt"))
 		}
@@ -109,27 +115,39 @@ func emitClient(f *file) {
 		}
 		f.line("options.Handlers = handlers")
 		f.labels()
+		f.line("prepare := options.Prepare")
+		f.w.Block(fmt.Sprintf("options.Prepare = func(peer *%s.Peer) error {", runtime), "}", func() {
+			if len(fam.Server.Events) > 0 {
+				f.linef("client := &%s%s{%s: peer}", identClient, args, identPeer)
+			}
+			for _, e := range fam.Server.Events {
+				name := p.operations[e.Name]
+				f.linef("if events.%s != nil { if err := client.%s%s(events.%s); err != nil { return err } }", name, identOn, name, name)
+			}
+			f.line("if prepare != nil { return prepare(peer) }")
+			f.line("return nil")
+		})
 		f.line("return nil")
 	})
 	f.linef("// %s connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.", identDial)
-	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, url string, options %s.DialOptions, handler %s%s) (*%s%s, error) {", identDial, open, ctx, runtime, identHandler, args, identClient, args), "}", func() {
-		f.linef("if err := %s%s(handler, &options.Options); err != nil { return nil, err }", identInstall, args)
+	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, url string, options %s.DialOptions, handler %s%s, events %s%s) (*%s%s, error) {", identDial, open, ctx, runtime, identHandler, args, identEvents, args, identClient, args), "}", func() {
+		f.linef("if err := %s%s(handler, events, &options.Options); err != nil { return nil, err }", identInstall, args)
 		f.linef("peer, response, err := %s.Dial(ctx, url, options)", runtime)
 		f.line("if err != nil { if response != nil && response.Body != nil { _ = response.Body.Close() }; return nil, err }")
 		f.linef("return &%s%s{%s: peer}, nil", identClient, args, identPeer)
 	})
 	f.linef("// %s speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.", identAttach)
-	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, conn %s.Conn, options %s.Options, handler %s%s) (*%s%s, error) {", identAttach, open, ctx, f.seam(), runtime, identHandler, args, identClient, args), "}", func() {
-		f.linef("if err := %s%s(handler, &options); err != nil { return nil, err }", identInstall, args)
+	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, conn %s.Conn, options %s.Options, handler %s%s, events %s%s) (*%s%s, error) {", identAttach, open, ctx, f.seam(), runtime, identHandler, args, identEvents, args, identClient, args), "}", func() {
+		f.linef("if err := %s%s(handler, events, &options); err != nil { return nil, err }", identInstall, args)
 		f.linef("peer, err := %s.NewPeer(ctx, conn, %s.ClientRole, options)", runtime, runtime)
 		f.line("if err != nil { return nil, err }")
 		f.linef("return &%s%s{%s: peer}, nil", identClient, args, identPeer)
 	})
 	f.linef("// %s resolves a handle to the channel it names on a tunnel and speaks the family over it.", identOpen)
-	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, t *%s.Tunnel, handle %sHandle, options %s.Options, handler %s%s) (*%s%s, error) {", identOpen, open, ctx, f.tunnel(), f.proto(), runtime, identHandler, args, identClient, args), "}", func() {
+	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, t *%s.Tunnel, handle %sHandle, options %s.Options, handler %s%s, events %s%s) (*%s%s, error) {", identOpen, open, ctx, f.tunnel(), f.proto(), runtime, identHandler, args, identEvents, args, identClient, args), "}", func() {
 		f.line("channel, ok := t.Channel(handle.Channel)")
 		f.linef("if !ok { return nil, %s.Errorf(\"no channel %%d on the connection\", handle.Channel) }", f.std("fmt"))
-		f.linef("return %s%s(ctx, channel, options, handler)", identAttach, args)
+		f.linef("return %s%s(ctx, channel, options, handler, events)", identAttach, args)
 	})
 	f.linef("func (c *%s%s) %s() error { return c.%s.Close() }", identClient, args, identClose, identPeer)
 	for _, m := range fam.Server.Methods {

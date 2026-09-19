@@ -12,6 +12,11 @@ import (
 )
 
 type Client[SEnvelope, SHandle, TEnvelope any] struct{ Peer *runtime.Peer }
+
+// Events installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.
+type Events[SEnvelope, SHandle, TEnvelope any] struct {
+	Echoed func(context.Context, protocol.Echo[TEnvelope])
+}
 type Handler[SEnvelope, SHandle, TEnvelope any] interface {
 }
 
@@ -26,7 +31,7 @@ func _[SEnvelope, SHandle, TEnvelope any]() {
 }
 
 // install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
-func install[SEnvelope, SHandle, TEnvelope any](handler Handler[SEnvelope, SHandle, TEnvelope], options *runtime.Options) error {
+func install[SEnvelope, SHandle, TEnvelope any](handler Handler[SEnvelope, SHandle, TEnvelope], events Events[SEnvelope, SHandle, TEnvelope], options *runtime.Options) error {
 	handlers := map[string]runtime.Handler{}
 	for name, existing := range options.Handlers {
 		handlers[name] = existing
@@ -40,12 +45,25 @@ func install[SEnvelope, SHandle, TEnvelope any](handler Handler[SEnvelope, SHand
 	families["relay"] = "pair"
 	families["echoed"] = "pair"
 	options.Families = families
+	prepare := options.Prepare
+	options.Prepare = func(peer *runtime.Peer) error {
+		client := &Client[SEnvelope, SHandle, TEnvelope]{Peer: peer}
+		if events.Echoed != nil {
+			if err := client.OnEchoed(events.Echoed); err != nil {
+				return err
+			}
+		}
+		if prepare != nil {
+			return prepare(peer)
+		}
+		return nil
+	}
 	return nil
 }
 
 // Dial connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.
-func Dial[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[SEnvelope, SHandle, TEnvelope]) (*Client[SEnvelope, SHandle, TEnvelope], error) {
-	if err := install[SEnvelope, SHandle, TEnvelope](handler, &options.Options); err != nil {
+func Dial[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[SEnvelope, SHandle, TEnvelope], events Events[SEnvelope, SHandle, TEnvelope]) (*Client[SEnvelope, SHandle, TEnvelope], error) {
+	if err := install[SEnvelope, SHandle, TEnvelope](handler, events, &options.Options); err != nil {
 		return nil, err
 	}
 	peer, response, err := runtime.Dial(ctx, url, options)
@@ -59,8 +77,8 @@ func Dial[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtim
 }
 
 // Attach speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.
-func Attach[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[SEnvelope, SHandle, TEnvelope]) (*Client[SEnvelope, SHandle, TEnvelope], error) {
-	if err := install[SEnvelope, SHandle, TEnvelope](handler, &options); err != nil {
+func Attach[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[SEnvelope, SHandle, TEnvelope], events Events[SEnvelope, SHandle, TEnvelope]) (*Client[SEnvelope, SHandle, TEnvelope], error) {
+	if err := install[SEnvelope, SHandle, TEnvelope](handler, events, &options); err != nil {
 		return nil, err
 	}
 	peer, err := runtime.NewPeer(ctx, conn, runtime.ClientRole, options)
@@ -71,12 +89,12 @@ func Attach[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runt
 }
 
 // Open resolves a handle to the channel it names on a tunnel and speaks the family over it.
-func Open[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler[SEnvelope, SHandle, TEnvelope]) (*Client[SEnvelope, SHandle, TEnvelope], error) {
+func Open[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler[SEnvelope, SHandle, TEnvelope], events Events[SEnvelope, SHandle, TEnvelope]) (*Client[SEnvelope, SHandle, TEnvelope], error) {
 	channel, ok := t.Channel(handle.Channel)
 	if !ok {
 		return nil, fmt.Errorf("no channel %d on the connection", handle.Channel)
 	}
-	return Attach[SEnvelope, SHandle, TEnvelope](ctx, channel, options, handler)
+	return Attach[SEnvelope, SHandle, TEnvelope](ctx, channel, options, handler, events)
 }
 func (c *Client[SEnvelope, SHandle, TEnvelope]) Close() error { return c.Peer.Close() }
 func (c *Client[SEnvelope, SHandle, TEnvelope]) Named(ctx context.Context, params protocol.Named) (protocol.Named, error) {

@@ -9,15 +9,15 @@ const url = argv[2] ?? env.PROBE_URL ?? 'ws://127.0.0.1:8080/probe';
 
 // The server calls the client inside the request it is serving: this is
 // the other half of duplex, and it is typed like the first half.
+// The event handler is part of construction, ready even if the server emits
+// before dialing returns.
+let onChanged!: (payload: Payload) => void;
+const changed = new Promise<Payload>(resolve => {
+  onChanged = resolve;
+});
 const client = await Client.dial(url, {}, {
   reverse: ({ text, count }: Payload): Payload => ({ text: [...text].reverse().join(''), count }),
-});
-
-// The event arrives before the call it was emitted from returns, so it is
-// awaited rather than raced.
-const changed = new Promise<Payload>(resolve => {
-  client.onChanged(payload => resolve(payload));
-});
+}, { changed: onChanged });
 
 const result = await client.echo({ text: 'hello', count: 1 });
 

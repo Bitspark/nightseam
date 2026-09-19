@@ -51,7 +51,7 @@ func TestAttachAndServeOverAChannel(t *testing.T) {
  channel, err := ct.Open(ctx, "probe", 0)
  if err != nil { t.Fatal(err) }
  if err := <-served; err != nil { t.Fatal(err) }
- c, err := client.Attach(ctx, channel, runtime.Options{}, clientHandler{})
+ c, err := client.Attach(ctx, channel, runtime.Options{}, clientHandler{}, client.Events{})
  if err != nil { t.Fatal(err) }
  defer c.Close()
  result, err := c.Echo(ctx, protocol.Payload{Text: "value", Count: 3})
@@ -71,11 +71,11 @@ func TestOpenResolvesAHandle(t *testing.T) {
  }()
  id := <-opened
  if id == 0 { t.Fatal("the server opened no channel") }
- c, err := client.Open(ctx, ct, protocol.Handle{Channel: id}, runtime.Options{}, clientHandler{})
+ c, err := client.Open(ctx, ct, protocol.Handle{Channel: id}, runtime.Options{}, clientHandler{}, client.Events{})
  if err != nil { t.Fatal(err) }
  defer c.Close()
  if reply, err := c.NoArgs(ctx); err != nil || reply != "ok" { t.Fatalf("no_args %q, %v", reply, err) }
- if _, err := client.Open(ctx, ct, protocol.Handle{Channel: 999}, runtime.Options{}, clientHandler{}); err == nil { t.Fatal("a handle to no channel opened") }
+ if _, err := client.Open(ctx, ct, protocol.Handle{Channel: 999}, runtime.Options{}, clientHandler{}, client.Events{}); err == nil { t.Fatal("a handle to no channel opened") }
 }
 func TestGeneratedTypeScriptOverATunnel(t *testing.T) {
  if _, err := exec.LookPath("node"); err != nil { t.Skip("Node is not installed") }
@@ -115,13 +115,13 @@ await outer.connect(process.argv[2]);
 const tunnel = new Tunnel(outer);
 const handler = { reverse(params) { return { ...params, text: 'typescript:' + params.text }; } };
 const channel = await tunnel.open('probe');
-const attached = await Client.attach(channel, {}, handler);
+const attached = await Client.attach(channel, {}, handler, {});
 const echoed = await attached.echo({ text: 'value', count: 7, note: null });
 assert.equal(echoed.text, 'typescript:value');
 const handle = await opened;
-const resolved = await Client.open(tunnel, handle, {}, handler);
+const resolved = await Client.open(tunnel, handle, {}, handler, {});
 assert.equal(await resolved.noArgs(), 'ok');
-await assert.rejects(Client.open(tunnel, { channel: 999 }, {}, handler));
+await assert.rejects(Client.open(tunnel, { channel: 999 }, {}, handler, {}));
 attached.close();
 resolved.close();
 outer.close();

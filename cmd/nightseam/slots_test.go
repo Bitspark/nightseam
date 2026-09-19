@@ -67,7 +67,7 @@ const slotLoader = `export async function resolve(specifier,context,next){const 
 const tsGenericRoundtrip = `import assert from 'node:assert/strict';
 import {Client} from './gen/ts/carrier-client/src/index.ts';
 import {family as probe} from './api/ts/probe-client/src/index.ts';
-const client = await Client.dial(process.argv[2], probe);
+const client = await Client.dial(process.argv[2], probe, {}, undefined, {});
 let observed;
 client.onFrameRelayed((frame) => { observed = frame; });
 const message = {version: 1, kind: 'event', event: 'changed', data: {}};
@@ -190,7 +190,7 @@ func TestPlainClientSpeaksWithGenericServer(t *testing.T) {
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
  defer cancel()
- c, err := leftclient.Dial(ctx, url, runtime.DialOptions{}, nil)
+ c, err := leftclient.Dial(ctx, url, runtime.DialOptions{}, nil, leftclient.Events{})
  if err != nil { t.Fatal(err) }
  defer c.Close()
  relayed := make(chan left.Frame, 1)
@@ -215,7 +215,7 @@ func TestGenericClientSpeaksWithPlainServer(t *testing.T) {
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
  defer cancel()
- c, err := rightclient.Dial[E, H](ctx, url, runtime.DialOptions{}, nil)
+ c, err := rightclient.Dial[E, H](ctx, url, runtime.DialOptions{}, nil, rightclient.Events[E, H]{})
  if err != nil { t.Fatal(err) }
  defer c.Close()
  relayed := make(chan right.Frame[E], 1)
@@ -362,7 +362,7 @@ func TestMixedInstantiationDoesNotCompile(t *testing.T) {
 		 probe "example.test/generated/api/go/probe-protocol"
 		 "github.com/Bitspark/nightseam/runtime/go"
 		)
-		var _, _ = rightclient.Dial[probe.Envelope, string](context.Background(), "", runtime.DialOptions{}, nil)
+		var _, _ = rightclient.Dial[probe.Envelope, string](context.Background(), "", runtime.DialOptions{}, nil, rightclient.Events[probe.Envelope, string]{})
 		`))
 			writeFixture(t, directory, "mixed_families_test.go", []byte(`//go:build families
 
@@ -373,7 +373,7 @@ func TestMixedInstantiationDoesNotCompile(t *testing.T) {
 		 probe "example.test/generated/api/go/probe-protocol"
 		 "github.com/Bitspark/nightseam/runtime/go"
 		)
-		var _, _ = rightclient.Dial[probe.Envelope, runtime.Raw](context.Background(), "", runtime.DialOptions{}, nil)
+		var _, _ = rightclient.Dial[probe.Envelope, runtime.Raw](context.Background(), "", runtime.DialOptions{}, nil, rightclient.Events[probe.Envelope, runtime.Raw]{})
 		`))
 			// The compiler reports one inference failure per package, so each case
 			// is its own build.
@@ -396,7 +396,7 @@ func TestMixedInstantiationDoesNotCompile(t *testing.T) {
 		 rightclient "example.test/generated/gen/go/carrier-client"
 		 "github.com/Bitspark/nightseam/runtime/go"
 		)
-		var _ = func() { _, _ = rightclient.Dial[runtime.Raw, runtime.Raw](context.Background(), "", runtime.DialOptions{}, nil) }
+		var _ = func() { _, _ = rightclient.Dial[runtime.Raw, runtime.Raw](context.Background(), "", runtime.DialOptions{}, nil, rightclient.Events[runtime.Raw, runtime.Raw]{}) }
 		`))
 			command := exec.Command("go", "vet", ".")
 			command.Dir = directory

@@ -2,9 +2,10 @@ func (*Client[SEnvelope, SHandle]) Attach(ctx context.Context, params protocol.A
 func (*Client[SEnvelope, SHandle]) Close() error
 func (*Client[SEnvelope, SHandle]) OnFrameRelayed(handler func(context.Context, protocol.Frame[SEnvelope])) error
 func (*Client[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)
-func Attach[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[SEnvelope, SHandle]) (*Client[SEnvelope, SHandle], error)
-func Dial[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[SEnvelope, SHandle]) (*Client[SEnvelope, SHandle], error)
-func Open[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler[SEnvelope, SHandle]) (*Client[SEnvelope, SHandle], error)
+func Attach[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[SEnvelope, SHandle], events Events[SEnvelope, SHandle]) (*Client[SEnvelope, SHandle], error)
+func Dial[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[SEnvelope, SHandle], events Events[SEnvelope, SHandle]) (*Client[SEnvelope, SHandle], error)
+func Open[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler[SEnvelope, SHandle], events Events[SEnvelope, SHandle]) (*Client[SEnvelope, SHandle], error)
 type Caller[SEnvelope any, SHandle any] interface{Attach(ctx context.Context, params protocol.AttachParams) (protocol.Attachment[SHandle], error); Relay(ctx context.Context, params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)}
 type Client[SEnvelope any, SHandle any] struct{Peer *runtime.Peer}
+type Events[SEnvelope any, SHandle any] struct{FrameRelayed func(context.Context, protocol.Frame[SEnvelope])}
 type Handler[SEnvelope any, SHandle any] interface{}

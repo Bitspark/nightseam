@@ -74,9 +74,10 @@ writes a `Handler` with every method returning `unimplemented`, once, under
 
 ```go
 type Client struct{ Peer *runtime.Peer }
-func Dial(ctx context.Context, url string, options runtime.DialOptions, handler Handler) (*Client, error)
-func Attach(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler) (*Client, error)
-func Open(ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler) (*Client, error)
+type Events struct{ Changed func(context.Context, protocol.Payload) }
+func Dial(ctx context.Context, url string, options runtime.DialOptions, handler Handler, events Events) (*Client, error)
+func Attach(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler, events Events) (*Client, error)
+func Open(ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler, events Events) (*Client, error)
 func (*Client) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
 func (*Client) NoArgs(ctx context.Context) (string, error)
 func (*Client) EmitNoticed(ctx context.Context, data protocol.Seen) error
@@ -94,6 +95,9 @@ events and listens for the server's; `Handler` is what the server calls on
 this client, required because a client serves what the server calls; and
 `Caller` is the interface a consumer mocks. `Dial` over a socket, `Attach`
 over any connection of the seam, `Open` over a handle resolved on a tunnel.
+All three take `Events`, installed through `Prepare` before the first frame,
+then run any caller-supplied `Prepare`. An empty `Events{}` handles none.
+`OnX` is for later registration; it cannot recover already delivered events.
 `Decides`, `Asks` and `Conversation` are the session tier's governance,
 rendered as functions for a session's relay to be given
 ([the session's surface](../runtime/session.md)).
@@ -117,6 +121,7 @@ runtime's `createValidator` from the embedded wire description, and
 `index.ts` re-exports the types and `DuplexError`, and declares:
 
 ```ts
+export interface Events { changed?: (data: Payload, context: EventContext) => void | Promise<void> }
 export interface Handler { reverse(params: Payload, context: RequestContext): Payload | Promise<Payload> }
 export interface Caller { echo(params: Payload, options?: CallOptions): Promise<Payload>; noArgs(options?: CallOptions): Promise<string>; … }
 export const decides: ReadonlySet<string>;
@@ -125,9 +130,9 @@ export const conversation: { event: "changed"; path: "text" };
 export const errors: { denied: "denied"; notFound: "not_found" };
 export type ErrorCode = (typeof errors)[keyof typeof errors];
 export class Client implements Caller {
-  static dial(url: string, options?: PeerOptions, handler?: Handler): Promise<Client>;
-  static attach(connection: FrameConnection, options?: PeerOptions, handler?: Handler): Promise<Client>;
-  static open(tunnel: Tunnel, handle: Handle, options?: PeerOptions, handler?: Handler): Promise<Client>;
+  static dial(url: string, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client>;
+  static attach(connection: FrameConnection, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client>;
+  static open(tunnel: Tunnel, handle: Handle, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client>;
   echo(params: Payload, options?: CallOptions): Promise<Payload>;
   emitNoticed(data: Seen, options?: EmitOptions): Promise<void>;
   onChanged(handler: (data: Payload, context: EventContext) => void | Promise<void>): () => void;
@@ -138,8 +143,8 @@ export class Client implements Caller {
 
 A `Client` validates every frame both ways against `validateWire` — a call's
 params and result, a reverse call's, an event's data — and installs the
-`Handler` before the peer has a connection, so the server's first reverse
-call meets it. The `families` option is filled in for the observer, so a
+`Handler` and `Events` before the peer has a connection, so the server's first reverse call or event meets them. Pass `{}` for no event handlers;
+use `onX` for later registration, before the event-producing flow begins. The `families` option is filled in for the observer, so a
 frame event names the family.
 
 ## Errors

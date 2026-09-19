@@ -282,6 +282,12 @@ func emitClient(f *file) {
 	f.imports(false)
 	f.line("export * from './types.ts';")
 	f.line("export { DuplexError };")
+	f.line("/** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */")
+	f.w.Block(fmt.Sprintf("export interface %s%s {", identEvents, decl), "}", func() {
+		for _, e := range fam.Server.Events {
+			f.linef("%s?: (data: %s, context: EventContext) => void | Promise<void>;", p.operations[e.Name], f.spell(e.Type))
+		}
+	})
 	f.w.Block(fmt.Sprintf("export interface %s%s {", identHandler, decl), "}", func() {
 		for _, m := range fam.Client.Methods {
 			if m.Description != "" {
@@ -335,7 +341,7 @@ func emitClient(f *file) {
 			}
 			f.linef("readonly %s: %s;", identSlotsField, identSlots)
 		}
-		f.w.Block(fmt.Sprintf("%s(peer: DuplexPeer, %shandler?: %s%s) {", identConstructor, binding, identHandler, args), "}", func() {
+		f.w.Block(fmt.Sprintf("%s(peer: DuplexPeer, %shandler: %s%s | undefined, events: %s%s) {", identConstructor, binding, identHandler, args, identEvents, args), "}", func() {
 			f.linef("this.%s = peer;", identPeer)
 			if fam.Generic {
 				for _, name := range names {
@@ -347,13 +353,16 @@ func emitClient(f *file) {
 				f.line("if (!handler) throw new Error('reverse-call handler is required');")
 				f.linef("peer.handle(%s, async (params, context) => { try { %s(%s, params%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, context); %s(%s, result%s); return result; });", quote(m.Name), identValidateWire, requestExpression(m), slots, p.operations[m.Name], f.request(m), identValidateWire, expression(m.Result), slots)
 			}
+			for _, e := range fam.Server.Events {
+				f.linef("if (events.%s) this.%s%s(events.%s);", p.operations[e.Name], identOn, upperFirst(p.operations[e.Name]), p.operations[e.Name])
+			}
 		})
 		f.line("/** Connects to a WebSocket endpoint and speaks the family over it. */")
-		f.linef("static async dial%s(url: string, %soptions: PeerOptions = {}, handler?: %s%s): Promise<%s%s> { const peer = new DuplexPeer(%s); const client = new %s%s(peer, %shandler); await peer.connect(url); return client; }", decl, binding, identHandler, args, identClient, args, labelled(fam), identClient, args, pass)
+		f.linef("static async dial%s(url: string, %soptions: PeerOptions, handler: %s%s | undefined, events: %s%s): Promise<%s%s> { const peer = new DuplexPeer(%s); const client = new %s%s(peer, %shandler, events); await peer.connect(url); return client; }", decl, binding, identHandler, args, identEvents, args, identClient, args, labelled(fam), identClient, args, pass)
 		f.line("/** Speaks the family over a connection of the seam — a tunnel channel, a pipe, an open socket — as the client side of it. */")
-		f.linef("static async attach%s(connection: FrameConnection, %soptions: PeerOptions = {}, handler?: %s%s): Promise<%s%s> { const peer = new DuplexPeer(%s); const client = new %s%s(peer, %shandler); await peer.attach(connection); return client; }", decl, binding, identHandler, args, identClient, args, labelled(fam), identClient, args, pass)
+		f.linef("static async attach%s(connection: FrameConnection, %soptions: PeerOptions, handler: %s%s | undefined, events: %s%s): Promise<%s%s> { const peer = new DuplexPeer(%s); const client = new %s%s(peer, %shandler, events); await peer.attach(connection); return client; }", decl, binding, identHandler, args, identEvents, args, identClient, args, labelled(fam), identClient, args, pass)
 		f.line("/** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */")
-		f.linef("static async open%s(tunnel: Tunnel, handle: %sHandle, %soptions: PeerOptions = {}, handler?: %s%s): Promise<%s%s> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return %s.attach%s(channel, %soptions, handler); }", decl, f.prefix, binding, identHandler, args, identClient, args, identClient, args, pass)
+		f.linef("static async open%s(tunnel: Tunnel, handle: %sHandle, %soptions: PeerOptions, handler: %s%s | undefined, events: %s%s): Promise<%s%s> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return %s.attach%s(channel, %soptions, handler, events); }", decl, f.prefix, binding, identHandler, args, identEvents, args, identClient, args, identClient, args, pass)
 		f.linef("%s(): void { this.%s.close(); }", identClose, identPeer)
 		for _, m := range fam.Server.Methods {
 			initial := ""

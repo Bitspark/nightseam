@@ -337,7 +337,7 @@ export function run(connect: Connect): void {
     const two = await consumer(wire, registry, 'observer', 'two');
     registry.control('s', one.attachment);
     assert.equal(await two.at.control(), 'one');
-    const client = await Client.attach(one.near, {}, answering);
+    const client = await Client.attach(one.near, {}, answering, {});
     assert.deepEqual(await client.echo(payload('value')), { text: 'machine:value', count: 1 });
     await peer.emit('changed', payload('moved', 2));
     // What the peer sends is the peer's — a trace context among it — so the
@@ -367,9 +367,9 @@ export function run(connect: Connect): void {
     const two = await consumer(wire, registry, 'participant', 'two');
     const three = await consumer(wire, registry, 'observer', 'three');
     registry.control('s', one.attachment);
-    const holding = await Client.attach(one.near, {}, answering);
-    const idle = await Client.attach(two.near, {}, answering);
-    const observing = await Client.attach(three.near, {}, answering);
+    const holding = await Client.attach(one.near, {}, answering, {});
+    const idle = await Client.attach(two.near, {}, answering, {});
+    const observing = await Client.attach(three.near, {}, answering, {});
     const refused = (error: unknown) => error instanceof DuplexError && error.code === 'not_controlling';
     await assert.rejects(observing.echo(payload('by an observer')), refused);
     await assert.rejects(idle.echo(payload('by a participant')), refused);
@@ -542,7 +542,7 @@ export function run(connect: Connect): void {
     const one = await consumer(wire, registry, 'participant', 'one');
     registry.control('s', one.attachment);
     await one.at.control();
-    const holding = await Client.attach(one.near, {}, answering);
+    const holding = await Client.attach(one.near, {}, answering, {});
     assert.equal((await holding.echo(payload('t'))).text, 'machine:t');
     await peer.emit('changed', payload('one'));
     assert.deepEqual(await peer.call('reverse', payload('deliver')), { text: 'reviled', count: 1 });
@@ -583,7 +583,7 @@ export function run(connect: Connect): void {
     // the register-then-attach ordering of the runtime says: the replay is on
     // the connection before the attach returns.
     const { near, far } = await wire.open(0);
-    const client = await Client.attach(near, {}, answering);
+    const client = await Client.attach(near, {}, answering, {});
     const arrived: Payload[] = [];
     const settled = new Promise<void>((resolve) => {
       client.onChanged((data) => {
