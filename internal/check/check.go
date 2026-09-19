@@ -665,14 +665,6 @@ func Protocol(f *analysis.Family) []diag.Diagnostic {
 	context := model.Rank(model.ProtocolFile)
 	where := site{context: context, inline: true}
 	wire := map[string]diag.Location{}
-	operation := func(direction, name string, at diag.Location) {
-		key := direction + ":" + name
-		if previous, ok := wire[key]; ok {
-			c.Addf(at, "operation_collision", "Operation %s collides with the one at %s: both flow %s under one name.", name, previous, direction)
-		} else {
-			wire[key] = at
-		}
-	}
 	reserved := func(name string, at diag.Location) {
 		for _, tier := range model.Tiers {
 			if tier.Builtin == "" || tier.Carries || !strings.HasPrefix(name, tier.Builtin+".") {
@@ -682,6 +674,15 @@ func Protocol(f *analysis.Family) []diag.Diagnostic {
 			if ok && f.Source != owner.Source {
 				c.Addf(at, "reserved_name", "Operation %s is in the namespace of the built-in %s family; its operations come from the %s tier and may not be declared by a consumer.", name, tier.Builtin, tier.Name)
 			}
+		}
+	}
+	operation := func(direction, name string, at diag.Location) {
+		reserved(name, at)
+		key := direction + ":" + name
+		if previous, ok := wire[key]; ok {
+			c.Addf(at, "operation_collision", "Operation %s collides with the one at %s: both flow %s under one name.", name, previous, direction)
+		} else {
+			wire[key] = at
 		}
 	}
 	for _, side := range []struct {
@@ -697,7 +698,6 @@ func Protocol(f *analysis.Family) []diag.Diagnostic {
 		c.extendedSide(side.side, side.server, side.sideLabel, operation, side.calls, side.notifies)
 		for i := range side.side.Methods {
 			m := &side.side.Methods[i]
-			reserved(m.Name, m.At)
 			operation(side.calls, m.Name, m.At)
 			if m.Request != nil {
 				before := len(c.Diagnostics)
@@ -715,7 +715,6 @@ func Protocol(f *analysis.Family) []diag.Diagnostic {
 		}
 		for i := range side.side.Events {
 			e := &side.side.Events[i]
-			reserved(e.Name, e.At)
 			operation(side.notifies, e.Name, e.At)
 			c.expression(e.Type, e.At.Sub("type"), where)
 		}

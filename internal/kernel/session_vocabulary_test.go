@@ -129,3 +129,16 @@ func TestSessionOperationNamespaceBelongsToBuiltin(t *testing.T) {
 		}
 	}
 }
+
+func TestInheritedSessionNamespaceIsRefusedWhenOnlyChildIsValidated(t *testing.T) {
+	files := fstest.MapFS{
+		"api/contracts/base/model.json":     {Data: []byte(`{"nightseam":2}`)},
+		"api/contracts/base/protocol.json":  {Data: []byte(`{"profile":"nightseam.duplex/1","server":{"events":{"session.future":{"type":"string"}}}}`)},
+		"api/contracts/child/model.json":    {Data: []byte(`{"nightseam":2,"imports":["base"]}`)},
+		"api/contracts/child/protocol.json": {Data: []byte(`{"profile":"nightseam.duplex/1","server":{"extends":["base"]}}`)},
+	}
+	problems := Validate(Load(files, "api/contracts", nil), "child")
+	if len(problems) != 1 || problems[0].Code != "reserved_name" || problems[0].Family != "child" || problems[0].Pointer != "/server/extends/0" {
+		t.Fatalf("selecting the child must not bypass the reserved namespace of an inherited declaration: %v", problems)
+	}
+}
