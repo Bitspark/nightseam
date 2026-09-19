@@ -17,7 +17,11 @@ type Suite struct {
 	Checkout  string
 	Recipes   map[string]Recipe
 	Scenarios []Scenario
-	places    Places
+	Profiles  *Profiles
+	// Placed is each scenario's profile, by layer/name.
+	Placed map[string]string
+	Matrix *Matrix
+	places Places
 }
 
 // Open reads the scenarios and the recipes of the checkout, holds every
@@ -41,11 +45,24 @@ func Open(t *testing.T) *Suite {
 	if err != nil {
 		t.Fatal(err)
 	}
+	profiles, err := LoadProfiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	placed := map[string]string{}
+	for _, sc := range scenarios {
+		profile, err := profiles.Place(sc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		placed[sc.Layer+"/"+sc.Name] = profile
+	}
 	out := filepath.Join(root, ".out")
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	s := &Suite{Root: root, Checkout: filepath.Dir(root), Recipes: recipes, Scenarios: scenarios, places: Places{Checkout: filepath.Dir(root), Out: out}}
+	s := &Suite{Root: root, Checkout: filepath.Dir(root), Recipes: recipes, Scenarios: scenarios, Profiles: profiles, Placed: placed, Matrix: NewMatrix(profiles), places: Places{Checkout: filepath.Dir(root), Out: out}}
+	t.Cleanup(func() { t.Logf("the matrix of this run:\n%s", s.Matrix) })
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	for _, language := range s.Languages() {
@@ -113,6 +130,13 @@ func (s *Suite) run(t *testing.T, a, b string, generated bool, keep func(Scenari
 		t.Run(sc.Layer+"/"+sc.Name, func(t *testing.T) {
 			ta, tb := start(a), start(b)
 			outcome := Run(ctx, ta, tb, sc)
+			// The cell is the non-reference language's, on whichever side it
+			// stands; go with go is the reference's own row.
+			held := a
+			if a == "go" && b != "go" {
+				held = b
+			}
+			s.Matrix.Record(held, s.Placed[sc.Layer+"/"+sc.Name], outcome)
 			if outcome.Skipped != "" {
 				t.Skip(outcome.Skipped)
 			}
