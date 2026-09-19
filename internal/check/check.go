@@ -429,7 +429,7 @@ func (c *checker) imported(x model.Imported, at diag.Location, where site) {
 	other, ok := f.Imported[x.Family]
 	if !ok {
 		if _, builtin := f.Builtin(x.Family); builtin {
-			c.Addf(at, "implicit_import", "Family %s is built in and reaches a family through the tier that brings it; this family has no such tier.", x.Family)
+			c.Addf(at, "implicit_import", "Family %s is built in: a family that has the tier bringing it carries its types under their own names, and one that does not cannot name them. %s", x.Family, whereBuiltinReaches(x.Family))
 			return
 		}
 		c.Addf(at, "unresolved_type", "Type %s.%s names a family this family does not import.", x.Family, x.Name)
@@ -577,6 +577,18 @@ func (c *checker) apply(x model.Apply, at diag.Location, where site) {
 			c.tierViolation(at, where.context, x.Family+"."+x.Name, t.At.File)
 		}
 	}
+}
+
+// whereBuiltinReaches says how a built-in family that is not carried
+// reaches a family that has its tier, so that a diagnostic about one points
+// somewhere rather than only refusing.
+func whereBuiltinReaches(name string) string {
+	for _, tier := range model.Tiers {
+		if tier.Builtin == name && !tier.Carries {
+			return "The " + tier.Name + " tier's vocabulary is one declaration for every family and reaches a family's generated code as a side that extends it, not as types this family names."
+		}
+	}
+	return ""
 }
 
 func applied(x model.Apply) string {

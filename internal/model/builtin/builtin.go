@@ -132,15 +132,17 @@ func Names() []string {
 	return names
 }
 
-// Carried is the built-in family a family carrying the tier files imports
-// implicitly, and the types it takes from it: the tiers' table says which.
-// A family with protocol.json carries `duplex`'s types; one with
-// session.json carries `session`'s as well.
+// Carried is the built-in families whose types a family with these tier
+// files takes as its own: the tiers' table says which tier carries which
+// built-in. A family with protocol.json carries `duplex`'s `Envelope` and
+// `Handle`, since a family's envelope is a message of that family; a tier
+// whose built-in is not carried has one declaration for every family and
+// reaches a family's operations as a side that extends it.
 func Carried(files []string) []string {
 	var out []string
 	for _, file := range files {
 		tier, ok := model.TierOf(file)
-		if !ok || tier.Builtin == "" {
+		if !ok || tier.Builtin == "" || !tier.Carries {
 			continue
 		}
 		if _, exists := Family(tier.Builtin); exists {

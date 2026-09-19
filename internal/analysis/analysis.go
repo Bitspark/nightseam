@@ -33,6 +33,7 @@ type Family struct {
 	Carries  []string               // the built-in families the tiers bring, sorted
 	carried  map[string]int         // a carried type's name, at the rank of the tier that carries it
 	from     map[string]string      // a carried type's name, at the built-in family that declares it
+	carriers map[string]map[string]*Family
 	world    World
 	generics *Generics
 }
@@ -51,7 +52,7 @@ func resolve(world World, name string, resolved map[string]*Family) *Family {
 	if m == nil {
 		return nil
 	}
-	f := &Family{Family: m, Types: map[string]*model.Type{}, Imported: map[string]*Family{}, Members: map[string]*Family{}, carried: map[string]int{}, from: map[string]string{}, world: world}
+	f := &Family{Family: m, Types: map[string]*model.Type{}, Imported: map[string]*Family{}, Members: map[string]*Family{}, carried: map[string]int{}, from: map[string]string{}, carriers: map[string]map[string]*Family{}, world: world}
 	resolved[name] = f
 	for typeName, t := range m.Types {
 		f.Types[typeName] = t
@@ -256,8 +257,12 @@ func (f *Family) IsObject(e model.TypeExpr) bool {
 		if model.Carried(x.Name) {
 			return true
 		}
-		for _, member := range f.Members {
-			if t, ok := member.Types[x.Name]; !ok || !isRecord(t) {
+		parameter, declared := f.Parameter(x.Parameter)
+		if !declared || !parameter.IsFamily() {
+			return false
+		}
+		for _, carrier := range f.Carriers(parameter.Of) {
+			if t, ok := carrier.Types[x.Name]; !ok || !(isRecord(t) || t.Kind == model.KindUnion) {
 				return false
 			}
 		}
@@ -557,10 +562,14 @@ func (f *Family) Locate(key string) (diag.Location, bool) {
 func (f *Family) Builtin(name string) (*model.Family, bool) { return builtin.Family(name) }
 
 // Carriers are the families other than this one that carry a tier — what a
-// family parameter of that tier may bind — by name.
+// family parameter of that tier may bind — by name, resolved once.
 func (f *Family) Carriers(role string) map[string]*Family {
+	if cached, done := f.carriers[role]; done {
+		return cached
+	}
 	tier, ok := tierOfRole(role)
 	if !ok {
+		f.carriers[role] = nil
 		return nil
 	}
 	out := map[string]*Family{}
@@ -570,6 +579,7 @@ func (f *Family) Carriers(role string) map[string]*Family {
 		}
 		out[name] = resolve(f.world, name, map[string]*Family{})
 	}
+	f.carriers[role] = out
 	return out
 }
 
