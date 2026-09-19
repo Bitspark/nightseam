@@ -31,6 +31,9 @@ type Family struct {
 	Types          []*Type     // in byte order, the injected ones among them
 	Server, Client Side        // the two sides
 	Errors         []Error     // by code
+	Live           bool        // whether the family has a live tier
+	Callables      []string    // the callables it declares, in byte order
+	LiveTypes      []string    // every declared type whose values carry a callable, in byte order
 	References     []string    // families whose generated packages this one's refer to, sorted
 	Carries        []string    // the built-in families the tiers bring, sorted
 	Wire           string      // the wire description of every type, canonical JSON, what a validator reads
@@ -69,10 +72,14 @@ type Type struct {
 	Declaration             *model.Type       // original declaration; never rewritten by rendering
 	Origin                  Origin
 	Inline                  bool
-	Uses                    []Use      // the type parameters the type takes
-	Arguments               []Argument // arguments of an applied view; declaration identity is unchanged
-	Carried                 bool       // carried from a built-in family, not declared here
-	From                    string     // the built-in family that declares a carried type
+	Uses                    []Use          // the type parameters the type takes
+	Arguments               []Argument     // arguments of an applied view; declaration identity is unchanged
+	Request                 model.TypeExpr // callable: what it takes; nil takes nothing
+	Result                  model.TypeExpr // callable: what it answers; nil answers nothing
+	Contract                string         // callable: the identity a reference to it carries
+	IsLive                  bool           // whether values of the type carry a callable
+	Carried                 bool           // carried from a built-in family, not declared here
+	From                    string         // the built-in family that declares a carried type
 	At                      diag.Location
 	resolved                bool
 }
@@ -330,7 +337,18 @@ func OverrideAt(target, path string) diag.Location {
 func wire(f *analysis.Family) string {
 	types := map[string]*model.Type{}
 	for _, name := range f.TypeNames() {
-		types[name] = f.Types[name]
+		t := f.Types[name]
+		if t.IsCallable() {
+			// The identity a reference to this callable carries. It is
+			// stamped here, once, so that a validator in any language reads
+			// it rather than deriving it — the one place the nominal
+			// identity is computed, and the reason no second spelling of it
+			// has to be kept in step across languages.
+			stamped := *t
+			stamped.Contract = Contract(f.CarriedFrom(name), f.Name, name)
+			t = &stamped
+		}
+		types[name] = t
 	}
 	data, _ := json.Marshal(struct {
 		Types      map[string]*model.Type `json:"types"`
@@ -393,6 +411,9 @@ func FormsUsed(f *Family) []Form {
 		if t.Kind == model.KindUnion {
 			add("a union", t.At)
 		}
+		if t.Kind == model.KindCallable {
+			add("a callable, whose values are exported and imported at the boundary", t.At)
+		}
 		if len(t.Parameters) > 0 {
 			add("a type parameter of a type", t.At)
 		}
@@ -402,6 +423,8 @@ func FormsUsed(f *Family) []Form {
 		if t.Alias != nil {
 			expression(t.Alias, t.At.Sub("type"))
 		}
+		expression(t.Request, t.At.Sub("request"))
+		expression(t.Result, t.At.Sub("result"))
 		for _, variant := range t.Variants {
 			expression(variant.Type, variant.At)
 		}
@@ -429,4 +452,20 @@ func Unrendered(f *Family, target string) []diag.Diagnostic {
 		diagnostics = append(diagnostics, diag.New(f.Name, form.At, "unrendered_form", "The "+target+" target does not render "+form.Name+" yet."))
 	}
 	return diagnostics
+}
+
+// Contract is the identity a reference to a callable carries: the
+// declaration that a value of the type implements, as `family/Type`.
+//
+// It is **nominal** — the operator's verdict on #201. A reference is
+// usable exactly where the callable it was declared as is expected, so a
+// `setVolume` reference cannot arrive where a `report` is expected even
+// though both take an integer and answer nothing. Every callable has a
+// declaration site, which is why the identity needs no derived name and no
+// structural digest: the declaration *is* the identity.
+func Contract(declaringFamily, family, name string) string {
+	if declaringFamily != "" {
+		family = declaringFamily
+	}
+	return family + "/" + name
 }

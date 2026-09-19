@@ -95,7 +95,7 @@ type target struct {
 func (t *target) Name() string { return t.w.Name() }
 
 // Consumes is every concern: a document documents all of them.
-func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Model, spi.Protocol} }
+func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Model, spi.Protocol, spi.Live} }
 
 // Owns is the directory a family's pages are under, or, for the checkout
 // as a whole, the directories its pages lie in.

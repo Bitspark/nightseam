@@ -814,6 +814,15 @@ func (c *checker) extendedSide(side *model.Side, server bool, label string, oper
 			continue
 		}
 		base := f.Imported[name]
+		// A side that extends another's is a superset of it, so a consumer
+		// of the base may speak to this family. If the base has a live
+		// tier, its live operations are part of what that consumer expects,
+		// and they can only be rendered here by a family that has the tier
+		// to carry them — so extending a live family requires the live
+		// tier, rather than silently dropping half the base's surface.
+		if base.Live != nil && f.Live == nil {
+			c.Addf(at, "missing_tier", "The %s side extends %s's, and %s has a live tier whose operations are part of the surface a consumer of it expects; declare %s beside this family's %s, or extend a family without one.", label, name, name, model.LiveFile, model.ProtocolFile)
+		}
 		wanted := map[string]model.Parameter{}
 		for _, parameter := range base.Parameters() {
 			wanted[parameter.Name] = parameter

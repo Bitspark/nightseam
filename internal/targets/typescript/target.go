@@ -123,7 +123,7 @@ func (c Config) pkg(family string) string { return c.Scope + "/" + family + "-cl
 
 func (*target) Name() string { return Name }
 
-func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Model, spi.Protocol} }
+func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Model, spi.Protocol, spi.Live} }
 
 func (t *target) Owns(family string) []string { return []string{t.config.dir(family)} }
 

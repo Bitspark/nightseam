@@ -26,23 +26,30 @@ func writeFamily(t *testing.T, root, family string) {
 	}
 }
 
-// TestTiersAreModelAndProtocolOnly: the tier table is exactly the model
-// and the protocol, and a checkout that carries a session.json is refused
-// with a diagnostic naming the file — the governed session tier is gone,
-// not renamed.
-func TestTiersAreModelAndProtocolOnly(t *testing.T) {
+// TestTiersAreModelProtocolAndLive: the tier table is exactly the three
+// levels v0.5.0 is — self-contained data, ordinary RPC, live values — in
+// that order, with the live tier bringing no built-in family of its own.
+// A checkout that carries a session.json is still refused with a
+// diagnostic naming the file: the governed session tier is gone, and the
+// live tier replaced it rather than being it renamed.
+func TestTiersAreModelProtocolAndLive(t *testing.T) {
 	var names []string
 	for _, tier := range model.Tiers {
 		names = append(names, tier.Name+"="+tier.File)
 	}
-	if strings.Join(names, ",") != "model=model.json,protocol=protocol.json" {
+	if strings.Join(names, ",") != "model=model.json,protocol=protocol.json,live=live.json" {
 		t.Fatalf("the tiers are %v", names)
 	}
-	if roles := model.TierRoles(); strings.Join(roles, ",") != "protocol" {
+	if roles := model.TierRoles(); strings.Join(roles, ",") != "protocol,live" {
 		t.Fatalf("a family parameter may be of %v", roles)
 	}
 	if model.IsTierRole("session") {
 		t.Fatal("session is still a tier a family parameter may be of")
+	}
+	for _, tier := range model.Tiers {
+		if tier.File == model.LiveFile && tier.Builtin != "" {
+			t.Fatalf("the live tier brings the built-in %s; the wire form of a live value is the projection of the callable kind, not a declared type a family carries", tier.Builtin)
+		}
 	}
 	root := t.TempDir()
 	writeFamily(t, root, "probe")
@@ -50,6 +57,19 @@ func TestTiersAreModelAndProtocolOnly(t *testing.T) {
 	_, errs, err := run(t, root, "validate")
 	if err == nil || !strings.Contains(errs, "probe/session.json#:") || !strings.Contains(errs, "[unknown_file]") {
 		t.Fatalf("a session tier file was not refused: %v\n%s", err, errs)
+	}
+}
+
+// TestLiveTierStacksOnTheProtocol: live.json needs protocol.json beside
+// it, so that the levels stay a stack from the bottom and a live
+// declaration always has an RPC surface to add operations to.
+func TestLiveTierStacksOnTheProtocol(t *testing.T) {
+	root := t.TempDir()
+	writeFixture(t, root, "api/contracts/x/model.json", []byte(`{"nightseam": 2, "types": {}}`))
+	writeFixture(t, root, "api/contracts/x/live.json", []byte(`{"types": {}}`))
+	_, errs, err := run(t, root, "validate")
+	if err == nil || !strings.Contains(errs, "[missing_tier]") || !strings.Contains(errs, "protocol.json") {
+		t.Fatalf("a live tier without a protocol tier was not refused: %v\n%s", err, errs)
 	}
 }
 

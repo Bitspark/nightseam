@@ -107,6 +107,21 @@ func (r *Family) complete() {
 		r.Client = r.resolvedSide(false)
 		r.Errors = r.resolvedErrors()
 	}
+	r.Live = r.f.Live != nil
+	r.Callables = r.f.Callables()
+	r.LiveTypes = r.f.LiveTypes()
+	live := map[string]bool{}
+	for _, name := range r.LiveTypes {
+		live[name] = true
+	}
+	for _, t := range r.Types {
+		t.IsLive = live[t.Name] || r.f.IsLive(model.Inline{Type: t.Declaration})
+		if t.Kind != model.KindCallable {
+			continue
+		}
+		t.Request, t.Result = t.Declaration.Request, t.Declaration.Result
+		t.Contract = Contract(r.f.CarriedFrom(t.Name), r.Name, t.Name)
+	}
 	r.resolveUses()
 	for _, t := range r.Types {
 		r.resolvePayloads(t)
@@ -225,6 +240,49 @@ func (r *Family) resolvedSide(server bool) Side {
 		}
 		for i := range side.Events {
 			e := &side.Events[i]
+			if seenEvents[e] {
+				continue
+			}
+			seenEvents[e] = true
+			bound := *e
+			bound.Type = r.declared(e.Type, source, bindings, scope)
+			event := Event{Name: e.Name, Description: e.Description, Type: r.substitute(e.Type, source, bindings, scope), At: e.At, Declaration: e, BoundDeclaration: &bound, Scope: slices.Clone(scope), Origin: Origin{Family: source.Name, Declaration: e.Name, At: e.At}}
+			out.Events = append(out.Events, event)
+			if source == r {
+				out.OwnEvents = append(out.OwnEvents, event)
+			}
+		}
+		// The live tier adds to the surface the protocol tier produces, so
+		// its operations are resolved on the same side, after the ones
+		// beneath them. A family reached only as a base contributes its
+		// live operations exactly when this family has the tier that can
+		// carry them — which is why extending a base that has a live tier
+		// requires one here, and why a protocol-only family never acquires
+		// a live dependency from a side it extended.
+		if source.f.Live == nil || r.f.Live == nil {
+			return
+		}
+		liveSide := source.f.Live.Server
+		if !server {
+			liveSide = source.f.Live.Client
+		}
+		for i := range liveSide.Methods {
+			m := &liveSide.Methods[i]
+			if seenMethods[m] {
+				continue
+			}
+			seenMethods[m] = true
+			bound := *m
+			bound.Request = r.declared(m.Request, source, bindings, scope)
+			bound.Result = r.declared(m.Result, source, bindings, scope)
+			method := Method{Name: m.Name, Description: m.Description, Request: r.substitute(m.Request, source, bindings, scope), Result: r.substitute(m.Result, source, bindings, scope), Errors: slices.Clone(m.Errors), At: m.At, Declaration: m, BoundDeclaration: &bound, Scope: slices.Clone(scope), Origin: Origin{Family: source.Name, Declaration: m.Name, At: m.At}}
+			out.Methods = append(out.Methods, method)
+			if source == r {
+				out.OwnMethods = append(out.OwnMethods, method)
+			}
+		}
+		for i := range liveSide.Events {
+			e := &liveSide.Events[i]
 			if seenEvents[e] {
 				continue
 			}
