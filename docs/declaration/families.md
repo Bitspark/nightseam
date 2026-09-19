@@ -67,8 +67,11 @@ value](../decisions/nullness-is-a-fact-of-a-value.md)). `min`, `max`,
 holder's to enforce and not the wire's — a validator sees one value.
 
 A **`pattern`** is written in Nightseam's own regular-expression language:
-ECMAScript syntax without lookaround and without backreferences, which is
-what every planned runtime's engine can express and mean the same by. A
+ECMAScript Unicode syntax without lookaround and without backreferences,
+matching code points with ECMAScript character classes and line terminators.
+TypeScript uses `u` mode; Go translates the classes and dot to the same
+sets. NBSP matches `\s`, one emoji matches one `.`, and dot excludes LF,
+CR, U+2028 and U+2029. Unicode escape and range syntax is checked strictly. A
 spelling only one engine reads — RE2's `(?P<name>`, inline flag groups,
 `[[:alpha:]]`, `\A`, `\z`; ECMAScript's lookahead, lookbehind, `\1`,
 `\k<name>` — is refused where it is written rather than found where it is

@@ -19,6 +19,14 @@ are one number. Entries are in the words of the commits that landed them.
   explicit no-payload marker from an empty record or null. Target support remains gated by
   each renderer's existing refusals.
 
+- Both validators implement the ruled adjacent union payload form, explicit
+  generic inheritance bindings and Unicode pattern semantics. Every union
+  payload is wrapped, including records and null; a payload-free arm has
+  only its tag. Patterns use ECMAScript `u` syntax and character classes in
+  both languages, with a shared Go parser/translator and paired value cases.
+  Go type arguments can be bound automatically with `TypeArgument[T]()`;
+  named schema metadata and forwarded family draws retain their constraints.
+
 - Both runtime validators read tagged unions, literals, nullable expressions,
   inline shapes and nested applications with type and family arguments.
   Imported arguments retain their declaring scope, and the shared table

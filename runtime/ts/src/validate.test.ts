@@ -14,6 +14,7 @@ test('validator conformance', () => {
     wire: WireFamily;
     imported: Record<string, WireFamily>;
     patterns: { pattern: string; valid: boolean }[];
+    patternValues: { pattern: string; value: string; valid: boolean }[];
     equivalence: { generic: TypeExpression; bound: TypeExpression; values: unknown[] }[];
     cases: {
       expression: unknown;
@@ -42,6 +43,16 @@ test('validator conformance', () => {
       });
     if (row.valid) assert.doesNotThrow(create, row.pattern);
     else assert.throws(create, /outside Nightseam dialect/, row.pattern);
+  }
+  for (const row of table.patternValues) {
+    const validate = createValidator({
+      types: {
+        Probe: { kind: 'record', fields: [{ name: 'text', type: 'string', required: true, pattern: row.pattern }] },
+      },
+    });
+    const check = (): void => validate('Probe', { text: row.value });
+    if (row.valid) assert.doesNotThrow(check, JSON.stringify(row));
+    else assert.throws(check, { message: '$.text: expected a match of ' + row.pattern }, JSON.stringify(row));
   }
   const imported: Record<string, Validator> = {};
   for (const [family, wire] of Object.entries(table.imported)) imported[family] = createValidator(wire, imported);

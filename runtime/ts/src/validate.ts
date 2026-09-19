@@ -39,7 +39,7 @@ export interface WireType {
   kind: string;
   key?: string;
   fields?: WireField[];
-  extends?: string[];
+  extends?: (string | { apply: string; with: Record<string, TypeExpression> })[];
   open?: boolean;
   values?: string[];
   type?: TypeExpression;
@@ -180,16 +180,21 @@ function checkPattern(value: string): void {
   const refuse = (): never => {
     throw new Error('pattern ' + diagnosticLiteral(value) + ': outside Nightseam dialect');
   };
+  let inClass = false;
   for (let index = 0; index < value.length; index++) {
     const rest = value.slice(index);
-    if (outsidePattern.some((prefix) => rest.startsWith(prefix))) refuse();
     if (value[index] === '\\') {
+      if (outsidePattern.some((prefix) => rest.startsWith(prefix))) refuse();
       if (/^\\[1-9]/.test(rest)) refuse();
       index++;
-    } else if (/^\(\?[imsUu-]+[):]/.test(rest)) refuse();
+    } else if (!inClass) {
+      if (outsidePattern.some((prefix) => rest.startsWith(prefix))) refuse();
+      if (/^\(\?[imsUu-]+[):]/.test(rest)) refuse();
+      if (value[index] === '[') inClass = true;
+    } else if (value[index] === ']') inClass = false;
   }
   try {
-    new RegExp(value);
+    new RegExp(value, 'u');
   } catch {
     refuse();
   }
@@ -229,7 +234,7 @@ function constrain(field: WireField, value: unknown, location: string): void {
         throw new Error(location + ': expected a length of at most ' + field.length.max);
     }
   }
-  if (field.pattern && typeof value === 'string' && !new RegExp(field.pattern).test(value)) {
+  if (field.pattern && typeof value === 'string' && !new RegExp(field.pattern, 'u').test(value)) {
     throw new Error(location + ': expected a match of ' + field.pattern);
   }
 }
@@ -253,6 +258,11 @@ function freeParameters(schema: Schema, type: WireType | undefined, seen = new S
   const used = new Set<string>();
   const inherit = (type: WireType | undefined): void => {
     for (const parameter of freeParameters(schema, type, seen)) used.add(parameter.name);
+  };
+  const walkBase = (base: TypeExpression): void => {
+    if (typeof base === 'object' && base !== null && 'apply' in base) {
+      for (const filler of Object.values(base.with)) walk(filler);
+    } else walk(base);
   };
   const walk = (value: TypeExpression | undefined): void => {
     if (typeof value === 'string') {
@@ -285,14 +295,14 @@ function freeParameters(schema: Schema, type: WireType | undefined, seen = new S
         walk(entity?.fields?.find((field) => field.name === entity.key)?.type);
       } else if ('kind' in value) {
         for (const field of value.fields ?? []) walk(field.type);
-        for (const base of value.extends ?? []) walk(base);
+        for (const base of value.extends ?? []) walkBase(base);
         for (const variant of Object.values(value.variants ?? {})) walk(variant);
       }
     }
   };
   walk(type.type);
   for (const field of type.fields ?? []) walk(field.type);
-  for (const base of type.extends ?? []) walk(base);
+  for (const base of type.extends ?? []) walkBase(base);
   for (const variant of Object.values(type.variants ?? {})) walk(variant);
   seen.delete(type);
   return (schema.family.parameters ?? []).filter((parameter) => used.has(parameter.name));
@@ -330,7 +340,7 @@ function named(expression: Expression, name: string, location: string): [Express
   return [child(expression, name), expression.schema.family.types[name]!, name];
 }
 
-function resolve(expression: Expression, location: string): Resolved {
+function resolve(expression: Expression, location: string, inheritance = false): Resolved {
   let aliases = new Set(expression.aliases);
   for (;;) {
     let definition: WireType, name: string;
@@ -351,7 +361,7 @@ function resolve(expression: Expression, location: string): Resolved {
         if (!plainObject(value.with)) bad(location, 'application arguments');
         const scope: Scope = { ...target.scope };
         const parameters = [
-          ...(value.apply.includes('.') ? freeParameters(target.schema, type) : []),
+          ...(inheritance || value.apply.includes('.') ? freeParameters(target.schema, type) : []),
           ...(type.parameters ?? []),
         ];
         const allowed = new Set<string>();
@@ -382,6 +392,7 @@ function resolve(expression: Expression, location: string): Resolved {
         name = value.kind;
       } else return expression;
     } else return bad(location, 'type expression');
+    inheritance = false;
     if (definition.kind === 'alias') {
       if (aliases.has(definition)) bad(location, 'acyclic type expression');
       aliases.add(definition);
@@ -396,13 +407,22 @@ interface ScopedField {
   field: WireField;
   expression: Expression;
 }
+
+function inherited(expression: Expression, base: TypeExpression, location: string): Resolved {
+  if (typeof base === 'string') {
+    const [owner, definition] = named(expression, base, location);
+    if (definition.parameters?.length || freeParameters(owner.schema, definition).length)
+      bad(location, 'explicit application of generic base ' + base);
+  }
+  return resolve(child(expression, base), location, true);
+}
 function fields(expression: Resolved, location: string, seen = new Set<WireType>()): ScopedField[] {
   const definition = expression.definition;
   if (!definition) bad(location, 'record');
   if (seen.has(definition)) bad(location, 'acyclic inheritance');
   seen.add(definition);
   const result = (definition.extends ?? []).flatMap((base) =>
-    fields(resolve(child(expression, base), location), location, seen),
+    fields(inherited(expression, base, location), location, seen),
   );
   for (const field of definition.fields ?? []) result.push({ field, expression: child(expression, field.type) });
   seen.delete(definition);
@@ -416,7 +436,7 @@ function variants(expression: Resolved, location: string, seen = new Set<WireTyp
   seen.add(definition);
   const result: Record<string, Expression> = Object.create(null) as Record<string, Expression>;
   for (const base of definition.extends ?? [])
-    Object.assign(result, variants(resolve(child(expression, base), location), location, seen));
+    Object.assign(result, variants(inherited(expression, base, location), location, seen));
   for (const [tag, variant] of Object.entries(definition.variants ?? {})) result[tag] = child(expression, variant);
   seen.delete(definition);
   return result;
@@ -425,30 +445,6 @@ function variants(expression: Resolved, location: string, seen = new Set<WireTyp
 function nullable(expression: Expression, location: string): boolean {
   const resolved = resolve(expression, location);
   return typeof resolved.value === 'object' && resolved.value !== null && 'nullable' in resolved.value;
-}
-
-function carrier(expression: Expression, tag: string, wrapped: unknown, location: string): [boolean, boolean] {
-  const resolved = resolve(expression, location);
-  if (resolved.definition) {
-    switch (resolved.definition.kind) {
-      case 'record':
-      case 'entity':
-        return [true, fields(resolved, location).some(({ field }) => field.name === tag)];
-      case 'union':
-        return [true, resolved.definition.tag === tag];
-      default:
-        return [false, false];
-    }
-  }
-  const value = resolved.value;
-  if (typeof value === 'object') {
-    if ('nullable' in value) {
-      if (wrapped === null) return [false, false];
-      return carrier(child(resolved, value.nullable), tag, wrapped, location);
-    }
-    if ('map' in value || 'empty' in value) return [true, false];
-  }
-  return [value === 'json', false];
 }
 
 function validate(expression: Expression, value: unknown, location: string): void {
@@ -497,17 +493,19 @@ function validate(expression: Expression, value: unknown, location: string): voi
         if (typeof tagName !== 'string' || !Object.hasOwn(all, tagName)) bad(location + '.' + tag, 'known variant');
         const variant = all[tagName]!,
           member = definition.value ?? 'value';
-        const probe = Object.keys(object).length === 2 ? object[member] : undefined;
-        const [objectCarrier, declaresTag] = carrier(variant, tag, probe, location);
-        if (objectCarrier) {
-          const payload = Object.fromEntries(Object.entries(object).filter(([key]) => key !== tag || declaresTag));
-          validate(variant, payload, location);
-          return;
+        const marker = variant.value;
+        const empty =
+          typeof marker === 'object' &&
+          marker !== null &&
+          'empty' in marker &&
+          marker.empty === true &&
+          Object.keys(marker).length === 1;
+        if (!empty) {
+          if (!Object.hasOwn(object, member)) throw new Error(location + '.' + member + ': required field missing');
+          validate(variant, object[member], location + '.' + member);
         }
-        if (!Object.hasOwn(object, member)) throw new Error(location + '.' + member + ': required field missing');
-        validate(variant, object[member], location + '.' + member);
         for (const key of Object.keys(object).sort())
-          if (key !== tag && key !== member) throw new Error(location + '.' + key + ': unknown field');
+          if (key !== tag && (empty || key !== member)) throw new Error(location + '.' + key + ': unknown field');
         return;
       }
       default:

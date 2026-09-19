@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,7 +21,7 @@ import (
 //
 // Expressions include primitives, named and imported types, family draws,
 // arrays, maps, entity references, applications, literals, nullable values,
-// inline shapes and the empty object. Records and internally tagged unions
+// inline shapes and the empty object. Records and adjacently tagged unions
 // inherit their fields or variants. Field presence is separate from nullness.
 //
 // Bind supplies parameters to raw validation. An explicitly applied argument
@@ -60,7 +59,7 @@ type wireType struct {
 	Kind       string
 	Key        string
 	Fields     []wireField
-	Extends    []string
+	Extends    []any
 	Open       bool
 	Values     []string
 	Type       any
@@ -180,6 +179,8 @@ func checkPatterns(value any) error {
 		return nil
 	}
 	switch value := value.(type) {
+	case TypeBinding:
+		return checkPatterns(value.Type)
 	case *wireType:
 		if value == nil {
 			return nil
@@ -233,9 +234,19 @@ func (s *Schema) Bind(types map[string]any, families map[string]*Schema) *Schema
 	for name, arg := range s.scope {
 		bound.scope[name] = arg
 	}
+	drawn := map[string]*Schema{}
 	for name, value := range types {
 		e := expressionContext(s, value)
 		bound.scope[name] = argument{typeExpression: &e}
+		if family, member, qualified := strings.Cut(name, "."); qualified && family != "" && member != "" {
+			if drawn[family] == nil {
+				drawn[family] = &Schema{types: map[string]*wireType{}}
+			}
+			drawn[family].types[member] = &wireType{Kind: "alias", Type: TypeBinding{Schema: s, Type: value}}
+		}
+	}
+	for name, schema := range drawn {
+		bound.scope[name] = argument{family: schema}
 	}
 	for name, family := range families {
 		bound.scope[name] = argument{family: family}
@@ -290,6 +301,17 @@ func (s *Schema) freeParameters(t *wireType, seen map[*wireType]bool) []wirePara
 	defer delete(seen, t)
 	used := map[string]bool{}
 	var walk func(any)
+	walkBase := func(base any) {
+		if applied, ok := base.(map[string]any); ok {
+			if fillers, ok := applied["with"].(map[string]any); ok {
+				for _, filler := range fillers {
+					walk(filler)
+				}
+				return
+			}
+		}
+		walk(base)
+	}
 	inherit := func(t *wireType) {
 		for _, p := range s.freeParameters(t, seen) {
 			used[p.Name] = true
@@ -352,15 +374,16 @@ func (s *Schema) freeParameters(t *wireType, seen map[*wireType]bool) []wirePara
 				return
 			}
 			if _, inline := v["kind"]; inline {
-				for _, key := range []string{"fields", "extends"} {
-					if items, ok := v[key].([]any); ok {
-						for _, item := range items {
-							if field, ok := item.(map[string]any); ok {
-								walk(field["type"])
-							} else {
-								walk(item)
-							}
+				if items, ok := v["fields"].([]any); ok {
+					for _, item := range items {
+						if field, ok := item.(map[string]any); ok {
+							walk(field["type"])
 						}
+					}
+				}
+				if items, ok := v["extends"].([]any); ok {
+					for _, base := range items {
+						walkBase(base)
 					}
 				}
 				if variants, ok := v["variants"].(map[string]any); ok {
@@ -376,7 +399,7 @@ func (s *Schema) freeParameters(t *wireType, seen map[*wireType]bool) []wirePara
 		walk(field.Type)
 	}
 	for _, base := range t.Extends {
-		walk(base)
+		walkBase(base)
 	}
 	for _, variant := range t.Variants {
 		walk(variant)
@@ -454,6 +477,10 @@ func (e expression) named(name, location string) (expression, *wireType, string,
 }
 
 func (e expression) resolve(location string) (resolvedExpression, error) {
+	return e.resolveWith(location, false)
+}
+
+func (e expression) resolveWith(location string, inheritance bool) (resolvedExpression, error) {
 	// Alias/application cycles have no value constructor at which recursion
 	// can make progress. Records may recurse: each child starts a new resolve.
 	aliases := copyAliases(e.aliases)
@@ -461,6 +488,17 @@ func (e expression) resolve(location string) (resolvedExpression, error) {
 		var definition *wireType
 		name := ""
 		switch v := e.value.(type) {
+		case TypeBinding:
+			if v.Schema == nil {
+				return resolvedExpression{}, expected(location, "schema for type argument")
+			}
+			e = expressionContext(v.Schema, v.Type)
+			continue
+		case goArgument:
+			e.value = describeArgument(v.typ)
+			continue
+		case goValue:
+			return resolvedExpression{expression: e}, nil
 		case string:
 			if arg, ok := e.scope[v]; ok {
 				if arg.typeExpression == nil {
@@ -500,7 +538,7 @@ func (e expression) resolve(location string) (resolvedExpression, error) {
 					scope[parameter] = arg
 				}
 				parameters := append([]wireParameter{}, t.Parameters...)
-				if strings.Contains(reference, ".") {
+				if inheritance || strings.Contains(reference, ".") {
 					parameters = append(target.schema.freeParameters(t, map[*wireType]bool{}), parameters...)
 				}
 				allowed := map[string]bool{}
@@ -559,6 +597,7 @@ func (e expression) resolve(location string) (resolvedExpression, error) {
 		default:
 			return resolvedExpression{}, expected(location, "type expression")
 		}
+		inheritance = false
 		if definition.Kind == "alias" {
 			if aliases[definition] {
 				return resolvedExpression{}, expected(location, "acyclic type expression")
@@ -596,6 +635,20 @@ type scopedField struct {
 	expression expression
 }
 
+func (e expression) inherited(base any, location string) (resolvedExpression, error) {
+	if name, bare := base.(string); bare {
+		owner, definition, _, err := e.named(name, location)
+		if err != nil {
+			return resolvedExpression{}, err
+		}
+		generic := len(definition.Parameters) > 0 || len(owner.schema.freeParameters(definition, map[*wireType]bool{})) > 0
+		if generic {
+			return resolvedExpression{}, expected(location, "explicit application of generic base "+name)
+		}
+	}
+	return e.child(base).resolveWith(location, true)
+}
+
 func (r resolvedExpression) fields(location string, seen map[*wireType]bool) ([]scopedField, error) {
 	if r.definition == nil {
 		return nil, expected(location, "record")
@@ -607,7 +660,7 @@ func (r resolvedExpression) fields(location string, seen map[*wireType]bool) ([]
 	defer delete(seen, r.definition)
 	var fields []scopedField
 	for _, base := range r.definition.Extends {
-		parent, err := r.child(base).resolve(location)
+		parent, err := r.inherited(base, location)
 		if err != nil {
 			return nil, err
 		}
@@ -634,7 +687,7 @@ func (r resolvedExpression) variants(location string, seen map[*wireType]bool) (
 	defer delete(seen, r.definition)
 	variants := map[string]expression{}
 	for _, base := range r.definition.Extends {
-		parent, err := r.child(base).resolve(location)
+		parent, err := r.inherited(base, location)
 		if err != nil {
 			return nil, err
 		}
@@ -665,55 +718,15 @@ func (e expression) nullable(location string) (bool, error) {
 	return ok, nil
 }
 
-// carrier reports whether this payload uses the enclosing union object,
-// and whether a record declares the discriminator itself.
-func (e expression) carrier(tag string, wrapped any, location string) (bool, bool, error) {
-	r, err := e.resolve(location)
-	if err != nil {
-		return false, false, err
-	}
-	if r.definition != nil {
-		switch r.definition.Kind {
-		case "record", "entity":
-			fields, err := r.fields(location, map[*wireType]bool{})
-			if err != nil {
-				return false, false, err
-			}
-			for _, field := range fields {
-				if field.field.Name == tag {
-					return true, true, nil
-				}
-			}
-			return true, false, nil
-		case "union":
-			return true, r.definition.Tag == tag, nil
-		}
-		return false, false, nil
-	}
-	if v, ok := r.value.(map[string]any); ok {
-		if inner, nullable := v["nullable"]; nullable {
-			if wrapped == nil {
-				return false, false, nil
-			}
-			return r.child(inner).carrier(tag, wrapped, location)
-		}
-		if _, ok := v["map"]; ok {
-			return true, false, nil
-		}
-		if _, ok := v["empty"]; ok {
-			return true, false, nil
-		}
-	}
-	name, _ := r.value.(string)
-	return name == "json", false, nil
-}
-
 func (e expression) validate(value any, location string) error {
 	r, err := e.resolve(location)
 	if err != nil {
 		return err
 	}
 	bad := func(want string) error { return expected(location, want) }
+	if typed, ok := r.value.(goValue); ok {
+		return typed.validate(value, location)
+	}
 	if r.definition != nil {
 		t := r.definition
 		switch t.Kind {
@@ -803,33 +816,19 @@ func (e expression) validate(value any, location string) error {
 			if member == "" {
 				member = "value"
 			}
-			wrapped, present := obj[member]
-			// A missing value cannot be a wrapped null.
-			probe := wrapped
-			if !present || len(obj) != 2 {
-				probe = struct{}{}
-			}
-			object, declaresTag, err := variant.carrier(t.Tag, probe, location)
-			if err != nil {
-				return err
-			}
-			if object {
-				payload := map[string]any{}
-				for key, value := range obj {
-					if key != t.Tag || declaresTag {
-						payload[key] = value
-					}
+			marker, isMarker := variant.value.(map[string]any)
+			empty := isMarker && len(marker) == 1 && marker["empty"] == true
+			if !empty {
+				wrapped, present := obj[member]
+				if !present {
+					return fmt.Errorf("%s.%s: required field missing", location, member)
 				}
-				return variant.validate(payload, location)
-			}
-			if !present {
-				return fmt.Errorf("%s.%s: required field missing", location, member)
-			}
-			if err := variant.validate(wrapped, location+"."+member); err != nil {
-				return err
+				if err := variant.validate(wrapped, location+"."+member); err != nil {
+					return err
+				}
 			}
 			for _, key := range sortedKeys(obj) {
-				if key != t.Tag && key != member {
+				if key != t.Tag && (empty || key != member) {
 					return fmt.Errorf("%s.%s: unknown field", location, key)
 				}
 			}
@@ -1004,8 +1003,8 @@ func constrain(field wireField, value any, location string) error {
 	}
 	if field.Pattern != "" {
 		if text, ok := value.(string); ok {
-			matched, err := regexp.MatchString(field.Pattern, text)
-			if err != nil || !matched {
+			compiled, err := pattern.Compile(field.Pattern)
+			if err != nil || !compiled.MatchString(text) {
 				return fmt.Errorf("%s: expected a match of %s", location, field.Pattern)
 			}
 		}
