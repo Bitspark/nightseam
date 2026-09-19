@@ -118,7 +118,7 @@ form](../decisions/one-reference-form.md)).
 
 A union is one of several variants, told apart by the member `tag` names.
 Every payload is carried whole under `value`, including a record, map, JSON
-or null: `{"type":"image","value":{"url":"…"}}` and
+or null: `{"type":"image","value":{"url":"â€¦"}}` and
 `{"type":"count","value":3}`. A union may rename the payload member with
 `"value":"<member>"`; it must differ from the discriminator. A record's own
 literal member stays inside that payload, with its own required/nullable
