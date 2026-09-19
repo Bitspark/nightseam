@@ -152,16 +152,37 @@ func copyFixtureTree(t *testing.T, source, destination string) {
 // packages bind to the runtime by its import path; the
 // fixture module resolves Nightseam to this checkout, so the runtime and
 // the seam beneath it are the real ones and only the generated packages
-// are the copy under test.
+// are the copy under test. It declares the language version the checkout's
+// own go.mod declares, read rather than written out here, since a module
+// that requires one declaring a newer version than itself is refused before
+// it builds — which is what a raised directive did to every fixture that
+// compiles generated code.
 func fixtureModule(t *testing.T, directory, root string) {
 	t.Helper()
-	writeFixture(t, directory, "go.mod", []byte("module example.test/generated\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/Bitspark/nightseam v0.0.0\n\tgithub.com/coder/websocket v1.8.15\n)\n\nreplace github.com/Bitspark/nightseam => "+filepath.ToSlash(root)+"\n"))
+	writeFixture(t, directory, "go.mod", []byte("module example.test/generated\n\ngo "+goDirective(t, root)+"\n\nrequire (\n\tgithub.com/Bitspark/nightseam v0.0.0\n\tgithub.com/coder/websocket v1.8.15\n)\n\nreplace github.com/Bitspark/nightseam => "+filepath.ToSlash(root)+"\n"))
 	sum, err := os.ReadFile(filepath.Join(root, "go.sum"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	writeFixture(t, directory, "go.sum", sum)
 }
+
+// goDirective is the language version the checkout's go.mod declares.
+func goDirective(t *testing.T, root string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for line := range strings.Lines(string(data)) {
+		if version, ok := strings.CutPrefix(strings.TrimSpace(line), "go "); ok {
+			return strings.TrimSpace(version)
+		}
+	}
+	t.Fatalf("no go directive in the go.mod of %s", root)
+	return ""
+}
+
 func runFixture(t *testing.T, directory, program string, args ...string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
