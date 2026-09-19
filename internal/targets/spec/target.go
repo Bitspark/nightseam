@@ -455,6 +455,9 @@ func code(value string) string {
 
 // article is the indefinite article a word takes.
 func article(word string) string {
+	if strings.HasPrefix(word, "union") {
+		return "A"
+	}
 	if strings.ContainsRune("aeiou", rune(word[0])) {
 		return "An"
 	}
