@@ -8,3 +8,4 @@ dist/
 */ts/NOTICE
 release-notes.md
 conformance/.out/
+secrets/
