@@ -47,7 +47,7 @@ func TestSpecificationBindsInheritedSideParameters(t *testing.T) {
 	files := fstest.MapFS{
 		"contracts/base/model.json": {Data: []byte(`{"nightseam":2,"types":{"Entity":{"kind":"entity","key":"id","fields":[{"name":"id","type":"string"}]}}}`)},
 		"contracts/base/protocol.json": {Data: []byte(`{"profile":"nightseam.duplex/1","parameters":[{"name":"T"}],"server":{
-			"methods":{"echo":{"request":"T","result":"T"}},
+			"methods":{"echo":{"result":"T"}},
 			"events":{"changed":{"type":"T"},"selected":{"type":{"ref":"Entity"}}}
 		}}`)},
 		"contracts/child/model.json": {Data: []byte(`{"nightseam":2,"imports":["base"]}`)},
@@ -58,7 +58,7 @@ func TestSpecificationBindsInheritedSideParameters(t *testing.T) {
 	document := renderSpecificationFixture(t, files, "child")
 	for _, want := range []string{
 		"Extends the server side of `base` with T=array of nullable `Item`.",
-		"| `echo` | array of nullable `Item` | array of nullable `Item` |",
+		"| `echo` | — | array of nullable `Item` |",
 		"| `changed` | array of nullable `Item` |",
 		"| `selected` | reference to `base.Entity` |",
 	} {
