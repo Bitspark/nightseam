@@ -184,12 +184,7 @@ export class Tunnel {
 
   /** A channel the other side opened, taken here rather than left pending. */
   private accepted(channel: Channel): void {
-    this.observe({
-      type: 'channel.accepted',
-      at: new Date(),
-      family: channel.family,
-      id: channel.id,
-    });
+    this.observe({ type: 'channel.accepted', at: new Date(), family: channel.family, id: channel.id });
   }
 
   private onOpen(params: unknown): { window: number } {
@@ -206,10 +201,7 @@ export class Tunnel {
       !Number.isInteger(p.window) ||
       p.window <= 0
     ) {
-      this.refused(
-        typeof p?.family === 'string' ? p.family : '',
-        'an open naming no channel, family and window',
-      );
+      this.refused(typeof p?.family === 'string' ? p.family : '', 'an open naming no channel, family and window');
       throw new DuplexError(
         CHANNEL_INVALID,
         "channel.open needs a positive channel id of the opener's parity, a family and a window.",
@@ -229,13 +221,7 @@ export class Tunnel {
     }
     const channel = new Channel(this, p.channel, p.family, p.window);
     this.table.set(p.channel, channel);
-    this.observe({
-      type: 'channel.opened',
-      at: new Date(),
-      family: p.family,
-      id: p.channel,
-      opener: false,
-    });
+    this.observe({ type: 'channel.opened', at: new Date(), family: p.family, id: p.channel, opener: false });
     const acceptor = this.acceptors.shift();
     if (acceptor) {
       this.accepted(channel);

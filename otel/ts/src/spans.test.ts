@@ -86,7 +86,7 @@ async function calling(tracer: Tracer, text: string): Promise<Payload> {
   await served.attach(machine);
 
   // The consumer: attached as a participant, holding control, answering asks.
-  const consumer = await wire.open(0);
+  const consumer = await wire.open();
   registry.control('s', registry.attach('s', consumer.far, 'participant', 'one', 0));
   const answering: Handler = { reverse: (params) => ({ ...params, text: [...params.text].reverse().join('') }) };
   const client = await Client.attach(

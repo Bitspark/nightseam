@@ -17,14 +17,12 @@ profile under the `channel.` prefix ([how a layer speaks](vocabulary.md)).
 **`channel.open`** — a request, from the side that opens:
 
 ```json
-{"channel": 12, "family": "chat", "after": 0, "window": 32}
+{"channel": 12, "family": "chat", "window": 32}
 ```
 
 `channel` is the id the opener chose (§ ids), `family` the family the
-channel will speak, `after` the last sequence the opener holds — carried,
-never acted on, for whatever runs above to resume from — and `window` how
-many frames the opener will hold in flight from the other side before it
-returns credit. The result is `{"window": 32}`, the accepting side's
+channel will speak, and `window` how many frames the opener will hold in
+flight from the other side before it returns credit. The result is `{"window": 32}`, the accepting side's
 window. An open is refused with `channel_invalid` (a malformed open, or an
 id of the accepting side's parity), `channel_exists` (the id is open) or
 `channel_refused` (nobody here has taken the channels already opened, up
