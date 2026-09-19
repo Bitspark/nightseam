@@ -122,3 +122,21 @@ func TestDrawnTypeArgumentsForwardAsFamilyBindings(t *testing.T) {
 		}
 	}
 }
+
+func TestChainedDrawnTypeBindingsRetainEveryMember(t *testing.T) {
+	inner := MustSchema(`{"types":{"Pair":{"kind":"record","parameters":[{"name":"S","of":"protocol"}],"fields":[
+ {"name":"first","type":"S.First","required":true},{"name":"second","type":"S.Second","required":true}
+]}}}`, nil)
+	outer := MustSchema(`{"types":{"Forward":{"kind":"alias","parameters":[{"name":"Family","of":"protocol"}],"type":{"apply":"inner.Pair","with":{"S":"Family"}}}}}`, map[string]*Schema{"inner": inner})
+	first := outer.Bind(map[string]any{"Family.First": TypeArgument[foreignArgument]()}, nil)
+	bound := first.Bind(map[string]any{"Family.Second": TypeArgument[string]()}, nil)
+	if err := bound.ValidateRaw("Forward", []byte(`{"first":"foreign","second":"hello"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := bound.ValidateRaw("Forward", []byte(`{"first":"wrong","second":"hello"}`)); err == nil {
+		t.Fatal("chained binding lost the first member's literal constraint")
+	}
+	if err := first.ValidateExpressionRaw("Family.Second", []byte(`"hello"`)); err == nil {
+		t.Fatal("binding mutated its receiver")
+	}
+}
