@@ -49,6 +49,10 @@ func (f *file) emitUnion(t *render.Type, variants []unionVariant) {
 		f.line("if selected != 1 { return \"\" }")
 		f.line("return kind")
 	})
+	if t.IsLive {
+		f.emitLiveRefusal(self, t)
+		return
+	}
 	f.w.Block(fmt.Sprintf("func (v %s) %s() ([]byte, error) {", self, identMarshalJSON), "}", func() {
 		f.linef("kind := v.%s()", identKind)
 		f.linef("if kind == \"\" { return nil, %s.Errorf(%q) }", f.std("fmt"), "union "+t.Name+" requires exactly one selected variant")

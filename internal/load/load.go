@@ -31,7 +31,7 @@ import (
 )
 
 // schemas maps each tier to the schema that holds its file's shape.
-var schemas = map[string]string{"model": "urn:nightseam:v1:model", "protocol": "urn:nightseam:v1:protocol"}
+var schemas = map[string]string{"model": "urn:nightseam:v1:model", "protocol": "urn:nightseam:v1:protocol", "live": "urn:nightseam:v1:live"}
 
 //go:embed schemas/common.schema.json
 var commonSchema []byte
@@ -41,6 +41,9 @@ var modelSchema []byte
 
 //go:embed schemas/protocol.schema.json
 var protocolSchema []byte
+
+//go:embed schemas/live.schema.json
+var liveSchema []byte
 
 //go:embed schemas/overrides.schema.json
 var overridesSchema []byte
@@ -62,6 +65,7 @@ var compiled = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 		"urn:nightseam:v1:common":    commonSchema,
 		"urn:nightseam:v1:model":     modelSchema,
 		"urn:nightseam:v1:protocol":  protocolSchema,
+		"urn:nightseam:v1:live":      liveSchema,
 		"urn:nightseam:v1:overrides": overridesSchema,
 		"urn:nightseam:v1:checkout":  checkoutSchema,
 	}
@@ -405,12 +409,15 @@ func readTier(tier model.Tier, data []byte, family *model.Family, imports map[st
 			family.Types[name] = t
 		}
 	}
-	if tier.Name == "protocol" {
-		protocol, err := model.DecodeProtocol(tier.File, data)
-		if err != nil {
-			problems.Add(diag.Location{File: tier.File}, "invalid_declaration", err.Error())
-		}
-		family.Protocol = protocol
+	var err error
+	switch tier.Name {
+	case "protocol":
+		family.Protocol, err = model.DecodeProtocol(tier.File, data)
+	case "live":
+		family.Live, err = model.DecodeLive(tier.File, data)
+	}
+	if err != nil {
+		problems.Add(diag.Location{File: tier.File}, "invalid_declaration", err.Error())
 	}
 }
 

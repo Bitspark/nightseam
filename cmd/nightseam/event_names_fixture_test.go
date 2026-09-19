@@ -29,7 +29,8 @@ func TestGeneratedEventNameOverride(t *testing.T) {
 			"paths": {
 				"@nightseam/runtime":["./runtime/ts/src/index.ts"],
 				"@nightseam/duplex":["./duplex/ts/src/index.ts"],
-				"@nightseam/tunnel":["./tunnel/ts/src/index.ts"]
+				"@nightseam/tunnel":["./tunnel/ts/src/index.ts"],
+				"@nightseam/live":["./live/ts/src/index.ts"]
 			}
 		},
 		"include":["api/ts/**/*.ts","events.ts"]

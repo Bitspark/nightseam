@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nightseam:v1:live",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "imports": {
+      "$ref": "urn:nightseam:v1:common#/$defs/imports"
+    },
+    "types": {
+      "$ref": "urn:nightseam:v1:common#/$defs/types"
+    },
+    "server": {
+      "$ref": "urn:nightseam:v1:common#/$defs/side"
+    },
+    "client": {
+      "$ref": "urn:nightseam:v1:common#/$defs/side"
+    }
+  }
+}

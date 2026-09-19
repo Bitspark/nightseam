@@ -1,0 +1,1 @@
+{"profile": "nightseam.duplex/1", "server": {"methods": {"echo": {"request": "Payload", "result": "Payload"}}}, "errors": {"denied": "The caller is denied."}}

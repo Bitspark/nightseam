@@ -1,0 +1,19 @@
+{
+  "imports": ["worker"],
+  "types": {
+    "Watch": {
+      "kind": "record",
+      "description": "A live value drawn from an imported family: the callable is worker's declaration, and the reference carries worker's contract wherever it travels.",
+      "fields": [
+        {"name": "shift", "type": "Shift"},
+        {"name": "sink", "type": "worker.ProgressSink"},
+        {"name": "spares", "type": {"array": "worker.ProgressSink"}, "required": false}
+      ]
+    }
+  },
+  "server": {
+    "methods": {
+      "watch": {"description": "Takes an imported callback record.", "request": "Watch", "result": "worker.Job", "errors": ["refused"]}
+    }
+  }
+}

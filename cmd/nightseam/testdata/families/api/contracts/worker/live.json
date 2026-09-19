@@ -1,0 +1,95 @@
+{
+  "types": {
+    "Report": {
+      "kind": "callable",
+      "description": "Told how far along the job is.",
+      "request": "Percent"
+    },
+    "Cancel": {
+      "kind": "callable",
+      "description": "Asks the job to stop. Releasing a reference to it is not this, and cancelling the call that returned it is neither."
+    },
+    "Rename": {
+      "kind": "callable",
+      "description": "Renames the job and answers what it is now called.",
+      "request": "Ticket",
+      "result": "Ticket",
+      "errors": ["gone"]
+    },
+    "ProgressSink": {
+      "kind": "record",
+      "description": "An interface, which is a record of callable members; each member is its own binding.",
+      "fields": [
+        {"name": "report", "type": "Report"}
+      ]
+    },
+    "Job": {
+      "kind": "record",
+      "description": "What start answers: a record whose members are separately released.",
+      "fields": [
+        {"name": "ticket", "type": {"ref": "Ticket"}},
+        {"name": "cancel", "type": "Cancel"},
+        {"name": "rename", "type": "Rename", "required": false}
+      ]
+    },
+    "Sinks": {
+      "kind": "alias",
+      "description": "Callables in a container.",
+      "type": {"map": "ProgressSink"}
+    },
+    "Watchers": {
+      "kind": "alias",
+      "description": "Callables in a list, each of which may be null.",
+      "type": {"array": {"nullable": "Report"}}
+    },
+    "Outcome": {
+      "kind": "union",
+      "description": "Callables in a sum: one arm carries them and one carries nothing.",
+      "tag": "state",
+      "variants": {
+        "running": "Job",
+        "finished": {"empty": true}
+      }
+    },
+    "Start": {
+      "kind": "record",
+      "description": "A callable supplied as an argument, beside data.",
+      "fields": [
+        {"name": "ticket", "type": "Ticket"},
+        {"name": "progress", "type": "ProgressSink"},
+        {"name": "watchers", "type": "Watchers", "required": false}
+      ]
+    },
+    "Supervise": {
+      "kind": "record",
+      "fields": [
+        {"name": "sinks", "type": "Sinks"}
+      ]
+    }
+  },
+  "server": {
+    "methods": {
+      "start": {
+        "description": "Takes a callback and answers a record of callables.",
+        "request": "Start",
+        "result": "Job",
+        "errors": ["denied"]
+      }
+    },
+    "events": {
+      "settled": {
+        "description": "A sum carrying callables, emitted by the server.",
+        "type": "Outcome"
+      }
+    }
+  },
+  "client": {
+    "methods": {
+      "supervise": {
+        "description": "The reverse direction: the server hands the client callables to call.",
+        "request": "Supervise",
+        "result": "Outcome"
+      }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Reference": {
+      "kind": "record",
+      "description": "A live value on the wire: one exported binding within one scope. It is the language's projection of the callable kind — what a value of a callable type is when it crosses the seam — and no family declares it or names it.",
+      "fields": [
+        {"name": "binding", "description": "The binding, minted by the scope that exported it and opaque to everyone else: the scope's own evidence of identity, epoch and freshness lives in here, so a representation from an ended scope cannot resolve in a new one.", "type": "string"},
+        {"name": "contract", "description": "The declaration the binding implements, family/Type. It is nominal: a reference is usable exactly where the callable it was declared as is expected.", "type": "string"}
+      ]
+    },
+    "Invoke": {
+      "kind": "record",
+      "description": "One invocation of an exported binding.",
+      "fields": [
+        {"name": "binding", "description": "The binding to invoke.", "type": "string"},
+        {"name": "contract", "description": "The declaration the caller believes the binding implements; a mismatch is refused before dispatch.", "type": "string"},
+        {"name": "request", "description": "The callable's request, validated against the declared type; absent when the callable takes nothing.", "type": "json", "required": false}
+      ]
+    },
+    "Invoked": {
+      "kind": "record",
+      "description": "What an invocation answers.",
+      "fields": [
+        {"name": "result", "description": "The callable's result, validated against the declared type; absent when the callable answers nothing.", "type": "json", "required": false}
+      ]
+    },
+    "Release": {
+      "kind": "record",
+      "description": "Release of a binding: idempotent, and the same operation whether the releasing side exported it or imported it.",
+      "fields": [
+        {"name": "binding", "description": "The binding to release.", "type": "string"}
+      ]
+    },
+    "Released": {
+      "kind": "record",
+      "description": "What a release answers; it carries nothing, since release is idempotent and says nothing about what the binding did.",
+      "fields": []
+    }
+  }
+}

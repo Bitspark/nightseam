@@ -25,7 +25,8 @@ declaration the callable was declared at, `family/Type`. The runtime compares
 that string and never parses it: what makes a declaration produce one is the
 callable kind of
 [#201's verdict](https://github.com/Bitspark/nightseam/issues/201#issuecomment-5745189544),
-which lands with the declaration tier and is not this layer's. Both members are
+which the declaration tier renders ([a family in
+tiers](../declaration/families.md#livejson)) and which is not this layer's. Both members are
 compared before an invocation is dispatched, and neither is an authorization:
 the layer proves *which binding of which contract*, never *who may call it*.
 

@@ -46,6 +46,12 @@ func emitTypes(f *file) {
 					f.line(field)
 				}
 			})
+			if t.IsLive {
+				f.emitLiveRefusal(name+apply(t.Uses), t)
+				f.linef("func (%s) %s() %s { return %s{} }", name+apply(t.Uses), identOf, identTag, identTag)
+				f.emitWireType(t)
+				continue
+			}
 			// The codecs go through a wire type with the record's fields and
 			// no methods, so that they do not recurse into themselves: a local
 			// type for a plain record; for a generic one, since Go declares no
@@ -121,6 +127,7 @@ func emitTypes(f *file) {
 		}
 	}
 	f.uses = f.family.Uses
+	f.emitLive()
 	// The public errors the family declares: a handler returns one as a
 	// *runtime.PublicError, a caller tells them apart by code.
 	if len(f.family.Errors) > 0 {

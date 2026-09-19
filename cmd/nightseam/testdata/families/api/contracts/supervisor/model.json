@@ -1,0 +1,12 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Shift": {
+      "kind": "record",
+      "description": "Self-contained data, declared where data belongs.",
+      "fields": [
+        {"name": "name", "type": "string"}
+      ]
+    }
+  }
+}

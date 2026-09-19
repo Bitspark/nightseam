@@ -1,0 +1,304 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"net/url"
+	"sync"
+
+	workerbinding "example.test/generated/api/go/worker-binding"
+	workerclient "example.test/generated/api/go/worker-client"
+	worker "example.test/generated/api/go/worker-protocol"
+	"github.com/Bitspark/nightseam/runtime/go"
+)
+
+// The live half of the Go generated testee: what the generator renders for
+// the worker family, driven over the live ops of conformance/DRIVER.md.
+//
+// Nothing here touches the live runtime. Every callable is an ordinary Go
+// function — one written here and handed across, one received and called —
+// which is the whole claim the live tier makes and the reason this testee
+// can be read as a consumer would write it.
+
+// liveServer implements the worker family's server side. It keeps what it
+// was handed so that a scenario can make it call back **after** the call
+// that supplied the callback has returned, which is the higher-order case.
+type liveServer struct {
+	mu      sync.Mutex
+	sink    worker.ProgressSink
+	remote  *workerbinding.Remote
+	started int
+	renames []string
+}
+
+func (s *liveServer) Describe(_ context.Context, _ *workerbinding.Remote, ticket worker.Ticket) (string, error) {
+	// Ordinary RPC over a family that has a live tier: self-contained data
+	// in, self-contained data out, and no binding made on either side.
+	return ticket.Label, nil
+}
+
+func (s *liveServer) Start(ctx context.Context, _ *workerbinding.Remote, params worker.Start) (worker.Job, error) {
+	// params.Progress.Report is a plain Go function. Calling it reaches the
+	// implementation the other peer wrote, in the other language.
+	if err := params.Progress.Report(ctx, 50); err != nil {
+		return worker.Job{}, err
+	}
+	s.mu.Lock()
+	s.sink, s.started = params.Progress, s.started+1
+	s.mu.Unlock()
+	return worker.Job{
+		Ticket: params.Ticket.ID,
+		Cancel: func(context.Context) error {
+			s.mu.Lock()
+			s.renames = append(s.renames, "cancelled")
+			s.mu.Unlock()
+			return nil
+		},
+		Rename: runtime.Some[worker.Rename](func(_ context.Context, to worker.Ticket) (worker.Ticket, error) {
+			s.mu.Lock()
+			s.renames = append(s.renames, to.Label)
+			s.mu.Unlock()
+			return to, nil
+		}),
+	}, nil
+}
+
+type liveServed struct {
+	http   *http.Server
+	server *liveServer
+	url    string
+}
+
+// remote is the client as the server sees it, kept so that a scenario can
+// drive the reverse direction.
+
+// liveDialled keeps the client and what its own callbacks recorded, so a
+// scenario reads back what the other peer called rather than being told.
+type liveDialled struct {
+	client  *workerclient.Client
+	cancel  context.CancelFunc
+	mu      sync.Mutex
+	reports []int64
+	jobs    map[string]worker.Job
+	next    int
+}
+
+func (d *liveDialled) sink() worker.ProgressSink {
+	return worker.ProgressSink{Report: func(_ context.Context, percent worker.Percent) error {
+		d.mu.Lock()
+		d.reports = append(d.reports, percent)
+		d.mu.Unlock()
+		return nil
+	}}
+}
+
+func (d *liveDialled) hold(job worker.Job) string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.next++
+	name := fmt.Sprintf("job%d", d.next)
+	if d.jobs == nil {
+		d.jobs = map[string]worker.Job{}
+	}
+	d.jobs[name] = job
+	return name
+}
+
+func (d *liveDialled) job(name string) (worker.Job, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	job, ok := d.jobs[name]
+	return job, ok
+}
+
+func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	switch op {
+	case "gen.live_serve":
+		s := &liveServed{server: &liveServer{}}
+		handler, err := workerbinding.NewHandler(s.server, runtime.ServerOptions{
+			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
+			CheckOrigin:  func(*http.Request) bool { return true },
+			OnConnect: func(p *runtime.Peer) {
+				s.server.mu.Lock()
+				s.server.remote = &workerbinding.Remote{Peer: p}
+				s.server.mu.Unlock()
+			},
+		})
+		if err != nil {
+			return nil, fail("failed", "%v", err)
+		}
+		socket, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		s.url = "ws://" + socket.Addr().String()
+		s.http = &http.Server{Handler: handler}
+		go func() { _ = s.http.Serve(socket) }()
+		return map[string]any{"handle": t.mint("livesrv", s), "url": s.url}, nil
+	case "gen.live_dial":
+		ctx, cancel := context.WithCancel(context.Background())
+		endpoint, err := url.Parse(str(raw, "url"))
+		if err != nil {
+			cancel()
+			return nil, fail("invalid", "%v", err)
+		}
+		d := &liveDialled{cancel: cancel}
+		c, err := workerclient.Dial(ctx, endpoint.String(), runtime.DialOptions{}, liveClientHandler{}, workerclient.Events{})
+		if err != nil {
+			cancel()
+			return nil, fail("failed", "%v", err)
+		}
+		d.client = c
+		return map[string]any{"handle": t.mint("livecl", d)}, nil
+	case "client.live_describe":
+		d, err := liveOf[*liveDialled](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		label, callErr := d.client.Describe(context.Background(), worker.Ticket{ID: str(raw, "ticket"), Label: str(raw, "label")})
+		if callErr != nil {
+			return map[string]any{"error": callError(callErr)}, nil
+		}
+		return map[string]any{"label": label}, nil
+	case "client.live_start":
+		d, err := liveOf[*liveDialled](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		job, callErr := d.client.Start(context.Background(), worker.Start{
+			Ticket:   worker.Ticket{ID: str(raw, "ticket"), Label: str(raw, "label")},
+			Progress: d.sink(),
+		})
+		if callErr != nil {
+			return map[string]any{"error": callError(callErr)}, nil
+		}
+		return map[string]any{"job": d.hold(job), "ticket": job.Ticket}, nil
+	case "client.live_reports":
+		d, err := liveOf[*liveDialled](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		return map[string]any{"values": append([]int64{}, d.reports...)}, nil
+	case "client.live_cancel":
+		d, err := liveOf[*liveDialled](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		job, ok := d.job(str(raw, "job"))
+		if !ok {
+			return nil, fail("invalid", "no job %s", str(raw, "job"))
+		}
+		if callErr := job.Cancel(context.Background()); callErr != nil {
+			return map[string]any{"error": callError(callErr)}, nil
+		}
+		return map[string]any{}, nil
+	case "client.live_rename":
+		d, err := liveOf[*liveDialled](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		job, ok := d.job(str(raw, "job"))
+		if !ok {
+			return nil, fail("invalid", "no job %s", str(raw, "job"))
+		}
+		if !job.Rename.Present {
+			return nil, fail("invalid", "the job carries no rename")
+		}
+		renamed, callErr := job.Rename.Value(context.Background(), worker.Ticket{ID: str(raw, "ticket"), Label: str(raw, "label")})
+		if callErr != nil {
+			return map[string]any{"error": callError(callErr)}, nil
+		}
+		return map[string]any{"label": renamed.Label}, nil
+	case "gen.live_report_again":
+		s, err := liveOf[*liveServed](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		s.server.mu.Lock()
+		sink := s.server.sink
+		s.server.mu.Unlock()
+		if sink.Report == nil {
+			return nil, fail("invalid", "nothing was supplied to this server")
+		}
+		// The call that supplied this callback has long returned; the
+		// reference outlives it, which is the higher-order promise.
+		if callErr := sink.Report(context.Background(), 100); callErr != nil {
+			return map[string]any{"error": callError(callErr)}, nil
+		}
+		return map[string]any{}, nil
+	case "gen.live_supervise":
+		s, err := liveOf[*liveServed](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		s.server.mu.Lock()
+		remote := s.server.remote
+		s.server.mu.Unlock()
+		if remote == nil {
+			return nil, fail("invalid", "nobody is attached to this server")
+		}
+		// The reverse direction, carrying callables in a container and
+		// answering a sum: the server hands the client sinks of its own and
+		// the client calls each one.
+		sinks := map[string]worker.ProgressSink{}
+		var names []string
+		_ = json.Unmarshal(raw["sinks"], &names)
+		for _, name := range names {
+			held := name
+			sinks[held] = worker.ProgressSink{Report: func(_ context.Context, percent worker.Percent) error {
+				s.server.mu.Lock()
+				s.server.renames = append(s.server.renames, fmt.Sprintf("%s:%d", held, percent))
+				s.server.mu.Unlock()
+				return nil
+			}}
+		}
+		outcome, callErr := remote.Supervise(context.Background(), worker.Supervise{Sinks: sinks})
+		if callErr != nil {
+			return map[string]any{"error": callError(callErr)}, nil
+		}
+		return map[string]any{"state": string(outcome.Kind())}, nil
+	case "gen.live_seen":
+		s, err := liveOf[*liveServed](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		s.server.mu.Lock()
+		defer s.server.mu.Unlock()
+		return map[string]any{"started": s.server.started, "calls": append([]string{}, s.server.renames...)}, nil
+	}
+	return nil, nil
+}
+
+// liveClientHandler is what the server may call on this client. The worker
+// family declares one client method, whose request and result carry
+// callables, so a testee that dials serves it.
+type liveClientHandler struct{}
+
+func (liveClientHandler) Supervise(_ context.Context, _ *workerclient.Client, params worker.Supervise) (worker.Outcome, error) {
+	for _, sink := range params.Sinks {
+		if err := sink.Report(context.Background(), 1); err != nil {
+			return worker.Outcome{}, err
+		}
+	}
+	return worker.Outcome{Finished: &struct{}{}}, nil
+}
+
+// liveOf resolves the handle an op names to what the testee minted for it.
+func liveOf[T any](t *testee, raw map[string]json.RawMessage) (T, error) {
+	var zero T
+	name := str(raw, "on")
+	object, ok := t.lookup(name)
+	if !ok {
+		return zero, fail("invalid", "no handle %s", name)
+	}
+	typed, ok := object.(T)
+	if !ok {
+		return zero, fail("invalid", "handle %s is not what this op takes", name)
+	}
+	return typed, nil
+}

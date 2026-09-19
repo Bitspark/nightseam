@@ -1,0 +1,1 @@
+{"types": {"Sink": {"kind": "record", "fields": [{"name": "report", "type": {"kind": "callable", "request": "Payload"}}]}}, "server": {"methods": {"watch": {"request": "Sink", "result": "Payload"}}}}

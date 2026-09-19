@@ -1,0 +1,3 @@
+x/protocol.json#/server/methods/channel.open: Operation channel.open is in the namespace of the built-in tunnel family, which is the wire vocabulary of a layer; a layer owns its namespace and a consumer declares no operation in one. [reserved_name]
+x/protocol.json#/server/methods/live.invoke: Operation live.invoke is in the namespace of the built-in live family, which is the wire vocabulary of a layer; a layer owns its namespace and a consumer declares no operation in one. [reserved_name]
+error: 2 problems

@@ -1,5 +1,5 @@
 {
-  "description": "The conformance table of the wire validator every runtime carries: one family's wire description, one imported family's, and cases of a type expression, a JSON value, and whether the value is valid. The imported family's envelope carries the trace context and the meta every injected envelope carries, so that a slot of it is held to accepting traceparent, tracestate and a flat map of strings, and to refusing any of them at another type. The reserved nightseam. prefix of a meta key is the peer's rule and no facet of the type, so a reserved key passes the slot here and the frame carrying it is refused by the peer; tables/frames.json holds that. Both runtimes read this file. An invalid case carries the message the runtimes print for it, pointer and text as one string: the pointer names the member that was wrong and the text states the fact, and both runtimes are held to it word for word, so that a consumer whose server is in one language and client in the other reads one spelling of one refusal. A case crossing into an imported family carries the one pointer the value was handed in at, not a root per family it crossed. A case may supply slots with type expressions or imported families; both runtimes validate those explicit bindings. The equivalence rows hold generic applications to bound declarations. Generated Go codecs may leave a family slot unbound during schema preflight because the instantiated Go type validates it at marshal or unmarshal time; explicit applications never take that path. The patterns rows are the dialect a `pattern` facet is written in: ECMAScript syntax without lookaround and without backreferences, Nightseam's own regular-expression language, so that one declaration means one thing in every runtime. They are invalid at check time — the generator refuses a family that writes one, in both directions, the spellings only an RE2 engine reads and the ones only an ECMAScript engine reads alike — and a runtime refuses the same at validate time, since a descriptor can be hand-written or come from a target that skipped check.",
+  "description": "The conformance table of the wire validator every runtime carries: one family's wire description, one imported family's, and cases of a type expression, a JSON value, and whether the value is valid. The imported family's envelope carries the trace context and the meta every injected envelope carries, so that a slot of it is held to accepting traceparent, tracestate and a flat map of strings, and to refusing any of them at another type. The reserved nightseam. prefix of a meta key is the peer's rule and no facet of the type, so a reserved key passes the slot here and the frame carrying it is refused by the peer; tables/frames.json holds that. Both runtimes read this file. An invalid case carries the message the runtimes print for it, pointer and text as one string: the pointer names the member that was wrong and the text states the fact, and both runtimes are held to it word for word, so that a consumer whose server is in one language and client in the other reads one spelling of one refusal. A case crossing into an imported family carries the one pointer the value was handed in at, not a root per family it crossed. A case may supply slots with type expressions or imported families; both runtimes validate those explicit bindings. The equivalence rows hold generic applications to bound declarations. Generated Go codecs may leave a family slot unbound during schema preflight because the instantiated Go type validates it at marshal or unmarshal time; explicit applications never take that path. The patterns rows are the dialect a `pattern` facet is written in: ECMAScript syntax without lookaround and without backreferences, Nightseam's own regular-expression language, so that one declaration means one thing in every runtime. The live rows are the callable kind: a value of one is a reference to a binding — a binding this side does not read into, and the declaration it implements. The contract is nominal, so a reference declared as one callable is refused where another of the same shape is expected; the validator checks the form and that identity and nothing else, since whether a binding exists, is still alive and belongs to this scope is the live runtime's to answer when it imports it. They are invalid at check time — the generator refuses a family that writes one, in both directions, the spellings only an RE2 engine reads and the ones only an ECMAScript engine reads alike — and a runtime refuses the same at validate time, since a descriptor can be hand-written or come from a target that skipped check.",
   "wire": {"types": {
     "Base": {"kind": "record", "fields": [{"name": "text", "type": "string", "required": true}]},
     "Payload": {"kind": "record", "extends": ["Base"], "fields": [
@@ -16,6 +16,13 @@
     "Held": {"kind": "record", "fields": [{"name": "who", "type": {"ref": "User"}, "required": true}, {"name": "other", "type": "peer.Thing", "required": true}]},
     "Frame": {"kind": "record", "fields": [{"name": "inner", "type": {"apply": "peer.Box", "with": {"S": "peer"}}, "required": true}]},
     "Unflagged": {"kind": "record", "fields": [{"name": "text", "type": "string"}]},
+    "Report": {"kind": "callable", "contract": "wide/Report", "request": "integer"},
+    "Cancel": {"kind": "callable", "contract": "wide/Cancel"},
+    "Sink": {"kind": "record", "fields": [
+      {"name": "report", "type": "Report", "required": true},
+      {"name": "cancel", "type": "Cancel", "required": false}
+    ]},
+    "Sinks": {"kind": "alias", "type": {"array": "Report"}},
     "MaybeText": {"kind": "alias", "type": {"nullable": "string"}},
     "NullFields": {"kind": "record", "fields": [
       {"name": "required", "type": "MaybeText", "required": true},
@@ -347,6 +354,19 @@
     {"expression": "Nope", "value": 1, "valid": false, "message": "$: expected known type"},
     {"expression": "Unflagged", "value": {}, "valid": true},
     {"expression": "Unflagged", "value": {"text": "x"}, "valid": true},
-    {"expression": "Unflagged", "value": {"text": 1}, "valid": false, "message": "$.text: expected string"}
+    {"expression": "Unflagged", "value": {"text": 1}, "valid": false, "message": "$.text: expected string"},
+
+    {"expression": "Report", "value": {"binding": "7f3a.1", "contract": "wide/Report"}, "valid": true},
+    {"expression": "Sink", "value": {"report": {"binding": "7f3a.1", "contract": "wide/Report"}}, "valid": true},
+    {"expression": "Sink", "value": {"report": {"binding": "7f3a.1", "contract": "wide/Report"}, "cancel": {"binding": "7f3a.2", "contract": "wide/Cancel"}}, "valid": true},
+    {"expression": "Sinks", "value": [{"binding": "7f3a.1", "contract": "wide/Report"}, {"binding": "7f3a.3", "contract": "wide/Report"}], "valid": true},
+    {"expression": "Report", "value": {"binding": "7f3a.2", "contract": "wide/Cancel"}, "valid": false, "message": "$.contract: the reference carries wide/Cancel where wide/Report is expected"},
+    {"expression": "Sink", "value": {"report": {"binding": "7f3a.2", "contract": "wide/Cancel"}}, "valid": false, "message": "$.report.contract: the reference carries wide/Cancel where wide/Report is expected"},
+    {"expression": "Report", "value": {"binding": "", "contract": "wide/Report"}, "valid": false, "message": "$.binding: a live reference names the binding it refers to"},
+    {"expression": "Report", "value": {"contract": "wide/Report"}, "valid": false, "message": "$.binding: a live reference names the binding it refers to"},
+    {"expression": "Report", "value": {"binding": "7f3a.1"}, "valid": false, "message": "$.contract: a live reference carries the declaration it implements"},
+    {"expression": "Report", "value": {"binding": "7f3a.1", "contract": "wide/Report", "scope": "other"}, "valid": false, "message": "$.scope: unknown field"},
+    {"expression": "Report", "value": 4, "valid": false, "message": "$: expected a live reference to wide/Report"},
+    {"expression": "integer", "value": {"binding": "7f3a.1", "contract": "wide/Report"}, "valid": false, "message": "$: expected integer"}
   ]
 }

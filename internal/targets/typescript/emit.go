@@ -20,6 +20,10 @@ type file struct {
 	w      *emit.Writer
 	prefix string
 	scope  []model.Parameter
+	// conversion is the namespace a live type's generated export/import is
+	// called through: none in types.ts, which declares them, and the
+	// re-exported module in index.ts, which only calls them.
+	conversion string
 }
 
 func (f *file) line(text string)                 { f.w.Line(text) }
@@ -83,6 +87,7 @@ func emitTypes(f *file) {
 	f.linef("import { createValidator, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
 	f.linef("export type { %s, %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots)
 	f.imports(true)
+	f.liveImports()
 	for _, t := range fam.Types {
 		f.emitType(t)
 	}
@@ -97,6 +102,7 @@ func emitTypes(f *file) {
 	}
 	f.line("/** The family: its name and the wire types a slot of it draws on. */")
 	f.linef("export interface %s { readonly name: %s; %s }", identFamily, quote(fam.Name), strings.Join(drawn, "; "))
+	f.emitLive()
 	f.line("")
 	f.linef("const contractTypes = %s as unknown as WireFamily;", fam.Wire)
 	var validators []string
@@ -168,6 +174,8 @@ func (f *file) emitType(t *render.Type) {
 			f.linef("/** %s */", comment(t.Description))
 		}
 		f.linef("export type %s%s = %s;", name, f.declare(t.Uses), f.spell(t.Alias))
+	case "callable":
+		f.emitCallableType(t)
 	}
 }
 
@@ -195,6 +203,7 @@ func requestExpression(m render.Method) string {
 func emitClient(f *file) {
 	p, fam := f.plan, f.family
 	f.scope = familyScope(fam)
+	f.conversion = "conversion."
 	decl, args := f.declare(fam.Uses), apply(fam.Uses)
 	names := parameters(fam.Uses)
 	// slots is the argument every validation of a generic client passes:
@@ -213,6 +222,11 @@ func emitClient(f *file) {
 	f.linef("import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection } from %s;", quote(f.config.Runtime))
 	f.linef("import type { Tunnel } from %s;", quote(f.config.Tunnel))
 	f.linef("import { %s } from './types.ts';", identValidateWire)
+	if fam.Live {
+		f.linef("import { liveOver, scopeOf } from %s;", quote(f.config.Live))
+		f.line("import * as conversion from './types.ts';")
+		f.liveSiblings()
+	}
 	if fam.Generic {
 		bindings := []string{identAnyFamily, identFamilyBinding, identTypeBinding, identSlots}
 		f.linef("import type { %s } from './types.ts';", strings.Join(bindings, ", "))
@@ -277,8 +291,19 @@ func emitClient(f *file) {
 				}
 				f.linef("this.%s = { %s };", identSlotsField, strings.Join(made, ", "))
 			}
+			if fam.Live {
+				f.line("/** The live layer is made over the peer before it reads, as a tunnel is: a peer already reading would refuse the first live.invoke. */")
+				f.line("liveOver(peer, {});")
+			}
 			for _, m := range fam.Client.Methods {
 				f.line("if (!handler) throw new Error('reverse-call handler is required');")
+				if f.liveNeeded(m.Request, m.Result) {
+					f.linef("peer.handle(%s, async (raw, context) => { %s try { %s(%s, raw%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = %s; const result = await handler.%s(params as %s, context); const sent = %s; %s(%s, sent%s); return sent; });",
+						quote(m.Name), f.liveScope(), identValidateWire, requestExpression(m), slots,
+						f.liveConversion(m.Request, "raw", false), p.operations[m.Name], f.request(m),
+						f.liveConversion(m.Result, "result", true), identValidateWire, expression(m.Result), slots)
+					continue
+				}
 				f.linef("peer.handle(%s, async (params, context) => { try { %s(%s, params%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, context); %s(%s, result%s); return result; });", quote(m.Name), identValidateWire, requestExpression(m), slots, p.operations[m.Name], f.request(m), identValidateWire, expression(m.Result), slots)
 			}
 			for _, e := range fam.Server.Events {
@@ -300,13 +325,33 @@ func emitClient(f *file) {
 			if m.Description != "" {
 				f.linef("/** %s */", comment(m.Description))
 			}
+			if f.liveNeeded(m.Request, m.Result) {
+				f.linef("async %s(%s): Promise<%s> { %s%s const sent = %s; %s(%s, sent%s); const result = await this.%s.call<unknown>(%s, sent, options); %s(%s, result%s); return %s; }",
+					p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, f.liveScope(),
+					f.liveConversion(m.Request, "params", true), identValidateWire, requestExpression(m), slots,
+					identPeer, quote(m.Name), identValidateWire, expression(m.Result), slots,
+					f.liveConversion(m.Result, "result", false))
+				continue
+			}
 			f.linef("async %s(%s): Promise<%s> { %s%s(%s, params%s); const result = await this.%s.call<%s>(%s, params, options); %s(%s, result%s); return result; }", p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, identValidateWire, requestExpression(m), slots, identPeer, f.spell(m.Result), quote(m.Name), identValidateWire, expression(m.Result), slots)
 		}
 		for _, e := range fam.Client.Events {
+			if f.liveNeeded(e.Type) {
+				f.linef("async %s%s(data: %s, options?: EmitOptions): Promise<void> { %s const sent = %s; %s(%s, sent%s); await this.%s.emit(%s, sent, options); }",
+					identEmit, upperFirst(p.operations[e.Name]), f.spell(e.Type), f.liveScope(),
+					f.liveConversion(e.Type, "data", true), identValidateWire, expression(e.Type), slots, identPeer, quote(e.Name))
+				continue
+			}
 			f.linef("async %s%s(data: %s, options?: EmitOptions): Promise<void> { %s(%s, data%s); await this.%s.emit(%s, data, options); }", identEmit, upperFirst(p.operations[e.Name]), f.spell(e.Type), identValidateWire, expression(e.Type), slots, identPeer, quote(e.Name))
 		}
 		for _, e := range fam.Server.Events {
 			data := f.spell(e.Type)
+			if f.liveNeeded(e.Type) {
+				f.linef("%s%s(handler: (data: %s, context: EventContext) => void | Promise<void>): () => void { return this.%s.onEvent(%s, (raw, context) => { %s try { %s(%s, raw%s); } catch(error) { this.%s.close(); throw error; } return handler(%s, context); }); }",
+					identOn, upperFirst(p.operations[e.Name]), data, identPeer, quote(e.Name), f.liveScope(),
+					identValidateWire, expression(e.Type), slots, identPeer, f.liveConversion(e.Type, "raw", false))
+				continue
+			}
 			f.linef("%s%s(handler: (data: %s, context: EventContext) => void | Promise<void>): () => void { return this.%s.onEvent(%s, (data, context) => { try { %s(%s, data%s); } catch(error) { this.%s.close(); throw error; } return handler(data as %s, context); }); }", identOn, upperFirst(p.operations[e.Name]), data, identPeer, quote(e.Name), identValidateWire, expression(e.Type), slots, identPeer, data)
 		}
 	})

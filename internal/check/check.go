@@ -26,6 +26,7 @@ type concern struct {
 // concerns are the checkers of the tiers above the model, in tier order.
 var concerns = []concern{
 	{Name: "protocol", File: model.ProtocolFile, Check: Protocol},
+	{Name: "live", File: model.LiveFile, Check: Live},
 }
 
 // Family runs every check the family's tiers call for, in tier order, and
@@ -137,6 +138,41 @@ func (c *checker) type_(t *model.Type, name string, context int, scope []model.P
 		c.union(t, where)
 	case model.KindAlias:
 		c.expression(t.Alias, t.At.Sub("type"), site{owner: name, context: context, scope: scope, edges: edges})
+	case model.KindCallable:
+		c.callable(t, where)
+	}
+}
+
+// callable holds the live tier's own kind: it is declared in the live tier
+// and nowhere else, it takes no parameters of its own, and its request and
+// result are ordinary type expressions of its tier or below.
+//
+// The tier rule then does the rest of the work with no machinery of its
+// own. A callable is declared in live.json, so its rank is the live tier's,
+// so a record of model.json or an operation of protocol.json that names one
+// is already a tier_violation — which is why ordinary data and RPC stay
+// usable with no live registry anywhere, and why that independence is a
+// consequence of the language rather than a promise about it.
+func (c *checker) callable(t *model.Type, where site) {
+	if t.At.File != model.LiveFile {
+		c.Addf(t.At.Sub("kind"), "callable_tier", "Callable %s is declared in %s; a callable is the live tier's kind and is declared in %s, which is what keeps a value of a lower tier self-contained data.", t.Name, t.At.File, model.LiveFile)
+	}
+	if len(t.Parameters) > 0 {
+		c.Addf(t.At.Sub("parameters", 0), "callable_parameters", "Callable %s declares parameters. A reference to a callable carries the identity of the declaration it implements, and a generic callable has one identity per application rather than one declaration; declare a callable for each filled shape until that is settled.", t.Name)
+	}
+	if t.Request != nil {
+		c.expression(t.Request, t.At.Sub("request"), where)
+	}
+	if t.Result != nil {
+		c.expression(t.Result, t.At.Sub("result"), where)
+	}
+	for i, code := range t.Errors {
+		if c.f.Protocol == nil {
+			continue
+		}
+		if _, declared := c.f.Protocol.Error(code); !declared {
+			c.Addf(t.At.Sub("errors", i), "unknown_error", "Callable %s may return %s, which the family does not declare among its errors.", t.Name, code)
+		}
 	}
 }
 
@@ -319,6 +355,8 @@ func (c *checker) inlineType(t *model.Type, at diag.Location, where site) {
 		}
 	case model.KindAlias:
 		c.Add(at, "inline_not_admissible", "An alias gives a shape a second name; written inline it gives it none.")
+	case model.KindCallable:
+		c.Add(at, "callable_inline", "A callable is declared under a name of its own and referred to by it: a reference to one carries the identity of the declaration it implements, and a callable written inline has no declaration to name. Lift it into the live tier's types and name it here.")
 	default:
 		c.Addf(at, "invalid_shape", "A shape written inline is a record, an enum or a union, not a %s.", t.Kind)
 	}
@@ -413,6 +451,7 @@ func (c *checker) drawn(x model.Drawn, at diag.Location, where site) {
 		c.Addf(at, "unresolved_parameter", "Unknown parameter %s: nothing in scope declares a parameter of that name.", x.Parameter)
 		return
 	}
+	c.liveDraw(x, at)
 	if model.Carried(x.Name) {
 		return
 	}
@@ -440,6 +479,7 @@ func (c *checker) drawn(x model.Drawn, at diag.Location, where site) {
 // family parameter.
 func (c *checker) apply(x model.Apply, at diag.Location, where site) {
 	f := c.f
+	c.liveApplication(x, at)
 	target, declared := f.Applied(x)
 	if !declared {
 		if x.Family == "" {
@@ -549,6 +589,45 @@ func lookup(parameters []model.Parameter, name string) (model.Parameter, bool) {
 	return model.Parameter{}, false
 }
 
+// liveApplication refuses an application that is live only because of what
+// fills it. A callable declares no parameters, so an applied declaration is
+// never live of itself; Page<Job> is live only through its binding, and the
+// boundary conversion would have to be generic in a way nothing generates.
+// The remedy is a declaration: name the filled shape in the live tier.
+func (c *checker) liveApplication(x model.Apply, at diag.Location) {
+	if !c.f.IsLive(x) {
+		return
+	}
+	name := x.Name
+	if x.Family != "" {
+		name = x.Family + "." + x.Name
+	}
+	c.Addf(at, "live_application", "The application of %s here carries a callable, which it has only from what fills it; a generic declaration of a lower tier has no boundary conversion of its own. Declare the filled shape in %s and name it.", name, model.LiveFile)
+}
+
+// liveDraw refuses drawing a live type through a family parameter. Every
+// family that may bind the parameter declares the drawn type, so whether it
+// is live is known here — and a live one has no conversion at the boundary,
+// since what fills the parameter is the consumer's to choose.
+func (c *checker) liveDraw(x model.Drawn, at diag.Location) {
+	parameter, ok := c.f.Parameter(x.Parameter)
+	if !ok || !parameter.IsFamily() {
+		return
+	}
+	carriers := c.f.Carriers(parameter.Of)
+	names := make([]string, 0, len(carriers))
+	for name := range carriers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if carriers[name].IsLiveType(x.Name) {
+			c.Addf(at, "live_draw", "%s.%s draws %s from %s, which carries a callable; a live type drawn through a family parameter has no boundary conversion, since what fills the parameter is the consumer's to choose. Declare the callable in this family's %s.", x.Parameter, x.Name, x.Name, name, model.LiveFile)
+			return
+		}
+	}
+}
+
 func (c *checker) tierViolation(at diag.Location, context int, name, file string) {
 	c.Addf(at, "tier_violation", "A %s declaration refers to %s, declared in %s; a declaration refers to its own tier or a lower one.", model.TierName(context), name, file)
 }
@@ -653,6 +732,7 @@ func Protocol(f *analysis.Family) []diag.Diagnostic {
 	where := site{context: context, inline: true}
 	wire := map[string]diag.Location{}
 	operation := func(direction, name string, at diag.Location) {
+		c.reservedOperation(name, at)
 		key := direction + ":" + name
 		if previous, ok := wire[key]; ok {
 			c.Addf(at, "operation_collision", "Operation %s collides with the one at %s: both flow %s under one name.", name, previous, direction)
@@ -775,6 +855,15 @@ func (c *checker) extendedSide(side *model.Side, server bool, label string, oper
 			continue
 		}
 		base := f.Imported[name]
+		// A side that extends another's is a superset of it, so a consumer
+		// of the base may speak to this family. If the base has a live
+		// tier, its live operations are part of what that consumer expects,
+		// and they can only be rendered here by a family that has the tier
+		// to carry them — so extending a live family requires the live
+		// tier, rather than silently dropping half the base's surface.
+		if base.Live != nil && f.Live == nil {
+			c.Addf(at, "missing_tier", "The %s side extends %s's, and %s has a live tier whose operations are part of the surface a consumer of it expects; declare %s beside this family's %s, or extend a family without one.", label, name, name, model.LiveFile, model.ProtocolFile)
+		}
 		wanted := map[string]model.Parameter{}
 		for _, parameter := range base.Parameters() {
 			wanted[parameter.Name] = parameter

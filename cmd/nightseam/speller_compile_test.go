@@ -66,7 +66,7 @@ func TestLanguageCallsCompile(t *testing.T) {
 			fixtureModule(t, directory, root)
 			runFixture(t, directory, "go", "vet", "./...")
 			paths := map[string][]string{scope + "/*": {"./api/ts/*/src/index.ts"}}
-			for _, component := range []string{"runtime", "duplex", "tunnel"} {
+			for _, component := range []string{"runtime", "duplex", "tunnel", "live"} {
 				copyFixtureTree(t, filepath.Join(root, component, "ts"), filepath.Join(directory, component, "ts"))
 				paths["@nightseam/"+component] = []string{"./" + component + "/ts/src/index.ts"}
 			}

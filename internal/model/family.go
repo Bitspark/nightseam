@@ -30,6 +30,7 @@ type Family struct {
 	Imports   []string                   // the union of every tier's imports, sorted
 	Types     map[string]*Type           // every tier's types by name; At.File says which tier declared each
 	Protocol  *Protocol                  // nil without protocol.json
+	Live      *Live                      // nil without live.json
 	Overrides map[string]json.RawMessage // a target's override file, raw, by target name
 	Files     []string                   // the tier files present, lowest tier first
 }
@@ -62,6 +63,10 @@ const (
 	KindEnum   = "enum"
 	KindAlias  = "alias"
 	KindUnion  = "union"
+	// KindCallable is a callable: the signature a value of the type is one
+	// implementation of, invoked across the seam. It is the live tier's own
+	// kind and the only one whose values are not self-contained data.
+	KindCallable = "callable"
 )
 
 // DefaultValueMember is the member a union carries its complete payload
@@ -83,8 +88,15 @@ type Type struct {
 	Tag         string        // union: the member that discriminates
 	Value       string        // union: the member the complete payload rides under
 	Variants    []Variant     // union: own variants, by tag
+	Request     TypeExpr      // callable: what it takes; nil takes nothing
+	Result      TypeExpr      // callable: what it answers; nil answers nothing
+	Errors      []string      // callable: codes of the family's errors it may return
+	Contract    string        // callable: the identity a reference to it carries; set by rendering
 	At          diag.Location
 }
+
+// IsCallable reports whether the type is the live tier's callable kind.
+func (t *Type) IsCallable() bool { return t != nil && t.Kind == KindCallable }
 
 // Variant is one arm of a union: the value of the discriminator that names
 // it and what it carries.
@@ -207,6 +219,45 @@ type Error struct {
 	At          diag.Location
 }
 
+// Live is the live tier: the operations whose requests, results or event
+// data carry callables. Its two sides have the protocol's shape and add to
+// the family's surface rather than restating it. The tier declares no
+// governance and brings no built-in family of its own, because the wire
+// form of a live value is the language's projection of the callable kind,
+// as a JSON array is the projection of {"array": T}.
+type Live struct {
+	Server Side
+	Client Side
+	At     diag.Location
+}
+
+type liveJSON struct {
+	Server sideJSON `json:"server"`
+	Client sideJSON `json:"client"`
+}
+
+// DecodeLive decodes the live tier's own sections from the file's object;
+// the types and imports every tier carries are decoded apart.
+func DecodeLive(file string, raw json.RawMessage) (*Live, error) {
+	if err := scalarjson.Raw(raw); err != nil {
+		return nil, fmt.Errorf("%s: %w", file, err)
+	}
+	var w liveJSON
+	if err := json.Unmarshal(raw, &w); err != nil {
+		return nil, fmt.Errorf("%s: %w", file, err)
+	}
+	root := diag.Location{File: file}
+	l := &Live{At: root}
+	var err error
+	if l.Server, err = decodeSide(w.Server, root.Sub("server")); err != nil {
+		return nil, err
+	}
+	if l.Client, err = decodeSide(w.Client, root.Sub("client")); err != nil {
+		return nil, err
+	}
+	return l, nil
+}
+
 // Overrides is a target's override file as decoded: names by path key.
 type Overrides struct {
 	Names map[string]string `json:"names"`
@@ -228,6 +279,9 @@ type typeJSON struct {
 	Tag         string                     `json:"tag"`
 	Value       string                     `json:"value"`
 	Variants    map[string]json.RawMessage `json:"variants"`
+	Request     json.RawMessage            `json:"request"`
+	Result      json.RawMessage            `json:"result"`
+	Errors      []string                   `json:"errors"`
 }
 
 type fieldJSON struct {
@@ -310,8 +364,18 @@ func decodeType(name string, raw json.RawMessage, at diag.Location) (*Type, erro
 }
 
 func buildType(name string, w typeJSON, at diag.Location) (*Type, error) {
-	t := &Type{Name: name, Kind: w.Kind, Description: w.Description, Key: w.Key, Open: w.Open, Values: w.Values, Tag: w.Tag, Value: w.Value, At: at}
+	t := &Type{Name: name, Kind: w.Kind, Description: w.Description, Key: w.Key, Open: w.Open, Values: w.Values, Tag: w.Tag, Value: w.Value, Errors: w.Errors, At: at}
 	var err error
+	if w.Request != nil {
+		if t.Request, err = DecodeAt(w.Request, at.Sub("request")); err != nil {
+			return nil, fmt.Errorf("%s: %w", at.Sub("request"), err)
+		}
+	}
+	if w.Result != nil {
+		if t.Result, err = DecodeAt(w.Result, at.Sub("result")); err != nil {
+			return nil, fmt.Errorf("%s: %w", at.Sub("result"), err)
+		}
+	}
 	if t.Extends, err = decodeBases(w.Extends, at); err != nil {
 		return nil, err
 	}
@@ -497,6 +561,21 @@ func (p *Protocol) Parameter(name string) (*Parameter, bool) {
 	return nil, false
 }
 
+// Sides is every side the family declares, in tier order: the protocol's
+// two, then the live tier's two. A walk over the family's whole operation
+// surface iterates this, so that a tier with operations is a row in the
+// table rather than a name every walk has to learn.
+func (f *Family) Sides() []*Side {
+	var sides []*Side
+	if f.Protocol != nil {
+		sides = append(sides, &f.Protocol.Server, &f.Protocol.Client)
+	}
+	if f.Live != nil {
+		sides = append(sides, &f.Live.Server, &f.Live.Client)
+	}
+	return sides
+}
+
 // WalkExpressions visits every type expression the type declares at the
 // top of its own structure — each field's, its alias, each variant's — with
 // where it sits. It does not descend: Walk does that.
@@ -509,6 +588,12 @@ func (t *Type) WalkExpressions(visit func(TypeExpr, diag.Location)) {
 	}
 	if t.Alias != nil {
 		visit(t.Alias, t.At.Sub("type"))
+	}
+	if t.Request != nil {
+		visit(t.Request, t.At.Sub("request"))
+	}
+	if t.Result != nil {
+		visit(t.Result, t.At.Sub("result"))
 	}
 	for i := range t.Variants {
 		visit(t.Variants[i].Type, t.At.Sub("variants", t.Variants[i].Tag))
@@ -524,6 +609,8 @@ func (t *Type) rewritten(f func(TypeExpr) TypeExpr) *Type {
 		out.Fields[i].Type = Rewrite(out.Fields[i].Type, f)
 	}
 	out.Alias = Rewrite(t.Alias, f)
+	out.Request = Rewrite(t.Request, f)
+	out.Result = Rewrite(t.Result, f)
 	out.Variants = append([]Variant(nil), t.Variants...)
 	for i := range out.Variants {
 		out.Variants[i].Type = Rewrite(out.Variants[i].Type, f)
@@ -541,10 +628,7 @@ func (f *Family) Expressions(visit func(ExprAt)) {
 			walkAt(e, ExprAt{Owner: name, At: at}, visit)
 		})
 	}
-	if f.Protocol == nil {
-		return
-	}
-	for _, side := range []*Side{&f.Protocol.Server, &f.Protocol.Client} {
+	for _, side := range f.Sides() {
 		for _, base := range side.Extends {
 			for _, name := range sortedFillers(base.With) {
 				walkAt(base.With[name].Type, ExprAt{At: base.At.Sub("with", name)}, visit)
@@ -572,14 +656,13 @@ func (f *Family) RewriteExpressions(fn func(TypeExpr) TypeExpr) {
 			t.Fields[i].Type = Rewrite(t.Fields[i].Type, fn)
 		}
 		t.Alias = Rewrite(t.Alias, fn)
+		t.Request = Rewrite(t.Request, fn)
+		t.Result = Rewrite(t.Result, fn)
 		for i := range t.Variants {
 			t.Variants[i].Type = Rewrite(t.Variants[i].Type, fn)
 		}
 	}
-	if f.Protocol == nil {
-		return
-	}
-	for _, side := range []*Side{&f.Protocol.Server, &f.Protocol.Client} {
+	for _, side := range f.Sides() {
 		side.Extends = rewriteBases(side.Extends, fn)
 		for i := range side.Methods {
 			side.Methods[i].Request = Rewrite(side.Methods[i].Request, fn)
@@ -624,6 +707,10 @@ type wireTypeJSON struct {
 	Tag        string          `json:"tag,omitempty"`
 	Value      string          `json:"value,omitempty"`
 	Variants   map[string]any  `json:"variants,omitempty"`
+	Contract   string          `json:"contract,omitempty"`
+	Request    TypeExpr        `json:"request,omitempty"`
+	Result     TypeExpr        `json:"result,omitempty"`
+	Errors     []string        `json:"errors,omitempty"`
 }
 
 type wireParameter struct {
@@ -650,7 +737,7 @@ type wireFieldJSON struct {
 
 // MarshalJSON writes the type as a validator reads it.
 func (t *Type) MarshalJSON() ([]byte, error) {
-	w := wireTypeJSON{Kind: t.Kind, Key: t.Key, Fields: t.Fields, Extends: t.Extends, Open: t.Open, Values: t.Values, Type: t.Alias, Tag: t.Tag, Value: t.Value}
+	w := wireTypeJSON{Kind: t.Kind, Key: t.Key, Fields: t.Fields, Extends: t.Extends, Open: t.Open, Values: t.Values, Type: t.Alias, Tag: t.Tag, Value: t.Value, Contract: t.Contract, Request: t.Request, Result: t.Result, Errors: t.Errors}
 	for _, p := range t.Parameters {
 		w.Parameters = append(w.Parameters, wireParameter{Name: p.Name, Of: p.Of})
 	}

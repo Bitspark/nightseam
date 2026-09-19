@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@nightseam/duplex": "workspace:*",
+    "@nightseam/live": "workspace:*",
     "@nightseam/runtime": "workspace:*",
     "@nightseam/tunnel": "workspace:*",
     "typescript": "^7.0.2",

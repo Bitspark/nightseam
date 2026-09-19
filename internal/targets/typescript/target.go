@@ -31,6 +31,7 @@ type Config struct {
 	Scope          string
 	Runtime        string
 	Tunnel         string
+	Live           string
 	RuntimeVersion string
 	Layout         string
 	Place          map[string]string
@@ -42,6 +43,7 @@ type Config struct {
 const (
 	DefaultRuntime        = "@nightseam/runtime"
 	DefaultTunnel         = "@nightseam/tunnel"
+	DefaultLive           = "@nightseam/live"
 	DefaultRuntimeVersion = "0.4.0"
 	DefaultLayout         = "api/ts/{family}-client"
 	DefaultSibling        = "file"
@@ -61,6 +63,9 @@ func (c Config) settled() Config {
 	}
 	if c.Tunnel == "" {
 		c.Tunnel = DefaultTunnel
+	}
+	if c.Live == "" {
+		c.Live = DefaultLive
 	}
 	if c.RuntimeVersion == "" {
 		c.RuntimeVersion = DefaultRuntimeVersion
@@ -123,7 +128,7 @@ func (c Config) pkg(family string) string { return c.Scope + "/" + family + "-cl
 
 func (*target) Name() string { return Name }
 
-func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Model, spi.Protocol} }
+func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Model, spi.Protocol, spi.Live} }
 
 func (t *target) Owns(family string) []string { return []string{t.config.dir(family)} }
 

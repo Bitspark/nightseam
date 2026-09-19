@@ -16,12 +16,13 @@ import (
 	"io/fs"
 	"path"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/Bitspark/nightseam/internal/model"
 )
 
-//go:embed duplex/*.json tunnel/*.json
+//go:embed duplex/*.json tunnel/*.json live/*.json
 var files embed.FS
 
 // Prefix marks a built-in's tier file apart from a consumer's.
@@ -143,4 +144,33 @@ func Carried(files []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// Namespaces is the operation namespace of every built-in family that
+// speaks on the wire, mapped to the family that owns it: the prefix before
+// the first dot of every operation a built-in declares — `channel.` for
+// the tunnel, `live.` for the live layer. A layer owns its namespace so
+// that it is never contested, and the reservation is read off the
+// declarations rather than written out a second time, so that a layer that
+// gains an operation gains nothing else to keep in step.
+func Namespaces() map[string]string {
+	namespaces := map[string]string{}
+	for name, f := range Families() {
+		if f.Protocol == nil {
+			continue
+		}
+		for _, side := range []*model.Side{&f.Protocol.Server, &f.Protocol.Client} {
+			for _, m := range side.Methods {
+				if prefix, _, ok := strings.Cut(m.Name, "."); ok {
+					namespaces[prefix] = name
+				}
+			}
+			for _, e := range side.Events {
+				if prefix, _, ok := strings.Cut(e.Name, "."); ok {
+					namespaces[prefix] = name
+				}
+			}
+		}
+	}
+	return namespaces
 }

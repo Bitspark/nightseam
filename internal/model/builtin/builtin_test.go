@@ -11,13 +11,15 @@ import (
 
 // TestBuiltinsDecode: every built-in family reads as a family of the
 // declaration language, and the profile's declares exactly the two types
-// every family with a protocol carries.
+// every family with a protocol carries. A layer that speaks on the wire is
+// one of these families — the tunnel and the live layer — and owns the
+// namespace its operations are named in.
 func TestBuiltinsDecode(t *testing.T) {
 	families := Families()
-	if len(families) != 2 {
-		t.Fatalf("the built-in families are %v; they are duplex and tunnel", Names())
+	if len(families) != 3 {
+		t.Fatalf("the built-in families are %v; they are duplex, tunnel and live", Names())
 	}
-	for _, name := range []string{"duplex", "tunnel"} {
+	for _, name := range []string{"duplex", "tunnel", "live"} {
 		if _, ok := families[name]; !ok {
 			t.Fatalf("the built-in %s family is missing", name)
 		}
@@ -138,5 +140,22 @@ func TestFramesTableIsDuplexsDeclaration(t *testing.T) {
 		if !exercised[field.Name] {
 			t.Errorf("duplex.Envelope declares %s and no valid row of the frames table carries it", field.Name)
 		}
+	}
+}
+
+// TestNamespacesAreReadOffTheBuiltins: a layer that speaks on the wire
+// owns a prefix, and the reservation is the prefix of the operations its
+// built-in family declares rather than a list written a second time. The
+// profile's family declares no operations, so it reserves nothing: the
+// envelope is not a namespace.
+func TestNamespacesAreReadOffTheBuiltins(t *testing.T) {
+	namespaces := Namespaces()
+	for prefix, family := range map[string]string{"channel": "tunnel", "live": "live"} {
+		if got := namespaces[prefix]; got != family {
+			t.Errorf("the %s. namespace is owned by %q; it is the %s layer's", prefix, got, family)
+		}
+	}
+	if len(namespaces) != 2 {
+		t.Fatalf("the reserved namespaces are %v; they are channel. and live.", namespaces)
 	}
 }

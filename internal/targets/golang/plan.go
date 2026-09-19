@@ -45,6 +45,9 @@ const (
 	identClose                 = "Close"
 	identEmit                  = "Emit"
 	identOn                    = "On"
+	identExport                = "Export"
+	identImport                = "Import"
+	identContract              = "Contract"
 )
 
 // plan is every identifier the rendering of one family declares, resolved
@@ -65,6 +68,9 @@ type plan struct {
 	constants  map[string]string      // "Enum.value" → constant
 	operations map[string]string      // method or event name → Go name
 	errors     map[string]string      // code → constant
+	exports    map[string]string      // live type → its Export function
+	imports_   map[string]string      // live type → its Import function
+	contracts  map[string]string      // callable → its contract constant
 	typeParams map[render.Use]string
 	diag.List
 }
@@ -95,6 +101,7 @@ func planFamily(f *render.Family, seen map[*render.Family]bool) (*plan, []diag.D
 		remote:   emit.NewNamespace("remote"),
 		types:    map[string]string{}, fields: map[string]string{}, constants: map[string]string{},
 		operations: map[string]string{}, errors: map[string]string{}, typeParams: map[render.Use]string{},
+		exports: map[string]string{}, imports_: map[string]string{}, contracts: map[string]string{},
 		List: diag.List{Family: f.Name},
 	}
 	p.packages.Fix("generated declaration", identTag, identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identErrors, identIsError)
@@ -173,6 +180,7 @@ func (p *plan) plan() {
 		}
 	}
 	p.planUnions()
+	p.planLive()
 	p.planLiterals()
 	for _, t := range f.Types {
 		switch t.Kind {

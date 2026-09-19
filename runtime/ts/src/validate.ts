@@ -49,6 +49,9 @@ export interface WireType {
   tag?: string;
   value?: string;
   variants?: Record<string, TypeExpression>;
+  contract?: string;
+  request?: TypeExpression;
+  result?: TypeExpression;
 }
 
 /** A family's declarations and the parameters in their enclosing scope. */
@@ -462,6 +465,37 @@ function validate(expression: Expression, value: unknown, location: string): voi
   const definition = resolved.definition;
   if (definition) {
     switch (definition.kind) {
+      case 'callable': {
+        // A live value on the wire is a reference to one binding: the
+        // binding, opaque here, and the contract it implements. The contract
+        // is nominal, so the only reference this position accepts is one
+        // declared as this callable. Validation resolves nothing, registers
+        // nothing and reaches no network; whether the binding exists, is
+        // still alive or belongs to this scope is the live runtime's to
+        // answer when it imports it.
+        if (!plainObject(value)) bad(location, 'a live reference to ' + definition.contract);
+        const reference = value as Record<string, unknown>;
+        if (typeof reference['binding'] !== 'string' || reference['binding'] === '') {
+          throw new Error(location + '.binding: a live reference names the binding it refers to');
+        }
+        if (typeof reference['contract'] !== 'string') {
+          throw new Error(location + '.contract: a live reference carries the declaration it implements');
+        }
+        if (reference['contract'] !== definition.contract) {
+          throw new Error(
+            location +
+              '.contract: the reference carries ' +
+              reference['contract'] +
+              ' where ' +
+              definition.contract +
+              ' is expected',
+          );
+        }
+        for (const key of Object.keys(reference).sort()) {
+          if (key !== 'binding' && key !== 'contract') throw new Error(location + '.' + key + ': unknown field');
+        }
+        return;
+      }
       case 'enum':
         if (typeof value !== 'string' || !definition.values?.includes(value)) bad(location, resolved.name!);
         return;

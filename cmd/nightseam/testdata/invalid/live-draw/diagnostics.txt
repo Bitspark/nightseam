@@ -1,0 +1,2 @@
+carrier/protocol.json#/types/Holder/fields/0/type: S.Job draws Job from worker, which carries a callable; a live type drawn through a family parameter has no boundary conversion, since what fills the parameter is the consumer's to choose. Declare the callable in this family's live.json. [live_draw]
+error: 1 problems

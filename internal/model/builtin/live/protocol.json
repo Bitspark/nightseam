@@ -1,0 +1,25 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "live.invoke": {"description": "Invokes an exported binding; either side may invoke what the other exported.", "request": "Invoke", "result": "Invoked", "errors": ["contract_invalid", "contract_mismatch", "reference_unknown", "reference_foreign", "reference_released", "scope_closed", "too_many_exports", "too_many_imports"]},
+      "live.release": {"description": "Releases a binding and its aliases; idempotent, and not a call on what the binding implements.", "request": "Release", "result": "Released", "errors": ["scope_closed"]}
+    }
+  },
+  "client": {
+    "methods": {
+      "live.invoke": {"description": "Invokes an exported binding; either side may invoke what the other exported.", "request": "Invoke", "result": "Invoked", "errors": ["contract_invalid", "contract_mismatch", "reference_unknown", "reference_foreign", "reference_released", "scope_closed", "too_many_exports", "too_many_imports"]},
+      "live.release": {"description": "Releases a binding and its aliases; idempotent, and not a call on what the binding implements.", "request": "Release", "result": "Released", "errors": ["scope_closed"]}
+    }
+  },
+  "errors": {
+    "contract_invalid": "The reference carries no contract, or one this peer cannot read.",
+    "contract_mismatch": "The binding implements another declaration than the one expected here.",
+    "reference_unknown": "No such binding in this scope.",
+    "reference_foreign": "The reference was minted by another scope; a representation does not travel between scopes.",
+    "reference_released": "The binding was released.",
+    "scope_closed": "The live scope has ended with its connection.",
+    "too_many_exports": "The scope holds as many exported bindings as it will.",
+    "too_many_imports": "The scope holds as many imported bindings as it will."
+  }
+}
