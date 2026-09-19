@@ -29,22 +29,6 @@ are one number. Entries are in the words of the commits that landed them.
   appear beside their bases, and inherited members retain their substituted
   type expressions and entity-reference ownership.
 
-- Both validators implement the ruled adjacent union payload form, explicit
-  generic inheritance bindings and Unicode pattern semantics. Every union
-  payload is wrapped, including records and null; a payload-free arm has
-  only its tag. Patterns use ECMAScript `u` syntax and character classes in
-  both languages, with a shared Go parser/translator and paired value cases.
-  Go type arguments can be bound automatically with `TypeArgument[T]()`;
-  named schema metadata and forwarded family draws retain their constraints.
-
-- Both runtime validators read tagged unions, literals, nullable expressions,
-  inline shapes and nested applications with type and family arguments.
-  Imported arguments retain their declaring scope, and the shared table
-  holds generic applications to their bound declarations. Descriptors now
-  carry `types` and family `parameters`; generated Go imports use
-  `WireSchema()` instead of opaque validation callbacks. Runtime descriptors
-  also reject forbidden pattern syntax even in unused optional fields.
-
 - The declaration language gained the type language of #55's eight
   verdicts, whole and in one lane. **Unions**: `{"kind": "union", "tag":
   "type", "variants": {…}}`, internally tagged with a declared
@@ -150,6 +134,22 @@ are one number. Entries are in the words of the commits that landed them.
   `DuplexError` with code `disconnected`. The packed smoke refuses archives
   missing built entry points, README, LICENSE or NOTICE; CI prepares the
   notices as release preparation does, and a dry run says it did not.
+
+- Both validators implement the ruled adjacent union payload form, explicit
+  generic inheritance bindings and Unicode pattern semantics. Every union
+  payload is wrapped, including records and null; a payload-free arm has
+  only its tag. Patterns use ECMAScript `u` syntax and character classes in
+  both languages, with a shared Go parser/translator and paired value cases.
+  Go type arguments can be bound automatically with `TypeArgument[T]()`;
+  named schema metadata and forwarded family draws retain their constraints.
+
+- Both runtime validators read tagged unions, literals, nullable expressions,
+  inline shapes and nested applications with type and family arguments.
+  Imported arguments retain their declaring scope, and the shared table
+  holds generic applications to their bound declarations. Descriptors now
+  carry `types` and family `parameters`; generated Go imports use
+  `WireSchema()` instead of opaque validation callbacks. Runtime descriptors
+  also reject forbidden pattern syntax even in unused optional fields.
 
 ### Fixed
 
