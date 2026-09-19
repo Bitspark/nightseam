@@ -58,7 +58,7 @@ func (u *parameterUses) declaration(t *model.Type, scope []model.Parameter) []Us
 	defer delete(u.walking, t)
 	var sets [][]Use
 	for _, parent := range t.Extends {
-		sets = append(sets, u.declaration(u.family.Types[parent], scope))
+		sets = append(sets, u.expression(parent.Expression(), scope))
 	}
 	for _, field := range t.Fields {
 		sets = append(sets, u.expression(field.Type, scope))

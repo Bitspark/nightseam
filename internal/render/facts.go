@@ -12,6 +12,10 @@ type builder struct {
 	families map[*analysis.Family]*Family
 }
 
+// ReferencedFamily exposes source declarations and their target overrides
+// through the same resolved world, including transitive inherited sources.
+func (r *Family) ReferencedFamily(name string) *Family { return r.other(name) }
+
 func (r *Family) other(name string) *Family {
 	if name == "" || name == r.Name {
 		return r
@@ -90,13 +94,13 @@ func (r *Family) complete() {
 		for i := range t.Own {
 			at := &t.Own[i]
 			at.Origin = Origin{Family: t.Origin.Family, Declaration: t.Name, At: at.At}
+			at.DeclaredType = at.Type
+			at.Scope = slices.Clone(t.Scope)
 		}
-		t.Variants = r.variants(t, map[string]bool{})
-		for _, variant := range t.Variants {
-			if variant.Origin.Declaration == t.Name {
-				t.OwnVariants = append(t.OwnVariants, variant)
-			}
-		}
+	}
+	r.resolveUses()
+	for _, t := range r.Types {
+		r.completeType(t, map[*Type]bool{})
 	}
 	if r.f.Protocol != nil {
 		r.Server = r.resolvedSide(true)
@@ -140,7 +144,7 @@ func (r *Family) resolveSession() {
 			side = source.f.Protocol.Server
 		}
 		for _, name := range side.Extends {
-			if base := source.other(name); base != nil {
+			if base := source.other(name.Name); base != nil {
 				visit(base, server)
 			}
 		}
@@ -193,39 +197,6 @@ func (r *Family) resolveSession() {
 	r.Session = out
 }
 
-func (r *Family) variants(t *Type, stack map[string]bool) []Variant {
-	if stack[t.Name] {
-		return nil
-	}
-	stack[t.Name] = true
-	defer delete(stack, t.Name)
-	var variants []Variant
-	for _, parent := range t.Extends {
-		if base := r.Type(parent); base != nil {
-			variants = append(variants, r.variants(base, stack)...)
-		}
-	}
-	for _, variant := range t.Declaration.Variants {
-		variants = append(variants, Variant{Variant: variant, Origin: t.Origin})
-	}
-	// A diamond reaches the same declaration twice. Distinct declarations
-	// with the same tag are deliberately not collapsed: check refuses those.
-	type key struct {
-		Origin
-		Tag string
-	}
-	seen := map[key]bool{}
-	var unique []Variant
-	for _, variant := range variants {
-		id := key{variant.Origin, variant.Tag}
-		if !seen[id] {
-			unique = append(unique, variant)
-			seen[id] = true
-		}
-	}
-	return unique
-}
-
 func (r *Family) surfaceReferences() {
 	names := map[string]bool{}
 	for _, name := range r.References {
@@ -273,28 +244,33 @@ func (r *Family) resolvedSide(server bool) Side {
 		declared = r.f.Protocol.Client
 	}
 	out := Side{Extends: slices.Clone(declared.Extends), At: declared.At}
-	seen := map[*analysis.Family]bool{}
-	var visit func(*Family)
-	visit = func(source *Family) {
-		if seen[source.f] || source.f.Protocol == nil {
+	scope := r.f.Parameters()
+	seenMethods := map[*model.Method]bool{}
+	seenEvents := map[*model.Event]bool{}
+	var visit func(*Family, map[string]model.Filler, map[*Family]bool)
+	visit = func(source *Family, bindings map[string]model.Filler, stack map[*Family]bool) {
+		if source == nil || source.f.Protocol == nil || stack[source] {
 			return
 		}
-		seen[source.f] = true
+		stack[source] = true
+		defer delete(stack, source)
 		side := source.f.Protocol.Server
 		if !server {
 			side = source.f.Protocol.Client
 		}
-		for _, name := range side.Extends {
-			if parent := source.other(name); parent != nil {
-				visit(parent)
-			}
+		for _, edge := range side.Extends {
+			visit(source.other(edge.Name), r.bindArguments(edge.With, source, bindings, scope), stack)
 		}
 		for i := range side.Methods {
 			m := &side.Methods[i]
-			method := Method{Name: m.Name, Description: m.Description,
-				Request: r.qualify(m.Request, source), Result: r.qualify(m.Result, source),
-				Errors: slices.Clone(m.Errors), At: m.At, Declaration: m,
-				Origin: Origin{Family: source.Name, Declaration: m.Name, At: m.At}}
+			if seenMethods[m] {
+				continue
+			}
+			seenMethods[m] = true
+			bound := *m
+			bound.Request = r.declared(m.Request, source, bindings, scope)
+			bound.Result = r.declared(m.Result, source, bindings, scope)
+			method := Method{Name: m.Name, Description: m.Description, Request: r.substitute(m.Request, source, bindings, scope), Result: r.substitute(m.Result, source, bindings, scope), Errors: slices.Clone(m.Errors), At: m.At, Declaration: m, BoundDeclaration: &bound, Scope: slices.Clone(scope), Origin: Origin{Family: source.Name, Declaration: m.Name, At: m.At}}
 			out.Methods = append(out.Methods, method)
 			if source == r {
 				out.OwnMethods = append(out.OwnMethods, method)
@@ -302,15 +278,20 @@ func (r *Family) resolvedSide(server bool) Side {
 		}
 		for i := range side.Events {
 			e := &side.Events[i]
-			event := Event{Name: e.Name, Description: e.Description, Type: r.qualify(e.Type, source),
-				At: e.At, Declaration: e, Origin: Origin{Family: source.Name, Declaration: e.Name, At: e.At}}
+			if seenEvents[e] {
+				continue
+			}
+			seenEvents[e] = true
+			bound := *e
+			bound.Type = r.declared(e.Type, source, bindings, scope)
+			event := Event{Name: e.Name, Description: e.Description, Type: r.substitute(e.Type, source, bindings, scope), At: e.At, Declaration: e, BoundDeclaration: &bound, Scope: slices.Clone(scope), Origin: Origin{Family: source.Name, Declaration: e.Name, At: e.At}}
 			out.Events = append(out.Events, event)
 			if source == r {
 				out.OwnEvents = append(out.OwnEvents, event)
 			}
 		}
 	}
-	visit(r)
+	visit(r, nil, map[*Family]bool{})
 	return out
 }
 
@@ -325,7 +306,7 @@ func (r *Family) resolvedErrors() []Error {
 		seen[source.f] = true
 		for _, side := range []model.Side{source.f.Protocol.Server, source.f.Protocol.Client} {
 			for _, parent := range side.Extends {
-				if base := source.other(parent); base != nil {
+				if base := source.other(parent.Name); base != nil {
 					visit(base)
 				}
 			}

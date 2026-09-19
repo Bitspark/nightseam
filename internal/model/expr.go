@@ -63,7 +63,12 @@ type Nullable struct{ Elem TypeExpr }
 type Literal struct{ Value string }
 
 // Ref is a reference to an entity of this family by its key.
-type Ref struct{ Entity string }
+type Ref struct {
+	Entity string
+	// Family is the resolved lexical owner in rendering facts. Declarations
+	// and the wire spelling remain local {"ref": "Entity"} expressions.
+	Family string
+}
 
 // Apply fills the parameters of a generic type: Family is empty for a type
 // of this family, and With maps each of that type's parameters to what

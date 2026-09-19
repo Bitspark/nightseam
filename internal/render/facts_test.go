@@ -113,16 +113,16 @@ func TestVariantPayloadFactsIncludeTheirWireForm(t *testing.T) {
 			t.Fatalf("variant lost its provenance: %+v", variant)
 		}
 	}
-	want := map[string]VariantForm{"count": VariantValue, "image": VariantObject, "text": VariantTagged, "table": VariantObject}
+	want := map[string]VariantForm{"count": VariantValue, "image": VariantValue, "text": VariantValue, "table": VariantValue}
 	if !reflect.DeepEqual(forms, want) {
 		t.Fatalf("forms = %v, want %v", forms, want)
 	}
-	if r.Type("Option").Variants[1].Form != VariantDynamic {
-		t.Fatal("an unapplied type parameter guessed its payload shape")
+	if r.Type("Option").Variants[1].Form != VariantValue {
+		t.Fatal("a type parameter did not keep the adjacent payload carrier")
 	}
 }
 
-func TestVariantPayloadFactsDistinguishObjectsFromValueDependentForms(t *testing.T) {
+func TestVariantPayloadFactsKeepOneCarrierForEveryPayloadKind(t *testing.T) {
 	world := analysis.World(modeltest.World(map[string]map[string]string{
 		"x": {"model.json": `{"nightseam":2,"types":{
 			"Payload":{"kind":"record","fields":[{"name":"text","type":"string"}]},
@@ -134,13 +134,13 @@ func TestVariantPayloadFactsDistinguishObjectsFromValueDependentForms(t *testing
 		}}`},
 	}))
 	r := Build(analysis.Resolve(world, "x"))
-	want := map[string]VariantForm{"map": VariantObject, "record": VariantDynamic, "alias": VariantDynamic, "scalar": VariantValue, "list": VariantValue, "json": VariantDynamic}
+	want := map[string]VariantForm{"map": VariantValue, "record": VariantValue, "alias": VariantValue, "scalar": VariantValue, "list": VariantValue, "json": VariantValue}
 	for _, variant := range r.Type("Part").Variants {
 		if variant.Form != want[variant.Tag] {
 			t.Errorf("%s payload form = %s, want %s", variant.Tag, variant.Form, want[variant.Tag])
 		}
-		if (variant.Tag == "record" || variant.Tag == "alias") && (len(variant.Fields) != 1 || variant.Fields[0].Name != "text") {
-			t.Errorf("%s lost its non-null object's fields", variant.Tag)
+		if (variant.Tag == "record" || variant.Tag == "alias") && (variant.Payload != nil || len(variant.Fields) != 0) {
+			t.Errorf("%s mistook a nullable record for a directly reusable record", variant.Tag)
 		}
 	}
 }
@@ -173,7 +173,7 @@ func TestExplicitApplicationsSubstituteNestedTypesAndFamilyDraws(t *testing.T) {
 	result, ok := r.Apply(model.Apply{Family: "boxes", Name: "Result", With: map[string]model.Filler{
 		"T": {Type: model.Imported{Family: "payload", Name: "Item"}},
 	}}, nil)
-	if !ok || result.Variants[1].Form != VariantObject || len(result.Variants[1].Fields) != 1 || result.Variants[1].Fields[0].Name != "text" {
+	if !ok || result.Variants[1].Form != VariantValue || len(result.Variants[1].Fields) != 1 || result.Variants[1].Fields[0].Name != "text" {
 		t.Fatalf("applied object variant = %+v", result)
 	}
 	if source := r.other("boxes").Type("Box"); model.String(source.Fields[0].Type) != `{"array":{"nullable":"T"}}` {

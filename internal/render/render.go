@@ -61,10 +61,11 @@ type Type struct {
 	Values                  []string
 	Alias                   model.TypeExpr
 	Tag                     string    // union: the member that discriminates
-	Value                   string    // union: the member a non-object payload rides under
+	Value                   string    // union: the member the complete payload rides under
 	Variants                []Variant // union: inherited variants, then own
 	OwnVariants             []Variant
-	Extends                 []string
+	Extends                 []model.Inheritance
+	Bases                   []Base            // resolved, applied bases in extends order
 	Scope                   []model.Parameter // lexical parameters, including captured parameters of an inline shape
 	Declaration             *model.Type       // original declaration; never rewritten by rendering
 	Origin                  Origin
@@ -74,12 +75,21 @@ type Type struct {
 	Carried                 bool       // carried from a built-in family, not declared here
 	From                    string     // the built-in family that declares a carried type
 	At                      diag.Location
+	resolved                bool
+}
+
+// Base retains the written edge beside its applied view in this scope.
+type Base struct {
+	Edge model.Inheritance
+	Type *Type
 }
 
 // Field is one wire field, with its constraints.
 type Field struct {
 	Name, Description string
 	Type              model.TypeExpr
+	DeclaredType      model.TypeExpr // bound expression retaining entity-reference meaning
+	Scope             []model.Parameter
 	Required          bool
 	Nullable          bool
 	Unique            bool
@@ -101,24 +111,26 @@ type Origin struct {
 // Variant is a union arm, with its declaration and resolved wire shape.
 type Variant struct {
 	model.Variant
-	Origin Origin
-	Form   VariantForm
-	Fields []Field // known fields of the object payload, including a nullable object's non-null case
+	Origin       Origin
+	Form         VariantForm
+	Fields       []Field // fields of a resolved, non-null record/entity payload, inside value
+	Payload      *Type   // resolved record/entity payload, nil for other expressions
+	DeclaredType model.TypeExpr
+	Scope        []model.Parameter
+	Arguments    []Argument // the declaring union's effective arguments for this inherited variant
 }
 
 // VariantForm says how a payload sits beside the discriminator.
 type VariantForm string
 
 const (
-	VariantValue   VariantForm = "value"   // payload under the union's value member
-	VariantObject  VariantForm = "object"  // object members beside an added tag
-	VariantTagged  VariantForm = "tagged"  // object already declares the literal tag
-	VariantDynamic VariantForm = "dynamic" // a supplied argument or runtime value decides its shape
+	VariantValue VariantForm = "value" // complete payload under the union's value member
+	VariantEmpty VariantForm = "empty" // tag alone, with no value member
 )
 
 // Side is one peer's interface.
 type Side struct {
-	Extends    []string // the families whose same side this one extends
+	Extends    []model.Inheritance // the families whose same side this one extends
 	Methods    []Method
 	Events     []Event
 	OwnMethods []Method
@@ -136,6 +148,8 @@ type Method struct {
 	At                diag.Location
 	Origin            Origin
 	Declaration       *model.Method // original expressions in Origin.Family's scope
+	BoundDeclaration  *model.Method // substituted expressions, preserving references
+	Scope             []model.Parameter
 }
 
 // Event is one notification.
@@ -146,6 +160,8 @@ type Event struct {
 	At                diag.Location
 	Origin            Origin
 	Declaration       *model.Event // original expression in Origin.Family's scope
+	BoundDeclaration  *model.Event // substituted expression, preserving references
+	Scope             []model.Parameter
 }
 
 // Error is one public error.

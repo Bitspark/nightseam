@@ -13,8 +13,10 @@ are one number. Entries are in the words of the commits that landed them.
   governance. Explicit applications resolve nested type and family fillers;
   parameter-use analysis includes type parameters and inline captures for
   both the checker and renderers. Captured arguments follow nested named
-  types; payload facts distinguish maps from nullable objects and arbitrary
-  JSON whose shape depends on their value. Target support remains gated by
+  types. Generic inheritance explicitly binds its own and captured family
+  parameters, and inherited references retain their lexical owner. Union
+  facts use the adjacent payload carrier from #146 and distinguish the
+  explicit no-payload marker from an empty record or null. Target support remains gated by
   each renderer's existing refusals.
 - The declaration language gained the type language of #55's eight
   verdicts, whole and in one lane. **Unions**: `{"kind": "union", "tag":

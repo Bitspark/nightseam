@@ -120,7 +120,7 @@ func (c *checker) type_(t *model.Type, name string, context int, scope []model.P
 	switch t.Kind {
 	case model.KindRecord, model.KindEntity:
 		for i, parent := range t.Extends {
-			c.inherits(t, i, parent, context, edges, model.KindRecord)
+			c.inherits(t, i, parent, where, model.KindRecord)
 		}
 		for i := range t.Fields {
 			field := &t.Fields[i]
@@ -132,7 +132,7 @@ func (c *checker) type_(t *model.Type, name string, context int, scope []model.P
 		}
 	case model.KindUnion:
 		for i, parent := range t.Extends {
-			c.inherits(t, i, parent, context, edges, model.KindUnion)
+			c.inherits(t, i, parent, where, model.KindUnion)
 		}
 		c.union(t, where)
 	case model.KindAlias:
@@ -140,155 +140,24 @@ func (c *checker) type_(t *model.Type, name string, context int, scope []model.P
 	}
 }
 
-// inherits holds one entry of a type's extends: it names a type of the
-// same kind, of this tier or a lower one, and the edge it adds is what
-// cycles are found on.
-func (c *checker) inherits(t *model.Type, i int, parent string, context int, edges map[string][]string, kind string) {
-	f := c.f
-	at := t.At.Sub("extends", i)
-	inherited, ok := f.Types[parent]
-	switch {
-	case !ok:
-		c.Addf(at, "unresolved_type", "Unknown inherited type %s.", parent)
-	case kind == model.KindUnion && inherited.Kind != model.KindUnion:
-		c.Addf(at, "invalid_inheritance", "A union extends a union; %s is a %s.", parent, inherited.Kind)
-	case kind == model.KindRecord && inherited.Kind != model.KindRecord && inherited.Kind != model.KindEntity:
-		c.Add(at, "invalid_inheritance", "An inherited type must be a record.")
-	case f.Rank(parent) > context:
-		c.tierViolation(at, context, parent, inherited.At.File)
-	case kind == model.KindUnion:
-		if c.reachesUnion(parent, t.Name, map[string]bool{}) {
-			c.Addf(at, "extends_cycle", "Union %s extends %s, which extends this one, directly or through what it extends.", t.Name, parent)
-			return
-		}
-		if t.Tag != "" && inherited.Tag != "" && t.Tag != inherited.Tag {
-			c.Addf(at, "invalid_union", "Union %s discriminates on %s and extends %s, which discriminates on %s; a union that widens another reads the same member.", t.Name, t.Tag, parent, inherited.Tag)
-		}
-		if t.ValueMember() != inherited.ValueMember() {
-			c.Addf(at, "invalid_union", "Union %s carries a payload that is not an object under %s and extends %s, which carries it under %s.", t.Name, t.ValueMember(), parent, inherited.ValueMember())
-		}
-		c.variantCollisions(t, at, parent)
-	default:
-		edges[t.Name] = append(edges[t.Name], parent)
-	}
-}
-
-func (c *checker) reachesUnion(from, target string, seen map[string]bool) bool {
-	if from == target {
-		return true
-	}
-	if seen[from] {
-		return false
-	}
-	seen[from] = true
-	t, ok := c.f.Types[from]
-	if !ok {
-		return false
-	}
-	for _, parent := range t.Extends {
-		if c.reachesUnion(parent, target, seen) {
-			return true
-		}
-	}
-	return false
-}
-
-// variantCollisions: a union that widens another adds variants and does not
-// rename one, so a tag the base already carries is refused.
-func (c *checker) variantCollisions(t *model.Type, at diag.Location, parent string) {
-	for _, tag := range c.f.VariantTags(parent) {
-		if _, own := t.Variant(tag); own {
-			c.Addf(at, "variant_collision", "Union %s extends %s and declares its variant %s again; an extending union adds variants.", t.Name, parent, tag)
-		}
-	}
-}
-
-// Each tag has one declaring union. Reaching that same declaration through
-// a diamond is harmless; two bases declaring the tag independently are not
-// one variant, even if the child adds no variant of that name itself.
-func (c *checker) inheritedVariantCollisions(t *model.Type) {
-	seen := map[string]*model.Type{}
-	visited := map[*model.Type]bool{}
-	var walk func(string, diag.Location)
-	walk = func(name string, at diag.Location) {
-		base := c.f.Types[name]
-		if base == nil || base == t || base.Kind != model.KindUnion || visited[base] {
-			return
-		}
-		visited[base] = true
-		for _, parent := range base.Extends {
-			walk(parent, at)
-		}
-		for _, variant := range base.Variants {
-			if previous := seen[variant.Tag]; previous != nil && previous != base {
-				c.Addf(at, "variant_collision", "Union %s inherits variant %s from both %s and %s; an inherited tag has one declaration.", t.Name, variant.Tag, previous.Name, base.Name)
-			} else {
-				seen[variant.Tag] = base
-			}
-		}
-	}
-	for i, parent := range t.Extends {
-		walk(parent, t.At.Sub("extends", i))
-	}
-}
-
-// union: a union declares the member that discriminates it and one type
-// expression per variant. A variant that is not an object on the wire is
-// carried under the value member beside the tag; a variant record that
-// declares the tag member carries its own tag, and then declares it with
-// the literal of that variant — anything else is two readings of one frame
-// and is refused here rather than found in the second language.
+// union holds the adjacent envelope; a payload's own members cannot
+// collide with it, including a literal with a different value or nullness.
 func (c *checker) union(t *model.Type, where site) {
-	f := c.f
 	c.inheritedVariantCollisions(t)
 	if t.Tag == "" {
 		c.Addf(t.At, "invalid_union", "Union %s declares no tag: the member that says which variant a value is.", t.Name)
 	}
 	if t.Tag != "" && t.Tag == t.ValueMember() {
-		c.Addf(t.At.Sub("tag"), "invalid_union", "Union %s discriminates on %s and carries a payload that is not an object under the same member.", t.Name, t.Tag)
+		c.Addf(t.At.Sub("tag"), "invalid_union", "Union %s uses the same member for its discriminator and complete payload.", t.Name)
 	}
 	if len(t.Variants) == 0 && len(t.Extends) == 0 {
 		c.Addf(t.At, "invalid_union", "Union %s declares no variants and extends nothing.", t.Name)
 	}
-	for i := range t.Variants {
-		variant := &t.Variants[i]
-		at := t.At.Sub("variants", variant.Tag)
-		before := len(c.Diagnostics)
-		c.expression(variant.Type, at, where)
-		if len(c.Diagnostics) != before || t.Tag == "" {
-			continue
-		}
-		owner, carrier, ok := f.ResolveShape(variant.Type)
-		if !ok {
-			continue
-		}
-		field, declares := shapeField(owner, carrier, t.Tag)
-		if !declares {
-			continue
-		}
-		literal, isLiteral := field.Type.(model.Literal)
-		switch {
-		case !isLiteral:
-			c.Addf(at, "tag_member", "Variant %s of union %s is %s, which declares the member %s the union discriminates on; a variant that carries its own tag declares it as {\"literal\": \"%s\"}, and any other declaration of it is two readings of one frame.", variant.Tag, t.Name, model.String(variant.Type), t.Tag, variant.Tag)
-		case literal.Value != variant.Tag:
-			c.Addf(at, "tag_member", "Variant %s of union %s declares %s as the literal %q; a variant that carries its own tag declares it as its own.", variant.Tag, t.Name, t.Tag, literal.Value)
-		case !field.Required:
-			c.Addf(at, "tag_member", "Variant %s of union %s declares %s optional; the member a union discriminates on is always present.", variant.Tag, t.Name, t.Tag)
-		case field.Nullable:
-			c.Addf(at, "tag_member", "Variant %s of union %s declares %s nullable; the discriminator must be the non-null literal %q.", variant.Tag, t.Name, t.Tag, variant.Tag)
+	for _, variant := range t.Variants {
+		if variant.Type != nil {
+			c.expression(variant.Type, variant.At, where)
 		}
 	}
-}
-
-// shapeField finds a field of a record a variant names, its own or
-// inherited.
-func shapeField(f *analysis.Family, t *model.Type, name string) (model.Field, bool) {
-	for _, field := range f.ShapeFields(t) {
-		if field.Name == name {
-			return field, true
-		}
-	}
-	return model.Field{}, false
 }
 
 // parameters holds a declaration's parameters to their rules: distinct,
@@ -596,25 +465,39 @@ func (c *checker) apply(x model.Apply, at diag.Location, where site) {
 			}
 		}
 	}
+	c.arguments(applied(x), wanted, x.With, at, where)
+	// The applied type is a declaration like any other, so it is of this
+	// declaration's tier or a lower one.
+	rank, in := where.context, f
+	if x.Family != "" {
+		in = f.Imported[x.Family]
+	}
+	if in.Rank(x.Name) > rank {
+		c.tierViolation(at, rank, applied(x), target.At.File)
+	}
+}
+
+func (c *checker) arguments(target string, wanted map[string]model.Parameter, with map[string]model.Filler, at diag.Location, where site) {
+	f := c.f
 	if len(wanted) == 0 {
-		c.Addf(at.Sub("apply"), "needless_application", "Type %s is not generic; refer to it by name.", applied(x))
+		c.Addf(at.Sub("apply"), "needless_application", "Type %s is not generic; refer to it by name.", target)
 	}
 	for _, name := range sortedParameters(wanted) {
-		if _, bound := x.With[name]; !bound {
-			c.Addf(at.Sub("with"), "unbound_parameter", "The application leaves %s's parameter %s unbound.", applied(x), name)
+		if _, bound := with[name]; !bound {
+			c.Addf(at.Sub("with"), "unbound_parameter", "The application leaves %s's parameter %s unbound.", target, name)
 		}
 	}
-	for _, name := range sortedFillers(x.With) {
-		filler := x.With[name]
+	for _, name := range sortedFillers(with) {
+		filler := with[name]
 		here := at.Sub("with", name)
 		parameter, ok := wanted[name]
 		if !ok {
-			c.Addf(here, "unresolved_parameter", "Type %s has no parameter %s.", applied(x), name)
+			c.Addf(here, "unresolved_parameter", "Type %s has no parameter %s.", target, name)
 			continue
 		}
 		if !parameter.IsFamily() {
 			if filler.Family != "" {
-				c.Addf(here, "invalid_filler", "Parameter %s of %s is filled by a type; %s names a family.", name, applied(x), filler.Family)
+				c.Addf(here, "invalid_filler", "Parameter %s of %s is filled by a type; %s names a family.", name, target, filler.Family)
 				continue
 			}
 			c.expression(filler.Type, here, site{owner: where.owner, context: where.context, scope: where.scope, edges: where.edges})
@@ -630,12 +513,12 @@ func (c *checker) apply(x model.Apply, at diag.Location, where site) {
 			switch {
 			case declared && forwarded.IsFamily():
 				if !familyBoundFills(forwarded.Of, parameter.Of) {
-					c.Addf(here, "invalid_filler", "Parameter %s guarantees the %s tier, but parameter %s of %s requires %s.", named, forwarded.Of, name, applied(x), parameter.Of)
+					c.Addf(here, "invalid_filler", "Parameter %s guarantees the %s tier, but parameter %s of %s requires %s.", named, forwarded.Of, name, target, parameter.Of)
 				}
 			case named != "" && model.IsParameter(named) && !declared && f.Types[named] == nil:
 				c.Addf(here, "unresolved_parameter", "Unknown parameter %s: no parameter of that name is in scope.", named)
 			default:
-				c.Addf(here, "invalid_filler", "Parameter %s of %s is filled by a family that carries the %s tier, or by an in-scope family parameter that guarantees it; %s is neither.", name, applied(x), parameter.Of, filler.String())
+				c.Addf(here, "invalid_filler", "Parameter %s of %s is filled by a family that carries the %s tier, or by an in-scope family parameter that guarantees it; %s is neither.", name, target, parameter.Of, filler.String())
 			}
 			continue
 		}
@@ -645,17 +528,8 @@ func (c *checker) apply(x model.Apply, at diag.Location, where site) {
 		case f.Imported[family] == nil:
 			c.Addf(here, "unresolved_type", "Family %s fills a parameter and is not imported.", family)
 		case f.Carriers(parameter.Of)[family] == nil:
-			c.Addf(here, "invalid_filler", "Family %s fills parameter %s of %s, which is of the %s tier, and %s does not carry it.", family, name, applied(x), parameter.Of, family)
+			c.Addf(here, "invalid_filler", "Family %s fills parameter %s of %s, which is of the %s tier, and %s does not carry it.", family, name, target, parameter.Of, family)
 		}
-	}
-	// The applied type is a declaration like any other, so it is of this
-	// declaration's tier or a lower one.
-	rank, in := where.context, f
-	if x.Family != "" {
-		in = f.Imported[x.Family]
-	}
-	if in.Rank(x.Name) > rank {
-		c.tierViolation(at, rank, applied(x), target.At.File)
 	}
 }
 
@@ -865,7 +739,41 @@ func Protocol(f *analysis.Family) []diag.Diagnostic {
 // to it — so a name may not mean two things across the join.
 func (c *checker) extendedSide(side *model.Side, server bool, label string, operation func(string, string, diag.Location), calls, notifies string) {
 	f := c.f
-	for i, name := range side.Extends {
+	seenMethods := map[*model.Method]string{}
+	seenEvents := map[*model.Event]string{}
+	var walk func(*analysis.Family, map[string]model.Filler, diag.Location, map[*analysis.Family]bool)
+	walk = func(source *analysis.Family, bindings map[string]model.Filler, at diag.Location, stack map[*analysis.Family]bool) {
+		if source == nil || source.Protocol == nil || stack[source] {
+			return
+		}
+		stack[source] = true
+		defer delete(stack, source)
+		inherited := &source.Protocol.Server
+		if !server {
+			inherited = &source.Protocol.Client
+		}
+		for _, edge := range inherited.Extends {
+			walk(source.Imported[edge.Name], f.BindArguments(edge.With, source, bindings), at, stack)
+		}
+		for i := range inherited.Methods {
+			m := &inherited.Methods[i]
+			signature := model.String(f.BindExpression(m.Request, source, bindings)) + ":" + model.String(f.BindExpression(m.Result, source, bindings))
+			if previous, seen := seenMethods[m]; !seen || previous != signature {
+				operation(calls, m.Name, at)
+				seenMethods[m] = signature
+			}
+		}
+		for i := range inherited.Events {
+			e := &inherited.Events[i]
+			signature := model.String(f.BindExpression(e.Type, source, bindings))
+			if previous, seen := seenEvents[e]; !seen || previous != signature {
+				operation(notifies, e.Name, at)
+				seenEvents[e] = signature
+			}
+		}
+	}
+	for i, edge := range side.Extends {
+		name := edge.Name
 		at := side.At.Sub("extends", i)
 		switch {
 		case name == f.Name:
@@ -879,20 +787,16 @@ func (c *checker) extendedSide(side *model.Side, server bool, label string, oper
 			continue
 		}
 		base := f.Imported[name]
+		wanted := map[string]model.Parameter{}
+		for _, parameter := range base.Parameters() {
+			wanted[parameter.Name] = parameter
+		}
+		c.inheritanceArguments(edge, wanted, at, site{context: model.Rank(side.At.File), scope: f.Parameters()})
 		if extendsBack(base, f.Name, server, map[string]bool{}) {
 			c.Addf(at, "extends_cycle", "The %s side extends %s's, which extends this one, directly or through what it extends.", label, name)
 			continue
 		}
-		inherited := base.Protocol.Server
-		if !server {
-			inherited = base.Protocol.Client
-		}
-		for _, m := range inherited.Methods {
-			operation(calls, m.Name, at)
-		}
-		for _, e := range inherited.Events {
-			operation(notifies, e.Name, at)
-		}
+		walk(base, edge.With, at, map[*analysis.Family]bool{})
 	}
 }
 
@@ -905,7 +809,8 @@ func extendsBack(from *analysis.Family, target string, server bool, seen map[str
 	if !server {
 		side = from.Protocol.Client
 	}
-	for _, name := range side.Extends {
+	for _, edge := range side.Extends {
+		name := edge.Name
 		if name == target || extendsBack(from.Imported[name], target, server, seen) {
 			return true
 		}

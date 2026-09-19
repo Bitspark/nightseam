@@ -64,8 +64,8 @@ const (
 	KindUnion  = "union"
 )
 
-// DefaultValueMember is the member a union carries a payload that is not an
-// object under, beside its tag; a union may name another.
+// DefaultValueMember is the member a union carries its complete payload
+// under, beside its tag; a union may name another.
 const DefaultValueMember = "value"
 
 // Type is one declared type.
@@ -73,16 +73,16 @@ type Type struct {
 	Name        string
 	Kind        string
 	Description string
-	Key         string      // entity: the field that identifies it
-	Parameters  []Parameter // record, entity, union, alias: the holes in it
-	Extends     []string    // record, entity: the records whose fields come first; union: the unions whose variants come first
-	Open        bool        // record, entity: fields beyond the declared ones are kept
-	Fields      []Field     // record, entity: in wire order, own fields only
-	Values      []string    // enum
-	Alias       TypeExpr    // alias
-	Tag         string      // union: the member that discriminates
-	Value       string      // union: the member a payload that is not an object rides under
-	Variants    []Variant   // union: own variants, by tag
+	Key         string        // entity: the field that identifies it
+	Parameters  []Parameter   // record, entity, union, alias: the holes in it
+	Extends     []Inheritance // bases with their explicit parameter bindings
+	Open        bool          // record, entity: fields beyond the declared ones are kept
+	Fields      []Field       // record, entity: in wire order, own fields only
+	Values      []string      // enum
+	Alias       TypeExpr      // alias
+	Tag         string        // union: the member that discriminates
+	Value       string        // union: the member the complete payload rides under
+	Variants    []Variant     // union: own variants, by tag
 	At          diag.Location
 }
 
@@ -90,7 +90,7 @@ type Type struct {
 // it and what it carries.
 type Variant struct {
 	Tag  string
-	Type TypeExpr
+	Type TypeExpr // nil is a no-payload arm, spelled {"empty":true}
 	At   diag.Location
 }
 
@@ -104,7 +104,7 @@ func (t *Type) Variant(tag string) (*Variant, bool) {
 	return nil, false
 }
 
-// ValueMember is the member a union carries a non-object payload under.
+// ValueMember is the member a union carries its complete payload under.
 func (t *Type) ValueMember() string {
 	if t.Value != "" {
 		return t.Value
@@ -175,7 +175,7 @@ func (p Parameter) IsFamily() bool { return p.Of != "" }
 // client; the client side is the reverse. A side may extend the same side
 // of another family, taking its operations under their own names.
 type Side struct {
-	Extends []string            // the families whose same side this one extends
+	Extends []Inheritance       // the families whose same side this one extends, with bindings
 	Methods []Method            // by name, own only
 	Events  []Event             // by name, own only
 	CRUD    map[string][]string // entity → operations; parsed, expanded by nothing yet
@@ -237,7 +237,7 @@ type typeJSON struct {
 	Description string                     `json:"description"`
 	Key         string                     `json:"key"`
 	Parameters  []parameterJSON            `json:"parameters"`
-	Extends     []string                   `json:"extends"`
+	Extends     []json.RawMessage          `json:"extends"`
 	Open        bool                       `json:"open"`
 	Fields      []fieldJSON                `json:"fields"`
 	Values      []string                   `json:"values"`
@@ -275,7 +275,7 @@ type parameterJSON struct {
 }
 
 type sideJSON struct {
-	Extends []string              `json:"extends"`
+	Extends []json.RawMessage     `json:"extends"`
 	Methods map[string]methodJSON `json:"methods"`
 	Events  map[string]eventJSON  `json:"events"`
 	CRUD    map[string][]string   `json:"crud"`
@@ -331,7 +331,11 @@ func decodeType(name string, raw json.RawMessage, at diag.Location) (*Type, erro
 }
 
 func buildType(name string, w typeJSON, at diag.Location) (*Type, error) {
-	t := &Type{Name: name, Kind: w.Kind, Description: w.Description, Key: w.Key, Extends: w.Extends, Open: w.Open, Values: w.Values, Tag: w.Tag, Value: w.Value, At: at}
+	t := &Type{Name: name, Kind: w.Kind, Description: w.Description, Key: w.Key, Open: w.Open, Values: w.Values, Tag: w.Tag, Value: w.Value, At: at}
+	var err error
+	if t.Extends, err = decodeBases(w.Extends, at); err != nil {
+		return nil, err
+	}
 	for i, p := range w.Parameters {
 		t.Parameters = append(t.Parameters, Parameter{Name: p.Name, Of: p.Of, Description: p.Description, At: at.Sub("parameters", i)})
 	}
@@ -351,6 +355,11 @@ func buildType(name string, w typeJSON, at diag.Location) (*Type, error) {
 	}
 	for _, tag := range sortedRaw(w.Variants) {
 		here := at.Sub("variants", tag)
+		var marker map[string]json.RawMessage
+		if json.Unmarshal(w.Variants[tag], &marker) == nil && len(marker) == 1 && string(bytes.TrimSpace(marker["empty"])) == "true" {
+			t.Variants = append(t.Variants, Variant{Tag: tag, At: here})
+			continue
+		}
 		e, err := DecodeAt(w.Variants[tag], here)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", here, err)
@@ -409,7 +418,11 @@ func DecodeProtocol(file string, raw json.RawMessage) (*Protocol, error) {
 }
 
 func decodeSide(w sideJSON, at diag.Location) (Side, error) {
-	side := Side{Extends: w.Extends, CRUD: w.CRUD, At: at}
+	side := Side{CRUD: w.CRUD, At: at}
+	var err error
+	if side.Extends, err = decodeBases(w.Extends, at); err != nil {
+		return side, err
+	}
 	for name, m := range w.Methods {
 		method := Method{Name: name, Description: m.Description, Errors: m.Errors, At: at.Sub("methods", name)}
 		var err error
@@ -512,6 +525,9 @@ func (p *Protocol) Parameter(name string) (*Parameter, bool) {
 // top of its own structure — each field's, its alias, each variant's — with
 // where it sits. It does not descend: Walk does that.
 func (t *Type) WalkExpressions(visit func(TypeExpr, diag.Location)) {
+	for _, base := range t.Extends {
+		visit(base.Expression(), base.At)
+	}
 	for i := range t.Fields {
 		visit(t.Fields[i].Type, t.At.Sub("fields", i, "type"))
 	}
@@ -526,6 +542,7 @@ func (t *Type) WalkExpressions(visit func(TypeExpr, diag.Location)) {
 // rewritten is the type with every expression in it rewritten.
 func (t *Type) rewritten(f func(TypeExpr) TypeExpr) *Type {
 	out := *t
+	out.Extends = rewriteBases(t.Extends, f)
 	out.Fields = append([]Field(nil), t.Fields...)
 	for i := range out.Fields {
 		out.Fields[i].Type = Rewrite(out.Fields[i].Type, f)
@@ -552,6 +569,11 @@ func (f *Family) Expressions(visit func(ExprAt)) {
 		return
 	}
 	for _, side := range []*Side{&f.Protocol.Server, &f.Protocol.Client} {
+		for _, base := range side.Extends {
+			for _, name := range sortedFillers(base.With) {
+				walkAt(base.With[name].Type, ExprAt{At: base.At.Sub("with", name)}, visit)
+			}
+		}
 		for i := range side.Methods {
 			m := &side.Methods[i]
 			walkAt(m.Request, ExprAt{At: m.At.Sub("request")}, visit)
@@ -569,6 +591,7 @@ func (f *Family) Expressions(visit func(ExprAt)) {
 // reference to a carried built-in into, in place, before anything resolves.
 func (f *Family) RewriteExpressions(fn func(TypeExpr) TypeExpr) {
 	for _, t := range f.Types {
+		t.Extends = rewriteBases(t.Extends, fn)
 		for i := range t.Fields {
 			t.Fields[i].Type = Rewrite(t.Fields[i].Type, fn)
 		}
@@ -581,6 +604,7 @@ func (f *Family) RewriteExpressions(fn func(TypeExpr) TypeExpr) {
 		return
 	}
 	for _, side := range []*Side{&f.Protocol.Server, &f.Protocol.Client} {
+		side.Extends = rewriteBases(side.Extends, fn)
 		for i := range side.Methods {
 			side.Methods[i].Request = Rewrite(side.Methods[i].Request, fn)
 			side.Methods[i].Result = Rewrite(side.Methods[i].Result, fn)
@@ -613,17 +637,17 @@ func walkAt(e TypeExpr, site ExprAt, visit func(ExprAt)) {
 // always read.
 
 type wireTypeJSON struct {
-	Kind       string              `json:"kind"`
-	Key        string              `json:"key,omitempty"`
-	Fields     []Field             `json:"fields,omitempty"`
-	Extends    []string            `json:"extends,omitempty"`
-	Open       bool                `json:"open,omitempty"`
-	Values     []string            `json:"values,omitempty"`
-	Type       TypeExpr            `json:"type,omitempty"`
-	Parameters []wireParameter     `json:"parameters,omitempty"`
-	Tag        string              `json:"tag,omitempty"`
-	Value      string              `json:"value,omitempty"`
-	Variants   map[string]TypeExpr `json:"variants,omitempty"`
+	Kind       string          `json:"kind"`
+	Key        string          `json:"key,omitempty"`
+	Fields     []Field         `json:"fields,omitempty"`
+	Extends    []Inheritance   `json:"extends,omitempty"`
+	Open       bool            `json:"open,omitempty"`
+	Values     []string        `json:"values,omitempty"`
+	Type       TypeExpr        `json:"type,omitempty"`
+	Parameters []wireParameter `json:"parameters,omitempty"`
+	Tag        string          `json:"tag,omitempty"`
+	Value      string          `json:"value,omitempty"`
+	Variants   map[string]any  `json:"variants,omitempty"`
 }
 
 type wireParameter struct {
@@ -650,9 +674,12 @@ func (t *Type) MarshalJSON() ([]byte, error) {
 		w.Parameters = append(w.Parameters, wireParameter{Name: p.Name, Of: p.Of})
 	}
 	if len(t.Variants) > 0 {
-		w.Variants = make(map[string]TypeExpr, len(t.Variants))
+		w.Variants = make(map[string]any, len(t.Variants))
 		for _, variant := range t.Variants {
 			w.Variants[variant.Tag] = variant.Type
+			if variant.Type == nil {
+				w.Variants[variant.Tag] = map[string]bool{"empty": true}
+			}
 		}
 	}
 	return json.Marshal(w)

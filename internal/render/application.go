@@ -31,6 +31,8 @@ func (r *Family) Apply(a model.Apply, scope []model.Parameter) (*Type, bool) {
 		out := slices.Clone(fields)
 		for i := range out {
 			out[i].Type = r.substitute(out[i].Type, owner, a.With, scope)
+			out[i].DeclaredType = r.declared(out[i].DeclaredType, owner, a.With, scope)
+			out[i].Scope = slices.Clone(scope)
 		}
 		return out
 	}
@@ -39,6 +41,25 @@ func (r *Family) Apply(a model.Apply, scope []model.Parameter) (*Type, bool) {
 	out.Variants = slices.Clone(t.Variants)
 	for i := range out.Variants {
 		out.Variants[i].Type = r.substitute(t.Variants[i].Type, owner, a.With, scope)
+		out.Variants[i].DeclaredType = r.declared(t.Variants[i].DeclaredType, owner, a.With, scope)
+		out.Variants[i].Scope = slices.Clone(scope)
+		if out.Variants[i].Origin == t.Origin {
+			out.Variants[i].Arguments = slices.Clone(out.Arguments)
+		} else {
+			out.Variants[i].Arguments = r.boundArguments(t.Variants[i].Arguments, owner, a.With, scope)
+		}
+	}
+	out.Bases = nil
+	for _, base := range t.Bases {
+		arguments := r.boundArguments(base.Type.Arguments, owner, a.With, scope)
+		with := argumentBindings(arguments)
+		family := base.Type.Origin.Family
+		if family == r.Name {
+			family = ""
+		}
+		if view, ok := r.Apply(model.Apply{Family: family, Name: base.Type.Origin.Declaration, With: with}, scope); ok {
+			out.Bases = append(out.Bases, Base{Edge: base.Edge, Type: view})
+		}
 	}
 	out.OwnVariants = nil
 	for _, variant := range out.Variants {
@@ -59,14 +80,21 @@ func (r *Family) Apply(a model.Apply, scope []model.Parameter) (*Type, bool) {
 	return &out, true
 }
 
+func (r *Family) substitute(e model.TypeExpr, source *Family, bindings map[string]model.Filler, scope []model.Parameter) model.TypeExpr {
+	return r.transform(e, source, bindings, scope, false)
+}
+func (r *Family) declared(e model.TypeExpr, source *Family, bindings map[string]model.Filler, scope []model.Parameter) model.TypeExpr {
+	return r.transform(e, source, bindings, scope, true)
+}
+
 // substitute qualifies source-local names while leaving a supplied filler
 // in the caller's scope. Qualifying after substitution would capture a
 // caller's same-named type in the imported declaration's family.
-func (r *Family) substitute(e model.TypeExpr, source *Family, bindings map[string]model.Filler, scope []model.Parameter) model.TypeExpr {
+func (r *Family) transform(e model.TypeExpr, source *Family, bindings map[string]model.Filler, scope []model.Parameter, preserveReferences bool) model.TypeExpr {
 	switch x := e.(type) {
 	case model.Named:
 		if filler, ok := bindings[x.Name]; ok && filler.Type != nil {
-			return filler.Type
+			return r.transform(filler.Type, r, nil, scope, preserveReferences)
 		}
 		if source != r {
 			if t := source.Type(x.Name); t != nil {
@@ -99,18 +127,18 @@ func (r *Family) substitute(e model.TypeExpr, source *Family, bindings map[strin
 			}
 		}
 	case model.Array:
-		return model.Array{Elem: r.substitute(x.Elem, source, bindings, scope)}
+		return model.Array{Elem: r.transform(x.Elem, source, bindings, scope, preserveReferences)}
 	case model.Map:
-		return model.Map{Elem: r.substitute(x.Elem, source, bindings, scope)}
+		return model.Map{Elem: r.transform(x.Elem, source, bindings, scope, preserveReferences)}
 	case model.Nullable:
-		return model.Nullable{Elem: r.substitute(x.Elem, source, bindings, scope)}
+		return model.Nullable{Elem: r.transform(x.Elem, source, bindings, scope, preserveReferences)}
 	case model.Apply:
 		with := map[string]model.Filler{}
 		for name, filler := range x.With {
 			if outer, ok := bindings[filler.Name()]; ok {
 				filler = outer
 			} else if filler.Type != nil {
-				filler.Type = r.substitute(filler.Type, source, bindings, scope)
+				filler.Type = r.transform(filler.Type, source, bindings, scope, preserveReferences)
 			}
 			with[name] = filler
 		}
@@ -121,11 +149,21 @@ func (r *Family) substitute(e model.TypeExpr, source *Family, bindings map[strin
 		}
 		return model.Apply{Family: family, Name: x.Name, With: with}
 	case model.Ref:
-		if source != r {
-			if entity := source.Type(x.Entity); entity != nil {
+		if preserveReferences {
+			if x.Family == "" {
+				x.Family = source.Name
+			}
+			return x
+		}
+		owner := source
+		if x.Family != "" {
+			owner = r.other(x.Family)
+		}
+		if owner != nil && owner != r {
+			if entity := owner.Type(x.Entity); entity != nil {
 				for _, field := range entity.Fields {
 					if field.Name == entity.Key {
-						return r.substitute(field.Type, source, bindings, scope)
+						return r.transform(field.Type, owner, bindings, scope, preserveReferences)
 					}
 				}
 			}
@@ -142,19 +180,25 @@ func (r *Family) substitute(e model.TypeExpr, source *Family, bindings map[strin
 			if view, ok := r.Apply(model.Apply{Family: family, Name: original.Name, With: bindings}, scope); ok {
 				for i := range clone.Fields {
 					clone.Fields[i].Type = view.Own[i].Type
+					if preserveReferences {
+						clone.Fields[i].Type = view.Own[i].DeclaredType
+					}
 				}
 				for i := range clone.Variants {
 					clone.Variants[i].Type = view.OwnVariants[i].Type
+					if preserveReferences {
+						clone.Variants[i].Type = view.OwnVariants[i].DeclaredType
+					}
 				}
 				r.inlines[&clone] = view
 				return model.Inline{Type: &clone}
 			}
 		}
 		for i := range clone.Fields {
-			clone.Fields[i].Type = r.substitute(clone.Fields[i].Type, source, bindings, scope)
+			clone.Fields[i].Type = r.transform(clone.Fields[i].Type, source, bindings, scope, preserveReferences)
 		}
 		for i := range clone.Variants {
-			clone.Variants[i].Type = r.substitute(clone.Variants[i].Type, source, bindings, scope)
+			clone.Variants[i].Type = r.transform(clone.Variants[i].Type, source, bindings, scope, preserveReferences)
 		}
 		return model.Inline{Type: &clone}
 	}
@@ -185,108 +229,78 @@ func capturedArguments(t *Type, bindings, with map[string]model.Filler) map[stri
 func (r *Family) resolvePayloads(t *Type) {
 	for i := range t.Variants {
 		v := &t.Variants[i]
-		v.Form, v.Fields = r.payload(v.Type, t.Scope, map[string]bool{})
-		if v.Form == VariantObject {
-			for _, field := range v.Fields {
-				if literal, ok := field.Type.(model.Literal); ok && field.Name == t.Tag && literal.Value == v.Tag && field.Required && !field.Nullable {
-					v.Form = VariantTagged
-				}
-			}
+		v.Form = VariantValue
+		if v.Type == nil {
+			v.Form = VariantEmpty
+		}
+		v.Payload = r.recordPayload(v.Type, t.Scope, map[string]bool{})
+		v.Fields = nil
+		if v.Payload != nil {
+			v.Fields = slices.Clone(v.Payload.Fields)
 		}
 	}
 	for i := range t.OwnVariants {
-		for _, variant := range t.Variants {
-			if variant.Origin == t.OwnVariants[i].Origin && variant.Tag == t.OwnVariants[i].Tag {
-				t.OwnVariants[i] = variant
+		for _, v := range t.Variants {
+			if v.Origin == t.OwnVariants[i].Origin && v.Tag == t.OwnVariants[i].Tag {
+				t.OwnVariants[i] = v
 				break
 			}
 		}
 	}
 }
 
-func (r *Family) payload(e model.TypeExpr, scope []model.Parameter, seen map[string]bool) (VariantForm, []Field) {
-	var t *Type
+// recordPayload resolves only a non-null record/entity, never a map, union,
+// or nullable record. Every shape still has the same adjacent wire carrier.
+func (r *Family) recordPayload(e model.TypeExpr, scope []model.Parameter, seen map[string]bool) *Type {
 	source := r
+	var t *Type
+	var application *model.Apply
 	switch x := e.(type) {
 	case model.Named:
-		if _, ok := parameter(scope, x.Name); ok {
-			return VariantDynamic, nil
+		if _, isParameter := parameter(scope, x.Name); isParameter {
+			return nil
 		}
 		t = r.Type(x.Name)
 	case model.Imported:
 		source = r.other(x.Family)
-		if source != nil {
-			t = source.Type(x.Name)
+		if source == nil {
+			return nil
 		}
+		t = source.Type(x.Name)
 	case model.Apply:
-		// Resolve an application without recursively resolving its variants:
-		// payload recursion below owns the visited set.
 		source = r.other(x.Family)
 		if source == nil {
-			return VariantValue, nil
+			return nil
 		}
-		original := source.Type(x.Name)
-		if original == nil {
-			return VariantValue, nil
-		}
-		clone := *original
-		clone.Fields = slices.Clone(original.Fields)
-		for i := range clone.Fields {
-			clone.Fields[i].Type = r.substitute(clone.Fields[i].Type, source, x.With, scope)
-		}
-		clone.Alias = r.substitute(original.Alias, source, x.With, scope)
-		t, source = &clone, r
+		t = source.Type(x.Name)
+		application = &x
 	case model.Inline:
-		t = &Type{Kind: x.Type.Kind, At: x.Type.At}
-		for _, f := range x.Type.Fields {
-			t.Fields = append(t.Fields, field("", f))
-		}
-		if original := r.InlineType(x); original != nil {
-			t.Name, t.Origin = original.Name, original.Origin
-			for i := range t.Fields {
-				t.Fields[i].Owner = original.Name
-				t.Fields[i].Origin = Origin{Family: original.Origin.Family, Declaration: original.Name, At: t.Fields[i].At}
-			}
-		}
-	case model.Drawn:
-		return VariantDynamic, nil
-	case model.Map:
-		return VariantObject, nil
-	case model.Nullable:
-		form, fields := r.payload(x.Elem, scope, seen)
-		if form == VariantValue {
-			return VariantValue, nil
-		}
-		return VariantDynamic, fields
-	case model.Primitive:
-		if x == "json" {
-			return VariantDynamic, nil
-		}
-		return VariantValue, nil
+		t = r.InlineType(x)
 	default:
-		return VariantValue, nil
+		return nil
 	}
 	if t == nil {
-		return VariantValue, nil
+		return nil
 	}
+	key := source.Name + "." + t.Name + ":" + model.String(e)
+	if seen[key] {
+		return nil
+	}
+	seen[key] = true
+	defer delete(seen, key)
 	if t.Kind == model.KindAlias {
-		key := source.Name + "." + t.Name + ":" + model.String(e)
-		if seen[key] {
-			return VariantDynamic, nil
+		var bindings map[string]model.Filler
+		if application != nil {
+			bindings = application.With
 		}
-		seen[key] = true
-		defer delete(seen, key)
-		return r.payload(r.qualify(t.Alias, source), scope, seen)
+		return r.recordPayload(r.substitute(t.Alias, source, bindings, scope), scope, seen)
 	}
-	switch t.Kind {
-	case model.KindRecord, model.KindEntity:
-		fields := slices.Clone(t.Fields)
-		for i := range fields {
-			fields[i].Type = r.qualify(fields[i].Type, source)
-		}
-		return VariantObject, fields
-	case model.KindUnion:
-		return VariantObject, nil
+	if t.Kind != model.KindRecord && t.Kind != model.KindEntity {
+		return nil
 	}
-	return VariantValue, nil
+	if application != nil {
+		view, _ := r.Apply(*application, scope)
+		return view
+	}
+	return t
 }
