@@ -84,6 +84,9 @@ are one number. Entries are in the words of the commits that landed them.
   before it — so a consumer resuming from the cursor it was told reads the log
   on rather than over the frames it was never given, which a replay that
   ended on a truncated frame did too.
+- The release round trip waits up to two minutes with backoff for npm and
+  Go module propagation before installing, names unavailable packages on
+  timeout, and has the workflow permission to file an issue on failure.
 
 ## 0.3.0
 

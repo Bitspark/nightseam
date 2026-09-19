@@ -23,6 +23,7 @@ import { setTimeout as after } from "node:timers/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { examples, root } from "./packages.mjs";
+import { waitForRegistries } from "./registry.mjs";
 
 const tag = process.argv[2];
 if (!/^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(tag ?? "")) {
@@ -62,6 +63,9 @@ try {
 }
 
 async function roundTrip() {
+  // A successful publish precedes registry propagation. Wait for the exact
+  // release everywhere, then install once; failures still reach report().
+  await waitForRegistries(tag, { log: step });
   const consumer = join(scratch, "consumer");
   step(`copying ${examples[0]} to a consumer outside the workspace`);
   cpSync(join(root, examples[0]), consumer, { recursive: true, filter: source => !/[\\/](node_modules|dist)$/.test(source) });

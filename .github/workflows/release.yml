@@ -28,6 +28,8 @@ on:
 
 permissions:
   contents: write
+  # The registry round trip files an issue if the published release fails.
+  issues: write
   # npm provenance: the publish signs each tarball with a short-lived OIDC
   # token naming this workflow, this run and this commit, so that the npm page
   # says what source the package was built from and a consumer can check it
@@ -115,7 +117,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
       # The round trip, once there is something to install: the same
-      # example, from npm and from the module proxy, with nothing laid for
+      # example, after waiting up to two minutes for npm and the Go proxy
+      # to serve the release, with nothing laid for
       # it and nothing overridden. Its failure fails the run and files an
       # issue naming the tag, because by now the tag exists and the packages
       # are on npm, and a red run on a tag nobody re-runs is silence.
