@@ -364,8 +364,8 @@ func TestAnObserverSeesEveryOutcomeOfARequest(t *testing.T) {
 		"c:1": `ok outcome=ok code=""`,
 		"c:2": `deny outcome=error code="denied"`,
 		"c:3": `missing outcome=error code="method_not_found"`,
-		"c:4": `wait outcome=cancelled code=""`,
-		"c:5": `wait outcome=timeout code=""`,
+		"c:4": `wait outcome=cancelled code="cancelled"`,
+		"c:5": `wait outcome=timeout code="request_timeout"`,
 	} {
 		if ended[id] != want {
 			t.Fatalf("the caller saw %s end as %q, want %q", id, ended[id], want)
@@ -389,6 +389,102 @@ func TestAnObserverSeesEveryOutcomeOfARequest(t *testing.T) {
 	}
 	_ = peer.Close()
 	receive(t, remote.Done())
+}
+
+func TestAnObserverSeesTheLocalEndingBeforeItsCancel(t *testing.T) {
+	for _, timeout := range []bool{false, true} {
+		name, outcome, code := "cancelled", ws.OutcomeCancelled, "cancelled"
+		if timeout {
+			name, outcome, code = "timeout", ws.OutcomeTimedOut, "request_timeout"
+		}
+		t.Run(name, func(t *testing.T) {
+			client := new(recorder)
+			cancelSent := make(chan struct{}, 1)
+			incomingEnded := make(chan ws.RequestEnded, 1)
+			started := make(chan struct{}, 1)
+			peer, _ := newPair(t, ws.Options{
+				Observer: observerFunc(func(event ws.ObserverEvent) {
+					if e, ok := event.(ws.RequestEnded); ok {
+						incomingEnded <- e
+					}
+				}),
+				Handlers: map[string]ws.Handler{
+					"wait": func(ctx context.Context, _ *ws.Peer, _ json.RawMessage) (any, error) {
+						started <- struct{}{}
+						<-ctx.Done()
+						return nil, ctx.Err()
+					},
+				},
+			}, ws.Options{Observer: observerFunc(func(event ws.ObserverEvent) {
+				client.Observe(event)
+				if e, ok := event.(ws.FrameSent); ok && e.Kind == "cancel" {
+					cancelSent <- struct{}{}
+				}
+			})})
+			ctx, cancel := context.WithCancel(context.Background())
+			wantErr := context.Canceled
+			if timeout {
+				cancel()
+				ctx, cancel = context.WithTimeout(context.Background(), 200*time.Millisecond)
+				wantErr = context.DeadlineExceeded
+			}
+			defer cancel()
+			returned := make(chan error, 1)
+			go func() { returned <- peer.Call(ctx, "wait", nil, nil) }()
+			receive(t, started)
+			if !timeout {
+				cancel()
+			}
+			if err := receive(t, returned); !errors.Is(err, wantErr) {
+				t.Fatalf("call = %v, want %v", err, wantErr)
+			}
+			receive(t, cancelSent)
+			endedIndex := -1
+			for i, event := range client.all() {
+				switch e := event.(type) {
+				case ws.RequestEnded:
+					if e.Incoming || e.Outcome != outcome || e.ErrorCode != code {
+						t.Fatalf("caller ending = %+v", e)
+					}
+					endedIndex = i
+				case ws.FrameSent:
+					if e.Kind == "cancel" && endedIndex < 0 {
+						t.Fatal("cancel was observed before the request ended")
+					}
+				}
+			}
+			if endedIndex < 0 {
+				t.Fatal("caller ending was not observed")
+			}
+			// The receiver sees the caller's withdrawal, not its local deadline.
+			if ended := receive(t, incomingEnded); !ended.Incoming || ended.Outcome != ws.OutcomeCancelled || ended.ErrorCode != "cancelled" {
+				t.Fatalf("receiver ending = %+v", ended)
+			}
+		})
+	}
+}
+
+func TestAnObserverNamesTheHandlerDeadlineLocallyAndItsRefusalRemotely(t *testing.T) {
+	client, server := new(recorder), new(recorder)
+	peer, _ := newPair(t, ws.Options{
+		Observer: server, RequestTimeout: 20 * time.Millisecond,
+		Handlers: map[string]ws.Handler{
+			"wait": func(ctx context.Context, _ *ws.Peer, _ json.RawMessage) (any, error) {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			},
+		},
+	}, ws.Options{Observer: client})
+	var refusal *ws.PublicError
+	if err := peer.Call(context.Background(), "wait", nil, nil); !errors.As(err, &refusal) || refusal.Code != "cancelled" {
+		t.Fatalf("handler deadline response = %v, want cancelled", err)
+	}
+	if ended, ok := found[ws.RequestEnded](server.all()); !ok || !ended.Incoming || ended.Outcome != ws.OutcomeTimedOut || ended.ErrorCode != "request_timeout" {
+		t.Fatalf("receiver ending = %+v, found=%t", ended, ok)
+	}
+	if ended, ok := found[ws.RequestEnded](client.all()); !ok || ended.Incoming || ended.Outcome != ws.OutcomeErrored || ended.ErrorCode != "cancelled" {
+		t.Fatalf("caller ending = %+v, found=%t", ended, ok)
+	}
 }
 
 // The value the handler gave up with, as %v renders it, and never what it was

@@ -462,35 +462,38 @@ func (p *Peer) Call(ctx context.Context, method string, params, result any) erro
 	p.mu.Unlock()
 	defer func() { p.mu.Lock(); delete(p.pending, id); p.mu.Unlock() }()
 	started := p.requestStarted(id, method, false, trace)
-	err = p.await(ctx, id, trace, reply, frame{Version: 1, Kind: "request", ID: id, Method: method, Params: data,
+	cancelRemote, err := p.await(ctx, reply, frame{Version: 1, Kind: "request", ID: id, Method: method, Params: data,
 		Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}, result)
 	p.requestEnded(started, id, method, false, trace, err)
+	if cancelRemote {
+		p.cancelRequest(id, trace)
+	}
 	return err
 }
 
 // await sends one request and waits for whatever ends it: the response, the
-// caller's own end, or the connection's.
-func (p *Peer) await(ctx context.Context, id string, trace Trace, reply <-chan pendingResult, request frame, result any) error {
+// caller's own end, or the connection's. It reports whether to cancel the queued
+// request, so Call can observe the ending before the writer can send its cancel.
+func (p *Peer) await(ctx context.Context, reply <-chan pendingResult, request frame, result any) (bool, error) {
 	if err := p.enqueue(ctx, request); err != nil {
-		return err
+		return false, err
 	}
 	select {
 	case r := <-reply:
 		if r.err != nil {
-			return r.err
+			return false, r.err
 		}
 		if result == nil {
-			return nil
+			return false, nil
 		}
 		if err := json.Unmarshal(r.result, result); err != nil {
-			return fmt.Errorf("decode duplex result: %w", err)
+			return false, fmt.Errorf("decode duplex result: %w", err)
 		}
-		return nil
+		return false, nil
 	case <-ctx.Done():
-		p.cancelRequest(id, trace)
-		return ctx.Err()
+		return true, ctx.Err()
 	case <-p.done:
-		return p.Err()
+		return false, p.Err()
 	}
 }
 

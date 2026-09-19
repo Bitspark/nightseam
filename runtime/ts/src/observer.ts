@@ -55,6 +55,7 @@ export interface ObserverEvents {
     incoming: boolean;
     durationMs: number;
     outcome: 'ok' | 'error' | 'cancelled' | 'timeout';
+    /** Local cause in either direction: request_timeout, cancelled, or a refusal's code; absent on success. */
     errorCode?: string;
     trace?: Trace;
     family: string;

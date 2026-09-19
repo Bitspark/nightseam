@@ -56,8 +56,13 @@ effect it names has left the peer:
 - `frame.received` after the frame is parsed and before it is dispatched;
 - `request.started` before the handler runs, and `request.ended` after it
   returns and before the response is queued;
+- an outgoing request's `request.ended` before `frame.sent(cancel)` when its
+  local deadline passes or the caller cancels it;
 - `event.emitted` before the frame that carries it, and `event.delivered`
   before the listeners run.
+
+The cancel is best effort: ending a call does not wait for a congested
+writer, and a cancel that cannot be sent has no `frame.sent` event.
 
 What this asks of a runtime is one serialization point per direction: the
 writer tells the observer of each send immediately before it writes, and the
@@ -70,6 +75,23 @@ that fails with frames still queued never observed those sent.
 
 The promise is one peer's. Two peers' observers are two orders, and nothing
 relates them but a trace.
+
+## Request endings
+
+`RequestEnded.ErrorCode` in Go and `request.ended.errorCode` in TypeScript
+name the local cause, for incoming and outgoing requests alike:
+
+| cause | outcome | error code |
+| --- | --- | --- |
+| a local deadline passes | `timeout` | `request_timeout` |
+| a local cancellation | `cancelled` | `cancelled` |
+| a public refusal | `error` | the refusal's code |
+| a successful result | `ok` | absent |
+
+A handler whose own deadline passes is therefore observed locally as
+`timeout` with `request_timeout`, although its response on the wire remains
+`cancelled`. The caller observes that response as `error` with `cancelled`:
+it received a refusal, and its own deadline did not pass.
 
 ## Taking one
 

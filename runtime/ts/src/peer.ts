@@ -761,7 +761,8 @@ export class DuplexPeer {
         incoming: true,
         durationMs: Date.now() - incoming.started,
         outcome,
-        errorCode: error?.code,
+        // The observer names this peer's deadline; the response still says cancelled.
+        errorCode: outcome === 'timeout' ? 'request_timeout' : error?.code,
         trace: incoming.trace,
         family: this.family(incoming.method),
       });
