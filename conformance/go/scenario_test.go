@@ -8,6 +8,30 @@ import (
 	"testing"
 )
 
+func TestObserverPollingPreservesEvents(t *testing.T) {
+	cases := []struct {
+		name, step string
+		valid      bool
+	}{
+		{"default drain", `{"on":"a","op":"peer.observed","args":{"on":"p"},"repeat":{"max":40,"until":"match"}}`, false},
+		{"explicit drain", `{"on":"a","op":"peer.observed","args":{"on":"p","drain":true},"repeat":{"max":40,"until":"match"}}`, false},
+		{"preserved history", `{"on":"a","op":"peer.observed","args":{"on":"p","drain":false},"repeat":{"max":40,"until":"match"}}`, true},
+		{"one-shot drain", `{"on":"a","op":"peer.observed","args":{"on":"p"}}`, true},
+		{"other operation", `{"on":"a","op":"peer.await_event","args":{"on":"p"},"repeat":{"max":40,"until":"match"}}`, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parseStep(json.RawMessage(tc.step))
+			if tc.valid && err != nil {
+				t.Fatal(err)
+			}
+			if !tc.valid && (err == nil || !strings.Contains(err.Error(), "drain: false")) {
+				t.Fatalf("observer polling must preserve its evidence, got %v", err)
+			}
+		})
+	}
+}
+
 // TestScenariosLoad: every scenario under conformance/scenarios fits the
 // schema, lies under its layer, names a distinct scenario, and every foreach
 // selects rows. Fast tier: no testee runs.

@@ -116,6 +116,11 @@ what the other side has yet to send, such as the cancel a caller writes
 expectations hold; a scenario that reads once is a scenario that fails when
 the wire is slow.
 
+An observer snapshot repeated until a match must set `"drain": false`.
+The loader refuses one that does not: otherwise the first poll can consume
+the request events before its cancel is observed, leaving no later answer
+with all the evidence. A one-shot observer read still drains by default.
+
 ## Inbound consumption
 
 A connection made with `"consume": "lazy"` receives nothing until
