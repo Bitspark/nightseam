@@ -109,6 +109,18 @@ func (p *plan) resolve(path, conventional string, declaredAt diag.Location) (str
 	return conventional, declaredAt
 }
 
+func (p *plan) inheritedName(origin render.Origin, path, conventional string, declaredAt diag.Location) (string, diag.Location) {
+	if origin.Family != "" && origin.Family != p.family.Name {
+		if source := p.family.ReferencedFamily(origin.Family); source != nil {
+			if name, ok := source.Override(Name, path); ok {
+				return name, render.OverrideAt(Name, path)
+			}
+		}
+		return conventional, declaredAt
+	}
+	return p.resolve(path, conventional, declaredAt)
+}
+
 func (p *plan) declare(ns *emit.Namespace, ident string, at diag.Location, what string) {
 	if d := ns.Declare(p.Family, ident, at, what); d != nil {
 		p.Diagnostics = append(p.Diagnostics, *d)
@@ -144,38 +156,45 @@ func (p *plan) plan() {
 		}
 		p.client.Fix("binding of parameter "+parameter.Name, bindingName(parameter.Name))
 	}
+	for _, t := range f.Types {
+		for _, parameter := range t.Parameters {
+			if what, taken := p.module.Reserved(parameter.Name); taken {
+				p.Addf(parameter.At.Sub("name"), "generated_name_collision", "Generated type parameter %s collides with the %s.", parameter.Name, what)
+			}
+		}
+	}
 	// A public error becomes a member of the errors object; two codes that
 	// spell the same member are refused.
 	members := emit.NewNamespace("errors")
 	for _, e := range f.Errors {
-		name, at := p.resolve("errors."+e.Code, errorKey(e.Code), e.At)
+		name, at := p.inheritedName(e.Origin, "errors."+e.Code, errorKey(e.Code), e.At)
 		p.errors[e.Code] = name
 		p.declare(members, name, at, "error member")
 	}
 	// The server's methods are the client's members; events add a receive
 	// helper for the server's and an emit helper for the client's.
-	operation := func(name string, at diag.Location, what string) (string, diag.Location) {
-		member, at := p.resolve(name, naming.LowerCamel(name), at)
+	operation := func(name string, at diag.Location, origin render.Origin, what string) (string, diag.Location) {
+		member, at := p.inheritedName(origin, name, naming.LowerCamel(name), at)
 		p.operations[name] = member
 		p.identifier(member, at, what)
 		return member, at
 	}
 	for _, m := range f.Server.Methods {
-		member, at := operation(m.Name, m.At, "Method name")
+		member, at := operation(m.Name, m.At, m.Origin, "Method name")
 		p.declare(p.client, member, at, "method")
 	}
 	for _, m := range f.Client.Methods {
-		operation(m.Name, m.At, "Method name")
+		operation(m.Name, m.At, m.Origin, "Method name")
 	}
 	events := emit.NewNamespace("Events interface")
 	events.Fix("generated event object's inherited member", eventObjectMembers...)
 	for _, e := range f.Server.Events {
-		member, at := operation(e.Name, e.At, "Event name")
+		member, at := operation(e.Name, e.At, e.Origin, "Event name")
 		p.declare(events, member, at, "typed event field")
 		p.declare(p.client, identOn+upperFirst(member), at, "event handler")
 	}
 	for _, e := range f.Client.Events {
-		member, at := operation(e.Name, e.At, "Event name")
+		member, at := operation(e.Name, e.At, e.Origin, "Event name")
 		p.declare(p.client, identEmit+upperFirst(member), at, "event emitter")
 	}
 }
@@ -185,7 +204,7 @@ func (p *plan) plan() {
 // whose Family types SessionFamily is the union of.
 func (p *plan) references() []string {
 	references := slices.Clone(p.family.References)
-	if p.family.Generic {
+	if needsSessionFamily(p.family) {
 		for _, family := range p.family.SessionFamilies {
 			if !slices.Contains(references, family) {
 				references = append(references, family)

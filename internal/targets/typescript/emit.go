@@ -149,7 +149,7 @@ func emitTypes(f *file) {
 	}
 	f.line("/** The family: its name and the wire types a slot of it draws on. */")
 	f.linef("export interface %s { readonly name: %s; %s }", identFamily, quote(fam.Name), strings.Join(drawn, "; "))
-	if fam.Generic {
+	if needsSessionFamily(fam) {
 		union := "never"
 		if len(fam.SessionFamilies) > 0 {
 			names := make([]string, len(fam.SessionFamilies))

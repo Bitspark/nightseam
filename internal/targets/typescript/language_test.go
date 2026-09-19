@@ -76,3 +76,38 @@ func TestModelOnlyFamilyExportsTypesAndValidatorWithoutAClient(t *testing.T) {
 		t.Fatal("model-only exports are incomplete")
 	}
 }
+
+func TestOwnTypeParametersCannotShadowGeneratedNames(t *testing.T) {
+	r := family(map[string]string{"model.json": `{"nightseam":2,"types":{"Box":{"kind":"record","parameters":[{"name":"Array"}],"fields":[{"name":"values","type":{"array":"Array"}}]}}}`})
+	_, diagnostics := newPlan(r)
+	if !has(diagnostics, "generated_name_collision", "model.json#/types/Box/parameters/0/name") {
+		t.Fatal(diagnostics)
+	}
+}
+
+func TestInheritedOperationNamesUseSourceOverrides(t *testing.T) {
+	world := analysis.World(modeltest.World(map[string]map[string]string{
+		"base":  {"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"server":{"methods":{"read":{"result":"string"}},"events":{"changed":{"type":"string"}}},"errors":{"not_found":"Gone"}`), "typescript.json": `{"names":{"read":"fetch","changed":"updated","errors.not_found":"missing"}}`},
+		"child": {"model.json": `{"nightseam":2,"imports":["base"]}`, "protocol.json": modeltest.Protocol(`"server":{"extends":["base"]}`)},
+	}))
+	p, diagnostics := newPlan(render.Build(analysis.Resolve(world, "child")))
+	if len(diagnostics) != 0 {
+		t.Fatal(diagnostics)
+	}
+	if p.operations["read"] != "fetch" || p.operations["changed"] != "updated" || p.errors["not_found"] != "missing" {
+		t.Fatalf("inherited names: %+v %+v", p.operations, p.errors)
+	}
+}
+
+func TestTypeLocalSessionParameterHasItsDefaultFamily(t *testing.T) {
+	r := family(map[string]string{"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"types":{"Box":{"kind":"record","parameters":[{"name":"S","of":"session"}],"fields":[{"name":"message","type":"S.Envelope"}]}}`)})
+	p, diagnostics := newPlan(r)
+	if len(diagnostics) != 0 {
+		t.Fatal(diagnostics)
+	}
+	f := &file{plan: p, family: r, config: Config{Scope: "@example"}.settled(), w: emit.NewWriter("  ")}
+	emitTypes(f)
+	if !strings.Contains(f.w.String(), `export type SessionFamily = probe.Family;`) || !strings.Contains(f.w.String(), `export interface Box<S extends AnyFamily = SessionFamily>`) {
+		t.Fatal(f.w.String())
+	}
+}

@@ -15,6 +15,25 @@ func familyScope(f *render.Family) []model.Parameter {
 	return out
 }
 
+func needsSessionFamily(f *render.Family) bool {
+	if f.Generic {
+		return true
+	}
+	for _, t := range f.Types {
+		for _, parameter := range t.Scope {
+			if parameter.Of != model.SessionRole {
+				continue
+			}
+			for _, use := range t.Uses {
+				if use.Parameter == parameter.Name {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func (f *file) parameter(name string) (model.Parameter, bool) {
 	for _, parameter := range f.scope {
 		if parameter.Name == name {
