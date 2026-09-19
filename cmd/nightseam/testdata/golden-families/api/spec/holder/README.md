@@ -22,6 +22,17 @@ A record, generic in `S.Envelope`, `S.Payload`.
 | `payload` | `S.Payload` | required | — |  |
 | `message` | `S.Envelope` | required | — |  |
 
+For example:
+
+```json
+{
+  "payload": "‹S.Payload›",
+  "message": "‹S.Envelope›"
+}
+```
+
+Used by `hold` (request).
+
 ## Carried types
 
 These are this family's own types, declared in the same language by a built-in family Nightseam declares of itself and imported by the tier that brings it, with no `imports` line. A declaration of this family may not declare one and names it by the built-in that declares it — `duplex.Envelope`.
@@ -60,3 +71,31 @@ The server implements these methods and emits these events.
 | Method | Request | Result | Errors | Description |
 |---|---|---|---|---|
 | `hold` | `Held` | `S.Payload` | — |  |
+
+### `hold` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "hold",
+  "params": {
+    "payload": "‹S.Payload›",
+    "message": "‹S.Envelope›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": "‹S.Payload›"
+}
+```

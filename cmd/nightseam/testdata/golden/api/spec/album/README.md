@@ -23,6 +23,19 @@ A record, generic in `B.Envelope`. A carrier frame, its S filled by B.
 |---|---|---|---|---|
 | `frame` | `carrier.Frame` with S=B | required | — |  |
 
+For example:
+
+```json
+{
+  "frame": {
+    "sequence": 0,
+    "message": "‹S.Envelope›"
+  }
+}
+```
+
+Used by `Both.borrowed`.
+
 ### Both
 
 A record, generic in `A.Envelope`, `B.Envelope`.
@@ -34,6 +47,33 @@ A record, generic in `A.Envelope`, `B.Envelope`.
 | `fixed` | `Fixed` | required | — |  |
 | `params` | `carrier.AttachParams` | required | — |  |
 
+For example:
+
+```json
+{
+  "mine": {
+    "held": "‹A.Envelope›"
+  },
+  "borrowed": {
+    "frame": {
+      "sequence": 0,
+      "message": "‹S.Envelope›"
+    }
+  },
+  "fixed": {
+    "frame": {
+      "sequence": 0,
+      "message": "‹S.Envelope›"
+    }
+  },
+  "params": {
+    "id": "‹id›"
+  }
+}
+```
+
+Used by `look` (result).
+
 ### Fixed
 
 A record. A carrier frame, its S filled by probe.
@@ -42,6 +82,19 @@ A record. A carrier frame, its S filled by probe.
 |---|---|---|---|---|
 | `frame` | `carrier.Frame` with S=probe | required | — |  |
 
+For example:
+
+```json
+{
+  "frame": {
+    "sequence": 0,
+    "message": "‹S.Envelope›"
+  }
+}
+```
+
+Used by `Both.fixed`.
+
 ### Mine
 
 A record, generic in `A.Envelope`. One message of A.
@@ -49,6 +102,16 @@ A record, generic in `A.Envelope`. One message of A.
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `held` | `A.Envelope` | required | — |  |
+
+For example:
+
+```json
+{
+  "held": "‹A.Envelope›"
+}
+```
+
+Used by `Both.mine`, `look` (request).
 
 ## Carried types
 
@@ -88,3 +151,49 @@ The server implements these methods and emits these events.
 | Method | Request | Result | Errors | Description |
 |---|---|---|---|---|
 | `look` | `Mine` | `Both` | — |  |
+
+### `look` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "look",
+  "params": {
+    "held": "‹A.Envelope›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "mine": {
+      "held": "‹A.Envelope›"
+    },
+    "borrowed": {
+      "frame": {
+        "sequence": 0,
+        "message": "‹S.Envelope›"
+      }
+    },
+    "fixed": {
+      "frame": {
+        "sequence": 0,
+        "message": "‹S.Envelope›"
+      }
+    },
+    "params": {
+      "id": "‹id›"
+    }
+  }
+}
+```

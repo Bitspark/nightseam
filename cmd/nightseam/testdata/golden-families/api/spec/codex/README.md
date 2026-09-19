@@ -15,6 +15,14 @@ A record.
 |---|---|---|---|---|
 | `text` | `string` | required | — |  |
 
+For example:
+
+```json
+{
+  "text": "‹text›"
+}
+```
+
 ### OpenRecord
 
 A record, open: fields beyond the declared ones are kept.
@@ -23,6 +31,15 @@ A record, open: fields beyond the declared ones are kept.
 |---|---|---|---|---|
 | `id` | `string` | required | — |  |
 | `note` | `string` | optional | — |  |
+
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "note": "‹note›"
+}
+```
 
 ### Payload
 
@@ -34,17 +51,47 @@ A record.
 | `count` | `integer` | required | — |  |
 | `note` | `string` | optional, nullable | — |  |
 
+For example:
+
+```json
+{
+  "text": "‹text›",
+  "count": 0,
+  "note": "‹note›"
+}
+```
+
+Used by `Payloads` (alias), `echo` (request, result), `changed` (data), `reverse` (request, result).
+
 ### Payloads
 
 An alias.
 
 An alias of array of `Payload`.
 
+For example:
+
+```json
+[
+  {
+    "text": "‹text›",
+    "count": 0,
+    "note": "‹note›"
+  }
+]
+```
+
 ### Status
 
 An enum.
 
 One of `ready`, `done`, `context.example`.
+
+For example:
+
+```json
+"ready"
+```
 
 ## Carried types
 
@@ -90,6 +137,81 @@ The server implements these methods and emits these events.
 |---|---|---|
 | `changed` | `Payload` |  |
 
+### `echo` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "echo",
+  "params": {
+    "text": "‹text›",
+    "count": 0,
+    "note": "‹note›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "text": "‹text›",
+    "count": 0,
+    "note": "‹note›"
+  }
+}
+```
+
+### `no_args` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "no_args",
+  "params": {}
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": "‹result›"
+}
+```
+
+### `changed` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "changed",
+  "data": {
+    "text": "‹text›",
+    "count": 0,
+    "note": "‹note›"
+  }
+}
+```
+
 ## Client side
 
 The client implements these methods, which the server calls, and emits these events.
@@ -97,6 +219,39 @@ The client implements these methods, which the server calls, and emits these eve
 | Method | Request | Result | Errors | Description |
 |---|---|---|---|---|
 | `reverse` | `Payload` | `Payload` | — |  |
+
+### `reverse` on the wire
+
+The server sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "s:1",
+  "method": "reverse",
+  "params": {
+    "text": "‹text›",
+    "count": 0,
+    "note": "‹note›"
+  }
+}
+```
+
+The client answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "s:1",
+  "result": {
+    "text": "‹text›",
+    "count": 0,
+    "note": "‹note›"
+  }
+}
+```
 
 ## Errors
 
