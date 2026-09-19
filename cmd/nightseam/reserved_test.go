@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Bitspark/nightseam/internal/targets/atlas"
 	"github.com/Bitspark/nightseam/internal/targets/golang"
 	"github.com/Bitspark/nightseam/internal/targets/markdown"
 	"github.com/Bitspark/nightseam/internal/targets/typescript"
@@ -21,7 +22,7 @@ const reservedRoot = "testdata/reserved"
 // exactly what its golden holds.
 func TestReservedNamesAreGolden(t *testing.T) {
 	files := map[string][]byte{}
-	for target, reserved := range map[string][]string{golang.Name: golang.Reserved(), typescript.Name: typescript.Reserved(), markdown.Name: markdown.Reserved()} {
+	for target, reserved := range map[string][]string{golang.Name: golang.Reserved(), typescript.Name: typescript.Reserved(), markdown.Name: markdown.Reserved(), atlas.Name: nil} {
 		files[target+".txt"] = []byte(strings.Join(reserved, "\n") + "\n")
 	}
 	if *update {

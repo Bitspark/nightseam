@@ -171,6 +171,16 @@ func fieldOf(f render.Field) model.Field {
 // example is an example value of a type of the family.
 func (x *exampler) example(t *render.Type) value { return x.typed(t, t.Name, constraints{}) }
 
+// variantExample starts at a particular arm rather than the first arm.
+// Mark its enclosing declaration before descending so recursion folds at
+// the same boundary as the type's primary example.
+func (x *exampler) variantExample(t *render.Type, v render.Variant) value {
+	key := x.f.Name + "." + t.Name
+	x.trail[key] = true
+	defer delete(x.trail, key)
+	return x.variant(t.Tag, t.Value, v.Variant)
+}
+
 // value is an example of an expression; name is what a placeholder stands
 // for.
 func (x *exampler) value(e model.TypeExpr, name string, c constraints) value {

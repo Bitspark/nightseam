@@ -39,7 +39,8 @@ internal/analysis/      a family within its world: imports resolved, inheritance
 internal/check/         the rules, one function per tier and one for the override files
 internal/render/        a family as a target sees it, computed once
 internal/spi/           the seam between the kernel and a target
-internal/targets/       golang, typescript and spec: each renders a family, names the others never
+internal/doc/           the language-neutral specification document and writer adapter
+internal/targets/       golang and typescript emit packages; markdown and atlas render the document
 internal/kernel/        load, analyse, check, render
 internal/compose/       the composition root: the only place a target is named, imported by the tool and by the conformance suite
 internal/emit/          a writer, an import set, a namespace: what every target writes with
@@ -60,6 +61,11 @@ package under `surface`, what each target reserves under `reserved`, and
 one checkout per rule the tool refuses under `invalid` with what `validate`
 says. A renderer or a diagnostic changes as a diff of those files, which is
 what a review reads; [COLLABORATION.md](../../COLLABORATION.md) has the
-golden discipline. A third target is `internal/targets/<name>`, composed in
+golden discipline. A new target is `internal/targets/<name>`, composed in
 `internal/compose`, held by its own goldens — [onboarding a
 language](../languages/onboarding.md) is the order.
+
+The atlas's pure JavaScript builders run under `node --test` in the full
+tier, including the real proof family's document. Its Go tests hold the
+embedded JSON, escaping and config; the corpus goldens hold the whole HTML
+page. The browser layer only applies those views and handles navigation.

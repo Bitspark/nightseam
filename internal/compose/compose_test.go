@@ -37,14 +37,14 @@ func TestASectionReachesItsTarget(t *testing.T) {
 	if len(diagnostics) != 0 {
 		t.Fatal(diagnostics)
 	}
-	if got := names(targets); strings.Join(got, ",") != "go,typescript,markdown" {
+	if got := names(targets); strings.Join(got, ",") != "go,typescript,markdown,atlas" {
 		t.Fatalf("composed %v", got)
 	}
 	if owns := targets[2].Owns("x"); len(owns) != 1 || owns[0] != "docs/x" {
 		t.Fatalf("the Markdown writer owns %v; its section did not reach it", owns)
 	}
 	targets, diagnostics = Configure(sections(`{"disabled": ["typescript"]}`), "example.com/api", "@example", "")
-	if len(diagnostics) != 0 || strings.Join(names(targets), ",") != "go,markdown" {
+	if len(diagnostics) != 0 || strings.Join(names(targets), ",") != "go,markdown,atlas" {
 		t.Fatalf("with typescript disabled: %v, %v", names(targets), diagnostics)
 	}
 }
@@ -55,6 +55,7 @@ func TestASectionReachesItsTarget(t *testing.T) {
 // composed, so that validate reports every problem and generate refuses.
 func TestASectionIsHeldByItsTarget(t *testing.T) {
 	for name, tc := range map[string]struct{ config, want string }{
+		"an unknown atlas token":     {`{"targets":{"atlas":{"tokens":{"--missing":"red"}}}}`, `nightseam.json#/targets/atlas: unknown atlas token "--missing" [invalid_config]`},
 		"a member the config lacks":  {`{"targets": {"markdown": {"colour": "night"}}}`, `nightseam.json#/targets/markdown: the markdown section: json: unknown field "colour" [invalid_config]`},
 		"a value the target refuses": {`{"targets": {"markdown": {"layout": "docs"}}}`, `nightseam.json#/targets/markdown: a layout pattern names the family with {family}: "docs" [invalid_config]`},
 		"the Go module":              {`{"targets": {"go": {"module": "example.com/other"}}}`, `nightseam.json#/targets/go: module is set by the tool's --module flag, not by nightseam.json [invalid_config]`},
@@ -65,7 +66,7 @@ func TestASectionIsHeldByItsTarget(t *testing.T) {
 		if len(diagnostics) != 1 || diagnostics[0].String() != tc.want || diagnostics[0].Family != "" {
 			t.Errorf("%s: said %v, want %s", name, diagnostics, tc.want)
 		}
-		if len(targets) != 3 {
+		if len(targets) != len(Names()) {
 			t.Errorf("%s: composed %v", name, names(targets))
 		}
 	}

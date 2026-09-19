@@ -14,8 +14,7 @@ import (
 )
 
 // roster is a writer of one page of the checkout as a whole: every family's
-// name, one per line — what a page across families is to the tool, which
-// has no such writer of its own yet.
+// name, one per line — the smallest page across families.
 type roster struct{}
 
 func (roster) Name() string                           { return "roster" }
@@ -48,7 +47,7 @@ func TestCheckoutPagesAreRenderedWhole(t *testing.T) {
 	if out, _, err := run(t, root, "generate"); err != nil || !strings.Contains(out, "generated api/spec/families.txt") {
 		t.Fatalf("generate did not write the checkout's page: %v\n%s", err, out)
 	}
-	if data, err := os.ReadFile(page); err != nil || string(data) != "codex\nprobe\n" {
+	if data, err := os.ReadFile(page); err != nil || string(data) != "codex\nprobe\nsession\n" {
 		t.Fatalf("the page holds %q, %v", data, err)
 	}
 	if out, errs, err := run(t, root, "check"); err != nil || out != "" || errs != "" {
@@ -72,7 +71,7 @@ func TestCheckoutPagesAreRenderedWhole(t *testing.T) {
 	if err != nil || !strings.Contains(out, "removed api/spec/codex/README.md") || strings.Contains(out, "removed api/spec/families.txt") {
 		t.Fatalf("a family removed did not take its own pages and leave the checkout's: %v\n%s", err, out)
 	}
-	if data, err := os.ReadFile(page); err != nil || string(data) != "probe\n" {
+	if data, err := os.ReadFile(page); err != nil || string(data) != "probe\nsession\n" {
 		t.Fatalf("the page holds %q after the family went, %v", data, err)
 	}
 	// An invalid family refuses the checkout's page, naming itself, even
@@ -92,7 +91,7 @@ func TestTheCheckoutsConfigShapesTheTool(t *testing.T) {
 	root := t.TempDir()
 	writeFamily(t, root, "probe")
 	writeFixture(t, root, "api/contracts/nightseam.json", []byte(`{"targets": {"markdown": {"layout": "docs/{family}"}}}`))
-	if out, _, err := run(t, root, "generate"); err != nil || !strings.Contains(out, "generated docs/probe/README.md") || strings.Contains(out, "api/spec") {
+	if out, _, err := run(t, root, "generate"); err != nil || !strings.Contains(out, "generated docs/probe/README.md") || strings.Contains(out, "api/spec/probe/README.md") {
 		t.Fatalf("the section did not move the pages: %v\n%s", err, out)
 	}
 	// Disabled, the writer renders nothing, and what it rendered before is

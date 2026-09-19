@@ -1,0 +1,1423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Protocol atlas</title>
+
+<style>
+:root {
+  color-scheme: light;
+  --bg: #edf0f3;
+  --surface: #f9fafb;
+  --hover: #e4e8ed;
+  --ink: #18202f;
+  --ink-2: #566072;
+  --hair: rgba(24, 32, 47, 0.15);
+  --hair-2: rgba(24, 32, 47, 0.07);
+  --lamp: #9a5406;
+  --moon: #256b8a;
+  --lamp-tint: rgba(154, 84, 6, 0.07);
+  --moon-tint: rgba(37, 107, 138, 0.07);
+  --lamp-line: rgba(154, 84, 6, 0.6);
+  --moon-line: rgba(37, 107, 138, 0.6);
+  --scrim: rgba(12, 17, 28, 0.36);
+  --shadow: 0 30px 60px -30px rgba(12, 17, 28, 0.35);
+  --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+  --measure: 1240px;
+  --cl: 24%;
+  --cr: 76%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #131a2a;
+    --surface: #1a2336;
+    --hover: #182031;
+    --ink: #e8e3d6;
+    --ink-2: #a3abbb;
+    --hair: rgba(232, 227, 214, 0.15);
+    --hair-2: rgba(232, 227, 214, 0.07);
+    --lamp: #edb25e;
+    --moon: #93c3d8;
+    --lamp-tint: rgba(237, 178, 94, 0.08);
+    --moon-tint: rgba(147, 195, 216, 0.08);
+    --lamp-line: rgba(237, 178, 94, 0.6);
+    --moon-line: rgba(147, 195, 216, 0.6);
+    --scrim: rgba(4, 7, 13, 0.6);
+    --shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.7);
+  }
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #131a2a;
+  --surface: #1a2336;
+  --hover: #182031;
+  --ink: #e8e3d6;
+  --ink-2: #a3abbb;
+  --hair: rgba(232, 227, 214, 0.15);
+  --hair-2: rgba(232, 227, 214, 0.07);
+  --lamp: #edb25e;
+  --moon: #93c3d8;
+  --lamp-tint: rgba(237, 178, 94, 0.08);
+  --moon-tint: rgba(147, 195, 216, 0.08);
+  --lamp-line: rgba(237, 178, 94, 0.6);
+  --moon-line: rgba(147, 195, 216, 0.6);
+  --scrim: rgba(4, 7, 13, 0.6);
+  --shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.7);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 13px/1.65 var(--mono);
+}
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+button,
+select {
+  background: transparent;
+  border: 1px solid var(--hair);
+  padding: 7px 12px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+button:hover,
+select:hover {
+  background: var(--hover);
+}
+a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--moon);
+  outline-offset: 4px;
+}
+.skip {
+  position: absolute;
+  top: -60px;
+  padding: 12px;
+  background: var(--surface);
+  z-index: 9;
+}
+.skip:focus {
+  top: 0;
+}
+.masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 19px max(32px, calc((100vw - var(--measure)) / 2));
+  border-bottom: 1px solid var(--hair);
+  background: var(--bg);
+}
+.wordmark {
+  text-decoration: none;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+}
+.wordmark span {
+  color: var(--ink-2);
+  margin-left: 10px;
+}
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+}
+.lens-label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--ink-2);
+}
+kbd {
+  border: 1px solid var(--hair);
+  padding: 0 5px;
+  margin-left: 10px;
+  color: var(--ink-2);
+}
+.families {
+  display: flex;
+  gap: 4px;
+  padding: 14px max(32px, calc((100vw - var(--measure)) / 2));
+  border-bottom: 1px solid var(--hair);
+  overflow-x: auto;
+}
+.families a {
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 5px 13px;
+  color: var(--ink-2);
+}
+.families a[aria-current='page'] {
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: inset 0 -2px var(--lamp);
+}
+main {
+  max-width: calc(var(--measure) + 64px);
+  margin: auto;
+  padding: 52px 32px 80px;
+}
+.eyebrow,
+.section-no,
+.small-label {
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.hero {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 60px;
+  margin-bottom: 42px;
+  align-items: end;
+}
+h1 {
+  font: 400 clamp(40px, 5vw, 68px)/1.04 var(--serif);
+  letter-spacing: -0.045em;
+  margin: 16px 0 24px;
+  overflow-wrap: anywhere;
+}
+.lede {
+  font: 20px/1.55 var(--serif);
+  color: var(--ink-2);
+  max-width: 520px;
+  margin: 0;
+}
+.facts {
+  display: flex;
+  gap: 24px;
+  margin: 22px 0 0;
+  color: var(--ink-2);
+  font-size: 11px;
+}
+.facts strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+.legend {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 24px;
+  font-size: 11px;
+}
+.client {
+  color: var(--lamp);
+}
+.server {
+  color: var(--moon);
+}
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 8px;
+}
+.hall {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-height: 110px;
+  gap: 8px;
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+  padding: 24px 0;
+}
+.hall a {
+  display: flex;
+  align-items: center;
+  width: 8px;
+  height: 70px;
+}
+.hall i {
+  display: block;
+  width: 3px;
+  background: currentColor;
+  transition: transform 0.15s;
+}
+.hall a:hover i {
+  transform: scaleX(2);
+}
+.hall-caption {
+  margin: 10px 0 0;
+  color: var(--ink-2);
+  font-size: 10px;
+}
+.section-nav {
+  display: flex;
+  gap: 30px;
+  padding: 17px 0;
+  border-block: 1px solid var(--hair);
+  margin-bottom: 48px;
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+.section-nav a {
+  text-decoration: none;
+}
+.section-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin: 0 0 22px;
+}
+h2 {
+  font: 400 30px/1.2 var(--serif);
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+h3 {
+  font: 400 21px/1.4 var(--serif);
+  margin: 0 0 10px;
+}
+.section-note {
+  color: var(--ink-2);
+  font-size: 11px;
+  margin-left: auto;
+}
+section {
+  margin-bottom: 56px;
+  scroll-margin-top: 24px;
+}
+.board-head,
+.exchange > summary {
+  display: grid;
+  grid-template-columns: var(--cl) calc(var(--cr) - var(--cl)) calc(100% - var(--cr));
+  align-items: center;
+}
+.board-head {
+  padding: 13px 20px;
+  border-block: 1px solid var(--hair);
+  font-size: 11px;
+}
+.board-head > :last-child {
+  text-align: right;
+}
+.board-head > :nth-child(2) {
+  text-align: center;
+  color: var(--ink-2);
+}
+.group-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 22px 20px 9px;
+}
+.exchange {
+  border-bottom: 1px solid var(--hair);
+}
+.exchange > summary {
+  padding: 17px 20px;
+  cursor: pointer;
+  gap: 0;
+  list-style: none;
+  min-height: 66px;
+}
+.exchange > summary::-webkit-details-marker {
+  display: none;
+}
+.exchange > summary:hover {
+  background: var(--hover);
+}
+.exchange[open] {
+  background: var(--surface);
+}
+.exchange[open] > summary {
+  border-bottom: 1px solid var(--hair-2);
+}
+.exchange .name {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.exchange .direction {
+  margin: 0 20px;
+  color: var(--ink-2);
+  position: relative;
+  text-align: center;
+  font-size: 10px;
+}
+.direction:before {
+  content: '';
+  height: 1px;
+  background: var(--hair);
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+}
+.direction span {
+  position: relative;
+  padding: 0 12px;
+  background: var(--bg);
+}
+.exchange[open] .direction span {
+  background: var(--surface);
+}
+.response-label {
+  color: var(--ink-2);
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+.anatomy {
+  padding: 25px 24px 30px;
+}
+.description {
+  font: 18px/1.6 var(--serif);
+  max-width: 780px;
+  margin: 0 0 18px;
+  white-space: pre-line;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 22px;
+}
+.chip {
+  font-size: 10px;
+  border: 1px solid var(--hair);
+  padding: 2px 8px;
+  color: var(--ink-2);
+  border-radius: 2px;
+}
+.frames {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.frame {
+  min-width: 0;
+}
+.frame h4 {
+  font-weight: 400;
+  font-size: 11px;
+  margin: 0 0 9px;
+}
+pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--bg);
+  padding: 16px;
+  border: 1px solid var(--hair-2);
+  font: 11px/1.7 var(--mono);
+}
+.annotation {
+  margin-top: 12px;
+  border-left: 1px solid var(--hair);
+}
+.annotated-row {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--hair-2);
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) minmax(120px, 1.3fr);
+  gap: 4px 14px;
+  font-size: 11px;
+}
+.annotated-row .field {
+  overflow-wrap: anywhere;
+}
+.annotated-row .meaning {
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.annotated-row .value {
+  color: var(--lamp);
+  overflow-wrap: anywhere;
+}
+.annotated-row .field-description {
+  color: var(--ink-2);
+  grid-column: 1/-1;
+}
+.nested {
+  margin-left: 12px;
+}
+.nested > summary {
+  cursor: pointer;
+  list-style-position: inside;
+  color: var(--ink-2);
+  padding: 6px 8px;
+  font-size: 10px;
+}
+.ghost {
+  opacity: 0.7;
+  font-style: italic;
+}
+.variant {
+  border-left: 2px solid var(--moon-line);
+  margin: 12px 0;
+  padding-left: 10px;
+}
+.variant > .small-label {
+  color: var(--moon);
+}
+.vocab-row,
+.error-row {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  padding: 18px 0;
+  border-top: 1px solid var(--hair);
+}
+.vocab-row > a,
+.error-row > a {
+  align-self: start;
+  overflow-wrap: anywhere;
+}
+.vocab-row p,
+.error-row p {
+  margin: 0 0 8px;
+  color: var(--ink-2);
+  font: 16px/1.6 var(--serif);
+}
+.references {
+  color: var(--ink-2);
+  font-size: 10px;
+  display: flex;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+}
+.parameters {
+  border-block: 1px solid var(--hair);
+  padding: 18px 0;
+  margin: 28px 0;
+}
+.parameters p {
+  margin: 6px 0;
+}
+.comparison {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 11px;
+}
+.comparison th {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.comparison th,
+.comparison td {
+  padding: 14px 8px;
+  border-bottom: 1px solid var(--hair);
+  vertical-align: top;
+}
+.comparison td a {
+  margin-right: 16px;
+  display: inline-block;
+}
+.empty {
+  color: var(--ink-2);
+  padding: 24px 0;
+  font: 18px var(--serif);
+}
+.footer {
+  border-top: 1px solid var(--hair);
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 32px;
+  font-size: 9px;
+  color: var(--ink-2);
+  letter-spacing: 0.06em;
+}
+dialog {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--hair);
+  box-shadow: var(--shadow);
+  padding: 28px;
+}
+dialog::backdrop {
+  background: var(--scrim);
+}
+#finder {
+  width: min(640px, calc(100vw - 32px));
+  max-height: 80vh;
+}
+.dialog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.dialog-head h2 {
+  font-size: 27px;
+}
+.dialog-head button {
+  font-size: 22px;
+  line-height: 1;
+  padding: 5px 9px;
+}
+#search {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--hair);
+  padding: 13px 14px;
+}
+#results {
+  margin-top: 18px;
+}
+.search-result {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--hair-2);
+  text-decoration: none;
+}
+.search-result:hover {
+  background: var(--hover);
+}
+.search-result small {
+  color: var(--ink-2);
+}
+#drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  width: min(740px, 100vw);
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
+  padding: 30px;
+  border-right: 0;
+}
+#drawer-title {
+  font-size: 38px;
+  overflow-wrap: anywhere;
+  margin: 14px 0;
+}
+#breadcrumbs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 10px;
+  color: var(--ink-2);
+}
+#type-detail .annotation {
+  margin-top: 22px;
+}
+.type-meta {
+  color: var(--ink-2);
+  font-size: 11px;
+  margin-bottom: 20px;
+}
+.declaration {
+  margin-top: 24px;
+}
+@media (max-width: 800px) {
+  .masthead {
+    padding: 16px 24px;
+    flex-wrap: wrap;
+  }
+  .families {
+    padding: 12px 16px;
+  }
+  main {
+    padding: 32px 24px 60px;
+  }
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  .hall {
+    min-height: 70px;
+    padding: 12px 0;
+  }
+  .hall a {
+    height: 50px;
+  }
+  .frames {
+    grid-template-columns: 1fr;
+  }
+  .vocab-row,
+  .error-row {
+    grid-template-columns: 150px 1fr;
+    gap: 16px;
+  }
+  .section-note {
+    display: none;
+  }
+}
+@media (max-width: 500px) {
+  .tools {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .lens-label {
+    gap: 6px;
+  }
+  .vocab-row,
+  .error-row {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+  .board-head,
+  .exchange > summary {
+    grid-template-columns: 36% 28% 36%;
+    padding-inline: 8px;
+  }
+  .exchange .name {
+    font-size: 11px;
+  }
+  .exchange .direction {
+    margin: 0 2px;
+  }
+  .direction span {
+    padding: 0 3px;
+  }
+  .response-label {
+    font-size: 10px;
+  }
+  .anatomy {
+    padding: 20px 12px;
+  }
+  .facts {
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .footer {
+    flex-direction: column;
+    gap: 8px;
+  }
+  #drawer {
+    padding: 20px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="masthead">
+  <a class="wordmark" href="#/">NIGHTSEAM <span>/ ATLAS</span></a>
+  <div class="tools">
+    <label class="lens-label">Show names as <select id="lens" aria-label="Name lens"><option value="wire">wire</option></select></label>
+    <button id="find" aria-haspopup="dialog">Find <kbd>/</kbd></button>
+    <button id="theme" aria-label="Switch color theme">◐</button>
+  </div>
+</header>
+<nav id="families" class="families" aria-label="Families"></nav>
+<main id="content" tabindex="-1"><noscript>This atlas needs JavaScript to explore its embedded specification. The generated Markdown pages are available alongside it.</noscript></main>
+<footer class="footer"><span>THE SPECIFICATION, AT EVERY SCALE.</span><span>Generated by Nightseam · Protocol atlas</span></footer>
+<dialog id="finder" aria-labelledby="finder-title">
+  <div class="dialog-head"><h2 id="finder-title">Find in the atlas</h2><button data-close="finder" aria-label="Close finder">×</button></div>
+  <input id="search" type="search" placeholder="A family, exchange, type or error…" aria-label="Search the specification" autocomplete="off">
+  <div id="results" aria-live="polite"></div>
+</dialog>
+<dialog id="drawer" aria-labelledby="drawer-title">
+  <div class="dialog-head"><nav id="breadcrumbs" aria-label="Type breadcrumbs"></nav><button data-close="drawer" aria-label="Close type drawer">×</button></div>
+  <div id="type-detail"></div>
+</dialog>
+<script type="application/json" id="nightseam-document">{"Families":[{"Name":"probe","Source":"api/contracts/probe","Builtin":false,"Files":["model.json","protocol.json","session.json"],"Imports":["session"],"Carries":["duplex","session"],"Generic":false,"Parameters":null,"Types":[{"Languages":{"go":{"Name":"protocol.Base","Declare":"type Base struct {\n\tText string `json:\"text\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Base","Declare":"export interface Base {\n  \"text\": string;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"Base","Kind":"record","Description":"","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"probe","Declaration":"Base"},"Extends":null,"Parameters":null,"Scope":null,"Uses":null,"Fields":[{"Name":"text","Description":"","Type":"string","Declared":"string","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Base","Origin":{"Family":"probe","Declaration":"Base"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"text":"‹text›"},"UsedBy":null},{"Languages":{"go":{"Name":"protocol.OpenRecord","Declare":"type OpenRecord struct {\n\tID               string                     `json:\"id\"`\n\tNote             runtime.Optional[string]   `json:\"note,omitzero\"`\n\tAdditionalFields map[string]json.RawMessage `json:\"-\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.OpenRecord","Declare":"export interface OpenRecord {\n  \"id\": string;\n  \"note\"?: string;\n  [key: string]: unknown;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"OpenRecord","Kind":"record","Description":"","Key":"","Open":true,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"probe","Declaration":"OpenRecord"},"Extends":null,"Parameters":null,"Scope":null,"Uses":null,"Fields":[{"Name":"id","Description":"","Type":"string","Declared":"string","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"OpenRecord","Origin":{"Family":"probe","Declaration":"OpenRecord"}},{"Name":"note","Description":"","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"OpenRecord","Origin":{"Family":"probe","Declaration":"OpenRecord"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"id":"‹id›","note":"‹note›"},"UsedBy":null},{"Languages":{"go":{"Name":"protocol.Payload","Declare":"type Payload struct {\n\tText  string                                     `json:\"text\"`\n\tCount int64                                      `json:\"count\"`\n\tNote  runtime.Optional[runtime.Nullable[string]] `json:\"note,omitzero\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Payload","Declare":"export interface Payload {\n  \"text\": string;\n  \"count\": number;\n  \"note\"?: string | null;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"Payload","Kind":"record","Description":"","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"probe","Declaration":"Payload"},"Extends":["Base"],"Parameters":null,"Scope":null,"Uses":null,"Fields":[{"Name":"text","Description":"","Type":"string","Declared":"string","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Base","Origin":{"Family":"probe","Declaration":"Base"}},{"Name":"count","Description":"","Type":"integer","Declared":"integer","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Payload","Origin":{"Family":"probe","Declaration":"Payload"}},{"Name":"note","Description":"","Type":"string","Declared":"string","Required":false,"Nullable":true,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Payload","Origin":{"Family":"probe","Declaration":"Payload"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"text":"‹text›","count":0,"note":"‹note›"},"UsedBy":[{"Side":"","Kind":"type","Name":"Payloads","At":"alias"},{"Side":"server","Kind":"method","Name":"echo","At":"request"},{"Side":"server","Kind":"method","Name":"echo","At":"result"},{"Side":"server","Kind":"event","Name":"changed","At":"data"},{"Side":"client","Kind":"method","Name":"reverse","At":"request"},{"Side":"client","Kind":"method","Name":"reverse","At":"result"}]},{"Languages":{"go":{"Name":"protocol.Payloads","Declare":"type Payloads = []Payload","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Payloads","Declare":"export type Payloads = Array\u003cPayload\u003e;","Invoke":{"Call":"","Handle":""}}},"Name":"Payloads","Kind":"alias","Description":"","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"probe","Declaration":"Payloads"},"Extends":null,"Parameters":null,"Scope":null,"Uses":null,"Fields":null,"Values":null,"Alias":{"array":"Payload"},"Tag":"","Value":"value","Variants":null,"Example":[{"text":"‹text›","count":0,"note":"‹note›"}],"UsedBy":null},{"Languages":{"go":{"Name":"protocol.Status","Declare":"type Status string","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Status","Declare":"export type Status = \"ready\" | \"done\" | \"context.example\";","Invoke":{"Call":"","Handle":""}}},"Name":"Status","Kind":"enum","Description":"","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"probe","Declaration":"Status"},"Extends":null,"Parameters":null,"Scope":null,"Uses":null,"Fields":null,"Values":["ready","done","context.example"],"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":"ready","UsedBy":null}],"Carried":[{"Languages":{"go":{"Name":"protocol.Envelope","Declare":"type Envelope struct {\n\tVersion     int64                               `json:\"version\"`\n\tKind        string                              `json:\"kind\"`\n\tID          runtime.Optional[string]            `json:\"id,omitzero\"`\n\tMethod      runtime.Optional[string]            `json:\"method,omitzero\"`\n\tParams      runtime.Optional[any]               `json:\"params,omitzero\"`\n\tResult      runtime.Optional[any]               `json:\"result,omitzero\"`\n\tError       runtime.Optional[any]               `json:\"error,omitzero\"`\n\tEvent       runtime.Optional[string]            `json:\"event,omitzero\"`\n\tData        runtime.Optional[any]               `json:\"data,omitzero\"`\n\tTraceparent runtime.Optional[string]            `json:\"traceparent,omitzero\"`\n\tTracestate  runtime.Optional[string]            `json:\"tracestate,omitzero\"`\n\tMeta        runtime.Optional[map[string]string] `json:\"meta,omitzero\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Envelope","Declare":"/** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */\nexport interface Envelope {\n  /** The profile's version, 1. */\n  \"version\": number;\n  /** request, response, event or cancel. */\n  \"kind\": string;\n  /** What correlates a response or a cancel with its request. */\n  \"id\"?: string;\n  /** The method a request names. */\n  \"method\"?: string;\n  /** A request's parameters. */\n  \"params\"?: unknown;\n  /** A response's result. */\n  \"result\"?: unknown;\n  /** A response's error. */\n  \"error\"?: unknown;\n  /** The event an event frame names. */\n  \"event\"?: string;\n  /** An event's data. */\n  \"data\"?: unknown;\n  /** The W3C Trace Context of the frame. */\n  \"traceparent\"?: string;\n  /** The vendor state of that trace. */\n  \"tracestate\"?: string;\n  /** What a request or an event carries about the call, delivered to the handler beside the payload. */\n  \"meta\"?: Record\u003cstring, string\u003e;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"Envelope","Kind":"record","Description":"One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else.","Key":"","Open":false,"Carried":true,"From":"duplex","Inline":false,"Origin":{"Family":"duplex","Declaration":"Envelope"},"Extends":null,"Parameters":null,"Scope":null,"Uses":null,"Fields":[{"Name":"version","Description":"The profile's version, 1.","Type":"integer","Declared":"integer","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"kind","Description":"request, response, event or cancel.","Type":"string","Declared":"string","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"id","Description":"What correlates a response or a cancel with its request.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"method","Description":"The method a request names.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"params","Description":"A request's parameters.","Type":"json","Declared":"json","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"result","Description":"A response's result.","Type":"json","Declared":"json","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"error","Description":"A response's error.","Type":"json","Declared":"json","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"event","Description":"The event an event frame names.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"data","Description":"An event's data.","Type":"json","Declared":"json","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"traceparent","Description":"The W3C Trace Context of the frame.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"tracestate","Description":"The vendor state of that trace.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"meta","Description":"What a request or an event carries about the call, delivered to the handler beside the payload.","Type":{"map":"string"},"Declared":{"map":"string"},"Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"version":0,"kind":"‹kind›","id":"‹id›","method":"‹method›","params":{},"result":{},"error":{},"event":"‹event›","data":{},"traceparent":"‹traceparent›","tracestate":"‹tracestate›","meta":{"‹key›":"‹meta›"}},"UsedBy":null},{"Languages":{"go":{"Name":"protocol.Handle","Declare":"type Handle struct {\n\tChannel int64 `json:\"channel\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Handle","Declare":"/** A reference to a channel on the connection that carries the message holding it. */\nexport interface Handle {\n  /** The channel's id on that connection. */\n  \"channel\": number;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"Handle","Kind":"record","Description":"A reference to a channel on the connection that carries the message holding it.","Key":"","Open":false,"Carried":true,"From":"duplex","Inline":false,"Origin":{"Family":"duplex","Declaration":"Handle"},"Extends":null,"Parameters":null,"Scope":null,"Uses":null,"Fields":[{"Name":"channel","Description":"The channel's id on that connection.","Type":"integer","Declared":"integer","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Handle","Origin":{"Family":"duplex","Declaration":"Handle"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"channel":0},"UsedBy":null}],"Protocol":true,"Server":{"Extends":["session"],"Methods":[{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"client.Echo(ctx, params)","Handle":"func (Handler) Echo(ctx context.Context, remote *binding.Remote, params protocol.Payload) (protocol.Payload, error)"}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"await client.echo(params)","Handle":""}}},"Name":"echo","Description":"","Request":"Payload","Result":"Payload","DeclaredRequest":"Payload","DeclaredResult":"Payload","Errors":null,"Origin":{"Family":"probe","Declaration":"echo"},"Scope":null,"Frames":{"Request":{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":"‹text›","count":0,"note":"‹note›"}},"Response":{"version":1,"kind":"response","id":"c:1","result":{"text":"‹text›","count":0,"note":"‹note›"}},"Refusals":null},"Weight":{"Request":3,"Result":3}},{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"client.NoArgs(ctx)","Handle":"func (Handler) NoArgs(ctx context.Context, remote *binding.Remote) (string, error)"}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"await client.noArgs()","Handle":""}}},"Name":"no_args","Description":"","Request":null,"Result":"string","DeclaredRequest":null,"DeclaredResult":"string","Errors":null,"Origin":{"Family":"probe","Declaration":"no_args"},"Scope":null,"Frames":{"Request":{"version":1,"kind":"request","id":"c:1","method":"no_args","params":{}},"Response":{"version":1,"kind":"response","id":"c:1","result":"‹result›"},"Refusals":null},"Weight":{"Request":0,"Result":1}}],"Events":[{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"remote.EmitSessionControl(ctx, data)","Handle":""}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"client.onSessionControl(handler)","Handle":""}}},"Name":"session.control","Description":"Who holds control: once on attach, before the replay begins, and on every change.","Type":"session.Control","Declared":"session.Control","Origin":{"Family":"session","Declaration":"session.control"},"Scope":null,"Frame":{"version":1,"kind":"event","event":"session.control","data":{"holder":"‹holder›"}},"Weight":1},{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"remote.EmitSessionCursor(ctx, data)","Handle":""}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"client.onSessionCursor(handler)","Handle":""}}},"Name":"session.cursor","Description":"Where the attachment stands, straight after each frame it is delivered.","Type":"session.Cursor","Declared":"session.Cursor","Origin":{"Family":"session","Declaration":"session.cursor"},"Scope":null,"Frame":{"version":1,"kind":"event","event":"session.cursor","data":{"sequence":0}},"Weight":1},{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"remote.EmitChanged(ctx, data)","Handle":""}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"client.onChanged(handler)","Handle":""}}},"Name":"changed","Description":"","Type":"Payload","Declared":"Payload","Origin":{"Family":"probe","Declaration":"changed"},"Scope":null,"Frame":{"version":1,"kind":"event","event":"changed","data":{"text":"‹text›","count":0,"note":"‹note›"}},"Weight":3}]},"Client":{"Extends":["session"],"Methods":[{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"remote.Reverse(ctx, params)","Handle":""}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"","Handle":"async reverse(params, context)"}}},"Name":"reverse","Description":"","Request":"Payload","Result":"Payload","DeclaredRequest":"Payload","DeclaredResult":"Payload","Errors":null,"Origin":{"Family":"probe","Declaration":"reverse"},"Scope":null,"Frames":{"Request":{"version":1,"kind":"request","id":"s:1","method":"reverse","params":{"text":"‹text›","count":0,"note":"‹note›"}},"Response":{"version":1,"kind":"response","id":"s:1","result":{"text":"‹text›","count":0,"note":"‹note›"}},"Refusals":null},"Weight":{"Request":3,"Result":3}}],"Events":null},"Errors":[{"Code":"denied","Description":"The caller is denied"}],"Session":{"Decides":null,"Asks":null,"Conversation":null,"Inherited":null}},{"Name":"proof","Source":"api/contracts/proof","Builtin":false,"Files":["model.json","protocol.json"],"Imports":["probe"],"Carries":["duplex"],"Generic":true,"Parameters":[{"Name":"S","Of":"protocol","Description":"Any family that carries the protocol tier, whose messages this one relays.","Drawn":["Envelope","Handle"]},{"Name":"Item","Of":"","Description":"What a page of this family's own listing holds: a type parameter beside a family parameter, on one declaration.","Drawn":null}],"Types":[{"Languages":{"go":{"Name":"protocol.Carried[SEnvelope, SHandle, Item]","Declare":"type Carried[SEnvelope, SHandle, Item any] struct {\n\tMessage SEnvelope                 `json:\"message\"`\n\tBack    runtime.Nullable[SHandle] `json:\"back\"`\n\tPage    Page[Item]                `json:\"page\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Carried\u003cS, Item\u003e","Declare":"/** One message of S with a page of Item beside it. */\nexport interface Carried\u003cS extends AnyFamily = AnyFamily, Item = unknown\u003e {\n  \"message\": S[\"Envelope\"];\n  /** A handle that may be absent from the value rather than from the member. */\n  \"back\": S[\"Handle\"] | null;\n  \"page\": Page\u003cItem\u003e;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"Carried","Kind":"record","Description":"One message of S with a page of Item beside it.","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"proof","Declaration":"Carried"},"Extends":null,"Parameters":null,"Scope":["S","Item"],"Uses":[{"Parameter":"S","Type":"Envelope"},{"Parameter":"S","Type":"Handle"},{"Parameter":"Item","Type":""}],"Fields":[{"Name":"message","Description":"","Type":"S.Envelope","Declared":"S.Envelope","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Carried","Origin":{"Family":"proof","Declaration":"Carried"}},{"Name":"back","Description":"A handle that may be absent from the value rather than from the member.","Type":{"nullable":"S.Handle"},"Declared":{"nullable":"S.Handle"},"Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Carried","Origin":{"Family":"proof","Declaration":"Carried"}},{"Name":"page","Description":"","Type":{"apply":"Page","with":{"T":"Item"}},"Declared":{"apply":"Page","with":{"T":"Item"}},"Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Carried","Origin":{"Family":"proof","Declaration":"Carried"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"message":"‹S.Envelope›","back":"‹S.Handle›","page":{"items":["‹Item›"],"next":"‹next›"}},"UsedBy":[{"Side":"server","Kind":"method","Name":"relay","At":"request"}]},{"Languages":{"go":{"Name":"protocol.Option[T]","Declare":"type Option[T any] struct {\n\tNone *OptionNone\n\tSome *OptionSomeValue[T]\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Option\u003cProtocol.\u003e","Declare":"/** A value, or nothing: a generic union, declared in the language rather than built in. */\nexport type Option\u003cT = unknown\u003e = { \"kind\": \"none\"; \"value\": OptionNone } | { \"kind\": \"some\"; \"value\": T };","Invoke":{"Call":"","Handle":""}}},"Name":"Option","Kind":"union","Description":"A value, or nothing: a generic union, declared in the language rather than built in.","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"proof","Declaration":"Option"},"Extends":null,"Parameters":[{"Name":"T","Of":"","Description":"What the value is, where there is one.","Drawn":null}],"Scope":["S","Item","T"],"Uses":[{"Parameter":"T","Type":""}],"Fields":null,"Values":null,"Alias":null,"Tag":"kind","Value":"value","Variants":[{"Tag":"none","Type":{"kind":"record"},"Declared":"OptionNone","Empty":false,"Origin":{"Family":"proof","Declaration":"Option"},"Scope":["S","Item","T"],"Example":{"kind":"none","value":{}}},{"Tag":"some","Type":"T","Declared":"T","Empty":false,"Origin":{"Family":"proof","Declaration":"Option"},"Scope":["S","Item","T"],"Example":{"kind":"some","value":"‹T›"}}],"Example":{"kind":"none","value":{}},"UsedBy":[{"Side":"server","Kind":"method","Name":"relay","At":"result"}]},{"Languages":{"go":{"Name":"protocol.OptionNone","Declare":"type OptionNone struct {\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.OptionNone","Declare":"export type OptionNone = Record\u003cstring, never\u003e;","Invoke":{"Call":"","Handle":""}}},"Name":"OptionNone","Kind":"record","Description":"","Key":"","Open":false,"Carried":false,"From":"","Inline":true,"Origin":{"Family":"proof","Declaration":"OptionNone"},"Extends":null,"Parameters":null,"Scope":["S","Item","T"],"Uses":null,"Fields":null,"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{},"UsedBy":null},{"Languages":{"go":{"Name":"protocol.Page[T]","Declare":"type Page[T any] struct {\n\tItems []T                                        `json:\"items\"`\n\tNext  runtime.Optional[runtime.Nullable[string]] `json:\"next,omitzero\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Page\u003cProtocol.\u003e","Declare":"/** A page of anything: a type parameter filled by a type expression. */\nexport interface Page\u003cT = unknown\u003e {\n  \"items\": Array\u003cT\u003e;\n  \"next\"?: string | null;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"Page","Kind":"record","Description":"A page of anything: a type parameter filled by a type expression.","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"proof","Declaration":"Page"},"Extends":null,"Parameters":[{"Name":"T","Of":"","Description":"","Drawn":null}],"Scope":["S","Item","T"],"Uses":[{"Parameter":"T","Type":""}],"Fields":[{"Name":"items","Description":"","Type":{"array":"T"},"Declared":{"array":"T"},"Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Page","Origin":{"Family":"proof","Declaration":"Page"}},{"Name":"next","Description":"","Type":{"nullable":"string"},"Declared":{"nullable":"string"},"Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Page","Origin":{"Family":"proof","Declaration":"Page"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"items":["‹T›"],"next":"‹next›"},"UsedBy":[{"Side":"","Kind":"type","Name":"Carried","At":"page"},{"Side":"","Kind":"type","Name":"Parts","At":"alias"}]},{"Languages":{"go":{"Name":"protocol.Part","Declare":"type Part struct {\n\tCount *PartCountValue\n\tImage *PartImage\n\tText  *TextPart\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Part","Declare":"/** One part of a message: a record with a literal field, a shape written inline, and a scalar payload. */\nexport type Part = { \"type\": \"count\"; \"value\": number } | { \"type\": \"image\"; \"value\": PartImage } | { \"type\": \"text\"; \"value\": TextPart };","Invoke":{"Call":"","Handle":""}}},"Name":"Part","Kind":"union","Description":"One part of a message: a record with a literal field, a shape written inline, and a scalar payload.","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"proof","Declaration":"Part"},"Extends":null,"Parameters":null,"Scope":["S","Item"],"Uses":null,"Fields":null,"Values":null,"Alias":null,"Tag":"type","Value":"value","Variants":[{"Tag":"count","Type":"integer","Declared":"integer","Empty":false,"Origin":{"Family":"proof","Declaration":"Part"},"Scope":["S","Item"],"Example":{"type":"count","value":0}},{"Tag":"image","Type":{"kind":"record","fields":[{"name":"url","type":"string","required":true,"pattern":"^https://[A-Za-z0-9.-]+/[^ ]*$"},{"name":"alt","type":{"nullable":"string"},"required":false}]},"Declared":"PartImage","Empty":false,"Origin":{"Family":"proof","Declaration":"Part"},"Scope":["S","Item"],"Example":{"type":"image","value":{"url":"‹url›","alt":"‹alt›"}}},{"Tag":"text","Type":"TextPart","Declared":"TextPart","Empty":false,"Origin":{"Family":"proof","Declaration":"Part"},"Scope":["S","Item"],"Example":{"type":"text","value":{"type":"text","body":"‹body›"}}}],"Example":{"type":"count","value":0},"UsedBy":[{"Side":"","Kind":"type","Name":"Parts","At":"alias"},{"Side":"server","Kind":"method","Name":"classify","At":"request"}]},{"Languages":{"go":{"Name":"protocol.PartImage","Declare":"type PartImage struct {\n\tURL string                                     `json:\"url\"`\n\tAlt runtime.Optional[runtime.Nullable[string]] `json:\"alt,omitzero\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.PartImage","Declare":"export interface PartImage {\n  \"url\": string;\n  \"alt\"?: string | null;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"PartImage","Kind":"record","Description":"","Key":"","Open":false,"Carried":false,"From":"","Inline":true,"Origin":{"Family":"proof","Declaration":"PartImage"},"Extends":null,"Parameters":null,"Scope":["S","Item"],"Uses":null,"Fields":[{"Name":"url","Description":"","Type":"string","Declared":"string","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"^https://[A-Za-z0-9.-]+/[^ ]*$","Owner":"PartImage","Origin":{"Family":"proof","Declaration":"PartImage"}},{"Name":"alt","Description":"","Type":{"nullable":"string"},"Declared":{"nullable":"string"},"Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"PartImage","Origin":{"Family":"proof","Declaration":"PartImage"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"url":"‹url›","alt":"‹alt›"},"UsedBy":null},{"Languages":{"go":{"Name":"protocol.Parts","Declare":"type Parts = Page[Part]","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Parts","Declare":"/** A page of parts: a generic type of this family, filled here. */\nexport type Parts = Page\u003cPart\u003e;","Invoke":{"Call":"","Handle":""}}},"Name":"Parts","Kind":"alias","Description":"A page of parts: a generic type of this family, filled here.","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"proof","Declaration":"Parts"},"Extends":null,"Parameters":null,"Scope":["S","Item"],"Uses":null,"Fields":null,"Values":null,"Alias":{"apply":"Page","with":{"T":"Part"}},"Tag":"","Value":"value","Variants":null,"Example":{"items":[{"type":"count","value":0}],"next":"‹next›"},"UsedBy":[{"Side":"server","Kind":"method","Name":"parts","At":"result"}]},{"Languages":{"go":{"Name":"protocol.PartsRequest","Declare":"type PartsRequest struct {\n\tAfter runtime.Optional[runtime.Nullable[string]] `json:\"after,omitzero\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.PartsRequest","Declare":"export interface PartsRequest {\n  \"after\"?: string | null;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"PartsRequest","Kind":"record","Description":"","Key":"","Open":false,"Carried":false,"From":"","Inline":true,"Origin":{"Family":"proof","Declaration":"PartsRequest"},"Extends":null,"Parameters":null,"Scope":["S","Item"],"Uses":null,"Fields":[{"Name":"after","Description":"","Type":{"nullable":"string"},"Declared":{"nullable":"string"},"Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"PartsRequest","Origin":{"Family":"proof","Declaration":"PartsRequest"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"after":"‹after›"},"UsedBy":null},{"Languages":{"go":{"Name":"protocol.Result[T, E]","Declare":"type Result[T, E any] struct {\n\tErr *ResultErrValue[T, E]\n\tOk  *ResultOkValue[T, E]\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Result\u003cProtocol., Protocol.\u003e","Declare":"/** What came of a call: two type parameters on one declaration. */\nexport type Result\u003cT = unknown, E = unknown\u003e = { \"kind\": \"err\"; \"value\": E } | { \"kind\": \"ok\"; \"value\": T };","Invoke":{"Call":"","Handle":""}}},"Name":"Result","Kind":"union","Description":"What came of a call: two type parameters on one declaration.","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"proof","Declaration":"Result"},"Extends":null,"Parameters":[{"Name":"T","Of":"","Description":"","Drawn":null},{"Name":"E","Of":"","Description":"","Drawn":null}],"Scope":["S","Item","T","E"],"Uses":[{"Parameter":"T","Type":""},{"Parameter":"E","Type":""}],"Fields":null,"Values":null,"Alias":null,"Tag":"kind","Value":"value","Variants":[{"Tag":"err","Type":"E","Declared":"E","Empty":false,"Origin":{"Family":"proof","Declaration":"Result"},"Scope":["S","Item","T","E"],"Example":{"kind":"err","value":"‹E›"}},{"Tag":"ok","Type":"T","Declared":"T","Empty":false,"Origin":{"Family":"proof","Declaration":"Result"},"Scope":["S","Item","T","E"],"Example":{"kind":"ok","value":"‹T›"}}],"Example":{"kind":"err","value":"‹E›"},"UsedBy":[{"Side":"server","Kind":"method","Name":"parts","At":"result"}]},{"Languages":{"go":{"Name":"protocol.RichPart","Declare":"type RichPart struct {\n\tCount *PartCountValue\n\tImage *PartImage\n\tText  *TextPart\n\tTable *RichPartTable\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.RichPart","Declare":"/** Part widened: an extending union adds variants, and a value of the base validates against it. */\nexport type RichPart = { \"type\": \"count\"; \"value\": number } | { \"type\": \"image\"; \"value\": PartImage } | { \"type\": \"text\"; \"value\": TextPart } | { \"type\": \"table\"; \"value\": RichPartTable };","Invoke":{"Call":"","Handle":""}}},"Name":"RichPart","Kind":"union","Description":"Part widened: an extending union adds variants, and a value of the base validates against it.","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"proof","Declaration":"RichPart"},"Extends":["Part"],"Parameters":null,"Scope":["S","Item"],"Uses":null,"Fields":null,"Values":null,"Alias":null,"Tag":"type","Value":"value","Variants":[{"Tag":"count","Type":"integer","Declared":"integer","Empty":false,"Origin":{"Family":"proof","Declaration":"Part"},"Scope":["S","Item"],"Example":{"type":"count","value":0}},{"Tag":"image","Type":{"kind":"record","fields":[{"name":"url","type":"string","required":true,"pattern":"^https://[A-Za-z0-9.-]+/[^ ]*$"},{"name":"alt","type":{"nullable":"string"},"required":false}]},"Declared":"PartImage","Empty":false,"Origin":{"Family":"proof","Declaration":"Part"},"Scope":["S","Item"],"Example":{"type":"image","value":{"url":"‹url›","alt":"‹alt›"}}},{"Tag":"text","Type":"TextPart","Declared":"TextPart","Empty":false,"Origin":{"Family":"proof","Declaration":"Part"},"Scope":["S","Item"],"Example":{"type":"text","value":{"type":"text","body":"‹body›"}}},{"Tag":"table","Type":{"kind":"record","fields":[{"name":"rows","type":{"array":{"nullable":"string"}},"required":true}]},"Declared":"RichPartTable","Empty":false,"Origin":{"Family":"proof","Declaration":"RichPart"},"Scope":["S","Item"],"Example":{"type":"table","value":{"rows":["‹rows›"]}}}],"Example":{"type":"count","value":0},"UsedBy":[{"Side":"server","Kind":"method","Name":"classify_rich","At":"request"},{"Side":"server","Kind":"event","Name":"part.added","At":"data"}]},{"Languages":{"go":{"Name":"protocol.RichPartTable","Declare":"type RichPartTable struct {\n\tRows []runtime.Nullable[string] `json:\"rows\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.RichPartTable","Declare":"export interface RichPartTable {\n  /** A collection of values that may be null. */\n  \"rows\": Array\u003cstring | null\u003e;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"RichPartTable","Kind":"record","Description":"","Key":"","Open":false,"Carried":false,"From":"","Inline":true,"Origin":{"Family":"proof","Declaration":"RichPartTable"},"Extends":null,"Parameters":null,"Scope":["S","Item"],"Uses":null,"Fields":[{"Name":"rows","Description":"A collection of values that may be null.","Type":{"array":{"nullable":"string"}},"Declared":{"array":{"nullable":"string"}},"Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"RichPartTable","Origin":{"Family":"proof","Declaration":"RichPartTable"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"rows":["‹rows›"]},"UsedBy":null},{"Languages":{"go":{"Name":"protocol.TextPart","Declare":"type TextPart struct {\n\tType LiteralText `json:\"type\"`\n\tBody string      `json:\"body\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.TextPart","Declare":"/** A part with its own literal type field, retained inside the union payload. */\nexport interface TextPart {\n  /** A literal field of the payload; the union has its own discriminator. */\n  \"type\": \"text\";\n  \"body\": string;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"TextPart","Kind":"record","Description":"A part with its own literal type field, retained inside the union payload.","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"proof","Declaration":"TextPart"},"Extends":null,"Parameters":null,"Scope":["S","Item"],"Uses":null,"Fields":[{"Name":"type","Description":"A literal field of the payload; the union has its own discriminator.","Type":{"literal":"text"},"Declared":{"literal":"text"},"Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"TextPart","Origin":{"Family":"proof","Declaration":"TextPart"}},{"Name":"body","Description":"","Type":"string","Declared":"string","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":{"min":1},"Pattern":"","Owner":"TextPart","Origin":{"Family":"proof","Declaration":"TextPart"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"type":"text","body":"‹body›"},"UsedBy":[{"Side":"","Kind":"type","Name":"Part","At":"text"},{"Side":"","Kind":"type","Name":"RichPart","At":"text"}]}],"Carried":[{"Languages":{"go":{"Name":"protocol.Envelope","Declare":"type Envelope struct {\n\tVersion     int64                               `json:\"version\"`\n\tKind        string                              `json:\"kind\"`\n\tID          runtime.Optional[string]            `json:\"id,omitzero\"`\n\tMethod      runtime.Optional[string]            `json:\"method,omitzero\"`\n\tParams      runtime.Optional[any]               `json:\"params,omitzero\"`\n\tResult      runtime.Optional[any]               `json:\"result,omitzero\"`\n\tError       runtime.Optional[any]               `json:\"error,omitzero\"`\n\tEvent       runtime.Optional[string]            `json:\"event,omitzero\"`\n\tData        runtime.Optional[any]               `json:\"data,omitzero\"`\n\tTraceparent runtime.Optional[string]            `json:\"traceparent,omitzero\"`\n\tTracestate  runtime.Optional[string]            `json:\"tracestate,omitzero\"`\n\tMeta        runtime.Optional[map[string]string] `json:\"meta,omitzero\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Envelope","Declare":"/** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */\nexport interface Envelope {\n  /** The profile's version, 1. */\n  \"version\": number;\n  /** request, response, event or cancel. */\n  \"kind\": string;\n  /** What correlates a response or a cancel with its request. */\n  \"id\"?: string;\n  /** The method a request names. */\n  \"method\"?: string;\n  /** A request's parameters. */\n  \"params\"?: unknown;\n  /** A response's result. */\n  \"result\"?: unknown;\n  /** A response's error. */\n  \"error\"?: unknown;\n  /** The event an event frame names. */\n  \"event\"?: string;\n  /** An event's data. */\n  \"data\"?: unknown;\n  /** The W3C Trace Context of the frame. */\n  \"traceparent\"?: string;\n  /** The vendor state of that trace. */\n  \"tracestate\"?: string;\n  /** What a request or an event carries about the call, delivered to the handler beside the payload. */\n  \"meta\"?: Record\u003cstring, string\u003e;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"Envelope","Kind":"record","Description":"One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else.","Key":"","Open":false,"Carried":true,"From":"duplex","Inline":false,"Origin":{"Family":"duplex","Declaration":"Envelope"},"Extends":null,"Parameters":null,"Scope":["S","Item"],"Uses":null,"Fields":[{"Name":"version","Description":"The profile's version, 1.","Type":"integer","Declared":"integer","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"kind","Description":"request, response, event or cancel.","Type":"string","Declared":"string","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"id","Description":"What correlates a response or a cancel with its request.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"method","Description":"The method a request names.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"params","Description":"A request's parameters.","Type":"json","Declared":"json","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"result","Description":"A response's result.","Type":"json","Declared":"json","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"error","Description":"A response's error.","Type":"json","Declared":"json","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"event","Description":"The event an event frame names.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"data","Description":"An event's data.","Type":"json","Declared":"json","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"traceparent","Description":"The W3C Trace Context of the frame.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"tracestate","Description":"The vendor state of that trace.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"meta","Description":"What a request or an event carries about the call, delivered to the handler beside the payload.","Type":{"map":"string"},"Declared":{"map":"string"},"Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"version":0,"kind":"‹kind›","id":"‹id›","method":"‹method›","params":{},"result":{},"error":{},"event":"‹event›","data":{},"traceparent":"‹traceparent›","tracestate":"‹tracestate›","meta":{"‹key›":"‹meta›"}},"UsedBy":[{"Side":"server","Kind":"method","Name":"relay","At":"result"}]},{"Languages":{"go":{"Name":"protocol.Handle","Declare":"type Handle struct {\n\tChannel int64 `json:\"channel\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Handle","Declare":"/** A reference to a channel on the connection that carries the message holding it. */\nexport interface Handle {\n  /** The channel's id on that connection. */\n  \"channel\": number;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"Handle","Kind":"record","Description":"A reference to a channel on the connection that carries the message holding it.","Key":"","Open":false,"Carried":true,"From":"duplex","Inline":false,"Origin":{"Family":"duplex","Declaration":"Handle"},"Extends":null,"Parameters":null,"Scope":["S","Item"],"Uses":null,"Fields":[{"Name":"channel","Description":"The channel's id on that connection.","Type":"integer","Declared":"integer","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Handle","Origin":{"Family":"duplex","Declaration":"Handle"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"channel":0},"UsedBy":null}],"Protocol":true,"Server":{"Extends":["probe"],"Methods":[{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"client.Echo(ctx, params)","Handle":"func (Handler[SEnvelope, SHandle, Item]) Echo(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item], params probeprotocol.Payload) (probeprotocol.Payload, error)"}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"await client.echo(params)","Handle":""}}},"Name":"echo","Description":"","Request":"probe.Payload","Result":"probe.Payload","DeclaredRequest":"probe.Payload","DeclaredResult":"probe.Payload","Errors":null,"Origin":{"Family":"probe","Declaration":"echo"},"Scope":["S","Item"],"Frames":{"Request":{"version":1,"kind":"request","id":"c:1","method":"echo","params":{"text":"‹text›","count":0,"note":"‹note›"}},"Response":{"version":1,"kind":"response","id":"c:1","result":{"text":"‹text›","count":0,"note":"‹note›"}},"Refusals":null},"Weight":{"Request":3,"Result":3}},{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"client.NoArgs(ctx)","Handle":"func (Handler[SEnvelope, SHandle, Item]) NoArgs(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item]) (string, error)"}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"await client.noArgs()","Handle":""}}},"Name":"no_args","Description":"","Request":null,"Result":"string","DeclaredRequest":null,"DeclaredResult":"string","Errors":null,"Origin":{"Family":"probe","Declaration":"no_args"},"Scope":["S","Item"],"Frames":{"Request":{"version":1,"kind":"request","id":"c:1","method":"no_args","params":{}},"Response":{"version":1,"kind":"response","id":"c:1","result":"‹result›"},"Refusals":null},"Weight":{"Request":0,"Result":1}},{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"client.Classify(ctx, params)","Handle":"func (Handler[SEnvelope, SHandle, Item]) Classify(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item], params protocol.Part) (string, error)"}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"await client.classify(params)","Handle":""}}},"Name":"classify","Description":"Dispatches a base part by its tag after the generated binding decodes it.","Request":"Part","Result":"string","DeclaredRequest":"Part","DeclaredResult":"string","Errors":null,"Origin":{"Family":"proof","Declaration":"classify"},"Scope":["S","Item"],"Frames":{"Request":{"version":1,"kind":"request","id":"c:1","method":"classify","params":{"type":"count","value":0}},"Response":{"version":1,"kind":"response","id":"c:1","result":"‹result›"},"Refusals":null},"Weight":{"Request":2,"Result":1}},{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"client.ClassifyRich(ctx, params)","Handle":"func (Handler[SEnvelope, SHandle, Item]) ClassifyRich(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item], params protocol.RichPart) (string, error)"}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"await client.classifyRich(params)","Handle":""}}},"Name":"classify_rich","Description":"Dispatches a widened part by its tag after the generated binding decodes it.","Request":"RichPart","Result":"string","DeclaredRequest":"RichPart","DeclaredResult":"string","Errors":null,"Origin":{"Family":"proof","Declaration":"classify_rich"},"Scope":["S","Item"],"Frames":{"Request":{"version":1,"kind":"request","id":"c:1","method":"classify_rich","params":{"type":"count","value":0}},"Response":{"version":1,"kind":"response","id":"c:1","result":"‹result›"},"Refusals":null},"Weight":{"Request":2,"Result":1}},{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"client.Parts(ctx, params)","Handle":"func (Handler[SEnvelope, SHandle, Item]) Parts(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item], params protocol.PartsRequest) (protocol.Result[protocol.Parts, string], error)"}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"await client.parts(params)","Handle":""}}},"Name":"parts","Description":"The parts of a message, or why there are none.","Request":{"kind":"record","fields":[{"name":"after","type":{"nullable":"string"},"required":false}]},"Result":{"apply":"Result","with":{"E":"string","T":"Parts"}},"DeclaredRequest":"PartsRequest","DeclaredResult":{"apply":"Result","with":{"E":"string","T":"Parts"}},"Errors":null,"Origin":{"Family":"proof","Declaration":"parts"},"Scope":["S","Item"],"Frames":{"Request":{"version":1,"kind":"request","id":"c:1","method":"parts","params":{"after":"‹after›"}},"Response":{"version":1,"kind":"response","id":"c:1","result":{"kind":"err","value":"‹err›"}},"Refusals":null},"Weight":{"Request":1,"Result":2}},{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"client.Relay(ctx, params)","Handle":"func (Handler[SEnvelope, SHandle, Item]) Relay(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item], params protocol.Carried[SEnvelope, SHandle, Item]) (protocol.Option[protocol.Envelope], error)"}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"await client.relay(params)","Handle":""}}},"Name":"relay","Description":"Relays one message of S.","Request":"Carried","Result":{"apply":"Option","with":{"T":"Envelope"}},"DeclaredRequest":"Carried","DeclaredResult":{"apply":"Option","with":{"T":"Envelope"}},"Errors":null,"Origin":{"Family":"proof","Declaration":"relay"},"Scope":["S","Item"],"Frames":{"Request":{"version":1,"kind":"request","id":"c:1","method":"relay","params":{"message":"‹S.Envelope›","back":"‹S.Handle›","page":{"items":["‹Item›"],"next":"‹next›"}}},"Response":{"version":1,"kind":"response","id":"c:1","result":{"kind":"none","value":{}}},"Refusals":null},"Weight":{"Request":4,"Result":1}}],"Events":[{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"remote.EmitChanged(ctx, data)","Handle":""}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"client.onChanged(handler)","Handle":""}}},"Name":"changed","Description":"","Type":"probe.Payload","Declared":"probe.Payload","Origin":{"Family":"probe","Declaration":"changed"},"Scope":["S","Item"],"Frame":{"version":1,"kind":"event","event":"changed","data":{"text":"‹text›","count":0,"note":"‹note›"}},"Weight":3},{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"remote.EmitPartAdded(ctx, data)","Handle":""}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"client.onPartAdded(handler)","Handle":""}}},"Name":"part.added","Description":"A part was added.","Type":"RichPart","Declared":"RichPart","Origin":{"Family":"proof","Declaration":"part.added"},"Scope":["S","Item"],"Frame":{"version":1,"kind":"event","event":"part.added","data":{"type":"count","value":0}},"Weight":2}]},"Client":{"Extends":null,"Methods":null,"Events":null},"Errors":[{"Code":"denied","Description":"The caller is denied"}],"Session":null},{"Name":"session","Source":"nightseam:session","Builtin":true,"Files":["model.json","protocol.json"],"Imports":null,"Carries":["duplex"],"Generic":false,"Parameters":null,"Types":[{"Languages":{"go":{"Name":"protocol.Control","Declare":"type Control struct {\n\tHolder runtime.Nullable[string] `json:\"holder\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Control","Declare":"/** Who holds control of the session, or nobody. */\nexport interface Control {\n  /** The origin that holds control, null where nobody does. */\n  \"holder\": string | null;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"Control","Kind":"record","Description":"Who holds control of the session, or nobody.","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"session","Declaration":"Control"},"Extends":null,"Parameters":null,"Scope":null,"Uses":null,"Fields":[{"Name":"holder","Description":"The origin that holds control, null where nobody does.","Type":{"nullable":"string"},"Declared":{"nullable":"string"},"Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Control","Origin":{"Family":"session","Declaration":"Control"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"holder":"‹holder›"},"UsedBy":[{"Side":"server","Kind":"event","Name":"session.control","At":"data"}]},{"Languages":{"go":{"Name":"protocol.Cursor","Declare":"type Cursor struct {\n\tSequence int64 `json:\"sequence\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Cursor","Declare":"/** Where an attachment stands in the log. */\nexport interface Cursor {\n  /** The sequence of the frame just delivered, or the last the replay read. */\n  \"sequence\": number;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"Cursor","Kind":"record","Description":"Where an attachment stands in the log.","Key":"","Open":false,"Carried":false,"From":"","Inline":false,"Origin":{"Family":"session","Declaration":"Cursor"},"Extends":null,"Parameters":null,"Scope":null,"Uses":null,"Fields":[{"Name":"sequence","Description":"The sequence of the frame just delivered, or the last the replay read.","Type":"integer","Declared":"integer","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Cursor","Origin":{"Family":"session","Declaration":"Cursor"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"sequence":0},"UsedBy":[{"Side":"server","Kind":"event","Name":"session.cursor","At":"data"}]}],"Carried":[{"Languages":{"go":{"Name":"protocol.Envelope","Declare":"type Envelope struct {\n\tVersion     int64                               `json:\"version\"`\n\tKind        string                              `json:\"kind\"`\n\tID          runtime.Optional[string]            `json:\"id,omitzero\"`\n\tMethod      runtime.Optional[string]            `json:\"method,omitzero\"`\n\tParams      runtime.Optional[any]               `json:\"params,omitzero\"`\n\tResult      runtime.Optional[any]               `json:\"result,omitzero\"`\n\tError       runtime.Optional[any]               `json:\"error,omitzero\"`\n\tEvent       runtime.Optional[string]            `json:\"event,omitzero\"`\n\tData        runtime.Optional[any]               `json:\"data,omitzero\"`\n\tTraceparent runtime.Optional[string]            `json:\"traceparent,omitzero\"`\n\tTracestate  runtime.Optional[string]            `json:\"tracestate,omitzero\"`\n\tMeta        runtime.Optional[map[string]string] `json:\"meta,omitzero\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Envelope","Declare":"/** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */\nexport interface Envelope {\n  /** The profile's version, 1. */\n  \"version\": number;\n  /** request, response, event or cancel. */\n  \"kind\": string;\n  /** What correlates a response or a cancel with its request. */\n  \"id\"?: string;\n  /** The method a request names. */\n  \"method\"?: string;\n  /** A request's parameters. */\n  \"params\"?: unknown;\n  /** A response's result. */\n  \"result\"?: unknown;\n  /** A response's error. */\n  \"error\"?: unknown;\n  /** The event an event frame names. */\n  \"event\"?: string;\n  /** An event's data. */\n  \"data\"?: unknown;\n  /** The W3C Trace Context of the frame. */\n  \"traceparent\"?: string;\n  /** The vendor state of that trace. */\n  \"tracestate\"?: string;\n  /** What a request or an event carries about the call, delivered to the handler beside the payload. */\n  \"meta\"?: Record\u003cstring, string\u003e;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"Envelope","Kind":"record","Description":"One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else.","Key":"","Open":false,"Carried":true,"From":"duplex","Inline":false,"Origin":{"Family":"duplex","Declaration":"Envelope"},"Extends":null,"Parameters":null,"Scope":null,"Uses":null,"Fields":[{"Name":"version","Description":"The profile's version, 1.","Type":"integer","Declared":"integer","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"kind","Description":"request, response, event or cancel.","Type":"string","Declared":"string","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"id","Description":"What correlates a response or a cancel with its request.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"method","Description":"The method a request names.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"params","Description":"A request's parameters.","Type":"json","Declared":"json","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"result","Description":"A response's result.","Type":"json","Declared":"json","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"error","Description":"A response's error.","Type":"json","Declared":"json","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"event","Description":"The event an event frame names.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"data","Description":"An event's data.","Type":"json","Declared":"json","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"traceparent","Description":"The W3C Trace Context of the frame.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"tracestate","Description":"The vendor state of that trace.","Type":"string","Declared":"string","Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}},{"Name":"meta","Description":"What a request or an event carries about the call, delivered to the handler beside the payload.","Type":{"map":"string"},"Declared":{"map":"string"},"Required":false,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Envelope","Origin":{"Family":"duplex","Declaration":"Envelope"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"version":0,"kind":"‹kind›","id":"‹id›","method":"‹method›","params":{},"result":{},"error":{},"event":"‹event›","data":{},"traceparent":"‹traceparent›","tracestate":"‹tracestate›","meta":{"‹key›":"‹meta›"}},"UsedBy":null},{"Languages":{"go":{"Name":"protocol.Handle","Declare":"type Handle struct {\n\tChannel int64 `json:\"channel\"`\n}","Invoke":{"Call":"","Handle":""}},"typescript":{"Name":"Protocol.Handle","Declare":"/** A reference to a channel on the connection that carries the message holding it. */\nexport interface Handle {\n  /** The channel's id on that connection. */\n  \"channel\": number;\n}","Invoke":{"Call":"","Handle":""}}},"Name":"Handle","Kind":"record","Description":"A reference to a channel on the connection that carries the message holding it.","Key":"","Open":false,"Carried":true,"From":"duplex","Inline":false,"Origin":{"Family":"duplex","Declaration":"Handle"},"Extends":null,"Parameters":null,"Scope":null,"Uses":null,"Fields":[{"Name":"channel","Description":"The channel's id on that connection.","Type":"integer","Declared":"integer","Required":true,"Nullable":false,"Unique":false,"Min":null,"Max":null,"Length":null,"Pattern":"","Owner":"Handle","Origin":{"Family":"duplex","Declaration":"Handle"}}],"Values":null,"Alias":null,"Tag":"","Value":"value","Variants":null,"Example":{"channel":0},"UsedBy":null}],"Protocol":true,"Server":{"Extends":null,"Methods":null,"Events":[{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"remote.EmitSessionControl(ctx, data)","Handle":""}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"client.onSessionControl(handler)","Handle":""}}},"Name":"session.control","Description":"Who holds control: once on attach, before the replay begins, and on every change.","Type":"Control","Declared":"Control","Origin":{"Family":"session","Declaration":"session.control"},"Scope":null,"Frame":{"version":1,"kind":"event","event":"session.control","data":{"holder":"‹holder›"}},"Weight":1},{"Languages":{"go":{"Name":"","Declare":"","Invoke":{"Call":"remote.EmitSessionCursor(ctx, data)","Handle":""}},"typescript":{"Name":"","Declare":"","Invoke":{"Call":"client.onSessionCursor(handler)","Handle":""}}},"Name":"session.cursor","Description":"Where the attachment stands, straight after each frame it is delivered.","Type":"Cursor","Declared":"Cursor","Origin":{"Family":"session","Declaration":"session.cursor"},"Scope":null,"Frame":{"version":1,"kind":"event","event":"session.cursor","data":{"sequence":0}},"Weight":1}]},"Client":{"Extends":null,"Methods":null,"Events":null},"Errors":null,"Session":null}]}</script>
+<script type="module">
+// Pure views of doc.Checkout. Values, frames and language spellings belong
+// to the document; this writer only selects, annotates and presents them.
+export const list = (v) => v ?? [];
+export const escapeHTML = (v) =>
+  String(v ?? '').replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      })[c],
+  );
+export const route = (...parts) => '#/' + parts.map(encodeURIComponent).join('/');
+export function parseRoute(hash) {
+  if (!hash.startsWith('#/')) return null;
+  try {
+    return hash.slice(2).split('/').map(decodeURIComponent);
+  } catch {
+    return null;
+  }
+}
+export const anchor = (...parts) => route(...parts).slice(1);
+const allTypes = (f) => [...list(f.Types), ...list(f.Carried)];
+const lookup = (atlas, family, name) => atlas.types.get(family)?.get(name);
+const qualified = (family, name) => (name.includes('.') ? name.split('.') : [family, name]);
+
+export function typeText(expr) {
+  if (expr == null) return 'nothing';
+  if (typeof expr === 'string') return expr;
+  if (expr.array) return `${expr.array.nullable ? `(${typeText(expr.array)})` : typeText(expr.array)}[]`;
+  if (expr.map) return `map<string, ${typeText(expr.map)}>`;
+  if (expr.nullable) return `${typeText(expr.nullable)} | null`;
+  if (Object.hasOwn(expr, 'literal')) return JSON.stringify(expr.literal);
+  if (expr.ref) return `key of ${expr.ref}`;
+  if (expr.apply)
+    return `${expr.apply}<${Object.entries(expr.with ?? {})
+      .map(([k, v]) => `${k} = ${typeText(v)}`)
+      .join(', ')}>`;
+  return expr.kind ?? 'value';
+}
+
+// Bind a displayed expression through an application. A binding keeps the
+// lexical family of its filler, including imported and nested applications.
+function resolve(atlas, family, expr, bindings = new Map()) {
+  if (typeof expr === 'string' && bindings.has(expr)) {
+    const b = bindings.get(expr);
+    return resolve(atlas, b.family, b.expr, b.bindings);
+  }
+  if (typeof expr === 'string' && expr.includes('.')) {
+    const [param, name] = expr.split('.');
+    if (bindings.has(param)) {
+      const b = bindings.get(param);
+      return resolve(atlas, b.expr, name, b.bindings);
+    }
+  }
+  if (expr?.apply) {
+    const [owner, name] = qualified(family, expr.apply);
+    const next = new Map(bindings);
+    for (const [p, value] of Object.entries(expr.with ?? {})) next.set(p, { family, expr: value, bindings });
+    return { family: owner, type: lookup(atlas, owner, name), expr, bindings: next };
+  }
+  if (typeof expr === 'string') {
+    const [owner, name] = qualified(family, expr);
+    return { family: owner, type: lookup(atlas, owner, name), expr, bindings };
+  }
+  return { family, expr, bindings };
+}
+
+export function buildAtlas(checkout) {
+  const families = [...list(checkout.Families)].sort((a, b) => Number(!!a.Builtin) - Number(!!b.Builtin));
+  const atlas = {
+    families,
+    types: new Map(families.map((f) => [f.Name, new Map(allTypes(f).map((t) => [t.Name, t]))])),
+    shared: [],
+    languages: [],
+  };
+  const languages = new Set();
+  const names = new Map();
+  for (const f of families) {
+    for (const t of allTypes(f)) {
+      Object.keys(t.Languages ?? {}).forEach((l) => languages.add(l));
+      if (!t.Carried) {
+        if (!names.has(t.Name)) names.set(t.Name, []);
+        names.get(t.Name).push({ family: f.Name, type: t });
+      }
+    }
+    for (const side of [f.Server, f.Client]) {
+      for (const op of [...list(side?.Methods), ...list(side?.Events)])
+        Object.keys(op.Languages ?? {}).forEach((l) => languages.add(l));
+    }
+  }
+  atlas.languages = [...languages].sort();
+  for (const [name, members] of names) {
+    if (members.length < 2) continue;
+    const shapes = members.map((m) => shapeKey(atlas, m.family, m.type.Name));
+    atlas.shared.push({ name, members, same: shapes.every((s) => s === shapes[0]) });
+  }
+  atlas.shared.sort((a, b) => a.name.localeCompare(b.name));
+  return atlas;
+}
+
+export function familyView(atlas, name, lens = 'wire') {
+  const f = atlas.families.find((f) => f.Name === name);
+  if (!f) return null;
+  const exchanges = [];
+  for (const [sideName, side] of [
+    ['server', f.Server],
+    ['client', f.Client],
+  ]) {
+    for (const [kind, ops] of [
+      ['method', side?.Methods],
+      ['event', side?.Events],
+    ]) {
+      for (const op of list(ops)) {
+        const initiator = kind === 'event' ? sideName : sideName === 'server' ? 'client' : 'server';
+        // A side receives calls to its methods and emits its own events.
+        const path = [name, kind, sideName, op.Name];
+        exchanges.push({
+          id: anchor(...path),
+          href: route(...path),
+          name: op.Name,
+          display: op.Languages?.[lens]?.Name || op.Name,
+          kind,
+          side: sideName,
+          initiator,
+          description: op.Description ?? '',
+          op,
+          frames: kind === 'method' ? op.Frames : { Event: op.Frame },
+          weight: kind === 'method' ? (op.Weight?.Request ?? 0) + (op.Weight?.Result ?? 0) : (op.Weight ?? 0),
+        });
+      }
+    }
+  }
+  exchanges.sort((a, b) => (a.initiator === 'client' ? 0 : 1) - (b.initiator === 'client' ? 0 : 1));
+  const types = allTypes(f).map((t) => ({
+    ...t,
+    display: t.Languages?.[lens]?.Name || t.Name,
+    id: anchor(name, 'type', t.Name),
+    href: route(name, 'type', t.Name),
+  }));
+  const errors = list(f.Errors).map((e) => ({
+    ...e,
+    id: anchor(name, 'error', e.Code),
+    href: route(name, 'error', e.Code),
+    also: atlas.families
+      .filter((other) => other.Name !== name && list(other.Errors).some((x) => x.Code === e.Code))
+      .map((f) => f.Name),
+  }));
+  return {
+    family: f,
+    id: anchor(name),
+    exchanges,
+    types,
+    errors,
+    ids: [anchor(name), ...exchanges.map((x) => x.id), ...types.map((t) => t.id), ...errors.map((e) => e.id)],
+  };
+}
+
+export function finder(atlas, query = '') {
+  const entries = [];
+  for (const f of atlas.families) {
+    const v = familyView(atlas, f.Name);
+    entries.push({
+      name: f.Name,
+      family: f.Name,
+      kind: 'family',
+      id: v.id,
+      href: route(f.Name),
+      description: f.Source,
+    });
+    for (const x of v.exchanges) entries.push({ ...x, family: f.Name });
+    for (const t of v.types)
+      entries.push({
+        name: t.Name,
+        family: f.Name,
+        kind: 'type',
+        id: t.id,
+        href: t.href,
+        description: t.Description,
+        aliases: Object.values(t.Languages ?? {})
+          .map((language) => language.Name)
+          .filter(Boolean),
+      });
+    for (const e of v.errors)
+      entries.push({ name: e.Code, family: f.Name, kind: 'error', id: e.id, href: e.href, description: e.Description });
+  }
+  const words = query.toLowerCase().trim().split(/\s+/);
+  return entries.filter((e) =>
+    words.every((w) =>
+      `${e.family} ${e.name} ${e.kind} ${e.description ?? ''} ${list(e.aliases).join(' ')}`.toLowerCase().includes(w),
+    ),
+  );
+}
+
+// Each annotation has the supplied example value. Missing optional fields
+// remain absent, never invented. Recursion is stopped by declaration identity.
+export function annotate(atlas, family, expression, value, options = {}) {
+  const { trail = [], bindings = new Map(), name = '', presence = '', description = '' } = options;
+  const row = { name, type: typeText(expression), value, presence, description, children: [] };
+  const r = resolve(atlas, family, expression, bindings);
+  row.type = typeText(r.expr);
+  const child = (expr, value, extra = {}) =>
+    annotate(atlas, r.family, expr, value, { trail, bindings: r.bindings, ...extra });
+  if (r.type) {
+    const t = r.type;
+    row.kind = t.Kind;
+    row.href = route(r.family, 'type', t.Name);
+    const identity = `${r.family}.${t.Name}`;
+    if (trail.includes(identity)) {
+      row.recursive = true;
+      return row;
+    }
+    const next = [...trail, identity];
+    if (t.Kind === 'alias') {
+      const target = child(t.Alias, value, { trail: next });
+      return {
+        ...target,
+        ...row,
+        kind: target.kind,
+        children: target.children,
+        variants: target.variants,
+        recursive: target.recursive,
+      };
+    }
+    if (t.Kind === 'record' || t.Kind === 'entity') {
+      row.children = list(t.Fields).map((field) =>
+        child(
+          field.Nullable && !(field.Declared ?? field.Type)?.nullable
+            ? { nullable: field.Declared ?? field.Type }
+            : (field.Declared ?? field.Type),
+          value?.[field.Name],
+          {
+            trail: next,
+            name: field.Name,
+            presence: field.Required ? 'required' : 'optional',
+            description: field.Description ?? '',
+          },
+        ),
+      );
+      if (t.Open)
+        row.children.push({
+          name: '…',
+          type: 'json',
+          ghost: true,
+          presence: 'optional',
+          description: 'Additional members are preserved.',
+          children: [],
+        });
+    }
+    if (t.Kind === 'union') {
+      row.variants = list(t.Variants).map((v) => {
+        // Variant examples are built by doc, including the envelope. A
+        // selected arm can also be annotated in a concrete application.
+        const selected = value?.[t.Tag] === v.Tag;
+        const example = selected ? value : v.Example;
+        const declarationExample = !selected && r.bindings.size > 0;
+        const tag = { name: t.Tag, type: JSON.stringify(v.Tag), value: v.Tag, presence: 'required', children: [] };
+        const children = [tag];
+        if (!v.Empty)
+          children.push(
+            child(v.Declared ?? v.Type, example?.[t.Value], {
+              trail: next,
+              name: t.Value,
+              presence: 'required',
+              // The alternate example belongs to the generic declaration.
+              // Only the selected value was instantiated by doc's exampler.
+              bindings: declarationExample ? new Map() : r.bindings,
+            }),
+          );
+        return { tag: v.Tag, example, children, declarationExample };
+      });
+    }
+    if (t.Kind === 'enum') row.values = list(t.Values);
+    return row;
+  }
+  const expr = r.expr;
+  if (expr?.nullable) {
+    const target = child(expr.nullable, value);
+    return {
+      ...target,
+      ...row,
+      kind: target.kind,
+      children: target.children,
+      variants: target.variants,
+      recursive: target.recursive,
+      href: target.href,
+    };
+  }
+  if (expr?.array) {
+    row.kind = 'array';
+    row.children = (Array.isArray(value) ? value : []).map((v, i) => child(expr.array, v, { name: String(i) }));
+  }
+  if (expr?.map) {
+    row.kind = 'map';
+    row.children = Object.entries(value && typeof value === 'object' ? value : {}).map(([name, v]) =>
+      child(expr.map, v, { name }),
+    );
+  }
+  return row;
+}
+
+// Shape is structural: prose, declaration origin and generated language
+// names do not participate; wire members, constraints and variants do.
+export function shapeKey(atlas, family, expression) {
+  function shape(family, expr, trail = [], bindings = new Map()) {
+    const r = resolve(atlas, family, expr, bindings);
+    const child = (e, next = trail) => shape(r.family, e, next, r.bindings);
+    const t = r.type;
+    if (t) {
+      const id = `${r.family}.${t.Name}`;
+      if (trail.includes(id)) return ['recursive', trail.indexOf(id)];
+      const next = [...trail, id];
+      if (t.Kind === 'alias') return child(t.Alias, next);
+      if (t.Kind === 'enum') return ['enum', [...list(t.Values)].sort()];
+      if (t.Kind === 'union')
+        return [
+          'union',
+          t.Tag,
+          t.Value,
+          [...list(t.Variants)]
+            .sort((a, b) => a.Tag.localeCompare(b.Tag))
+            .map((v) => [v.Tag, v.Empty ? 'empty' : child(v.Declared ?? v.Type, next)]),
+        ];
+      return [
+        t.Kind,
+        !!t.Open,
+        t.Key,
+        [...list(t.Fields)]
+          .sort((a, b) => a.Name.localeCompare(b.Name))
+          .map((f) => [
+            f.Name,
+            !!f.Required,
+            !!f.Nullable,
+            !!f.Unique,
+            f.Min,
+            f.Max,
+            f.Length,
+            f.Pattern,
+            child(f.Declared ?? f.Type, next),
+          ]),
+      ];
+    }
+    const e = r.expr;
+    if (e && typeof e === 'object') {
+      if (e.array) return ['array', child(e.array)];
+      if (e.map) return ['map', child(e.map)];
+      if (e.nullable) return ['nullable', child(e.nullable)];
+      if (e.ref) return ['ref', child(e.ref)];
+    }
+    return e;
+  }
+  return JSON.stringify(shape(family, expression));
+}
+
+const esc = escapeHTML;
+const link = (href, label, attributes = '') => `<a href="${esc(href)}" ${attributes}>${esc(label)}</a>`;
+const json = (value) => (value === undefined ? 'absent' : JSON.stringify(value, null, 2));
+const code = (value) => `<pre><code>${esc(value)}</code></pre>`;
+const chip = (text) => `<span class="chip">${esc(text)}</span>`;
+const refRoute = (family, ref) =>
+  ref.Kind === 'type' ? route(family, 'type', ref.Name) : route(family, ref.Kind, ref.Side, ref.Name);
+
+export function annotationHTML(row, depth = 0) {
+  const type = row.href ? link(row.href, row.type) : esc(row.type);
+  const value =
+    row.value && typeof row.value === 'object'
+      ? Array.isArray(row.value)
+        ? `[${row.value.length} items]`
+        : '{…}'
+      : json(row.value);
+  const line = `<div class="annotated-row${row.ghost ? ' ghost' : ''}"><span class="field">${esc(row.name || 'value')} <span class="value">${row.ghost ? '' : esc(value)}</span></span><span class="meaning">${type}${row.presence ? ` · ${esc(row.presence)}` : ''}${row.recursive ? ' · recursive ↩' : ''}</span>${row.description ? `<span class="field-description">${esc(row.description)}</span>` : ''}</div>`;
+  const children = list(row.children)
+    .map((c) => annotationHTML(c, depth + 1))
+    .join('');
+  const variants = list(row.variants)
+    .map(
+      (v) =>
+        `<div class="variant"><span class="small-label">${esc(v.tag)}${v.declarationExample ? ' · declaration example' : ''}</span>${v.children.map((c) => annotationHTML(c, depth + 1)).join('')}</div>`,
+    )
+    .join('');
+  if (!children && !variants) return line;
+  return `${line}<details class="nested"${depth === 0 ? ' open' : ''}><summary>${variants ? `${row.variants.length} variants` : `${row.children.filter((c) => !c.ghost).length} members`}</summary>${children}${variants}</details>`;
+}
+
+function parametersHTML(parameters) {
+  if (!list(parameters).length) return '';
+  return `<div class="parameters"><span class="small-label">Parameters</span>${parameters.map((p) => `<p><strong>${esc(p.Name)}</strong> · ${esc(p.Of || 'type')}${p.Description ? ` — ${esc(p.Description)}` : ''}${list(p.Drawn).length ? `<br><span class="references">Draws ${esc(p.Drawn.join(', '))}</span>` : ''}</p>`).join('')}</div>`;
+}
+
+function frameHTML(atlas, family, title, speaker, frame, expr, member) {
+  if (frame == null) return '';
+  return `<div class="frame"><h4 class="${speaker}"><span class="dot"></span>${esc(title)}</h4>${code(json(frame))}${expr ? `<div class="annotation">${annotationHTML(annotate(atlas, family, expr, frame[member], { name: member }))}</div>` : ''}</div>`;
+}
+
+function exchangeHTML(atlas, f, x, lens) {
+  const op = x.op;
+  const opposite = x.initiator === 'client' ? 'server' : 'client';
+  const session = f.Session;
+  const governance = [
+    x.kind === 'method' && x.side === 'server' && list(session?.Decides).includes(x.name) ? 'decides' : '',
+    x.kind === 'method' && x.side === 'client' && list(session?.Asks).includes(x.name) ? 'asks' : '',
+    x.kind === 'event' && x.side === 'server' && session?.Conversation?.Event === x.name
+      ? `conversation at ${session.Conversation.Path}`
+      : '',
+  ].filter(Boolean);
+  const names = [
+    chip(`wire: ${x.name}`),
+    ...Object.entries(op.Languages ?? {})
+      .filter(([, lang]) => lang.Name)
+      .map(([name, lang]) => chip(`${name}: ${lang.Name}`)),
+  ].join('');
+  const result = x.kind === 'method' ? typeText(op.DeclaredResult) : typeText(op.Declared);
+  const left =
+    x.initiator === 'client'
+      ? `<span class="name client">${esc(x.display)}</span>`
+      : `<span class="response-label">${esc(result)}</span>`;
+  const right =
+    x.initiator === 'server'
+      ? `<span class="name server">${esc(x.display)}</span>`
+      : `<span class="response-label">${esc(result)}</span>`;
+  const frames =
+    x.kind === 'event'
+      ? frameHTML(atlas, f.Name, `${x.initiator} → ${opposite} · event`, x.initiator, op.Frame, op.Declared, 'data')
+      : frameHTML(
+          atlas,
+          f.Name,
+          `${x.initiator} → ${opposite} · request`,
+          x.initiator,
+          op.Frames?.Request,
+          op.DeclaredRequest,
+          'params',
+        ) +
+        frameHTML(
+          atlas,
+          f.Name,
+          `${opposite} → ${x.initiator} · response`,
+          opposite,
+          op.Frames?.Response,
+          op.DeclaredResult,
+          'result',
+        );
+  const refusals = list(op.Frames?.Refusals)
+    .map((r) => frameHTML(atlas, f.Name, `refusal · ${r.Code}`, opposite, r.Frame))
+    .join('');
+  const invocation = op.Languages?.[lens]?.Invoke;
+  return `<details class="exchange" id="${esc(x.id)}"><summary>${left}<span class="direction"><span>${x.initiator === 'client' ? '→' : '←'} ${esc(x.kind)}</span></span>${right}</summary><div class="anatomy"><p class="description">${esc(x.description)}</p><div class="chips">${names}${governance.map(chip).join('')}${op.Origin?.Family && op.Origin.Family !== f.Name ? chip(`from ${op.Origin.Family}`) : ''}${link(x.href, 'Permalink', 'class="chip"')}</div>${list(op.Errors).length ? `<p class="references">Can fail with ${op.Errors.map((e) => link(route(f.Name, 'error', e), e)).join(' · ')}</p>` : ''}<div class="frames">${frames}</div>${refusals ? `<h3 class="declaration">Failures on the wire</h3><div class="frames">${refusals}</div>` : ''}${invocation ? `<div class="frames declaration">${invocation.Call ? `<div><h3>Call</h3>${code(invocation.Call)}</div>` : ''}${invocation.Handle ? `<div><h3>Handle</h3>${code(invocation.Handle)}</div>` : ''}</div>` : ''}</div></details>`;
+}
+
+export function familyHTML(atlas, name, lens = 'wire') {
+  const v = familyView(atlas, name, lens);
+  if (!v) return `<p class="empty">This family is not in the checkout.</p>`;
+  const f = v.family;
+  const count = v.exchanges.length;
+  const max = Math.max(1, ...v.exchanges.map((x) => x.weight));
+  const hall = v.exchanges
+    .map((x) =>
+      link(
+        x.href,
+        '',
+        `class="${x.initiator}" title="${esc(x.name)} · ${x.weight} values" aria-label="${esc(x.name)}"`,
+      ).replace('></a>', `><i style="height:${12 + Math.round((52 * x.weight) / max)}px"></i></a>`),
+    )
+    .join('');
+  const board = ['client', 'server']
+    .map((side) => {
+      const exchanges = v.exchanges.filter((x) => x.initiator === side);
+      return exchanges.length
+        ? `<div class="group-label ${side}">${side} begins · ${exchanges.length}</div>${exchanges.map((x) => exchangeHTML(atlas, f, x, lens)).join('')}`
+        : '';
+    })
+    .join('');
+  const vocabulary = v.types
+    .map(
+      (t) =>
+        `<article class="vocab-row" id="${esc(t.id)}">${link(t.href, t.display)}<div><p>${esc(t.Description)}</p><div class="chips">${chip(t.Kind)}${t.Inline ? chip('derived inline') : ''}${t.Carried ? chip(`carried from ${t.From}`) : ''}${list(
+          t.Parameters,
+        )
+          .map((p) => chip(`${p.Name}: ${p.Of || 'type'}`))
+          .join(
+            '',
+          )}</div>${list(t.UsedBy).length ? `<div class="references">Used by ${t.UsedBy.map((ref) => link(refRoute(name, ref), `${ref.Name} · ${ref.At}`)).join('')}</div>` : ''}</div></article>`,
+    )
+    .join('');
+  const errors = v.errors
+    .map(
+      (e) =>
+        `<article class="error-row" id="${esc(e.id)}">${link(e.href, e.Code)}<div><p>${esc(e.Description)}</p><div class="references">${v.exchanges
+          .filter((x) => list(x.op.Errors).includes(e.Code))
+          .map((x) => link(x.href, x.name))
+          .join(
+            '',
+          )}${e.also.length ? `Also in ${e.also.map((n) => link(route(n, 'error', e.Code), n)).join('')}` : ''}</div></div></article>`,
+    )
+    .join('');
+  const shared = atlas.shared
+    .map(
+      (s) =>
+        `<tr><td>${esc(s.name)}</td><td>${s.members.map((m) => link(route(m.family, 'type', s.name), m.family)).join('')}</td><td>${s.same ? 'same shape' : 'different shapes'}</td></tr>`,
+    )
+    .join('');
+  return `<div id="${esc(v.id)}" class="hero"><div><span class="eyebrow">Protocol atlas / ${esc(f.Builtin ? 'built-in family' : 'family')}</span><h1>${esc(f.Name)}<span class="client">.</span></h1><p class="lede">${f.Protocol ? 'What each side says, what it carries, and the vocabulary they share.' : 'The shared vocabulary, its shapes and the values they carry.'}</p><div class="facts"><span><strong>${count}</strong> exchanges</span><span><strong>${v.types.length}</strong> types</span><span><strong>${v.errors.length}</strong> errors</span></div></div><div><div class="legend"><span class="client"><i class="dot"></i>Client / lamp</span><span class="server"><i class="dot"></i>Server / moon</span></div><div class="hall" aria-label="Exchanges weighted by example values">${hall || '<span class="small-label">A vocabulary without exchanges</span>'}</div><p class="hall-caption">One mark per exchange. Height follows the values it carries.</p></div></div><nav class="section-nav" aria-label="Sections"><a href="${esc(route(name, 'section', 'board'))}">01 Exchanges</a><a href="${esc(route(name, 'section', 'vocabulary'))}">02 Vocabulary</a><a href="${esc(route(name, 'section', 'errors'))}">03 Errors</a><a href="${esc(route(name, 'section', 'across'))}">04 Across families</a></nav>${parametersHTML(f.Parameters)}${f.Session?.Conversation ? `<p class="references">Conversation arrives at ${link(route(name, 'event', 'server', f.Session.Conversation.Event), f.Session.Conversation.Event)} · ${esc(f.Session.Conversation.Path)}</p>` : ''}<section id="${esc(anchor(name, 'section', 'board'))}"><div class="section-heading"><span class="section-no">01</span><h2>The exchange board</h2><span class="section-note">Open a row to see its anatomy</span></div><div class="board-head"><span class="client">CLIENT</span><span>ON THE WIRE</span><span class="server">SERVER</span></div>${board || '<p class="empty">This family declares no exchanges.</p>'}</section><section id="${esc(anchor(name, 'section', 'vocabulary'))}"><div class="section-heading"><span class="section-no">02</span><h2>A shared vocabulary</h2><span class="section-note">Open a type to explore its shape</span></div>${vocabulary || '<p class="empty">No types declared.</p>'}</section><section id="${esc(anchor(name, 'section', 'errors'))}"><div class="section-heading"><span class="section-no">03</span><h2>When an exchange fails</h2></div>${errors || '<p class="empty">No public errors declared.</p>'}</section><section id="${esc(anchor(name, 'section', 'across'))}"><div class="section-heading"><span class="section-no">04</span><h2>Across families</h2></div>${shared ? `<table class="comparison"><thead><tr><th>Shared name</th><th>Declared in</th><th>Wire shape</th></tr></thead><tbody>${shared}</tbody></table>` : '<p class="empty">No type name is shared by multiple families.</p>'}</section>`;
+}
+
+export function typeHTML(atlas, family, name, lens = 'wire') {
+  const t = lookup(atlas, family, name);
+  if (!t) return '<h2 id="drawer-title">Type not found</h2>';
+  const language = t.Languages?.[lens];
+  const metadata = [
+    t.Inline ? 'Derived from an inline shape.' : '',
+    t.Open ? 'Open record.' : '',
+    t.Key ? `Identity: ${t.Key}.` : '',
+    t.Alias ? `Alias of ${typeText(t.Alias)}.` : '',
+    list(t.Extends).length ? `Extends ${t.Extends.map(typeText).join(', ')}.` : '',
+    list(t.Uses).length
+      ? `Uses ${t.Uses.map((u) => (u.Type ? `${u.Parameter}.${u.Type}` : u.Parameter)).join(', ')}.`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return `<span class="eyebrow">${esc(family)} / ${esc(t.Kind)}</span><h2 id="drawer-title">${esc(language?.Name || t.Name)}</h2><p class="description">${esc(t.Description)}</p><div class="type-meta">${esc(metadata)}</div>${parametersHTML(t.Parameters)}${code(json(t.Example))}<div class="annotation">${annotationHTML(annotate(atlas, family, name, t.Example))}</div>${list(t.Values).length ? `<p>Values: ${esc(t.Values.map((v) => JSON.stringify(v)).join(' · '))}</p>` : ''}${list(t.UsedBy).length ? `<h3 class="declaration">Used by</h3><div class="references">${t.UsedBy.map((r) => link(refRoute(family, r), `${r.Name} · ${r.At}`)).join('')}</div>` : ''}${language?.Declare ? `<h3 class="declaration">Declaration · ${esc(lens)}</h3>${code(language.Declare)}` : ''}`;
+}
+
+// Thin DOM layer; the builders above also run in Node without a browser.
+const atlas = buildAtlas(JSON.parse(document.getElementById('nightseam-document').textContent));
+const main = document.getElementById('content');
+const drawer = document.getElementById('drawer');
+const searchDialog = document.getElementById('finder');
+const lensSelect = document.getElementById('lens');
+let currentFamily = '';
+let breadcrumbs = [];
+let lens = 'wire';
+let returnFocus = null;
+
+for (const language of atlas.languages) {
+  const option = document.createElement('option');
+  option.value = language;
+  option.textContent = language;
+  lensSelect.append(option);
+}
+lensSelect.disabled = atlas.languages.length === 0;
+if (lensSelect.disabled) lensSelect.title = 'This document contains wire names only.';
+
+function navigate({ force = false } = {}) {
+  // The skip link stays in the current family once its view exists.
+  const section = location.hash === '#content';
+  if (section && !force && currentFamily) return;
+  const parts = section ? [currentFamily] : parseRoute(location.hash || '#/');
+  const name = parts?.[0] || atlas.families[0]?.Name;
+  const view = familyView(atlas, name, lens);
+  document.getElementById('families').innerHTML = atlas.families
+    .map((f) => link(route(f.Name), f.Name, f.Name === name ? 'aria-current="page"' : ''))
+    .join('');
+  if (!view) {
+    main.innerHTML = `<p class="empty">${atlas.families.length ? 'This route is not in the checkout. Choose a family above.' : 'This checkout has no families.'}</p>`;
+    drawer.close();
+    return;
+  }
+  const open = new Set([...main.querySelectorAll('details.exchange[open]')].map((e) => e.id));
+  const focusHref = document.activeElement?.getAttribute('href');
+  if (name !== currentFamily) breadcrumbs = [];
+  currentFamily = name;
+  main.innerHTML = familyHTML(atlas, name, lens);
+  for (const id of open) {
+    const el = document.getElementById(id);
+    if (el) el.open = true;
+  }
+  if (parts?.[1] === 'type' && view.types.some((t) => t.Name === parts[2])) {
+    const href = route(name, 'type', parts[2]);
+    const existing = breadcrumbs.findIndex((b) => b.href === href);
+    if (existing >= 0) breadcrumbs = breadcrumbs.slice(0, existing + 1);
+    else breadcrumbs.push({ href, name: parts[2] });
+    document.getElementById('breadcrumbs').innerHTML =
+      link(route(name), name) + ' / ' + breadcrumbs.map((b) => link(b.href, b.name)).join(' / ');
+    document.getElementById('type-detail').innerHTML = typeHTML(atlas, name, parts[2], lens);
+    drawer.scrollTop = 0;
+    if (!drawer.open) {
+      returnFocus = [...main.querySelectorAll('a')].find((a) => a.getAttribute('href') === focusHref) || main;
+      drawer.showModal();
+    }
+    return;
+  }
+  if (drawer.open) drawer.close();
+  if (parts?.length > 1) {
+    const id = anchor(...parts);
+    const target = document.getElementById(id);
+    if (target) {
+      if (target.tagName === 'DETAILS') target.open = true;
+      target.scrollIntoView({ block: 'start' });
+    } else main.insertAdjacentHTML('afterbegin', '<p role="status" class="empty">That item is not in this family.</p>');
+  } else if (!section) window.scrollTo({ top: 0 });
+}
+
+function search() {
+  const results = finder(atlas, document.getElementById('search').value);
+  document.getElementById('results').innerHTML = results.length
+    ? results
+        .map(
+          (e) =>
+            `<a class="search-result" href="${esc(e.href)}"><span>${esc(e.name)}</span><small>${esc(e.family)} · ${esc(e.kind)}</small></a>`,
+        )
+        .join('')
+    : '<p class="empty">No matching names or descriptions.</p>';
+}
+function openFinder() {
+  search();
+  searchDialog.showModal();
+  document.getElementById('search').focus();
+}
+document.getElementById('find').addEventListener('click', openFinder);
+document.getElementById('search').addEventListener('input', search);
+document.getElementById('search').addEventListener('keydown', (event) => {
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    document.querySelector('#results a')?.focus();
+  }
+  if (event.key === 'Enter') document.querySelector('#results a')?.click();
+});
+document.getElementById('results').addEventListener('keydown', (event) => {
+  if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+  const entries = [...document.querySelectorAll('#results a')];
+  const index = entries.indexOf(document.activeElement);
+  const next = entries[index + (event.key === 'ArrowDown' ? 1 : -1)];
+  if (next) {
+    event.preventDefault();
+    next.focus();
+  }
+});
+document.addEventListener('keydown', (event) => {
+  if (
+    event.key === '/' &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName) &&
+    !drawer.open &&
+    !searchDialog.open
+  ) {
+    event.preventDefault();
+    openFinder();
+  }
+});
+document.addEventListener('click', (event) => {
+  const close = event.target.closest('[data-close]');
+  if (close) document.getElementById(close.dataset.close).close();
+  const a = event.target.closest('a[href^="#/"]');
+  if (!a || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  if (searchDialog.open) searchDialog.close();
+  if (a.getAttribute('href') === location.hash) {
+    event.preventDefault();
+    navigate();
+  }
+});
+drawer.addEventListener('close', () => {
+  if (parseRoute(location.hash)?.[1] === 'type') {
+    history.replaceState(null, '', route(currentFamily));
+    returnFocus?.focus();
+  }
+});
+lensSelect.addEventListener('change', () => {
+  lens = lensSelect.value;
+  navigate({ force: true });
+});
+document.getElementById('theme').addEventListener('click', () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  root.dataset.theme = dark ? 'light' : 'dark';
+});
+window.addEventListener('hashchange', navigate);
+navigate();
+
+</script>
+</body>
+</html>

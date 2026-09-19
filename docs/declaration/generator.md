@@ -132,6 +132,42 @@ family, a page across them — is rendered on every run, after the families,
 from every family the checkout has, whole or not at all: a family with a
 diagnostic refuses it, naming itself.
 
+`atlas` writes that checkout view to `api/spec/index.html`: one HTML file
+with the document embedded in it. Open it locally to explore exchanges,
+request/response/refusal frames, annotated examples, types and their uses,
+errors, and same-named types across families. The finder searches names and
+descriptions; the URL fragment links to a family, exchange, type or error.
+The type drawer follows references with breadcrumbs. A name lens and code
+blocks appear for the language metadata available in the document; without
+it the page shows wire names. No language spelling is derived in the page.
+Referenced built-in families appear once in the checkout document, so an
+inherited session operation's payload links to its complete definition.
+
+The atlas uses local fonts and makes no network requests by default. Its
+checkout config sets a title, enables optional Newsreader and IBM Plex Mono
+webfonts, or overrides design tokens:
+
+```json
+{
+  "targets": {
+    "atlas": {
+      "title": "Our protocol atlas",
+      "webfonts": false,
+      "tokens": {"--lamp": "#975308", "--moon": "#286b88"}
+    }
+  }
+}
+```
+
+The accepted tokens are `--bg`, `--surface`, `--hover`, `--ink`, `--ink-2`,
+`--hair`, `--hair-2`, `--lamp`, `--moon`, `--lamp-tint`, `--moon-tint`,
+`--lamp-line`, `--moon-line`, `--scrim`, `--shadow`, `--serif`, `--mono`,
+`--measure`, `--cl` and `--cr`. Unknown tokens are refused. Values cannot
+inject stylesheet rules or load a remote resource; `webfonts: true` is the
+explicit opt-in to remote fonts. The page follows the system color theme,
+offers a theme switch, and honors reduced motion. Add `"atlas"` to
+`disabled` to omit it.
+
 The specification includes inherited fields, union variants, operations,
 errors and session governance, while retaining the declared bases and the
 origin of inherited members. Shapes written inline appear under their
