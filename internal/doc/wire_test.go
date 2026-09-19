@@ -82,6 +82,64 @@ func TestExamplesOfEveryForm(t *testing.T) {
 	}
 }
 
+// worker documents the worker family of cmd/nightseam/testdata/families,
+// whose live tier declares callables: what a document says a live value looks
+// like where one is carried.
+func worker(t *testing.T) *Family {
+	t.Helper()
+	root := filepath.Join("..", "..", "cmd", "nightseam", "testdata", "families", "api", "contracts")
+	families := map[string]map[string]string{}
+	for _, name := range []string{"worker"} {
+		entries, err := os.ReadDir(filepath.Join(root, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		families[name] = map[string]string{}
+		for _, entry := range entries {
+			data, err := os.ReadFile(filepath.Join(root, name, entry.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			families[name][entry.Name()] = string(data)
+		}
+	}
+	return Build(render.Build(analysis.Resolve(analysis.World(modeltest.World(families)), "worker")), nil)
+}
+
+// TestACallablesExampleIsTheReferenceThatNamesIt: a live value on the wire is
+// a reference to a binding, so that is what the document shows — of the
+// callable itself, of a record holding one, and inside a container and a sum.
+// The example a document emits is a value both validators accept; null is not
+// one here, and was what a kind the synthesizer did not know fell through to.
+//
+// It is what the value looks like crossing the seam, not what a consumer
+// writes: a consumer writes a function and the generated codec exports it.
+func TestACallablesExampleIsTheReferenceThatNamesIt(t *testing.T) {
+	f := worker(t)
+	for name, want := range map[string]string{
+		"Cancel":       `{"binding":"‹binding›","contract":"worker/Cancel"}`,
+		"Report":       `{"binding":"‹binding›","contract":"worker/Report"}`,
+		"ProgressSink": `{"report":{"binding":"‹binding›","contract":"worker/Report"}}`,
+		"Watchers":     `[{"binding":"‹binding›","contract":"worker/Report"}]`,
+		"Sinks":        `{"‹key›":{"report":{"binding":"‹binding›","contract":"worker/Report"}}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			declared := typed(f, name)
+			if declared == nil {
+				t.Fatalf("the worker family declares no %s", name)
+			}
+			if got := string(declared.Example); got != want {
+				t.Errorf("example of %s is %s; want %s", name, got, want)
+			}
+		})
+	}
+	// A data type of the same family is untouched: the reference form reaches
+	// exactly the positions that carry a callable.
+	if got := string(typed(f, "Ticket").Example); !strings.Contains(got, "‹id›") || strings.Contains(got, "binding") {
+		t.Errorf("a data type's example became a reference: %s", got)
+	}
+}
+
 // Every variant has its own complete envelope, including inherited arms.
 // An empty record remains a payload, and recursive arms fold at the same
 // declaration boundary as the type's primary example.
