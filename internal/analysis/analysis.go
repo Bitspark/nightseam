@@ -647,13 +647,6 @@ func (f *Family) ResolveShape(e model.TypeExpr) (*Family, *model.Type, bool) {
 	return nil, nil, false
 }
 
-// Shape is the declaration an expression denotes. Call ResolveShape when
-// resolving anything inside it so imported declarations keep their scope.
-func (f *Family) Shape(e model.TypeExpr) (*model.Type, bool) {
-	_, shape, ok := f.ResolveShape(e)
-	return shape, ok
-}
-
 func isShape(t *model.Type) bool {
 	return t != nil && (t.Kind == model.KindRecord || t.Kind == model.KindEntity || t.Kind == model.KindUnion)
 }
