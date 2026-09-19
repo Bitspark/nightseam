@@ -33,7 +33,7 @@ func install[SEnvelope, SHandle any](handler Handler[SEnvelope, SHandle], option
 	}
 	handlers["attach"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.AttachParams
-		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"AttachParams\""), raw); err != nil {
+		if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"AttachParams\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -43,7 +43,7 @@ func install[SEnvelope, SHandle any](handler Handler[SEnvelope, SHandle], option
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"Attachment\""), result); err != nil {
+		if err = protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Attachment\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -53,7 +53,7 @@ func install[SEnvelope, SHandle any](handler Handler[SEnvelope, SHandle], option
 	}
 	handlers["relay"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.Frame[SEnvelope]
-		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Frame\""), raw); err != nil {
+		if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Frame\""), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -63,7 +63,7 @@ func install[SEnvelope, SHandle any](handler Handler[SEnvelope, SHandle], option
 		if err != nil {
 			return nil, err
 		}
-		if err = protocol.ValidateValue(protocol.MustTypeExpression("\"probe.Envelope\""), result); err != nil {
+		if err = protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateValue(protocol.MustTypeExpression("\"probe.Envelope\""), result); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -96,7 +96,7 @@ func Serve[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx c
 	return runtime.NewPeer(ctx, conn, runtime.ServerRole, options)
 }
 func (c *Remote[SEnvelope, SHandle]) EmitFrameRelayed(ctx context.Context, data protocol.Frame[SEnvelope]) error {
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"Frame\""), data); err != nil {
+	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Frame\""), data); err != nil {
 		return err
 	}
 	return c.Peer.Emit(ctx, "frame.relayed", data)

@@ -13,7 +13,9 @@ beside them, `api/spec/<f>/README.md`, is the family's own reference.
 
 `api/go/<f>-protocol`, `-binding` and `-client`, each owned wholesale. A
 consumer imports the protocol package for the types, serves the binding
-package's `Handler`, and calls through the client package.
+package's `Handler`, and calls through the client package. A family with only
+a model generates the protocol package's types and validator; binding and
+client helpers require a protocol.
 
 ### The protocol package
 
@@ -24,8 +26,13 @@ carries from the built-in `duplex` family:
 | --- | --- |
 | a record | a struct with `json` tags; a field not `required` is `runtime.Optional[T]`, one `nullable` is `runtime.Nullable[T]`, both where it is both; an `open` record keeps what it did not declare in `AdditionalFields map[string]json.RawMessage` |
 | an enum | a string type with one constant per value, `StatusReady Status = "ready"` |
-| an alias | a named type over the expression, `type Payloads []Payload` |
+| an alias | a Go alias of the expression, `type Payloads = []Payload`, retaining the aliased type's codecs and schema metadata |
 | a `map` | `map[string]T` |
+| a literal | a defined string type and typed constant, such as `LiteralReady` and `LiteralReadyValue`; equal literals in one family share them |
+| a nullable expression | `runtime.Nullable[T]`, including inside arrays, maps and applications |
+| a type parameter | a Go parameter constrained by `any`; it can sit beside the types drawn through a family parameter |
+| an inline shape | a declaration under its derived name, retaining the enclosing type parameters it uses |
+| a union | a concrete struct with one exported pointer per alternative, a typed `Kind()` result and its own JSON codec; exactly one pointer must be selected |
 | `duplex.Envelope`, `duplex.Handle` | one message of the profile, and a reference to a channel that speaks it, `Handle{Channel int64}` — carried, not declared ([a tier is a built-in family](../decisions/a-tier-is-a-built-in-family.md)) |
 
 Every record marshals and unmarshals itself, keeping presence and nullness
@@ -34,6 +41,24 @@ apart on the way through, and every record and enum returns the package's
 to what fills it ([generics](generics.md#how-each-language-instantiates-it)).
 A `timestamp` is `time.Time`, an `integer` `int64`, a `number` `float64`,
 `json` `any`.
+
+A union carries every payload whole under its declared value member. A
+record alternative reuses its record type; another payload uses a generated
+`<Union><Variant>Value` wrapper with a `Value` field. An empty alternative is
+a selected `*struct{}` and writes only the tag. An extending union reuses the
+base's payload types and pointers, including imported and applied bases.
+`WidenRichPartFromPart` includes a base value; `NarrowRichPartToPart` returns
+the base value and a boolean, false for an extended-only or invalid selection.
+An imported base's family prefixes its name in these helpers. The precise
+names and collision rules are held by `conformance/tables/naming.json`.
+
+Generated records, enums, unions and literal types expose `WireType()` for
+automatic runtime validation of Go type arguments. Codecs bind ordinary
+parameters and family draws before validation, so nested generic values
+retain literal constraints, nullness and their declaring family's schema.
+Consumers pass Go type arguments without codec arguments or registration.
+An extended side includes its base operations with their bound types and
+source naming overrides; a base client can call the extended binding.
 
 The family's public errors are a constant per error, `ErrorNotFound =
 "not_found"`, the list `Errors`, and `IsError(err error, code string) bool`,

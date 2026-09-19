@@ -21,6 +21,7 @@ type file struct {
 	w       *emit.Writer
 	imports *emit.Imports
 	prefix  string
+	uses    []render.Use // lexical type parameters of the declaration being emitted
 }
 
 func (f *file) line(text string)                 { f.w.Line(text) }
@@ -77,33 +78,68 @@ func (f *file) spell(e model.TypeExpr) string {
 			return "any"
 		}
 	case model.Named:
-		return f.proto() + f.plan.types[x.Name] + apply(f.family.Type(x.Name).Uses)
+		for _, use := range f.uses {
+			if use.Parameter == x.Name && use.Type == "" {
+				return parameterName(use)
+			}
+		}
+		return f.named("", x.Name) + apply(f.family.Type(x.Name).Uses)
 	case model.Imported:
-		return f.peer(x.Family) + "." + x.Name + apply(f.family.ImportedUses(x.Family, x.Name))
+		return f.named(x.Family, x.Name) + f.arguments(f.family.Arguments(model.Apply{Family: x.Family, Name: x.Name}))
 	case model.Drawn:
 		return parameterName(render.Use{Parameter: x.Parameter, Type: x.Name})
 	case model.Array:
 		return "[]" + f.spell(x.Elem)
 	case model.Map:
 		return "map[string]" + f.spell(x.Elem)
+	case model.Nullable:
+		return f.runtime() + ".Nullable[" + f.spell(x.Elem) + "]"
+	case model.Literal:
+		return f.proto() + f.plan.literals[x.Value].name
 	case model.Ref:
 		return f.spell(f.keyType(x.Entity))
 	case model.Apply:
-		var args []string
-		for _, argument := range f.family.Arguments(x) {
-			if argument.Parameter != "" {
-				args = append(args, parameterName(render.Use{Parameter: argument.Parameter, Type: argument.Use.Type}))
-			} else {
-				args = append(args, f.peer(argument.Family)+"."+argument.Use.Type)
-			}
+		return f.named(x.Family, x.Name) + f.arguments(f.family.Arguments(x))
+	case model.Inline:
+		t := f.family.InlineType(x)
+		arguments := apply(t.Uses)
+		if t.Arguments != nil {
+			arguments = f.arguments(t.Arguments)
 		}
-		rendered := f.peer(x.Family) + "." + x.Name
-		if len(args) > 0 {
-			rendered += "[" + strings.Join(args, ", ") + "]"
-		}
-		return rendered
+		return f.named(t.Origin.Family, t.Name) + arguments
 	}
 	return "any"
+}
+
+func (f *file) named(family, name string) string {
+	if family == "" || family == f.family.Name {
+		return f.proto() + f.plan.types[name]
+	}
+	source := f.family.ReferencedFamily(family)
+	if source != nil {
+		if override, ok := source.Override(Name, name); ok {
+			name = override
+		}
+	}
+	return f.peer(family) + "." + name
+}
+
+func (f *file) arguments(arguments []render.Argument) string {
+	if len(arguments) == 0 {
+		return ""
+	}
+	var args []string
+	for _, argument := range arguments {
+		switch {
+		case argument.Type != nil:
+			args = append(args, f.spell(argument.Type))
+		case argument.Parameter != "":
+			args = append(args, parameterName(render.Use{Parameter: argument.Parameter, Type: argument.Use.Type}))
+		default:
+			args = append(args, f.named(argument.Family, argument.Use.Type))
+		}
+	}
+	return "[" + strings.Join(args, ", ") + "]"
 }
 
 // keyType is the type of an entity's key: what a ref to it is on the wire.
@@ -173,12 +209,19 @@ func (f *file) entry(uses []render.Use) string {
 	}
 	var constrained, tags []string
 	for _, use := range uses {
+		if use.Type == "" {
+			constrained = append(constrained, parameterName(use)+" any")
+			continue
+		}
 		constrained = append(constrained, parameterName(use)+" "+f.runtime()+".Of["+tagName(use.Parameter)+"]")
 		if tag := tagName(use.Parameter); !slices.Contains(tags, tag) {
 			tags = append(tags, tag)
 		}
 	}
-	return "[" + strings.Join(constrained, ", ") + ", " + strings.Join(tags, ", ") + " any]"
+	if len(tags) > 0 {
+		constrained = append(constrained, strings.Join(tags, ", ")+" any")
+	}
+	return "[" + strings.Join(constrained, ", ") + "]"
 }
 
 // request is the parameter a method's signature takes, or nothing.

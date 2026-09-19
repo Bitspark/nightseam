@@ -15,6 +15,11 @@ are one number. Entries are in the words of the commits that landed them.
   instantiated Go types without losing named constraints. Both runtimes use
   the ruled Unicode pattern semantics, held by shared values and Node
   differential checks, including large counts and surrogate escapes.
+- The Go target renders the settled type language: concrete unions with
+  adjacent payloads and widening/narrowing helpers, literals, nullable and
+  inline shapes, mixed type and family parameters, and inherited sides.
+  Generated codecs retain the supplied types' validation constraints;
+  model-only families generate their types without protocol helpers.
 
 ## 0.4.0 - 2026-09-19
 

@@ -18,7 +18,9 @@ func emitTypes(f *file) {
 	p := f.plan
 	f.line("// Tag is this family, as a type: what every record and enum of the package returns from Of, and what an entry point of a package generic in a family holds its type arguments to.")
 	f.linef("type %s struct{}", identTag)
+	f.emitLiterals()
 	for _, t := range f.family.Types {
+		f.uses = t.Uses
 		name := p.types[t.Name]
 		switch t.Kind {
 		case "record", "entity":
@@ -26,13 +28,15 @@ func emitTypes(f *file) {
 			if t.Description != "" {
 				f.linef("// %s: %s", name, t.Description)
 			}
-			var fields []string
+			var fields, fieldNames []string
 			for _, field := range t.Fields {
+				fieldNames = append(fieldNames, quote(field.Name))
 				tag := field.Name
 				if !field.Required {
 					tag += ",omitzero"
 				}
-				fields = append(fields, fmt.Sprintf("%s %s `json:%q`", p.fields[field.Owner+"."+field.Name], f.fieldType(field), tag))
+				fieldName, _ := p.fieldName(field)
+				fields = append(fields, fmt.Sprintf("%s %s `json:%q`", fieldName, f.fieldType(field), tag))
 			}
 			if t.Open {
 				fields = append(fields, fmt.Sprintf("%s map[string]%s.RawMessage `json:\"-\"`", identAdditionalFields, f.std("json")))
@@ -63,18 +67,18 @@ func emitTypes(f *file) {
 					f.linef("var obj map[string]%s.RawMessage", json)
 					f.linef("if err = %s.Unmarshal(data, &obj); err != nil { return nil, err }", json)
 					f.line("declared := map[string]bool{}")
-					f.linef("for _, key := range schema.Fields(%q) { declared[key] = true }", t.Name)
+					f.linef("for _, key := range []string{%s} { declared[key] = true }", strings.Join(fieldNames, ", "))
 					f.linef("for key, value := range v.%s {", identAdditionalFields)
 					f.linef("\tif declared[key] { return nil, %s.Errorf(\"additional field overlaps declared field %%s\", key) }", f.std("fmt"))
 					f.line("\tobj[key] = value")
 					f.line("}")
 					f.linef("if data, err = %s.Marshal(obj); err != nil { return nil, err }", json)
 				}
-				f.linef("if err = %s(%q, data); err != nil { return nil, err }", identValidateRaw, t.Name)
+				f.linef("if err = %s; err != nil { return nil, err }", f.validateType(t, "data"))
 				f.line("return data, nil")
 			})
 			f.w.Block(fmt.Sprintf("func (v *%s) %s(data []byte) error {", self, identUnmarshalJSON), "}", func() {
-				f.linef("if err := %s(%q, data); err != nil { return err }", identValidateRaw, t.Name)
+				f.linef("if err := %s; err != nil { return err }", f.validateType(t, "data"))
 				if local != "" {
 					f.line(local)
 				}
@@ -84,12 +88,13 @@ func emitTypes(f *file) {
 				if t.Open {
 					f.linef("var fields map[string]%s.RawMessage", json)
 					f.linef("if err := %s.Unmarshal(data, &fields); err != nil { return err }", json)
-					f.linef("for _, key := range schema.Fields(%q) { delete(fields, key) }", t.Name)
+					f.linef("for _, key := range []string{%s} { delete(fields, key) }", strings.Join(fieldNames, ", "))
 					f.linef("v.%s = fields", identAdditionalFields)
 				}
 				f.line("return nil")
 			})
 			f.linef("func (%s) %s() %s { return %s{} }", self, identOf, identTag, identTag)
+			f.emitWireType(t)
 		case "enum":
 			f.line("")
 			if t.Description != "" {
@@ -102,14 +107,20 @@ func emitTypes(f *file) {
 				}
 			})
 			f.linef("func (%s) %s() %s { return %s{} }", name, identOf, identTag, identTag)
+			f.emitWireType(t)
 		case "alias":
 			f.line("")
 			if t.Description != "" {
 				f.linef("// %s: %s", name, t.Description)
 			}
 			f.linef("type %s%s = %s", name, declare(t.Uses), f.spell(t.Alias))
+		case "union":
+			f.emitUnion(t, f.unionVariants(t))
+			f.emitWireType(t)
+			f.emitUnionConversions(t, f.unionBases(t))
 		}
 	}
+	f.uses = f.family.Uses
 	// The public errors the family declares: a handler returns one as a
 	// *runtime.PublicError, a caller tells them apart by code.
 	if len(f.family.Errors) > 0 {

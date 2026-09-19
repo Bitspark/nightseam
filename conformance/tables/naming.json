@@ -118,5 +118,51 @@
       "name": "WorkItemAPIURL",
       "why": "every step takes the same convention as a name of its own, initialisms in capitals"
     }
-  ]
+  ],
+  "goUnions": {
+    "description": "A concrete Go union uses exported pointers for its variants and Kind() returns its generated string kind type. The kind type and constants derive from the final Go union name, including a type-name override; each pointer field derives from the wire variant tag. A non-record payload's wrapper appends that field and Value to the union name; records reuse their existing type and empty variants use struct{}. An inherited variant keeps its declaring union's wrapper, with its applied arguments. Kind, MarshalJSON, UnmarshalJSON, Of and WireType are methods reserved in the union's member namespace. The codec must refuse zero or multiple selected variants. Conversion helpers are Widen<Extended>From<Base> and Narrow<Extended>To<Base>; an imported base is prefixed with the upper camel spelling of its family, and both type names honor their own overrides.",
+    "rows": [
+      {
+        "name": "Part",
+        "tag": "text",
+        "kindType": "PartKind",
+        "field": "Text",
+        "constant": "PartKindText",
+        "wrapper": "PartTextValue"
+      },
+      {
+        "name": "Part",
+        "tag": "work_item_id",
+        "kindType": "PartKind",
+        "field": "WorkItemID",
+        "constant": "PartKindWorkItemID",
+        "wrapper": "PartWorkItemIDValue"
+      },
+      {
+        "name": "Packet",
+        "tag": "frame.relayed",
+        "kindType": "PacketKind",
+        "field": "FrameRelayed",
+        "constant": "PacketKindFrameRelayed",
+        "wrapper": "PacketFrameRelayedValue"
+      },
+      {
+        "name": "Part",
+        "override": "Message",
+        "tag": "json",
+        "kindType": "MessageKind",
+        "field": "JSON",
+        "constant": "MessageKindJSON",
+        "wrapper": "MessageJSONValue"
+      }
+    ]
+  },
+  "goLiterals": {
+    "description": "A Go literal has a defined string type and a typed constant so its constraint survives automatic generic argument binding. Equal literal values in a family share the same type; a named alias retains that type's WireType metadata. The type is Literal followed by the upper camel spelling of the value, and the constant appends Value. Normalized names that collide are diagnosed in the package namespace.",
+    "rows": [
+      { "value": "ready", "type": "LiteralReady", "constant": "LiteralReadyValue" },
+      { "value": "api_url", "type": "LiteralAPIURL", "constant": "LiteralAPIURLValue" },
+      { "value": "3d", "type": "Literal3d", "constant": "Literal3dValue" }
+    ]
+  }
 }

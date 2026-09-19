@@ -89,14 +89,14 @@ func Open[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any
 func (c *Client[AEnvelope, BEnvelope]) Close() error { return c.Peer.Close() }
 func (c *Client[AEnvelope, BEnvelope]) Look(ctx context.Context, params protocol.Mine[AEnvelope]) (protocol.Both[AEnvelope, BEnvelope], error) {
 	var result protocol.Both[AEnvelope, BEnvelope]
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"Mine\""), params); err != nil {
+	if err := protocol.WireSchema().Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Mine\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "look", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Both\""), raw); err != nil {
+	if err := protocol.WireSchema().Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Both\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {

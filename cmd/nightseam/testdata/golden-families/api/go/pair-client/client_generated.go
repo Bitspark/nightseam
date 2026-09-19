@@ -99,14 +99,14 @@ func Open[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtim
 func (c *Client[SEnvelope, SHandle, TEnvelope]) Close() error { return c.Peer.Close() }
 func (c *Client[SEnvelope, SHandle, TEnvelope]) Named(ctx context.Context, params protocol.Named) (protocol.Named, error) {
 	var result protocol.Named
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"Named\""), params); err != nil {
+	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Named\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "named", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Named\""), raw); err != nil {
+	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Named\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -116,14 +116,14 @@ func (c *Client[SEnvelope, SHandle, TEnvelope]) Named(ctx context.Context, param
 }
 func (c *Client[SEnvelope, SHandle, TEnvelope]) Relay(ctx context.Context, params TEnvelope) (protocol.Both[SEnvelope, SHandle, TEnvelope], error) {
 	var result protocol.Both[SEnvelope, SHandle, TEnvelope]
-	if err := protocol.ValidateValue(protocol.MustTypeExpression("\"T.Envelope\""), params); err != nil {
+	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateValue(protocol.MustTypeExpression("\"T.Envelope\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := c.Peer.Call(ctx, "relay", params, &raw); err != nil {
 		return result, err
 	}
-	if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Both\""), raw); err != nil {
+	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Both\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -133,7 +133,7 @@ func (c *Client[SEnvelope, SHandle, TEnvelope]) Relay(ctx context.Context, param
 }
 func (c *Client[SEnvelope, SHandle, TEnvelope]) OnEchoed(handler func(context.Context, protocol.Echo[TEnvelope])) error {
 	return c.Peer.HandleEvent("echoed", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
-		if err := protocol.ValidateExpressionRaw(protocol.MustTypeExpression("\"Echo\""), raw); err != nil {
+		if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Echo\""), raw); err != nil {
 			_ = peer.Close()
 			return
 		}

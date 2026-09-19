@@ -25,13 +25,13 @@ func (v Account) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Account", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Account", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Account) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Account", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Account", data); err != nil {
 		return err
 	}
 	type wire Account
@@ -43,6 +43,9 @@ func (v *Account) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Account) Of() Tag { return Tag{} }
+func (Account) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Account"}
+}
 
 // Envelope: One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else.
 type Envelope struct {
@@ -66,13 +69,13 @@ func (v Envelope) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Envelope", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Envelope) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Envelope", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Envelope", data); err != nil {
 		return err
 	}
 	type wire Envelope
@@ -84,6 +87,9 @@ func (v *Envelope) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Envelope) Of() Tag { return Tag{} }
+func (Envelope) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Envelope"}
+}
 
 // Handle: A reference to a channel on the connection that carries the message holding it.
 type Handle struct {
@@ -96,13 +102,13 @@ func (v Handle) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Handle", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Handle) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Handle", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Handle", data); err != nil {
 		return err
 	}
 	type wire Handle
@@ -114,6 +120,9 @@ func (v *Handle) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Handle) Of() Tag { return Tag{} }
+func (Handle) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Handle"}
+}
 
 // Transfer: A transfer between two accounts, by their keys.
 type Transfer struct {
@@ -128,13 +137,13 @@ func (v Transfer) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = ValidateRaw("Transfer", data); err != nil {
+	if err = schema.ValidateExpressionRaw("Transfer", data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 func (v *Transfer) UnmarshalJSON(data []byte) error {
-	if err := ValidateRaw("Transfer", data); err != nil {
+	if err := schema.ValidateExpressionRaw("Transfer", data); err != nil {
 		return err
 	}
 	type wire Transfer
@@ -146,3 +155,6 @@ func (v *Transfer) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Transfer) Of() Tag { return Tag{} }
+func (Transfer) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema, Type: "Transfer"}
+}

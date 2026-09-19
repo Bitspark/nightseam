@@ -69,7 +69,7 @@ func TestCheckRejectsWhatGoCannotGenerate(t *testing.T) {
 		"event helper collision":          {map[string]string{"model.json": fixtureModel, "protocol.json": fixtureProtocol(``), "go.json": `{"names": {"run": "OnChanged"}}`}, "generated_name_collision", "protocol.json#/server/events/changed"},
 		"peer field collision":            {map[string]string{"model.json": fixtureModel, "protocol.json": fixtureProtocol(``), "go.json": `{"names": {"run": "Peer"}}`}, "reserved_name", "go.json#/names/run"},
 		"Go operation collision":          {map[string]string{"model.json": fixtureModel, "protocol.json": modeltest.Protocol(`"server": {"methods": {"run": {"result": "string"}, "other": {"result": "string"}}}`), "go.json": `{"names": {"other": "Run"}}`}, "generated_name_collision", "protocol.json#/server/methods/run"},
-		"reserved type":                   {map[string]string{"model.json": m(`"Client": {"kind": "record", "fields": []}`)}, "reserved_name", "model.json#/types/Client"},
+		"reserved type":                   {map[string]string{"model.json": m(`"Tag": {"kind": "record", "fields": []}`)}, "reserved_name", "model.json#/types/Tag"},
 		"a type that is a keyword":        {map[string]string{"model.json": m(`"Func": {"kind": "record", "fields": []}`), "go.json": `{"names": {"Func": "func"}}`}, "invalid_name", "go.json#/names/Func"},
 		"enum generated collision":        {map[string]string{"model.json": m(`"Status": {"kind": "enum", "values": ["in-progress", "in_progress"]}`)}, "generated_name_collision", "model.json#/types/Status/values/1"},
 		"enum type collision":             {map[string]string{"model.json": m(`"Status": {"kind": "enum", "values": [""]}`)}, "generated_name_collision", "model.json#/types/Status/values/0"},
