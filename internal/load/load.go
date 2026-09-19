@@ -154,7 +154,7 @@ func strayFile(name string) (family string, ok bool) {
 // all.
 func Family(fsys fs.FS, dir, name string, targets []string) (*model.Family, []diag.Diagnostic) {
 	problems := diag.List{Family: name}
-	family := &model.Family{Name: name, Types: map[string]*model.Type{}, Overrides: map[string]json.RawMessage{}}
+	family := &model.Family{Name: name, Source: dir, Types: map[string]*model.Type{}, Overrides: map[string]json.RawMessage{}}
 	entries, err := fs.ReadDir(fsys, dir)
 	if err != nil {
 		problems.Add(diag.Location{}, "unreadable", err.Error())
