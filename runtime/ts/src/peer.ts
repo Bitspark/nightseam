@@ -684,7 +684,10 @@ export class DuplexPeer {
     void Promise.resolve()
       .then(() => {
         // The peer can close or cancel before the handler's first microtask.
-        if (controller.signal.aborted) throw new DuplexError('cancelled', 'Request was cancelled.');
+        if (controller.signal.aborted) {
+          this.respond(id, incoming, undefined, new DuplexError('cancelled', 'Request was cancelled.'), 'cancelled');
+          return;
+        }
         const handler = this.handlers.get(method);
         if (handler) return handler(params, context);
         if (this.options.dispatch) return this.options.dispatch(method, params, context);
@@ -720,11 +723,13 @@ export class DuplexPeer {
 
   private respond(id: string, incoming: Incoming, result?: unknown, error?: DuplexError, outcome?: Outcome): void {
     if (incoming.responded || this.incoming.get(id) !== incoming || !this.isOpen()) return;
-    // A request that was withdrawn is answered `cancelled` whatever its
-    // handler returned: the work outlived the asking for it, and what the
-    // caller is told is that the request was abandoned.
-    if (!error && incoming.controller.signal.aborted) error = new DuplexError('cancelled', 'Request was cancelled.');
-    outcome ??= error ? (error.code === 'cancelled' ? 'cancelled' : 'error') : 'ok';
+    // A result returned after withdrawal becomes a local cancellation. A
+    // handler's public refusal stays an error, whatever its code says.
+    if (!error && incoming.controller.signal.aborted) {
+      error = new DuplexError('cancelled', 'Request was cancelled.');
+      outcome ??= 'cancelled';
+    }
+    outcome ??= error ? 'error' : 'ok';
     incoming.responded = true;
     clearTimeout(incoming.timer);
     const frame: Envelope = { version: 1, kind: 'response', id };

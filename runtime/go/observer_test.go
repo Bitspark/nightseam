@@ -409,6 +409,62 @@ func TestAnObserverSeesEveryOutcomeOfARequest(t *testing.T) {
 	receive(t, remote.Done())
 }
 
+func TestAnObserverTreatsPublicCancellationCodesAsRefusals(t *testing.T) {
+	for _, code := range []string{"cancelled", "request_timeout"} {
+		t.Run(code, func(t *testing.T) {
+			client, server := new(recorder), new(recorder)
+			peer, _ := newPair(t, ws.Options{
+				Observer: server,
+				Handlers: map[string]ws.Handler{
+					"deny": func(context.Context, *ws.Peer, json.RawMessage) (any, error) {
+						return nil, &ws.PublicError{Code: code, Message: "Refused."}
+					},
+				},
+			}, ws.Options{Observer: client})
+			var refusal *ws.PublicError
+			if err := peer.Call(context.Background(), "deny", nil, nil); !errors.As(err, &refusal) || refusal.Code != code {
+				t.Fatalf("call = %v, want public refusal %s", err, code)
+			}
+			for side, observed := range map[string]*recorder{"caller": client, "receiver": server} {
+				if ended, ok := found[ws.RequestEnded](observed.all()); !ok || ended.Outcome != ws.OutcomeErrored || ended.ErrorCode != code {
+					t.Fatalf("%s ending = %+v, found=%t", side, ended, ok)
+				}
+			}
+		})
+	}
+}
+
+func TestAnObserverKeepsAPublicRefusalAfterWithdrawal(t *testing.T) {
+	started := make(chan struct{}, 1)
+	ended := make(chan ws.RequestEnded, 1)
+	peer, _ := newPair(t, ws.Options{
+		Observer: observerFunc(func(event ws.ObserverEvent) {
+			if e, ok := event.(ws.RequestEnded); ok {
+				ended <- e
+			}
+		}),
+		Handlers: map[string]ws.Handler{
+			"deny": func(ctx context.Context, _ *ws.Peer, _ json.RawMessage) (any, error) {
+				started <- struct{}{}
+				<-ctx.Done()
+				return nil, &ws.PublicError{Code: "cancelled", Message: "Refused."}
+			},
+		},
+	}, ws.Options{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	returned := make(chan error, 1)
+	go func() { returned <- peer.Call(ctx, "deny", nil, nil) }()
+	receive(t, started)
+	cancel()
+	if err := receive(t, returned); !errors.Is(err, context.Canceled) {
+		t.Fatalf("call = %v, want context canceled", err)
+	}
+	if event := receive(t, ended); !event.Incoming || event.Outcome != ws.OutcomeErrored || event.ErrorCode != "cancelled" {
+		t.Fatalf("handler's public refusal = %+v", event)
+	}
+}
+
 func TestAnObserverSeesTheLocalEndingBeforeItsCancel(t *testing.T) {
 	for _, timeout := range []bool{false, true} {
 		name, outcome, code := "cancelled", ws.OutcomeCancelled, "cancelled"
