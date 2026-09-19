@@ -173,8 +173,8 @@ func TestRenderUnionDistinguishesAbsentPayload(t *testing.T) {
 		Name: "Choice", Kind: "union", Tag: "kind", Value: "payload",
 		Variants: []render.Variant{
 			{Variant: model.Variant{Tag: "none"}},
-			{Variant: model.Variant{Tag: "maybe", Type: model.Nullable{Elem: model.Primitive("string")}}},
-			{Variant: model.Variant{Tag: "record", Type: model.Named{Name: "EmptyRecord"}}},
+			{Variant: model.Variant{Tag: "maybe"}, DeclaredType: model.Nullable{Elem: model.Primitive("string")}},
+			{Variant: model.Variant{Tag: "record"}, DeclaredType: model.Named{Name: "EmptyRecord"}},
 		},
 	})
 	files, err := New(Config{}).Render(family)

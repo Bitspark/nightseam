@@ -25,7 +25,9 @@ are one number. Entries are in the words of the commits that landed them.
   sides and their session governance. Its source addresses and inherited
   entity references retain their declaration provenance. Union specifications
   describe the complete payload under the value member, including records,
-  according to the lossless carrier verdict.
+  according to the lossless carrier verdict. Explicit inheritance bindings
+  appear beside their bases, and inherited members retain their substituted
+  type expressions and entity-reference ownership.
 - The declaration language gained the type language of #55's eight
   verdicts, whole and in one lane. **Unions**: `{"kind": "union", "tag":
   "type", "variants": {…}}`, internally tagged with a declared

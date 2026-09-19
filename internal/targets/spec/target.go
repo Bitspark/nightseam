@@ -314,7 +314,11 @@ func (d *doc) declarations(types []*render.Type) {
 		}
 		if len(t.Extends) > 0 {
 			d.line("")
-			d.linef("Extends %s.", codes(t.Extends))
+			var bases []string
+			for _, edge := range t.Extends {
+				bases = append(bases, d.spell(edge.Expression(), t.Origin.Family, t.Scope))
+			}
+			d.linef("Extends %s.", strings.Join(bases, ", "))
 		}
 		if len(t.Parameters) > 0 {
 			d.line("")
@@ -347,10 +351,10 @@ func (d *doc) declarations(types []*render.Type) {
 					presence += ", nullable"
 				}
 				description := field.Description
-				if field.Owner != t.Name {
-					description = strings.TrimSpace("inherited from `" + field.Owner + "`. " + description)
+				if field.Owner != t.Name || field.Origin.Family != t.Origin.Family {
+					description = strings.TrimSpace("inherited from " + code(d.qualified(field.Origin.Family, field.Owner)) + ". " + description)
 				}
-				d.linef("| `%s` | %s | %s | %s | %s |", field.Name, cell(d.spell(field.Type, field.Origin.Family, t.Scope)), presence, constraints(field), cell(description))
+				d.linef("| `%s` | %s | %s | %s | %s |", field.Name, cell(d.spell(field.DeclaredType, field.Origin.Family, t.Scope)), presence, constraints(field), cell(description))
 			}
 		case "enum":
 			var values []string
@@ -371,8 +375,8 @@ func (d *doc) declarations(types []*render.Type) {
 			for _, variant := range t.Variants {
 				tag, _ := json.Marshal(variant.Tag)
 				payload := "—"
-				if variant.Type != nil {
-					payload = d.spell(variant.Type, variant.Origin.Family, t.Scope)
+				if variant.DeclaredType != nil {
+					payload = d.spell(variant.DeclaredType, variant.Origin.Family, variant.Scope)
 				}
 				d.linef("| %s | %s | %s |", cell(code(string(tag))), cell(payload), code(d.qualified(variant.Origin.Family, variant.Origin.Declaration)))
 			}
@@ -390,22 +394,31 @@ func (d *doc) side(name, intro string, side render.Side) {
 	d.line(intro)
 	if len(side.Extends) > 0 {
 		d.line("")
-		d.linef("Extends the %s side of %s.", strings.ToLower(name), d.families(side.Extends))
+		var scope []model.Parameter
+		for _, parameter := range d.f.Parameters {
+			scope = append(scope, model.Parameter{Name: parameter.Name, Of: parameter.Of})
+		}
+		var bases []string
+		for _, edge := range side.Extends {
+			base := code(edge.Name)
+			if edge.Applied() {
+				base += " with " + d.fillers(edge.With, d.f.Name, scope)
+			}
+			bases = append(bases, base)
+		}
+		d.linef("Extends the %s side of %s.", strings.ToLower(name), strings.Join(bases, ", "))
 	}
 	if len(side.Methods) > 0 {
 		d.line("")
 		d.line("| Method | Request | Result | Errors | Description |")
 		d.line("|---|---|---|---|---|")
 		for _, m := range side.Methods {
-			requestType, resultType := m.Request, m.Result
-			if m.Declaration != nil {
-				requestType, resultType = m.Declaration.Request, m.Declaration.Result
-			}
+			requestType, resultType := m.BoundDeclaration.Request, m.BoundDeclaration.Result
 			request := "—"
 			if requestType != nil {
-				request = d.spell(requestType, m.Origin.Family, nil)
+				request = d.spell(requestType, m.Origin.Family, m.Scope)
 			}
-			d.linef("| `%s` | %s | %s | %s | %s |", m.Name, cell(request), cell(d.spell(resultType, m.Origin.Family, nil)), codes(m.Errors), cell(d.inherited(m.Description, m.Origin.Family)))
+			d.linef("| `%s` | %s | %s | %s | %s |", m.Name, cell(request), cell(d.spell(resultType, m.Origin.Family, m.Scope)), codes(m.Errors), cell(d.inherited(m.Description, m.Origin.Family)))
 		}
 	}
 	if len(side.Events) > 0 {
@@ -413,11 +426,7 @@ func (d *doc) side(name, intro string, side render.Side) {
 		d.line("| Event | Data | Description |")
 		d.line("|---|---|---|")
 		for _, e := range side.Events {
-			data := e.Type
-			if e.Declaration != nil {
-				data = e.Declaration.Type
-			}
-			d.linef("| `%s` | %s | %s |", e.Name, cell(d.spell(data, e.Origin.Family, nil)), cell(d.inherited(e.Description, e.Origin.Family)))
+			d.linef("| `%s` | %s | %s |", e.Name, cell(d.spell(e.BoundDeclaration.Type, e.Origin.Family, e.Scope)), cell(d.inherited(e.Description, e.Origin.Family)))
 		}
 	}
 }
@@ -462,28 +471,36 @@ func (d *doc) spell(e model.TypeExpr, owner string, scope []model.Parameter) str
 		value, _ := json.Marshal(x.Value)
 		return "the literal " + code(string(value))
 	case model.Ref:
-		return "reference to " + code(d.qualified(owner, x.Entity))
+		family := x.Family
+		if family == "" {
+			family = owner
+		}
+		return "reference to " + code(d.qualified(family, x.Entity))
 	case model.Inline:
 		if declaration := d.f.InlineType(x); declaration != nil {
 			return code(d.qualified(declaration.Origin.Family, declaration.Name))
 		}
 	case model.Apply:
-		var with []string
-		for _, parameter := range sortedKeys(x.With) {
-			filler := x.With[parameter]
-			value := filler.Family
-			if value == "" {
-				value = d.spell(filler.Type, owner, scope)
-			}
-			with = append(with, parameter+"="+value)
-		}
 		family := x.Family
 		if family == "" {
 			family = owner
 		}
-		return code(d.qualified(family, x.Name)) + " with " + strings.Join(with, ", ")
+		return code(d.qualified(family, x.Name)) + " with " + d.fillers(x.With, owner, scope)
 	}
 	return "`" + model.String(e) + "`"
+}
+
+func (d *doc) fillers(bindings map[string]model.Filler, owner string, scope []model.Parameter) string {
+	var with []string
+	for _, parameter := range sortedKeys(bindings) {
+		filler := bindings[parameter]
+		value := filler.Family
+		if value == "" {
+			value = d.spell(filler.Type, owner, scope)
+		}
+		with = append(with, parameter+"="+value)
+	}
+	return strings.Join(with, ", ")
 }
 
 // code uses a delimiter longer than any backtick run in a literal, so its

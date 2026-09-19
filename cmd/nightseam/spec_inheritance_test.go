@@ -17,7 +17,7 @@ func TestSpecificationBindsInheritedTypeParameters(t *testing.T) {
 			"Base":{"kind":"record","parameters":[{"name":"T"}],"fields":[{"name":"item","type":"T"}]},
 			"Forwarded":{"kind":"record","parameters":[{"name":"Item"}],"extends":[{"apply":"Base","with":{"T":"Item"}}],"fields":[]},
 			"Bound":{"kind":"record","extends":[{"apply":"Base","with":{"T":{"array":{"nullable":"string"}}}}],"fields":[]},
-			"Choice":{"kind":"union","parameters":[{"name":"T"}],"tag":"kind","variants":{"item":"T"}},
+			"Choice":{"kind":"union","parameters":[{"name":"T"}],"tag":"kind","variants":{"item":"T","none":{"empty":true}}},
 			"Extended":{"kind":"union","parameters":[{"name":"Item"}],"extends":[{"apply":"Choice","with":{"T":"Item"}}],"tag":"kind","variants":{"count":"integer"}}
 		}}`)},
 	}
@@ -28,7 +28,7 @@ func TestSpecificationBindsInheritedTypeParameters(t *testing.T) {
 	}{
 		{"Forwarded", []string{"Extends `Base` with T=`Item`.", "| `item` | `Item` |", "inherited from `Base`"}},
 		{"Bound", []string{"Extends `Base` with T=array of nullable `string`.", "| `item` | array of nullable `string` |"}},
-		{"Extended", []string{"Extends `Choice` with T=`Item`.", "| `\"item\"` | `Item` | `Choice` |", "| `\"count\"` | `integer` | `Extended` |"}},
+		{"Extended", []string{"Extends `Choice` with T=`Item`.", "| `\"item\"` | `Item` | `Choice` |", "| `\"none\"` | — | `Choice` |", "| `\"count\"` | `integer` | `Extended` |"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			section := specificationSection(t, document, "### "+test.name)
@@ -64,6 +64,43 @@ func TestSpecificationBindsInheritedSideParameters(t *testing.T) {
 	} {
 		if !strings.Contains(document, want) {
 			t.Errorf("the applied side omits %q:\n%s", want, document)
+		}
+	}
+}
+
+// Both families deliberately call their entity Entity. The filler belongs to
+// the caller, while an unbound reference in an inherited declaration belongs
+// to the source. Lowering both to key types would erase this distinction.
+func TestSpecificationKeepsReferenceArgumentScope(t *testing.T) {
+	files := fstest.MapFS{
+		"contracts/base/model.json": {Data: []byte(`{"nightseam":2,"types":{
+			"Entity":{"kind":"entity","key":"id","fields":[{"name":"id","type":"string"}]},
+			"Box":{"kind":"record","parameters":[{"name":"Item"}],"fields":[
+				{"name":"argument","type":"Item"},{"name":"source","type":{"ref":"Entity"}}
+			]}
+		}}`)},
+		"contracts/base/protocol.json": {Data: []byte(`{"profile":"nightseam.duplex/1","parameters":[{"name":"T"}],"server":{
+			"methods":{"echo":{"result":"T"}},"events":{"selected":{"type":{"ref":"Entity"}}}
+		}}`)},
+		"contracts/child/model.json": {Data: []byte(`{"nightseam":2,"imports":["base"],"types":{
+			"Entity":{"kind":"entity","key":"id","fields":[{"name":"id","type":"integer"}]},
+			"Bound":{"kind":"record","extends":[{"apply":"base.Box","with":{"Item":{"ref":"Entity"}}}],"fields":[]}
+		}}`)},
+		"contracts/child/protocol.json": {Data: []byte(`{"profile":"nightseam.duplex/1","server":{
+			"extends":[{"apply":"base","with":{"T":{"ref":"Entity"}}}]
+		}}`)},
+	}
+	document := renderSpecificationFixture(t, files, "child")
+	for _, want := range []string{
+		"Extends `base.Box` with Item=reference to `Entity`.",
+		"| `argument` | reference to `Entity` |",
+		"| `source` | reference to `base.Entity` |",
+		"Extends the server side of `base` with T=reference to `Entity`.",
+		"| `echo` | — | reference to `Entity` |",
+		"| `selected` | reference to `base.Entity` |",
+	} {
+		if !strings.Contains(document, want) {
+			t.Errorf("the applied declaration loses reference ownership; missing %q:\n%s", want, document)
 		}
 	}
 }
