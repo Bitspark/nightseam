@@ -379,9 +379,11 @@ function exchangeHTML(atlas, f, x, lens) {
   const opposite = x.initiator === 'client' ? 'server' : 'client';
   const session = f.Session;
   const governance = [
-    list(session?.Decides).includes(x.name) ? 'decides' : '',
-    list(session?.Asks).includes(x.name) ? 'asks' : '',
-    session?.Conversation?.Event === x.name ? `conversation at ${session.Conversation.Path}` : '',
+    x.kind === 'method' && x.side === 'server' && list(session?.Decides).includes(x.name) ? 'decides' : '',
+    x.kind === 'method' && x.side === 'client' && list(session?.Asks).includes(x.name) ? 'asks' : '',
+    x.kind === 'event' && x.side === 'server' && session?.Conversation?.Event === x.name
+      ? `conversation at ${session.Conversation.Path}`
+      : '',
   ].filter(Boolean);
   const names = [
     chip(`wire: ${x.name}`),

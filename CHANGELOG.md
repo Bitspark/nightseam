@@ -29,6 +29,10 @@ are one number. Entries are in the words of the commits that landed them.
   enabled languages beside types and operations; declarations and handler
   signatures come from generated sources, and every call snippet is held
   to the language's compiler.
+- The generator writes a self-contained HTML atlas at `api/spec/index.html`,
+  with an exchange board, wire frames, annotated types, search and family
+  comparisons. Checkout config sets its title, design tokens and optional
+  webfonts; the default page uses local fonts and makes no network requests.
 - The specification is a document the generator builds once from the
   declaration, `internal/doc`, and writers render: every type with an
   example value of it and where it is used, every operation as the frames

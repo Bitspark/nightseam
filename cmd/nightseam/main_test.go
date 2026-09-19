@@ -318,7 +318,7 @@ func TestCommands(t *testing.T) {
 		t.Fatalf("check passed an ungenerated checkout: %v\n%s", err, errs)
 	}
 	out, _, err = run(t, root, "generate", "probe")
-	if err != nil || strings.Count(out, "generated ") != 18 {
+	if err != nil || strings.Count(out, "generated ") != 19 {
 		t.Fatalf("generate: %v\n%s", err, out)
 	}
 	if _, err := os.Stat(filepath.Join(root, "api", "ts", "probe-client", "src", "index.ts")); err != nil {
