@@ -12,7 +12,6 @@ import (
 func TestImportedGenericBindings(t *testing.T) {
 	const typeSlot = `[{"name":"T"}]`
 	const familySlot = `[{"name":"P","of":"protocol"}]`
-	const sessionSlot = `[{"name":"P","of":"session"}]`
 	const mixedSlots = `[{"name":"T"},{"name":"P","of":"protocol"}]`
 	const record = `"kind":"record","fields":[{"name":"item","type":%s}]`
 	peer := func(parameters, body string, onFamily bool) string {
@@ -25,7 +24,6 @@ func TestImportedGenericBindings(t *testing.T) {
 		return peer(parameters, fmt.Sprintf(record, item), onFamily)
 	}
 	const oneFamily = `[{"name":"S","of":"protocol"}]`
-	const oneSession = `[{"name":"S","of":"session"}]`
 	const twoFamilies = `[{"name":"S","of":"protocol"},{"name":"R","of":"protocol"}]`
 	const onlyType = `[{"name":"T"}]`
 	const mixedCaller = `[{"name":"S","of":"protocol"},{"name":"U"}]`
@@ -51,14 +49,11 @@ func TestImportedGenericBindings(t *testing.T) {
 		"compatible family slot":                           {peer: plainRecord(familySlot, `"P.Envelope"`, true), valid: true},
 		"compatible declaration family slot":               {peer: plainRecord(familySlot, `"P.Envelope"`, false), valid: true},
 		"extra caller type does not make family ambiguous": {peer: plainRecord(familySlot, `"P.Envelope"`, true), parameters: mixedCaller, valid: true},
-		"stronger family bound":                            {peer: plainRecord(familySlot, `"P.Envelope"`, true), parameters: oneSession, valid: true},
-		"weaker family bound":                              {peer: plainRecord(sessionSlot, `"P.Envelope"`, true)},
-		"weaker bound on declaration slot":                 {peer: plainRecord(sessionSlot, `"P.Envelope"`, false)},
 		"plain concrete type":                              {peer: plainRecord(`[]`, `"string"`, false), valid: true},
 		"explicit declaration type":                        {peer: plainRecord(typeSlot, `"T"`, false), expression: `{"apply":"peer.Box","with":{"T":{"array":{"nullable":"string"}}}}`, valid: true},
 		"explicit family type":                             {peer: plainRecord(typeSlot, `"T"`, true), expression: `{"apply":"peer.Box","with":{"T":"integer"}}`, valid: true},
 		"explicit mixed arguments":                         {peer: plainRecord(mixedSlots, `{"kind":"record","fields":[{"name":"value","type":"T"},{"name":"frame","type":"P.Envelope"}]}`, false), expression: `{"apply":"peer.Box","with":{"T":"string","P":"probe"}}`, valid: true},
-		"explicit family argument":                         {peer: plainRecord(sessionSlot, `"P.Envelope"`, true), expression: `{"apply":"peer.Box","with":{"P":"probe"}}`, valid: true},
+		"explicit family argument":                         {peer: plainRecord(familySlot, `"P.Envelope"`, true), expression: `{"apply":"peer.Box","with":{"P":"probe"}}`, valid: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			parameters := tc.parameters
@@ -71,7 +66,7 @@ func TestImportedGenericBindings(t *testing.T) {
 			}
 			var slots string
 			switch parameters {
-			case oneFamily, oneSession:
+			case oneFamily:
 				slots = `,{"name":"slot","type":"S.Envelope"}`
 			case twoFamilies:
 				slots = `,{"name":"slot","type":"S.Envelope"},{"name":"other","type":"R.Envelope"}`
@@ -87,7 +82,6 @@ func TestImportedGenericBindings(t *testing.T) {
 				"api/contracts/x/protocol.json":     {Data: []byte(`{"profile":"nightseam.duplex/1","parameters":` + parameters + `,"types":{"Use":{"kind":"record","fields":[{"name":"box","type":` + expression + `}` + slots + `]}}}`)},
 				"api/contracts/probe/model.json":    {Data: []byte(`{"nightseam":2}`)},
 				"api/contracts/probe/protocol.json": {Data: []byte(`{"profile":"nightseam.duplex/1"}`)},
-				"api/contracts/probe/session.json":  {Data: []byte(`{}`)},
 			}
 			world := Load(files, "api/contracts", nil)
 			for family, problems := range world.Problems {

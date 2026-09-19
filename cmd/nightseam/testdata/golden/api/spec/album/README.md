@@ -10,8 +10,8 @@ The tiers it declares bring the built-in family `duplex`, imported implicitly.
 
 The family is instantiated by filling these parameters:
 
-- **A**: a family with the `session` tier, drawn at `Envelope`.
-- **B**: a family with the `session` tier, drawn at `Envelope`.
+- **A**: a family with the `protocol` tier, drawn at `Envelope`.
+- **B**: a family with the `protocol` tier, drawn at `Envelope`.
 
 ## Types
 
@@ -35,7 +35,7 @@ In `typescript`:
 
 ```typescript
 /** A carrier frame, its S filled by B. */
-export interface Borrowed<B extends AnyFamily = SessionFamily> {
+export interface Borrowed<B extends AnyFamily = AnyFamily> {
   "frame": carrier.Frame<B>;
 }
 ```
@@ -78,7 +78,7 @@ type Both[AEnvelope, BEnvelope any] struct {
 In `typescript`:
 
 ```typescript
-export interface Both<A extends AnyFamily = SessionFamily, B extends AnyFamily = SessionFamily> {
+export interface Both<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily> {
   "mine": Mine<A>;
   "borrowed": Borrowed<B>;
   "fixed": Fixed;
@@ -201,7 +201,7 @@ In `typescript`:
 
 ```typescript
 /** One message of A. */
-export interface Mine<A extends AnyFamily = SessionFamily> {
+export interface Mine<A extends AnyFamily = AnyFamily> {
   "held": A["Envelope"];
 }
 ```

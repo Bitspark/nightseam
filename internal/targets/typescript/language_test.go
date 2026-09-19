@@ -111,15 +111,18 @@ func TestInheritedOperationNamesUseSourceOverrides(t *testing.T) {
 	}
 }
 
-func TestTypeLocalSessionParameterHasItsDefaultFamily(t *testing.T) {
-	r := family(map[string]string{"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"types":{"Box":{"kind":"record","parameters":[{"name":"S","of":"session"}],"fields":[{"name":"message","type":"S.Envelope"}]}}`)})
+// A family parameter declared on a type defaults to its own constraint, so
+// a declaration that names it takes no argument and the generated package
+// acquires no dependency on another family.
+func TestTypeLocalFamilyParameterDefaultsToItsConstraint(t *testing.T) {
+	r := family(map[string]string{"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"types":{"Box":{"kind":"record","parameters":[{"name":"S","of":"protocol"}],"fields":[{"name":"message","type":"S.Envelope"}]}}`)})
 	p, diagnostics := newPlan(r)
 	if len(diagnostics) != 0 {
 		t.Fatal(diagnostics)
 	}
 	f := &file{plan: p, family: r, config: Config{Scope: "@example"}.settled(), w: emit.NewWriter("  ")}
 	emitTypes(f)
-	if !strings.Contains(f.w.String(), `export type SessionFamily = probe.Family;`) || !strings.Contains(f.w.String(), `export interface Box<S extends AnyFamily = SessionFamily>`) {
+	if !strings.Contains(f.w.String(), `export interface Box<S extends AnyFamily = AnyFamily>`) {
 		t.Fatal(f.w.String())
 	}
 }
@@ -132,8 +135,8 @@ func TestMixedClientBindsTypesAndFamiliesInTheirRuntimeSlots(t *testing.T) {
 	}
 	index := string(files[1].Data)
 	for _, file := range files {
-		if strings.Contains(string(file.Data), "probe-client") || strings.Contains(string(file.Data), "SessionFamily") {
-			t.Errorf("protocol and type bindings acquire an unrelated session dependency in %s", file.Path)
+		if strings.Contains(string(file.Data), "probe-client") {
+			t.Errorf("protocol and type bindings acquire an unrelated family dependency in %s", file.Path)
 		}
 	}
 	for _, want := range []string{`s: FamilyBinding<S>, item: TypeBinding`, `readonly item: TypeBinding;`, `this.slots = { "S": s, "Item": item };`, `validateWire("Mixed", result, '$', this.slots)`} {

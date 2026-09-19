@@ -14,8 +14,8 @@ one admitted by editing the tree.
 
 - **The points named.** Whether every kind of extension — a new language,
   a new rendering target, a new carrier of frames, a new layer over the
-  peer, a new watcher or trace adapter, a new store for a session's frames
-  — has a stated point at which it joins, and a stated order to do it in.
+  peer, a new watcher or trace adapter — has a stated point at which it
+  joins, and a stated order to do it in.
 - **Nothing else moves.** Whether joining requires editing what exists —
   a list that must be appended, a switch that must gain a case, a table
   that must be told — or only adding beside it.

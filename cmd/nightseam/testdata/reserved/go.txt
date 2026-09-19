@@ -19,15 +19,8 @@ NewHandler
 Serve
 Client
 Caller
-Decides
-Asks
-Conversation
 Dial
 Attach
 Open
 Peer
 Close
-Sequence
-sequence
-cursorHandler
-trackCursor

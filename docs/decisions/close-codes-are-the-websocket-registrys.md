@@ -13,7 +13,7 @@ profile](../wire/profile.md#the-connection-beneath).
 
 **Why.** A close means the same thing whatever carried it, so a consumer
 reading one does not ask which transport it came over — and a layer that
-runs over any connection of the seam, as the session does, ends its
+runs over any connection of the seam, as a peer does, ends its
 connections with codes that mean the same on a channel as on a socket. A
 registry of the seam's own would have been a second table to keep in every
 language and a translation at every transport boundary, for numbers that

@@ -10,8 +10,8 @@ The tiers it declares bring the built-in family `duplex`, imported implicitly.
 
 The family is instantiated by filling these parameters:
 
-- **S**: a family with the `session` tier, drawn at `Envelope`, `Handle`.
-- **T**: a family with the `session` tier, drawn at `Envelope`.
+- **S**: a family with the `protocol` tier, drawn at `Envelope`, `Handle`.
+- **T**: a family with the `protocol` tier, drawn at `Envelope`.
 
 ## Types
 
@@ -36,7 +36,7 @@ type Both[SEnvelope, SHandle, TEnvelope any] struct {
 In `typescript`:
 
 ```typescript
-export interface Both<S extends AnyFamily = SessionFamily, T extends AnyFamily = SessionFamily> {
+export interface Both<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyFamily> {
   "frame": Frame<S>;
   "echoes": Array<Echo<T>>;
 }
@@ -79,7 +79,7 @@ type Echo[TEnvelope any] struct {
 In `typescript`:
 
 ```typescript
-export interface Echo<T extends AnyFamily = SessionFamily> {
+export interface Echo<T extends AnyFamily = AnyFamily> {
   "heard": T["Envelope"];
 }
 ```
@@ -115,7 +115,7 @@ type Frame[SEnvelope, SHandle any] struct {
 In `typescript`:
 
 ```typescript
-export interface Frame<S extends AnyFamily = SessionFamily> {
+export interface Frame<S extends AnyFamily = AnyFamily> {
   "message": S["Envelope"];
   "back": S["Handle"];
 }

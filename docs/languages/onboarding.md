@@ -25,11 +25,10 @@ its own that lands alone:
    identifier it will declare, and is held by goldens of its own under
    `cmd/nightseam/testdata`; what it reserves goes under `reserved`, and the
    names it derives follow `conformance/tables/naming.json`.
-3. `tunnel/<lang>`, then `session/<lang>`, then the observer and the shipped
-   adapter, then `otel/<lang>` — the profiles of P3, one lane each, holding
-   their scenarios: [the tunnel](../wire/tunnel.md), [the
-   session](../wire/session.md), [the observer](../runtime/observer.md)'s
-   events under the same names. When all hold for a release the language
+3. `tunnel/<lang>`, then the observer and the shipped adapter, then
+   `otel/<lang>` — the profiles of P3, one lane each, holding their
+   scenarios: [the tunnel](../wire/tunnel.md), [the
+   observer](../runtime/observer.md)'s events under the same names. When all hold for a release the language
    may be promoted to tier 2.
 4. Tier 1 is not a step but a decision: a language whose lanes have shipped
    simultaneously with Go's and TypeScript's for a sustained period may join

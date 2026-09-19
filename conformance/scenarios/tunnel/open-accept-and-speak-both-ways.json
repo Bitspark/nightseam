@@ -1,5 +1,5 @@
 {
-  "name": "a channel opened from either side is accepted with its family and its after, carries a peer, and its id says who opened it",
+  "name": "a channel opened from either side is accepted with its family, carries a peer, and its id says who opened it",
   "layer": "tunnel",
   "replaces": "tunnel/go/interop_test.go with tunnel/ts/src/interop.ts",
   "needs": [

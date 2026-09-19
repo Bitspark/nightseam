@@ -11,8 +11,8 @@ import (
 )
 
 // Family decodes one family from its tier files by file name — model.json,
-// protocol.json, session.json, and a target's override file — as the loader
-// would, without holding them to a schema. It panics on what does not
+// protocol.json, and a target's override file — as the loader would,
+// without holding them to a schema. It panics on what does not
 // decode, since a test wrote it.
 func Family(name string, files map[string]string) *model.Family {
 	f := &model.Family{Name: name, Types: map[string]*model.Type{}, Overrides: map[string]json.RawMessage{}}
@@ -45,15 +45,12 @@ func Family(name string, files map[string]string) *model.Family {
 				f.Types[typeName] = t
 			}
 		}
-		var err error
-		switch tier.Name {
-		case "protocol":
-			f.Protocol, err = model.DecodeProtocol(tier.File, json.RawMessage(source))
-		case "session":
-			f.Session, err = model.DecodeSession(tier.File, json.RawMessage(source))
-		}
-		if err != nil {
-			panic(err)
+		if tier.Name == "protocol" {
+			protocol, err := model.DecodeProtocol(tier.File, json.RawMessage(source))
+			if err != nil {
+				panic(err)
+			}
+			f.Protocol = protocol
 		}
 	}
 	for file, source := range files {

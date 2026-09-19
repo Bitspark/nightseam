@@ -8,7 +8,10 @@ propose the alternative finds the reason rather than repeats the afternoon.
 A goal review ([goals](../goals/README.md)) reads this record first: a
 proposal that reopens a decision says so and argues against the reason
 recorded here, and a verdict that changes one rewrites the page — the
-record is of what holds, not of what was once said.
+record is of what holds, not of what was once said. A decision the tree has
+since left behind is kept and **marked superseded** at its head, with what
+replaced it and why: the reasoning is what the next proposal argues against,
+and deleting the page would leave the afternoon to be repeated.
 
 Each page has five parts: **the question**, **decided**, **why** (what the
 alternative cost), **serves** (the goal it is a step toward), **since** (the
@@ -29,11 +32,11 @@ both, and says so at the top.
 | [`busy` is a refusal, not a failure](busy-is-a-refusal-not-a-failure.md) | [observability](../goals/observability.md) | 0.3.0 |
 | [Close codes are the WebSocket registry's](close-codes-are-the-websocket-registrys.md) | [composability](../goals/composability.md) | 0.2.0 |
 | [Credit is per channel](credit-is-per-channel.md) | [composability](../goals/composability.md) | 0.2.0 |
-| [The relay mints its own ids](the-relay-mints-its-own-ids.md) | [layering](../goals/layering.md) | 0.2.0 |
-| [The session's vocabulary is not logged](the-sessions-vocabulary-is-not-logged.md) | [layering](../goals/layering.md) | 0.3.0 |
-| [The session runs over any connection of the seam](the-session-runs-over-any-connection-of-the-seam.md) | [composability](../goals/composability.md) | #48 |
+| [The relay mints its own ids](the-relay-mints-its-own-ids.md) *(superseded, 0.5.0)* | [layering](../goals/layering.md) | 0.2.0 |
+| [The session's vocabulary is not logged](the-sessions-vocabulary-is-not-logged.md) *(superseded, 0.5.0)* | [layering](../goals/layering.md) | 0.3.0 |
+| [The session runs over any connection of the seam](the-session-runs-over-any-connection-of-the-seam.md) *(superseded in what it names, 0.5.0)* | [composability](../goals/composability.md) | #48 |
 | [Refusals are codes, not prose](refusals-are-codes-not-prose.md) | [agnosticism](../goals/agnosticism.md) | 0.3.0 |
-| [The log is bound at its head](the-log-is-bound-at-its-head.md) | [composability](../goals/composability.md) | 0.3.0 |
+| [The log is bound at its head](the-log-is-bound-at-its-head.md) *(superseded, 0.5.0)* | [composability](../goals/composability.md) | 0.3.0 |
 | [The observer is told at the write](the-observer-is-told-at-the-write.md) | [observability](../goals/observability.md) | 0.3.0 |
 | [Layers share the peer's observer](layers-share-the-peers-observer.md) | [observability](../goals/observability.md), [composability](../goals/composability.md) | 0.2.0 |
 | [An observer never sees a payload](an-observer-never-sees-a-payload.md) | [observability](../goals/observability.md), [boundary](../goals/boundary.md) | 0.2.0 |

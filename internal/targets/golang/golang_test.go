@@ -11,7 +11,7 @@ import (
 	"github.com/Bitspark/nightseam/internal/render"
 )
 
-// family builds one family from inline tier files, with a session family
+// family builds one family from inline tier files, with a protocol family
 // beside it for a parameter to bind, and renders it for the target.
 func family(files map[string]string) *render.Family {
 	world := analysis.World(modeltest.World(map[string]map[string]string{
@@ -19,7 +19,6 @@ func family(files map[string]string) *render.Family {
 		"probe": {
 			"model.json":    `{"nightseam": 2, "types": {"Payload": {"kind": "record", "fields": [{"name": "text", "type": "string"}]}}}`,
 			"protocol.json": modeltest.Protocol(``),
-			"session.json":  `{}`,
 		},
 	}))
 	return render.Build(analysis.Resolve(world, "x"))
@@ -77,7 +76,7 @@ func TestCheckRejectsWhatGoCannotGenerate(t *testing.T) {
 		"error constant collision":        {map[string]string{"model.json": fixtureModel, "protocol.json": modeltest.Protocol(`"errors": {"not-found": "", "not_found": ""}`)}, "generated_name_collision", "protocol.json#/errors/not_found"},
 		"error constant is a type":        {map[string]string{"model.json": m(`"ErrorDenied": {"kind": "record", "fields": []}`), "protocol.json": modeltest.Protocol(`"errors": {"denied": ""}`)}, "generated_name_collision", "protocol.json#/errors/denied"},
 		"error code with no identifier":   {map[string]string{"model.json": fixtureModel, "protocol.json": modeltest.Protocol(`"errors": {"---": ""}`)}, "invalid_name", "protocol.json#/errors/---"},
-		"a type parameter that is a type": {map[string]string{"model.json": m(`"SEnvelope": {"kind": "record", "fields": []}`), "protocol.json": modeltest.Protocol(`"parameters": [{"name": "S", "of": "session"}], "types": {"Frame": {"kind": "record", "fields": [{"name": "m", "type": "S.Envelope"}]}}`)}, "generated_name_collision", "protocol.json#/parameters/0/name"},
+		"a type parameter that is a type": {map[string]string{"model.json": m(`"SEnvelope": {"kind": "record", "fields": []}`), "protocol.json": modeltest.Protocol(`"parameters": [{"name": "S", "of": "protocol"}], "types": {"Frame": {"kind": "record", "fields": [{"name": "m", "type": "S.Envelope"}]}}`)}, "generated_name_collision", "protocol.json#/parameters/0/name"},
 		"a diamond in Go":                 {map[string]string{"model.json": m(`"A": {"kind": "record", "fields": [{"name": "x", "type": "string"}]}, "B": {"kind": "record", "extends": ["A"], "fields": []}, "C": {"kind": "record", "extends": ["A"], "fields": []}, "D": {"kind": "record", "extends": ["B", "C"], "fields": []}`)}, "generated_name_collision", "model.json#/types/A/fields/0"},
 	} {
 		t.Run(name, func(t *testing.T) {

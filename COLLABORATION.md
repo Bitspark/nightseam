@@ -52,8 +52,8 @@ real socket, and what the generator renders for each language held the
 same way. The tables under `conformance/tables` — the wire validator's
 cases, every envelope a peer accepts or refuses, the naming conventions —
 are what each language's own tests read too. The in-process suites,
-`duplex/go/duplextest`, `session/go/sessiontest` and their TypeScript
-twins, stay as each component's unit suite. A change to one language is not
+`duplex/go/duplextest` and its TypeScript twin, stay as each component's
+unit suite. A change to one language is not
 done until its twin has it and the conformance suite says so; a scenario
 is written once, for every language. A third language joins by writing a
 testee, `conformance/<lang>/testee.json` and the program it names — at the
@@ -95,9 +95,9 @@ TypeScript package also declares its own compiler dependency.
 
 `pnpm format` formats handwritten TypeScript under `*/ts/src` with the
 pinned Prettier version; `pnpm format:check` holds it in CI. Generated code
-and golden fixtures remain the generator's output. The duplex and session
-packages expose `./conformance` inside the workspace for shared tests;
-these helpers use repository fixtures and are not published entry points.
+and golden fixtures remain the generator's output. The duplex package
+exposes `./conformance` inside the workspace for shared tests; these helpers
+use repository fixtures and are not published entry points.
 
 ## The golden discipline
 

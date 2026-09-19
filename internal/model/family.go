@@ -1,6 +1,6 @@
 // Package model is the typed declaration of one family across its tiers:
 // the types of its model, the sides, operations and errors of its protocol,
-// the governance of its session, and the raw override files of its targets.
+// and the raw override files of its targets.
 // It knows nothing of the world a family is rendered in, of resolution, or
 // of any target: it is what the loader decodes and what analysis reads.
 //
@@ -30,7 +30,6 @@ type Family struct {
 	Imports   []string                   // the union of every tier's imports, sorted
 	Types     map[string]*Type           // every tier's types by name; At.File says which tier declared each
 	Protocol  *Protocol                  // nil without protocol.json
-	Session   *Session                   // nil without session.json
 	Overrides map[string]json.RawMessage // a target's override file, raw, by target name
 	Files     []string                   // the tier files present, lowest tier first
 }
@@ -208,23 +207,6 @@ type Error struct {
 	At          diag.Location
 }
 
-// Session is the session tier: how a connection of the protocol is
-// governed. Extensions is carried for other tools and not read here.
-type Session struct {
-	Decides      []string
-	Asks         []string
-	Conversation *Conversation
-	Extensions   json.RawMessage
-	At           diag.Location
-}
-
-// Conversation is where the conversation id arrives: an event and the path
-// to the id in its data.
-type Conversation struct {
-	Event string `json:"event"`
-	Path  string `json:"path"`
-}
-
 // Overrides is a target's override file as decoded: names by path key.
 type Overrides struct {
 	Names map[string]string `json:"names"`
@@ -292,13 +274,6 @@ type methodJSON struct {
 type eventJSON struct {
 	Description string          `json:"description"`
 	Type        json.RawMessage `json:"type"`
-}
-
-type sessionJSON struct {
-	Decides      []string        `json:"decides"`
-	Asks         []string        `json:"asks"`
-	Conversation *Conversation   `json:"conversation"`
-	Extensions   json.RawMessage `json:"extensions"`
 }
 
 // DecodeTypes decodes a tier file's types section, at /types of the file.
@@ -454,18 +429,6 @@ func decodeSide(w sideJSON, at diag.Location) (Side, error) {
 	}
 	sort.Slice(side.Events, func(i, j int) bool { return side.Events[i].Name < side.Events[j].Name })
 	return side, nil
-}
-
-// DecodeSession decodes the session tier's own sections.
-func DecodeSession(file string, raw json.RawMessage) (*Session, error) {
-	if err := scalarjson.Raw(raw); err != nil {
-		return nil, fmt.Errorf("%s: %w", file, err)
-	}
-	var w sessionJSON
-	if err := json.Unmarshal(raw, &w); err != nil {
-		return nil, fmt.Errorf("%s: %w", file, err)
-	}
-	return &Session{Decides: w.Decides, Asks: w.Asks, Conversation: w.Conversation, Extensions: w.Extensions, At: diag.Location{File: file}}, nil
 }
 
 // DecodeOverrides decodes a target's override file; a key it does not know

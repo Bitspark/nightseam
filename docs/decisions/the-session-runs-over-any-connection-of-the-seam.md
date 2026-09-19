@@ -1,5 +1,13 @@
 # The session runs over any connection of the seam
 
+> **Superseded in what it names, not in what it decided.** The session was
+> removed whole in 0.5.0 ([#196](https://github.com/Bitspark/nightseam/issues/196),
+> [#200](https://github.com/Bitspark/nightseam/issues/200)), so there is no
+> relay to run over anything. The decision itself — a layer takes a connection
+> of the seam and asks nothing about what multiplexed it — is the rule the
+> tunnel and every layer above it are still held to, and is why a peer attaches
+> to a channel, a pipe or a socket alike.
+
 **The question.** A session's up and down sides were channels of a tunnel.
 Must they be, or is a tunnel one way among several to give a relay a
 connection?
@@ -10,7 +18,6 @@ from it and closes it, and asks nothing about what multiplexed it. The
 tunnel is the answer where one connection carries many sessions and is no
 requirement where it carries one. The suite is run twice in each language,
 once over a tunnel's channels and once over the pipe with no tunnel at all.
-[The session](../wire/session.md).
 
 **Why.** A relay that required a tunnel required a peer beneath the tunnel
 and a socket beneath the peer for a machine that runs in the same process

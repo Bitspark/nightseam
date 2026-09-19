@@ -9,8 +9,8 @@ they run over, and a layer of a consumer's own does the same — through the
 peer a channel hands back in Go, by declaring its events into the runtime's
 event type in TypeScript. A session whose connection runs over no peer
 takes the registry's observer, and one with neither observes nothing. [The
-observer](../runtime/observer.md) and [the session's
-surface](../runtime/session.md#observing-it).
+observer](../runtime/observer.md) is the rule; the session's own pages went
+with the layer in 0.5.0.
 
 **Why.** An observer per layer would have been a second place — and then a
 third — to choose one, and a consumer that chose one and not the others

@@ -1,6 +1,0 @@
-func (*Remote) EmitSessionControl(ctx context.Context, data protocol.Control) error
-func (*Remote) EmitSessionCursor(ctx context.Context, data protocol.Cursor) error
-func NewHandler(handler Handler, options runtime.ServerOptions) (http.Handler, error)
-func Serve(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler) (*runtime.Peer, error)
-type Handler interface{}
-type Remote struct{Peer *runtime.Peer}

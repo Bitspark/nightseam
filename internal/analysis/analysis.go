@@ -1,7 +1,7 @@
 // Package analysis derives the facts about a family that checks and
 // renderings read, within the world it is rendered in: the families it
-// imports, resolved; the session families a parameter may bind; the two
-// types every family with a protocol carries; each declaration's tier; the
+// imports, resolved; the two types every family with a protocol carries;
+// each declaration's tier; the
 // fields a record carries through inheritance; and what is generic in the
 // family — which parameter each type draws on, at which of the bound
 // family's types. It reports nothing: a fact that does not hold is left for
@@ -27,10 +27,7 @@ type Family struct {
 	*model.Family
 	Types    map[string]*model.Type // the declared types with the carried ones of every built-in the tiers bring
 	Families []string               // every family of the world, sorted
-	Sessions []string               // the families with a session tier, sorted, this one among them if it has one
 	Imported map[string]*Family     // the imported families the world has, resolved in turn
-	Implicit map[string]*Family     // built-in families whose sides this family's tiers bring
-	Members  map[string]*Family     // the session families other than this one: what a parameter may bind
 	Carries  []string               // the built-in families the tiers bring, sorted
 	carried  map[string]int         // a carried type's name, at the rank of the tier that carries it
 	from     map[string]string      // a carried type's name, at the built-in family that declares it
@@ -53,16 +50,15 @@ func resolve(world World, name string, resolved map[string]*Family) *Family {
 	if m == nil {
 		return nil
 	}
-	f := &Family{Family: m, Types: map[string]*model.Type{}, Imported: map[string]*Family{}, Implicit: map[string]*Family{}, Members: map[string]*Family{}, carried: map[string]int{}, from: map[string]string{}, carriers: map[string]map[string]*Family{}, world: world}
+	f := &Family{Family: m, Types: map[string]*model.Type{}, Imported: map[string]*Family{}, carried: map[string]int{}, from: map[string]string{}, carriers: map[string]map[string]*Family{}, world: world}
 	resolved[name] = f
 	for typeName, t := range m.Types {
 		f.Types[typeName] = t
 	}
-	// What a tier brings: the built-in family it names, imported with no
-	// imports line. Where the built-in is carried, its types are this
-	// family's own — a family's envelope is a message of that family — and
-	// they rank at the tier that carries them, not at the tier the built-in
-	// declares them in.
+	// What a tier brings: the built-in family it names, carried with no
+	// imports line. Its types are this family's own — a family's envelope
+	// is a message of that family — and they rank at the tier that carries
+	// them, not at the tier the built-in declares them in.
 	for _, tier := range model.Tiers {
 		if tier.Builtin == "" || !m.Has(tier.File) {
 			continue
@@ -72,12 +68,6 @@ func resolve(world World, name string, resolved map[string]*Family) *Family {
 			continue
 		}
 		f.Carries = append(f.Carries, tier.Builtin)
-		if !tier.Carries {
-			// Resolve in the built-in namespace: a checkout cannot replace
-			// the declaration a tier brings by using the same family name.
-			f.Implicit[tier.Builtin] = Resolve(World(builtin.Families()), tier.Builtin)
-			continue
-		}
 		for typeName, t := range b.Types {
 			if _, declared := f.Types[typeName]; !declared {
 				f.Types[typeName] = t
@@ -87,19 +77,10 @@ func resolve(world World, name string, resolved map[string]*Family) *Family {
 		}
 	}
 	sort.Strings(f.Carries)
-	for other, om := range world {
+	for other := range world {
 		f.Families = append(f.Families, other)
-		if om.Session != nil {
-			f.Sessions = append(f.Sessions, other)
-		}
 	}
 	sort.Strings(f.Families)
-	sort.Strings(f.Sessions)
-	for _, other := range f.Sessions {
-		if other != name {
-			f.Members[other] = resolve(world, other, resolved)
-		}
-	}
 	for _, imported := range m.Imports {
 		if imported != name && world[imported] != nil {
 			f.Imported[imported] = resolve(world, imported, resolved)
@@ -149,7 +130,7 @@ func (f *Family) IsBuiltin() bool { return strings.HasPrefix(f.Source, builtin.P
 // family may not declare itself, because it already has it.
 func (f *Family) DeclaredByBuiltin(name string) string {
 	for _, tier := range model.Tiers {
-		if tier.Builtin == "" || !tier.Carries || !f.Has(tier.File) {
+		if tier.Builtin == "" || !f.Has(tier.File) {
 			continue
 		}
 		b, ok := builtin.Family(tier.Builtin)

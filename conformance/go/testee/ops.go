@@ -4,7 +4,7 @@ package main
 // and nowhere else.
 func (t *testee) ops() map[string]func(request) (any, error) {
 	all := map[string]func(request) (any, error){}
-	for _, family := range []map[string]func(request) (any, error){t.seamOps(), t.peerOps(), t.tunnelOps(), t.sessionOps(), t.liveOps()} {
+	for _, family := range []map[string]func(request) (any, error){t.seamOps(), t.peerOps(), t.tunnelOps(), t.liveOps()} {
 		for name, handler := range family {
 			all[name] = handler
 		}

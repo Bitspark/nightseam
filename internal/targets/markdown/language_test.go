@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/Bitspark/nightseam/internal/analysis"
-	"github.com/Bitspark/nightseam/internal/check"
 	"github.com/Bitspark/nightseam/internal/doc"
 	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/model/builtin"
@@ -44,41 +43,6 @@ func TestRenderTypeExpressionsAndParameters(t *testing.T) {
 	} {
 		if !strings.Contains(document, want) {
 			t.Errorf("the specification lacks %q:\n%s", want, document)
-		}
-	}
-}
-
-func TestRenderInheritedSessionGovernance(t *testing.T) {
-	world := analysis.World(modeltest.World(map[string]map[string]string{
-		"base": {
-			"model.json":    `{"nightseam":2,"types":{"State":{"kind":"record","fields":[{"name":"id","type":"string"}]}}}`,
-			"protocol.json": modeltest.Protocol(`"server":{"methods":{"write":{"result":"string"}},"events":{"started":{"type":"State"}}},"client":{"methods":{"answer":{"result":"string"}}}`),
-			"session.json":  `{"decides":["write"],"asks":["answer"],"conversation":{"event":"started","path":"id"}}`,
-		},
-		"child": {
-			"model.json":    `{"nightseam":2,"imports":["base"]}`,
-			"protocol.json": modeltest.Protocol(`"server":{"extends":["base"]},"client":{"extends":["base"]}`),
-			"session.json":  `{}`,
-		},
-	}))
-	family := analysis.Resolve(world, "child")
-	if diagnostics := check.Family(family); len(diagnostics) != 0 {
-		t.Fatal(diagnostics)
-	}
-	files, err := doc.Target(New(Config{}), nil).Render(render.Build(family))
-	if err != nil {
-		t.Fatal(err)
-	}
-	document := string(files[0].Data)
-	for _, want := range []string{
-		"Governance inherited from the server side of `base`.",
-		"Governance inherited from the client side of `base`.",
-		"- **Decides**: `write`",
-		"- **Asks**: `answer`",
-		"- **Conversation**: the id arrives in the `started` event, at `id` of its data.",
-	} {
-		if !strings.Contains(document, want) {
-			t.Errorf("the session specification omits %q", want)
 		}
 	}
 }
@@ -158,8 +122,8 @@ func TestRenderBuiltinReferences(t *testing.T) {
 					}
 				}
 			}
-			if name == "session" && !strings.Contains(document, "| `holder` | nullable `string` |") {
-				t.Fatalf("the session reference does not describe its nullable holder:\n%s", document)
+			if name == "tunnel" && !strings.Contains(document, "| `family` | `string` |") {
+				t.Fatalf("the tunnel reference does not describe the family a channel speaks:\n%s", document)
 			}
 		})
 	}

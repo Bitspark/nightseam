@@ -2,7 +2,7 @@
   "name": "@nightseam/conformance",
   "version": "0.0.0",
   "private": true,
-  "description": "The TypeScript testee of Nightseam's conformance suite: the runtime, tunnel and session under the runner's control over conformance/DRIVER.md. Never published.",
+  "description": "The TypeScript testee of Nightseam's conformance suite: the runtime and tunnel under the runner's control over conformance/DRIVER.md. Never published.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -12,7 +12,6 @@
     "@nightseam/duplex": "workspace:*",
     "@nightseam/live": "workspace:*",
     "@nightseam/runtime": "workspace:*",
-    "@nightseam/session": "workspace:*",
     "@nightseam/tunnel": "workspace:*"
   },
   "devDependencies": {

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/Bitspark/nightseam/runtime/go"
-	"github.com/Bitspark/nightseam/session/go"
 	"github.com/Bitspark/nightseam/tunnel/go"
 )
 
@@ -191,84 +190,8 @@ func normalize(event runtime.ObserverEvent, withTrace bool) map[string]any {
 		m["type"] = "open.refused"
 		put("family", e.Family)
 		put("reason", e.Reason)
-	case session.SessionBound:
-		m["type"] = "session.bound"
-		put("session", e.Session)
-	case session.SessionUnbound:
-		m["type"] = "session.unbound"
-		put("session", e.Session)
-		put("code", e.Code)
-		put("reason", e.Reason)
-	case session.SessionAttached:
-		m["type"] = "session.attached"
-		put("session", e.Session)
-		put("role", roleName(e.Role))
-		put("origin", e.Origin)
-		m["after"] = e.After
-	case session.SessionDetached:
-		m["type"] = "session.detached"
-		put("session", e.Session)
-		put("role", roleName(e.Role))
-		put("origin", e.Origin)
-	case session.AskRaised:
-		m["type"] = "ask.raised"
-		put("session", e.Session)
-		put("id", e.ID)
-		put("method", e.Method)
-		m["asking"] = e.Asking
-		trace(e.Trace)
-	case session.AskRouted:
-		m["type"] = "ask.routed"
-		put("session", e.Session)
-		put("id", e.ID)
-		put("method", e.Method)
-		put("origin", e.Origin)
-		trace(e.Trace)
-	case session.AskAnswered:
-		m["type"] = "ask.answered"
-		put("session", e.Session)
-		put("id", e.ID)
-		put("method", e.Method)
-		put("origin", e.Origin)
-		trace(e.Trace)
-	case session.ControlChanged:
-		m["type"] = "control.changed"
-		put("session", e.Session)
-		put("origin", e.Origin)
-		m["held"] = e.Held
-	case session.FrameAppended:
-		m["type"] = "frame.appended"
-		put("session", e.Session)
-		put("sequence", e.Sequence)
-		put("direction", directionName(e.Direction))
-		put("origin", e.Origin)
-		bytes(e.Bytes)
-		put("method", e.Method)
-		trace(e.Trace)
-	case session.Refused:
-		m["type"] = "session.refused"
-		put("session", e.Session)
-		put("code", e.Code)
-		put("method", e.Method)
-		put("role", roleName(e.Role))
-		put("origin", e.Origin)
-		trace(e.Trace)
 	default:
 		m["type"] = "unknown"
 	}
 	return m
-}
-
-func roleName(r session.Role) string {
-	if r == session.Observer {
-		return "observer"
-	}
-	return "participant"
-}
-
-func directionName(d session.Direction) string {
-	if d == session.Down {
-		return "down"
-	}
-	return "up"
 }

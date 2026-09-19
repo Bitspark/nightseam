@@ -142,7 +142,7 @@ func Load(root string) ([]Scenario, error) {
 	return scenarios, nil
 }
 
-var layers = []string{"seam", "peer", "tunnel", "session", "live", "generated"}
+var layers = []string{"seam", "peer", "tunnel", "live", "generated"}
 
 // Mirrored is the scenario with a and b exchanged.
 func (s Scenario) Mirrored() Scenario {

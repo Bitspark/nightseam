@@ -2,9 +2,9 @@
 // reader wants, computed once from render and held in one structure that
 // writers render and never derive again — the types with their fields and
 // what inherits them, the two sides with their operations and errors, the
-// governance of a session, and the families and built-ins a family draws
-// on. A writer (Writer) renders the document into pages of one format and
-// is a target of the generator by the adapter Target, so that every format
+// parameters a family is generic in, and the families and built-ins it
+// draws on. A writer (Writer) renders the document into pages of one format
+// and is a target of the generator by the adapter Target, so that every format
 // reads the one document and the kernel holds every format the same way.
 //
 // The document is data: it names nothing of the pipeline that built it, and
@@ -46,7 +46,6 @@ type Family struct {
 	Server     Side
 	Client     Side
 	Errors     []Error // by code
-	Session    *Session
 }
 
 // Origin is where a declaration comes from: the family and the declaration
@@ -156,21 +155,6 @@ type Event struct {
 // Error is one public error of the family.
 type Error struct{ Code, Description string }
 
-// Session is how a session of the family is governed.
-type Session struct {
-	Decides      []string
-	Asks         []string
-	Conversation *Conversation
-	Inherited    []Inherited // the sides whose governance this one inherits
-}
-
-// Inherited names a side of another family whose governance a session
-// inherits.
-type Inherited struct{ Family, Side string }
-
-// Conversation is where a session's conversation id arrives.
-type Conversation struct{ Event, Path string }
-
 // BuildCheckout documents every family of a checkout.
 func BuildCheckout(w *render.World, spellers map[string]spi.Speller) *Checkout {
 	c := &Checkout{}
@@ -238,15 +222,6 @@ func Build(f *render.Family, spellers map[string]spi.Speller) *Family {
 		d.Client = side(x, named, "client", f.Client, f.Errors)
 		for _, e := range f.Errors {
 			d.Errors = append(d.Errors, Error{Code: e.Code, Description: e.Description})
-		}
-	}
-	if s := f.Session; s != nil {
-		d.Session = &Session{Decides: s.Decides, Asks: s.Asks}
-		if s.Conversation != nil {
-			d.Session.Conversation = &Conversation{Event: s.Conversation.Event, Path: s.Conversation.Path}
-		}
-		for _, inherited := range s.Inherited {
-			d.Session.Inherited = append(d.Session.Inherited, Inherited{Family: inherited.Family, Side: inherited.Side})
 		}
 	}
 	addLanguages(d, f, spellers)

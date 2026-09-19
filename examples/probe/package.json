@@ -12,7 +12,6 @@
     "start": "node --experimental-strip-types --disable-warning=ExperimentalWarning client/src/main.ts"
   },
   "dependencies": {
-    "@probe/session-client": "link:./api/ts/session-client",
     "@nightseam/runtime": "0.4.0",
     "@nightseam/tunnel": "0.4.0"
   },

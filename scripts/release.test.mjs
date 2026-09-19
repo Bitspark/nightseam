@@ -24,7 +24,7 @@ const tag = "v" + JSON.parse(readFileSync(join(root, "runtime/ts/package.json"),
 // the fixture and nothing else: the file on disk is the artifact of whatever
 // run last touched the checkout, and a gate's test that moves with it holds
 // the gate to nothing.
-const profiles = ["core", "generator", "live", "observability", "session", "tunnel"];
+const profiles = ["core", "generator", "live", "observability", "tunnel"];
 const green = {
   profiles,
   languages: {
@@ -66,10 +66,10 @@ test("a green matrix releases, and a dry run writes nothing", () => {
 });
 
 test("a tier 1 language failing a profile refuses the tag", () => {
-  const { code, out } = prepare("--matrix", withFailure("tier1.json", "typescript", 1, "session"), "--no-previous");
+  const { code, out } = prepare("--matrix", withFailure("tier1.json", "typescript", 1, "tunnel"), "--no-previous");
   assert.equal(code, 1);
   assert.match(out, /not ready to release/);
-  assert.match(out, /`typescript` \(tier 1\) fails session, which tier 1 stops a release for/);
+  assert.match(out, /`typescript` \(tier 1\) fails tunnel, which tier 1 stops a release for/);
 });
 
 test("a tier 3 language failing what it guarantees ships, and the release names it", () => {

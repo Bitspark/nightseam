@@ -20,7 +20,6 @@ type Concern = string
 const (
 	Model    Concern = "model"
 	Protocol Concern = "protocol"
-	Session  Concern = "session"
 )
 
 // Header opens every generated file, in every language.

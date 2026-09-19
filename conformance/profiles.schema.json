@@ -14,7 +14,7 @@
       "additionalProperties": {
         "type": "object", "additionalProperties": false, "required": ["promise"],
         "properties": {
-          "layers": {"type": "array", "uniqueItems": true, "items": {"enum": ["seam", "peer", "tunnel", "session", "live", "generated"]}},
+          "layers": {"type": "array", "uniqueItems": true, "items": {"enum": ["seam", "peer", "tunnel", "live", "generated"]}},
           "needs": {"type": "array", "uniqueItems": true, "items": {"enum": ["listen", "pipe", "observer", "propagator", "lazy"]}},
           "promise": {"enum": ["wire", "generated", "complete"]}
         },

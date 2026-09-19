@@ -33,7 +33,7 @@ reaches the two together.
 ```
 cmd/nightseam/          the generator: generate, check, validate, init, version; the corpus and its goldens under testdata
 internal/model/         the typed declaration of a family: the tiers, the sealed type-expression AST, the decoders
-internal/model/builtin/ the families Nightseam declares of itself: duplex, tunnel and session, as tier files
+internal/model/builtin/ the families Nightseam declares of itself: duplex and tunnel, as tier files
 internal/load/          files to families: the tier table, the shape schemas, the world of a checkout
 internal/analysis/      a family within its world: imports resolved, inheritance flattened, what is generic in it
 internal/check/         the rules, one function per tier and one for the override files

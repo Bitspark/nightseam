@@ -1,11 +1,10 @@
 # The observer
 
 One observer sees everything a connection carries, at every layer above it.
-The peer of the profile takes it; the tunnel and the session declare events
-of their own and emit them through the peer they run over, so a consumer
-chooses an observer once and is told about frames, channels and sessions
-alike. Neither the tunnel nor the session takes an observer of its own,
-because that would be a second place to choose one ([layers share the
+The peer of the profile takes it; the tunnel declares events of its own and
+emits them through the peer it runs over, so a consumer chooses an observer
+once and is told about frames and channels alike. The tunnel takes no
+observer of its own, because that would be a second place to choose one ([layers share the
 peer's observer](../decisions/layers-share-the-peers-observer.md)). What
 holds of every event — names and never a payload — is [an observer never
 sees a payload](../decisions/an-observer-never-sees-a-payload.md).
@@ -28,21 +27,18 @@ What holds of every event, at every layer:
   nowhere, having no logger of its own to report it to.
 - **Every event names the thing its layer is about, and an event that
   concerns a frame carries that frame's trace.** A frame event names its
-  family, a channel event names its family, a session event names its
-  session; a connection event and a backpressure event concern no frame and
-  name nothing beyond themselves, stated rather than left null.
+  family and a channel event names its family; a connection event and a
+  backpressure event concern no frame and name nothing beyond themselves,
+  stated rather than left null.
 
   | events | names | trace |
   | --- | --- | --- |
   | `ConnectionOpened`, `ConnectionClosed`, `Backpressure` | — | — |
   | the runtime's `FrameSent`, `FrameReceived`, `RequestStarted`, `RequestEnded`, `EventEmitted`, `EventDelivered`, `HandlerPanic` | its family | ✓ |
   | the tunnel's five channel events | its family | — |
-  | the session's `AskRaised`, `AskRouted`, `AskAnswered`, `FrameAppended`, `Refused` | its session | ✓ |
-  | the session's `SessionBound`, `SessionUnbound`, `SessionAttached`, `SessionDetached`, `ControlChanged` | its session | — |
 
   A channel is opened *for* a family, so a family is the one thing every
-  channel event knows; a session event names the session and never a family,
-  the family being the session's own. `Options.Families` in Go and
+  channel event knows. `Options.Families` in Go and
   `PeerOptions.families` in TypeScript label a method or event name with the
   family it belongs to, which the generated install fills in; a name nobody
   labelled has no family rather than a guessed one.
@@ -158,9 +154,8 @@ what the frame carries, and ends it where the peer says the request ended,
 with the outcome as the status and the error code as an attribute; a
 connection is a span from the peer taking it over to the close that ended it,
 an event emitted or delivered is a span of no duration, and everything else
-the three layers tell — frames, backpressure, a handler that gave up, the
-tunnel's five and the session's ten — is a span event on the span it belongs
-to.
+the two layers tell — frames, backpressure, a handler that gave up and the
+tunnel's five — is a span event on the span it belongs to.
 
 What reaches a backend is what the events carry and no more: a field that is
 a name, a count, a flag, a duration or a trace becomes an attribute and a
@@ -213,30 +208,13 @@ binding of which contract, and never what it was asked or what it answered:
 | `LiveReleased` | `live.released` | a binding ended, by a release here or the other side's word that it released |
 | `LiveRefused` | `live.refused` | an export, an import or an invocation that did not happen, with the code it was refused under |
 
-The session's ten, of the conversation over a tunnel's channels:
-
-| Go | TypeScript | what it says |
-| --- | --- | --- |
-| `SessionBound` | `session.bound` | a session is bound on the registry |
-| `SessionUnbound` | `session.unbound` | it ended, with the code and reason it ended under |
-| `SessionAttached` | `session.attached` | a consumer attached, in its role and from the sequence it held |
-| `SessionDetached` | `session.detached` | a consumer detached, however it went |
-| `AskRaised` | `ask.raised` | the machine sent what the family asks |
-| `AskRouted` | `ask.routed` | it reached a holder of control — and again wherever control moves while it is open |
-| `AskAnswered` | `ask.answered` | whoever held control then answered it |
-| `ControlChanged` | `control.changed` | control moved to a holder, or to nobody |
-| `FrameAppended` | `frame.appended` | a frame took its place in the log, under the consumer that sent it or under none |
-| `Refused` | `session.refused` | a consumer's frame was refused, with `not_controlling` or with `busy` |
-
-A refusal is a change and never a frame, because the machine never saw it.
-
 ## Observing from a layer of your own
 
 A layer built over a channel reaches the same observer the consumer chose,
 rather than being given one: in Go a channel hands back the peer that
 carries it, `Channel.Peer()`, and in TypeScript it forwards an event to it,
-`channel.observe(event)`. A layer adds its own events the way the tunnel and
-the session do — in Go by implementing `ObserverEvent()` on its event types,
+`channel.observe(event)`. A layer adds its own events the way the tunnel
+does — in Go by implementing `ObserverEvent()` on its event types,
 in TypeScript by declaring them into `ObserverEvents`:
 
 ```ts
@@ -249,16 +227,3 @@ declare module '@nightseam/runtime' {
 
 so that a consumer's `switch (event.type)` stays exhaustive over every layer
 it imports.
-
-## The session's changes, told twice
-
-A session's ten events are also the ten changes its registry reports to a
-consumer that asks, through `Registry.OnChange(fn)` in Go and
-`registry.onChange(fn)` in TypeScript, each handing back the stop that ends
-that registration alone. The two are the same facts in two shapes: an
-observer is what a peer tells whoever watches its traffic, and a `Change` is
-what a registry tells a consumer building its own events on top of a domain
-it holds. A change is told before the frame it concerns is handed on, so
-nobody watching a consumer's channel sees a refusal or a close ahead of the
-change that says it, and a `Change` carries no message and has nowhere to
-put one.

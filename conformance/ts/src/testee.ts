@@ -1,6 +1,6 @@
 /**
- * The TypeScript testee: @nightseam/runtime, @nightseam/tunnel and
- * @nightseam/session under the control of the conformance runner, over the
+ * The TypeScript testee: @nightseam/runtime and @nightseam/tunnel under the
+ * control of the conformance runner, over the
  * protocol of conformance/DRIVER.md. One request per line on stdin, one
  * answer per line on stdout, a table of handles, an inbox per handle for
  * what arrived unasked, and nothing on stdout but answers.
@@ -9,7 +9,6 @@ import { createInterface } from 'node:readline';
 import { seamOps } from './seam.ts';
 import { peerOps } from './peer.ts';
 import { tunnelOps } from './tunnel.ts';
-import { sessionOps } from './session.ts';
 import { liveOps } from './live.ts';
 
 const DRIVER = 1;
@@ -178,7 +177,7 @@ const ops: Record<string, Op> = {
   hello: () => ({
     driver: DRIVER,
     language: 'typescript',
-    layers: ['seam', 'peer', 'tunnel', 'session', 'live'],
+    layers: ['seam', 'peer', 'tunnel', 'live'],
     features: ['listen', 'pipe', 'observer', 'propagator', 'lazy'],
   }),
   reset: () => {
@@ -193,7 +192,6 @@ const ops: Record<string, Op> = {
   ...seamOps(testee),
   ...peerOps(testee),
   ...tunnelOps(testee),
-  ...sessionOps(testee),
   ...liveOps(testee),
 };
 

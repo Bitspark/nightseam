@@ -11,7 +11,7 @@ import (
 )
 
 // A tunnel under control. Its channels are connections, handed out lazily
-// by default: a channel carries a peer or a session more often than raw
+// by default: a channel carries a peer more often than raw
 // frames, and a peer reads its own connection.
 type tunnelOn struct {
 	*tunnel.Tunnel
