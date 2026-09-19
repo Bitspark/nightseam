@@ -118,7 +118,8 @@ are one number. Entries are in the words of the commits that landed them.
 
 - Plain imported generics require explicit arguments for type slots and
   incompatible family bounds; shared analysis retains parameter captures
-  through named types, nested applications and inline shapes.
+  through named types, nested applications and inline shapes, and stops
+  when malformed inline inheritance or reference keys form a cycle.
 - Session governance now resolves inherited methods and events on the
   selected protocol sides and refuses conflicting conversation definitions,
   while preserving matching definitions through transitive inheritance.

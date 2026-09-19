@@ -190,8 +190,8 @@ func (f *Family) Parameter(name string) (model.Parameter, bool) {
 }
 
 // FamilyParameters are the family's parameters filled by a family, in
-// declaration order: the ones a type is drawn through, and the only ones a
-// use names.
+// declaration order: the ones a type is drawn through. Parameters also
+// includes plain type parameters.
 func (f *Family) FamilyParameters() []model.Parameter {
 	var out []model.Parameter
 	for _, p := range f.Parameters() {
@@ -308,7 +308,7 @@ func (f *Family) References() []string {
 // a type parameter. A family generic in S and T, where S is drawn at its
 // Envelope and its Handle and T at its Envelope, has the uses {S,Envelope},
 // {S,Handle}, {T,Envelope} — in that order, by the parameter's declaration
-// and then by drawnBefore.
+// and then by drawnBefore. A plain type parameter has an empty Type.
 type Use struct {
 	Parameter string
 	Type      string
