@@ -254,14 +254,23 @@ export function annotate(atlas, family, expression, value, options = {}) {
       row.variants = list(t.Variants).map((v) => {
         // Variant examples are built by doc, including the envelope. A
         // selected arm can also be annotated in a concrete application.
-        const example = value?.[t.Tag] === v.Tag ? value : v.Example;
+        const selected = value?.[t.Tag] === v.Tag;
+        const example = selected ? value : v.Example;
+        const declarationExample = !selected && r.bindings.size > 0;
         const tag = { name: t.Tag, type: JSON.stringify(v.Tag), value: v.Tag, presence: 'required', children: [] };
         const children = [tag];
         if (!v.Empty)
           children.push(
-            child(v.Declared ?? v.Type, example?.[t.Value], { trail: next, name: t.Value, presence: 'required' }),
+            child(v.Declared ?? v.Type, example?.[t.Value], {
+              trail: next,
+              name: t.Value,
+              presence: 'required',
+              // The alternate example belongs to the generic declaration.
+              // Only the selected value was instantiated by doc's exampler.
+              bindings: declarationExample ? new Map() : r.bindings,
+            }),
           );
-        return { tag: v.Tag, example, children };
+        return { tag: v.Tag, example, children, declarationExample };
       });
     }
     if (t.Kind === 'enum') row.values = list(t.Values);
@@ -369,7 +378,7 @@ export function annotationHTML(row, depth = 0) {
   const variants = list(row.variants)
     .map(
       (v) =>
-        `<div class="variant"><span class="small-label">${esc(v.tag)}</span>${v.children.map((c) => annotationHTML(c, depth + 1)).join('')}</div>`,
+        `<div class="variant"><span class="small-label">${esc(v.tag)}${v.declarationExample ? ' · declaration example' : ''}</span>${v.children.map((c) => annotationHTML(c, depth + 1)).join('')}</div>`,
     )
     .join('');
   if (!children && !variants) return line;

@@ -197,5 +197,15 @@ test(
     const ids = new Set(atlas.families.flatMap((f) => familyView(atlas, f.Name).ids));
     for (const entry of finder(atlas)) assert(ids.has(entry.id), entry.id);
     for (const v of annotated.variants) assert(v.example !== undefined, v.tag);
+    const result = annotate(
+      atlas,
+      f.Name,
+      { apply: 'Result', with: { T: 'Parts', E: 'string' } },
+      { kind: 'err', value: 'example' },
+    );
+    const alternate = result.variants.find((v) => v.tag === 'ok');
+    assert(alternate.declarationExample);
+    assert.equal(alternate.children[1].type, 'T');
+    assert.equal(alternate.children[1].children.length, 0);
   },
 );
