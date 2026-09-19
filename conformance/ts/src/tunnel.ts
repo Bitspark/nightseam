@@ -85,11 +85,10 @@ export function tunnelOps(t: Testee): Record<string, Op> {
     'tunnel.open': async (args) => {
       const tn = t.lookup(args.on, isTunnel, 'a tunnel');
       const family = stringOf(args, 'family', true);
-      const after = intOf(args, 'after', 0);
       const lazy = lazyChannel(args);
       let channel: Channel;
       try {
-        channel = await within(withinOf(args), tn.tunnel.open(family, after), 'the open');
+        channel = await within(withinOf(args), tn.tunnel.open(family), 'the open');
       } catch (error) {
         throw tunnelError(error);
       }
@@ -108,7 +107,6 @@ export function tunnelOps(t: Testee): Record<string, Op> {
         handle: t.mint('ch', new ChannelConn(channel, lazy)),
         id: channel.id,
         family: channel.family,
-        after: channel.after,
       };
     },
   };

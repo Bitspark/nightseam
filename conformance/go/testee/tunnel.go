@@ -114,10 +114,6 @@ func (t *testee) tunnelOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			after, err := r.int("after", 0)
-			if err != nil {
-				return nil, err
-			}
 			within, err := r.within()
 			if err != nil {
 				return nil, err
@@ -128,7 +124,7 @@ func (t *testee) tunnelOps() map[string]func(request) (any, error) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), within)
 			defer cancel()
-			ch, err := tn.Open(ctx, family, after)
+			ch, err := tn.Open(ctx, family)
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
 					return nil, fail("timeout", "the open was not answered within %s", within)
@@ -159,7 +155,7 @@ func (t *testee) tunnelOps() map[string]func(request) (any, error) {
 				}
 				return nil, tunnelError(err)
 			}
-			return map[string]any{"handle": t.mint("ch", wrap(ch, lazy)), "id": ch.ID, "family": ch.Family, "after": ch.After}, nil
+			return map[string]any{"handle": t.mint("ch", wrap(ch, lazy)), "id": ch.ID, "family": ch.Family}, nil
 		},
 	}
 }

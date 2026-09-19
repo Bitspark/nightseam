@@ -60,7 +60,7 @@ func observed(t *testing.T, observer runtime.Observer) (near, far duplex.Conn) {
 		}
 		accepted <- channel
 	}()
-	opened, err := opening.Open(ctx, "probe", 0)
+	opened, err := opening.Open(ctx, "probe")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -578,7 +578,7 @@ func TestAMachineOverAPipeAndAConsumerOverAWebSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	consumer, err := dialled.Open(ctx, "probe", 0)
+	consumer, err := dialled.Open(ctx, "probe")
 	if err != nil {
 		t.Fatal(err)
 	}

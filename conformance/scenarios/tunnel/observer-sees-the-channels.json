@@ -56,7 +56,7 @@
       "args": {
         "on": "$tb",
         "family": "probe",
-        "after": 3,
+
         "consume": "lazy"
       },
       "bind": {
@@ -76,8 +76,7 @@
       },
       "expect": {
         "id": "$id",
-        "family": "probe",
-        "after": 3
+        "family": "probe"
       }
     },
     {
@@ -91,8 +90,7 @@
           {
             "type": "channel.accepted",
             "family": "probe",
-            "id": "$id",
-            "after": 3
+            "id": "$id"
           }
         ]
       }
@@ -109,7 +107,7 @@
             "type": "channel.opened",
             "family": "probe",
             "id": "$id",
-            "after": 3,
+
             "opener": true
           }
         ]

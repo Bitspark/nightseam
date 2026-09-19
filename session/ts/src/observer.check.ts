@@ -40,9 +40,9 @@ export function describe(event: ObserverEvent): string {
     case 'session.refused':
       return `${event.session} refused ${event.method} of ${event.origin} with ${event.code}`;
     case 'channel.opened':
-      return `${event.family} channel ${event.id} after ${event.after} ${event.opener ? 'opened here' : 'opened there'}`;
+      return `${event.family} channel ${event.id} ${event.opener ? 'opened here' : 'opened there'}`;
     case 'channel.accepted':
-      return `${event.family} channel ${event.id} after ${event.after} accepted`;
+      return `${event.family} channel ${event.id} accepted`;
     case 'channel.closed':
       return `${event.family} channel ${event.id} closed ${event.code} ${event.reason}`;
     case 'credit.stall':

@@ -40,7 +40,7 @@ import {
 
 /** The connections a run of the suite is given: each open is one connected pair, the end a peer speaks on and the end the registry is given. */
 export interface Wire {
-  open(after?: number): Promise<{ near: FrameConnection; far: FrameConnection }>;
+  open(): Promise<{ near: FrameConnection; far: FrameConnection }>;
   close(): void;
 }
 /**
@@ -66,9 +66,9 @@ export const pipes: Connect = async (observer) => {
   const nt = new Tunnel(near);
   const ft = new Tunnel(far);
   return {
-    async open(after = 0) {
+    async open() {
       const accepted = ft.accept();
-      const opened = await nt.open('probe', after);
+      const opened = await nt.open('probe');
       return { near: opened, far: await accepted };
     },
     close() {
@@ -315,7 +315,7 @@ export function run(connect: Connect): void {
     origin: string,
     after = 0,
   ): Promise<{ near: FrameConnection; at: ReturnType<typeof listen>; attachment: Attachment; joined: string | null }> {
-    const { near, far } = await wire.open(after);
+    const { near, far } = await wire.open();
     const at = listen(near);
     const attachment = registry.attach('s', far, role, origin, after);
     return { near, at, attachment, joined: await at.control() };
@@ -582,7 +582,7 @@ export function run(connect: Connect): void {
     // The peer is made and listening before the session attaches its end, as
     // the register-then-attach ordering of the runtime says: the replay is on
     // the connection before the attach returns.
-    const { near, far } = await wire.open(0);
+    const { near, far } = await wire.open();
     const client = await Client.attach(near, {}, answering, {});
     const arrived: Payload[] = [];
     const settled = new Promise<void>((resolve) => {

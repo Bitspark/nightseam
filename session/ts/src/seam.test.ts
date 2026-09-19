@@ -236,7 +236,7 @@ test('an in-process machine over a pipe and a consumer over a tunnel channel on 
   const served = new Tunnel(serving);
   const dialled = new Tunnel(dialling);
   const accepted = served.accept();
-  const consumer = await dialled.open('probe', 0);
+  const consumer = await dialled.open('probe');
   const attachment: Attachment = registry.attach('s', await accepted, 'participant', 'consumer', 0);
   registry.control('s', attachment);
   const atConsumer = listen(consumer);

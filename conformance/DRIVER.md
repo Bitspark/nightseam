@@ -309,13 +309,13 @@ Channels multiplexed over one peer: `tunnel/go`, `@nightseam/tunnel`.
 | op | arguments | answer |
 |---|---|---|
 | `tunnel.over` | **`on`** peer, `options` (`window`, `max_frame_bytes`, `accept_capacity`) | `{"handle"}` |
-| `tunnel.open` | **`on`**, **`family`**, `after`, `consume`, `within_ms` | `{"handle", "id"}` — the channel, a connection handle |
-| `tunnel.accept` | **`on`**, `consume`, `within_ms` | `{"handle", "id", "family", "after"}` |
+| `tunnel.open` | **`on`**, **`family`**, `consume`, `within_ms` | `{"handle", "id"}` — the channel, a connection handle |
+| `tunnel.accept` | **`on`**, `consume`, `within_ms` | `{"handle", "id", "family"}` |
 
 A channel takes every `conn.*` op, and `peer.over` makes a peer of it. A
 tunnel observes through its peer's observer; its events reach
-`peer.observed` on that peer: `channel.opened` (`family`, `id`, `after`,
-`opener`), `channel.accepted` (`family`, `id`, `after`), `channel.closed`
+`peer.observed` on that peer: `channel.opened` (`family`, `id`,
+`opener`), `channel.accepted` (`family`, `id`), `channel.closed`
 (`family`, `id`, `code`, `reason`), `credit.stall` (`family`, `id`,
 `waiting`), `open.refused` (`family`, `reason`).
 

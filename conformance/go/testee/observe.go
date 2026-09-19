@@ -171,13 +171,11 @@ func normalize(event runtime.ObserverEvent, withTrace bool) map[string]any {
 		m["type"] = "channel.opened"
 		put("family", e.Family)
 		put("id", e.ID)
-		m["after"] = e.After
 		m["opener"] = e.Opener
 	case tunnel.ChannelAccepted:
 		m["type"] = "channel.accepted"
 		put("family", e.Family)
 		put("id", e.ID)
-		m["after"] = e.After
 	case tunnel.ChannelClosed:
 		m["type"] = "channel.closed"
 		put("family", e.Family)

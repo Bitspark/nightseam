@@ -42,7 +42,7 @@ peer, _, _ := runtime.Dial(ctx, url, runtime.DialOptions{
 	}},
 })
 defer peer.Close()
-channel, _ := carrier.Open(ctx, "chat", 0)             // this side opens
+channel, _ := carrier.Open(ctx, "chat")                // this side opens
 served, _ := chatbinding.Serve(ctx, channel, …)        // and speaks the family over it
 
 accepted, _ := carrier.Accept(ctx)                     // or takes what the other side opened
@@ -62,7 +62,7 @@ const resolved = await Client.open(carrier, handle, …);
 
 | | Go | TypeScript |
 | --- | --- | --- |
-| open a channel, naming the family and the last sequence held | `carrier.Open(ctx, family, after)` → `*Channel` | `carrier.open(family, after)` |
+| open a channel, naming the family it speaks | `carrier.Open(ctx, family)` → `*Channel` | `carrier.open(family)` |
 | take a channel the other side opened | `carrier.Accept(ctx)` | `carrier.accept()` |
 | resolve one by id — what the generated `Open` does with a handle | `carrier.Channel(id)` → `(*Channel, bool)` | `carrier.channel(id)` |
 | the peer it runs over | `carrier.Peer()`, `channel.Peer()` | `channel.observe(event)` reaches its observer |

@@ -27,9 +27,9 @@ import { NO_STATUS } from '@nightseam/duplex';
 declare module '@nightseam/runtime' {
   interface ObserverEvents {
     /** A channel exists, on the side that opened it and on the side it was opened to; opener says which of the two this one is. */
-    'channel.opened': { type: 'channel.opened'; at: Date; family: string; id: number; after: number; opener: boolean };
+    'channel.opened': { type: 'channel.opened'; at: Date; family: string; id: number; opener: boolean };
     /** A channel the other side opened was taken here, by accept or by the handle that names it. */
-    'channel.accepted': { type: 'channel.accepted'; at: Date; family: string; id: number; after: number };
+    'channel.accepted': { type: 'channel.accepted'; at: Date; family: string; id: number };
     /** A channel ended, under the code and reason it ended with, whichever side ended it. */
     'channel.closed': { type: 'channel.closed'; at: Date; family: string; id: number; code: number; reason: string };
     /** A frame found the other side's window exhausted and waits in the channel; waiting is how many do. */
@@ -98,23 +98,19 @@ export class Tunnel {
     return this.options;
   }
 
-  /** Opens a channel to the other side, saying what family it speaks and the last sequence this side holds; resolves once the other side accepted it. */
-  async open(family: string, after = 0): Promise<Channel> {
+  /** Opens a channel to the other side, saying what family it speaks; resolves once the other side accepted it. */
+  async open(family: string): Promise<Channel> {
     if (typeof family !== 'string' || family === '') {
       this.refused('', 'a channel is opened for a family');
       throw new DuplexError(CHANNEL_INVALID, 'A channel is opened for a family.');
     }
-    if (!Number.isInteger(after) || after < 0) {
-      this.refused(family, 'after must be a sequence');
-      throw new DuplexError(CHANNEL_INVALID, 'after must be a sequence.');
-    }
     const id = this.next;
     this.next += 2;
-    const channel = new Channel(this, id, family, after, 0);
+    const channel = new Channel(this, id, family, 0);
     this.table.set(id, channel);
     let result: unknown;
     try {
-      result = await this.peer.call(OPEN_METHOD, { channel: id, family, after, window: this.options.window });
+      result = await this.peer.call(OPEN_METHOD, { channel: id, family, window: this.options.window });
     } catch (error) {
       this.table.delete(id);
       channel.endLocal();
@@ -131,7 +127,7 @@ export class Tunnel {
       throw new DuplexError(CHANNEL_INVALID, 'The other side declared no window.');
     }
     channel.grant(window);
-    this.observe({ type: 'channel.opened', at: new Date(), family, id, after, opener: true });
+    this.observe({ type: 'channel.opened', at: new Date(), family, id, opener: true });
     return channel;
   }
 
@@ -188,17 +184,11 @@ export class Tunnel {
 
   /** A channel the other side opened, taken here rather than left pending. */
   private accepted(channel: Channel): void {
-    this.observe({
-      type: 'channel.accepted',
-      at: new Date(),
-      family: channel.family,
-      id: channel.id,
-      after: channel.after,
-    });
+    this.observe({ type: 'channel.accepted', at: new Date(), family: channel.family, id: channel.id });
   }
 
   private onOpen(params: unknown): { window: number } {
-    const p = params as Partial<Record<'channel' | 'family' | 'after' | 'window', unknown>> | null;
+    const p = params as Partial<Record<'channel' | 'family' | 'window', unknown>> | null;
     if (
       !p ||
       typeof p !== 'object' ||
@@ -207,20 +197,14 @@ export class Tunnel {
       p.channel <= 0 ||
       typeof p.family !== 'string' ||
       p.family === '' ||
-      typeof p.after !== 'number' ||
-      !Number.isInteger(p.after) ||
-      p.after < 0 ||
       typeof p.window !== 'number' ||
       !Number.isInteger(p.window) ||
       p.window <= 0
     ) {
-      this.refused(
-        typeof p?.family === 'string' ? p.family : '',
-        'an open naming no channel, family, sequence and window',
-      );
+      this.refused(typeof p?.family === 'string' ? p.family : '', 'an open naming no channel, family and window');
       throw new DuplexError(
         CHANNEL_INVALID,
-        "channel.open needs a positive channel id of the opener's parity, a family, a sequence and a window.",
+        "channel.open needs a positive channel id of the opener's parity, a family and a window.",
       );
     }
     if (p.channel % 2 === this.parity) {
@@ -235,16 +219,9 @@ export class Tunnel {
       this.refused(p.family, 'no room for a channel nobody has accepted');
       throw new DuplexError(CHANNEL_REFUSED, 'No room for a channel nobody has accepted.');
     }
-    const channel = new Channel(this, p.channel, p.family, p.after, p.window);
+    const channel = new Channel(this, p.channel, p.family, p.window);
     this.table.set(p.channel, channel);
-    this.observe({
-      type: 'channel.opened',
-      at: new Date(),
-      family: p.family,
-      id: p.channel,
-      after: p.after,
-      opener: false,
-    });
+    this.observe({ type: 'channel.opened', at: new Date(), family: p.family, id: p.channel, opener: false });
     const acceptor = this.acceptors.shift();
     if (acceptor) {
       this.accepted(channel);
@@ -333,8 +310,6 @@ export class Channel implements FrameConnection {
   readonly id: number;
   /** The family named by the opener. */
   readonly family: string;
-  /** The last session sequence the opener holds, from which replay resumes. */
-  readonly after: number;
   private readonly tunnel: Tunnel;
   private credit: number;
   private taken = 0;
@@ -346,11 +321,10 @@ export class Channel implements FrameConnection {
   private current: ConnectionState = 'open';
 
   /** @internal */
-  constructor(tunnel: Tunnel, id: number, family: string, after: number, credit: number) {
+  constructor(tunnel: Tunnel, id: number, family: string, credit: number) {
     this.tunnel = tunnel;
     this.id = id;
     this.family = family;
-    this.after = after;
     this.credit = credit;
   }
 
