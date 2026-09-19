@@ -83,6 +83,11 @@ function deferred<T = void>() {
   return { promise, resolve };
 }
 
+/** Lets whatever a frame set going run: the handlers, the queues, the writer. */
+function settled(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, 10));
+}
+
 test('duplex routing permits reverse calls during an outstanding request', async t => {
   const { client, server, left, right } = await paired();
   t.after(() => client.close());
@@ -140,6 +145,36 @@ test('AbortSignal sends cancellation and aborts the remote handler', async t => 
   await aborted.promise;
   assert.equal(left.sent.at(-1)?.kind, 'cancel');
   assert.equal(client.status, 'connected');
+});
+
+test('a cancel answers nothing itself: the response is the handler returning, and it is cancelled', async t => {
+  const watching = recorder();
+  const { client, server, right } = await paired({}, { observer: watching });
+  t.after(() => { client.close(); server.close(); });
+  const started = deferred();
+  const release = deferred<string>();
+  // A handler that ignores its signal. The cancel withdraws the request; what
+  // answers it is this returning, whenever it does, as the profile says and
+  // the Go peer does.
+  server.handle('deaf', () => { started.resolve(); return release.promise; });
+  const controller = new AbortController();
+  const call = assert.rejects(client.call('deaf', {}, { signal: controller.signal }), { code: 'cancelled' });
+  await started.promise;
+  controller.abort();
+  await call;
+  await settled();
+  // The caller has given up and nothing has answered the request, because
+  // nothing has finished it: where the cancel answered at once, a response
+  // stood here and the request had ended.
+  assert.deepEqual(right.sent.filter(frame => frame.kind === 'response'), []);
+  assert.equal(watching.events.some(event => event.type === 'request.ended'), false);
+  release.resolve('a result nobody is waiting for');
+  await settled();
+  const responses = right.sent.filter(frame => frame.kind === 'response');
+  assert.equal(responses.length, 1);
+  assert.equal(responses[0].id, 'c:1');
+  assert.deepEqual(responses[0].error, { code: 'cancelled', message: 'Request was cancelled.' });
+  assert.deepEqual(watching.events.filter(event => event.type === 'request.ended').map(event => event.outcome), ['cancelled']);
 });
 
 test('pre-aborted calls and outstanding capacity do not send extra requests', async t => {
@@ -222,11 +257,11 @@ test('output queues are bounded and a stalled socket is paced, then disconnected
   socket.bufferedAmount = 1;
   const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 40 });
   await peer.attach(socket);
-  const first = assert.rejects(peer.emit('first'));
+  // The first is accepted for sending, which is queued and no more.
+  await peer.emit('first');
   // The second meets a full queue and is paced for one write deadline before
   // the consumer is called stalled; nothing drains, so the deadline passes.
   await assert.rejects(peer.emit('second'));
-  await first;
   assert.equal(peer.status, 'disconnected');
 });
 
@@ -245,12 +280,20 @@ test('an outgoing burst that drains within the deadline is paced, not disconnect
   assert.deepEqual(socket.sent.map(frame => frame.event), ['first', 'second']);
 });
 
-test('socket output has a write deadline', async () => {
+test('an emit over a transport that never drains resolves anyway, and the write deadline still ends the connection', async () => {
+  // What an emit promises is that the frame was accepted for sending, as the
+  // profile says and the Go peer returns: queued for this connection, with
+  // the drain and its deadline continuing behind the caller.
   const socket = new Socket();
   socket.bufferedAmount = 1;
   const peer = new DuplexPeer({ writeTimeoutMs: 10 });
+  const closed = deferred<DuplexError>();
+  peer.onClose(closed.resolve);
   await peer.attach(socket);
-  await assert.rejects(peer.emit('blocked'), { code: 'write_timeout' });
+  await peer.emit('blocked');
+  assert.equal(peer.status, 'connected');
+  assert.equal(socket.sent.length, 0);
+  assert.equal((await closed.promise).code, 'write_timeout');
   assert.equal(peer.status, 'disconnected');
 });
 
@@ -355,6 +398,10 @@ test('malformed envelopes, binary messages, opposite IDs, and oversize frames cl
     { version: 1, kind: 'request', id: 'c:1', method: 'x', params: {} },
     { version: 1, kind: 'response', id: 'c:1', result: 1, error: { code: 'bad', message: 'bad' } },
     { version: 1, kind: 'event', event: 'x', data: 1, extra: true },
+    // An error is a code and a message and both are non-empty, as the Go peer
+    // refuses them: a response nobody can read is no answer to a call.
+    { version: 1, kind: 'response', id: 'c:1', error: { code: 'denied', message: '' } },
+    { version: 1, kind: 'response', id: 'c:1', error: { code: '', message: 'Denied' } },
   ];
   for (const frame of invalid) {
     const socket = new Socket();
@@ -797,13 +844,12 @@ test('backpressure is observed where the queue fills and where the deadline pass
   const full = recorder();
   const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 40, observer: full });
   await peer.attach(socket);
-  const first = assert.rejects(peer.emit('first'));
+  await peer.emit('first');
   // Paced first and only then disconnected, as the Go peer paces it. The
   // queue's deadline and the socket's are one limit, so whichever expires
   // first ends the connection and the code it ends with is its own; what is
   // held is the pair of events, which is the same either way.
   await assert.rejects(peer.emit('second'));
-  await first;
   assert.equal(peer.status, 'disconnected');
   assert.deepEqual(backpressure(full.events), [
     { type: 'backpressure', queued: 1, stalled: false, deadlineMs: 40 },
@@ -814,8 +860,14 @@ test('backpressure is observed where the queue fills and where the deadline pass
   slow.bufferedAmount = 1;
   const missed = recorder();
   const blocked = new DuplexPeer({ writeTimeoutMs: 10, observer: missed });
+  const gaveOut = deferred<DuplexError>();
+  blocked.onClose(gaveOut.resolve);
   await blocked.attach(slow);
-  await assert.rejects(blocked.emit('blocked'), { code: 'write_timeout' });
+  // The emit is accepted for sending and the caller is told so; what the
+  // deadline holds is the queue it went into, and a frame that never drains
+  // is what passes it.
+  await blocked.emit('blocked');
+  assert.equal((await gaveOut.promise).code, 'write_timeout');
   assert.deepEqual(backpressure(missed.events), [
     { type: 'backpressure', queued: 1, stalled: true, deadlineMs: 10 },
   ]);
@@ -923,10 +975,10 @@ test('a frame is observed sent immediately before its bytes reach the transport'
   // Nothing drains while the socket is behind, so both frames are queued before
   // either is written; the queue then empties in order.
   socket.bufferedAmount = 1;
-  const first = peer.emit('one');
-  const second = peer.emit('two');
+  await peer.emit('one');
+  await peer.emit('two');
   socket.bufferedAmount = 0;
-  await Promise.all([first, second]);
+  for (let waited = 0; waited < 50 && socket.sent.length < 2; waited++) await new Promise(resolve => setTimeout(resolve, 5));
 
   assert.deepEqual(order, ['sent one', 'wire one', 'sent two', 'wire two']);
 });

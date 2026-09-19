@@ -260,20 +260,21 @@ func (p *Peer) observeOpened(role Role) {
 	p.emit(ConnectionOpened{At: time.Now(), Role: role})
 }
 
-// observeClosed says what ended the connection. The peer aborts rather than
-// closing with a handshake, so a local close carries the code this side
-// decided on and the failure that decided it, which names nothing carried.
-func (p *Peer) observeClosed(err error) {
+// observeClosed says what ended the connection, under the code the wire
+// carried and no other: the close this side sent, 1006 where it aborted and
+// sent nothing at all, or the remote's own where the remote closed first. A
+// code an operator reads here is one a gateway between the two read as well.
+func (p *Peer) observeClosed(err error, code duplex.Code, reason string) {
 	if p.options.Observer == nil {
 		return
 	}
-	closed := ConnectionClosed{At: time.Now(), Code: int(duplex.CodeDuplex), Reason: err.Error(), Local: true}
+	closed := ConnectionClosed{At: time.Now(), Code: int(duplex.CodeAbnormalClosure), Local: true}
+	if code != codeAborted {
+		closed.Code, closed.Reason = int(code), reason
+	}
 	var remote *duplex.CloseError
-	switch {
-	case errors.As(err, &remote):
+	if errors.As(err, &remote) {
 		closed.Code, closed.Reason, closed.Local = int(remote.Code), remote.Reason, false
-	case errors.Is(err, ErrClosed):
-		closed.Code, closed.Reason = int(duplex.CodeNormal), ""
 	}
 	p.emit(closed)
 }

@@ -19,6 +19,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Bitspark/nightseam/duplex/go"
 )
@@ -282,11 +283,31 @@ func (p *Peer) MaxFrameBytes() int64 { return p.options.MaxFrameBytes }
 // the context's error, or the connection's own.
 func (p *Peer) Err() error { p.mu.Lock(); defer p.mu.Unlock(); return p.err }
 
-// Close ends the peer with ErrClosed, closing the connection beneath it and
-// failing every pending call. It is safe to call more than once.
-func (p *Peer) Close() error { p.fail(ErrClosed); return nil }
+// Close ends the peer with ErrClosed, closing the connection beneath it with
+// 1000 and failing every pending call. It is safe to call more than once.
+func (p *Peer) Close() error { p.end(ErrClosed, duplex.CodeNormal, ""); return nil }
 
-func (p *Peer) fail(err error) {
+// fail ends the peer on a transport there is nothing to say over: a write that
+// failed, the context ending, a consumer that stalled past its deadline. The
+// connection is aborted rather than closed with a handshake nobody is left to
+// answer, and the far side reads an abnormal closure.
+func (p *Peer) fail(err error) { p.end(err, codeAborted, "") }
+
+// refuse ends the peer on a frame the profile does not admit — a malformed
+// envelope, an id that correlates with nothing, a frame of the wrong kind. The
+// other side broke the profile and is told so, with 4011 and a reason, because
+// a gateway or a proxy between the two can act on a code and can act on
+// nothing at all (docs/profile.md).
+func (p *Peer) refuse(err error) { p.end(err, duplex.CodeDuplex, err.Error()) }
+
+// codeAborted stands for no close at all: the connection is aborted, nothing
+// is sent, and the far side reads 1006.
+const codeAborted duplex.Code = 0
+
+// end ends the peer once, whatever ended it: every pending call is released,
+// the connection is closed with the code this side decided on or aborted where
+// there is none, and the observer is told what the wire carried.
+func (p *Peer) end(err error, code duplex.Code, reason string) {
 	p.once.Do(func() {
 		if err == nil {
 			err = ErrClosed
@@ -296,10 +317,35 @@ func (p *Peer) fail(err error) {
 		p.mu.Unlock()
 		p.cancel()
 		close(p.done)
-		// An abort avoids a close-handshake wait after a stalled consumer or peer.
-		_ = p.conn.Abort()
-		p.observeClosed(err)
+		if code == codeAborted {
+			_ = p.conn.Abort()
+		} else {
+			// The peer's own context is already cancelled, so the handshake
+			// waits on one of its own: a far side that answers is told the
+			// code, and one that does not holds nothing up past the deadline.
+			reason = closeReason(reason)
+			ctx, cancel := context.WithTimeout(context.Background(), p.options.WriteTimeout)
+			_ = p.conn.Close(ctx, code, reason)
+			cancel()
+		}
+		p.observeClosed(err, code, reason)
 	})
+}
+
+// closeReason is what a close frame admits: the registry bounds a reason at
+// 123 bytes and requires valid UTF-8, and a transport handed a longer one
+// would close with no code at all — which is the one thing a refusal must not
+// do. A refused frame's own text may reach it, so it is cut on a rune.
+func closeReason(reason string) string {
+	const limit = 123
+	if len(reason) <= limit {
+		return reason
+	}
+	reason = reason[:limit]
+	for len(reason) > 0 && !utf8.ValidString(reason) {
+		reason = reason[:len(reason)-1]
+	}
+	return reason
 }
 
 // Handle registers a method. Duplicate registrations are rejected.
@@ -528,16 +574,16 @@ func (p *Peer) readLoop() {
 			return
 		}
 		if received.Kind != duplex.Text {
-			p.fail(errors.New("duplex requires JSON text frames"))
+			p.refuse(errors.New("duplex requires JSON text frames"))
 			return
 		}
 		if int64(len(received.Data)) > p.options.MaxFrameBytes {
-			p.fail(errors.New("duplex frame exceeds size limit"))
+			p.refuse(errors.New("duplex frame exceeds size limit"))
 			return
 		}
 		f, err := decodeFrame(received.Data)
 		if err != nil {
-			p.fail(err)
+			p.refuse(err)
 			return
 		}
 		if f.ID != "" {
@@ -546,7 +592,7 @@ func (p *Peer) readLoop() {
 				prefix = p.prefix
 			}
 			if !validID(f.ID, prefix) {
-				p.fail(errors.New("invalid duplex request identifier"))
+				p.refuse(errors.New("invalid duplex request identifier"))
 				return
 			}
 		}
@@ -646,7 +692,7 @@ func (p *Peer) startRequest(f frame) {
 	p.mu.Lock()
 	if _, exists := p.incoming[f.ID]; exists {
 		p.mu.Unlock()
-		p.fail(errors.New("duplicate active duplex request identifier"))
+		p.refuse(errors.New("duplicate active duplex request identifier"))
 		return
 	}
 	handler := p.handlers[f.Method]

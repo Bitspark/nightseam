@@ -583,10 +583,11 @@ func TestAMachineOverAPipeAndAConsumerOverAWebSocket(t *testing.T) {
 	}
 
 	// The close: the machine's connection ending ends the consumer's
-	// channel, an in-process machine that stops being the dropped transport
-	// the seam calls an abnormal closure.
+	// channel, under the close the machine's carried — a machine that stops
+	// by choice is the normal close it chose, where one whose transport was
+	// dropped would be the abnormal closure the seam calls 1006.
 	machine.Close()
-	if closed := ends(t, ctx, consumer); closed.Code != duplex.CodeAbnormalClosure {
+	if closed := ends(t, ctx, consumer); closed.Code != duplex.CodeNormal {
 		t.Fatalf("the consumer's channel ended as %v", closed)
 	}
 }

@@ -139,7 +139,7 @@ const callError = (error: DuplexError, peer: Peer): Record<string, unknown> => {
   return out;
 };
 
-interface Behavior { kind: string; value?: unknown; code?: string; message?: string; data?: unknown; method?: string; params?: unknown; event?: string; then?: unknown }
+interface Behavior { kind: string; value?: unknown; code?: string; message?: string; data?: unknown; method?: string; params?: unknown; event?: string; then?: unknown; until?: string }
 
 const behaviorOf = (args: Args): Behavior => {
   const raw = args.behavior;
@@ -182,6 +182,17 @@ const canned = (p: Peer, method: string, b: Behavior) => async (params: unknown,
           if (context.signal.aborted) reject(new DuplexError('cancelled', 'cancelled'));
           context.signal.addEventListener('abort', () => reject(new DuplexError('cancelled', 'cancelled')), { once: true });
         });
+        break;
+      case 'hold':
+        // The one handler that does not stop when it is told to: it holds the
+        // request until the remote emits what releases it, cancelled or not,
+        // which is how a scenario holds when a withdrawn request is answered.
+        await new Promise<void>(resolve => {
+          const released = () => { off(); ended(); resolve(); };
+          const off = context.peer.onEvent(b.until ?? '', released);
+          const ended = context.peer.onClose(released);
+        });
+        result = b.value ?? null;
         break;
       case 'panic':
         throw new Error(typeof b.value === 'string' ? b.value : JSON.stringify(b.value ?? 'the handler gave up'));
@@ -384,9 +395,10 @@ export function peerOps(t: Testee): Record<string, Op> {
     'peer.await_close': async args => {
       const p = peerOf(args);
       if (!(await p.recorder.whenClosed(withinOf(args)))) throw fail('timeout', 'the peer did not end');
-      // Clean is a close somebody chose, whichever side: the peer closes with
-      // 1000 by choice and with a code of its own when it refuses a frame.
-      return { clean: p.recorder.closed!.code === 1000 };
+      // Clean is a close somebody chose, whichever side: a peer closes with
+      // 1000 by choice and with a code of its own when it refuses a frame, and
+      // 1006 is what a side that aborted leaves behind.
+      return { clean: p.recorder.closed!.code === 1000, code: p.recorder.closed!.code };
     },
   };
 }

@@ -84,23 +84,23 @@ test('meta is refused on a response and a cancel, in any other form, and under t
   }
 });
 
-test('every meta row of the conformance table is judged as the table judges it', () => {
+test('every row of the conformance table is judged as the table judges it', () => {
   const table = JSON.parse(readFileSync(new URL('../../../conformance/tables/frames.json', import.meta.url), 'utf8')) as {
     rows: { name: string; to: string; frame: string; valid: boolean }[];
   };
-  let rows = 0;
+  let carriages = 0;
   for (const row of table.rows) {
-    let members: unknown;
-    try { members = JSON.parse(row.frame); } catch { continue; }
-    if (typeof members !== 'object' || members === null || !Object.hasOwn(members, 'meta')) continue;
-    rows++;
-    // A row addressed to the server carries the client's ids and answers the server's.
+    // A row addressed to the server carries the client's ids and answers the
+    // server's; one addressed to either is read as a server's.
     const [local, remote] = row.to === 'client' ? ['c:', 's:'] : ['s:', 'c:'];
     let accepted = true;
     try { decodeEnvelope(row.frame, local, remote); } catch { accepted = false; }
     assert.equal(accepted, row.valid, row.name);
+    let members: unknown;
+    try { members = JSON.parse(row.frame); } catch { continue; }
+    if (typeof members === 'object' && members !== null && Object.hasOwn(members, 'meta')) carriages++;
   }
-  assert.ok(rows >= 12, `the table names meta in ${rows} rows; the member is held by more than that`);
+  assert.ok(table.rows.length >= 70 && carriages >= 12, `the table holds ${table.rows.length} rows and names meta in ${carriages}; the wire is held by more than that`);
 });
 
 test('a frame with a refused meta closes the connection with 4011', async () => {

@@ -1,0 +1,91 @@
+{
+  "name": "an outgoing queue fills, is paced, and ends the connection when nothing drains it",
+  "layer": "peer",
+  "description": "The outgoing half of the one backpressure rule, which no scenario could hold while an emit waited for its frame to drain: an emit resolves when the frame was accepted for sending, so a sender reaches the frame that meets a full queue and is paced. Held over an in-process pair nothing reads, the one transport a scenario can fill, and mirrored so that each language is held over its own. How a peer ends a connection whose consumer never drained is its transport's — a close of its own or an abort — and what is held is that it ended.",
+  "needs": [
+    "lazy",
+    "observer",
+    "peer",
+    "pipe",
+    "seam"
+  ],
+  "mirror": true,
+  "steps": [
+    {
+      "on": "b",
+      "op": "conn.pipe",
+      "args": {
+        "consume": "lazy"
+      },
+      "bind": {
+        "a": "near",
+        "b": "far"
+      },
+      "note": "an in-process pair nothing reads unasked: a socket's own buffers take far more than a scenario can send"
+    },
+    {
+      "on": "b",
+      "op": "peer.over",
+      "args": {
+        "on": "$near",
+        "role": "client",
+        "options": {
+          "observe": true,
+          "queue_capacity": 1,
+          "write_timeout_ms": 2000
+        }
+      },
+      "bind": "p"
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$p",
+        "event": "burst",
+        "data": 1,
+        "within_ms": 300
+      },
+      "repeat": {
+        "max": 16,
+        "until": "error"
+      },
+      "expect_error": {
+        "code": "timeout"
+      },
+      "note": "emits until one meets the queue full: what the transport holds, what the writer has in hand and what the queue holds all take one first, and the one after that is paced for a write deadline — which an emit that waited on the drain could never reach, the second never returning"
+    },
+    {
+      "on": "b",
+      "op": "peer.observed",
+      "args": {
+        "on": "$p",
+        "drain": false
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "backpressure",
+            "queued": "$int",
+            "stalled": false,
+            "deadline": true
+          }
+        ]
+      },
+      "note": "paced, and the peer is still whole: a full queue is a burst until its deadline passes"
+    },
+    {
+      "on": "b",
+      "op": "peer.await_close",
+      "args": {
+        "on": "$p",
+        "within_ms": 6000
+      },
+      "expect": {
+        "clean": false,
+        "code": "$int"
+      },
+      "note": "and nothing drained it within the deadline, so the peer that could not write is disconnected rather than left holding the connection up"
+    }
+  ]
+}

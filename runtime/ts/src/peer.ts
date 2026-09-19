@@ -129,8 +129,6 @@ interface Outgoing {
   started: number;
   sent: boolean;
   waited: boolean;
-  resolve: () => void;
-  reject: (error: DuplexError) => void;
   /** What the observer is told of this frame, called by the writer just before the bytes leave. */
   observeSent?: () => void;
 }
@@ -353,7 +351,11 @@ export class DuplexPeer {
     });
   }
 
-  /** Resolves when accepted by the socket and its reported byte buffer drains. */
+  /**
+   * Emits one event and resolves when its frame was accepted for sending, which is queued for this
+   * connection and no more: an event says nothing about receipt, and a caller that wants delivery
+   * has a call. The queue's own deadline continues behind it and ends a connection that never drains.
+   */
   emit(event: string, data: unknown = null, options: EmitOptions = {}): Promise<void> {
     try { requireName(event, 'event'); } catch (error) { return Promise.reject(error); }
     return this.send(carrying(traced({ version: 1, kind: 'event', event, data }, this.propagator.inject(options.context)), options.meta), event);
@@ -416,22 +418,25 @@ export class DuplexPeer {
         throw error;
       }
     }
-    return new Promise<void>((resolve, reject) => {
-      const kind = envelope.kind as string;
-      const trace = traceOf(envelope);
-      const family = this.family(name);
-      // What the peer did comes before the frame that carried it, as the Go
-      // peer tells it: an event is emitted, then its frame is sent. The frame
-      // itself is observed by the writer, immediately before the bytes leave —
-      // one serialization point per peer, so that nothing a frame draws can be
-      // observed received ahead of it (docs/observability.md).
-      if (this.observer && kind === 'event') this.observe({ type: 'event.emitted', at: new Date(), name, bytes, trace, family });
-      const observeSent = this.observer
-        ? () => this.observe({ type: 'frame.sent', at: new Date(), kind, name, bytes, id: envelope.id as string | undefined, trace, family })
-        : undefined;
-      this.outgoing.push({ text, started: Date.now(), sent: false, waited: false, resolve, reject, observeSent });
-      this.flush();
-    });
+    const kind = envelope.kind as string;
+    const trace = traceOf(envelope);
+    const family = this.family(name);
+    // What the peer did comes before the frame that carried it, as the Go
+    // peer tells it: an event is emitted, then its frame is sent. The frame
+    // itself is observed by the writer, immediately before the bytes leave —
+    // one serialization point per peer, so that nothing a frame draws can be
+    // observed received ahead of it (docs/observability.md).
+    if (this.observer && kind === 'event') this.observe({ type: 'event.emitted', at: new Date(), name, bytes, trace, family });
+    const observeSent = this.observer
+      ? () => this.observe({ type: 'frame.sent', at: new Date(), kind, name, bytes, id: envelope.id as string | undefined, trace, family })
+      : undefined;
+    // Accepted for sending is queued, as the profile says and as the Go peer
+    // returns: what the transport does with the frame after that is the
+    // transport's, held to the write deadline the flush keeps, and a sender
+    // that waited on the drain could never reach the frame that fills the
+    // queue — which is what is being paced above.
+    this.outgoing.push({ text, started: Date.now(), sent: false, waited: false, observeSent });
+    this.flush();
   }
 
   private flush(): void {
@@ -453,7 +458,6 @@ export class DuplexPeer {
       }
       if (item.sent && connection.buffered === 0) {
         this.outgoing.shift();
-        item.resolve();
         this.makeRoom();
       } else {
         item.waited = true;
@@ -509,11 +513,12 @@ export class DuplexPeer {
         break;
       }
       case 'cancel': {
-        const incoming = this.incoming.get(frame.id as string);
-        if (incoming) {
-          incoming.controller.abort();
-          this.respond(frame.id as string, incoming, undefined, new DuplexError('cancelled', 'Request was cancelled.'), 'cancelled');
-        }
+        // A cancel withdraws the request and answers nothing itself: the
+        // receiver aborts the handler's signal, and the response — cancelled,
+        // whatever the handler goes on to return — is the handler's return,
+        // as the profile says and the Go peer does. What frees the
+        // correlation is the work ending, not the asking to end it.
+        this.incoming.get(frame.id as string)?.controller.abort();
         break;
       }
       case 'request': this.request(frame.id as string, frame.method as string, frame.params, trace, frame.meta as Meta | undefined); break;
@@ -573,8 +578,13 @@ export class DuplexPeer {
     });
   }
 
-  private respond(id: string, incoming: Incoming, result?: unknown, error?: DuplexError, outcome: Outcome = error ? 'error' : 'ok'): void {
+  private respond(id: string, incoming: Incoming, result?: unknown, error?: DuplexError, outcome?: Outcome): void {
     if (incoming.responded || this.incoming.get(id) !== incoming || !this.isOpen()) return;
+    // A request that was withdrawn is answered `cancelled` whatever its
+    // handler returned: the work outlived the asking for it, and what the
+    // caller is told is that the request was abandoned.
+    if (!error && incoming.controller.signal.aborted) error = new DuplexError('cancelled', 'Request was cancelled.');
+    outcome ??= error ? (error.code === 'cancelled' ? 'cancelled' : 'error') : 'ok';
     incoming.responded = true;
     clearTimeout(incoming.timer);
     const frame: Envelope = { version: 1, kind: 'response', id };
@@ -706,7 +716,8 @@ export class DuplexPeer {
       }
     }
     this.incoming.clear();
-    for (const item of this.outgoing.splice(0)) item.reject(error);
+    // Nothing here is a caller's promise: a send resolved when it was queued.
+    this.outgoing.length = 0;
     if (closeConnection) {
       // Browser close() restricts application codes to 3000–4999 (or 1000).
       try { connection.close(code, reason); } catch { /* Already closed. */ }
@@ -788,7 +799,8 @@ export function decodeEnvelope(data: string, localPrefix: string, remotePrefix: 
         if (!isObject(frame.error)) throw new Error();
         keys(frame.error, ['code', 'message', 'data']);
         requireName(frame.error.code, 'code');
-        if (typeof frame.error.message !== 'string') throw new Error();
+        // code and message are both non-empty, as the Go peer refuses them.
+        requireName(frame.error.message, 'message');
       }
       break;
     case 'cancel':

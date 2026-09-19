@@ -14,13 +14,16 @@ import (
 )
 
 // A peer under control: the runtime's Peer, what it received, what its
-// canned handlers saw, and what its observer was told.
+// canned handlers saw, and what its observer was told. Every peer is observed,
+// since how it ended is read off the close its observer was told about;
+// observe: true is what makes those events reportable to peer.observed.
 type peer struct {
 	*runtime.Peer
-	events   *inbox[delivered]
-	requests *inbox[lifecycle]
-	observer *recorder
-	cancel   context.CancelFunc
+	events     *inbox[delivered]
+	requests   *inbox[lifecycle]
+	observer   *recorder
+	observable bool
+	cancel     context.CancelFunc
 }
 
 // lifecycle is one phase of one request a canned handler served.
@@ -79,8 +82,10 @@ func (t *testee) options(r request) (runtime.Options, *recorder, error) {
 	if err != nil {
 		return runtime.Options{}, nil, err
 	}
-	o := runtime.Options{}
-	var rec *recorder
+	// Every peer takes an observer, whether or not a scenario asks for its
+	// events: how the connection ended is read off the close it is told of.
+	rec := newRecorder()
+	o := runtime.Options{Observer: rec}
 	for key, value := range raw {
 		var n int64
 		switch key {
@@ -109,10 +114,7 @@ func (t *testee) options(r request) (runtime.Options, *recorder, error) {
 			if err := json.Unmarshal(value, &on); err != nil {
 				return o, nil, invalid("options.observe is a boolean")
 			}
-			if on {
-				rec = newRecorder()
-				o.Observer = rec
-			}
+			rec.keep = on
 		case "propagate":
 			// Go's peer always propagates; the option says a scenario relies on it.
 		default:
@@ -124,7 +126,7 @@ func (t *testee) options(r request) (runtime.Options, *recorder, error) {
 
 // adopt takes a runtime peer under control: its events into an inbox.
 func (t *testee) adopt(p *runtime.Peer, rec *recorder, cancel context.CancelFunc) *peer {
-	w := &peer{Peer: p, events: newInbox[delivered](), requests: newInbox[lifecycle](), observer: rec, cancel: cancel}
+	w := &peer{Peer: p, events: newInbox[delivered](), requests: newInbox[lifecycle](), observer: rec, observable: rec.keep, cancel: cancel}
 	p.OnEvent(func(ctx context.Context, e runtime.Event) {
 		w.events.put(delivered{event: e, meta: runtime.MetaFrom(ctx)})
 	})
@@ -499,7 +501,7 @@ func (t *testee) peerOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			if p.observer == nil {
+			if !p.observable {
 				return nil, invalid("the peer was made without observe")
 			}
 			withTrace, err := r.bool("trace")
@@ -531,15 +533,14 @@ func (t *testee) peerOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			select {
-			case <-p.Done():
-			case <-time.After(within):
+			closed, ok := p.observer.whenClosed(within)
+			if !ok {
 				return nil, fail("timeout", "the peer did not end within %s", within)
 			}
-			err = p.Err()
-			var closeErr *duplex.CloseError
-			clean := errors.Is(err, runtime.ErrClosed) || (errors.As(err, &closeErr) && closeErr.Code == duplex.CodeNormal)
-			return map[string]any{"clean": clean}, nil
+			// Clean is a close somebody chose, whichever side: a peer closes
+			// with 1000 by choice and with a code of its own when it refuses a
+			// frame, and 1006 is what a side that aborted leaves behind.
+			return map[string]any{"clean": closed.Code == int(duplex.CodeNormal), "code": closed.Code}, nil
 		},
 	}
 }
@@ -577,6 +578,7 @@ type behavior struct {
 	Params  json.RawMessage `json:"params"`
 	Event   string          `json:"event"`
 	Then    json.RawMessage `json:"then"`
+	Until   string          `json:"until"`
 }
 
 func parseBehavior(raw json.RawMessage) (behavior, error) {
@@ -621,6 +623,26 @@ func canned(p *peer, method string, b behavior) runtime.Handler {
 		case "wait":
 			<-ctx.Done()
 			return nil, ctx.Err()
+		case "hold":
+			// The one handler that does not stop when it is told to: it holds
+			// the request until the remote emits what releases it, cancelled
+			// or not, which is how a scenario holds when a withdrawn request
+			// is answered.
+			released := make(chan struct{}, 1)
+			unsubscribe := remote.OnEvent(func(_ context.Context, e runtime.Event) {
+				if e.Name == b.Until {
+					select {
+					case released <- struct{}{}:
+					default:
+					}
+				}
+			})
+			defer unsubscribe()
+			select {
+			case <-released:
+			case <-remote.Done():
+			}
+			return b.Value, nil
 		case "panic":
 			var value any = "the handler gave up"
 			if b.Value != nil {

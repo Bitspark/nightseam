@@ -1,0 +1,192 @@
+{
+  "name": "a cancel is answered when the handler returns, and answered cancelled",
+  "layer": "peer",
+  "description": "A cancel withdraws a request; it does not answer it. The receiver aborts the handler's signal, and what answers is the handler returning — cancelled, whatever it returned — so that the one response is tied to the work that produced it and a relay counting open requests sees them end where the work did. Held with the one handler that ignores its signal: the request it serves is still open while a later call is served and answered, and ends only after it.",
+  "needs": [
+    "observer",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a",
+        "server_options": {
+          "observe": true
+        }
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "hold",
+        "behavior": {
+          "kind": "hold",
+          "until": "release",
+          "value": "a result nobody is waiting for"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "echo",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "hold",
+        "params": {}
+      },
+      "bind": "c"
+    },
+    {
+      "on": "a",
+      "op": "peer.await_request",
+      "args": {
+        "on": "$pa",
+        "method": "hold",
+        "phase": "started"
+      },
+      "expect": {
+        "phase": "started"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.cancel",
+      "args": {
+        "on": "$c"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c"
+      },
+      "expect": {
+        "error": {
+          "code": "cancelled"
+        }
+      },
+      "note": "the caller gives up where it stands, as it always does, and learns nothing about the request's fate"
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "params": {
+          "after": "the cancel"
+        }
+      },
+      "bind": "c2"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c2"
+      },
+      "expect": {
+        "result": {
+          "after": "the cancel"
+        }
+      },
+      "note": "a call sent after the cancel travels behind it on the one connection, so a receiver that answered this has read that"
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "release",
+        "data": null
+      },
+      "note": "and now the handler that ignored its signal returns"
+    },
+    {
+      "on": "a",
+      "op": "peer.await_request",
+      "args": {
+        "on": "$pa",
+        "method": "hold",
+        "phase": "ended"
+      },
+      "expect": {
+        "outcome": "ok"
+      },
+      "note": "the handler answered with a result of its own; what the profile sends for a request that was withdrawn is another matter"
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "params": {
+          "after": "the return"
+        }
+      },
+      "bind": "c3"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$c3"
+      },
+      "expect": {
+        "result": {
+          "after": "the return"
+        }
+      },
+      "note": "the connection is whole, and this round trip is after everything the return set going"
+    },
+    {
+      "on": "a",
+      "op": "peer.observed",
+      "args": {
+        "on": "$pa"
+      },
+      "expect": {
+        "$contains": [
+          {
+            "type": "frame.received",
+            "kind": "cancel"
+          },
+          {
+            "type": "request.ended",
+            "method": "echo",
+            "incoming": true,
+            "outcome": "ok"
+          },
+          {
+            "type": "request.ended",
+            "method": "hold",
+            "incoming": true,
+            "outcome": "cancelled"
+          }
+        ]
+      },
+      "note": "the order is the whole of it: the cancel arrived, a call sent after it was served and ended, and only then did the withdrawn request end — where a cancel that answered at once would have ended it before the call that followed"
+    }
+  ]
+}

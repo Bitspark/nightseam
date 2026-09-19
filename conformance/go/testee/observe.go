@@ -11,18 +11,42 @@ import (
 )
 
 // recorder is an observer that keeps what it is told, from whatever
-// goroutine, for peer.observed to report in the driver's one shape.
+// goroutine, for peer.observed to report in the driver's one shape. It keeps
+// the events only where a peer was made with observe: true, and latches the
+// close whether or not it was, since how a connection ended is what
+// peer.await_close answers with.
 type recorder struct {
 	mu     sync.Mutex
+	keep   bool
 	events []runtime.ObserverEvent
+	closed *runtime.ConnectionClosed
+	ended  chan struct{}
 }
 
-func newRecorder() *recorder { return &recorder{} }
+func newRecorder() *recorder { return &recorder{ended: make(chan struct{})} }
 
 func (r *recorder) Observe(event runtime.ObserverEvent) {
 	r.mu.Lock()
-	r.events = append(r.events, event)
+	if r.keep {
+		r.events = append(r.events, event)
+	}
+	if closed, ok := event.(runtime.ConnectionClosed); ok && r.closed == nil {
+		r.closed = &closed
+		close(r.ended)
+	}
 	r.mu.Unlock()
+}
+
+// whenClosed is the close the peer was told of, waited for up to within.
+func (r *recorder) whenClosed(within time.Duration) (runtime.ConnectionClosed, bool) {
+	select {
+	case <-r.ended:
+	case <-time.After(within):
+		return runtime.ConnectionClosed{}, false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return *r.closed, true
 }
 
 func (r *recorder) report(withTrace, drain bool) []map[string]any {

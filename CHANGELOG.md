@@ -298,6 +298,50 @@ Nothing yet.
   paces on, where `pipe()` declared `buffered = 0` and delivered every send
   at once; held by the seam suite in TypeScript and a seam scenario that
   exhausts the bound in both pairings.
+- A peer that refuses a frame closes with the code the profile names, in Go
+  too, and its observer is told what the wire carried: `fail` aborted for a
+  frame the profile does not admit exactly as it aborted for a transport that
+  was already gone, so a malformed frame left the far side reading 1006 where
+  TypeScript closed 4011, and the observer was told 4011 all the same — and a
+  close a consumer chose was told 1000 where the wire had carried nothing.
+  A protocol failure now does the close handshake with `duplex.CodeDuplex` and
+  a reason, cut to what a close frame admits; `Close` closes with 1000; and a
+  write that failed, a context that ended or a consumer that stalled still
+  aborts, which is the one case `ConnectionClosed` reports as 1006.
+  `peer.await_close` reports the code beside `clean`, and the malformed-frame
+  scenario holds 4011 on the peer that refused and on the raw connection
+  reading it, for every invalid row of the table and in both pairings. A
+  machine that ends its connection by choice thereby tells a session's
+  consumers the normal close it chose, where the relay used to pass on the
+  1006 an abort had left behind.
+- An error frame with an empty `message` is malformed in TypeScript as it is
+  in Go, where `{"code":"denied","message":""}` ended the connection against a
+  Go peer and resolved a call against a TypeScript one; `frames.json` gains a
+  row for an empty message and one for an empty code, and each runtime's
+  table-driven test now judges every row of the table the way its peer judges
+  a frame it is handed — the envelope decoded and the id held to its prefix —
+  where both read only the rows naming `meta`.
+- A cancel is answered when the handler returns in TypeScript, as the profile
+  says and the Go peer does: the receiver answered `cancelled` the moment the
+  cancel arrived and dropped whatever the handler went on to return, so an
+  observer's `request.ended`, a relay counting open requests and a handler
+  slot's occupancy all moved with the asking rather than with the work. The
+  cancel now aborts the handler's signal and answers nothing itself, and the
+  handler's return is the one response — `cancelled` whatever it returned.
+  Held by a scenario in which a handler that ignores its signal is still open
+  while a call sent after the cancel is served and answered, and ends only
+  after it, with the `hold` behaviour `DRIVER.md` now names.
+- A TypeScript `emit` resolves when the frame was accepted for sending, which
+  is queued, as the profile says and `Emit` returns in Go, where it waited for
+  the transport to report its buffer drained: a sender over a connection that
+  was not draining never reached the frame that meets a full queue, which is
+  why the outgoing queue had no scenario and the profile's one backpressure
+  rule was held on that side by each runtime's own tests alone. The drain and
+  the write deadline continue behind the caller and still end a connection
+  nothing drains; `runtime/ts`'s README no longer promises the drain. Held by
+  the outgoing-queue scenario, paced over an in-process pair nothing reads and
+  mirrored so each language is held over its own, and by a `peer.test.ts` case
+  for the resolve point itself.
 - Three things a release would have tripped on or told wrong: a test in the
   TypeScript target asserted the literal `0.2.0` that `scripts/version.mjs`
   never rewrites, which would have failed the tag workflow's own `go test`

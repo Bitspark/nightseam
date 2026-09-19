@@ -75,19 +75,21 @@
         "on": "$pb"
       },
       "expect": {
-        "clean": false
-      }
+        "clean": false,
+        "code": 4011
+      },
+      "note": "the profile's own close: a side that broke it is told so, and told the same thing by either language"
     },
     {
       "on": "a",
-      "op": "conn.receive",
+      "op": "conn.await_close",
       "args": {
         "on": "$ca"
       },
-      "expect_error": {
-        "code": "$regex:^(closed|failed)$"
+      "expect": {
+        "code": 4011
       },
-      "note": "and the raw side sees it end"
+      "note": "and the raw side reads that code off the wire, where an abort would have left it 1006 and nothing to act on"
     }
   ]
 }

@@ -195,7 +195,7 @@ The profile: `runtime/go`'s `Peer`, `@nightseam/runtime`'s `DuplexPeer`.
 | `peer.await_request` | **`on`**, **`method`**, **`phase`** `"started"`\|`"ended"`, `within_ms` | `{"id", "method", "phase", "outcome", "meta"?}` — what a canned handler saw; `outcome` on `ended` is `ok`, `error`, `cancelled` or `panic` |
 | `peer.observed` | **`on`**, `trace` (bool), `drain` (bool, default true) | `[event, …]` what the observer was told, normalized, see below |
 | `peer.close` | **`on`** | `{}` |
-| `peer.await_close` | **`on`**, `within_ms` | `{"clean": bool}` — clean when this side or the other closed it by choice; otherwise the peer ended on an error, the transport's or its own |
+| `peer.await_close` | **`on`**, `within_ms` | `{"clean": bool, "code": int}` — the code the connection ended under and whether it was a close somebody chose |
 
 `meta` on `peer.call` and `peer.emit` is the profile's carriage the frame
 takes: an object whose every value is a string, absent by default. A testee
@@ -217,10 +217,14 @@ sees it, `""` when it selected none — which a connection over anything but a
 WebSocket always is. A testee whose transport cannot negotiate one answers
 `unsupported` and the scenario is skipped for it.
 
-`peer.await_close` reports no code: a peer that refuses a frame ends the
-connection as its language does — an abort, a close with a code of its own —
-and what the scenario holds is that it ended, not how its transport said so.
-The seam's `conn.await_close` is where a code is a fact.
+`peer.await_close` reports the code the peer's own observer was told the
+connection ended under, which is the code the wire carried: **1000** where a
+side chose the close, **4011** where a peer refused a frame of the profile,
+**1006** where a side aborted and sent nothing at all, and whatever the remote
+sent where the remote closed first. `clean` is that code being 1000 — a close
+somebody chose — and a peer that ended on a transport failure or on a refusal
+is not clean. The seam's `conn.await_close` reads the same fact off the
+connection rather than off the peer.
 
 `options` on `peer.listen`, `peer.dial` and `peer.over`:
 
@@ -251,6 +255,7 @@ of things, so that a testee is a peer under control and not a script engine:
 | `{"kind": "return", "value": …}` | answers with `value` |
 | `{"kind": "fail", "code", "message", "data"}` | answers with that public error |
 | `{"kind": "wait"}` | answers nothing until the request is cancelled or the peer ends; `peer.await_request` sees `started`, then `ended` with `cancelled` |
+| `{"kind": "hold", "until": "<event>", "value": …}` | holds the request until the remote emits `until`, its signal notwithstanding, and then answers `value` — the one handler that does not stop when it is told to, which is how a scenario holds *when* a withdrawn request is answered |
 | `{"kind": "panic", "value": "…"}` | panics, throws — whatever the language does when a handler gives up — with that value |
 | `{"kind": "reverse", "method", "params"}` | calls `method` on the remote **from the request's own context**, so the call is a child of the request's trace, with `params` or, absent, its own; answers with what came back, or fails with what came back |
 | `{"kind": "emit", "event", "data", "then": …}` | emits `event` from the request's context, then answers `then` |

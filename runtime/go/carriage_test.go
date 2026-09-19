@@ -84,10 +84,11 @@ func TestMetaIsRefusedInEveryOtherForm(t *testing.T) {
 	}
 }
 
-// TestMetaAgreesWithTheConformanceTable: every row of tables/frames.json that
-// names meta is judged as the table judges it, so the two runtimes and the
-// suite read one description of the member.
-func TestMetaAgreesWithTheConformanceTable(t *testing.T) {
+// TestTheConformanceTableIsJudgedAsItJudges: every row of tables/frames.json,
+// held the way the peer holds a frame it is handed — the envelope decoded and
+// the id held to the prefix its kind carries — so that the two runtimes and
+// the suite read one description of the wire, this one.
+func TestTheConformanceTableIsJudgedAsItJudges(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "conformance", "tables", "frames.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -95,6 +96,7 @@ func TestMetaAgreesWithTheConformanceTable(t *testing.T) {
 	var table struct {
 		Rows []struct {
 			Name  string
+			To    string
 			Frame string
 			Valid bool
 		}
@@ -102,23 +104,35 @@ func TestMetaAgreesWithTheConformanceTable(t *testing.T) {
 	if err := json.Unmarshal(data, &table); err != nil {
 		t.Fatal(err)
 	}
-	rows := 0
+	carriages := 0
 	for _, row := range table.Rows {
-		var members map[string]json.RawMessage
-		if json.Unmarshal([]byte(row.Frame), &members) != nil {
-			continue
+		// A row addressed to the server carries the client's ids and answers
+		// the server's; one addressed to either is read as a server's.
+		local, remote := "s:", "c:"
+		if row.To == "client" {
+			local, remote = "c:", "s:"
 		}
-		if _, carried := members["meta"]; !carried {
-			continue
+		f, err := decodeFrame([]byte(row.Frame))
+		accepted := err == nil
+		if accepted && f.ID != "" {
+			prefix := remote
+			if f.Kind == "response" {
+				prefix = local
+			}
+			accepted = validID(f.ID, prefix)
 		}
-		rows++
-		_, err := decodeFrame([]byte(row.Frame))
-		if (err == nil) != row.Valid {
+		if accepted != row.Valid {
 			t.Errorf("%s: valid=%v, decode error %v", row.Name, row.Valid, err)
 		}
+		var members map[string]json.RawMessage
+		if json.Unmarshal([]byte(row.Frame), &members) == nil {
+			if _, carried := members["meta"]; carried {
+				carriages++
+			}
+		}
 	}
-	if rows < 12 {
-		t.Fatalf("the table names meta in %d rows; the member is held by more than that", rows)
+	if len(table.Rows) < 70 || carriages < 12 {
+		t.Fatalf("the table holds %d rows and names meta in %d; the wire is held by more than that", len(table.Rows), carriages)
 	}
 }
 

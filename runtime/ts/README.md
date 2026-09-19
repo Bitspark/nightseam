@@ -76,8 +76,10 @@ disconnected. Event listeners run in order and never block the routing of
 responses; a listener that throws is reported through `onError` and
 processing continues, and one that never settles disconnects at its deadline.
 
-`emit()` resolves when the frame was accepted and the connection's byte
-buffer drained — not on remote receipt, which the browser cannot report. No
+`emit()` resolves when the frame was accepted for sending, which is queued
+for this connection and no more — not on a drain, and not on remote receipt,
+which the browser cannot report; the queue's own write deadline continues
+behind it and ends a connection that never drains. No
 request is retried and no connection is reopened; `onClose` observes a
 disconnection, and the caller may connect again. Durable acceptance, replay,
 subscriptions and deduplication are the application's.

@@ -149,6 +149,20 @@
       "why": ""
     },
     {
+      "name": "response with an empty error message",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"error\":{\"code\":\"denied\",\"message\":\"\"}}",
+      "valid": false,
+      "why": "an error is a code and a message and both are non-empty; a response nobody can read is no answer"
+    },
+    {
+      "name": "response with an empty error code",
+      "to": "server",
+      "frame": "{\"version\":1,\"kind\":\"response\",\"id\":\"s:1\",\"error\":{\"code\":\"\",\"message\":\"Denied\"}}",
+      "valid": false,
+      "why": ""
+    },
+    {
       "name": "event with a foreign member",
       "to": "either",
       "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"updated\",\"data\":null,\"id\":\"\"}",

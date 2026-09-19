@@ -134,3 +134,103 @@ func TestPeerRefusesAFrameOverItsLimit(t *testing.T) {
 		t.Fatalf("the peer ended with %v", err)
 	}
 }
+
+// TestHowAPeerEndsAConnectionIsWhatItsObserverIsTold: the profile closes with
+// 4011 and a reason when the other side broke it, so that a gateway or a
+// proxy between the two has a code to act on; a close this side chose carries
+// 1000; and a transport there is nothing to say over is aborted, which the
+// far side reads as 1006. The observer is told the code the wire carried in
+// every one of them and never one it did not.
+func TestHowAPeerEndsAConnectionIsWhatItsObserverIsTold(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		end    func(ctx context.Context, cancel context.CancelFunc, peer *Peer, far duplex.Conn)
+		code   duplex.Code
+		reason string
+		local  bool
+	}{
+		{
+			name: "a malformed frame is refused",
+			end: func(ctx context.Context, _ context.CancelFunc, _ *Peer, far duplex.Conn) {
+				_ = far.Send(ctx, duplex.Frame{Kind: duplex.Text, Data: []byte(`{"version":1,"kind":"event"}`)})
+			},
+			code:   duplex.CodeDuplex,
+			reason: "invalid duplex frame shape",
+			local:  true,
+		},
+		{
+			name: "a frame of the wrong kind is refused",
+			end: func(ctx context.Context, _ context.CancelFunc, _ *Peer, far duplex.Conn) {
+				_ = far.Send(ctx, duplex.Frame{Kind: duplex.Binary, Data: []byte{0}})
+			},
+			code:   duplex.CodeDuplex,
+			reason: "duplex requires JSON text frames",
+			local:  true,
+		},
+		{
+			name:  "a close this side chose",
+			end:   func(context.Context, context.CancelFunc, *Peer, duplex.Conn) {},
+			code:  duplex.CodeNormal,
+			local: true,
+		},
+		{
+			name: "a context that ended",
+			end: func(_ context.Context, cancel context.CancelFunc, _ *Peer, _ duplex.Conn) {
+				cancel()
+			},
+			code:  duplex.CodeAbnormalClosure,
+			local: true,
+		},
+		{
+			name: "a far side that aborted",
+			end: func(_ context.Context, _ context.CancelFunc, _ *Peer, far duplex.Conn) {
+				_ = far.Abort()
+			},
+			code:  duplex.CodeAbnormalClosure,
+			local: false,
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			near, far := duplex.Pipe(1 << 20)
+			closes := make(chan ConnectionClosed, 1)
+			peer, err := NewPeer(ctx, near, ServerRole, Options{Observer: observerFunc(func(event ObserverEvent) {
+				if closed, ok := event.(ConnectionClosed); ok {
+					closes <- closed
+				}
+			})})
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.end(ctx, cancel, peer, far)
+			if c.code == duplex.CodeNormal {
+				_ = peer.Close()
+			}
+			var closed ConnectionClosed
+			select {
+			case closed = <-closes:
+			case <-time.After(5 * time.Second):
+				t.Fatal("the connection did not end")
+			}
+			if closed.Code != int(c.code) || closed.Reason != c.reason || closed.Local != c.local {
+				t.Fatalf("the observer was told %d %q local=%v, want %d %q local=%v",
+					closed.Code, closed.Reason, closed.Local, int(c.code), c.reason, c.local)
+			}
+			// And the far side reads what this side sent, which is the whole
+			// reason the code is decided here rather than reported here.
+			if !c.local {
+				return
+			}
+			read, cancelRead := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancelRead()
+			var wire *duplex.CloseError
+			if _, err := far.Receive(read); !errors.As(err, &wire) {
+				t.Fatalf("the far side read %v, not a close", err)
+			}
+			if wire.Code != c.code || wire.Reason != c.reason {
+				t.Fatalf("the far side read %d %q, want %d %q", int(wire.Code), wire.Reason, int(c.code), c.reason)
+			}
+		})
+	}
+}
