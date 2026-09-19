@@ -36,7 +36,7 @@ func (t *target) Scaffold(f *render.Family, dir string) ([]spi.File, error) {
 			}
 			// The generated interface supplies both parameter kinds' defaults
 			// and imported inherited types through contextual typing.
-			w.Linef("async %s(params, context) {", p.operations[m.Name])
+			w.Linef("%s {", scaffoldSignature(p, m))
 			w.In()
 			w.Linef("throw new Error(%s);", quote(m.Name+" is not implemented"))
 			w.Out()
