@@ -1,0 +1,2 @@
+x/protocol.json#/server/extends/1: Conversation startedB/otherId from b conflicts with startedA/id from a: an extended session has one conversation source. [incompatible_governance]
+error: 1 problems

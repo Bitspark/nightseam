@@ -17,6 +17,14 @@ base's own type names read in the extending family's package — is each
 target's, and until a target has it the target refuses the family and says
 so.
 
+A session's governance resolves names on the inherited sides as well as
+its own. Its conversation definition follows the side carrying the event,
+through intermediate bases too. The same event and path may arrive more
+than once; different definitions cannot both describe the session's one
+conversation source and are refused as `incompatible_governance`, at the
+extending edge or the family's own conflicting definition. This is held by
+`TestInheritedSessionGovernance` and the `session-governance` invalid fixture.
+
 **Why.** Deferring it "until a second family asks" was the safe answer and
 it forfeits the experiment: what `includes` has to mean at the concern
 level is exactly what building this here answers, and it is answered by

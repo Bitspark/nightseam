@@ -871,37 +871,6 @@ func extendsBack(from *analysis.Family, target string, server bool, seen map[str
 	return false
 }
 
-// Session holds the session tier to its rules: decides names methods of
-// the family; asks names methods the server sends, the client side's; the
-// conversation arrives in an event of the family.
-func Session(f *analysis.Family) []diag.Diagnostic {
-	c := newChecker(f)
-	s, p := f.Session, f.Protocol
-	if p == nil {
-		return nil
-	}
-	for i, name := range s.Decides {
-		if _, _, ok := p.Method(name); !ok {
-			c.Addf(s.At.Sub("decides", i), "unknown_operation", "Decides names %s, which is not a method of this family.", name)
-		}
-	}
-	for i, name := range s.Asks {
-		_, server, ok := p.Method(name)
-		switch {
-		case !ok:
-			c.Addf(s.At.Sub("asks", i), "unknown_operation", "Asks names %s, which is not a method of this family.", name)
-		case server:
-			c.Addf(s.At.Sub("asks", i), "invalid_side", "Asks names %s, which the client sends; an asking method is one the server sends, on the client side.", name)
-		}
-	}
-	if conversation := s.Conversation; conversation != nil {
-		if _, _, ok := p.Event(conversation.Event); !ok {
-			c.Addf(s.At.Sub("conversation", "event"), "unknown_operation", "The conversation arrives in %s, which is not an event of this family.", conversation.Event)
-		}
-	}
-	return c.Diagnostics
-}
-
 // Overrides holds every target's override file to the one rule the model
 // has for it: each key names something the family declares. What a target
 // makes of the value is the target's to check.
