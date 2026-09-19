@@ -12,9 +12,9 @@ import './index.ts';
 export function describe(event: ObserverEvent): string {
   switch (event.type) {
     case 'channel.opened':
-      return `${event.family} channel ${event.id} after ${event.after} ${event.opener ? 'opened here' : 'opened there'}`;
+      return `${event.family} channel ${event.id} ${event.opener ? 'opened here' : 'opened there'}`;
     case 'channel.accepted':
-      return `${event.family} channel ${event.id} after ${event.after} accepted`;
+      return `${event.family} channel ${event.id} accepted`;
     case 'channel.closed':
       return `${event.family} channel ${event.id} closed ${event.code} ${event.reason}`;
     case 'credit.stall':

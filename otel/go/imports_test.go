@@ -23,7 +23,7 @@ const nightseam = "github.com/Bitspark/nightseam"
 // module of its own and is released by a tag of its own.
 //
 // What this package's own tests import is another matter: they speak over a
-// tunnel and a session to hold the adapter to the traffic of a relay, which
+// tunnel to hold the adapter to the traffic over a channel, which
 // is what a test of an adapter must do and what the package itself never does.
 func TestImportDirection(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)

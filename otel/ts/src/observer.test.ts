@@ -19,7 +19,7 @@ import type { ObserverEvent } from '@nightseam/runtime';
 import { EVENTS } from './observer.check.ts';
 import { observer } from './observer.ts';
 
-/** A string that stands for a payload; no event of the three layers declares a member one could arrive in. */
+/** A string that stands for a payload; no event of the two layers declares a member one could arrive in. */
 const SENTINEL = 'sentinel-6d9f2c-payload';
 /** The instant every stated event carries, and the trace of one frame. */
 const at = new Date('2026-09-18T09:00:00.000Z');
@@ -193,7 +193,7 @@ test('an event names its span by the request it belongs to, or by the trace it c
   });
 });
 
-test('the tunnel and the session reach a span by the same two rules as the runtime', () => {
+test('the tunnel reaches a span by the same two rules as the runtime', () => {
   const watch = watching();
   watch.tell({
     type: 'request.started',
@@ -207,20 +207,9 @@ test('the tunnel and the session reach a span by the same two rules as the runti
   // A channel's events name no request and carry no trace: they are the
   // connection's, and are recorded on what it has open, as a close is.
   watch.tell(EVENTS.find((event) => event.type === 'channel.accepted')!);
-  // A session's event carries the trace of the frame it concerns, so it is
-  // recorded where that frame's span is and nowhere else.
-  watch.tell({ type: 'ask.raised', at, session: 's', id: 'of no peer', method: 'reverse', asking: true, trace: TRACE });
-  watch.tell({
-    type: 'frame.appended',
-    at,
-    session: 's',
-    sequence: 1,
-    direction: 'up',
-    origin: 'one',
-    bytes: 96,
-    method: 'echo',
-    trace: watch.of(),
-  });
+  // An event that carries the trace of a frame is recorded where that frame's
+  // span is and nowhere else.
+  watch.tell({ type: 'credit.stall', at, family: 'probe', id: 3, waiting: 2 });
   watch.tell({
     type: 'request.ended',
     at,
@@ -233,18 +222,15 @@ test('the tunnel and the session reach a span by the same two rules as the runti
     family: '',
   });
   const [span] = watch.spans();
-  assert.deepEqual(names(span!), ['channel.accepted', 'frame.appended']);
+  assert.deepEqual(names(span!), ['channel.accepted', 'credit.stall']);
   assert.deepEqual(span!.events[1]!.attributes, {
-    'nightseam.session': 's',
-    'nightseam.sequence': 1,
-    'nightseam.direction': 'up',
-    'nightseam.origin': 'one',
-    'nightseam.bytes': 96,
-    'nightseam.method': 'echo',
+    'nightseam.family': 'probe',
+    'nightseam.id': 3,
+    'nightseam.waiting': 2,
   });
 });
 
-test('no payload reaches a span: every event of the three layers, and a structure smuggled into each', () => {
+test('no payload reaches a span: every event of the two layers, and a structure smuggled into each', () => {
   const watch = watching();
   watch.tell({
     type: 'request.started',

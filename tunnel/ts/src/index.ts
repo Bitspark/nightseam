@@ -206,10 +206,7 @@ export class Tunnel {
       !Number.isInteger(p.window) ||
       p.window <= 0
     ) {
-      this.refused(
-        typeof p?.family === 'string' ? p.family : '',
-        'an open naming no channel, family and window',
-      );
+      this.refused(typeof p?.family === 'string' ? p.family : '', 'an open naming no channel, family and window');
       throw new DuplexError(
         CHANNEL_INVALID,
         "channel.open needs a positive channel id of the opener's parity, a family and a window.",

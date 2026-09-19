@@ -1,17 +1,7 @@
 /** The tunnel under control: channels as connections, lazily read by default. */
 import { Channel, Tunnel, type TunnelOptions } from '@nightseam/tunnel';
 import { DuplexError } from '@nightseam/runtime';
-import {
-  fail,
-  invalid,
-  unsupported,
-  stringOf,
-  withinOf,
-  within,
-  type Args,
-  type Op,
-  type Testee,
-} from './testee.ts';
+import { fail, invalid, unsupported, stringOf, withinOf, within, type Args, type Op, type Testee } from './testee.ts';
 import { Conn } from './seam.ts';
 import { isPeer } from './peer.ts';
 

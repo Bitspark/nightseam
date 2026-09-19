@@ -61,9 +61,9 @@ async function tunnels(options: TunnelOptions = {}) {
 }
 
 /** One channel opened by the client and accepted by the server. */
-async function pair(ct: Tunnel, st: Tunnel, family = 'probe', after = 0): Promise<[Channel, Channel]> {
+async function pair(ct: Tunnel, st: Tunnel, family = 'probe'): Promise<[Channel, Channel]> {
   const accepted = st.accept();
-  const opened = await ct.open(family, after);
+  const opened = await ct.open(family);
   return [opened, await accepted];
 }
 
@@ -101,11 +101,10 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 
 test('a channel opens, carries frames both ways in order, text and binary, and a handle resolves it', async () => {
   const { ct, st } = await tunnels();
-  const [opened, accepted] = await pair(ct, st, 'probe', 7);
+  const [opened, accepted] = await pair(ct, st, 'probe');
   assert.equal(opened.id % 2, 1);
   assert.equal(accepted.id, opened.id);
   assert.equal(accepted.family, 'probe');
-  assert.equal(accepted.after, 7);
   assert.equal(st.channel(opened.id), accepted);
   assert.equal(ct.channel(opened.id), opened);
   const atServer = collect(accepted);
@@ -267,7 +266,7 @@ test('frames that arrive before anyone listens are held, and delivered in order 
 
 test('a channel opened, accepted, carried and closed is what both observers saw, in order and with its stated fields', async () => {
   const { ct, st, seenByClient, seenByServer } = await tunnels();
-  const [opened, accepted] = await pair(ct, st, 'probe', 7);
+  const [opened, accepted] = await pair(ct, st, 'probe');
   const atServer = collect(accepted);
   opened.send({ kind: 'text', data: 'one' });
   await atServer.next();
@@ -286,16 +285,14 @@ test('a channel opened, accepted, carried and closed is what both observers saw,
   const openedHere = seenByClient.of('channel.opened')[0]!;
   assert.equal(openedHere.family, 'probe');
   assert.equal(openedHere.id, opened.id);
-  assert.equal(openedHere.after, 7);
   assert.equal(openedHere.opener, true);
   assert.ok(openedHere.at instanceof Date);
   const openedThere = seenByServer.of('channel.opened')[0]!;
   assert.equal(openedThere.id, opened.id);
   assert.equal(openedThere.opener, false);
-  assert.deepEqual((({ family, id, after }) => ({ family, id, after }))(seenByServer.of('channel.accepted')[0]!), {
+  assert.deepEqual((({ family, id }) => ({ family, id }))(seenByServer.of('channel.accepted')[0]!), {
     family: 'probe',
     id: opened.id,
-    after: 7,
   });
   for (const seen of [seenByClient, seenByServer]) {
     const closed = seen.of('channel.closed')[0]!;
