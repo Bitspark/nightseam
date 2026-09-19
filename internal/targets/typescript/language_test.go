@@ -111,3 +111,17 @@ func TestTypeLocalSessionParameterHasItsDefaultFamily(t *testing.T) {
 		t.Fatal(f.w.String())
 	}
 }
+
+func TestMixedClientBindsTypesAndFamiliesInTheirRuntimeSlots(t *testing.T) {
+	r := family(map[string]string{"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"parameters":[{"name":"S","of":"protocol"},{"name":"Item"}],"types":{"Mixed":{"kind":"record","fields":[{"name":"message","type":"S.Envelope"},{"name":"item","type":"Item"}]}},"server":{"methods":{"read":{"result":"Mixed"}}}`)})
+	files, err := New(Config{Scope: "@example"}).Render(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := string(files[1].Data)
+	for _, want := range []string{`s: FamilyBinding<S>, item: TypeBinding`, `readonly item: TypeBinding;`, `this.slots = { "S": s, "Item": item };`, `validateWire("Mixed", result, '$', this.slots)`} {
+		if !strings.Contains(index, want) {
+			t.Errorf("missing %s in:\n%s", want, index)
+		}
+	}
+}

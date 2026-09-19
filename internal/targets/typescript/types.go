@@ -43,6 +43,14 @@ func (f *file) parameter(name string) (model.Parameter, bool) {
 	return model.Parameter{}, false
 }
 
+func (f *file) bindingType(name string) string {
+	parameter, _ := f.parameter(name)
+	if parameter.IsFamily() {
+		return identFamilyBinding + "<" + name + ">"
+	}
+	return identTypeBinding
+}
+
 // Type parameters admit a value type; family parameters expose associated
 // types. A default at every slot also allows either kind to precede another.
 func (f *file) declare(uses []render.Use) string {

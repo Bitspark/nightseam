@@ -80,8 +80,8 @@ func (f *file) imports(validators bool) {
 // family's wire description by the runtime.
 func emitTypes(f *file) {
 	p, fam := f.plan, f.family
-	f.linef("import { createValidator, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identSlots, quote(f.config.Runtime))
-	f.linef("export type { %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identSlots)
+	f.linef("import { createValidator, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
+	f.linef("export type { %s, %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots)
 	f.imports(true)
 	for _, t := range fam.Types {
 		name := p.types[t.Name]
@@ -205,7 +205,7 @@ func emitClient(f *file) {
 	if fam.Generic {
 		bind, give := make([]string, len(names)), make([]string, len(names))
 		for i, name := range names {
-			bind[i] = bindingName(name) + ": " + identFamilyBinding + "<" + name + ">"
+			bind[i] = bindingName(name) + ": " + f.bindingType(name)
 			give[i] = bindingName(name)
 		}
 		slots = ", '$', this." + identSlotsField
@@ -216,7 +216,7 @@ func emitClient(f *file) {
 	f.linef("import type { Tunnel } from %s;", quote(f.config.Tunnel))
 	f.linef("import { %s } from './types.ts';", identValidateWire)
 	if fam.Generic {
-		f.linef("import type { %s, %s, %s, %s } from './types.ts';", identAnyFamily, identFamilyBinding, identSessionFamily, identSlots)
+		f.linef("import type { %s, %s, %s, %s, %s } from './types.ts';", identAnyFamily, identFamilyBinding, identTypeBinding, identSessionFamily, identSlots)
 	}
 	f.linef("import type * as %s from './types.ts';", identProtocol)
 	f.imports(false)
@@ -275,8 +275,8 @@ func emitClient(f *file) {
 		var made []string
 		if fam.Generic {
 			for _, name := range names {
-				f.linef("/** The family bound to %s: what fills a slot of it is validated by it. */", name)
-				f.linef("readonly %s: %s<%s>;", bindingName(name), identFamilyBinding, name)
+				f.linef("/** The argument bound to %s validates values in its declaration scope. */", name)
+				f.linef("readonly %s: %s;", bindingName(name), f.bindingType(name))
 				made = append(made, quote(name)+": "+bindingName(name))
 			}
 			f.linef("readonly %s: %s;", identSlotsField, identSlots)
