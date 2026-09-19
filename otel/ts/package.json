@@ -1,6 +1,6 @@
 {
   "name": "@nightseam/otel",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The OpenTelemetry adapter for Nightseam: a Propagator over the W3C trace context propagator and an Observer that opens a span per request and records the rest.",
   "license": "Apache-2.0",
   "author": "Bitspark",

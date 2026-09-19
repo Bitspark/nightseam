@@ -6,6 +6,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.3.0
+
 ### Added
 
 - The conformance suite, `conformance/`: one Go runner drives a **testee** per
