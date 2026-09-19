@@ -187,11 +187,17 @@ the caller's scope. Only the family parameters used by that imported type
 need arguments; a local application fills the type's own parameters.
 
 Both validators read nonempty string literals, nullable expressions, inline shapes,
-internally tagged unions and nested applications of either parameter sort.
-Object variants carry the discriminator beside their fields; other values
-use the union's `value` member. An extending union accepts its base's
+adjacently tagged unions and nested applications of either parameter sort.
+Every payload, including a record, map, arbitrary JSON or null, is carried
+whole under the union's `value` member; a payload-free `{empty: true}` arm
+carries the tag alone. An empty record is a payload and remains wrapped.
+An extending union accepts its base's
 variants, and the base refuses the added variants. Nullable values do not
 make required fields optional.
+An inheritance edge uses a plain name for a nongeneric base or an explicit
+`{apply, with}` expression for a generic base. Arguments keep their lexical
+scope, so a base parameter can be fixed, renamed or forwarded without
+binding two declarations merely because their parameters share a name.
 
 Go's `schema.Bind(types, families)` supplies bindings for raw validation and
 returns a new schema. TypeScript's fourth validator argument is a `Slots`
@@ -202,11 +208,28 @@ An unbound family slot in a generated Go generic codec is checked by the
 instantiated Go type during marshal or unmarshal; TypeScript requires its
 runtime binding.
 
+Go's `TypeArgument[T]()` supplies an instantiated type automatically. Bind
+its result under the declaration's parameter name, or under a drawn name
+such as `S.Envelope`. Drawn bindings also supply the family scope needed
+when an expression forwards that parameter to another family. A
+`TypeBinding{Schema, Type}` retains an expression's original family;
+`WireType() TypeBinding` metadata retains a named declaration's literals
+and constraints. Discovery is lazy, so recursive generated types need no
+codec registry. Reflection stays inside the runtime; generated callers
+only bind their concrete Go type arguments. Primitive and container
+arguments retain their ordinary wire kinds, and pointers and `Nullable[T]`
+retain nullness. A nil map or slice does not become nullable merely because
+Go's JSON decoder accepts null into it.
+
 A runtime also checks a descriptor's pattern syntax, including constraints
 inside inline shapes and application arguments. An absent optional member
 or an empty collection cannot hide a forbidden pattern. The Go declaration
-checker and runtime share the syntax guard; both runtimes read the same
-`patterns` conformance rows.
+checker and runtime share the Unicode parser and engine translation; both
+runtimes read the same syntax and value conformance rows. TypeScript uses
+ECMAScript `u` mode. Go gives `\s`, `\d`, `\w`, their complements, word
+boundaries and dot the same meanings, including NBSP whitespace and
+code-point matching for emoji. The full tier compares the translation to
+Node's Unicode engine over both syntax refusals and matching values.
 
 ## Observing it
 

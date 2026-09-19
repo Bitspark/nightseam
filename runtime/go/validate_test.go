@@ -23,6 +23,10 @@ func TestValidatorConformance(t *testing.T) {
 			Pattern string
 			Valid   bool
 		}
+		PatternValues []struct {
+			Pattern, Value string
+			Valid          bool
+		}
 		Equivalence []struct {
 			Generic, Bound json.RawMessage
 			Values         []json.RawMessage
@@ -53,6 +57,23 @@ func TestValidatorConformance(t *testing.T) {
 		_, err = NewSchema(description, nil)
 		if (err == nil) != row.Valid {
 			t.Errorf("pattern %q: valid=%v, got %v", row.Pattern, row.Valid, err)
+		}
+	}
+	for _, row := range table.PatternValues {
+		description, err := json.Marshal(map[string]any{"types": map[string]any{"Probe": map[string]any{
+			"kind": "record", "fields": []any{map[string]any{"name": "text", "type": "string", "required": true, "pattern": row.Pattern}},
+		}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		schema, err := NewSchema(description, nil)
+		if err != nil {
+			t.Errorf("pattern %q: %v", row.Pattern, err)
+			continue
+		}
+		err = schema.ValidateValue("Probe", map[string]any{"text": row.Value})
+		if (err == nil) != row.Valid {
+			t.Errorf("pattern %q on %q: valid=%v, got %v", row.Pattern, row.Value, row.Valid, err)
 		}
 	}
 	imported := map[string]*Schema{}
