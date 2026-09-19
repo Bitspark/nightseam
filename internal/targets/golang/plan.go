@@ -86,6 +86,11 @@ func Reserved() []string {
 }
 
 func newPlan(f *render.Family) (*plan, []diag.Diagnostic) {
+	return planFamily(f, map[*render.Family]bool{})
+}
+
+func planFamily(f *render.Family, seen map[*render.Family]bool) (*plan, []diag.Diagnostic) {
+	seen[f] = true
 	p := &plan{
 		family:   f,
 		packages: emit.NewNamespace("protocol package"),
@@ -100,6 +105,15 @@ func newPlan(f *render.Family) (*plan, []diag.Diagnostic) {
 	p.client.Fix("generated client method", identClose)
 	p.remote.Fix("generated remote field", identPeer)
 	p.plan()
+	// Imported names retain their source overrides. Check that source's
+	// declarations too, once even when several inheritance paths reach it.
+	for _, name := range f.References {
+		source := f.ReferencedFamily(name)
+		if source != nil && !seen[source] {
+			_, diagnostics := planFamily(source, seen)
+			p.Diagnostics = append(p.Diagnostics, diagnostics...)
+		}
+	}
 	diag.Sort(p.Diagnostics)
 	return p, p.Diagnostics
 }

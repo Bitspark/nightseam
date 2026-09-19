@@ -4,7 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Bitspark/nightseam/internal/analysis"
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
+	"github.com/Bitspark/nightseam/internal/render"
 )
 
 func TestTypeParametersDoNotRequireFamilyTags(t *testing.T) {
@@ -24,6 +26,29 @@ func TestTypeParametersDoNotRequireFamilyTags(t *testing.T) {
 			t.Fatalf("type-only entry signature is missing: %s", file.Data)
 		}
 	}
+}
+
+func TestImportedGoOverridesAreCheckedInTheirSourceFamily(t *testing.T) {
+	world := analysis.World(modeltest.World(map[string]map[string]string{
+		"base": {
+			"model.json": `{"nightseam":2,"types":{"Payload":{"kind":"record","fields":[{"name":"value","type":"string"}]}}}`,
+			"go.json":    `{"names":{"Payload.value":"hidden"}}`,
+		},
+		"left":  {"model.json": `{"nightseam":2,"imports":["base"],"types":{"Payload":{"kind":"record","extends":["base.Payload"],"fields":[]}}}`},
+		"right": {"model.json": `{"nightseam":2,"imports":["base"],"types":{"Payload":{"kind":"record","extends":["base.Payload"],"fields":[]}}}`},
+		"child": {"model.json": `{"nightseam":2,"imports":["left","right"],"types":{
+			"Left":{"kind":"record","extends":["left.Payload"],"fields":[]},
+			"Right":{"kind":"record","extends":["right.Payload"],"fields":[]}
+		}}`},
+	}))
+	_, diagnostics := newPlan(render.Build(analysis.Resolve(world, "child")))
+	if len(diagnostics) == 1 {
+		diagnostic := diagnostics[0]
+		if diagnostic.Family == "base" && diagnostic.Code == "invalid_name" && diagnostic.At().String() == "go.json#/names/Payload.value" {
+			return
+		}
+	}
+	t.Fatalf("an inherited unexported Go field was not refused at its source: %v", diagnostics)
 }
 
 func TestMixedParametersConstrainOnlyFamilyDraws(t *testing.T) {
