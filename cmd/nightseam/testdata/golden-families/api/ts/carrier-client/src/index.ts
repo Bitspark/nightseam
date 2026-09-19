@@ -2,7 +2,7 @@
 import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection } from "@nightseam/runtime";
 import type { Tunnel } from "@nightseam/tunnel";
 import { validateWire } from './types.ts';
-import type { AnyFamily, FamilyBinding, SessionFamily, Slots } from './types.ts';
+import type { AnyFamily, FamilyBinding, TypeBinding, SessionFamily, Slots } from './types.ts';
 import type * as Protocol from './types.ts';
 import type * as codex from "@example/codex-client";
 import type * as probe from "@example/probe-client";
@@ -20,7 +20,7 @@ export interface Caller<S extends AnyFamily = SessionFamily> {
 }
 export class Client<S extends AnyFamily = SessionFamily> implements Caller<S> {
   readonly peer: DuplexPeer;
-  /** The family bound to S: what fills a slot of it is validated by it. */
+  /** The argument bound to S validates values in its declaration scope. */
   readonly s: FamilyBinding<S>;
   readonly slots: Slots;
   constructor(peer: DuplexPeer, s: FamilyBinding<S>, handler: Handler<S> | undefined, events: Events<S>) {

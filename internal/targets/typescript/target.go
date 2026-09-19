@@ -10,11 +10,13 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/emit"
+	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/render"
 	"github.com/Bitspark/nightseam/internal/spi"
 )
@@ -121,7 +123,7 @@ func (c Config) pkg(family string) string { return c.Scope + "/" + family + "-cl
 
 func (*target) Name() string { return Name }
 
-func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Protocol, spi.Session} }
+func (*target) Consumes() []spi.Concern { return []spi.Concern{spi.Model, spi.Protocol, spi.Session} }
 
 func (t *target) Owns(family string) []string { return []string{t.config.dir(family)} }
 
@@ -168,9 +170,6 @@ func (t *target) Check(f *render.Family) []diag.Diagnostic {
 	if err := t.config.Validate(); err != nil {
 		return []diag.Diagnostic{{Family: f.Name, Code: "invalid_config", Message: err.Error()}}
 	}
-	if unrendered := render.Unrendered(f, Name); len(unrendered) > 0 {
-		return unrendered
-	}
 	_, diagnostics := newPlan(f)
 	return diagnostics
 }
@@ -189,8 +188,14 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 	types := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("  ")}
 	emitTypes(types)
 	client := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("  "), prefix: "Protocol."}
-	emitClient(client)
-	dependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion, t.config.Tunnel: t.config.RuntimeVersion}
+	protocol := slices.Contains(f.Files, model.ProtocolFile)
+	dependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion}
+	if protocol {
+		emitClient(client)
+		dependencies[t.config.Tunnel] = t.config.RuntimeVersion
+	} else {
+		client.line("export * from './types.ts';")
+	}
 	for _, family := range p.references() {
 		var dependency string
 		switch t.config.Sibling {

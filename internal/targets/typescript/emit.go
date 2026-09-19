@@ -19,6 +19,7 @@ type file struct {
 	config Config
 	w      *emit.Writer
 	prefix string
+	scope  []model.Parameter
 }
 
 func (f *file) line(text string)                 { f.w.Line(text) }
@@ -53,32 +54,6 @@ func parameters(uses []render.Use) []string {
 	return names
 }
 
-// declare renders the type parameters of a declaration that makes the
-// uses, each bound to any family that has the types drawn from it beyond
-// the two every family carries, and defaulting to the session families'
-// union, or nothing for a plain one.
-func declare(uses []render.Use) string {
-	names := parameters(uses)
-	if len(names) == 0 {
-		return ""
-	}
-	bound := make([]string, len(names))
-	for i, name := range names {
-		var drawn []string
-		for _, use := range uses {
-			if use.Parameter == name && !model.Carried(use.Type) {
-				drawn = append(drawn, quote(use.Type)+": unknown")
-			}
-		}
-		constraint := identAnyFamily
-		if len(drawn) > 0 {
-			constraint += " & { " + strings.Join(drawn, "; ") + " }"
-		}
-		bound[i] = name + " extends " + constraint + " = " + identSessionFamily
-	}
-	return "<" + strings.Join(bound, ", ") + ">"
-}
-
 // apply renders the type arguments a reference passes on, or nothing.
 func apply(uses []render.Use) string {
 	names := parameters(uses)
@@ -86,56 +61,6 @@ func apply(uses []render.Use) string {
 		return ""
 	}
 	return "<" + strings.Join(names, ", ") + ">"
-}
-
-// spell is the TypeScript type of a type expression.
-func (f *file) spell(e model.TypeExpr) string {
-	switch x := e.(type) {
-	case model.Primitive:
-		switch x {
-		case "string", "boolean":
-			return string(x)
-		case "number", "integer":
-			return "number"
-		case "timestamp":
-			return "string"
-		default:
-			return "unknown"
-		}
-	case model.Named:
-		return f.prefix + f.plan.types[x.Name] + apply(f.family.Type(x.Name).Uses)
-	case model.Imported:
-		return alias(x.Family) + "." + x.Name + apply(f.family.ImportedUses(x.Family, x.Name))
-	case model.Drawn:
-		return x.Parameter + "[" + quote(x.Name) + "]"
-	case model.Array:
-		return "Array<" + f.spell(x.Elem) + ">"
-	case model.Map:
-		return "Record<string, " + f.spell(x.Elem) + ">"
-	case model.Ref:
-		t := f.family.Type(x.Entity)
-		for _, field := range t.Fields {
-			if field.Name == t.Key {
-				return f.spell(field.Type)
-			}
-		}
-		return "string"
-	case model.Apply:
-		var args []string
-		for _, argument := range f.family.Arguments(x) {
-			if argument.Parameter != "" {
-				args = append(args, argument.Parameter)
-			} else {
-				args = append(args, alias(argument.Family)+"."+identFamily)
-			}
-		}
-		rendered := alias(x.Family) + "." + x.Name
-		if len(args) > 0 {
-			rendered += "<" + strings.Join(args, ", ") + ">"
-		}
-		return rendered
-	}
-	return "unknown"
 }
 
 // imports emits the import lines for the families the file depends on:
@@ -155,17 +80,22 @@ func (f *file) imports(validators bool) {
 // family's wire description by the runtime.
 func emitTypes(f *file) {
 	p, fam := f.plan, f.family
-	f.linef("import { createValidator, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identSlots, quote(f.config.Runtime))
-	f.linef("export type { %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identSlots)
+	f.linef("import { createValidator, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
+	f.linef("export type { %s, %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots)
 	f.imports(true)
 	for _, t := range fam.Types {
 		name := p.types[t.Name]
+		f.scope = t.Scope
 		switch t.Kind {
 		case "record", "entity":
 			if t.Description != "" {
 				f.linef("/** %s */", comment(t.Description))
 			}
-			f.w.Block(fmt.Sprintf("export interface %s%s {", name, declare(t.Uses)), "}", func() {
+			if len(t.Fields) == 0 && !t.Open {
+				f.linef("export type %s%s = Record<string, never>;", name, f.declare(t.Uses))
+				continue
+			}
+			f.w.Block(fmt.Sprintf("export interface %s%s {", name, f.declare(t.Uses)), "}", func() {
 				for _, field := range t.Fields {
 					optional, null := "", ""
 					if !field.Required {
@@ -192,11 +122,24 @@ func emitTypes(f *file) {
 				f.linef("/** %s */", comment(t.Description))
 			}
 			f.linef("export type %s = %s;", name, strings.Join(values, " | "))
+		case "union":
+			if t.Description != "" {
+				f.linef("/** %s */", comment(t.Description))
+			}
+			var variants []string
+			for _, variant := range t.Variants {
+				members := quote(t.Tag) + ": " + quote(variant.Tag)
+				if variant.Form != render.VariantEmpty {
+					members += "; " + quote(t.Value) + ": " + f.spell(variant.Type)
+				}
+				variants = append(variants, "{ "+members+" }")
+			}
+			f.linef("export type %s%s = %s;", name, f.declare(t.Uses), strings.Join(variants, " | "))
 		case "alias":
 			if t.Description != "" {
 				f.linef("/** %s */", comment(t.Description))
 			}
-			f.linef("export type %s%s = %s;", name, declare(t.Uses), f.spell(t.Alias))
+			f.linef("export type %s%s = %s;", name, f.declare(t.Uses), f.spell(t.Alias))
 		}
 	}
 	// The family as a slot of another family sees it: its descriptor and,
@@ -205,12 +148,12 @@ func emitTypes(f *file) {
 	var drawn []string
 	for _, t := range fam.Types {
 		if len(t.Uses) == 0 {
-			drawn = append(drawn, p.types[t.Name]+": "+p.types[t.Name])
+			drawn = append(drawn, t.Name+": "+p.types[t.Name])
 		}
 	}
 	f.line("/** The family: its name and the wire types a slot of it draws on. */")
 	f.linef("export interface %s { readonly name: %s; %s }", identFamily, quote(fam.Name), strings.Join(drawn, "; "))
-	if fam.Generic {
+	if needsSessionFamily(fam) {
 		union := "never"
 		if len(fam.SessionFamilies) > 0 {
 			names := make([]string, len(fam.SessionFamilies))
@@ -257,7 +200,8 @@ func requestExpression(m render.Method) string {
 // errors as data, and the client class with dial, attach and open.
 func emitClient(f *file) {
 	p, fam := f.plan, f.family
-	decl, args := declare(fam.Uses), apply(fam.Uses)
+	f.scope = familyScope(fam)
+	decl, args := f.declare(fam.Uses), apply(fam.Uses)
 	names := parameters(fam.Uses)
 	// slots is the argument every validation of a generic client passes:
 	// the families bound to the parameters, which validate what fills a slot.
@@ -265,7 +209,7 @@ func emitClient(f *file) {
 	if fam.Generic {
 		bind, give := make([]string, len(names)), make([]string, len(names))
 		for i, name := range names {
-			bind[i] = bindingName(name) + ": " + identFamilyBinding + "<" + name + ">"
+			bind[i] = bindingName(name) + ": " + f.bindingType(name)
 			give[i] = bindingName(name)
 		}
 		slots = ", '$', this." + identSlotsField
@@ -276,7 +220,12 @@ func emitClient(f *file) {
 	f.linef("import type { Tunnel } from %s;", quote(f.config.Tunnel))
 	f.linef("import { %s } from './types.ts';", identValidateWire)
 	if fam.Generic {
-		f.linef("import type { %s, %s, %s, %s } from './types.ts';", identAnyFamily, identFamilyBinding, identSessionFamily, identSlots)
+		bindings := []string{identAnyFamily, identFamilyBinding, identTypeBinding}
+		if needsSessionFamily(fam) {
+			bindings = append(bindings, identSessionFamily)
+		}
+		bindings = append(bindings, identSlots)
+		f.linef("import type { %s } from './types.ts';", strings.Join(bindings, ", "))
 	}
 	f.linef("import type * as %s from './types.ts';", identProtocol)
 	f.imports(false)
@@ -335,8 +284,8 @@ func emitClient(f *file) {
 		var made []string
 		if fam.Generic {
 			for _, name := range names {
-				f.linef("/** The family bound to %s: what fills a slot of it is validated by it. */", name)
-				f.linef("readonly %s: %s<%s>;", bindingName(name), identFamilyBinding, name)
+				f.linef("/** The argument bound to %s validates values in its declaration scope. */", name)
+				f.linef("readonly %s: %s;", bindingName(name), f.bindingType(name))
 				made = append(made, quote(name)+": "+bindingName(name))
 			}
 			f.linef("readonly %s: %s;", identSlotsField, identSlots)
@@ -403,17 +352,22 @@ func labelled(fam *render.Family) string {
 // methods before each side's events, in the order the sides hold them.
 func operations(fam *render.Family) []string {
 	names := make([]string, 0, len(fam.Server.Methods)+len(fam.Client.Methods)+len(fam.Server.Events)+len(fam.Client.Events))
+	appendName := func(name string) {
+		if !slices.Contains(names, name) {
+			names = append(names, name)
+		}
+	}
 	for _, m := range fam.Server.Methods {
-		names = append(names, m.Name)
+		appendName(m.Name)
 	}
 	for _, m := range fam.Client.Methods {
-		names = append(names, m.Name)
+		appendName(m.Name)
 	}
 	for _, e := range fam.Server.Events {
-		names = append(names, e.Name)
+		appendName(e.Name)
 	}
 	for _, e := range fam.Client.Events {
-		names = append(names, e.Name)
+		appendName(e.Name)
 	}
 	return names
 }

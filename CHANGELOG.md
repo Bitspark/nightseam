@@ -27,6 +27,14 @@ are one number. Entries are in the words of the commits that landed them.
   Generated codecs retain the supplied types' validation constraints;
   model-only families generate their types without protocol helpers.
 
+- The TypeScript target renders the settled type language: adjacent unions,
+  nullable and literal expressions, inline shapes, type and family parameters,
+  nested applications and explicitly bound inheritance. Generated clients
+  retain imported operation names and validate both parameter kinds through
+  scoped runtime bindings. Model-only families emit types and a validator;
+  the proof family and built-ins compile, and executable fixtures hold
+  inherited calls, events, reverse calls and lossless union payloads.
+
 ## 0.4.0 - 2026-09-19
 
 This release makes the consumer improvements landed since 0.3.0 available

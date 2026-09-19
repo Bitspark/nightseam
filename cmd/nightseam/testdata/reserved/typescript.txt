@@ -6,6 +6,7 @@ Family
 AnyFamily
 SessionFamily
 FamilyBinding
+TypeBinding
 Slots
 ErrorCode
 errors
