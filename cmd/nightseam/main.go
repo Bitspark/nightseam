@@ -210,14 +210,14 @@ func newCommand() *cobra.Command {
 	a := &app{}
 	root := &cobra.Command{
 		Use:   "nightseam",
-		Short: "Render api/contracts into generated Go and TypeScript packages",
+		Short: "Render api/contracts into generated packages and specifications",
 		Long: `nightseam renders a checkout's families into generated packages. A
 family is declared in tier files under api/contracts/<family>/ — model.json,
 protocol.json, session.json, and an override file per target — and rendered
-by every target the tool is composed with, today Go and TypeScript. The Go
-packages are rooted at the checkout's module, the TypeScript packages at an
-npm scope; both bind to Nightseam's runtime. Nothing is written that is
-already up to date.`,
+by every target the tool is composed with, today Go, TypeScript and the
+family's own specification as Markdown. The Go packages are rooted at the
+checkout's module, the TypeScript packages at an npm scope; both bind to
+Nightseam's runtime. Nothing is written that is already up to date.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		// --version and the version command are one answer in one spelling.
