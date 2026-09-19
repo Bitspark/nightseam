@@ -5,8 +5,9 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/Bitspark/nightseam/internal/doc"
 	"github.com/Bitspark/nightseam/internal/kernel"
-	"github.com/Bitspark/nightseam/internal/targets/spec"
+	"github.com/Bitspark/nightseam/internal/targets/markdown"
 )
 
 // An inherited member is described in the derived declaration's parameter
@@ -114,7 +115,7 @@ func TestSpecificationKeepsReferenceArgumentScope(t *testing.T) {
 
 func renderSpecificationFixture(t *testing.T, files fstest.MapFS, family string) string {
 	t.Helper()
-	k := kernel.New(spec.New(spec.Config{}))
+	k := kernel.New(doc.Target(markdown.New(markdown.Config{})))
 	world := k.Load(files, "contracts")
 	result, err := k.Render(world, family)
 	if err != nil {

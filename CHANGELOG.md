@@ -16,6 +16,24 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- The specification is a document the generator builds once from the
+  declaration, `internal/doc`, and writers render: every type with an
+  example value of it and where it is used, every operation as the frames
+  of the profile carry it — the request, the response, a refusal per
+  declared error, an event's frame — and how much each side says, all
+  synthesized deterministically. A writer implements `doc.Writer` and is a
+  target by `doc.Target`, declaring its unit, pages of a family or of the
+  checkout as a whole; the `spec` target became `markdown`, the first
+  writer, at the layout it had and rendering every settled form as it did,
+  its pages gaining the examples and the frames. The checkout is a unit a
+  target may render, family `""`, rendered whole or not at all on every
+  run and never a leftover. The checkout has a config of its own,
+  `api/contracts/nightseam.json`: `disabled`, which the kernel reads, and
+  under `targets` a section per target, carried raw and decoded and
+  validated by the target, refused where it names no composed target, a
+  member the config lacks, or what the tool's flags set; a problem of it
+  is the checkout's own diagnostic, which `validate` now prints first and
+  which refuses `generate`, `check` and `init`.
 - Session families expose typed `session.control` and `session.cursor`
   callbacks through the built-in family's ordinary protocol side. Initial
   control is available before replay through construction-time events;

@@ -16,11 +16,27 @@ A record. What every payload carries.
 |---|---|---|---|---|
 | `text` | `string` | required | — | The text of the payload. |
 
+For example:
+
+```json
+{
+  "text": "‹text›"
+}
+```
+
 ### Counts
 
 An alias.
 
 An alias of map of `integer`.
+
+For example:
+
+```json
+{
+  "‹key›": 0
+}
+```
 
 ### OpenRecord
 
@@ -30,6 +46,15 @@ A record, open: fields beyond the declared ones are kept. A record that keeps th
 |---|---|---|---|---|
 | `id` | `string` | required | — |  |
 | `note` | `string` | optional | — |  |
+
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "note": "‹note›"
+}
+```
 
 ### Payload
 
@@ -43,11 +68,37 @@ Extends `Base`.
 | `count` | `integer` | required | — |  |
 | `note` | `string` | optional, nullable | — |  |
 
+For example:
+
+```json
+{
+  "text": "‹text›",
+  "count": 0,
+  "note": "‹note›"
+}
+```
+
+Used by `Payloads` (alias), `echo` (request, result), `changed` (data), `reverse` (request, result).
+
 ### Payloads
 
 An alias. Payloads, in order.
 
 An alias of array of `Payload`.
+
+For example:
+
+```json
+[
+  {
+    "text": "‹text›",
+    "count": 0,
+    "note": "‹note›"
+  }
+]
+```
+
+Used by `seen` (result).
 
 ### Seen
 
@@ -61,11 +112,33 @@ A record.
 | `ratio` | `number` | required | — |  |
 | `ok` | `boolean` | required | — |  |
 
+For example:
+
+```json
+{
+  "at": "2026-01-01T00:00:00Z",
+  "status": "ready",
+  "extra": {},
+  "ratio": 0.5,
+  "ok": true
+}
+```
+
+Used by `seen` (request), `noticed` (data).
+
 ### Status
 
 An enum. Where a probe stands.
 
 One of `ready`, `done`, `context.example`.
+
+For example:
+
+```json
+"ready"
+```
+
+Used by `Seen.status`.
 
 ## Carried types
 
@@ -116,6 +189,148 @@ Extends the server side of `session`.
 | `session.cursor` | `session.Cursor` | Inherited from `session`. Where the attachment stands, straight after each frame it is delivered. |
 | `changed` | `Payload` | A payload changed. |
 
+### `echo` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "echo",
+  "params": {
+    "text": "‹text›",
+    "count": 0,
+    "note": "‹note›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "text": "‹text›",
+    "count": 0,
+    "note": "‹note›"
+  }
+}
+```
+
+### `no_args` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "no_args",
+  "params": {}
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": "‹result›"
+}
+```
+
+### `seen` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "seen",
+  "params": {
+    "at": "2026-01-01T00:00:00Z",
+    "status": "ready",
+    "extra": {},
+    "ratio": 0.5,
+    "ok": true
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": [
+    {
+      "text": "‹text›",
+      "count": 0,
+      "note": "‹note›"
+    }
+  ]
+}
+```
+
+### `session.control` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "session.control",
+  "data": {
+    "holder": "‹holder›"
+  }
+}
+```
+
+### `session.cursor` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "session.cursor",
+  "data": {
+    "sequence": 0
+  }
+}
+```
+
+### `changed` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "changed",
+  "data": {
+    "text": "‹text›",
+    "count": 0,
+    "note": "‹note›"
+  }
+}
+```
+
 ## Client side
 
 The client implements these methods, which the server calls, and emits these events.
@@ -129,6 +344,58 @@ Extends the client side of `session`.
 | Event | Data | Description |
 |---|---|---|
 | `noticed` | `Seen` |  |
+
+### `reverse` on the wire
+
+The server sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "s:1",
+  "method": "reverse",
+  "params": {
+    "text": "‹text›",
+    "count": 0,
+    "note": "‹note›"
+  }
+}
+```
+
+The client answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "s:1",
+  "result": {
+    "text": "‹text›",
+    "count": 0,
+    "note": "‹note›"
+  }
+}
+```
+
+### `noticed` on the wire
+
+The client emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "noticed",
+  "data": {
+    "at": "2026-01-01T00:00:00Z",
+    "status": "ready",
+    "extra": {},
+    "ratio": 0.5,
+    "ok": true
+  }
+}
+```
 
 ## Errors
 

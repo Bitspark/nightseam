@@ -194,6 +194,12 @@ type ConversationSource struct {
 	Conversation model.Conversation
 }
 
+// World is every family of a checkout, ready to render, by name — what a
+// target that renders the checkout as a whole sees.
+type World struct {
+	Families []*Family
+}
+
 // Build renders the facts of a family that passed every neutral check.
 func Build(f *analysis.Family) *Family {
 	return (&builder{families: map[*analysis.Family]*Family{}}).build(f)
@@ -268,6 +274,10 @@ func union(sets ...[]Use) []Use {
 
 // Type finds a type by name.
 func (r *Family) Type(name string) *Type { return r.types[name] }
+
+// IsParameter reports whether a plain name in an expression names a
+// parameter of the family rather than a type of it.
+func (r *Family) IsParameter(name string) bool { return r.f.HasParameter(name) }
 
 // HasProtocol reports whether the family has a protocol tier.
 func (r *Family) HasProtocol() bool { return r.f.Protocol != nil }

@@ -19,6 +19,22 @@ An entity, identified by `id`. An account: identified, with a unique email and a
 | `tags` | array of `string` | required | length ≤ 8 |  |
 | `opened_at` | `timestamp` | required | — |  |
 
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "email": "‹email›",
+  "balance": 0,
+  "tags": [
+    "‹tags›"
+  ],
+  "opened_at": "2026-01-01T00:00:00Z"
+}
+```
+
+Used by `Transfer.from`, `Transfer.to`.
+
 ### Transfer
 
 A record. A transfer between two accounts, by their keys.
@@ -28,6 +44,16 @@ A record. A transfer between two accounts, by their keys.
 | `from` | reference to `Account` | required | — |  |
 | `to` | reference to `Account` | required | — |  |
 | `note` | `string` | optional | length ≥ 1, length ≤ 140 |  |
+
+For example:
+
+```json
+{
+  "from": "‹id›",
+  "to": "‹id›",
+  "note": "‹note›"
+}
+```
 
 ## Carried types
 

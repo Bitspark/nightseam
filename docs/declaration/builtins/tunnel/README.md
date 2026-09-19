@@ -100,6 +100,130 @@ The server implements these methods and emits these events.
 | `channel.credit` | `Credit` | Credit returned for frames taken. |
 | `channel.frame` | `Frame` | One inner frame, opaque to the tunnel. |
 
+### `channel.open` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "channel.open",
+  "params": {
+    "channel": 0,
+    "family": "‹family›",
+    "after": 0,
+    "window": 0
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "window": 0
+  }
+}
+```
+
+Or refuses with `channel_invalid`:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "error": {
+    "code": "channel_invalid",
+    "message": "The open is malformed, or names an id of the accepting side's parity."
+  }
+}
+```
+
+Or refuses with `channel_exists`:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "error": {
+    "code": "channel_exists",
+    "message": "The id is open."
+  }
+}
+```
+
+Or refuses with `channel_refused`:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "error": {
+    "code": "channel_refused",
+    "message": "Nobody here has taken the channels already opened, up to the accept capacity."
+  }
+}
+```
+
+### `channel.close` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "channel.close",
+  "data": {
+    "channel": 0,
+    "code": 0,
+    "reason": "‹reason›"
+  }
+}
+```
+
+### `channel.credit` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "channel.credit",
+  "data": {
+    "channel": 0,
+    "frames": 0
+  }
+}
+```
+
+### `channel.frame` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "channel.frame",
+  "data": {
+    "channel": 0,
+    "text": "‹text›",
+    "binary": "‹binary›"
+  }
+}
+```
+
 ## Client side
 
 The client implements these methods, which the server calls, and emits these events.
@@ -113,6 +237,130 @@ The client implements these methods, which the server calls, and emits these eve
 | `channel.close` | `Close` | The close of a channel. |
 | `channel.credit` | `Credit` | Credit returned for frames taken. |
 | `channel.frame` | `Frame` | One inner frame, opaque to the tunnel. |
+
+### `channel.open` on the wire
+
+The server sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "s:1",
+  "method": "channel.open",
+  "params": {
+    "channel": 0,
+    "family": "‹family›",
+    "after": 0,
+    "window": 0
+  }
+}
+```
+
+The client answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "s:1",
+  "result": {
+    "window": 0
+  }
+}
+```
+
+Or refuses with `channel_invalid`:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "s:1",
+  "error": {
+    "code": "channel_invalid",
+    "message": "The open is malformed, or names an id of the accepting side's parity."
+  }
+}
+```
+
+Or refuses with `channel_exists`:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "s:1",
+  "error": {
+    "code": "channel_exists",
+    "message": "The id is open."
+  }
+}
+```
+
+Or refuses with `channel_refused`:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "s:1",
+  "error": {
+    "code": "channel_refused",
+    "message": "Nobody here has taken the channels already opened, up to the accept capacity."
+  }
+}
+```
+
+### `channel.close` on the wire
+
+The client emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "channel.close",
+  "data": {
+    "channel": 0,
+    "code": 0,
+    "reason": "‹reason›"
+  }
+}
+```
+
+### `channel.credit` on the wire
+
+The client emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "channel.credit",
+  "data": {
+    "channel": 0,
+    "frames": 0
+  }
+}
+```
+
+### `channel.frame` on the wire
+
+The client emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "channel.frame",
+  "data": {
+    "channel": 0,
+    "text": "‹text›",
+    "binary": "‹binary›"
+  }
+}
+```
 
 ## Errors
 

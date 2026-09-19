@@ -8,9 +8,10 @@ import (
 
 	"github.com/Bitspark/nightseam/internal/analysis"
 	"github.com/Bitspark/nightseam/internal/check"
+	"github.com/Bitspark/nightseam/internal/doc"
 	"github.com/Bitspark/nightseam/internal/model/builtin"
 	"github.com/Bitspark/nightseam/internal/render"
-	"github.com/Bitspark/nightseam/internal/targets/spec"
+	"github.com/Bitspark/nightseam/internal/targets/markdown"
 )
 
 // The references are the built-in declarations rendered by the same spec
@@ -19,7 +20,7 @@ import (
 func TestBuiltinSpecificationsGolden(t *testing.T) {
 	root := repositoryRoot(t)
 	world := analysis.World(builtin.Families())
-	target := spec.New(spec.Config{Layout: "docs/declaration/builtins/{family}"})
+	target := doc.Target(markdown.New(markdown.Config{Layout: "docs/declaration/builtins/{family}"}))
 	for _, name := range builtin.Names() {
 		t.Run(name, func(t *testing.T) {
 			family := analysis.Resolve(world, name)

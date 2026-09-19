@@ -1,0 +1,3 @@
+nightseam.json#/targets/go: module is set by the tool's --module flag, not by nightseam.json [invalid_config]
+nightseam.json#/targets/markdown: the markdown section: json: unknown field "colour" [invalid_config]
+error: 2 problems

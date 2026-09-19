@@ -3,8 +3,8 @@
 A language is in Nightseam when it is in the README's table, and what it
 promises is its tier ([languages, profiles and tiers](tiers.md)). A third
 language is `<component>/<lang>` for each published component, a target
-under `internal/targets/` (Go's is `golang`, and `spec` is a target that is
-no language), and a testee under `conformance/<lang>`; nothing else moves.
+under `internal/targets/` (Go's is `golang`, and `markdown` is a writer of
+the specification, a target that is no language), and a testee under `conformance/<lang>`; nothing else moves.
 Every language is held to the same scenarios, written once, and the Go
 testee is the reference it is held to on both sides of a real socket.
 

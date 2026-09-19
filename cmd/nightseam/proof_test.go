@@ -19,7 +19,7 @@ import (
 // type language gained at once, beside the family whose side it extends.
 func proofWorld(t *testing.T) analysis.World {
 	t.Helper()
-	world, diagnostics := load.Checkout(os.DirFS("testdata"), "proof", []string{"go", "typescript", "spec"})
+	world, diagnostics := load.Checkout(os.DirFS("testdata"), "proof", []string{"go", "typescript", "markdown"})
 	for _, d := range diagnostics {
 		t.Errorf("loading the proof checkout: %s", d)
 	}

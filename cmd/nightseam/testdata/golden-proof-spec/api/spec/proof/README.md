@@ -25,6 +25,23 @@ A record, generic in `S.Envelope`, `S.Handle`, `Item`. One message of S with a p
 | `back` | nullable `S.Handle` | required | — | A handle that may be absent from the value rather than from the member. |
 | `page` | `Page` with T=`Item` | required | — |  |
 
+For example:
+
+```json
+{
+  "message": "‹S.Envelope›",
+  "back": "‹S.Handle›",
+  "page": {
+    "items": [
+      "‹Item›"
+    ],
+    "next": "‹next›"
+  }
+}
+```
+
+Used by `relay` (request).
+
 ### Option
 
 A union, generic in `T`. A value, or nothing: a generic union, declared in the language rather than built in.
@@ -40,11 +57,28 @@ The `kind` member identifies the variant. The complete payload is carried in `va
 | `"none"` | `OptionNone` | `Option` |
 | `"some"` | `T` | `Option` |
 
+For example:
+
+```json
+{
+  "kind": "none",
+  "value": {}
+}
+```
+
+Used by `relay` (result).
+
 ### OptionNone
 
 A record.
 
 Declared inline; its name is derived from its declaration path.
+
+For example:
+
+```json
+{}
+```
 
 ### Page
 
@@ -59,6 +93,19 @@ A record, generic in `T`. A page of anything: a type parameter filled by a type 
 | `items` | array of `T` | required | — |  |
 | `next` | nullable `string` | optional | — |  |
 
+For example:
+
+```json
+{
+  "items": [
+    "‹T›"
+  ],
+  "next": "‹next›"
+}
+```
+
+Used by `Carried.page`, `Parts` (alias).
+
 ### Part
 
 A union. One part of a message: a record with a literal field, a shape written inline, and a scalar payload.
@@ -71,6 +118,17 @@ The `type` member identifies the variant. The complete payload is carried in `va
 | `"image"` | `PartImage` | `Part` |
 | `"text"` | `TextPart` | `Part` |
 
+For example:
+
+```json
+{
+  "type": "count",
+  "value": 0
+}
+```
+
+Used by `Parts` (alias).
+
 ### PartImage
 
 A record.
@@ -82,11 +140,36 @@ Declared inline; its name is derived from its declaration path.
 | `url` | `string` | required | matches `^https://[A-Za-z0-9.-]+/[^ ]*$` |  |
 | `alt` | nullable `string` | optional | — |  |
 
+For example:
+
+```json
+{
+  "url": "‹url›",
+  "alt": "‹alt›"
+}
+```
+
 ### Parts
 
 An alias. A page of parts: a generic type of this family, filled here.
 
 An alias of `Page` with T=`Part`.
+
+For example:
+
+```json
+{
+  "items": [
+    {
+      "type": "count",
+      "value": 0
+    }
+  ],
+  "next": "‹next›"
+}
+```
+
+Used by `parts` (result).
 
 ### PartsRequest
 
@@ -97,6 +180,14 @@ Declared inline; its name is derived from its declaration path.
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `after` | nullable `string` | optional | — |  |
+
+For example:
+
+```json
+{
+  "after": "‹after›"
+}
+```
 
 ### Result
 
@@ -114,6 +205,17 @@ The `kind` member identifies the variant. The complete payload is carried in `va
 | `"err"` | `E` | `Result` |
 | `"ok"` | `T` | `Result` |
 
+For example:
+
+```json
+{
+  "kind": "err",
+  "value": "‹E›"
+}
+```
+
+Used by `parts` (result).
+
 ### RichPart
 
 A union. Part widened: an extending union adds variants, and a value of the base validates against it.
@@ -129,6 +231,17 @@ The `type` member identifies the variant. The complete payload is carried in `va
 | `"text"` | `TextPart` | `Part` |
 | `"table"` | `RichPartTable` | `RichPart` |
 
+For example:
+
+```json
+{
+  "type": "count",
+  "value": 0
+}
+```
+
+Used by `part.added` (data).
+
 ### RichPartTable
 
 A record.
@@ -139,6 +252,16 @@ Declared inline; its name is derived from its declaration path.
 |---|---|---|---|---|
 | `rows` | array of nullable `string` | required | — | A collection of values that may be null. |
 
+For example:
+
+```json
+{
+  "rows": [
+    "‹rows›"
+  ]
+}
+```
+
 ### TextPart
 
 A record. A part with its own literal type field, retained inside the union payload.
@@ -147,6 +270,17 @@ A record. A part with its own literal type field, retained inside the union payl
 |---|---|---|---|---|
 | `type` | the literal `"text"` | required | — | A literal field of the payload; the union has its own discriminator. |
 | `body` | `string` | required | length ≥ 1 |  |
+
+For example:
+
+```json
+{
+  "type": "text",
+  "body": "‹body›"
+}
+```
+
+Used by `Part.text`, `RichPart.text`.
 
 ## Carried types
 
@@ -195,6 +329,147 @@ Extends the server side of `probe`.
 |---|---|---|
 | `changed` | `probe.Payload` | Inherited from `probe`. A payload changed. |
 | `part.added` | `RichPart` | A part was added. |
+
+### `echo` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "echo",
+  "params": {
+    "text": "‹text›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "text": "‹text›"
+  }
+}
+```
+
+Or refuses with `denied`:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "error": {
+    "code": "denied",
+    "message": "The caller is denied."
+  }
+}
+```
+
+### `parts` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "parts",
+  "params": {
+    "after": "‹after›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "kind": "err",
+    "value": "‹err›"
+  }
+}
+```
+
+### `relay` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "relay",
+  "params": {
+    "message": "‹S.Envelope›",
+    "back": "‹S.Handle›",
+    "page": {
+      "items": [
+        "‹Item›"
+      ],
+      "next": "‹next›"
+    }
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "kind": "none",
+    "value": {}
+  }
+}
+```
+
+### `changed` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "changed",
+  "data": {
+    "text": "‹text›"
+  }
+}
+```
+
+### `part.added` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "part.added",
+  "data": {
+    "type": "count",
+    "value": 0
+  }
+}
+```
 
 ## Errors
 

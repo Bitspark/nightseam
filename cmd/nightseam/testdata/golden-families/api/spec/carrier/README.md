@@ -22,6 +22,16 @@ A record.
 |---|---|---|---|---|
 | `id` | `string` | required | — |  |
 
+For example:
+
+```json
+{
+  "id": "‹id›"
+}
+```
+
+Used by `attach` (request).
+
 ### Attachment
 
 A record, generic in `S.Handle`.
@@ -30,6 +40,17 @@ A record, generic in `S.Handle`.
 |---|---|---|---|---|
 | `connection` | `S.Handle` | required | — |  |
 | `last` | `integer` | required | — |  |
+
+For example:
+
+```json
+{
+  "connection": "‹S.Handle›",
+  "last": 0
+}
+```
+
+Used by `attach` (result).
 
 ### Frame
 
@@ -40,11 +61,33 @@ A record, generic in `S.Envelope`.
 | `sequence` | `integer` | required | — |  |
 | `message` | `S.Envelope` | required | — |  |
 
+For example:
+
+```json
+{
+  "sequence": 0,
+  "message": "‹S.Envelope›"
+}
+```
+
+Used by `Frames` (alias), `relay` (request), `frame.relayed` (data).
+
 ### Frames
 
 An alias, generic in `S.Envelope`.
 
 An alias of array of `Frame`.
+
+For example:
+
+```json
+[
+  {
+    "sequence": 0,
+    "message": "‹S.Envelope›"
+  }
+]
+```
 
 ## Carried types
 
@@ -89,3 +132,92 @@ The server implements these methods and emits these events.
 | Event | Data | Description |
 |---|---|---|
 | `frame.relayed` | `Frame` |  |
+
+### `attach` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "attach",
+  "params": {
+    "id": "‹id›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "connection": "‹S.Handle›",
+    "last": 0
+  }
+}
+```
+
+### `relay` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "relay",
+  "params": {
+    "sequence": 0,
+    "message": "‹S.Envelope›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "version": 0,
+    "kind": "‹kind›",
+    "id": "‹id›",
+    "method": "‹method›",
+    "params": {},
+    "result": {},
+    "error": {},
+    "event": "‹event›",
+    "data": {},
+    "traceparent": "‹traceparent›",
+    "tracestate": "‹tracestate›",
+    "meta": {
+      "‹key›": "‹meta›"
+    }
+  }
+}
+```
+
+### `frame.relayed` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "frame.relayed",
+  "data": {
+    "sequence": 0,
+    "message": "‹S.Envelope›"
+  }
+}
+```

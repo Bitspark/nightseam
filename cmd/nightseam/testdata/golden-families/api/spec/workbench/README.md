@@ -17,6 +17,18 @@ A record.
 | `expected_version` | `integer` | optional | — |  |
 | `reason` | `string` | required | — |  |
 
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "expected_version": 0,
+  "reason": "‹reason›"
+}
+```
+
+Used by `work.cancel` (request).
+
 ### CreateProjectParams
 
 A record.
@@ -26,6 +38,18 @@ A record.
 | `key` | `string` | required | — |  |
 | `name` | `string` | required | — |  |
 | `description` | `string` | required | — |  |
+
+For example:
+
+```json
+{
+  "key": "‹key›",
+  "name": "‹name›",
+  "description": "‹description›"
+}
+```
+
+Used by `projects.create` (request).
 
 ### CreateWorkItemParams
 
@@ -37,6 +61,32 @@ A record.
 | `title` | `string` | required | — |  |
 | `draft` | `SpecificationDraft` | optional | — |  |
 
+For example:
+
+```json
+{
+  "project": "‹project›",
+  "title": "‹title›",
+  "draft": {
+    "objective": "‹objective›",
+    "criteria": [
+      {
+        "id": "‹id›",
+        "description": "‹description›"
+      }
+    ],
+    "constraints": [
+      "‹constraints›"
+    ],
+    "dependencies": [
+      "‹dependencies›"
+    ]
+  }
+}
+```
+
+Used by `work.create` (request).
+
 ### Criterion
 
 A record.
@@ -45,6 +95,17 @@ A record.
 |---|---|---|---|---|
 | `id` | `string` | required | — |  |
 | `description` | `string` | required | — |  |
+
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "description": "‹description›"
+}
+```
+
+Used by `SpecificationDraft.criteria`.
 
 ### Event
 
@@ -60,6 +121,22 @@ A record.
 | `data` | `json` | required | — |  |
 | `created_at` | `timestamp` | required | — |  |
 
+For example:
+
+```json
+{
+  "sequence": 0,
+  "type": "‹type›",
+  "project_id": "‹project_id›",
+  "work_item_id": "‹work_item_id›",
+  "actor_id": "‹actor_id›",
+  "data": {},
+  "created_at": "2026-01-01T00:00:00Z"
+}
+```
+
+Used by `events.list` (result), `workbench.changed` (data).
+
 ### GetWorkItemParams
 
 A record.
@@ -67,6 +144,16 @@ A record.
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `id` | `string` | required | — |  |
+
+For example:
+
+```json
+{
+  "id": "‹id›"
+}
+```
+
+Used by `work.get` (request).
 
 ### ListEventsParams
 
@@ -78,9 +165,29 @@ A record.
 | `project` | `string` | optional | — |  |
 | `limit` | `integer` | optional | — |  |
 
+For example:
+
+```json
+{
+  "after": 0,
+  "project": "‹project›",
+  "limit": 0
+}
+```
+
+Used by `events.list` (request).
+
 ### ListProjectsParams
 
 A record.
+
+For example:
+
+```json
+{}
+```
+
+Used by `projects.list` (request).
 
 ### ListWorkItemsParams
 
@@ -90,6 +197,17 @@ A record.
 |---|---|---|---|---|
 | `project` | `string` | optional | — |  |
 | `state` | `string` | optional | — |  |
+
+For example:
+
+```json
+{
+  "project": "‹project›",
+  "state": "‹state›"
+}
+```
+
+Used by `work.list` (request).
 
 ### Project
 
@@ -106,6 +224,23 @@ A record.
 | `created_at` | `timestamp` | required | — |  |
 | `updated_at` | `timestamp` | required | — |  |
 
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "owner_id": "‹owner_id›",
+  "version": 0,
+  "key": "‹key›",
+  "name": "‹name›",
+  "description": "‹description›",
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z"
+}
+```
+
+Used by `projects.create` (result), `projects.list` (result), `projects.update` (result).
+
 ### PublishSpecificationParams
 
 A record.
@@ -114,6 +249,17 @@ A record.
 |---|---|---|---|---|
 | `id` | `string` | required | — |  |
 | `expected_version` | `integer` | optional | — |  |
+
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "expected_version": 0
+}
+```
+
+Used by `work.publish` (request).
 
 ### ReopenWorkItemParams
 
@@ -125,6 +271,18 @@ A record.
 | `expected_version` | `integer` | optional | — |  |
 | `reason` | `string` | required | — |  |
 
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "expected_version": 0,
+  "reason": "‹reason›"
+}
+```
+
+Used by `work.reopen` (request).
+
 ### SetDependenciesParams
 
 A record.
@@ -134,6 +292,20 @@ A record.
 | `id` | `string` | required | — |  |
 | `expected_version` | `integer` | optional | — |  |
 | `dependencies` | array of `string` | required | — |  |
+
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "expected_version": 0,
+  "dependencies": [
+    "‹dependencies›"
+  ]
+}
+```
+
+Used by `work.dependencies` (request).
 
 ### SetStepsParams
 
@@ -145,6 +317,27 @@ A record.
 | `expected_version` | `integer` | optional | — |  |
 | `steps` | array of `Step` | required | — |  |
 | `reason` | `string` | optional | — |  |
+
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "expected_version": 0,
+  "steps": [
+    {
+      "id": "‹id›",
+      "objective": "‹objective›",
+      "state": "‹state›",
+      "result_note": "‹result_note›",
+      "change_reason": "‹change_reason›"
+    }
+  ],
+  "reason": "‹reason›"
+}
+```
+
+Used by `work.steps` (request).
 
 ### Specification
 
@@ -162,6 +355,31 @@ Extends `SpecificationDraft`.
 | `revision` | `integer` | required | — |  |
 | `published_at` | `timestamp` | required | — |  |
 
+For example:
+
+```json
+{
+  "objective": "‹objective›",
+  "criteria": [
+    {
+      "id": "‹id›",
+      "description": "‹description›"
+    }
+  ],
+  "constraints": [
+    "‹constraints›"
+  ],
+  "dependencies": [
+    "‹dependencies›"
+  ],
+  "id": "‹id›",
+  "revision": 0,
+  "published_at": "2026-01-01T00:00:00Z"
+}
+```
+
+Used by `WorkItem.specifications`.
+
 ### SpecificationDraft
 
 A record.
@@ -172,6 +390,28 @@ A record.
 | `criteria` | array of `Criterion` | required | — |  |
 | `constraints` | array of `string` | required | — |  |
 | `dependencies` | array of `string` | required | — |  |
+
+For example:
+
+```json
+{
+  "objective": "‹objective›",
+  "criteria": [
+    {
+      "id": "‹id›",
+      "description": "‹description›"
+    }
+  ],
+  "constraints": [
+    "‹constraints›"
+  ],
+  "dependencies": [
+    "‹dependencies›"
+  ]
+}
+```
+
+Used by `CreateWorkItemParams.draft`, `UpdateWorkItemParams.draft`, `WorkItem.draft`.
 
 ### Step
 
@@ -185,6 +425,20 @@ A record.
 | `result_note` | `string` | required | — |  |
 | `change_reason` | `string` | required | — |  |
 
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "objective": "‹objective›",
+  "state": "‹state›",
+  "result_note": "‹result_note›",
+  "change_reason": "‹change_reason›"
+}
+```
+
+Used by `SetStepsParams.steps`, `WorkItem.steps`.
+
 ### SubscribeParams
 
 A record.
@@ -194,6 +448,17 @@ A record.
 | `after` | `integer` | optional | — |  |
 | `project` | `string` | optional | — |  |
 
+For example:
+
+```json
+{
+  "after": 0,
+  "project": "‹project›"
+}
+```
+
+Used by `subscribe` (request).
+
 ### SubscribeResult
 
 A record.
@@ -201,6 +466,16 @@ A record.
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `subscribed` | `boolean` | required | — |  |
+
+For example:
+
+```json
+{
+  "subscribed": true
+}
+```
+
+Used by `subscribe` (result).
 
 ### UpdateProjectParams
 
@@ -214,6 +489,20 @@ A record.
 | `name` | `string` | optional | — |  |
 | `description` | `string` | optional | — |  |
 
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "expected_version": 0,
+  "key": "‹key›",
+  "name": "‹name›",
+  "description": "‹description›"
+}
+```
+
+Used by `projects.update` (request).
+
 ### UpdateWorkItemParams
 
 A record.
@@ -225,6 +514,33 @@ A record.
 | `title` | `string` | optional | — |  |
 | `draft` | `SpecificationDraft` | optional | — |  |
 
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "expected_version": 0,
+  "title": "‹title›",
+  "draft": {
+    "objective": "‹objective›",
+    "criteria": [
+      {
+        "id": "‹id›",
+        "description": "‹description›"
+      }
+    ],
+    "constraints": [
+      "‹constraints›"
+    ],
+    "dependencies": [
+      "‹dependencies›"
+    ]
+  }
+}
+```
+
+Used by `work.update` (request).
+
 ### User
 
 A record.
@@ -234,6 +550,18 @@ A record.
 | `id` | `string` | required | — |  |
 | `email` | `string` | required | — |  |
 | `name` | `string` | required | — |  |
+
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "email": "‹email›",
+  "name": "‹name›"
+}
+```
+
+Used by `me` (result).
 
 ### WorkItem
 
@@ -256,6 +584,73 @@ A record.
 | `readiness` | `string` | required | — |  |
 | `created_at` | `timestamp` | required | — |  |
 | `updated_at` | `timestamp` | required | — |  |
+
+For example:
+
+```json
+{
+  "id": "‹id›",
+  "project_id": "‹project_id›",
+  "key": "‹key›",
+  "title": "‹title›",
+  "state": "‹state›",
+  "version": 0,
+  "draft": {
+    "objective": "‹objective›",
+    "criteria": [
+      {
+        "id": "‹id›",
+        "description": "‹description›"
+      }
+    ],
+    "constraints": [
+      "‹constraints›"
+    ],
+    "dependencies": [
+      "‹dependencies›"
+    ]
+  },
+  "specifications": [
+    {
+      "objective": "‹objective›",
+      "criteria": [
+        {
+          "id": "‹id›",
+          "description": "‹description›"
+        }
+      ],
+      "constraints": [
+        "‹constraints›"
+      ],
+      "dependencies": [
+        "‹dependencies›"
+      ],
+      "id": "‹id›",
+      "revision": 0,
+      "published_at": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "current_specification_id": "‹current_specification_id›",
+  "plan_specification_id": "‹plan_specification_id›",
+  "steps": [
+    {
+      "id": "‹id›",
+      "objective": "‹objective›",
+      "state": "‹state›",
+      "result_note": "‹result_note›",
+      "change_reason": "‹change_reason›"
+    }
+  ],
+  "dependencies": [
+    "‹dependencies›"
+  ],
+  "readiness": "‹readiness›",
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z"
+}
+```
+
+Used by `work.cancel` (result), `work.create` (result), `work.dependencies` (result), `work.get` (result), `work.list` (result), `work.publish` (result), `work.reopen` (result), `work.steps` (result), `work.update` (result).
 
 ## Carried types
 
@@ -313,6 +708,1069 @@ The server implements these methods and emits these events.
 | Event | Data | Description |
 |---|---|---|
 | `workbench.changed` | `Event` |  |
+
+### `events.list` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "events.list",
+  "params": {
+    "after": 0,
+    "project": "‹project›",
+    "limit": 0
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": [
+    {
+      "sequence": 0,
+      "type": "‹type›",
+      "project_id": "‹project_id›",
+      "work_item_id": "‹work_item_id›",
+      "actor_id": "‹actor_id›",
+      "data": {},
+      "created_at": "2026-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+### `me` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "me",
+  "params": {}
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "id": "‹id›",
+    "email": "‹email›",
+    "name": "‹name›"
+  }
+}
+```
+
+### `projects.create` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "projects.create",
+  "params": {
+    "key": "‹key›",
+    "name": "‹name›",
+    "description": "‹description›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "id": "‹id›",
+    "owner_id": "‹owner_id›",
+    "version": 0,
+    "key": "‹key›",
+    "name": "‹name›",
+    "description": "‹description›",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+}
+```
+
+### `projects.list` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "projects.list",
+  "params": {}
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": [
+    {
+      "id": "‹id›",
+      "owner_id": "‹owner_id›",
+      "version": 0,
+      "key": "‹key›",
+      "name": "‹name›",
+      "description": "‹description›",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+### `projects.update` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "projects.update",
+  "params": {
+    "id": "‹id›",
+    "expected_version": 0,
+    "key": "‹key›",
+    "name": "‹name›",
+    "description": "‹description›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "id": "‹id›",
+    "owner_id": "‹owner_id›",
+    "version": 0,
+    "key": "‹key›",
+    "name": "‹name›",
+    "description": "‹description›",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+}
+```
+
+### `subscribe` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "subscribe",
+  "params": {
+    "after": 0,
+    "project": "‹project›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "subscribed": true
+  }
+}
+```
+
+### `work.cancel` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "work.cancel",
+  "params": {
+    "id": "‹id›",
+    "expected_version": 0,
+    "reason": "‹reason›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "id": "‹id›",
+    "project_id": "‹project_id›",
+    "key": "‹key›",
+    "title": "‹title›",
+    "state": "‹state›",
+    "version": 0,
+    "draft": {
+      "objective": "‹objective›",
+      "criteria": [
+        {
+          "id": "‹id›",
+          "description": "‹description›"
+        }
+      ],
+      "constraints": [
+        "‹constraints›"
+      ],
+      "dependencies": [
+        "‹dependencies›"
+      ]
+    },
+    "specifications": [
+      {
+        "objective": "‹objective›",
+        "criteria": [
+          {
+            "id": "‹id›",
+            "description": "‹description›"
+          }
+        ],
+        "constraints": [
+          "‹constraints›"
+        ],
+        "dependencies": [
+          "‹dependencies›"
+        ],
+        "id": "‹id›",
+        "revision": 0,
+        "published_at": "2026-01-01T00:00:00Z"
+      }
+    ],
+    "current_specification_id": "‹current_specification_id›",
+    "plan_specification_id": "‹plan_specification_id›",
+    "steps": [
+      {
+        "id": "‹id›",
+        "objective": "‹objective›",
+        "state": "‹state›",
+        "result_note": "‹result_note›",
+        "change_reason": "‹change_reason›"
+      }
+    ],
+    "dependencies": [
+      "‹dependencies›"
+    ],
+    "readiness": "‹readiness›",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+}
+```
+
+### `work.create` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "work.create",
+  "params": {
+    "project": "‹project›",
+    "title": "‹title›",
+    "draft": {
+      "objective": "‹objective›",
+      "criteria": [
+        {
+          "id": "‹id›",
+          "description": "‹description›"
+        }
+      ],
+      "constraints": [
+        "‹constraints›"
+      ],
+      "dependencies": [
+        "‹dependencies›"
+      ]
+    }
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "id": "‹id›",
+    "project_id": "‹project_id›",
+    "key": "‹key›",
+    "title": "‹title›",
+    "state": "‹state›",
+    "version": 0,
+    "draft": {
+      "objective": "‹objective›",
+      "criteria": [
+        {
+          "id": "‹id›",
+          "description": "‹description›"
+        }
+      ],
+      "constraints": [
+        "‹constraints›"
+      ],
+      "dependencies": [
+        "‹dependencies›"
+      ]
+    },
+    "specifications": [
+      {
+        "objective": "‹objective›",
+        "criteria": [
+          {
+            "id": "‹id›",
+            "description": "‹description›"
+          }
+        ],
+        "constraints": [
+          "‹constraints›"
+        ],
+        "dependencies": [
+          "‹dependencies›"
+        ],
+        "id": "‹id›",
+        "revision": 0,
+        "published_at": "2026-01-01T00:00:00Z"
+      }
+    ],
+    "current_specification_id": "‹current_specification_id›",
+    "plan_specification_id": "‹plan_specification_id›",
+    "steps": [
+      {
+        "id": "‹id›",
+        "objective": "‹objective›",
+        "state": "‹state›",
+        "result_note": "‹result_note›",
+        "change_reason": "‹change_reason›"
+      }
+    ],
+    "dependencies": [
+      "‹dependencies›"
+    ],
+    "readiness": "‹readiness›",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+}
+```
+
+### `work.dependencies` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "work.dependencies",
+  "params": {
+    "id": "‹id›",
+    "expected_version": 0,
+    "dependencies": [
+      "‹dependencies›"
+    ]
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "id": "‹id›",
+    "project_id": "‹project_id›",
+    "key": "‹key›",
+    "title": "‹title›",
+    "state": "‹state›",
+    "version": 0,
+    "draft": {
+      "objective": "‹objective›",
+      "criteria": [
+        {
+          "id": "‹id›",
+          "description": "‹description›"
+        }
+      ],
+      "constraints": [
+        "‹constraints›"
+      ],
+      "dependencies": [
+        "‹dependencies›"
+      ]
+    },
+    "specifications": [
+      {
+        "objective": "‹objective›",
+        "criteria": [
+          {
+            "id": "‹id›",
+            "description": "‹description›"
+          }
+        ],
+        "constraints": [
+          "‹constraints›"
+        ],
+        "dependencies": [
+          "‹dependencies›"
+        ],
+        "id": "‹id›",
+        "revision": 0,
+        "published_at": "2026-01-01T00:00:00Z"
+      }
+    ],
+    "current_specification_id": "‹current_specification_id›",
+    "plan_specification_id": "‹plan_specification_id›",
+    "steps": [
+      {
+        "id": "‹id›",
+        "objective": "‹objective›",
+        "state": "‹state›",
+        "result_note": "‹result_note›",
+        "change_reason": "‹change_reason›"
+      }
+    ],
+    "dependencies": [
+      "‹dependencies›"
+    ],
+    "readiness": "‹readiness›",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+}
+```
+
+### `work.get` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "work.get",
+  "params": {
+    "id": "‹id›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "id": "‹id›",
+    "project_id": "‹project_id›",
+    "key": "‹key›",
+    "title": "‹title›",
+    "state": "‹state›",
+    "version": 0,
+    "draft": {
+      "objective": "‹objective›",
+      "criteria": [
+        {
+          "id": "‹id›",
+          "description": "‹description›"
+        }
+      ],
+      "constraints": [
+        "‹constraints›"
+      ],
+      "dependencies": [
+        "‹dependencies›"
+      ]
+    },
+    "specifications": [
+      {
+        "objective": "‹objective›",
+        "criteria": [
+          {
+            "id": "‹id›",
+            "description": "‹description›"
+          }
+        ],
+        "constraints": [
+          "‹constraints›"
+        ],
+        "dependencies": [
+          "‹dependencies›"
+        ],
+        "id": "‹id›",
+        "revision": 0,
+        "published_at": "2026-01-01T00:00:00Z"
+      }
+    ],
+    "current_specification_id": "‹current_specification_id›",
+    "plan_specification_id": "‹plan_specification_id›",
+    "steps": [
+      {
+        "id": "‹id›",
+        "objective": "‹objective›",
+        "state": "‹state›",
+        "result_note": "‹result_note›",
+        "change_reason": "‹change_reason›"
+      }
+    ],
+    "dependencies": [
+      "‹dependencies›"
+    ],
+    "readiness": "‹readiness›",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+}
+```
+
+### `work.list` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "work.list",
+  "params": {
+    "project": "‹project›",
+    "state": "‹state›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": [
+    {
+      "id": "‹id›",
+      "project_id": "‹project_id›",
+      "key": "‹key›",
+      "title": "‹title›",
+      "state": "‹state›",
+      "version": 0,
+      "draft": {
+        "objective": "‹objective›",
+        "criteria": [
+          {
+            "id": "‹id›",
+            "description": "‹description›"
+          }
+        ],
+        "constraints": [
+          "‹constraints›"
+        ],
+        "dependencies": [
+          "‹dependencies›"
+        ]
+      },
+      "specifications": [
+        {
+          "objective": "‹objective›",
+          "criteria": [
+            {
+              "id": "‹id›",
+              "description": "‹description›"
+            }
+          ],
+          "constraints": [
+            "‹constraints›"
+          ],
+          "dependencies": [
+            "‹dependencies›"
+          ],
+          "id": "‹id›",
+          "revision": 0,
+          "published_at": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "current_specification_id": "‹current_specification_id›",
+      "plan_specification_id": "‹plan_specification_id›",
+      "steps": [
+        {
+          "id": "‹id›",
+          "objective": "‹objective›",
+          "state": "‹state›",
+          "result_note": "‹result_note›",
+          "change_reason": "‹change_reason›"
+        }
+      ],
+      "dependencies": [
+        "‹dependencies›"
+      ],
+      "readiness": "‹readiness›",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+### `work.publish` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "work.publish",
+  "params": {
+    "id": "‹id›",
+    "expected_version": 0
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "id": "‹id›",
+    "project_id": "‹project_id›",
+    "key": "‹key›",
+    "title": "‹title›",
+    "state": "‹state›",
+    "version": 0,
+    "draft": {
+      "objective": "‹objective›",
+      "criteria": [
+        {
+          "id": "‹id›",
+          "description": "‹description›"
+        }
+      ],
+      "constraints": [
+        "‹constraints›"
+      ],
+      "dependencies": [
+        "‹dependencies›"
+      ]
+    },
+    "specifications": [
+      {
+        "objective": "‹objective›",
+        "criteria": [
+          {
+            "id": "‹id›",
+            "description": "‹description›"
+          }
+        ],
+        "constraints": [
+          "‹constraints›"
+        ],
+        "dependencies": [
+          "‹dependencies›"
+        ],
+        "id": "‹id›",
+        "revision": 0,
+        "published_at": "2026-01-01T00:00:00Z"
+      }
+    ],
+    "current_specification_id": "‹current_specification_id›",
+    "plan_specification_id": "‹plan_specification_id›",
+    "steps": [
+      {
+        "id": "‹id›",
+        "objective": "‹objective›",
+        "state": "‹state›",
+        "result_note": "‹result_note›",
+        "change_reason": "‹change_reason›"
+      }
+    ],
+    "dependencies": [
+      "‹dependencies›"
+    ],
+    "readiness": "‹readiness›",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+}
+```
+
+### `work.reopen` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "work.reopen",
+  "params": {
+    "id": "‹id›",
+    "expected_version": 0,
+    "reason": "‹reason›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "id": "‹id›",
+    "project_id": "‹project_id›",
+    "key": "‹key›",
+    "title": "‹title›",
+    "state": "‹state›",
+    "version": 0,
+    "draft": {
+      "objective": "‹objective›",
+      "criteria": [
+        {
+          "id": "‹id›",
+          "description": "‹description›"
+        }
+      ],
+      "constraints": [
+        "‹constraints›"
+      ],
+      "dependencies": [
+        "‹dependencies›"
+      ]
+    },
+    "specifications": [
+      {
+        "objective": "‹objective›",
+        "criteria": [
+          {
+            "id": "‹id›",
+            "description": "‹description›"
+          }
+        ],
+        "constraints": [
+          "‹constraints›"
+        ],
+        "dependencies": [
+          "‹dependencies›"
+        ],
+        "id": "‹id›",
+        "revision": 0,
+        "published_at": "2026-01-01T00:00:00Z"
+      }
+    ],
+    "current_specification_id": "‹current_specification_id›",
+    "plan_specification_id": "‹plan_specification_id›",
+    "steps": [
+      {
+        "id": "‹id›",
+        "objective": "‹objective›",
+        "state": "‹state›",
+        "result_note": "‹result_note›",
+        "change_reason": "‹change_reason›"
+      }
+    ],
+    "dependencies": [
+      "‹dependencies›"
+    ],
+    "readiness": "‹readiness›",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+}
+```
+
+### `work.steps` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "work.steps",
+  "params": {
+    "id": "‹id›",
+    "expected_version": 0,
+    "steps": [
+      {
+        "id": "‹id›",
+        "objective": "‹objective›",
+        "state": "‹state›",
+        "result_note": "‹result_note›",
+        "change_reason": "‹change_reason›"
+      }
+    ],
+    "reason": "‹reason›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "id": "‹id›",
+    "project_id": "‹project_id›",
+    "key": "‹key›",
+    "title": "‹title›",
+    "state": "‹state›",
+    "version": 0,
+    "draft": {
+      "objective": "‹objective›",
+      "criteria": [
+        {
+          "id": "‹id›",
+          "description": "‹description›"
+        }
+      ],
+      "constraints": [
+        "‹constraints›"
+      ],
+      "dependencies": [
+        "‹dependencies›"
+      ]
+    },
+    "specifications": [
+      {
+        "objective": "‹objective›",
+        "criteria": [
+          {
+            "id": "‹id›",
+            "description": "‹description›"
+          }
+        ],
+        "constraints": [
+          "‹constraints›"
+        ],
+        "dependencies": [
+          "‹dependencies›"
+        ],
+        "id": "‹id›",
+        "revision": 0,
+        "published_at": "2026-01-01T00:00:00Z"
+      }
+    ],
+    "current_specification_id": "‹current_specification_id›",
+    "plan_specification_id": "‹plan_specification_id›",
+    "steps": [
+      {
+        "id": "‹id›",
+        "objective": "‹objective›",
+        "state": "‹state›",
+        "result_note": "‹result_note›",
+        "change_reason": "‹change_reason›"
+      }
+    ],
+    "dependencies": [
+      "‹dependencies›"
+    ],
+    "readiness": "‹readiness›",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+}
+```
+
+### `work.update` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "work.update",
+  "params": {
+    "id": "‹id›",
+    "expected_version": 0,
+    "title": "‹title›",
+    "draft": {
+      "objective": "‹objective›",
+      "criteria": [
+        {
+          "id": "‹id›",
+          "description": "‹description›"
+        }
+      ],
+      "constraints": [
+        "‹constraints›"
+      ],
+      "dependencies": [
+        "‹dependencies›"
+      ]
+    }
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "id": "‹id›",
+    "project_id": "‹project_id›",
+    "key": "‹key›",
+    "title": "‹title›",
+    "state": "‹state›",
+    "version": 0,
+    "draft": {
+      "objective": "‹objective›",
+      "criteria": [
+        {
+          "id": "‹id›",
+          "description": "‹description›"
+        }
+      ],
+      "constraints": [
+        "‹constraints›"
+      ],
+      "dependencies": [
+        "‹dependencies›"
+      ]
+    },
+    "specifications": [
+      {
+        "objective": "‹objective›",
+        "criteria": [
+          {
+            "id": "‹id›",
+            "description": "‹description›"
+          }
+        ],
+        "constraints": [
+          "‹constraints›"
+        ],
+        "dependencies": [
+          "‹dependencies›"
+        ],
+        "id": "‹id›",
+        "revision": 0,
+        "published_at": "2026-01-01T00:00:00Z"
+      }
+    ],
+    "current_specification_id": "‹current_specification_id›",
+    "plan_specification_id": "‹plan_specification_id›",
+    "steps": [
+      {
+        "id": "‹id›",
+        "objective": "‹objective›",
+        "state": "‹state›",
+        "result_note": "‹result_note›",
+        "change_reason": "‹change_reason›"
+      }
+    ],
+    "dependencies": [
+      "‹dependencies›"
+    ],
+    "readiness": "‹readiness›",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+}
+```
+
+### `workbench.changed` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "workbench.changed",
+  "data": {
+    "sequence": 0,
+    "type": "‹type›",
+    "project_id": "‹project_id›",
+    "work_item_id": "‹work_item_id›",
+    "actor_id": "‹actor_id›",
+    "data": {},
+    "created_at": "2026-01-01T00:00:00Z"
+  }
+}
+```
 
 ## Errors
 

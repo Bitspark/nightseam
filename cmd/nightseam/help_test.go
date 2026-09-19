@@ -1,6 +1,8 @@
 package main
 
 import (
+	"go/parser"
+	"go/token"
 	"strings"
 	"testing"
 
@@ -9,7 +11,7 @@ import (
 
 // named is how the root command's help names each target it is composed
 // with. The help speaks a reader's words rather than the target's own —
-// golang is Go, spec is the specification it writes — so the two cannot be
+// go is Go, markdown is the specification it writes — so the two cannot be
 // compared directly, and this table is the join. A target added to
 // compose.Targets and not to this table fails the test below, which is the
 // point: the help said Go and TypeScript alone for as long as spec had been
@@ -18,19 +20,29 @@ import (
 var named = map[string]string{
 	"go":         "Go",
 	"typescript": "TypeScript",
-	"spec":       "specification",
+	"markdown":   "Markdown",
 }
 
 func TestHelpNamesEveryComposedTarget(t *testing.T) {
-	help := newCommand().Long
-	for _, name := range compose.Names() {
-		phrase, ok := named[name]
-		if !ok {
-			t.Errorf("target %q is composed and this test does not say how the help names it; add it to named, and to the help", name)
-			continue
-		}
-		if !strings.Contains(help, phrase) {
-			t.Errorf("target %q is composed and the root command's help does not name it (%q)", name, phrase)
+	// The tool describes itself twice: in the root command's help, and in
+	// the package comment pkg.go.dev shows; both are held.
+	file, err := parser.ParseFile(token.NewFileSet(), "main.go", nil, parser.ParseComments|parser.PackageClauseOnly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if file.Doc == nil {
+		t.Fatal("main.go has no package comment")
+	}
+	for where, text := range map[string]string{"the root command's help": newCommand().Long, "the package comment": file.Doc.Text()} {
+		for _, name := range compose.Names() {
+			phrase, ok := named[name]
+			if !ok {
+				t.Errorf("target %q is composed and this test does not say how the help names it; add it to named, and to the help", name)
+				continue
+			}
+			if !strings.Contains(text, phrase) {
+				t.Errorf("target %q is composed and %s does not name it (%q)", name, where, phrase)
+			}
 		}
 	}
 	for name := range named {

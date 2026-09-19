@@ -24,6 +24,24 @@ A record, generic in `S.Envelope`, `S.Handle`, `T.Envelope`.
 | `frame` | `Frame` | required | — |  |
 | `echoes` | array of `Echo` | required | — |  |
 
+For example:
+
+```json
+{
+  "frame": {
+    "message": "‹S.Envelope›",
+    "back": "‹S.Handle›"
+  },
+  "echoes": [
+    {
+      "heard": "‹T.Envelope›"
+    }
+  ]
+}
+```
+
+Used by `relay` (result).
+
 ### Echo
 
 A record, generic in `T.Envelope`.
@@ -31,6 +49,16 @@ A record, generic in `T.Envelope`.
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `heard` | `T.Envelope` | required | — |  |
+
+For example:
+
+```json
+{
+  "heard": "‹T.Envelope›"
+}
+```
+
+Used by `Both.echoes`, `echoed` (data).
 
 ### Frame
 
@@ -41,6 +69,17 @@ A record, generic in `S.Envelope`, `S.Handle`.
 | `message` | `S.Envelope` | required | — |  |
 | `back` | `S.Handle` | required | — |  |
 
+For example:
+
+```json
+{
+  "message": "‹S.Envelope›",
+  "back": "‹S.Handle›"
+}
+```
+
+Used by `Both.frame`.
+
 ### Named
 
 A record.
@@ -48,6 +87,31 @@ A record.
 | Field | Type | Presence | Constraints | Description |
 |---|---|---|---|---|
 | `held` | `probe.Envelope` | required | — |  |
+
+For example:
+
+```json
+{
+  "held": {
+    "version": 0,
+    "kind": "‹kind›",
+    "id": "‹id›",
+    "method": "‹method›",
+    "params": {},
+    "result": {},
+    "error": {},
+    "event": "‹event›",
+    "data": {},
+    "traceparent": "‹traceparent›",
+    "tracestate": "‹tracestate›",
+    "meta": {
+      "‹key›": "‹meta›"
+    }
+  }
+}
+```
+
+Used by `named` (request, result).
 
 ## Carried types
 
@@ -92,3 +156,112 @@ The server implements these methods and emits these events.
 | Event | Data | Description |
 |---|---|---|
 | `echoed` | `Echo` |  |
+
+### `named` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "named",
+  "params": {
+    "held": {
+      "version": 0,
+      "kind": "‹kind›",
+      "id": "‹id›",
+      "method": "‹method›",
+      "params": {},
+      "result": {},
+      "error": {},
+      "event": "‹event›",
+      "data": {},
+      "traceparent": "‹traceparent›",
+      "tracestate": "‹tracestate›",
+      "meta": {
+        "‹key›": "‹meta›"
+      }
+    }
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "held": {
+      "version": 0,
+      "kind": "‹kind›",
+      "id": "‹id›",
+      "method": "‹method›",
+      "params": {},
+      "result": {},
+      "error": {},
+      "event": "‹event›",
+      "data": {},
+      "traceparent": "‹traceparent›",
+      "tracestate": "‹tracestate›",
+      "meta": {
+        "‹key›": "‹meta›"
+      }
+    }
+  }
+}
+```
+
+### `relay` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "relay",
+  "params": "‹T.Envelope›"
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "frame": {
+      "message": "‹S.Envelope›",
+      "back": "‹S.Handle›"
+    },
+    "echoes": [
+      {
+        "heard": "‹T.Envelope›"
+      }
+    ]
+  }
+}
+```
+
+### `echoed` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "echoed",
+  "data": {
+    "heard": "‹T.Envelope›"
+  }
+}
+```

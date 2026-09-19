@@ -16,6 +16,16 @@ A record. What a probe carries.
 |---|---|---|---|---|
 | `text` | `string` | required | — |  |
 
+For example:
+
+```json
+{
+  "text": "‹text›"
+}
+```
+
+Used by `echo` (request, result), `changed` (data), `reverse` (request, result).
+
 ## Carried types
 
 These are this family's own types, declared in the same language by a built-in family Nightseam declares of itself and imported by the tier that brings it, with no `imports` line. A declaration of this family may not declare one and names it by the built-in that declares it — `duplex.Envelope`.
@@ -63,6 +73,94 @@ Extends the server side of `session`.
 | `session.cursor` | `session.Cursor` | Inherited from `session`. Where the attachment stands, straight after each frame it is delivered. |
 | `changed` | `Payload` | A payload changed. |
 
+### `echo` on the wire
+
+The client sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "c:1",
+  "method": "echo",
+  "params": {
+    "text": "‹text›"
+  }
+}
+```
+
+The server answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "result": {
+    "text": "‹text›"
+  }
+}
+```
+
+Or refuses with `denied`:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "error": {
+    "code": "denied",
+    "message": "The caller is denied."
+  }
+}
+```
+
+### `session.control` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "session.control",
+  "data": {
+    "holder": "‹holder›"
+  }
+}
+```
+
+### `session.cursor` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "session.cursor",
+  "data": {
+    "sequence": 0
+  }
+}
+```
+
+### `changed` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "changed",
+  "data": {
+    "text": "‹text›"
+  }
+}
+```
+
 ## Client side
 
 The client implements these methods, which the server calls, and emits these events.
@@ -72,6 +170,35 @@ Extends the client side of `session`.
 | Method | Request | Result | Errors | Description |
 |---|---|---|---|---|
 | `reverse` | `Payload` | `Payload` | — | Asks the client to reverse a payload. |
+
+### `reverse` on the wire
+
+The server sends:
+
+```json
+{
+  "version": 1,
+  "kind": "request",
+  "id": "s:1",
+  "method": "reverse",
+  "params": {
+    "text": "‹text›"
+  }
+}
+```
+
+The client answers:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "s:1",
+  "result": {
+    "text": "‹text›"
+  }
+}
+```
 
 ## Errors
 

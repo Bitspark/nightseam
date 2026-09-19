@@ -62,3 +62,33 @@ The server implements these methods and emits these events.
 |---|---|---|
 | `session.control` | `Control` | Who holds control: once on attach, before the replay begins, and on every change. |
 | `session.cursor` | `Cursor` | Where the attachment stands, straight after each frame it is delivered. |
+
+### `session.control` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "session.control",
+  "data": {
+    "holder": "‹holder›"
+  }
+}
+```
+
+### `session.cursor` on the wire
+
+The server emits:
+
+```json
+{
+  "version": 1,
+  "kind": "event",
+  "event": "session.cursor",
+  "data": {
+    "sequence": 0
+  }
+}
+```
