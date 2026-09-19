@@ -15,7 +15,8 @@ import (
 // canonical example beside the regular checkout goldens.
 func TestAtlasProofGolden(t *testing.T) {
 	k := compose.Kernel(module, scope, "")
-	world := k.Load(os.DirFS("testdata"), "proof")
+	world := k.Load(os.DirFS(familiesRoot), "api/contracts")
+	world.Names = []string{"probe", "proof"}
 	result, err := k.RenderCheckout(world)
 	if err != nil {
 		t.Fatal(err)

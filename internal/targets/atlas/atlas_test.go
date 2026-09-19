@@ -89,7 +89,7 @@ func TestConfigTakesEveryPageTokenAndRefusesUnknownTokens(t *testing.T) {
 
 func proof(t *testing.T) *doc.Checkout {
 	t.Helper()
-	root := filepath.Join("..", "..", "..", "cmd", "nightseam", "testdata", "proof")
+	root := filepath.Join("..", "..", "..", "cmd", "nightseam", "testdata", "families", "api", "contracts")
 	families := map[string]map[string]string{}
 	for _, name := range []string{"probe", "proof"} {
 		entries, err := os.ReadDir(filepath.Join(root, name))
