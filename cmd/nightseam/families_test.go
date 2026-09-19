@@ -15,7 +15,7 @@ func TestFamiliesCompile(t *testing.T) {
 	root := repositoryRoot(t)
 	tsc := fixture(t, root, "go", "node", "tsc")
 	directory := t.TempDir()
-	writeAll(t, directory, renderV2(t, familiesRoot))
+	writeAll(t, directory, renderTool(t, familiesRoot))
 	k, world, err := (&app{root: familiesRoot, module: module, scope: scope}).world()
 	if err != nil {
 		t.Fatal(err)

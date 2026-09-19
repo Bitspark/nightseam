@@ -71,7 +71,7 @@ func TestCorpusRendersGolden(t *testing.T) {
 // from its language names — is exactly the files under
 // testdata/golden-families.
 func TestFamiliesRenderGolden(t *testing.T) {
-	holdGolden(t, familiesGoldenRoot, renderV2(t, familiesRoot))
+	holdGolden(t, familiesGoldenRoot, renderTool(t, familiesRoot))
 }
 
 // holdGolden compares rendered files against a golden tree, or rewrites the
