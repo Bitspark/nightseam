@@ -257,6 +257,9 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 	if strings.Contains(op, ".live_") {
 		return t.liveDispatch(op, raw)
 	}
+	if strings.Contains(op, ".combinator_") {
+		return t.combinatorDispatch(op, raw)
+	}
 	switch op {
 	case "hello":
 		return map[string]any{"driver": 1, "language": "go", "layers": []string{"generated"}, "features": []string{"listen"}}, nil

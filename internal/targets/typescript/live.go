@@ -125,7 +125,11 @@ func (f *file) emitCallable(t *render.Type) {
 			call := "options"
 			if t.Request != nil {
 				f.linef("%s(%s, request);", identValidateWire, expression(t.Request))
-				call = "request as " + f.spell(t.Request) + ", options"
+				// A callable's own request is converted like any other
+				// position: a callable that takes a callable is handed a
+				// native function, not a reference.
+				f.linef("const argument = %s;", f.liveConversion(t.Request, "request", false))
+				call = "argument, options"
 			}
 			if t.Result == nil {
 				f.linef("await value(%s);", call)
@@ -133,8 +137,9 @@ func (f *file) emitCallable(t *render.Type) {
 				return
 			}
 			f.linef("const result = await value(%s);", call)
-			f.linef("%s(%s, result);", identValidateWire, expression(t.Result))
-			f.line("return result;")
+			f.linef("const sent = %s;", f.liveConversion(t.Result, "result", true))
+			f.linef("%s(%s, sent);", identValidateWire, expression(t.Result))
+			f.line("return sent;")
 		})
 		// The reference's wire form, not the Reference itself: what travels is
 		// the two members, and the validator that meets the converted value
@@ -147,8 +152,11 @@ func (f *file) emitCallable(t *render.Type) {
 		f.w.Block(fmt.Sprintf("return async (%s) => {", f.callableParams(t)), "};", func() {
 			call := "undefined, options"
 			if t.Request != nil {
-				f.linef("%s(%s, request);", identValidateWire, expression(t.Request))
-				call = "request, options"
+				// And what a caller sends: a callable it passes becomes a
+				// binding of this scope, as it would in any other position.
+				f.linef("const sent = %s;", f.liveConversion(t.Request, "request", true))
+				f.linef("%s(%s, sent);", identValidateWire, expression(t.Request))
+				call = "sent, options"
 			}
 			if t.Result == nil {
 				f.linef("await invoke(%s);", call)
@@ -157,7 +165,7 @@ func (f *file) emitCallable(t *render.Type) {
 			}
 			f.linef("const result = await invoke(%s);", call)
 			f.linef("%s(%s, result);", identValidateWire, expression(t.Result))
-			f.linef("return result as %s;", f.spell(t.Result))
+			f.linef("return %s;", f.liveConversion(t.Result, "result", false))
 		})
 	})
 }

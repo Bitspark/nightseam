@@ -1,0 +1,22 @@
+{
+  "types": {
+    "Unary": {"kind": "callable", "description": "A function of one number.", "request": "Count", "result": "Count"},
+    "Factory": {"kind": "callable", "description": "Higher order both ways: it takes a callable and answers one.", "request": "Unary", "result": "Unary"},
+    "Producer": {"kind": "callable", "description": "Higher order in the result alone.", "result": "Unary"},
+    "Sink": {"kind": "callable", "description": "Higher order in the argument alone.", "request": "Unary"},
+    "Toolkit": {
+      "kind": "record",
+      "description": "The three carried together, so one call hands over a whole higher-order surface.",
+      "fields": [
+        {"name": "twice", "type": "Factory"},
+        {"name": "identity", "type": "Producer"},
+        {"name": "apply", "type": "Sink"}
+      ]
+    }
+  },
+  "server": {
+    "methods": {
+      "toolkit": {"description": "Answers callables that take and answer callables.", "request": {"kind": "record", "fields": [{"name": "seed", "type": "Count"}]}, "result": "Toolkit", "errors": ["refused"]}
+    }
+  }
+}
