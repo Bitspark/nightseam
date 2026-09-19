@@ -1,0 +1,61 @@
+package typescript
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/Bitspark/nightseam/internal/analysis"
+	"github.com/Bitspark/nightseam/internal/emit"
+	"github.com/Bitspark/nightseam/internal/model"
+	"github.com/Bitspark/nightseam/internal/model/modeltest"
+	"github.com/Bitspark/nightseam/internal/render"
+)
+
+func TestTypesRenderAdjacentUnionsAndNestedParameters(t *testing.T) {
+	r := family(map[string]string{
+		"model.json": `{"nightseam":2,"types":{
+          "Box":{"kind":"record","parameters":[{"name":"T"}],"fields":[{"name":"items","type":{"array":{"nullable":"T"}}}]},
+          "Choice":{"kind":"union","parameters":[{"name":"T"}],"tag":"kind","value":"data","variants":{"none":{"empty":true},"some":"T","record":{"kind":"record","fields":[{"name":"kind","type":{"literal":"inner"}}]}}},
+          "Bound":{"kind":"alias","type":{"apply":"Choice","with":{"T":{"apply":"Box","with":{"T":"string"}}}}}
+        }}`,
+		"protocol.json": modeltest.Protocol(`"parameters":[{"name":"S","of":"protocol"},{"name":"Item"}],"types":{"Mixed":{"kind":"record","fields":[{"name":"message","type":"S.Envelope"},{"name":"handle","type":"S.Handle"},{"name":"choice","type":{"apply":"Choice","with":{"T":"Item"}}}]}}`),
+	})
+	p, diagnostics := newPlan(r)
+	if len(diagnostics) != 0 {
+		t.Fatal(diagnostics)
+	}
+	f := &file{plan: p, family: r, config: Config{Scope: "@example"}.settled(), w: emit.NewWriter("  ")}
+	emitTypes(f)
+	for _, want := range []string{
+		`export interface Box<T = unknown>`,
+		`"items": Array<T | null>`,
+		`export type Choice<T = unknown> = { "kind": "none" } | { "kind": "record"; "data": ChoiceRecord } | { "kind": "some"; "data": T };`,
+		`"kind": "inner";`,
+		`export type Bound = Choice<Box<string>>;`,
+		`export interface Mixed<S extends AnyFamily = AnyFamily, Item = unknown>`,
+		`"choice": Choice<Item>;`,
+	} {
+		if !strings.Contains(f.w.String(), want) {
+			t.Errorf("missing %s in:\n%s", want, f.w.String())
+		}
+	}
+}
+
+func TestImportedTypesKeepOverridesAndOneArgumentPerFamily(t *testing.T) {
+	world := analysis.World(modeltest.World(map[string]map[string]string{
+		"base":  {"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"parameters":[{"name":"S","of":"protocol"}],"types":{"Box":{"kind":"record","parameters":[{"name":"T"}],"fields":[{"name":"value","type":"T"},{"name":"message","type":"S.Envelope"},{"name":"handle","type":"S.Handle"}]}}`), "typescript.json": `{"names":{"Box":"Crate"}}`},
+		"child": {"model.json": `{"nightseam":2,"imports":["base"]}`, "protocol.json": modeltest.Protocol(`"parameters":[{"name":"F","of":"protocol"},{"name":"Item"}],"types":{"Holder":{"kind":"record","fields":[{"name":"value","type":{"apply":"base.Box","with":{"S":"F","T":{"array":{"nullable":"Item"}}}}}]}}`)},
+	}))
+	r := render.Build(analysis.Resolve(world, "child"))
+	p, diagnostics := newPlan(r)
+	if len(diagnostics) != 0 {
+		t.Fatal(diagnostics)
+	}
+	f := &file{family: r, plan: p, scope: r.Type("Holder").Scope}
+	if got := f.spell(r.Type("Holder").Fields[0].Type); got != `base.Crate<F, Array<Item | null>>` {
+		t.Fatal(got)
+	}
+	if got := f.spell(model.Named{Name: "Item"}); got != "Item" {
+		t.Fatal(got)
+	}
+}
