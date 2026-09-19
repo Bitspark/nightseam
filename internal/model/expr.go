@@ -58,8 +58,8 @@ type Map struct{ Elem TypeExpr }
 // array or a map of values that may be null can be declared.
 type Nullable struct{ Elem TypeExpr }
 
-// Literal is the type of one string value: what a union's discriminator is
-// declared as by a variant that carries its own tag.
+// Literal is the type of one string value, retained inside a union payload
+// like every other member of that payload.
 type Literal struct{ Value string }
 
 // Ref is a reference to an entity of this family by its key.
