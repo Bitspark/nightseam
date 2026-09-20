@@ -10,7 +10,10 @@ import (
 
 // Conversion and validation both finish before the value can be published.
 func (f *file) liveExport(e model.TypeExpr, src, slots string) string {
-	return fmt.Sprintf("scope.exportValue((scope) => { const converted = %s; %s(%s, converted%s); return converted; })", f.liveConversion(e, src, true), identValidateWire, expression(e), slots)
+	if !f.needsConversion(e) {
+		return fmt.Sprintf("(() => { const converted = %s; %s(%s, converted%s); return converted; })()", f.liveConversion(e, src, true), identValidateWire, expression(e), slots)
+	}
+	return fmt.Sprintf("owner.exportValue((owner) => { const converted = %s; %s(%s, converted%s); return converted; })", f.liveConversion(e, src, true), identValidateWire, expression(e), slots)
 }
 
 func converterName(use render.Use) string { return "convert_" + use.Parameter + "_" + use.Type }
@@ -29,8 +32,8 @@ func (f *file) converterParameters(t *render.Type, export bool) string {
 			from, to = to, from
 		}
 		parameters := "value: " + from
-		if export && t.IsLive {
-			parameters = "scope: LiveScope, " + parameters
+		if t.IsLive {
+			parameters = "owner: LiveOwner, " + parameters
 		}
 		fmt.Fprintf(&out, ", %s: (%s) => %s", converterName(use), parameters, to)
 	}
@@ -75,7 +78,7 @@ func (f *file) conversionCall(e model.TypeExpr, src string, export bool) string 
 	t, arguments := f.family.Conversion(e)
 	passed := []string{}
 	if t.IsLive {
-		passed = append(passed, "scope")
+		passed = append(passed, "owner")
 	}
 	if export {
 		src = "(" + src + ") as " + f.spell(e)
@@ -92,8 +95,8 @@ func (f *file) conversionCall(e model.TypeExpr, src string, export bool) string 
 			converted = "(" + converted + ") as " + to
 		}
 		parameters := "input: " + from
-		if export && t.IsLive {
-			parameters = "scope: LiveScope, " + parameters
+		if t.IsLive {
+			parameters = "owner: LiveOwner, " + parameters
 		}
 		passed = append(passed, "("+parameters+"): "+to+" => "+converted)
 	}

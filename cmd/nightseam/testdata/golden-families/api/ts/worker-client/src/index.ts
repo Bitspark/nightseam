@@ -2,22 +2,22 @@
 import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection } from "@nightseam/runtime";
 import type { Tunnel } from "@nightseam/tunnel";
 import { validateWire } from './types.ts';
-import { liveOver, scopeOf, type LiveScope } from "@nightseam/live";
+import { liveOver, scopeOf, type LiveOwner } from "@nightseam/live";
 import * as conversion from './types.ts';
 import type * as Protocol from './types.ts';
 export * from './types.ts';
 export { DuplexError };
 /** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */
 export interface Events {
-  settled?: (data: Protocol.Outcome, context: EventContext) => void | Promise<void>;
+  settled?: (data: Protocol.Outcome, context: EventContext & { owner: LiveOwner }) => void | Promise<void>;
 }
 export interface Handler {
   /** The reverse direction: the server hands the client callables to call. */
-  supervise(params: Protocol.Supervise, context: RequestContext): Protocol.Outcome | Promise<Protocol.Outcome>;
+  supervise(params: Protocol.Supervise, context: RequestContext & { owner: LiveOwner }): Protocol.Outcome | Promise<Protocol.Outcome>;
 }
 export interface Caller {
   describe(params: Protocol.Ticket, options?: CallOptions): Promise<string>;
-  start(params: Protocol.Start, options?: CallOptions): Promise<Protocol.Job>;
+  start(params: Protocol.Start, options?: CallOptions & { owner?: LiveOwner }): Promise<Protocol.Job>;
 }
 /** The public errors of the family: what the code of a DuplexError a call rejects with may be. */
 export const errors = { /** The caller is denied. */ denied: "denied", /** The job is no longer there. */ gone: "gone" } as const;
@@ -28,9 +28,9 @@ export class Client implements Caller {
   constructor(peer: DuplexPeer, handler: Handler | undefined, events: Events) {
     this.peer = peer;
     /** The live layer is made over the peer before it reads, as a tunnel is: a peer already reading would refuse the first live.invoke. */
-    liveOver(peer, {});
+    if (!scopeOf(peer)) liveOver(peer, {});
     if (!handler) throw new Error('reverse-call handler is required');
-    peer.handle("supervise", async (raw, context) => { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); try { validateWire("Supervise", raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = conversion.importSupervise(scope, raw); const result = await handler.supervise(params as Protocol.Supervise, context); return scope.exportValue((scope) => { const converted = conversion.exportOutcome(scope, (result) as Protocol.Outcome); validateWire("Outcome", converted); return converted; }); });
+    peer.handle("supervise", async (raw, context) => { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = scope.owner().child(); const ownedContext = { ...context, owner }; try { validateWire("Supervise", raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = owner.importValue((owner) => conversion.importSupervise(owner, raw)); const result = await handler.supervise(params as Protocol.Supervise, ownedContext); return owner.exportValue((owner) => { const converted = conversion.exportOutcome(owner, (result) as Protocol.Outcome); validateWire("Outcome", converted); return converted; }); });
     if (events.settled) this.onSettled(events.settled);
   }
   /** Connects to a WebSocket endpoint and speaks the family over it. */
@@ -43,6 +43,6 @@ export class Client implements Caller {
   /** Ordinary RPC: self-contained data, usable with no live runtime. */
   async describe(params: Protocol.Ticket, options?: CallOptions): Promise<string> { validateWire("Ticket", params); const result = await this.peer.call<string>("describe", params, options); validateWire("string", result); return result; }
   /** Takes a callback and answers a record of callables. */
-  async start(params: Protocol.Start, options?: CallOptions): Promise<Protocol.Job> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = scope.exportValue((scope) => { const converted = conversion.exportStart(scope, (params) as Protocol.Start); validateWire("Start", converted); return converted; }); const result = await this.peer.call<unknown>("start", sent, options); validateWire("Job", result); return conversion.importJob(scope, result); }
-  onSettled(handler: (data: Protocol.Outcome, context: EventContext) => void | Promise<void>): () => void { return this.peer.onEvent("settled", (raw, context) => { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); try { validateWire("Outcome", raw); } catch(error) { this.peer.close(); throw error; } return handler(conversion.importOutcome(scope, raw), context); }); }
+  async start(params: Protocol.Start, options?: CallOptions & { owner?: LiveOwner }): Promise<Protocol.Job> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = options?.owner?.scope === scope ? options.owner : scope.owner(); const sent = owner.exportValue((owner) => { const converted = conversion.exportStart(owner, (params) as Protocol.Start); validateWire("Start", converted); return converted; }); const result = await this.peer.call<unknown>("start", sent, options); validateWire("Job", result); return owner.importValue((owner) => conversion.importJob(owner, result)); }
+  onSettled(handler: (data: Protocol.Outcome, context: EventContext & { owner: LiveOwner }) => void | Promise<void>): () => void { return this.peer.onEvent("settled", (raw, context) => { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = scope.owner().child(); const ownedContext = { ...context, owner }; try { validateWire("Outcome", raw); } catch(error) { this.peer.close(); throw error; } return handler(owner.importValue((owner) => conversion.importOutcome(owner, raw)), ownedContext); }); }
 }

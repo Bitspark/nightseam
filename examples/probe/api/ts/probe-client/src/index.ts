@@ -2,7 +2,7 @@
 import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection } from "@nightseam/runtime";
 import type { Tunnel } from "@nightseam/tunnel";
 import { validateWire } from './types.ts';
-import { liveOver, scopeOf, type LiveScope } from "@nightseam/live";
+import { liveOver, scopeOf, type LiveOwner } from "@nightseam/live";
 import * as conversion from './types.ts';
 import type * as Protocol from './types.ts';
 export * from './types.ts';
@@ -17,7 +17,7 @@ export interface Handler {
 }
 export interface Caller {
   echo(params: Protocol.Payload, options?: CallOptions): Promise<Protocol.Payload>;
-  watch(params: Protocol.Watch, options?: CallOptions): Promise<Protocol.Subscription>;
+  watch(params: Protocol.Watch, options?: CallOptions & { owner?: LiveOwner }): Promise<Protocol.Subscription>;
 }
 /** The public errors of the family: what the code of a DuplexError a call rejects with may be. */
 export const errors = { /** The caller is denied. */ denied: "denied" } as const;
@@ -28,7 +28,7 @@ export class Client implements Caller {
   constructor(peer: DuplexPeer, handler: Handler | undefined, events: Events) {
     this.peer = peer;
     /** The live layer is made over the peer before it reads, as a tunnel is: a peer already reading would refuse the first live.invoke. */
-    liveOver(peer, {});
+    if (!scopeOf(peer)) liveOver(peer, {});
     if (!handler) throw new Error('reverse-call handler is required');
     peer.handle("reverse", async (params, context) => { try { validateWire("Payload", params); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.reverse(params as Protocol.Payload, context); validateWire("Payload", result); return result; });
     if (events.changed) this.onChanged(events.changed);
@@ -43,6 +43,6 @@ export class Client implements Caller {
   /** Returns the payload, its text reversed by the caller. */
   async echo(params: Protocol.Payload, options?: CallOptions): Promise<Protocol.Payload> { validateWire("Payload", params); const result = await this.peer.call<Protocol.Payload>("echo", params, options); validateWire("Payload", result); return result; }
   /** Takes a callback and answers a record of callables: a live reference travels in each direction within one call. */
-  async watch(params: Protocol.Watch, options?: CallOptions): Promise<Protocol.Subscription> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = scope.exportValue((scope) => { const converted = conversion.exportWatch(scope, (params) as Protocol.Watch); validateWire("Watch", converted); return converted; }); const result = await this.peer.call<unknown>("watch", sent, options); validateWire("Subscription", result); return conversion.importSubscription(scope, result); }
+  async watch(params: Protocol.Watch, options?: CallOptions & { owner?: LiveOwner }): Promise<Protocol.Subscription> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = options?.owner?.scope === scope ? options.owner : scope.owner(); const sent = owner.exportValue((owner) => { const converted = conversion.exportWatch(owner, (params) as Protocol.Watch); validateWire("Watch", converted); return converted; }); const result = await this.peer.call<unknown>("watch", sent, options); validateWire("Subscription", result); return owner.importValue((owner) => conversion.importSubscription(owner, result)); }
   onChanged(handler: (data: Protocol.Payload, context: EventContext) => void | Promise<void>): () => void { return this.peer.onEvent("changed", (data, context) => { try { validateWire("Payload", data); } catch(error) { this.peer.close(); throw error; } return handler(data as Protocol.Payload, context); }); }
 }

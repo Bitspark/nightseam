@@ -1,0 +1,627 @@
+{
+  "name": "generated owners bound repeated native callable lifetimes and unwind partial imports",
+  "layer": "generated",
+  "description": "Each side is bounded to four exports/imports for seven create/use/release cycles on one open connection. Page<Job> and Bundle<Count> use supplied and returned functions through generated operations. Handler revocation ends a returned function. A separate import-bound-two client proves failed record and alias-prefixed walks preserve retained bindings and repeated references borrow a single attachment.",
+  "needs": [
+    "generated"
+  ],
+  "mirror": true,
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.owners_serve",
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.owners_dial",
+      "args": {
+        "url": "$url"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "client.owners_create",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "label": "renamed",
+        "reports": 1,
+        "counts": {
+          "exports": 1,
+          "imports": 2
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_pack",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "value": 11,
+        "seed": 7,
+        "counts": {
+          "exports": 1,
+          "imports": 1
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_create",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "label": "renamed",
+        "reports": 2,
+        "counts": {
+          "exports": 1,
+          "imports": 2
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_pack",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "value": 11,
+        "seed": 7,
+        "counts": {
+          "exports": 1,
+          "imports": 1
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_create",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "label": "renamed",
+        "reports": 3,
+        "counts": {
+          "exports": 1,
+          "imports": 2
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_pack",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "value": 11,
+        "seed": 7,
+        "counts": {
+          "exports": 1,
+          "imports": 1
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_create",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "label": "renamed",
+        "reports": 4,
+        "counts": {
+          "exports": 1,
+          "imports": 2
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_pack",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "value": 11,
+        "seed": 7,
+        "counts": {
+          "exports": 1,
+          "imports": 1
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_create",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "label": "renamed",
+        "reports": 5,
+        "counts": {
+          "exports": 1,
+          "imports": 2
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_pack",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "value": 11,
+        "seed": 7,
+        "counts": {
+          "exports": 1,
+          "imports": 1
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_create",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "label": "renamed",
+        "reports": 6,
+        "counts": {
+          "exports": 1,
+          "imports": 2
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_pack",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "value": 11,
+        "seed": 7,
+        "counts": {
+          "exports": 1,
+          "imports": 1
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_create",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "label": "renamed",
+        "reports": 7,
+        "counts": {
+          "exports": 1,
+          "imports": 2
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_pack",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "value": 11,
+        "seed": 7,
+        "counts": {
+          "exports": 1,
+          "imports": 1
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_create",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "label": "renamed",
+        "reports": 8
+      }
+    },
+    {
+      "on": "b",
+      "op": "client.owners_revoke",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "error": {
+          "code": "reference_released"
+        },
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_serve",
+      "bind": {
+        "handle": "server2",
+        "url": "url2"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.owners_dial",
+      "args": {
+        "url": "$url2",
+        "max_imports": 2
+      },
+      "bind": "client2"
+    },
+    {
+      "on": "b",
+      "op": "client.owners_imports",
+      "args": {
+        "on": "$client2"
+      },
+      "expect": {
+        "fresh": "too_many_imports",
+        "borrowed": "too_many_imports",
+        "repeated": true,
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.owners_counts",
+      "args": {
+        "on": "$server2"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    }
+  ]
+}

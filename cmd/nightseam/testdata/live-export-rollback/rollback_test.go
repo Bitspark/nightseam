@@ -27,36 +27,36 @@ func TestGeneratedLiveExportRollback(t *testing.T) {
 	}
 	defer pb.Close()
 	fn := protocol.Call(func(context.Context) (int64, error) { return 7, nil })
-	baseline, err := protocol.ExportCall(sa, fn)
+	baseline, err := protocol.ExportCall(sa.Owner(), fn)
 	if err != nil {
 		t.Fatal(err)
 	}
-	retained, err := protocol.ImportCall(sb, baseline)
+	retained, err := protocol.ImportCall(sb.Owner(), baseline)
 	if err != nil {
 		t.Fatal(err)
 	}
 	used := false
-	useRaw, err := protocol.ExportUse(sb, func(context.Context, []protocol.Call) (int64, error) { used = true; return 0, nil })
+	useRaw, err := protocol.ExportUse(sb.Owner(), func(context.Context, []protocol.Call) (int64, error) { used = true; return 0, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
-	use, err := protocol.ImportUse(sa, useRaw)
+	use, err := protocol.ImportUse(sa.Owner(), useRaw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	makeRaw, err := protocol.ExportMake(sb, func(context.Context) (protocol.Pair, error) { return protocol.Pair{First: fn, Second: fn}, nil })
+	makeRaw, err := protocol.ExportMake(sb.Owner(), func(context.Context) (protocol.Pair, error) { return protocol.Pair{First: fn, Second: fn}, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
-	makePair, err := protocol.ImportMake(sa, makeRaw)
+	makePair, err := protocol.ImportMake(sa.Owner(), makeRaw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkRaw, err := protocol.ExportCheck(sb, func(context.Context, protocol.Checked) error { used = true; return nil })
+	checkRaw, err := protocol.ExportCheck(sb.Owner(), func(context.Context, protocol.Checked) error { used = true; return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
-	check, err := protocol.ImportCheck(sa, checkRaw)
+	check, err := protocol.ImportCheck(sa.Owner(), checkRaw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,17 +67,17 @@ func TestGeneratedLiveExportRollback(t *testing.T) {
 				var err error
 				switch name {
 				case "record":
-					_, err = protocol.ExportPair(sa, protocol.Pair{First: fn, Second: fn})
+					_, err = protocol.ExportPair(sa.Owner(), protocol.Pair{First: fn, Second: fn})
 				case "union":
-					_, err = protocol.ExportChoice(sa, protocol.Choice{Pair: &protocol.Pair{First: fn, Second: fn}})
+					_, err = protocol.ExportChoice(sa.Owner(), protocol.Choice{Pair: &protocol.Pair{First: fn, Second: fn}})
 				case "generic":
-					_, err = protocol.ExportGeneric(sa, protocol.Generic{{Item: fn}, {Item: fn}})
+					_, err = protocol.ExportGeneric(sa.Owner(), protocol.Generic{{Item: fn}, {Item: fn}})
 				case "generic-live":
-					_, err = protocol.ExportBound(sa, protocol.Bound[protocol.Call]{First: fn, Last: fn}, func(scope *live.Scope, input protocol.Call) (json.RawMessage, error) {
-						return protocol.ExportCall(scope, input)
+					_, err = protocol.ExportBound(sa.Owner(), protocol.Bound[protocol.Call]{First: fn, Last: fn}, func(owner *live.Owner, input protocol.Call) (json.RawMessage, error) {
+						return protocol.ExportCall(owner, input)
 					}, runtime.TypeBinding{})
 				case "serialization":
-					_, err = protocol.ExportFailure(sa, protocol.Failure{First: fn, Last: json.RawMessage(`{`)})
+					_, err = protocol.ExportFailure(sa.Owner(), protocol.Failure{First: fn, Last: json.RawMessage(`{`)})
 				case "request":
 					_, err = use(context.Background(), []protocol.Call{fn, fn})
 				case "reply":
@@ -109,7 +109,7 @@ func TestGeneratedLiveExportRollback(t *testing.T) {
 				if err != nil || value != 7 {
 					t.Fatalf("prior binding invalidated: %d, %v", value, err)
 				}
-				raw, err := protocol.ExportCall(sa, fn)
+				raw, err := protocol.ExportCall(sa.Owner(), fn)
 				if err != nil {
 					t.Fatalf("slot was not reusable: %v", err)
 				}

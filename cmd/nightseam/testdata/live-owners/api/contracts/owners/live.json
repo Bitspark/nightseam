@@ -1,0 +1,59 @@
+{
+  "imports": [
+    "worker",
+    "boxes",
+    "combinator"
+  ],
+  "types": {
+    "Jobs": {
+      "kind": "alias",
+      "type": {
+        "apply": "boxes.Page",
+        "with": {
+          "T": "worker.Job"
+        }
+      }
+    },
+    "Reports": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "first",
+          "type": "worker.Report"
+        },
+        {
+          "name": "last",
+          "type": "worker.Report"
+        }
+      ]
+    },
+    "Repeated": {
+      "kind": "alias",
+      "type": {
+        "array": "worker.Report"
+      }
+    }
+  },
+  "server": {
+    "methods": {
+      "create": {
+        "request": "worker.Start",
+        "result": "Jobs"
+      },
+      "pack": {
+        "request": {
+          "apply": "boxes.Box",
+          "with": {
+            "T": "combinator.Unary"
+          }
+        },
+        "result": {
+          "apply": "combinator.Bundle",
+          "with": {
+            "T": "combinator.Count"
+          }
+        }
+      }
+    }
+  }
+}

@@ -22,7 +22,8 @@ const scope = liveOver(peer); // before the peer is attached, as a tunnel is mad
 await peer.connect('wss://example.test/hall');
 
 // One side exports a function and sends what names it.
-const progress = scope.export('probe/Report', async (percent) => {
+const supplied = scope.owner().child();
+const progress = supplied.export('probe/Report', async (percent) => {
   console.log(percent);
   return null;
 });
@@ -30,12 +31,22 @@ await peer.call('start', { progress });
 
 // The other side reads it out of the payload and calls it.
 const arrived = scope.decode(params.progress);
-const report = scope.import(arrived, 'probe/Report');
+const received = scope.owner().child();
+const report = received.import(arrived, 'probe/Report');
 await report(50);
 
 // And ends it when it is done with it.
-scope.release(arrived);
+received.release();
+supplied.release();
 ```
+
+Owners are explicit lifetimes inside a scope. An owner owns the bindings it
+creates; an import that reuses an existing attachment is a borrow and does not
+extend that binding's lifetime. Releasing an owner also releases its children.
+`owner.counts()` reports only its direct allocations; `scope.counts()` counts
+all bindings. `scope.release(reference)` still revokes a binding regardless of
+owner. Releasing the root leaves the scope open: `scope.owner()` then provides
+a fresh root, while the released owner remains ended.
 
 A native reference comes from `export` or `decode` and is associated with that
 scope. Importing that object into another scope is refused `reference_foreign`.

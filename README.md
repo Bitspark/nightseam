@@ -116,7 +116,7 @@ explains the pairings. The tier-1 release treatment of this gap awaits
 | language | tier | core | generator | tunnel | live | observability | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
-| `typescript` | 1 | ✓ | ✓ 17 skipped | ✓ | ✓ | ✓ | ok |
+| `typescript` | 1 | ✓ | ✓ 19 skipped | ✓ | ✓ | ✓ | ok |
 
 Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2; `java`, `swift` at tier 4.
 <!-- matrix:end -->

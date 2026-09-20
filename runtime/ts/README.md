@@ -70,7 +70,7 @@ options replaces it with an adapter for one.
 ## Limits
 
 `positiveInteger(value, name, safe = false)` is the shared option validator
-used by the peer, tunnel and session. It returns a positive integer or
+used by the peer and the tunnel. It returns a positive integer or
 throws `DuplexError` with code `invalid_options`; `safe = true` also requires
 an exactly representable integer, as the peer's limits do.
 
@@ -117,7 +117,7 @@ chooses no backend, and an observer that throws interrupts no routing.
 `consoleObserver()` writes each event as one line, and takes the four console
 methods and a clock so that a test captures it with four functions.
 
-A layer running over the peer — `@nightseam/tunnel`, `@nightseam/session`, or
+A layer running over the peer — `@nightseam/tunnel`, `@nightseam/live`, or
 one of your own — declares its events into `ObserverEvents` and emits them
 through the same observer, so a `switch (event.type)` stays exhaustive over
 every layer imported.
