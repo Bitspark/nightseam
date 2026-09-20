@@ -1,0 +1,405 @@
+{
+  "name": "serialized references resolve on their connection and cannot revive on another",
+  "layer": "live",
+  "description": "Export serializes a descriptor and import decodes it in the selected scope. Those bytes resolve while the binding exists on that connection. After both peers end, decoding the old descriptor in a new scope still permits import, but invocation refuses reference_unknown even when a fresh binding exists. Native foreign references are covered by the paired runtime unit tests, since the driver carries JSON rather than native objects.",
+  "needs": [
+    "live",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.over",
+      "args": {
+        "on": "$pa"
+      },
+      "bind": "la"
+    },
+    {
+      "on": "b",
+      "op": "live.over",
+      "args": {
+        "on": "$pb"
+      },
+      "bind": "lb"
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "ordinary",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report",
+        "behavior": {
+          "kind": "return",
+          "value": "original binding"
+        }
+      },
+      "bind": {
+        "reference": "original"
+      },
+      "note": "the testee serializes the exported reference; no inbound live payload is required before decode"
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": "$original",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "handle": "original_attachment"
+      },
+      "note": "the testee decodes the serialized descriptor with this scope and then imports it"
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$original_attachment",
+        "request": null
+      },
+      "bind": {
+        "handle": "original_call"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$original_call"
+      },
+      "expect": {
+        "result": "original binding"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "ordinary",
+        "params": "original peer still open"
+      },
+      "bind": "original_rpc"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$original_rpc"
+      },
+      "expect": {
+        "result": "original peer still open"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.counts",
+      "args": {
+        "on": "$la"
+      },
+      "expect": {
+        "exports": 1,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 1
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.close",
+      "args": {
+        "on": "$pa"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.await_close",
+      "args": {
+        "on": "$pa"
+      },
+      "expect": {
+        "clean": true,
+        "code": 1000
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.await_close",
+      "args": {
+        "on": "$pb"
+      },
+      "expect": {
+        "clean": true,
+        "code": 1000
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.counts",
+      "args": {
+        "on": "$la"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      },
+      "repeat": {
+        "max": 40,
+        "until": "match"
+      },
+      "note": "the ended connection retains no exported binding"
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      },
+      "repeat": {
+        "max": 40,
+        "until": "match"
+      }
+    },
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "new_pa",
+        "client": "new_pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.over",
+      "args": {
+        "on": "$new_pa"
+      },
+      "bind": "new_la"
+    },
+    {
+      "on": "b",
+      "op": "live.over",
+      "args": {
+        "on": "$new_pb"
+      },
+      "bind": "new_lb"
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$new_pa",
+        "method": "ordinary",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$new_la",
+        "contract": "probe/Report",
+        "behavior": {
+          "kind": "return",
+          "value": "fresh binding"
+        }
+      },
+      "bind": {
+        "reference": "fresh"
+      },
+      "note": "the new scope has a fresh export before old bytes are tried, so lookup must not confuse their binding ids"
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$new_lb",
+        "reference": "$original",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "handle": "stale_attachment"
+      },
+      "note": "decode assigns this receiving scope and import succeeds; neither proves the descriptor arrived on this connection"
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$stale_attachment",
+        "request": null
+      },
+      "bind": {
+        "handle": "stale_call"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$stale_call"
+      },
+      "expect": {
+        "error": {
+          "code": "reference_unknown"
+        }
+      },
+      "note": "rejection occurs at invocation lookup, where the ended connection's id names no binding"
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$new_lb",
+        "reference": "$fresh",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "handle": "fresh_attachment"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$fresh_attachment",
+        "request": null
+      },
+      "bind": {
+        "handle": "fresh_call"
+      }
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$fresh_call"
+      },
+      "expect": {
+        "result": "fresh binding"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$new_pb",
+        "method": "ordinary",
+        "params": "new peer still open"
+      },
+      "bind": "new_rpc"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$new_rpc"
+      },
+      "expect": {
+        "result": "new peer still open"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.counts",
+      "args": {
+        "on": "$new_la"
+      },
+      "expect": {
+        "exports": 1,
+        "imports": 0
+      },
+      "note": "the valid fresh export survives the stale invocation"
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$new_lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 2
+      },
+      "note": "the stale descriptor was imported successfully and remains an attachment alongside the fresh one"
+    },
+    {
+      "on": "a",
+      "op": "live.close",
+      "args": {
+        "on": "$new_la"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.close",
+      "args": {
+        "on": "$new_lb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.counts",
+      "args": {
+        "on": "$new_la"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$new_lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    }
+  ]
+}

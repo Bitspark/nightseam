@@ -64,20 +64,54 @@ in TypeScript — bytes where Go's codecs work in bytes, values where TypeScript
 do. A `*runtime.PublicError`, or a thrown `DuplexError`, crosses the wire with
 its code as it does from any handler.
 
-## A reference is minted, never constructed
+## Native references and serialized bytes
 
-`Reference` has no public constructor and no exported state. It comes from an
-`Export` or from `Decode` **of the scope it belongs to**, carries that scope out
-of sight, and is refused `reference_foreign` anywhere else. So a reference cannot
-be persisted, carried out of band and imported again: the only way to move one to
-another connection is to forward it, explicitly.
+Obtain a valid native `Reference` through `Export` or `Decode`. It records the
+scope that created it; passing that native object directly to another scope's
+`Import` is refused locally as `reference_foreign` and creates no attachment.
 
-That is the operator's verdict on
-[#202](https://github.com/Bitspark/nightseam/issues/202), and it is what settles
-stale tokens without an epoch on the wire — there is no token API to present one
-to. What a generated codec does instead is convert at the boundary: `Decode` each
-reference position as the payload arrives, `Import` it, and hand the handler a
-native function.
+Its serialized form is ordinary data. Go's `MarshalJSON` and TypeScript's
+`toJSON` expose the binding and contract, and the public `Decode` / `decode`
+accepts caller-supplied data with that shape. Decode associates the receiving
+scope; it does not prove that the bytes arrived in an inbound message, that a
+binding exists, or that the caller is authorized. Valid bytes may be saved or
+handed around out of band and decoded again on the original, still-open
+connection while the binding remains live.
+
+Import checks the expected contract and local reference state. For a remote
+binding it creates or reuses an attachment without asking the remote scope
+whether that binding exists. A reference to this scope's own export resolves
+locally and creates no import attachment. Remote invocation looks up the
+binding in the exporting scope and checks its
+contract. Thus old bytes can decode and import on a new connection, but invoking
+them is refused `reference_unknown`, even if the new scope has fresh exports.
+Fresh random scope nonces keep counter reuse from naming an unrelated binding.
+This is lookup and freshness protection, not a prohibition on presenting tokens
+and not authentication.
+
+| supplied value | where it is checked | result |
+| --- | --- | --- |
+| a native reference from another scope | import, locally | `reference_foreign`; no attachment |
+| serialized bytes naming a live binding on the original connection | decode, import, then invocation | the binding remains callable |
+| bytes from an ended connection, decoded in a new one | invocation in the new exporting scope | `reference_unknown`; the unsuccessful attachment still counts until released or closed |
+
+The paired `serializedReferenceSameConnection`, `foreignNativeReference`, and
+`serializedReferenceNewConnection` regressions in the
+[Go shared suite](../../live/go/livetest/conformance.go),
+[Go package tests](../../live/go/live_test.go),
+[TypeScript shared suite](../../live/ts/src/conformance.ts), and
+[TypeScript package tests](../../live/ts/src/live.test.ts) hold these distinctions,
+including counts and ordinary RPC on open peers. The
+[socket scenario](../../conformance/scenarios/live/serialized-reference-scope.json)
+holds the serialized-byte cases across languages.
+
+This corrects the token-prohibition claim in
+[#202's resolution](https://github.com/Bitspark/nightseam/issues/202#issuecomment-5745572788),
+as tracked by [#261](https://github.com/Bitspark/nightseam/issues/261).
+Generated codecs still perform conversion at their decoding boundary: decode
+each reference position, import it, and hand the handler a native function.
+Reconnection preserves no binding; making a callable reachable through another
+connection requires an explicit export there, such as forwarding.
 
 ## The rules a consumer can rely on
 

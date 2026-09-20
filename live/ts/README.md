@@ -37,11 +37,15 @@ await report(50);
 scope.release(arrived);
 ```
 
-A reference has no public constructor: it comes from `export` or from `decode`
-of the scope it belongs to, and is refused `reference_foreign` anywhere else —
-so it cannot be persisted, carried out of band and imported again. Moving one to
-another connection is `forward`, explicitly, which gives the destination a
-binding with a lifetime of its own.
+A native reference comes from `export` or `decode` and is associated with that
+scope. Importing that object into another scope is refused `reference_foreign`.
+Its serialized bytes are ordinary data: `decode` accepts caller-supplied bytes
+and associates the receiving scope without proving where they arrived from.
+Bytes naming a still-live binding work on the original connection. On a new
+connection, old bytes can decode and import, but invocation fails
+`reference_unknown` because fresh scope nonces and export lookup do not revive
+the old binding. Explicit `forward` gives another connection its own dependent
+binding; serialization alone does not.
 
 Release is a barrier: the next invocation is refused `reference_released` and
 the ones already dispatched settle and are delivered. Closing the scope, or the

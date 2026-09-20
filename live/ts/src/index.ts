@@ -13,10 +13,10 @@
  *
  * What a reference names is a binding of one scope, and a scope is one
  * connection. A scope mints a random nonce when it is made and every binding id
- * carries it, so a binding id of one scope is not a binding id of any other and
- * a token detached from its connection resolves nowhere. A Reference has no
- * public constructor: it comes from an export or from decode, and nothing else
- * mints one.
+ * carries it. Invocation looks up the id in the exporting scope; serialized
+ * bytes from an ended connection do not resolve in a fresh scope. A native
+ * Reference comes from export or decode and records that scope. Decode accepts
+ * caller-supplied bytes; it does not prove how they arrived.
  *
  * The layer proves which binding of which contract, and never who may call it.
  */
@@ -86,8 +86,9 @@ const MINTED: unique symbol = Symbol('nightseam.live.reference');
 /**
  * Names one binding of one scope. It has no public constructor: it is minted by
  * export or by decode, carries the scope it was minted in, and is refused
- * reference_foreign anywhere else — which is how a token detached from its
- * connection cannot be imported again.
+ * reference_foreign when that native object is imported into another scope.
+ * Serialized data may be decoded again; invocation must still resolve its
+ * binding id in the exporting scope.
  */
 export class Reference {
   /** @internal */ readonly [MINTED]: true = true;
@@ -103,7 +104,7 @@ export class Reference {
     this.scope = scope;
   }
 
-  /** The reference as it travels inside a payload: an ordinary value of the message carrying it. */
+  /** The binding and contract as an ordinary payload value, without the native scope association. */
   toJSON(): ReferenceWire {
     return { binding: this.binding, contract: this.contract };
   }
@@ -207,10 +208,10 @@ export class LiveScope {
   }
 
   /**
-   * Reads a reference out of a payload of this scope. It is the only way a
-   * reference enters the language besides an export, and it is why a detached
-   * token cannot be imported again: what it mints is bound to this scope, and
-   * this scope's bindings are the ones its nonce names.
+   * Reads a caller-supplied binding and contract into a native reference of
+   * this scope. It checks shape and associates the receiving scope; it proves
+   * neither inbound-message provenance nor binding existence or authorization.
+   * Import checks the expected contract; invocation resolves the binding.
    */
   decode(raw: unknown): Reference {
     const wire = raw as Partial<ReferenceWire> | null;
@@ -228,7 +229,8 @@ export class LiveScope {
    * binding imported again gives the same attachment: one binding is one
    * dispatch, and two imports never become two readers competing for one reply.
    * A reference this side exported resolves to the function behind it, with
-   * nothing crossing the wire.
+   * nothing crossing the wire. Attaching to a remote binding does not prove
+   * that it exists; invocation performs that lookup in the exporting scope.
    */
   import(reference: Reference, contract: string): Invoke {
     if (!contract) throw this.refuse(contract, CONTRACT_INVALID, 'A binding is imported for a contract.');

@@ -181,15 +181,16 @@ connection's own binding. Nothing crosses, because the table is per connection;
 but nothing refuses either, and an application that kept one table for every
 connection would cross. `TestWrongContractOwnAndForeignReferences` runs exactly
 that replay and asserts where it lands. Whatever a live reference's wire form
-becomes, freshness has to be *in* it or the check cannot exist. **Answered,
-twice over:** a live binding id carries its scope's random nonce, so an id of an
-ended connection is in no later scope's table and is refused
-`reference_unknown`; and a `Reference` has no public constructor, so there is no
-detached token to replay in the first place — it comes from an export or from a
-scope's own decode and is refused `reference_foreign` anywhere else. That is the
-operator's verdict on
-[#202](https://github.com/Bitspark/nightseam/issues/202), and this finding is
-the evidence it was decided on.
+becomes, freshness has to be *in* it or the check cannot exist. **Answered by
+lookup and freshness:** a live binding id carries its exporting scope's random
+nonce, so an id from an ended connection does not name a fresh export and its
+invocation is refused `reference_unknown`. Public decode accepts serialized
+bytes supplied by the caller; those bytes may be imported again on the original
+connection while the binding remains live. A foreign native `Reference` object
+is a different case, refused locally at import as `reference_foreign`.
+The [paired reference tests](live.md#native-references-and-serialized-bytes)
+hold this distinction and correct the token-prohibition claim in
+[#202](https://github.com/Bitspark/nightseam/issues/202).
 
 **4. A carried built-in as a union variant imported an absent package.**
 [#210](https://github.com/Bitspark/nightseam/issues/210) traced this to import
