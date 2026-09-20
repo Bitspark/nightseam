@@ -48,13 +48,21 @@ const scope = scopeOf(context.peer);
 | --- | --- | --- |
 | the scope over a peer | `live.Over(peer, options)` → `*Scope` | `liveOver(peer, options)` |
 | find it again | `live.ScopeOf(peer)` → `(*Scope, bool)` | `scopeOf(peer)` |
-| export a function, and name it | `scope.Export(contract, invoke)` → `Reference` | `scope.export(contract, invoke)` |
-| construct an unpublished payload | `scope.ExportValue(build)` → `(json.RawMessage, error)` | `scope.exportValue(build)` → `unknown` |
+| the root lifetime | `scope.Owner()` → `*Owner` | `scope.owner()` → `LiveOwner` |
+| a nested lifetime | `owner.Child()` → `*Owner` | `owner.child()` → `LiveOwner` |
+| its connection scope | `owner.Scope()` → `*Scope` | `owner.scope` |
+| export a function, and name it | `owner.Export(contract, invoke)` → `Reference` | `owner.export(contract, invoke)` |
+| construct an unpublished payload | `owner.ExportValue(build)` → `(json.RawMessage, error)` | `owner.exportValue(build)` → `unknown` |
+| import a value as one batch | `owner.ImportValue(build)` → `error` | `owner.importValue(build)` → the callback's result |
 | read a reference out of a payload | `scope.Decode(raw)` → `Reference` | `scope.decode(raw)` |
-| attach to one | `scope.Import(reference, contract)` → `Invoke` | `scope.import(reference, contract)` |
+| attach to one | `owner.Import(reference, contract)` → `Invoke` | `owner.import(reference, contract)` |
 | end a binding | `scope.Release(reference)` | `scope.release(reference)` |
-| hand one on | `live.Forward(destination, contract, origin)` | `forward(destination, contract, origin)` |
-| what it holds | `scope.Counts()` → `Counts` | `scope.counts()` |
+| end a lifetime and its children | `owner.Release()` | `owner.release()` or `owner[Symbol.dispose]()` |
+| hand one on to a destination owner | `live.Forward(destination, contract, origin)` | `forward(destination, contract, origin)` |
+| what this owner allocated directly | `owner.Counts()` → `Counts` | `owner.counts()` |
+| what the whole scope holds | `scope.Counts()` → `Counts` | `scope.counts()` |
+| carry an owner in a generated call | `live.WithOwner(ctx, owner)` | `options.owner` |
+| find the handler's owner | `live.OwnerOf(ctx)` → `(*Owner, bool)` | `context.owner` |
 | the peer beneath | `scope.Peer()` | `scope.peer` |
 | end it | `scope.Close()` | `scope.close()` |
 
@@ -68,8 +76,8 @@ its code as it does from any handler.
 ## Native references and serialized bytes
 
 Obtain a valid native `Reference` through `Export` or `Decode`. It records the
-scope that created it; passing that native object directly to another scope's
-`Import` is refused locally as `reference_foreign` and creates no attachment.
+scope that created it; importing that native object through an owner in another
+scope is refused locally as `reference_foreign` and creates no attachment.
 
 Its serialized form is ordinary data. Go's `MarshalJSON` and TypeScript's
 `toJSON` expose the binding and contract, and the public `Decode` / `decode`
@@ -126,6 +134,7 @@ source is linked.
 | call | Cancellation withdraws one invocation; its binding remains available. Application effects are not rolled back. | `cancellationIsNotRelease`; [socket case](../../conformance/scenarios/live/withdrawing-an-invocation-is-not-releasing.json) |
 | binding | One export names one function and can outlive the call that introduced it. Release prevents later use but lets an already-dispatched implementation finish. | `higherOrder`, `independentSuppliers`, `releaseIsABarrier`; [returned-callable case](../../conformance/scenarios/live/a-returned-callable-reaches-a-supplied-one.json) |
 | aliases | Repeated remote imports share one attachment. Releasing that binding invalidates every existing alias; each import does not acquire a separate lease. | `aliases`, `releaseInvalidatesAliases`; [repeated-import case](../../conformance/scenarios/live/one-binding-imported-twice-is-one-attachment.json) |
+| owner | A caller-chosen lifetime owns new exports and attachments, borrows reused attachments, and releases its children before its own bindings. Releasing a borrowing owner leaves the borrowed binding usable; releasing its allocating owner invalidates every alias. | `ownerReleasesWhatItCreated`, `ownerBorrowsAnAlias`, `ownersNest`, `releaseIsIdempotent`, `rootOwnerLeavesTheScopeOpen`; [generated owner case](../../conformance/scenarios/generated/live-owners.json) |
 | record | Its callable members carry individual references. The record has no runtime identity, remote-object equality, shared lease or atomic record-wide revocation. | The per-reference `Export`, `Import` and `Release` APIs in [Go](../../live/go/live.go) and [TypeScript](../../live/ts/src/index.ts); no record-wide lifecycle API |
 | connection | Closing its scopes invalidates their bindings and settles their calls. A new connection revives no binding and replays no invocation. | `closeSettles`, the [Go closure cases](../../live/go/livetest/close.go) and TypeScript's `closeImplementation`; `serializedReferenceNewConnection` and its [socket case](../../conformance/scenarios/live/serialized-reference-scope.json) |
 
@@ -138,12 +147,14 @@ route to their own implementations. A reference to this side's own export,
 handed back, reaches its implementation locally; `selfReference` holds that
 behavior without a network loop.
 
-**Release invalidates a binding; it does not count owners.** Releasing one alias
+**Release invalidates a binding; it does not count aliases.** Releasing one alias
 invalidates its siblings, rather than decrementing an ownership count until
 the last holder leaves. Releasing one member of a record leaves different
 bindings untouched, including separately exported returned functions; other
 members that alias the released binding are invalidated with it. A record groups
-values; it does not supply a disposal operation for that group.
+values; it does not supply a disposal operation for that group. An owner can
+group the allocations made while converting a record, but does not acquire
+ownership of a binding merely because one member aliases it.
 
 **Release is a local barrier, not a synchronized global revocation point.**
 The releasing scope updates its tables and sends one `live.release` event;
@@ -173,20 +184,68 @@ temporary live bindings. Neither the live layer nor the removal of tunnel
 or recovery guarantees.
 
 **Forwarding creates a dependent binding and takes no origin ownership.**
-`Forward` / `forward` exports an imported invocation function in the destination
-scope. Releasing the destination binding leaves the origin usable. Releasing
-or losing the origin, or losing the intermediary connection, makes later use
+`Forward` / `forward` exports an imported invocation function under the destination
+owner. Releasing that owner or the destination binding leaves the origin
+usable. Releasing or losing the origin, or losing the intermediary connection, makes later use
 through that route fail; forwarding makes no binding durable. `forwarding` and
 the [scalar socket case](../../conformance/scenarios/live/forwarding-gives-the-destination-its-own-lifetime.json)
 hold the independent destination release. The generated higher-order proof in
 [#263](https://github.com/Bitspark/nightseam/issues/263) is described below.
 
-These runtime facts do not settle how generated plain functions expose
-ownership or disposal, or who retains bindings after an uncertain publication.
-Those decisions belong to [#257](https://github.com/Bitspark/nightseam/issues/257)
-and [#259](https://github.com/Bitspark/nightseam/issues/259).
-[#241](https://github.com/Bitspark/nightseam/issues/241) reconciles their landed
-resolutions with this guide for the final release.
+## Choosing a lifetime
+
+An owner is a lifetime the caller supplies; generated values remain plain
+functions and records. Start with `scope.Owner().Child()` in Go or
+`scope.owner().child()` in TypeScript, use it for the conversions that belong
+together, and release it when that lifetime ends. The
+[decision](../decisions/an-owner-is-a-lifetime-the-caller-supplies.md) records
+why ownership is separate from native value identity.
+
+An export always belongs to the owner that allocated it. An import belongs to
+that owner only when it creates a new remote attachment. Importing an already
+attached binding borrows it, including when the earlier attachment belongs to
+a different owner. Releasing the borrower neither revokes nor prolongs that
+attachment. Releasing its allocating owner invalidates every alias. Importing
+a local export creates no attachment and takes no ownership of that export.
+
+Owners nest. Release is idempotent, releases children first, and uses the same
+binding-wide barrier described above; it does not cancel dispatched work.
+There is no reference counting, re-parenting or native-function lookup.
+`owner.Counts()` / `owner.counts()` counts only its direct exports and import
+attachments, excluding children and borrows. The scope's counts include all
+owners. Empty owners hold no binding allocation and are not retained by their
+parents until they or a descendant allocate one.
+
+A released owner stays released: acquisition through it fails with
+`reference_released`. Releasing the root leaves the connection scope open;
+the next `scope.Owner()` / `scope.owner()` supplies a fresh root without
+reviving any old owner or binding. `scope.Release(reference)` / `scope.release`
+still releases one binding regardless of which owner allocated it. Scope
+closure ends every owner with the connection's bindings.
+
+A generated ordinary call or event that carries live values uses the owner in
+`live.WithOwner(ctx, owner)` or `options.owner`, falling back to the scope's
+root. An owner from another connection is refused as `reference_foreign`.
+An imported callable likewise defaults to the connection's current root and
+accepts the same explicit override for values exchanged by that invocation.
+This choice does not transfer ownership of the callable's attachment; a
+borrowed function remains usable after its borrowing owner is released.
+
+On receipt, generated operations and events carrying live values, and callable
+wrappers, give each invocation a child owner. Go handlers retrieve it with
+`live.OwnerOf(ctx)`;
+TypeScript handlers receive `context.owner` (callable bodies receive it in
+their options). Imports and returned exports use that child. A handler may
+keep the owner and release it later to revoke its returned functions. Returning
+from the RPC does not release it. The generated
+[owner scenario](../../conformance/scenarios/generated/live-owners.json)
+holds repeated use and release over one bounded, still-open connection,
+including a handler's later revocation of a returned callable.
+
+Who retains bindings after an uncertain publication is the separate decision
+in [#259](https://github.com/Bitspark/nightseam/issues/259), whose implementation is
+[#297](https://github.com/Bitspark/nightseam/issues/297). The conversion
+boundary below by itself does not infer delivery from an RPC outcome.
 
 ## Forwarding callable-bearing values
 
@@ -197,9 +256,9 @@ case establishes a lifetime relationship, not arbitrary higher-order
 conversion.
 
 For a declared higher-order callable, import with its generated helper in
-the origin scope and export the resulting typed function with its generated
-helper in the destination scope. Those wrappers convert the declared
-callable positions in arguments and results at each boundary. The same
+an owner in the origin scope and export the resulting typed function with its
+generated helper under an owner in the destination scope. Those wrappers
+convert the declared callable positions in arguments and results at each boundary. The same
 construction applies to a declared record containing callables, using that
 record's generated conversion helpers. Opaque JSON is not a declaration of
 the references it might contain.
@@ -212,7 +271,8 @@ a record of callables. It checks counts in all four scopes before closing
 the connections. Releasing B's destination factory leaves its origin usable;
 releasing the origin producer makes the remaining destination wrapper fail
 with `reference_released`. Earlier returned functions are separate bindings,
-so parent release does not recursively dispose of them.
+so releasing that factory binding does not recursively dispose of them.
+Releasing an owner instead releases all bindings it owns and its descendants.
 
 ## Options and bounds
 
@@ -224,38 +284,61 @@ so parent release does not recursively dispose of them.
 Invocations in flight are already bounded by the peer's own
 `MaxConcurrentHandlers` and `MaxPendingRequests`: an invocation is a request, so
 it is paced like one. A refused export or import registers nothing, and
-`Counts()` is what a test reads to hold that — a binding nobody released is a
-leak, and a suite that only compares payloads never sees one.
+the scope's `Counts()` is what a test reads to hold that — a binding nobody
+released is a leak, and a suite that only compares payloads never sees one.
 
 ## Constructing a payload before publication
 
-`ExportValue` takes `func(*Scope) (json.RawMessage, error)`; `exportValue` takes
-`(scope: LiveScope) => unknown`. The callback receives a view of the same scope.
+`owner.ExportValue` takes `func(*Owner) (json.RawMessage, error)`;
+`owner.exportValue` takes `(owner: LiveOwner) => unknown`. The callback receives
+a batch view of the same owner.
 Finish conversion and validation synchronously through that view, including
 any parameter-converter closures, and return the complete payload. The callback
 must not publish partial values or start asynchronous conversion work.
 
-An error, panic, throw or serialization failure discards only exports allocated
+An error, panic, throw or serialization failure unwinds only allocations made
 through that view. Prior bindings and independent conversions remain usable.
 Nested successful conversions join their enclosing build, so a later failure
 can unwind the whole payload. No release event is sent for unpublished bindings.
 Go verifies the returned JSON; TypeScript serializes and parses the completed
-value into a JSON snapshot. The view retains the original scope identity, and
+value into a JSON snapshot. The view retains the original owner identity, and
 later conversions through a captured view start fresh builds.
 
 Generated live helpers and operation/callable boundaries use this mechanism.
-Export converters of intrinsically live generic helpers receive the helper's
-scope view as their first argument; use that view for any nested exports.
+Both import and export converters of intrinsically live generic helpers receive
+the helper's active owner view as their first argument; use that view for any
+nested acquisition.
 Generic data helpers have no live runtime dependency. When calling those data
 helpers directly with live converters, enclose the whole conversion and
 validation in `ExportValue`/`exportValue`, and close every converter over the
-callback's scope view. Effects through some other scope handle are outside
+callback's owner view. Effects through some other owner handle are outside
 that build.
 
 Success commits the exports before the caller publishes the payload. This
 construction boundary does not reclaim bindings on a subsequent RPC timeout,
 cancellation or error, which cannot prove that the value was never delivered.
-It does not define ownership transfer or disposal for published values.
+Successful allocations stay under their owner until explicitly released or the
+scope closes; publication does not transfer their ownership.
+
+## Importing a value as one batch
+
+`owner.ImportValue` takes `func(*Owner) error`; `owner.importValue` takes a
+synchronous callback and returns its result. Use the callback's owner view
+throughout the complete import and its nested converters. An error, panic or
+throw releases only the fresh attachments and exports that batch created.
+Repeated references to an existing attachment are borrows, including an alias
+held by another owner, and survive a failed walk. Nested successful batches
+join their enclosing batch, so a later outer failure unwinds their fresh
+allocations too.
+
+Fresh remote attachments are released with the ordinary `live.release`
+notification; unpublished exports are discarded locally. Completed batch
+views retain their owner identity but no active allocation history, so a
+later conversion starts a fresh batch. `importValueUnwindsOnlyItsOwn` and
+`exportValueUnderAnOwner` hold the runtime behavior. Generated live imports
+and operation boundaries use it automatically; direct generic data-helper
+calls need the surrounding batch shown in the
+[generated surface](../declaration/generated.md#generic-boundary-helpers).
 
 ## Observing it
 
