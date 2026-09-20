@@ -22,64 +22,52 @@ TypeScript union narrows naturally in a switch. Both keep the complete
 payload under `value`, even when it is a record or an integer; neither
 needs to merge the payload's fields into its discriminator object.
 
-The generated Go binding dispatches decoded alternatives. Both generated
+Both generated bindings dispatch decoded alternatives. Both generated
 clients receive and dispatch typed events; a refused call is followed by
-a successful call on the same connection. The TypeScript target currently
-emits clients, not bindings. Mirrored scenarios exercise Go/TypeScript in
-both ordered pairings with Go serving, and report the unsupported reverse
-binding role as a skip in the matrix. No hand-written TypeScript binding
-stands in for an output the target does not produce.
+a successful call on the same connection. Mirrored scenarios exercise
+each language serving through its generated binding and calling through
+its generated client.
 
 ## Generated roles and skips
 
-The checked-in [matrix](../../conformance/matrix.json), including the generic
-live-container and higher-order forwarding scenarios, records 18 Go generator
-passes and no skips, and 19 TypeScript generator passes with 17 skips;
-neither has failures.
-These counts describe that scenario set, not a permanent expected total.
+The checked-in [matrix](../../conformance/matrix.json) records the current
+results, including generic live containers and higher-order forwarding.
 [`TestGenerated`](../../conformance/go/conformance_test.go) runs Go/Go,
-Go/TypeScript and TypeScript/Go. Each pair attempts the 12 scenario files
-below, six again with driver sides exchanged by `mirror: true`.
+Go/TypeScript and TypeScript/Go. Each pair runs the generated scenario set;
+`mirror: true` runs a scenario again with driver sides exchanged. The
+TypeScript target renders both roles, and its testee serves its generated
+binding over an accepted socket. Socket hosting and canned application
+handlers live in the testee; validation, conversion, typed reverse calls
+and events come from generated packages.
 
-| Driver pair (`a` / `b`) | Passed / skipped | Generated code exercised |
-|---|---|---|
-| Go / Go | 18 / 0 | Go client and Go server binding, including mirrored roles |
-| Go / TypeScript | 12 / 6 | Go binding and TypeScript client; mirrored server attempts in TypeScript skip |
-| TypeScript / Go | 7 / 11 | Six mirrored Go-binding/TypeScript-client runs and the names/domain case; base server attempts in TypeScript skip |
+| Driver pair (`a` / `b`) | Generated code exercised |
+|---|---|
+| Go / Go | Go client and Go server binding, including mirrored roles |
+| Go / TypeScript | Go binding with TypeScript client; mirrored scenarios also exercise TypeScript binding with Go client |
+| TypeScript / Go | TypeScript binding with Go client; mirrored scenarios also exercise Go binding with TypeScript client |
 
 The TypeScript row combines both cross-language pairs. The names/domain
-case runs generated names and validators on both sides without a binding;
-it passes in every pair. The remaining eleven files need a server binding.
-All 17 skipped attempts reach one of these TypeScript operations:
+case runs generated names and validators on both sides without a binding.
+The server operations below exercise the same declarations in both
+languages; none substitutes a handwritten server protocol adapter.
 
-| Missing generated operation and testee | Scenarios | Skips across both cross-language pairs |
-|---|---|---|
-| `gen.serve` in [testee.ts](../../conformance/ts/generated/testee.ts) | [round-trip](../../conformance/scenarios/generated/round-trip.json), [validation-refuses](../../conformance/scenarios/generated/validation-refuses.json), both mirrored | 4 |
-| `gen.proof_serve` in [proof.ts](../../conformance/ts/generated/proof.ts) | [proof-generics](../../conformance/scenarios/generated/proof-generics.json), [proof-side-extends](../../conformance/scenarios/generated/proof-side-extends.json), [proof-unions](../../conformance/scenarios/generated/proof-unions.json), all mirrored | 6 |
-| `gen.live_serve` in [live.ts](../../conformance/ts/generated/live.ts) | [live-callback-and-result](../../conformance/scenarios/generated/live-callback-and-result.json), [live-higher-order](../../conformance/scenarios/generated/live-higher-order.json), [live-nested-values](../../conformance/scenarios/generated/live-nested-values.json) | 3 |
-| `gen.combinator_serve` in [combinator.ts](../../conformance/ts/generated/combinator.ts) | [live-higher-order-callables](../../conformance/scenarios/generated/live-higher-order-callables.json), [live-generic-containers](../../conformance/scenarios/generated/live-generic-containers.json) | 2 |
-| `gen.forwarding_serve` in [forwarding.ts](../../conformance/ts/generated/forwarding.ts) | [live-higher-order-forwarding](../../conformance/scenarios/generated/live-higher-order-forwarding.json), mirrored | 2 |
+| Generated server operation and TypeScript testee | Scenarios |
+|---|---|
+| `gen.serve` in [testee.ts](../../conformance/ts/generated/testee.ts) | [round-trip](../../conformance/scenarios/generated/round-trip.json), [validation-refuses](../../conformance/scenarios/generated/validation-refuses.json), both mirrored |
+| `gen.proof_serve` in [proof.ts](../../conformance/ts/generated/proof.ts) | [proof-generics](../../conformance/scenarios/generated/proof-generics.json), [proof-side-extends](../../conformance/scenarios/generated/proof-side-extends.json), [proof-unions](../../conformance/scenarios/generated/proof-unions.json), all mirrored |
+| `gen.live_serve` in [live.ts](../../conformance/ts/generated/live.ts) | [live-callback-and-result](../../conformance/scenarios/generated/live-callback-and-result.json), [live-higher-order](../../conformance/scenarios/generated/live-higher-order.json), [live-nested-values](../../conformance/scenarios/generated/live-nested-values.json) |
+| `gen.combinator_serve` in [combinator.ts](../../conformance/ts/generated/combinator.ts) | [live-higher-order-callables](../../conformance/scenarios/generated/live-higher-order-callables.json), [live-generic-containers](../../conformance/scenarios/generated/live-generic-containers.json) |
+| `gen.forwarding_serve` in [forwarding.ts](../../conformance/ts/generated/forwarding.ts) | [live-higher-order-forwarding](../../conformance/scenarios/generated/live-higher-order-forwarding.json), mirrored |
 
-Each operation refuses with `unsupported` because the target renders no
-binding. A mirrored file contributes two skips across the two pairs; an
-unmirrored server-dependent file contributes one. The twelfth file,
-[proof-names-and-domain](../../conformance/scenarios/generated/proof-names-and-domain.json),
-contributes none. This accounts for the complete skipped count without
-substituting handwritten TypeScript server behavior.
+The forwarding scenario uses generated endpoint bindings in either
+language, with a test-only retain route calling generated
+`ImportToolkit`/`importToolkit`. A Go or TypeScript intermediary runs
+generated converters across two connections. The retain route remains
+driver plumbing; it is not a new declared operation.
 
-The forwarding scenario uses generated Go endpoint bindings with a
-test-only retain route that calls generated `ImportToolkit`, and generated
-converters at a Go or TypeScript intermediary across two connections. Its
-canned transport route does not claim a new generated server API.
-
-Both runtimes can initiate and handle RPC and export live callables. The
-generated TypeScript client also supplies typed reverse-call handlers and
-live functions, but these do not establish a generated server role. The
-[tier policy](../languages/tiers.md) still assigns both languages tier 1;
-the current gate accepts passes plus skips as `ok`. Whether v0.5.0 must
-fill the missing generated role or explicitly qualify its release promise
-is [an operator decision](https://github.com/Bitspark/nightseam/issues/271).
-No tier or gate change is implied by these findings.
+The [tier policy](../languages/tiers.md) defines required coverage and the
+meaning of a skip. Counts change with the scenario set; this inventory
+describes the roles, not a fixed expected total.
 
 ## A family parameter and a type parameter stay distinct
 

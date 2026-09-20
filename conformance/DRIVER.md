@@ -416,8 +416,8 @@ reach `peer.observed` there: `live.exported` (`contract`, `binding`),
 ### Generated code — `gen.*`, `client.*`
 
 A language's second testee links the packages the generator renders for the
-corpus's `probe` family over that language's runtime: Go links its client
-and binding; TypeScript links its client only. The runner renders the
+corpus's `probe` family over that language's runtime: Go and TypeScript
+each link their client and server binding. The runner renders the
 families and builds this testee from the recipe
 in `testee.json` before the `generated` scenarios run.
 
@@ -446,14 +446,15 @@ answers the payload with `text` prefixed by the language's name and a colon,
 and a `noticed` event for `server.await_noticed`. A scenario does not know
 which language is on each side, so it holds the prefix with a pattern.
 
-A language without a binding answers `gen.serve` with `unsupported`.
-TypeScript also refuses `gen.proof_serve`, `gen.live_serve` and
-`gen.combinator_serve` for that reason. Its generated client's reverse-call
-handlers and live callables are exercised, but are not generated server
-bindings. `mirror: true` exchanges driver sides `a` and `b`; a successful
-cross-language run still has Go serving and TypeScript using the generated
-client. The [role and skip inventory](../docs/declaration/proof-findings.md#generated-roles-and-skips)
-accounts for these outcomes; the matrix's `ok` verdict permits skips.
+The Go and TypeScript testees implement every generated server operation
+through their generated binding packages. TypeScript's testee accepts the
+WebSocket and passes it to generated `serve`; the host helper supplies no
+protocol dispatch or conversion. `mirror: true` exchanges driver sides `a`
+and `b`, so the cross-language suite exercises each language serving and
+calling. The [role inventory](../docs/declaration/proof-findings.md#generated-roles-and-skips)
+maps the operations to scenarios. A language without a required generated
+role reports `unsupported`; the [tier policy](../docs/languages/tiers.md)
+defines what that skip means for its verdict.
 
 The generated testee lies under `conformance/<lang>/generated/`, and the
 runner lays those files beside the probe rendering in `{rendered}` before
@@ -471,7 +472,7 @@ compiles the testee and generated packages before running them.
 
 | op | arguments | result |
 |---|---|---|
-| `gen.proof_serve` | | `{"handle", "url"}` — a Go generated binding; unsupported in a target without bindings |
+| `gen.proof_serve` | | `{"handle", "url"}` — the generated proof binding, with probe family and string item bindings |
 | `gen.proof_dial` | **`url`** | `{"handle"}` — a generated proof client bound to the probe family and string item type |
 | `client.proof_call` | **`on`**, **`method`**, **`params`**, `raw`, `within_ms` | `{"result"}` or `{"error"}`; methods are `classify`, `classify_rich`, `parts`, and `relay`; `raw: true` bypasses the client codec to exercise the binding's refusal |
 | `server.proof_emit` | **`on`**, **`data`**, `within_ms` | `{}` — emits the generated `part.added` event |
@@ -486,9 +487,8 @@ is the driver's argument-refusal code, not a new exported validator error.
 The canned proof binding dispatches unions to a kind-prefixed string,
 returns a page of three parts, and relays a typed envelope in `Option`.
 Its inherited echo returns the payload unchanged. Mirrored wire scenarios
-attempt both roles in both ordered language pairings. Go's binding serves
-the successful runs, including a TypeScript client on either driver side;
-the matrix records the unsupported TypeScript binding attempts separately.
+attempt both roles in both ordered language pairings, using each
+language's generated binding and client.
 
 #### The live tier — `gen.live_*`, `client.live_*`
 
@@ -555,20 +555,20 @@ value to release it, and no connection closes to make a count assertion pass.
 `generated/live-higher-order-forwarding.json` uses three logical peers on
 two real WebSockets. One testee owns endpoints A and C at different URLs;
 the other owns B's two clients/scopes. Mirroring exchanges which testee
-owns the endpoints. Go provides the generated endpoint bindings;
-TypeScript answers endpoint operations with `unsupported`, but performs
-every intermediary operation with its generated callable converters.
+owns the endpoints. Both Go and TypeScript supply generated endpoint
+bindings and perform every intermediary operation with their generated
+callable converters.
 
 A's generated `combinator` binding answers a `Toolkit`. At B, generated
 `ImportToolkit`/`importToolkit` reads it in A-B's scope, and
 `ExportToolkit`/`exportToolkit` wraps the native functions for B-C. C's
 test-only `fixture.forwarding.retain` route validates the descriptor and
-calls the generated import helper. This route is driver plumbing, not a
-generated server API or evidence of TypeScript server-binding generation.
+calls the generated import helper. This route is driver plumbing alongside
+the generated binding, not a new declared operation.
 
 | op | arguments | answer |
 |---|---|---|
-| `gen.forwarding_serve` | | `{"handle", "url"}` — a Go generated endpoint binding with a test-only retain route |
+| `gen.forwarding_serve` | | `{"handle", "url"}` — a generated endpoint binding with a test-only retain route |
 | `gen.forwarding_dial` | **`origin`**, **`destination`**, `within_ms` | `{"handle", "different_nonces"}` — B imports from A and exports into C, checking distinct binding nonces |
 | `gen.forwarding_capture` | **`on`**, `within_ms` | `{}` — C calls the retained factory, producer and sink, keeping the returned functions |
 | `gen.forwarding_invoke` | **`on`**, **`with`**, **`identity_with`**, `within_ms` | `{"twice", "identity"}` — C invokes those retained results after their supplying calls ended |

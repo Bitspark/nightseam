@@ -35,8 +35,11 @@ func TestEventFieldCollisionCanBeOverridden(t *testing.T) {
 	if diagnostics := check(files); !has(diagnostics, "reserved_name", "protocol.json#/server/events/to_string") {
 		t.Fatalf("a conventional Events field inherited from Object was accepted: %v", diagnostics)
 	}
-	files["typescript.json"] = `{"names":{"to_string":"textChanged"}}`
+	if diagnostics := check(files); !has(diagnostics, "reserved_name", "protocol.json#/client/events/has_own_property") {
+		t.Fatalf("a binding Events field inherited from Object was accepted: %v", diagnostics)
+	}
+	files["typescript.json"] = `{"names":{"to_string":"textChanged","has_own_property":"propertyChanged"}}`
 	if diagnostics := check(files); len(diagnostics) != 0 {
-		t.Fatalf("a safe event override or an unrelated event emitter was refused: %v", diagnostics)
+		t.Fatalf("safe event overrides were refused: %v", diagnostics)
 	}
 }

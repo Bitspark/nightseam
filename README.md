@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 Declare a duplex API once, in tiers of JSON. Get a typed server and a typed
-client in Go and a typed client in TypeScript — every one of them typed in
+client in Go and TypeScript — every one of them typed in
 both directions, since a client serves what the server calls — all speaking
 one wire profile: `nightseam.duplex/1`, JSON frames carrying requests,
 responses, events and cancellation over a WebSocket, a tunnel channel or an
@@ -98,14 +98,13 @@ its assigned **tier**: 1 promises every profile with no lag, 2 promises `core` a
 [docs/languages/tiers.md](docs/languages/tiers.md) says what each promise
 and each profile is.
 
-Generated roles differ today: Go provides clients and server bindings;
-TypeScript provides clients, including reverse-call handlers and live-value
-conversion, but no generated server bindings. Both runtimes support
-bidirectional RPC and live callables. The generator column's skips are
-unsupported generated server roles, not evidence that those roles passed.
-The [role and skip inventory](docs/declaration/proof-findings.md#generated-roles-and-skips)
-explains the pairings. The tier-1 release treatment of this gap awaits
-[the operator's decision](https://github.com/Bitspark/nightseam/issues/271).
+Go and TypeScript provide generated clients and server bindings, including
+typed reverse calls, events and live-value conversion. TypeScript's
+[`serve`](docs/declaration/generated.md#the-binding-package-1) accepts a
+connection supplied by the host; authentication and socket listening stay
+with the application. The [role inventory](docs/declaration/proof-findings.md#generated-roles-and-skips)
+maps the generated socket scenarios to each server operation and language
+pairing.
 
 <!-- matrix:start -->
 | language | tier | core | generator | tunnel | live | observability | verdict |
@@ -138,8 +137,9 @@ go get -tool github.com/Bitspark/nightseam/cmd/nightseam   # the generator, as a
 ```
 
 Nightseam is developer tooling and never a runtime dependency of its own
-generator: a generated package depends on the protocol types, the runtime and
-the tunnel, and on nothing else.
+generator: a generated package depends on the protocol types and the runtime
+components it uses, including the tunnel for clients and the live layer for
+live values.
 
 ## The packages
 
@@ -166,8 +166,8 @@ A family is a directory of tier files, `api/contracts/<family>/` — the
 types, the protocol over them, and what each target names otherwise than the
 convention does. The generator renders
 it into packages it owns wholesale: `api/go/<f>-protocol`, `-binding` and
-`-client`, `api/ts/<f>-client`, and the family's specification as Markdown at
-`api/spec/<f>/README.md`.
+`-client`, `api/ts/<f>-client` and `-binding`, and the family's specification
+as Markdown at `api/spec/<f>/README.md`.
 
 ```
 go tool nightseam validate            # every diagnostic of every family

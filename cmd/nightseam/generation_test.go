@@ -78,7 +78,7 @@ func toolSlots(t *testing.T, directory string) {
 	// probe where the layout puts it, beside the left path's.
 	right := kernel.New(
 		golang.New(golang.Config{Module: module, Place: map[string]golang.Layout{"carrier": {Protocol: "gen/go/{family}-protocol", Binding: "gen/go/{family}-binding", Client: "gen/go/{family}-client"}}}),
-		typescript.New(typescript.Config{Scope: scope, Place: map[string]string{"carrier": "gen/ts/{family}-client"}}),
+		typescript.New(typescript.Config{Scope: scope, Place: map[string]typescript.Layout{"carrier": {Client: "gen/ts/{family}-client", Binding: "gen/ts/{family}-binding"}}}),
 	)
 	result, err := right.Render(families, "carrier")
 	if err != nil {

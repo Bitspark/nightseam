@@ -117,7 +117,7 @@ func TestRenderPlacesTheClient(t *testing.T) {
 	for _, file := range files {
 		paths = append(paths, file.Path)
 	}
-	if got := strings.Join(paths, " "); got != "api/ts/x-client/src/types.ts api/ts/x-client/src/index.ts api/ts/x-client/package.json api/ts/x-client/tsconfig.json" {
+	if got := strings.Join(paths, " "); got != "api/ts/x-client/src/types.ts api/ts/x-client/src/index.ts api/ts/x-client/package.json api/ts/x-client/tsconfig.json api/ts/x-binding/src/index.ts api/ts/x-binding/package.json api/ts/x-binding/tsconfig.json" {
 		t.Fatalf("placed at %s", got)
 	}
 	index := string(files[1].Data)
@@ -127,12 +127,12 @@ func TestRenderPlacesTheClient(t *testing.T) {
 	if !strings.Contains(string(files[2].Data), `"name":"@example/x-client"`) || !strings.Contains(string(files[2].Data), `"@nightseam/runtime":"`+DefaultRuntimeVersion+`"`) {
 		t.Fatalf("the manifest is wrong: %s", files[2].Data)
 	}
-	for _, bad := range []Config{{}, {Scope: "example"}, {Scope: "@example", Runtime: "bad name!"}, {Scope: "@example", Layout: "no-family"}, {Scope: "@example", Layout: "../{family}"}} {
+	for _, bad := range []Config{{}, {Scope: "example"}, {Scope: "@example", Runtime: "bad name!"}, {Scope: "@example", Layout: Layout{Client: "no-family"}}, {Scope: "@example", Layout: Layout{Client: "../{family}"}}} {
 		if err := bad.Validate(); err == nil {
 			t.Errorf("config %+v was accepted", bad)
 		}
 	}
-	placed, err := New(Config{Scope: "@example", Place: map[string]string{"x": "gen/ts/{family}"}}).Render(f)
+	placed, err := New(Config{Scope: "@example", Place: map[string]Layout{"x": {Client: "gen/ts/{family}"}}}).Render(f)
 	if err != nil || placed[0].Path != "gen/ts/x/src/types.ts" {
 		t.Fatalf("placement is not honoured: %v", err)
 	}
