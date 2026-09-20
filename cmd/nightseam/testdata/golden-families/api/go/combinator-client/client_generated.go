@@ -126,29 +126,35 @@ func (c *Client) Pack(ctx context.Context, params boxesprotocol.Box[protocol.Una
 	if !ok || owner.Scope() != scope {
 		owner = scope.Owner()
 	}
-	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		var zero json.RawMessage
-		convertedConvert0 := func(input protocol.Unary) (json.RawMessage, error) {
-			converted, err := protocol.ExportUnary(owner, input)
-			if err != nil {
-				return nil, err
-			}
-			return converted, nil
-		}
-		converted, err := boxesprotocol.ExportBox[protocol.Unary](params, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Unary\"")})
-		if err != nil {
-			return zero, err
-		}
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"apply\":\"boxes.Box\",\"with\":{\"T\":\"Unary\"}}"), converted); err != nil {
-			return zero, err
-		}
-		return converted, nil
-	})
+	raw, err := owner.PublishValue(
+		func(owner *live.Owner) (json.RawMessage, error) {
+			sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
+				var zero json.RawMessage
+				convertedConvert0 := func(input protocol.Unary) (json.RawMessage, error) {
+					converted, err := protocol.ExportUnary(owner, input)
+					if err != nil {
+						return nil, err
+					}
+					return converted, nil
+				}
+				converted, err := boxesprotocol.ExportBox[protocol.Unary](params, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Unary\"")})
+				if err != nil {
+					return zero, err
+				}
+				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"apply\":\"boxes.Box\",\"with\":{\"T\":\"Unary\"}}"), converted); err != nil {
+					return zero, err
+				}
+				return converted, nil
+			})
+			return sent, err
+		},
+		func(sent json.RawMessage) (json.RawMessage, error) {
+			var raw json.RawMessage
+			err := c.Peer.Call(ctx, "pack", sent, &raw)
+			return raw, err
+		},
+	)
 	if err != nil {
-		return result, err
-	}
-	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "pack", sent, &raw); err != nil {
 		return result, err
 	}
 	received, err := func() (boxesprotocol.Batch[protocol.Bundle[protocol.Count]], error) {

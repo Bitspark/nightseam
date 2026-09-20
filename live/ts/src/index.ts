@@ -21,7 +21,7 @@
  *
  * The layer proves which binding of which contract, and never who may call it.
  */
-import { DuplexError, type DuplexPeer } from '@nightseam/runtime';
+import { DuplexError, UnpublishedError, type DuplexPeer } from '@nightseam/runtime';
 
 /**
  * What a scope tells the observer of the peer it runs over. They are members of
@@ -237,12 +237,29 @@ export class LiveOwner {
    * successful outer builds commit to the owner, irrespective of later RPC errors.
    */
   exportValue(build: (owner: LiveOwner) => unknown): unknown {
-    return this.build((owner) => {
-      const value = build(owner);
-      if (value instanceof Promise) throw new TypeError('A live export must finish synchronously.');
-      const encoded = JSON.stringify(value);
-      return encoded === undefined ? undefined : JSON.parse(encoded);
-    });
+    return this.build((owner) => snapshot(build(owner)));
+  }
+
+  /**
+   * Builds a complete payload, then publishes it. Only proof of local rejection
+   * before queuing unwinds these allocations; uncertain outcomes retain them
+   * until owner release or scope end. Captured build views are inactive before
+   * publication, so subsequent conversions form independent batches.
+   */
+  async publishValue<T>(build: (owner: LiveOwner) => unknown, publish: (payload: unknown) => Promise<T>): Promise<T> {
+    let allocations: Allocation[] = [];
+    const value = this.build(
+      (owner) => snapshot(build(owner)),
+      (completed) => {
+        allocations = completed;
+      },
+    );
+    try {
+      return await publish(value);
+    } catch (error) {
+      if (error instanceof UnpublishedError) this.discard(allocations);
+      throw error;
+    }
   }
 
   /** A failed synchronous import walk releases new attachments, never its borrowed aliases. */
@@ -250,7 +267,7 @@ export class LiveOwner {
     return this.build(build);
   }
 
-  private build<T>(build: (owner: LiveOwner) => T): T {
+  private build<T>(build: (owner: LiveOwner) => T, completed?: (allocations: Allocation[]) => void): T {
     if (this.state.scope.closed) throw this.state.scope.refuse('', SCOPE_CLOSED, 'The scope ended.');
     if (ownerEnded(this.state)) throw this.state.scope.refuse('', REFERENCE_RELEASED, 'The owner was released.');
     const batch: ValueBatch = { active: true, allocations: [] };
@@ -268,18 +285,26 @@ export class LiveOwner {
       batch.active = false;
       batch.allocations = [];
       delete batch.parent;
-      if (!committed) {
-        const scope = this.state.scope;
-        // Tombstone eviction can allow another owner to reattach the same ID.
-        // Rollback only revokes the exact allocation made by this batch.
-        scope.releaseBindings(
-          allocations
-            .filter(({ id, imported, entry }) => (imported ? scope.imports.get(id) : scope.exports.get(id)) === entry)
-            .map(({ id, imported }) => ({ id, tell: imported })),
-        );
-      }
+      if (!committed) this.discard(allocations);
+      else completed?.(allocations);
     }
   }
+
+  private discard(allocations: Allocation[]): void {
+    const scope = this.state.scope;
+    // Explicit or remote release may already have ended an allocation.
+    scope.releaseBindings(
+      allocations
+        .filter(({ id, imported, entry }) => (imported ? scope.imports.get(id) : scope.exports.get(id)) === entry)
+        .map(({ id, imported }) => ({ id, tell: imported })),
+    );
+  }
+}
+
+function snapshot(value: unknown): unknown {
+  if (value instanceof Promise) throw new TypeError('A live export must finish synchronously.');
+  const encoded = JSON.stringify(value);
+  return encoded === undefined ? undefined : JSON.parse(encoded);
 }
 
 function ownerEnded(owner: OwnerState): boolean {
@@ -568,8 +593,8 @@ export class LiveScope {
    */
   private local(own: Binding): Invoke {
     return async (request, options) => {
-      if (this.closed) throw new DuplexError(SCOPE_CLOSED, 'The scope ended.');
-      if (own.released) throw new DuplexError(REFERENCE_RELEASED, 'The binding was released.');
+      if (this.closed) throw new UnpublishedError(new DuplexError(SCOPE_CLOSED, 'The scope ended.'));
+      if (own.released) throw new UnpublishedError(new DuplexError(REFERENCE_RELEASED, 'The binding was released.'));
       return this.invokeScoped(own.invoke, request, options?.signal);
     };
   }
@@ -581,8 +606,8 @@ export class LiveScope {
    */
   private remote(id: string, held: Attachment): Invoke {
     return async (request, options) => {
-      if (this.closed) throw new DuplexError(SCOPE_CLOSED, 'The scope ended.');
-      if (held.released) throw new DuplexError(REFERENCE_RELEASED, 'The binding was released.');
+      if (this.closed) throw new UnpublishedError(new DuplexError(SCOPE_CLOSED, 'The scope ended.'));
+      if (held.released) throw new UnpublishedError(new DuplexError(REFERENCE_RELEASED, 'The binding was released.'));
       const controller = new AbortController();
       const abort = () => controller.abort();
       options?.signal?.addEventListener('abort', abort, { once: true });
@@ -633,7 +658,8 @@ export class LiveScope {
 
   /** Settle callers on closure even when their implementation ignores its signal. */
   private async invokeScoped(invoke: Invoke, request: unknown, signal?: AbortSignal): Promise<unknown> {
-    if (this.closed) throw new DuplexError(SCOPE_CLOSED, 'The scope ended.');
+    if (this.closed) throw new UnpublishedError(new DuplexError(SCOPE_CLOSED, 'The scope ended.'));
+    if (signal?.aborted) throw new UnpublishedError(new DuplexError('cancelled', 'The invocation was cancelled.'));
     const controller = new AbortController();
     const abort = () => controller.abort();
     signal?.addEventListener('abort', abort, { once: true });
@@ -655,6 +681,15 @@ export class LiveScope {
         return invoke(request, { signal: controller.signal });
       });
       return await Promise.race([result, ended]);
+    } catch (error) {
+      // A nested call's local refusal cannot prove this dispatched invocation
+      // was unsent. Preserve its public information without forwarding proof.
+      if (error instanceof UnpublishedError) {
+        const dispatched = new DuplexError(error.code, error.message, error.data);
+        Object.defineProperty(dispatched, 'cause', { value: error });
+        throw dispatched;
+      }
+      throw error;
     } finally {
       this.inflight.delete(controller);
       signal?.removeEventListener('abort', abort);

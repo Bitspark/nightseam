@@ -124,8 +124,7 @@ export function importFactory(owner: LiveOwner, raw: unknown): Factory {
   const scope = owner.scope;
   return async (request: Unary, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
-    const sent = owner.exportValue((owner) => { const converted = exportUnary(owner, (request) as Unary); validateWire("Unary", converted); return converted; });
-    const result = await invoke(sent, options);
+    const result = await owner.publishValue(owner => owner.exportValue((owner) => { const converted = exportUnary(owner, (request) as Unary); validateWire("Unary", converted); return converted; }), sent => invoke(sent, options));
     validateWire("Unary", result);
     return owner.importValue((owner) => importUnary(owner, result));
   };
@@ -179,8 +178,7 @@ export function importSink(owner: LiveOwner, raw: unknown): Sink {
   const scope = owner.scope;
   return async (request: Unary, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
-    const sent = owner.exportValue((owner) => { const converted = exportUnary(owner, (request) as Unary); validateWire("Unary", converted); return converted; });
-    await invoke(sent, options);
+    await owner.publishValue(owner => owner.exportValue((owner) => { const converted = exportUnary(owner, (request) as Unary); validateWire("Unary", converted); return converted; }), sent => invoke(sent, options));
     return;
   };
 }
@@ -228,8 +226,7 @@ export function importUnary(owner: LiveOwner, raw: unknown): Unary {
   const scope = owner.scope;
   return async (request: Count, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
-    const sent = (() => { const converted = request; validateWire("Count", converted); return converted; })();
-    const result = await invoke(sent, options);
+    const result = await invoke((() => { const converted = request; validateWire("Count", converted); return converted; })(), options);
     validateWire("Count", result);
     return result as Count;
   };

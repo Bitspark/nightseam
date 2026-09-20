@@ -1,0 +1,20 @@
+{
+  "types": {
+    "Callback": {"kind":"callable","request":"integer","result":"integer"},
+    "Supply": {"kind":"record","fields":[{"name":"callback","type":"Callback"},{"name":"mode","type":"string"}]}
+  },
+  "server": {
+    "methods": {
+      "supply": {"request":"Supply","result":"integer"},
+      "produce": {"request":"Supply","result":"Callback"}
+    },
+    "events": {"offered":{"type":"Supply"}}
+  },
+  "client": {
+    "methods": {
+      "supply_back": {"request":"Supply","result":"integer"},
+      "produce_back": {"request":"Supply","result":"Callback"}
+    },
+    "events": {"offered_back":{"type":"Supply"}}
+  }
+}

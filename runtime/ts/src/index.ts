@@ -1,4 +1,4 @@
-export { DuplexPeer, DuplexError, positiveInteger, DUPLEX_PROFILE, DUPLEX_DEFAULTS } from './peer.ts';
+export { DuplexPeer, DuplexError, UnpublishedError, positiveInteger, DUPLEX_PROFILE, DUPLEX_DEFAULTS } from './peer.ts';
 export type {
   PeerOptions,
   CallOptions,

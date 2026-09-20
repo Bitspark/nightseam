@@ -26,6 +26,13 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Live publication batches in Go and TypeScript unwind fresh bindings only
+  when a local `UnpublishedError` proves rejection before queuing or dispatch.
+  Generated methods, events and callable requests retain callbacks after
+  ambiguous outcomes; returned callbacks remain under reachable handler owners.
+  Paired runtime and generated socket cases hold retention, explicit cleanup
+  and repeated bounded use in both directions.
+
 - TypeScript generates a server-binding package beside each protocol family's
   client, sharing its types, validators and live converters. `serve` attaches
   an accepted connection with typed handlers and initial event listeners;

@@ -11,10 +11,13 @@ import (
 // Closing the scope cancels the body and settles the caller, even if the body
 // ignores cancellation. Its eventual result has no second route to the peer.
 func (s *Scope) invokeScoped(ctx context.Context, invoke Invoke, request json.RawMessage) (json.RawMessage, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, runtime.Unpublished(err)
+	}
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return nil, &runtime.PublicError{Code: ErrorScopeClosed, Message: "the scope ended"}
+		return nil, runtime.Unpublished(&runtime.PublicError{Code: ErrorScopeClosed, Message: "the scope ended"})
 	}
 	call, cancel := context.WithCancel(ctx)
 	ticket := s.call
@@ -63,5 +66,5 @@ func (s *Scope) invokeScoped(ctx context.Context, invoke Invoke, request json.Ra
 		// and the caller's panic handling for a local one.
 		panic(answer.panicked)
 	}
-	return answer.value, answer.err
+	return answer.value, runtime.WithoutUnpublishedProof(answer.err)
 }
