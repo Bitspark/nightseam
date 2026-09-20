@@ -431,16 +431,16 @@ func (p *Peer) OnEvent(listener func(context.Context, Event)) func() {
 // cancellation also sends best-effort cancellation to the remote handler.
 func (p *Peer) Call(ctx context.Context, method string, params, result any) error {
 	if ctx == nil || method == "" {
-		return unpublished(errors.New("duplex call requires context and method"))
+		return Unpublished(errors.New("duplex call requires context and method"))
 	}
 	ctx, cancel := context.WithTimeout(ctx, p.options.RequestTimeout)
 	defer cancel()
 	if err := ctx.Err(); err != nil {
-		return unpublished(err)
+		return Unpublished(err)
 	}
 	data, err := MarshalJSON(params)
 	if err != nil {
-		return unpublished(err)
+		return Unpublished(err)
 	}
 	id := p.prefix + strconv.FormatUint(p.next.Add(1), 10)
 	// One trace serves the request and the cancellation that may follow it: a
@@ -451,13 +451,13 @@ func (p *Peer) Call(ctx context.Context, method string, params, result any) erro
 	if p.err != nil {
 		err = p.err
 		p.mu.Unlock()
-		return unpublished(err)
+		return Unpublished(err)
 	}
 	// The caller's own bound. A call past it never reaches the wire and never
 	// becomes an observer's request: nothing started, so nothing ended.
 	if len(p.pending) >= p.options.MaxPendingRequests {
 		p.mu.Unlock()
-		return unpublished(&PublicError{Code: "busy", Message: "Outstanding call limit reached"})
+		return Unpublished(&PublicError{Code: "busy", Message: "Outstanding call limit reached"})
 	}
 	p.pending[id] = reply
 	p.mu.Unlock()
@@ -477,7 +477,7 @@ func (p *Peer) Call(ctx context.Context, method string, params, result any) erro
 // request, so Call can observe the ending before the writer can send its cancel.
 func (p *Peer) await(ctx context.Context, reply <-chan pendingResult, request frame, result any) (bool, error) {
 	if err := p.enqueue(ctx, request); err != nil {
-		return false, unpublished(err)
+		return false, Unpublished(err)
 	}
 	select {
 	case r := <-reply:
@@ -521,11 +521,11 @@ func (p *Peer) cancelRequest(id string, trace Trace) {
 // or processed by the remote application.
 func (p *Peer) Emit(ctx context.Context, event string, data any) error {
 	if ctx == nil || event == "" {
-		return unpublished(errors.New("duplex event requires context and name"))
+		return Unpublished(errors.New("duplex event requires context and name"))
 	}
 	encoded, err := MarshalJSON(data)
 	if err != nil {
-		return unpublished(err)
+		return Unpublished(err)
 	}
 	trace := p.options.Propagator.Inject(ctx)
 	f := frame{Version: 1, Kind: "event", Event: event, Data: encoded,
@@ -533,7 +533,7 @@ func (p *Peer) Emit(ctx context.Context, event string, data any) error {
 	// The application emitted it here; the frame carrying it is sent when the
 	// queue takes it, which is one event of its own and may not happen at all.
 	p.observeEmitted(f)
-	return unpublished(p.enqueue(ctx, f))
+	return Unpublished(p.enqueue(ctx, f))
 }
 
 func (p *Peer) enqueue(ctx context.Context, f frame) error {

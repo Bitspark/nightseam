@@ -593,8 +593,8 @@ export class LiveScope {
    */
   private local(own: Binding): Invoke {
     return async (request, options) => {
-      if (this.closed) throw new DuplexError(SCOPE_CLOSED, 'The scope ended.');
-      if (own.released) throw new DuplexError(REFERENCE_RELEASED, 'The binding was released.');
+      if (this.closed) throw new UnpublishedError(new DuplexError(SCOPE_CLOSED, 'The scope ended.'));
+      if (own.released) throw new UnpublishedError(new DuplexError(REFERENCE_RELEASED, 'The binding was released.'));
       return this.invokeScoped(own.invoke, request, options?.signal);
     };
   }
@@ -606,8 +606,8 @@ export class LiveScope {
    */
   private remote(id: string, held: Attachment): Invoke {
     return async (request, options) => {
-      if (this.closed) throw new DuplexError(SCOPE_CLOSED, 'The scope ended.');
-      if (held.released) throw new DuplexError(REFERENCE_RELEASED, 'The binding was released.');
+      if (this.closed) throw new UnpublishedError(new DuplexError(SCOPE_CLOSED, 'The scope ended.'));
+      if (held.released) throw new UnpublishedError(new DuplexError(REFERENCE_RELEASED, 'The binding was released.'));
       const controller = new AbortController();
       const abort = () => controller.abort();
       options?.signal?.addEventListener('abort', abort, { once: true });
@@ -658,7 +658,8 @@ export class LiveScope {
 
   /** Settle callers on closure even when their implementation ignores its signal. */
   private async invokeScoped(invoke: Invoke, request: unknown, signal?: AbortSignal): Promise<unknown> {
-    if (this.closed) throw new DuplexError(SCOPE_CLOSED, 'The scope ended.');
+    if (this.closed) throw new UnpublishedError(new DuplexError(SCOPE_CLOSED, 'The scope ended.'));
+    if (signal?.aborted) throw new UnpublishedError(new DuplexError('cancelled', 'The invocation was cancelled.'));
     const controller = new AbortController();
     const abort = () => controller.abort();
     signal?.addEventListener('abort', abort, { once: true });

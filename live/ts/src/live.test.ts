@@ -413,6 +413,80 @@ test('publishValue retains unknown publisher failures and throws', async () => {
   }
 });
 
+test('refused invocations unwind unpublished arguments without dispatch', async () => {
+  for (const mode of ['local-released', 'remote-released', 'local-cancelled']) {
+    const seen: ObserverEvent[] = [];
+    const p = await over({ maxExports: 3 }, { observe: (event) => void seen.push(event) });
+    try {
+      const outgoing = p.a.owner().child();
+      const holder = p.a.owner().child();
+      const target = mode === 'remote-released' ? p.b.owner().child() : holder;
+      let dispatched = 0;
+      let ref = target.export('test/Target', async () => {
+        dispatched++;
+        return null;
+      });
+      if (mode === 'remote-released') ref = p.a.decode(ref.toJSON());
+      const invoke = holder.import(ref, 'test/Target');
+      const controller = new AbortController();
+      if (mode === 'local-cancelled') controller.abort();
+      else holder.release();
+      const prior = outgoing.export(SINK, echo);
+      for (let i = 0; i < 12; i++) {
+        await assert.rejects(
+          outgoing.publishValue(
+            (batch) => batch.export(SINK, echo).toJSON(),
+            (raw) => invoke(raw, { signal: controller.signal }),
+          ),
+          UnpublishedError,
+        );
+        assert.deepEqual(outgoing.counts(), { exports: 1, imports: 0 });
+      }
+      assert.equal(dispatched, 0);
+      assert.equal(seen.filter((event) => event.type === 'frame.sent' && event.kind === 'request').length, 0);
+      assert.equal(await outgoing.import(prior, SINK)(49), 49);
+      outgoing.release();
+      holder.release();
+      target.release();
+    } finally {
+      p.close();
+    }
+  }
+});
+
+test('dispatched release refusals retain arguments', async () => {
+  for (const remote of [false, true]) {
+    const p = await over();
+    try {
+      const outgoing = p.a.owner().child();
+      const holder = p.a.owner().child();
+      const target = remote ? p.b.owner().child() : holder;
+      let alias!: Invoke;
+      let ref = target.export('test/Target', async (raw) => {
+        alias = target.import(target.scope.decode(raw), SINK);
+        throw new DuplexError(REFERENCE_RELEASED, 'implementation refused after retention');
+      });
+      if (remote) ref = p.a.decode(ref.toJSON());
+      const invoke = holder.import(ref, 'test/Target');
+      await assert.rejects(
+        outgoing.publishValue(
+          (batch) => batch.export(SINK, echo).toJSON(),
+          (raw) => invoke(raw),
+        ),
+        (error) =>
+          error instanceof DuplexError && !(error instanceof UnpublishedError) && error.code === REFERENCE_RELEASED,
+      );
+      assert.deepEqual(outgoing.counts(), { exports: 1, imports: 0 });
+      assert.equal(await alias(51), 51);
+      outgoing.release();
+      holder.release();
+      target.release();
+    } finally {
+      p.close();
+    }
+  }
+});
+
 test('empty owners and released allocations retain no parent bookkeeping', async () => {
   const p = await over();
   try {

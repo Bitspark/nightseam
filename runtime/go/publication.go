@@ -3,8 +3,8 @@ package runtime
 import "errors"
 
 // UnpublishedError reports a local refusal before a frame entered the peer's
-// outbound queue. Its underlying cause retains the ordinary public error or
-// cancellation identity. A queued write failure or a remote response never
+// outbound queue or a local implementation dispatched. Its underlying cause
+// retains the ordinary public error or cancellation identity. A queued write failure or a remote response never
 // supplies this proof, even if it has the same error code or message.
 //
 // The proof belongs to this send attempt. A handler must not treat a nested
@@ -18,7 +18,10 @@ func (e *UnpublishedError) Error() string { return e.cause.Error() }
 // Unwrap preserves errors.Is and errors.As for the original refusal.
 func (e *UnpublishedError) Unwrap() error { return e.cause }
 
-func unpublished(err error) error {
+// Unpublished marks an error only at a boundary that can prove its own payload
+// was neither queued nor dispatched locally. It preserves a nil error. Never
+// use it to classify a received error code or an uncertain transport outcome.
+func Unpublished(err error) error {
 	if err == nil {
 		return nil
 	}

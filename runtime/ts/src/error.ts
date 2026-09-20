@@ -13,7 +13,7 @@ export class DuplexError extends Error {
   }
 }
 
-/** A local refusal before this send attempt's frame entered the outbound queue. */
+/** A local refusal before a frame entered the queue or a local implementation dispatched. */
 export class UnpublishedError extends DuplexError {
   override readonly cause: unknown;
 

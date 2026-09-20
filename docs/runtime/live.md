@@ -354,8 +354,13 @@ does not become part of the earlier send attempt.
 The runtime's local `UnpublishedError` is positive proof for one send attempt:
 argument or serialization rejection, an already-cancelled request, a local
 pending-request bound, or refusal before acceptance into the outbound queue.
+The live layer also proves a refusal at an already-released local binding or
+remote attachment, and an already-cancelled local invocation, before dispatch.
 Go preserves the underlying `errors.Is` / `errors.As` identity; TypeScript
 preserves the `DuplexError` code, message and data with its original cause.
+Adapters can use Go's `runtime.Unpublished(error)` or TypeScript's
+`new UnpublishedError(cause)` only where they can establish that their own
+payload was neither queued nor dispatched locally.
 Generated outgoing live methods, events and callable requests use
 `PublishValue` automatically and unwind their batch only on this proof.
 
