@@ -13,14 +13,14 @@ Every client Nightseam generates depends on it; it is also usable on its own.
 import { DuplexPeer, DuplexError } from '@nightseam/runtime';
 
 const peer = new DuplexPeer();
-peer.handle('session.describe', (_params, context) => {
+peer.handle('work.describe', (_params, context) => {
   if (context.signal.aborted) throw new DuplexError('cancelled', 'Cancelled');
   return { ready: true };
 });
 peer.onEvent('work.changed', data => console.log(data));
-await peer.connect('wss://example.test/session');
+await peer.connect('wss://example.test/work');
 const result = await peer.call('work.read', { id: 'work-1' });
-await peer.emit('session.ready', { ready: true });
+await peer.emit('work.ready', { ready: true });
 peer.close();
 ```
 
