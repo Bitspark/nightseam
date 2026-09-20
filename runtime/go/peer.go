@@ -592,7 +592,7 @@ func (p *Peer) writeLoop() {
 			err := p.conn.Send(ctx, duplex.Frame{Kind: duplex.Text, Data: queued.data})
 			cancel()
 			if err != nil {
-				p.fail(err)
+				p.fail(WithoutUnpublishedProof(err))
 				return
 			}
 		}
@@ -603,7 +603,7 @@ func (p *Peer) readLoop() {
 	for {
 		received, err := p.conn.Receive(p.ctx)
 		if err != nil {
-			p.fail(err)
+			p.fail(WithoutUnpublishedProof(err))
 			return
 		}
 		if received.Kind != duplex.Text {

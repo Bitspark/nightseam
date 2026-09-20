@@ -63,5 +63,5 @@ func (s *Scope) invokeScoped(ctx context.Context, invoke Invoke, request json.Ra
 		// and the caller's panic handling for a local one.
 		panic(answer.panicked)
 	}
-	return answer.value, answer.err
+	return answer.value, runtime.WithoutUnpublishedProof(answer.err)
 }

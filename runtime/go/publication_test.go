@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -94,19 +95,72 @@ func (c *publicationWriteFailure) Send(context.Context, duplex.Frame) error {
 }
 
 func TestQueuedWriteFailureHasNoUnpublishedProof(t *testing.T) {
+	client, _ := newPair(t, ws.Options{}, ws.Options{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	proof := client.Call(ctx, "unsent", nil, nil)
+	wantUnpublished(t, proof, true)
+	for _, tc := range []struct {
+		name            string
+		cause, identity error
+	}{
+		{"plain", errors.New("transport failed after accepting a queued frame"), nil},
+		{"nested", fmt.Errorf("adapter send: %w", proof), context.Canceled},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			near, far := duplex.Pipe(1 << 20)
+			defer far.Abort()
+			cause := tc.cause
+			connection := &publicationWriteFailure{Conn: near, wrote: make(chan struct{}), err: cause}
+			peer, err := ws.NewPeer(context.Background(), connection, ws.ClientRole, ws.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer peer.Close()
+			err = peer.Call(context.Background(), "supply", nil, nil)
+			receive(t, connection.wrote)
+			wantUnpublished(t, err, false)
+			if !errors.Is(err, cause) {
+				t.Fatalf("transport cause lost: %v", err)
+			}
+			if tc.identity != nil && !errors.Is(err, tc.identity) {
+				t.Fatalf("nested cause lost: %v", err)
+			}
+		})
+	}
+}
+
+type publicationReadFailure struct {
+	duplex.Conn
+	wrote chan struct{}
+	err   error
+}
+
+func (c *publicationReadFailure) Send(context.Context, duplex.Frame) error {
+	close(c.wrote)
+	return nil
+}
+func (c *publicationReadFailure) Receive(context.Context) (duplex.Frame, error) {
+	<-c.wrote
+	return duplex.Frame{}, c.err
+}
+
+func TestReadFailureHasNoNestedUnpublishedProof(t *testing.T) {
+	client, _ := newPair(t, ws.Options{}, ws.Options{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	proof := client.Call(ctx, "unsent", nil, nil)
 	near, far := duplex.Pipe(1 << 20)
 	defer far.Abort()
-	cause := errors.New("transport failed after accepting a queued frame")
-	connection := &publicationWriteFailure{Conn: near, wrote: make(chan struct{}), err: cause}
+	connection := &publicationReadFailure{Conn: near, wrote: make(chan struct{}), err: fmt.Errorf("adapter receive: %w", proof)}
 	peer, err := ws.NewPeer(context.Background(), connection, ws.ClientRole, ws.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer peer.Close()
 	err = peer.Call(context.Background(), "supply", nil, nil)
-	receive(t, connection.wrote)
 	wantUnpublished(t, err, false)
-	if !errors.Is(err, cause) {
-		t.Fatalf("transport cause lost: %v", err)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("nested cause lost: %v", err)
 	}
 }

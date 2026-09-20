@@ -336,10 +336,10 @@ func emitClient(f *file) {
 				f.linef("/** %s */", comment(m.Description))
 			}
 			if f.liveNeeded(m.Request, m.Result) {
-				f.linef("async %s(%s): Promise<%s> { %s%s const sent = %s; const result = await this.%s.call<unknown>(%s, sent, options); %s(%s, result%s); return %s; }",
+				f.linef("async %s(%s): Promise<%s> { %s%s const result = await %s; %s(%s, result%s); return %s; }",
 					p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, f.liveOwner(false),
-					f.liveExport(m.Request, "params", slots),
-					identPeer, quote(m.Name), identValidateWire, expression(m.Result), slots,
+					f.livePublish(m.Request, "params", slots, fmt.Sprintf("this.%s.call<unknown>(%s, %%s, options)", identPeer, quote(m.Name))),
+					identValidateWire, expression(m.Result), slots,
 					f.liveConversion(m.Result, "result", false))
 				continue
 			}
@@ -347,9 +347,9 @@ func emitClient(f *file) {
 		}
 		for _, e := range fam.Client.Events {
 			if f.liveNeeded(e.Type) {
-				f.linef("async %s%s(data: %s, options?: EmitOptions & { owner?: LiveOwner }): Promise<void> { %s const sent = %s; await this.%s.emit(%s, sent, options); }",
+				f.linef("async %s%s(data: %s, options?: EmitOptions & { owner?: LiveOwner }): Promise<void> { %s await %s; }",
 					identEmit, upperFirst(p.operations[e.Name]), f.spell(e.Type), f.liveOwner(false),
-					f.liveExport(e.Type, "data", slots), identPeer, quote(e.Name))
+					f.livePublish(e.Type, "data", slots, fmt.Sprintf("this.%s.emit(%s, %%s, options)", identPeer, quote(e.Name))))
 				continue
 			}
 			f.linef("async %s%s(data: %s, options?: EmitOptions): Promise<void> { %s(%s, data%s); await this.%s.emit(%s, data, options); }", identEmit, upperFirst(p.operations[e.Name]), f.spell(e.Type), identValidateWire, expression(e.Type), slots, identPeer, quote(e.Name))

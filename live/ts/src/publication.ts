@@ -1,5 +1,5 @@
 /** Publication outcomes do not choose a consumer's ownership lifetime. */
-import { DuplexError } from '@nightseam/runtime';
+import { DuplexError, UnpublishedError } from '@nightseam/runtime';
 import { REFERENCE_RELEASED, type Invoke, type LiveOwner, type LiveScope } from './index.ts';
 import type { Case, Pair, T } from './conformance.ts';
 
@@ -19,6 +19,8 @@ export function publicationCases(): Case[] {
     { name: 'eventPublicationRetainsItsOwner', run: eventPublicationRetainsItsOwner },
     { name: 'scopeClosureEndsRetainedOwners', run: scopeClosureEndsRetainedOwners },
     { name: 'provenUnpublishedIsUnwound', run: provenUnpublishedIsUnwound },
+    { name: 'publicationBatchEndsBeforeSend', run: publicationBatchEndsBeforeSend },
+    { name: 'localInvocationRetainsNestedRefusal', run: localInvocationRetainsNestedRefusal },
   ];
 }
 
@@ -92,7 +94,7 @@ async function failedSupply(t: T, p: Pair, outcome: string, repetitions: number)
   installAlive(p);
   const outgoing = p.a.owner().child();
   const incoming = p.b.owner().child();
-  const raw = payload(outgoing);
+  let raw: unknown;
   let retained = deferred<Invoke>();
   const unblock = deferred<void>();
   p.b.peer.handle('publication.supply', async (raw, context) => {
@@ -114,11 +116,15 @@ async function failedSupply(t: T, p: Pair, outcome: string, repetitions: number)
     for (let i = 0; i < repetitions; i++) {
       retained = deferred<Invoke>();
       const controller = new AbortController();
-      const done = p.a.peer
-        .call('publication.supply', raw, {
-          signal: controller.signal,
-          timeoutMs: outcome === 'timeout' || outcome === 'lost' ? 1000 : WAITED,
-        })
+      const done = outgoing
+        .publishValue(
+          (build) => (raw ??= payload(build)),
+          (sent) =>
+            p.a.peer.call('publication.supply', sent, {
+              signal: controller.signal,
+              timeoutMs: outcome === 'timeout' || outcome === 'lost' ? 1000 : WAITED,
+            }),
+        )
         .then(
           () => undefined,
           (error: unknown) => error,
@@ -252,11 +258,84 @@ async function provenUnpublishedIsUnwound(t: T, p: Pair): Promise<void> {
         refused = true;
       }
       if (!refused) t.fail('invalid unpublished payload succeeded');
+      const controller = new AbortController();
+      controller.abort();
+      const callError = await owner
+        .publishValue(payload, (raw) => p.a.peer.call('publication.unsent', raw, { signal: controller.signal }))
+        .then(
+          () => undefined,
+          (error: unknown) => error,
+        );
+      if (!(callError instanceof UnpublishedError)) t.fail('missing local non-delivery proof');
+      const eventError = await owner
+        .publishValue(payload, (raw) => p.a.peer.emit('', raw))
+        .then(
+          () => undefined,
+          (error: unknown) => error,
+        );
+      if (!(eventError instanceof UnpublishedError)) t.fail('missing event non-delivery proof');
       counts(t, owner, 0, 0, 'failed construction');
       counts(t, p.a, 0, 0, 'unpublished export unwound');
       counts(t, p.b, 0, 0, 'nothing reached the peer');
     }
   } finally {
     owner.release();
+  }
+}
+
+async function publicationBatchEndsBeforeSend(t: T, p: Pair): Promise<void> {
+  const owner = p.a.owner().child();
+  try {
+    let captured!: LiveOwner;
+    const controller = new AbortController();
+    controller.abort();
+    const error = await owner
+      .publishValue(
+        (build) => {
+          captured = build;
+          return payload(build);
+        },
+        (raw) => {
+          payload(captured);
+          return p.a.peer.call('publication.unsent', raw, { signal: controller.signal });
+        },
+      )
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+    if (!(error instanceof UnpublishedError)) t.fail('missing proof');
+    counts(t, owner, 1, 0, 'later independent allocation survives');
+    counts(t, p.a, 1, 0, 'only original publication was unwound');
+  } finally {
+    owner.release();
+  }
+}
+
+async function localInvocationRetainsNestedRefusal(t: T, p: Pair): Promise<void> {
+  const implementation = p.a.owner().child();
+  const outgoing = p.a.owner().child();
+  try {
+    let alias!: Invoke;
+    const reference = implementation.export('probe/Local', async (raw) => {
+      alias = importPayload(implementation, raw);
+      const controller = new AbortController();
+      controller.abort();
+      return p.a.peer.call('publication.nested', undefined, { signal: controller.signal });
+    });
+    const invoke = implementation.import(reference, 'probe/Local');
+    const error = await outgoing
+      .publishValue(payload, (raw) => invoke(raw))
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+    if (error instanceof UnpublishedError) t.fail('dispatched invocation forwarded nested proof');
+    refused(t, error, 'cancelled');
+    counts(t, outgoing, 1, 0, 'callback retained after local dispatch');
+    if ((await alias(45)) !== 45) t.fail('local retained callback failed');
+  } finally {
+    implementation.release();
+    outgoing.release();
   }
 }

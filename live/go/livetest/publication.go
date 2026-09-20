@@ -25,6 +25,8 @@ func publicationCases() []Case {
 		{"eventPublicationRetainsItsOwner", eventPublicationRetainsItsOwner},
 		{"scopeClosureEndsRetainedOwners", scopeClosureEndsRetainedOwners},
 		{"provenUnpublishedIsUnwound", provenUnpublishedIsUnwound},
+		{"publicationBatchEndsBeforeSend", publicationBatchEndsBeforeSend},
+		{"localInvocationRetainsNestedRefusal", localInvocationRetainsNestedRefusal},
 	}
 }
 
@@ -123,7 +125,7 @@ func failedSupply(t T, p Pair, outcome string, repetitions int) {
 	outgoing, incoming := p.A.Owner().Child(), p.B.Owner().Child()
 	defer outgoing.Release()
 	defer incoming.Release()
-	raw := publicationPayload(t, outgoing)
+	var raw json.RawMessage
 	retained := make(chan live.Invoke, repetitions)
 	unblock := make(chan struct{})
 	var once sync.Once
@@ -158,7 +160,17 @@ func failedSupply(t T, p Pair, outcome string, repetitions int) {
 			c, cancel = context.WithTimeout(context.Background(), time.Second)
 		}
 		done := make(chan error, 1)
-		go func() { done <- p.A.Peer().Call(c, "publication.supply", raw, nil) }()
+		go func() {
+			_, err := outgoing.PublishValue(func(build *live.Owner) (json.RawMessage, error) {
+				if raw == nil {
+					raw = publicationPayload(t, build)
+				}
+				return raw, nil
+			}, func(sent json.RawMessage) (json.RawMessage, error) {
+				return nil, p.A.Peer().Call(c, "publication.supply", sent, nil)
+			})
+			done <- err
+		}()
 		alias = publicationAwait(t, retained, "the remote retaining the callback")
 		if outcome == "cancellation" {
 			cancel()
@@ -323,8 +335,83 @@ func provenUnpublishedIsUnwound(t T, p Pair) {
 		if err == nil {
 			t.Fatalf("invalid unpublished payload succeeded")
 		}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err = owner.PublishValue(func(build *live.Owner) (json.RawMessage, error) {
+			return publicationPayload(t, build), nil
+		}, func(raw json.RawMessage) (json.RawMessage, error) {
+			return nil, p.A.Peer().Call(ctx, "publication.unsent", raw, nil)
+		})
+		var proof *runtime.UnpublishedError
+		if !errors.As(err, &proof) || !errors.Is(err, context.Canceled) {
+			t.Fatalf("missing local non-delivery proof: %v", err)
+		}
+		_, err = owner.PublishValue(func(build *live.Owner) (json.RawMessage, error) {
+			return publicationPayload(t, build), nil
+		}, func(raw json.RawMessage) (json.RawMessage, error) {
+			return nil, p.A.Peer().Emit(context.Background(), "", raw)
+		})
+		if !errors.As(err, &proof) {
+			t.Fatalf("missing event non-delivery proof: %v", err)
+		}
 		publicationCounts(t, owner, 0, 0, "failed construction")
 		holds(t, p.A, 0, 0, "unpublished export unwound")
 		holds(t, p.B, 0, 0, "nothing reached the peer")
+	}
+}
+
+func publicationBatchEndsBeforeSend(t T, p Pair) {
+	owner := p.A.Owner().Child()
+	defer owner.Release()
+	var captured *live.Owner
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := owner.PublishValue(func(build *live.Owner) (json.RawMessage, error) {
+		captured = build
+		return publicationPayload(t, build), nil
+	}, func(raw json.RawMessage) (json.RawMessage, error) {
+		// A callback retaining the completed view starts a new conversion.
+		publicationPayload(t, captured)
+		return nil, p.A.Peer().Call(ctx, "publication.unsent", raw, nil)
+	})
+	var proof *runtime.UnpublishedError
+	if !errors.As(err, &proof) {
+		t.Fatalf("missing proof: %v", err)
+	}
+	publicationCounts(t, owner, 1, 0, "later independent allocation survives")
+	holds(t, p.A, 1, 0, "only original publication was unwound")
+}
+
+func localInvocationRetainsNestedRefusal(t T, p Pair) {
+	implementation, outgoing := p.A.Owner().Child(), p.A.Owner().Child()
+	defer implementation.Release()
+	defer outgoing.Release()
+	var alias live.Invoke
+	reference, err := implementation.Export(other, func(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
+		var err error
+		alias, err = publicationImport(implementation, raw)
+		if err != nil {
+			return nil, err
+		}
+		cancelled, cancel := context.WithCancel(ctx)
+		cancel()
+		return nil, p.A.Peer().Call(cancelled, "publication.nested", nil, nil)
+	})
+	if err != nil {
+		t.Fatalf("local export: %v", err)
+	}
+	invoke, err := implementation.Import(reference, other)
+	if err != nil {
+		t.Fatalf("local import: %v", err)
+	}
+	_, err = outgoing.PublishValue(func(build *live.Owner) (json.RawMessage, error) { return publicationPayload(t, build), nil },
+		func(raw json.RawMessage) (json.RawMessage, error) { return invoke(context.Background(), raw) })
+	var proof *runtime.UnpublishedError
+	if errors.As(err, &proof) || !errors.Is(err, context.Canceled) {
+		t.Fatalf("dispatched invocation forwarded nested proof: %v", err)
+	}
+	publicationCounts(t, outgoing, 1, 0, "callback retained after local dispatch")
+	if got := string(call(t, alias, "45")); got != "45" {
+		t.Fatalf("local retained callback: %s", got)
 	}
 }

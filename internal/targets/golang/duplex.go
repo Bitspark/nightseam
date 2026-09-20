@@ -245,16 +245,20 @@ func (f *file) caller(m render.Method, receiver string) {
 			f.line("if !ok { owner = scope.Owner() }")
 			f.linef("if owner.Scope() != scope { return result, &%s.PublicError{Code: %s.ErrorReferenceForeign, Message: \"the owner belongs to another connection\"} }", f.runtime(), f.live())
 		}
-		switch {
-		case m.Request != nil && f.family.IsLive(m.Request):
-			f.liveBoundary(m.Request, "params", "sent", true)
+		if m.Request != nil && f.family.IsLive(m.Request) {
+			f.publishBoundary(m.Request, "params", "raw", func() {
+				f.linef("var raw %s.RawMessage", json)
+				f.linef("err := c.%s.Call(ctx, %q, sent, &raw)", identPeer, m.Name)
+				f.line("return raw, err")
+			})
 			f.line("if err != nil { return result, err }")
-			argument = "sent"
-		case m.Request != nil:
-			f.linef("if err := %s.%s(%s%s(%s), params); err != nil { return result, err }", f.boundSchema(f.uses), identValidateValue, f.proto(), identMustTypeExpression, expression(m.Request))
+		} else {
+			if m.Request != nil {
+				f.linef("if err := %s.%s(%s%s(%s), params); err != nil { return result, err }", f.boundSchema(f.uses), identValidateValue, f.proto(), identMustTypeExpression, expression(m.Request))
+			}
+			f.linef("var raw %s.RawMessage", json)
+			f.linef("if err := c.%s.Call(ctx, %q, %s, &raw); err != nil { return result, err }", identPeer, m.Name, argument)
 		}
-		f.linef("var raw %s.RawMessage", json)
-		f.linef("if err := c.%s.Call(ctx, %q, %s, &raw); err != nil { return result, err }", identPeer, m.Name, argument)
 		if f.family.IsLive(m.Result) {
 			f.liveBoundary(m.Result, "raw", "received", false)
 			f.line("return received, err")
@@ -279,9 +283,10 @@ func (f *file) events(receiver string, received, sent []render.Event) {
 				f.linef("owner, ok := %s.OwnerOf(ctx)", f.live())
 				f.line("if !ok { owner = scope.Owner() }")
 				f.linef("if owner.Scope() != scope { return &%s.PublicError{Code: %s.ErrorReferenceForeign, Message: \"the owner belongs to another connection\"} }", f.runtime(), f.live())
-				f.liveBoundary(e.Type, "data", "sent", true)
-				f.line("if err != nil { return err }")
-				f.linef("return c.%s.Emit(ctx, %q, sent)", identPeer, e.Name)
+				f.publishBoundary(e.Type, "data", "_", func() {
+					f.linef("return nil, c.%s.Emit(ctx, %q, sent)", identPeer, e.Name)
+				})
+				f.line("return err")
 			})
 			continue
 		}
