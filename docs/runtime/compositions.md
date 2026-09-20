@@ -202,7 +202,7 @@ positions; raw-byte forwarding does not recursively translate embedded
 references, and releasing a parent does not automatically dispose of all
 functions it returned.
 
-## Data needs none of this
+## Ending one unit of work
 
 A consumer that wants every binding of one unit of work to end together can
 give that work its own peer, or its own tunnel channel carrying a peer, and
@@ -214,6 +214,8 @@ the work's fresh bindings for release while ordinary RPC continues. Nightseam
 does not infer either policy from a timeout or install a scope-per-work API;
 the [publication outcome table](live.md#the-rules-a-consumer-can-rely-on)
 states what remains until the consumer makes that choice.
+
+## Data needs none of this
 
 `notes` is a `model.json` and nothing else. It renders a protocol package with
 types and a validator, encodes, decodes and enforces its own patterns and
