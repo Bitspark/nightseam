@@ -200,7 +200,7 @@ func (ToolkitRequest) WireType() runtime.TypeBinding {
 }
 
 // ExportBundle writes Bundle using the supplied conversion for each type argument.
-func ExportBundle[T any](scope *live.Scope, v Bundle[T], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error) {
+func ExportBundle[T any](scope *live.Scope, v Bundle[T], convertT func(*live.Scope, T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error) {
 	if scope == nil {
 		return nil, fmt.Errorf("Bundle: a live value is exported into a scope")
 	}
@@ -208,7 +208,7 @@ func ExportBundle[T any](scope *live.Scope, v Bundle[T], convertT func(T) (json.
 		wire := map[string]json.RawMessage{}
 		var metadataMember json.RawMessage
 		metadataMemberConvertedConvert0 := func(input T) (json.RawMessage, error) {
-			converted, err := convertT(input)
+			converted, err := convertT(scope, input)
 			if err != nil {
 				return nil, err
 			}

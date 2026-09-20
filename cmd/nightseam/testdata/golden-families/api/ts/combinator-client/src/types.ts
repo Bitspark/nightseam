@@ -70,10 +70,10 @@ export type Unary = (request: Count, options?: { signal?: AbortSignal }) => Prom
 /** The family: its name and the wire types a slot of it draws on. */
 export interface Family { readonly name: "combinator"; Count: Count; Envelope: Envelope; Factory: Factory; Handle: Handle; Producer: Producer; Sink: Sink; Toolkit: Toolkit; ToolkitRequest: ToolkitRequest; Unary: Unary }
 /** Writes Bundle using the supplied conversion for each type argument. */
-export function exportBundle<T = unknown>(scope: LiveScope, value: Bundle<T>, convert_T_: (value: T) => unknown): unknown {
+export function exportBundle<T = unknown>(scope: LiveScope, value: Bundle<T>, convert_T_: (scope: LiveScope, value: T) => unknown): unknown {
   return scope.exportValue((scope) => {
     const out: Record<string, unknown> = {};
-    out["metadata"] = exportBundleMetadata<T>((value["metadata"]) as BundleMetadata<T>, (input: T): unknown => convert_T_((input) as T));
+    out["metadata"] = exportBundleMetadata<T>((value["metadata"]) as BundleMetadata<T>, (input: T): unknown => convert_T_(scope, (input) as T));
     out["run"] = exportUnary(scope, (value["run"]) as Unary);
     return out;
   });

@@ -86,7 +86,7 @@ func install(handler Handler, options *runtime.Options) error {
 		sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
 			var zero json.RawMessage
 			convertedConvert0 := func(input protocol.Bundle[protocol.Count]) (json.RawMessage, error) {
-				convertedConvert0 := func(input protocol.Count) (json.RawMessage, error) {
+				convertedConvert0 := func(scope *live.Scope, input protocol.Count) (json.RawMessage, error) {
 					converted, err := runtime.MarshalJSON(input)
 					if err != nil {
 						return nil, err

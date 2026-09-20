@@ -2,7 +2,7 @@
 import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection } from "@nightseam/runtime";
 import type { Tunnel } from "@nightseam/tunnel";
 import { validateWire } from './types.ts';
-import { liveOver, scopeOf } from "@nightseam/live";
+import { liveOver, scopeOf, type LiveScope } from "@nightseam/live";
 import * as conversion from './types.ts';
 import * as live_worker from "@example/worker-client";
 import type * as Protocol from './types.ts';
