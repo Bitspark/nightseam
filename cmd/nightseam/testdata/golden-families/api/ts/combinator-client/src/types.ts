@@ -221,7 +221,7 @@ export function exportUnary(owner: LiveOwner, value: Unary): unknown {
       validateWire("Count", request);
       const argument = request as Count;
       const result = await value(argument, context);
-      return owner.exportValue((owner) => { const converted = result; validateWire("Count", converted); return converted; });
+      return (() => { const converted = result; validateWire("Count", converted); return converted; })();
     });
     return reference.toJSON();
   });
@@ -233,7 +233,7 @@ export function importUnary(owner: LiveOwner, raw: unknown): Unary {
   return async (request: Count, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner ?? scope.owner();
     if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection');
-    const sent = owner.exportValue((owner) => { const converted = request; validateWire("Count", converted); return converted; });
+    const sent = (() => { const converted = request; validateWire("Count", converted); return converted; })();
     const result = await invoke(sent, options);
     validateWire("Count", result);
     return result as Count;

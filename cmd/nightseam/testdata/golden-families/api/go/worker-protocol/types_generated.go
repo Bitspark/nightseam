@@ -571,26 +571,11 @@ func ExportRename(owner *live.Owner, v Rename) (json.RawMessage, error) {
 			}
 			argument, err := func() (Ticket, error) {
 				var value Ticket
-				err := owner.ImportValue(func(owner *live.Owner) error {
-					converted, err := func() (Ticket, error) {
-						var zero Ticket
-						if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), request); err != nil {
-							return zero, err
-						}
-						var converted Ticket
-						if err := json.Unmarshal(request, &converted); err != nil {
-							return zero, err
-						}
-						return converted, nil
-					}()
-					value = converted
-					return err
-				})
-				if err != nil {
-					var zero Ticket
-					return zero, err
+				if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), request); err != nil {
+					return value, err
 				}
-				return value, nil
+				err := json.Unmarshal(request, &value)
+				return value, err
 			}()
 			if err != nil {
 				return nil, err
@@ -599,17 +584,10 @@ func ExportRename(owner *live.Owner, v Rename) (json.RawMessage, error) {
 			if err != nil {
 				return nil, err
 			}
-			data, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-				var zero json.RawMessage
-				converted, err := runtime.MarshalJSON(result)
-				if err != nil {
-					return zero, err
-				}
-				if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), converted); err != nil {
-					return zero, err
-				}
-				return converted, nil
-			})
+			data, err := runtime.MarshalJSON(result)
+			if err == nil {
+				err = schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), data)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -645,17 +623,10 @@ func ImportRename(owner *live.Owner, raw json.RawMessage) (Rename, error) {
 			}
 			owner = supplied
 		}
-		request, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-			var zero json.RawMessage
-			converted, err := runtime.MarshalJSON(params)
-			if err != nil {
-				return zero, err
-			}
-			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), converted); err != nil {
-				return zero, err
-			}
-			return converted, nil
-		})
+		request, err := runtime.MarshalJSON(params)
+		if err == nil {
+			err = schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), request)
+		}
 		if err != nil {
 			return zero, err
 		}
@@ -668,26 +639,11 @@ func ImportRename(owner *live.Owner, raw json.RawMessage) (Rename, error) {
 		}
 		answer, err := func() (Ticket, error) {
 			var value Ticket
-			err := owner.ImportValue(func(owner *live.Owner) error {
-				converted, err := func() (Ticket, error) {
-					var zero Ticket
-					if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), result); err != nil {
-						return zero, err
-					}
-					var converted Ticket
-					if err := json.Unmarshal(result, &converted); err != nil {
-						return zero, err
-					}
-					return converted, nil
-				}()
-				value = converted
-				return err
-			})
-			if err != nil {
-				var zero Ticket
-				return zero, err
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), result); err != nil {
+				return value, err
 			}
-			return value, nil
+			err := json.Unmarshal(result, &value)
+			return value, err
 		}()
 		if err != nil {
 			return zero, err
@@ -720,26 +676,11 @@ func ExportReport(owner *live.Owner, v Report) (json.RawMessage, error) {
 			}
 			argument, err := func() (Percent, error) {
 				var value Percent
-				err := owner.ImportValue(func(owner *live.Owner) error {
-					converted, err := func() (Percent, error) {
-						var zero Percent
-						if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Percent\""), request); err != nil {
-							return zero, err
-						}
-						var converted Percent
-						if err := json.Unmarshal(request, &converted); err != nil {
-							return zero, err
-						}
-						return converted, nil
-					}()
-					value = converted
-					return err
-				})
-				if err != nil {
-					var zero Percent
-					return zero, err
+				if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Percent\""), request); err != nil {
+					return value, err
 				}
-				return value, nil
+				err := json.Unmarshal(request, &value)
+				return value, err
 			}()
 			if err != nil {
 				return nil, err
@@ -775,17 +716,10 @@ func ImportReport(owner *live.Owner, raw json.RawMessage) (Report, error) {
 			}
 			owner = supplied
 		}
-		request, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-			var zero json.RawMessage
-			converted, err := runtime.MarshalJSON(params)
-			if err != nil {
-				return zero, err
-			}
-			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Percent\""), converted); err != nil {
-				return zero, err
-			}
-			return converted, nil
-		})
+		request, err := runtime.MarshalJSON(params)
+		if err == nil {
+			err = schema.ValidateExpressionRaw(MustTypeExpression("\"Percent\""), request)
+		}
 		if err != nil {
 			return err
 		}

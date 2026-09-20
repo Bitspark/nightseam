@@ -91,7 +91,7 @@ export function importNotice(owner: LiveOwner, raw: unknown): Notice {
   return async (request: Payload, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner ?? scope.owner();
     if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection');
-    const sent = owner.exportValue((owner) => { const converted = request; validateWire("Payload", converted); return converted; });
+    const sent = (() => { const converted = request; validateWire("Payload", converted); return converted; })();
     await invoke(sent, options);
     return;
   };

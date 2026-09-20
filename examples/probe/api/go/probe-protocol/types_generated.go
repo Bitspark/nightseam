@@ -206,26 +206,11 @@ func ExportNotice(owner *live.Owner, v Notice) (json.RawMessage, error) {
 			}
 			argument, err := func() (Payload, error) {
 				var value Payload
-				err := owner.ImportValue(func(owner *live.Owner) error {
-					converted, err := func() (Payload, error) {
-						var zero Payload
-						if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Payload\""), request); err != nil {
-							return zero, err
-						}
-						var converted Payload
-						if err := json.Unmarshal(request, &converted); err != nil {
-							return zero, err
-						}
-						return converted, nil
-					}()
-					value = converted
-					return err
-				})
-				if err != nil {
-					var zero Payload
-					return zero, err
+				if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Payload\""), request); err != nil {
+					return value, err
 				}
-				return value, nil
+				err := json.Unmarshal(request, &value)
+				return value, err
 			}()
 			if err != nil {
 				return nil, err
@@ -261,17 +246,10 @@ func ImportNotice(owner *live.Owner, raw json.RawMessage) (Notice, error) {
 			}
 			owner = supplied
 		}
-		request, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-			var zero json.RawMessage
-			converted, err := runtime.MarshalJSON(params)
-			if err != nil {
-				return zero, err
-			}
-			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Payload\""), converted); err != nil {
-				return zero, err
-			}
-			return converted, nil
-		})
+		request, err := runtime.MarshalJSON(params)
+		if err == nil {
+			err = schema.ValidateExpressionRaw(MustTypeExpression("\"Payload\""), request)
+		}
 		if err != nil {
 			return err
 		}

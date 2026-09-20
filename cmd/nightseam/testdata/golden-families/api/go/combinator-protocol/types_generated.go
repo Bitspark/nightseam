@@ -809,26 +809,11 @@ func ExportUnary(owner *live.Owner, v Unary) (json.RawMessage, error) {
 			}
 			argument, err := func() (Count, error) {
 				var value Count
-				err := owner.ImportValue(func(owner *live.Owner) error {
-					converted, err := func() (Count, error) {
-						var zero Count
-						if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), request); err != nil {
-							return zero, err
-						}
-						var converted Count
-						if err := json.Unmarshal(request, &converted); err != nil {
-							return zero, err
-						}
-						return converted, nil
-					}()
-					value = converted
-					return err
-				})
-				if err != nil {
-					var zero Count
-					return zero, err
+				if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), request); err != nil {
+					return value, err
 				}
-				return value, nil
+				err := json.Unmarshal(request, &value)
+				return value, err
 			}()
 			if err != nil {
 				return nil, err
@@ -837,17 +822,10 @@ func ExportUnary(owner *live.Owner, v Unary) (json.RawMessage, error) {
 			if err != nil {
 				return nil, err
 			}
-			data, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-				var zero json.RawMessage
-				converted, err := runtime.MarshalJSON(result)
-				if err != nil {
-					return zero, err
-				}
-				if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), converted); err != nil {
-					return zero, err
-				}
-				return converted, nil
-			})
+			data, err := runtime.MarshalJSON(result)
+			if err == nil {
+				err = schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), data)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -883,17 +861,10 @@ func ImportUnary(owner *live.Owner, raw json.RawMessage) (Unary, error) {
 			}
 			owner = supplied
 		}
-		request, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-			var zero json.RawMessage
-			converted, err := runtime.MarshalJSON(params)
-			if err != nil {
-				return zero, err
-			}
-			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), converted); err != nil {
-				return zero, err
-			}
-			return converted, nil
-		})
+		request, err := runtime.MarshalJSON(params)
+		if err == nil {
+			err = schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), request)
+		}
 		if err != nil {
 			return zero, err
 		}
@@ -906,26 +877,11 @@ func ImportUnary(owner *live.Owner, raw json.RawMessage) (Unary, error) {
 		}
 		answer, err := func() (Count, error) {
 			var value Count
-			err := owner.ImportValue(func(owner *live.Owner) error {
-				converted, err := func() (Count, error) {
-					var zero Count
-					if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), result); err != nil {
-						return zero, err
-					}
-					var converted Count
-					if err := json.Unmarshal(result, &converted); err != nil {
-						return zero, err
-					}
-					return converted, nil
-				}()
-				value = converted
-				return err
-			})
-			if err != nil {
-				var zero Count
-				return zero, err
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), result); err != nil {
+				return value, err
 			}
-			return value, nil
+			err := json.Unmarshal(result, &value)
+			return value, err
 		}()
 		if err != nil {
 			return zero, err
