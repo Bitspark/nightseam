@@ -2,7 +2,7 @@
 import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection, type WebSocketLike } from "@nightseam/runtime";
 import { validateWire } from "@example/supervisor-client/types";
 import type * as Protocol from "@example/supervisor-client/types";
-import { liveOver, scopeOf, type LiveScope } from "@nightseam/live";
+import { liveOver, scopeOf, type LiveOwner } from "@nightseam/live";
 import * as conversion from "@example/supervisor-client/types";
 import * as live_worker from "@example/worker-client";
 import type * as worker from "@example/worker-client";
@@ -11,8 +11,8 @@ export { DuplexError };
 /** Typed handlers for the declaration's server side. */
 export interface Handler {
   shift(params: Protocol.Shift, remote: Remote, context: RequestContext): string | Promise<string>;
-  relieve(params: Protocol.RelieveRequest, remote: Remote, context: RequestContext): Protocol.Shift | Promise<Protocol.Shift>;
-  watch(params: Protocol.Watch, remote: Remote, context: RequestContext): worker.Job | Promise<worker.Job>;
+  relieve(params: Protocol.RelieveRequest, remote: Remote, context: RequestContext & { owner: LiveOwner }): Protocol.Shift | Promise<Protocol.Shift>;
+  watch(params: Protocol.Watch, remote: Remote, context: RequestContext & { owner: LiveOwner }): worker.Job | Promise<worker.Job>;
 }
 /** Client-originated event listeners installed before the connection reads its first frame. */
 export interface Events {
@@ -34,8 +34,8 @@ export function install(peer: DuplexPeer, handler: Handler, events: Events = {})
   const remote = new Remote(peer);
   if (!scopeOf(peer)) liveOver(peer, {});
   peer.handle("shift", async (params, context) => { try { validateWire("Shift", params); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.shift(params as Protocol.Shift, remote, context); validateWire("string", result); return result; });
-  peer.handle("relieve", async (raw, context) => { const scope = scopeOf(remote.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); try { validateWire({"kind":"record","fields":[{"name":"shift","type":"Shift","required":true},{"name":"sink","type":"worker.ProgressSink","required":true}]}, raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = conversion.importRelieveRequest(scope, raw); const result = await handler.relieve(params as Protocol.RelieveRequest, remote, context); return scope.exportValue((scope) => { const converted = result; validateWire("Shift", converted); return converted; }); });
-  peer.handle("watch", async (raw, context) => { const scope = scopeOf(remote.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); try { validateWire("Watch", raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = conversion.importWatch(scope, raw); const result = await handler.watch(params as Protocol.Watch, remote, context); return scope.exportValue((scope) => { const converted = live_worker.exportJob(scope, (result) as worker.Job); validateWire("worker.Job", converted); return converted; }); });
+  peer.handle("relieve", async (raw, context) => { const scope = scopeOf(remote.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = scope.owner().child(); const ownedContext = { ...context, owner }; try { validateWire({"kind":"record","fields":[{"name":"shift","type":"Shift","required":true},{"name":"sink","type":"worker.ProgressSink","required":true}]}, raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = owner.importValue((owner) => conversion.importRelieveRequest(owner, raw)); const result = await handler.relieve(params as Protocol.RelieveRequest, remote, ownedContext); return (() => { const converted = result; validateWire("Shift", converted); return converted; })(); });
+  peer.handle("watch", async (raw, context) => { const scope = scopeOf(remote.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = scope.owner().child(); const ownedContext = { ...context, owner }; try { validateWire("Watch", raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = owner.importValue((owner) => conversion.importWatch(owner, raw)); const result = await handler.watch(params as Protocol.Watch, remote, ownedContext); return owner.exportValue((owner) => { const converted = live_worker.exportJob(owner, (result) as worker.Job); validateWire("worker.Job", converted); return converted; }); });
   return remote;
 }
 /** Serves an externally authenticated accepted connection. The returned peer is the caller's to close. */

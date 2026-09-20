@@ -2,14 +2,14 @@
 import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection, type WebSocketLike } from "@nightseam/runtime";
 import { validateWire } from "@probe/probe-client/types";
 import type * as Protocol from "@probe/probe-client/types";
-import { liveOver, scopeOf, type LiveScope } from "@nightseam/live";
+import { liveOver, scopeOf, type LiveOwner } from "@nightseam/live";
 import * as conversion from "@probe/probe-client/types";
 export * from "@probe/probe-client/types";
 export { DuplexError };
 /** Typed handlers for the declaration's server side. */
 export interface Handler {
   echo(params: Protocol.Payload, remote: Remote, context: RequestContext): Protocol.Payload | Promise<Protocol.Payload>;
-  watch(params: Protocol.Watch, remote: Remote, context: RequestContext): Protocol.Subscription | Promise<Protocol.Subscription>;
+  watch(params: Protocol.Watch, remote: Remote, context: RequestContext & { owner: LiveOwner }): Protocol.Subscription | Promise<Protocol.Subscription>;
 }
 /** Client-originated event listeners installed before the connection reads its first frame. */
 export interface Events {
@@ -32,7 +32,7 @@ export function install(peer: DuplexPeer, handler: Handler, events: Events = {})
   const remote = new Remote(peer);
   if (!scopeOf(peer)) liveOver(peer, {});
   peer.handle("echo", async (params, context) => { try { validateWire("Payload", params); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.echo(params as Protocol.Payload, remote, context); validateWire("Payload", result); return result; });
-  peer.handle("watch", async (raw, context) => { const scope = scopeOf(remote.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); try { validateWire("Watch", raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = conversion.importWatch(scope, raw); const result = await handler.watch(params as Protocol.Watch, remote, context); return scope.exportValue((scope) => { const converted = conversion.exportSubscription(scope, (result) as Protocol.Subscription); validateWire("Subscription", converted); return converted; }); });
+  peer.handle("watch", async (raw, context) => { const scope = scopeOf(remote.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = scope.owner().child(); const ownedContext = { ...context, owner }; try { validateWire("Watch", raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = owner.importValue((owner) => conversion.importWatch(owner, raw)); const result = await handler.watch(params as Protocol.Watch, remote, ownedContext); return owner.exportValue((owner) => { const converted = conversion.exportSubscription(owner, (result) as Protocol.Subscription); validateWire("Subscription", converted); return converted; }); });
   return remote;
 }
 /** Serves an externally authenticated accepted connection. The returned peer is the caller's to close. */
