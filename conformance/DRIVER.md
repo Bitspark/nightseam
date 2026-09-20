@@ -511,8 +511,27 @@ promises and what these scenarios are for.
 | `gen.live_supervise` | **`on`**, **`sinks`**, `within_ms` | `{"state"}` — waits for the server's client attachment, then calls the client with a map of callables and reads back a sum, within one deadline |
 | `gen.live_seen` | **`on`** | `{"started", "calls"}` — how many starts the served side took, and what was called on it |
 
-The generated `combinator` family also supports `client.combinator_pack` with
-`on`, `add`, and `with`. It supplies a callable in `boxes.Box`, receives it
+#### Higher-order callables and generic containers — `gen.combinator_*`, `client.combinator_*`
+
+The same testee links the corpus's `combinator` family, whose callables take
+or answer callables, and the `boxes` family it applies to them. Two
+scenarios drive it: `generated/live-higher-order-callables.json` and
+`generated/live-generic-containers.json`. A toolkit is what
+`client.combinator_toolkit` answered — this testee's own name for the record
+it received, as `job` is above.
+
+| op | arguments | answer |
+|---|---|---|
+| `gen.combinator_serve` | | `{"handle", "url"}` — the combinator binding, served; unsupported in a target without bindings |
+| `gen.combinator_dial` | **`url`** | `{"handle"}` a generated combinator client, its reverse-call handler canned |
+| `client.combinator_toolkit` | **`on`**, **`seed`** | `{"toolkit"}` — an ordinary call answering a record whose three members each take or answer a callable; the served side keeps the seed for `apply` |
+| `client.combinator_twice` | **`on`**, **`toolkit`**, **`add`**, **`with`** | `{"value"}` — this testee's `x + add` handed to the other's `twice`, which answers a callable this testee then invokes with `with` |
+| `client.combinator_identity` | **`on`**, **`toolkit`**, **`with`** | `{"value"}` — a callable answered by a callable that takes nothing, invoked with `with` |
+| `client.combinator_apply` | **`on`**, **`toolkit`**, **`factor`** | `{}` — this testee's `x * factor` handed to a callable that answers nothing; the served side calls it with the seed |
+| `gen.combinator_seen` | **`on`** | `{"applied"}` — what the served side's `apply` was answered, in order |
+| `client.combinator_pack` | **`on`**, **`add`**, **`with`**, `within_ms` | `{"value", "seed", "none", "null", "absent", "extra"}` — see below |
+
+`client.combinator_pack` supplies a callable in `boxes.Box`, receives it
 through `boxes.Batch` (a generic alias, open record, inherited union, map and nullable), and
 invokes a returned generic live record's function after the RPC. That record
 captures its parameter in an inline metadata record. It answers `{"value", "seed", "none",

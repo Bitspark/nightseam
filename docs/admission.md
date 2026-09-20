@@ -216,7 +216,7 @@ Kept because each passes the test at its level, not because it was there.
 
 | concept | class | the argument |
 | --- | --- | --- |
-| the value constructors: record, enum, alias, union, containers, nullable, literal, parameters and `apply` | primitives, data | each is a shape the others cannot state, and each has its decision — [one reference form](decisions/one-reference-form.md), [internally tagged](decisions/a-union-is-internally-tagged.md), [nullness](decisions/nullness-is-a-fact-of-a-value.md), [named by where it sits](decisions/a-shape-is-named-by-where-it-sits.md), [one parameter mechanism](decisions/one-parameter-mechanism-of-two-sorts.md). |
+| the value constructors: record, enum, alias, union, containers, nullable, literal, parameters and `apply` | primitives, data | each is a shape the others cannot state, and each has its decision — [one reference form](decisions/one-reference-form.md), [adjacently tagged](decisions/a-union-is-adjacently-tagged.md), [nullness](decisions/nullness-is-a-fact-of-a-value.md), [named by where it sits](decisions/a-shape-is-named-by-where-it-sits.md), [one parameter mechanism](decisions/one-parameter-mechanism-of-two-sorts.md). |
 | `entity` and `{"ref": …}` | composition, shipped | a record with a named `key`, and a reference that is the key's type with a stated target: a convenience with a defined expansion into the constructors, validated as data. It requires no registry and is never invoked; it is an entity key, not a live binding. |
 | a tier as a built-in family | composition, shipped | the tier rule and the import mechanism, applied to the profile's own declarations ([decision](decisions/a-tier-is-a-built-in-family.md)); a third tier file is the same rule applied once more, not a new mechanism. |
 
