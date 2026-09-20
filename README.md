@@ -92,11 +92,20 @@ of each language in each profile.
 ## Languages
 
 A language is in Nightseam when it is in this table, and what it promises is
-its **tier**: 1 guarantees every profile with no lag, 2 guarantees `core` and
+its assigned **tier**: 1 promises every profile with no lag, 2 promises `core` and
 `generator` always and every other profile within a minor release, and 3 and
 4 are one band — *reference-held* — that the `generator` column tells apart.
 [docs/languages/tiers.md](docs/languages/tiers.md) says what each promise
 and each profile is.
+
+Generated roles differ today: Go provides clients and server bindings;
+TypeScript provides clients, including reverse-call handlers and live-value
+conversion, but no generated server bindings. Both runtimes support
+bidirectional RPC and live callables. The generator column's skips are
+unsupported generated server roles, not evidence that those roles passed.
+The [role and skip inventory](docs/declaration/proof-findings.md#generated-roles-and-skips)
+explains the pairings. The tier-1 release treatment of this gap awaits
+[the operator's decision](https://github.com/Bitspark/nightseam/issues/271).
 
 <!-- matrix:start -->
 | language | tier | core | generator | tunnel | live | observability | verdict |
@@ -110,7 +119,9 @@ Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2; `java
 The table is the last conformance run, rendered from
 `conformance/matrix.json` by `node scripts/matrix-table.mjs`; CI fails a pull
 request whose table has drifted from the matrix, as `nightseam check` fails
-one whose generated output is stale. A red cell in a profile the language's
+one whose generated output is stale. `ok` means the current gate found no
+failures in required profiles; it accepts skips and does not certify that
+every generated role exists. A red cell in a profile the language's
 tier guarantees refuses a release; elsewhere it is what the tier's lag
 allows. What CI runs is the star — every language against the Go reference on
 both sides, which is the gate a language passes to have joined; the full

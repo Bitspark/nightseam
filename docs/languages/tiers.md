@@ -24,6 +24,14 @@ The promises nest: P2 assumes P1, P3 assumes P2, P4 assumes P3. There is no
 fifth: anything finer than these is progress within a language, which the
 matrix shows and no tier needs to name.
 
+These are the policy promises. The current gate does not prove all of P3:
+it accepts skipped scenarios, including generated server roles absent from
+the TypeScript target. An assigned tier and an `ok` verdict therefore need
+to be read alongside the supported roles below, not as proof that every
+scenario passed. This discrepancy is awaiting an operator verdict in
+[#271](https://github.com/Bitspark/nightseam/issues/271); the assignment and
+release gate remain unchanged pending that decision.
+
 ## Profiles
 
 A profile is a named set of scenarios, and a scenario belongs to exactly
@@ -88,6 +96,25 @@ Java and Swift follow at tier 4 and rise as they hold.
 
 ## How the suite enforces it
 
+### Generated roles currently exercised
+
+| Target | Generated client | Generated server binding |
+|---|---|---|
+| Go | Yes, including reverse-call handlers and live conversion | Yes |
+| TypeScript | Yes, including reverse-call handlers and live conversion | No |
+
+The client role can handle calls and export callables; that is not a
+generated implementation of the declaration's server side. The runtime
+`core` and `live` profiles exercise both languages in both peer roles,
+separately from the `generator` profile. Generated scenarios use a Go
+binding whenever they serve successfully. Mirroring exchanges driver
+sides and records an unsupported TypeScript binding as a skip; it cannot
+turn a client target into a server target. The
+[proof inventory](../declaration/proof-findings.md#generated-roles-and-skips)
+maps each skip to its scenario and missing serve operation.
+
+### What the gate checks
+
 `conformance/profiles.json` names the profiles by the layers and the
 features a scenario needs, the tiers by what each requires, the lag it
 allows and what a red cell does, and each language's tier. The
@@ -98,6 +125,17 @@ against the Go reference on both sides, which is what CI runs; the full
 matrix of every language against every other runs nightly, and a failure
 there — two non-reference languages disagreeing on something the reference
 tolerates — is an issue against the scenario, since the reference decides.
+
+The runtime testee's advertised layers and features are checked against its
+tier by `HoldToTier`; the generated layer belongs to a separate testee and
+is excluded from that hello check. `Matrix.Verdict` counts failures in
+required profiles, not skips. The existing
+[`TestVerdictsFollowTheTierTable`](../../conformance/go/profiles_test.go)
+explicitly holds a row of passes and skips to verdict `ok`. Thus the
+matrix preserves missing coverage, but its release verdict does not reject
+these unsupported generated roles. Resolving that difference from the
+complete tier-1 promise is the policy decision above, not an implicit
+exception introduced by this description.
 
 The release workflow refuses a tag whose matrix has a cell that the tier
 table says stops the release, and marks the languages that the table says

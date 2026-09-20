@@ -6,6 +6,12 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Clarified
+
+- Generated-role coverage distinguishes Go server bindings from TypeScript
+  clients, accounts for every TypeScript generator skip, and records the
+  unresolved tier-1 release-policy gap without changing the gate.
+
 ### Added
 
 - Generic data containers can carry live values when applied in the live tier.

@@ -133,6 +133,14 @@ then run any caller-supplied `Prepare`. An empty `Events{}` handles none.
 `types.ts` and `index.ts` and a `package.json` depending on
 `@nightseam/runtime` and `@nightseam/tunnel`.
 
+The TypeScript target emits no server-binding package. Its `Handler`
+implements operations declared on the **client** side, called by the server;
+it is not the counterpart of Go's binding `Handler`. The runtime can serve
+requests and export callables in either peer role, but those capabilities
+do not supply generated server bindings. See the
+[generated-role evidence](proof-findings.md#generated-roles-and-skips) for
+the roles the conformance suite executes and skips.
+
 A family with only a model tier emits its types, validator and family
 binding in the same package layout. It depends on the runtime alone and
 declares no client or protocol helpers.

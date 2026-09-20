@@ -402,8 +402,9 @@ reach `peer.observed` there: `live.exported` (`contract`, `binding`),
 ### Generated code — `gen.*`, `client.*`
 
 A language's second testee links the packages the generator renders for the
-corpus's `probe` family — its client and its binding — over that language's
-runtime. The runner renders `probe` and builds this testee from the recipe
+corpus's `probe` family over that language's runtime: Go links its client
+and binding; TypeScript links its client only. The runner renders the
+families and builds this testee from the recipe
 in `testee.json` before the `generated` scenarios run.
 
 | op | arguments | answer |
@@ -432,6 +433,13 @@ and a `noticed` event for `server.await_noticed`. A scenario does not know
 which language is on each side, so it holds the prefix with a pattern.
 
 A language without a binding answers `gen.serve` with `unsupported`.
+TypeScript also refuses `gen.proof_serve`, `gen.live_serve` and
+`gen.combinator_serve` for that reason. Its generated client's reverse-call
+handlers and live callables are exercised, but are not generated server
+bindings. `mirror: true` exchanges driver sides `a` and `b`; a successful
+cross-language run still has Go serving and TypeScript using the generated
+client. The [role and skip inventory](../docs/declaration/proof-findings.md#generated-roles-and-skips)
+accounts for these outcomes; the matrix's `ok` verdict permits skips.
 
 The generated testee lies under `conformance/<lang>/generated/`, and the
 runner lays those files beside the probe rendering in `{rendered}` before
@@ -464,8 +472,9 @@ is the driver's argument-refusal code, not a new exported validator error.
 The canned proof binding dispatches unions to a kind-prefixed string,
 returns a page of three parts, and relays a typed envelope in `Option`.
 Its inherited echo returns the payload unchanged. Mirrored wire scenarios
-hold both ordered language pairings; the matrix records the unsupported
-TypeScript binding role separately from the generated client runs.
+attempt both roles in both ordered language pairings. Go's binding serves
+the successful runs, including a TypeScript client on either driver side;
+the matrix records the unsupported TypeScript binding attempts separately.
 
 #### The live tier — `gen.live_*`, `client.live_*`
 
