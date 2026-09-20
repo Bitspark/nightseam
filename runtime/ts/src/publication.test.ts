@@ -1,0 +1,191 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { pipe, type FrameConnection } from '@nightseam/duplex';
+import { DuplexError, DuplexPeer, UnpublishedError } from './index.ts';
+
+function deferred<V>(): { promise: Promise<V>; resolve: (value: V) => void } {
+  let resolve!: (value: V) => void;
+  const promise = new Promise<V>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
+test('unpublished proof belongs to the local send attempt', async () => {
+  const [a, b] = pipe();
+  const client = new DuplexPeer({ maxPendingRequests: 1, maxFrameBytes: 512 });
+  const server = new DuplexPeer({ role: 'server' });
+  const entered = deferred<void>();
+  const finish = deferred<void>();
+  server.handle('wait', async () => {
+    entered.resolve();
+    await finish.promise;
+    return null;
+  });
+  server.handle('busy', async () => {
+    throw new DuplexError('busy', 'retained before refusing');
+  });
+  server.handle('nested', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    return server.call('never.sent', undefined, { signal: controller.signal });
+  });
+  await Promise.all([client.attach(a), server.attach(b)]);
+  try {
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(client.call('wait', undefined, { signal: controller.signal }), (error: unknown) => {
+      assert.ok(error instanceof UnpublishedError);
+      assert.ok(error instanceof DuplexError);
+      assert.equal(error.code, 'cancelled');
+      assert.ok(error.cause instanceof DuplexError);
+      assert.equal(error.cause.code, 'cancelled');
+      return true;
+    });
+    for (const request of [() => 1, 'x'.repeat(1024)]) {
+      await assert.rejects(client.call('wait', request), UnpublishedError);
+      await assert.rejects(client.emit('event', request), UnpublishedError);
+    }
+    const held = client.call('wait');
+    await entered.promise;
+    await assert.rejects(client.call('busy'), (error: unknown) => {
+      assert.ok(error instanceof UnpublishedError);
+      assert.equal(error.code, 'busy');
+      return true;
+    });
+    finish.resolve();
+    await held;
+    for (const [method, code] of [
+      ['busy', 'busy'],
+      ['nested', 'cancelled'],
+    ]) {
+      await assert.rejects(client.call(method!), (error: unknown) => {
+        assert.ok(error instanceof DuplexError);
+        assert.equal(error.code, code);
+        assert.ok(!(error instanceof UnpublishedError), 'remote error carried local publication proof');
+        return true;
+      });
+    }
+  } finally {
+    finish.resolve();
+    client.close();
+    server.close();
+  }
+});
+
+test('a queued write failure has no unpublished proof', async () => {
+  const [a, b] = pipe();
+  const cause = new DuplexError('send_failed', 'transport failed after queue acceptance');
+  const attempted = deferred<void>();
+  const connection: FrameConnection = {
+    get state() {
+      return a.state;
+    },
+    get buffered() {
+      return a.buffered;
+    },
+    send() {
+      attempted.resolve();
+      throw cause;
+    },
+    close: (code, reason) => a.close(code, reason),
+    listen: (handlers) => a.listen(handlers),
+  };
+  const peer = new DuplexPeer();
+  await peer.attach(connection);
+  try {
+    await assert.rejects(peer.call('supply'), (error: unknown) => {
+      assert.ok(error instanceof DuplexError);
+      assert.ok(!(error instanceof UnpublishedError));
+      assert.equal(error.code, cause.code);
+      return true;
+    });
+    await attempted.promise;
+  } finally {
+    peer.close();
+    b.close();
+  }
+});
+
+test('a refused reverse reply cannot lend its proof to an already delivered call', async () => {
+  const [a, b] = pipe();
+  const client = new DuplexPeer({ maxFrameBytes: 160 });
+  const server = new DuplexPeer({ role: 'server' });
+  let delivered = false;
+  client.handle('b', async () => 'x'.repeat(2000));
+  server.handle('a', async () => {
+    delivered = true;
+    return server.call('b');
+  });
+  await Promise.all([client.attach(a), server.attach(b)]);
+  try {
+    await assert.rejects(client.call('a'), (error: unknown) => {
+      assert.equal(delivered, true);
+      assert.ok(error instanceof DuplexError);
+      assert.equal(error.code, 'frame_too_large');
+      assert.ok(!(error instanceof UnpublishedError), 'another reply lent proof to this delivered request');
+      return true;
+    });
+  } finally {
+    client.close();
+    server.close();
+  }
+});
+
+test('an adapter getter failure after writing cannot prove its queued request unpublished', async () => {
+  const [a, b] = pipe();
+  const client = new DuplexPeer();
+  const server = new DuplexPeer({ role: 'server' });
+  const delivered = deferred<void>();
+  let writes = 0;
+  let failAfterWrite = false;
+  let nested!: UnpublishedError;
+  const connection: FrameConnection = {
+    get state() {
+      return a.state;
+    },
+    get buffered() {
+      if (failAfterWrite) {
+        failAfterWrite = false;
+        throw nested;
+      }
+      return a.buffered;
+    },
+    send(frame) {
+      a.send(frame);
+      writes++;
+      if (writes === 1) failAfterWrite = true;
+    },
+    close: (code, reason) => a.close(code, reason),
+    listen: (handlers) => a.listen(handlers),
+  };
+  server.handle('supply', async () => {
+    delivered.resolve();
+    return null;
+  });
+  server.handle('ordinary', async () => 42);
+  await Promise.all([client.attach(connection), server.attach(b)]);
+  try {
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(client.call('nested', undefined, { signal: controller.signal }), (error: unknown) => {
+      assert.ok(error instanceof UnpublishedError);
+      nested = error;
+      return true;
+    });
+    await assert.rejects(client.call('supply'), (error: unknown) => {
+      assert.equal(writes, 1);
+      assert.ok(error instanceof DuplexError);
+      assert.ok(!(error instanceof UnpublishedError), 'a post-write adapter error carried nested proof');
+      assert.equal(error.code, nested.code);
+      assert.equal(error.cause, nested);
+      return true;
+    });
+    await delivered.promise;
+    assert.equal(await client.call('ordinary'), 42);
+    assert.equal(writes, 2);
+  } finally {
+    client.close();
+    server.close();
+  }
+});
