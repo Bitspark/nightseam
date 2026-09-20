@@ -75,7 +75,7 @@ The input side: the tier files, the tool, and what comes out.
 | [generics.md](declaration/generics.md) | the holes in a declaration: parameters of two sorts at every level, `apply` and `with`, how each language instantiates them, the diagram that commutes |
 | [generator.md](declaration/generator.md) | the commands and their flags, which version rendered this, what the packages own, the specification |
 | [generated.md](declaration/generated.md) | what the generated packages export in each language: the protocol, binding and client packages in Go, the client and binding packages in TypeScript, the errors |
-| [proof-findings.md](declaration/proof-findings.md) | what the proof family established across the wire: the settled forms held in both languages, the generated roles each target renders and the skips that accounts for, and the limits of bounded example synthesis |
+| [proof-findings.md](declaration/proof-findings.md) | what the proof family established across the wire: the settled forms held in both languages, the generated roles each target renders and their scenario coverage, and the limits of bounded example synthesis |
 | [pipeline.md](declaration/pipeline.md) | how the generator renders and the packages it is made of — for whoever changes it |
 
 ## The languages — `languages/`
