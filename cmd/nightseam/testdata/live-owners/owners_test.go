@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	boxes "example.test/generated/api/go/boxes-protocol"
 	combinator "example.test/generated/api/go/combinator-protocol"
+	ownerclient "example.test/generated/api/go/owners-client"
 	owners "example.test/generated/api/go/owners-protocol"
 	worker "example.test/generated/api/go/worker-protocol"
 	"github.com/Bitspark/nightseam/duplex/go"
@@ -213,11 +215,102 @@ func TestGeneratedCallableOwnerReleaseIsABarrier(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal("released callback did not settle")
 			}
+			// Release reaches the other attachment through an asynchronous event.
+			// Observe that barrier before asserting its local refusal code.
+			zero(t, sa, sb)
 			_, err = invoke(ctx, 9)
 			refusal(t, err, live.ErrorReferenceReleased)
 			release(t, caller)
 			release(t, exporter)
 			zero(t, sa, sb)
 		})
+	}
+}
+
+func TestGeneratedOwnerSelectionIsConnectionLocal(t *testing.T) {
+	for _, path := range []string{"callable", "operation"} {
+		for _, selection := range []string{"foreign", "released-foreign", "local"} {
+			t.Run(path+"/"+selection, func(t *testing.T) {
+				sa, sb := pair(t, 4)
+				var invoke combinator.Factory
+				if path == "callable" {
+					raw, err := combinator.ExportFactory(sa.Owner(), func(_ context.Context, input combinator.Unary) (combinator.Unary, error) { return input, nil })
+					if err != nil {
+						t.Fatal(err)
+					}
+					invoke, err = combinator.ImportFactory(sb.Owner().Child(), raw)
+					if err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					// The fixture's server uses generated converters. The call under
+					// test uses the ordinary generated client and its owner selection.
+					serverOwner := sa.Owner().Child()
+					if err := sa.Peer().Handle("pack", func(_ context.Context, _ *runtime.Peer, raw json.RawMessage) (any, error) {
+						var value struct {
+							Item json.RawMessage `json:"item"`
+						}
+						if err := json.Unmarshal(raw, &value); err != nil {
+							return nil, err
+						}
+						input, err := combinator.ImportUnary(serverOwner, value.Item)
+						if err != nil {
+							return nil, err
+						}
+						run, err := combinator.ExportUnary(serverOwner, input)
+						if err != nil {
+							return nil, err
+						}
+						return map[string]any{"metadata": map[string]any{"seed": 7}, "run": run}, nil
+					}); err != nil {
+						t.Fatal(err)
+					}
+					client := &ownerclient.Client{Peer: sb.Peer()}
+					invoke = func(ctx context.Context, input combinator.Unary) (combinator.Unary, error) {
+						bundle, err := client.Pack(ctx, boxes.Box[combinator.Unary]{Item: input})
+						return bundle.Run, err
+					}
+				}
+				foreign := sa.Owner().Child()
+				supplied, selected := foreign, sb.Owner()
+				if selection == "released-foreign" {
+					release(t, foreign)
+				}
+				if selection == "local" {
+					selected = sb.Owner().Child()
+					supplied = selected
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				callback := combinator.Unary(func(_ context.Context, value combinator.Count) (combinator.Count, error) { return value + 2, nil })
+				returned, err := invoke(live.WithOwner(ctx, supplied), callback)
+				if err != nil {
+					t.Fatalf("connection-local owner selection: %v", err)
+				}
+				if got := selected.Counts(); got != (live.Counts{Exports: 1, Imports: 1}) {
+					t.Fatalf("request and result allocated outside selected owner: %+v", got)
+				}
+				if got := foreign.Counts(); got != (live.Counts{}) {
+					t.Fatalf("foreign owner acquired connection-local bindings: %+v", got)
+				}
+				if selection == "local" && sb.Owner().Counts() != (live.Counts{}) {
+					t.Fatalf("narrow override leaked allocations to root: %+v", sb.Owner().Counts())
+				}
+				if value, err := returned(ctx, 10); err != nil || value != 12 {
+					t.Fatalf("returned callback: %d %v", value, err)
+				}
+				release(t, selected)
+				if got := selected.Counts(); got != (live.Counts{}) {
+					t.Fatalf("released selection retained %+v", got)
+				}
+				_, err = returned(ctx, 10)
+				refusal(t, err, live.ErrorReferenceReleased)
+				_, err = invoke(live.WithOwner(ctx, selected), callback)
+				refusal(t, err, live.ErrorReferenceReleased)
+				release(t, sb.Owner())
+				release(t, sa.Owner())
+				zero(t, sa, sb)
+			})
+		}
 	}
 }
