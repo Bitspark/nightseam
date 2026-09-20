@@ -1,0 +1,29 @@
+# A manually requested report, not a required merge check or a board editor.
+name: issue plan
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit the active plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/issues.mjs check --json issue-plan.json > issue-plan.md
+      - name: Show the report
+        if: always()
+        run: cat issue-plan.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue-plan
+          path: |
+            issue-plan.md
+            issue-plan.json

@@ -1,5 +1,6 @@
 name: Design
 description: A question whose answer is the operator's to give, laid out for a verdict
+type: Task
 labels: [design]
 body:
   - type: markdown

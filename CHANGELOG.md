@@ -19,6 +19,10 @@ are one number. Entries are in the words of the commits that landed them.
   results and four registry counts, and distinguishes typed conversion from
   raw forwarding and independent binding release.
 
+- A read-only issue-plan audit reports inconsistent lane fields, Epic parents
+  and prerequisite links from GitHub or recorded fixtures, with a manual CI
+  report. Issue forms require the lane metadata and retain paired-runtime work.
+
 - The declaration proof lists the selected wire and native API commitments,
   their executable evidence and the limits of bounded example synthesis.
 - Generic data containers can carry live values when applied in the live tier.

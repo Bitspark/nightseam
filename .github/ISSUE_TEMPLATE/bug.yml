@@ -22,6 +22,7 @@ body:
         - duplex (the seam)
         - runtime (the peer of the profile)
         - tunnel (channels over one peer)
+        - live (callable bindings over one peer)
         - the generator (nightseam generate / check / validate / init)
         - the generated code
         - the documentation
@@ -54,6 +55,41 @@ body:
     attributes:
       label: Version
       description: The npm package version, the Go module version or tag, or the commit.
+    validations:
+      required: true
+  - type: textarea
+    id: surface
+    attributes:
+      label: Surface
+      description: The exported names the fix adds or changes, or "None".
+    validations:
+      required: true
+  - type: textarea
+    id: held-by
+    attributes:
+      label: Held by
+      description: The regression test that will hold the fix, named; write it before the change.
+    validations:
+      required: true
+  - type: input
+    id: provenance
+    attributes:
+      label: Provenance
+      description: The report, issue or decision this defect came from.
+    validations:
+      required: true
+  - type: input
+    id: waits
+    attributes:
+      label: Waits on
+      description: The prerequisite issues as "#N, #M", or "Nothing". Keep context in a separate paragraph outside this field.
+    validations:
+      required: true
+  - type: input
+    id: touches
+    attributes:
+      label: Touches
+      description: "The directories or files this fix edits, as backticked paths. The PR scope check reports departures without refusing them."
     validations:
       required: true
   - type: input
