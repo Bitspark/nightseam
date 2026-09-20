@@ -1,0 +1,10 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Box": {"kind": "record", "parameters": [{"name": "T"}], "fields": [{"name": "item", "type": "T"}]},
+    "Page": {"kind": "record", "open": true, "parameters": [{"name": "T"}], "fields": [{"name": "items", "type": {"array": "T"}}, {"name": "next", "type": {"nullable": "T"}, "required": false}]},
+    "Choice": {"kind": "union", "parameters": [{"name": "T"}], "tag": "kind", "variants": {"none": {"empty": true}, "some": "T"}},
+    "Result": {"kind": "union", "parameters": [{"name": "T"}], "extends": [{"apply": "Choice", "with": {"T": "T"}}], "tag": "kind", "variants": {"error": "string"}},
+    "Batch": {"kind": "alias", "parameters": [{"name": "T"}], "type": {"apply": "Page", "with": {"T": {"apply": "Result", "with": {"T": {"apply": "Box", "with": {"T": {"map": {"nullable": "T"}}}}}}}}}
+  }
+}

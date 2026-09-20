@@ -1,1 +1,1 @@
-{"profile": "nightseam.duplex/1", "server": {"methods": {"echo": {"request": "Payload", "result": "Payload"}}}}
+{"profile": "nightseam.duplex/1", "types": {"Held": {"kind": "record", "fields": [{"name": "page", "type": {"apply": "Page", "with": {"T": "Job"}}}]}}, "server": {"methods": {"echo": {"request": "Payload", "result": "Payload"}}}}

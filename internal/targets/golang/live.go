@@ -36,11 +36,8 @@ import (
 // error in the consumer's checkout.
 func (p *plan) planLive() {
 	f := p.family
-	if !f.Live {
-		return
-	}
 	for _, t := range f.Types {
-		if t.Carried || !t.IsLive {
+		if t.Carried || (!t.IsLive && len(t.Uses) == 0) {
 			continue
 		}
 		name := p.types[t.Name]
@@ -57,14 +54,12 @@ func (p *plan) planLive() {
 
 // emitLive renders the live tier's types and their boundary conversion.
 func (f *file) emitLive() {
-	if !f.family.Live {
-		return
-	}
 	for _, t := range f.family.Types {
-		if t.Carried || !t.IsLive {
+		if t.Carried || (!t.IsLive && len(t.Uses) == 0) {
 			continue
 		}
 		f.uses = t.Uses
+		f.codecs = t.Uses
 		switch t.Kind {
 		case model.KindCallable:
 			f.emitCallable(t)
@@ -72,6 +67,7 @@ func (f *file) emitLive() {
 			f.emitLiveConversion(t)
 		}
 	}
+	f.codecs = nil
 	f.uses = f.family.Uses
 }
 
@@ -183,19 +179,34 @@ func callArgument(t *render.Type) string {
 func (f *file) emitLiveConversion(t *render.Type) {
 	name := f.plan.types[t.Name]
 	json := f.std("json")
-	scope := f.live() + ".Scope"
 	self := name + apply(t.Uses)
+	scope := ""
+	if t.IsLive {
+		scope = "scope *" + f.live() + ".Scope, "
+	}
 	f.line("")
-	f.linef("// %s writes %s as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place.", f.plan.exports[t.Name], name)
-	f.w.Block(fmt.Sprintf("func %s%s(scope *%s, v %s) (%s.RawMessage, error) {", f.plan.exports[t.Name], declare(t.Uses), scope, self, json), "}", func() {
-		f.linef("if scope == nil { return nil, %s.Errorf(\"%s: a live value is exported into a scope\") }", f.std("fmt"), name)
+	if len(t.Uses) > 0 {
+		f.linef("// %s writes %s using the supplied conversion for each type argument.", f.plan.exports[t.Name], name)
+	} else {
+		f.linef("// %s writes %s as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place.", f.plan.exports[t.Name], name)
+	}
+	f.w.Block(fmt.Sprintf("func %s%s(%sv %s%s) (%s.RawMessage, error) {", f.plan.exports[t.Name], declare(t.Uses), scope, self, f.converterParameters(t, true), json), "}", func() {
+		if t.IsLive {
+			f.linef("if scope == nil { return nil, %s.Errorf(\"%s: a live value is exported into a scope\") }", f.std("fmt"), name)
+		}
 		f.liveBody(t, true)
 	})
 	f.line("")
-	f.linef("// %s reads %s as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.", f.plan.imports_[t.Name], name)
-	f.w.Block(fmt.Sprintf("func %s%s(scope *%s, raw %s.RawMessage) (%s, error) {", f.plan.imports_[t.Name], declare(t.Uses), scope, json, self), "}", func() {
+	if len(t.Uses) > 0 {
+		f.linef("// %s reads %s using the supplied conversion for each type argument.", f.plan.imports_[t.Name], name)
+	} else {
+		f.linef("// %s reads %s as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.", f.plan.imports_[t.Name], name)
+	}
+	f.w.Block(fmt.Sprintf("func %s%s(%sraw %s.RawMessage%s) (%s, error) {", f.plan.imports_[t.Name], declare(t.Uses), scope, json, f.converterParameters(t, false), self), "}", func() {
 		f.linef("var value %s", self)
-		f.linef("if scope == nil { return value, %s.Errorf(\"%s: a live value is imported into a scope\") }", f.std("fmt"), name)
+		if t.IsLive {
+			f.linef("if scope == nil { return value, %s.Errorf(\"%s: a live value is imported into a scope\") }", f.std("fmt"), name)
+		}
 		f.liveBody(t, false)
 	})
 }
@@ -210,7 +221,19 @@ func (f *file) liveBody(t *render.Type, export bool) {
 			for _, field := range t.Fields {
 				f.liveField(field, true)
 			}
-			f.linef("data, err := %s.MarshalObject(%s, wire)", f.runtime(), f.wireOrder(t))
+			if t.Open {
+				f.linef("declared := map[string]bool{}")
+				f.linef("for _, key := range %s { declared[key] = true }", f.wireOrder(t))
+				f.linef("for key, member := range v.%s {", identAdditionalFields)
+				f.linef("if declared[key] { return nil, %s.Errorf(\"additional field overlaps declared field %%s\", key) }", f.std("fmt"))
+				f.line("wire[key] = member")
+				f.line("}")
+			}
+			if t.Open {
+				f.linef("data, err := %s.MarshalJSON(wire)", f.runtime())
+			} else {
+				f.linef("data, err := %s.MarshalObject(%s, wire)", f.runtime(), f.wireOrder(t))
+			}
 			f.line("if err != nil { return nil, err }")
 			f.linef("if err := %s; err != nil { return nil, err }", f.validateType(t, "data"))
 			f.line("return data, nil")
@@ -221,6 +244,12 @@ func (f *file) liveBody(t *render.Type, export bool) {
 		f.linef("if err := %s.Unmarshal(raw, &wire); err != nil { return value, err }", json)
 		for _, field := range t.Fields {
 			f.liveField(field, false)
+		}
+		if t.Open {
+			for _, field := range t.Fields {
+				f.linef("delete(wire, %s)", quote(field.Name))
+			}
+			f.linef("value.%s = wire", identAdditionalFields)
 		}
 		f.line("return value, nil")
 	case model.KindAlias:
@@ -331,7 +360,12 @@ func (f *file) liveExpr(e model.TypeExpr, src, dst string, export bool, fail str
 		}
 		return fail + ", err"
 	}
-	if !f.family.IsLive(e) {
+	if codec := f.parameterConverter(e); codec != "" {
+		f.linef("%s, err := %s(%s)", dst, codec, src)
+		f.linef("if err != nil { return %s }", failure())
+		return
+	}
+	if !f.needsConversion(e) {
 		if export {
 			f.linef("%s, err := %s.MarshalJSON(%s)", dst, f.runtime(), src)
 			f.linef("if err != nil { return %s }", failure())
@@ -399,13 +433,8 @@ func (f *file) liveExpr(e model.TypeExpr, src, dst string, export bool, fail str
 		f.linef("%s = %s.NonNull(%sHeld)", dst, f.runtime(), dst)
 		f.line("}")
 	default:
-		call := f.liveCall(e, export)
-		if export {
-			f.linef("%s, err := %s(scope, %s)", dst, call, src)
-			f.linef("if err != nil { return %s }", failure())
-			return
-		}
-		f.linef("%s, err := %s(scope, %s)", dst, call, src)
+		call, arguments := f.conversionCall(e, src, dst, export)
+		f.linef("%s, err := %s(%s)", dst, call, arguments)
 		f.linef("if err != nil { return %s }", failure())
 	}
 }
@@ -418,6 +447,8 @@ func (f *file) liveCall(e model.TypeExpr, export bool) string {
 	case model.Named:
 		name = x.Name
 	case model.Imported:
+		family, name = x.Family, x.Name
+	case model.Apply:
 		family, name = x.Family, x.Name
 	case model.Inline:
 		t := f.family.InlineType(x)
@@ -499,7 +530,7 @@ func (f *file) liveUnion(t *render.Type, export bool) {
 			}
 			f.liveExpr(variant.Type, "wire["+quote(t.Value)+"]", "payload", false, "value")
 			if p.wrapped {
-				f.linef("value.%s = &%s{Value: payload}", p.field, p.wrapper+apply(t.Uses))
+				f.linef("value.%s = &%s{Value: payload}", p.field, p.typeName)
 				continue
 			}
 			f.linef("value.%s = &payload", p.field)

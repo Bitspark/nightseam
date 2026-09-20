@@ -30,12 +30,9 @@ import (
 // consumer's checkout.
 func (p *plan) planLive() {
 	f := p.family
-	if !f.Live {
-		return
-	}
 	p.exports, p.imports_, p.contracts = map[string]string{}, map[string]string{}, map[string]string{}
 	for _, t := range f.Types {
-		if t.Carried || !t.IsLive {
+		if t.Carried || (!t.IsLive && len(t.Uses) == 0) {
 			continue
 		}
 		name := p.types[t.Name]
@@ -56,10 +53,9 @@ func (p *plan) planLive() {
 // ordinary import of a sibling family is type-only, which is right for a type
 // and not enough for a function.
 func (f *file) liveImports() {
-	if !f.family.Live {
-		return
+	if f.family.Live {
+		f.linef("import { LiveScope } from %s;", quote(f.config.Live))
 	}
-	f.linef("import { LiveScope } from %s;", quote(f.config.Live))
 	f.liveSiblings()
 }
 
@@ -69,7 +65,14 @@ func (f *file) liveImports() {
 func (f *file) liveSiblings() {
 	for _, family := range f.plan.references() {
 		other := f.family.ReferencedFamily(family)
-		if other == nil || !other.Live {
+		if other == nil {
+			continue
+		}
+		needed := other.Live
+		for _, t := range other.Types {
+			needed = needed || len(t.Uses) > 0
+		}
+		if !needed {
 			continue
 		}
 		f.linef("import * as %s from %s;", liveAlias(family), quote(f.config.pkg(family)))
@@ -83,20 +86,19 @@ func liveAlias(family string) string { return "live_" + alias(family) }
 // emitLive renders the live tier's types and their boundary conversion into
 // types.ts, after the ordinary types it may refer to.
 func (f *file) emitLive() {
-	if !f.family.Live {
-		return
-	}
 	for _, t := range f.family.Types {
-		if t.Carried || !t.IsLive {
+		if t.Carried || (!t.IsLive && len(t.Uses) == 0) {
 			continue
 		}
 		f.scope = t.Scope
+		f.codecs = t.Uses
 		if t.Kind == model.KindCallable {
 			f.emitCallable(t)
 			continue
 		}
 		f.emitLiveConversion(t)
 	}
+	f.codecs = nil
 }
 
 // emitCallable renders one callable: the function type a consumer writes and
@@ -194,12 +196,24 @@ func (f *file) emitLiveConversion(t *render.Type) {
 	p := f.plan
 	name := p.types[t.Name]
 	self := name + apply(t.Uses)
-	f.linef("/** Writes %s as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */", name)
-	f.w.Block(fmt.Sprintf("export function %s%s(scope: LiveScope, value: %s): unknown {", p.exports[t.Name], f.declare(t.Uses), self), "}", func() {
+	scope := ""
+	if t.IsLive {
+		scope = "scope: LiveScope, "
+	}
+	if len(t.Uses) > 0 {
+		f.linef("/** Writes %s using the supplied conversion for each type argument. */", name)
+	} else {
+		f.linef("/** Writes %s as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */", name)
+	}
+	f.w.Block(fmt.Sprintf("export function %s%s(%svalue: %s%s): unknown {", p.exports[t.Name], f.declare(t.Uses), scope, self, f.converterParameters(t, true)), "}", func() {
 		f.liveBody(t, true)
 	})
-	f.linef("/** Reads %s as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */", name)
-	f.w.Block(fmt.Sprintf("export function %s%s(scope: LiveScope, raw: unknown): %s {", p.imports_[t.Name], f.declare(t.Uses), self), "}", func() {
+	if len(t.Uses) > 0 {
+		f.linef("/** Reads %s using the supplied conversion for each type argument. */", name)
+	} else {
+		f.linef("/** Reads %s as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */", name)
+	}
+	f.w.Block(fmt.Sprintf("export function %s%s(%sraw: unknown%s): %s {", p.imports_[t.Name], f.declare(t.Uses), scope, f.converterParameters(t, false), self), "}", func() {
 		f.liveBody(t, false)
 	})
 }
@@ -208,7 +222,11 @@ func (f *file) liveBody(t *render.Type, export bool) {
 	switch t.Kind {
 	case model.KindRecord, model.KindEntity:
 		if export {
-			f.line("const out: Record<string, unknown> = {};")
+			if t.Open {
+				f.line("const out: Record<string, unknown> = { ...value };")
+			} else {
+				f.line("const out: Record<string, unknown> = {};")
+			}
 			for _, field := range t.Fields {
 				f.liveField(field, true)
 			}
@@ -216,7 +234,11 @@ func (f *file) liveBody(t *render.Type, export bool) {
 			return
 		}
 		f.line("const wire = raw as Record<string, unknown>;")
-		f.linef("const out: Record<string, unknown> = {};")
+		if t.Open {
+			f.line("const out: Record<string, unknown> = { ...wire };")
+		} else {
+			f.line("const out: Record<string, unknown> = {};")
+		}
 		for _, field := range t.Fields {
 			f.liveField(field, false)
 		}
@@ -262,7 +284,13 @@ func (f *file) liveField(field render.Field, export bool) {
 // it is already the value the wire wants, and copying it would only risk
 // changing it.
 func (f *file) liveExpr(e model.TypeExpr, src string, export bool) string {
-	if !f.family.IsLive(e) {
+	if codec := f.parameterConverter(e); codec != "" {
+		if export {
+			src = "(" + src + ") as " + f.spell(e)
+		}
+		return codec + "(" + src + ")"
+	}
+	if !f.needsConversion(e) {
 		return src
 	}
 	switch x := e.(type) {
@@ -273,12 +301,7 @@ func (f *file) liveExpr(e model.TypeExpr, src string, export bool) string {
 	case model.Nullable:
 		return "(" + src + " === null ? null : " + f.liveExpr(x.Elem, src, export) + ")"
 	default:
-		if export {
-			// The source of an export is reached through an unknown-typed
-			// member; the declared type is what the conversion takes.
-			return f.liveCall(e, export) + "(scope, " + src + " as " + f.spell(e) + ")"
-		}
-		return f.liveCall(e, export) + "(scope, " + src + ")"
+		return f.conversionCall(e, src, export)
 	}
 }
 
@@ -290,6 +313,8 @@ func (f *file) liveCall(e model.TypeExpr, export bool) string {
 	case model.Named:
 		name = x.Name
 	case model.Imported:
+		family, name = x.Family, x.Name
+	case model.Apply:
 		family, name = x.Family, x.Name
 	case model.Inline:
 		t := f.family.InlineType(x)

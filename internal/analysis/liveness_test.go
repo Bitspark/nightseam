@@ -99,9 +99,8 @@ func TestAnEntityKeyIsNotALiveBinding(t *testing.T) {
 
 // TestLivenessIsDecidedUnderAnApplicationsBindings: a type parameter is live
 // exactly when what fills it is, so one declaration of Page yields a live
-// Page<Job> and a data Page<Percent>. The checker refuses a live application
-// for want of a boundary conversion, but the fixed point is what lets it see
-// one, so the two cases are held here.
+// Page<Job> and a data Page<Percent>. The same analysis selects the boundary
+// conversion and enforces the declaration's tier, so both cases are held here.
 func TestLivenessIsDecidedUnderAnApplicationsBindings(t *testing.T) {
 	f := Resolve(liveWorld(t), "worker")
 	live := model.Apply{Name: "Page", With: map[string]model.Filler{"T": {Type: model.Named{Name: "Job"}}}}

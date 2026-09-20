@@ -20,6 +20,7 @@ type file struct {
 	w      *emit.Writer
 	prefix string
 	scope  []model.Parameter
+	codecs []render.Use
 	// conversion is the namespace a live type's generated export/import is
 	// called through: none in types.ts, which declares them, and the
 	// re-exported module in index.ts, which only calls them.

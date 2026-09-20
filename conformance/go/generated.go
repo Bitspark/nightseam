@@ -41,7 +41,7 @@ func renderTestees(checkout, dir string) error {
 	// The corpus has the probe and the worker; the proof and the combinator
 	// are declared among the families, and are lifted in beside them.
 	families := k.Load(os.DirFS(filepath.Join(checkout, "cmd", "nightseam", "testdata", "families")), "api/contracts")
-	for _, name := range []string{"proof", "combinator"} {
+	for _, name := range []string{"proof", "boxes", "combinator"} {
 		if families.Families[name] == nil {
 			return fmt.Errorf("render the testees: no %s family among the families", name)
 		}
@@ -52,7 +52,7 @@ func renderTestees(checkout, dir string) error {
 	if world.Families["worker"] == nil {
 		return fmt.Errorf("render the testees: the corpus has no worker family")
 	}
-	for _, name := range []string{"probe", "proof", "worker", "combinator"} {
+	for _, name := range []string{"probe", "proof", "worker", "boxes", "combinator"} {
 		result, err := k.Render(world, name)
 		if err != nil {
 			return fmt.Errorf("render the testees: %w", err)

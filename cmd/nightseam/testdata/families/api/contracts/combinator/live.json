@@ -1,5 +1,7 @@
 {
+  "imports": ["boxes"],
   "types": {
+    "Bundle": {"kind": "record", "parameters": [{"name": "T"}], "fields": [{"name": "metadata", "type": {"kind": "record", "fields": [{"name": "seed", "type": "T"}]}}, {"name": "run", "type": "Unary"}]},
     "Unary": {"kind": "callable", "description": "A function of one number.", "request": "Count", "result": "Count"},
     "Factory": {"kind": "callable", "description": "Higher order both ways: it takes a callable and answers one.", "request": "Unary", "result": "Unary"},
     "Producer": {"kind": "callable", "description": "Higher order in the result alone.", "result": "Unary"},
@@ -16,7 +18,8 @@
   },
   "server": {
     "methods": {
-      "toolkit": {"description": "Answers callables that take and answer callables.", "request": {"kind": "record", "fields": [{"name": "seed", "type": "Count"}]}, "result": "Toolkit", "errors": ["refused"]}
+      "toolkit": {"description": "Answers callables that take and answer callables.", "request": {"kind": "record", "fields": [{"name": "seed", "type": "Count"}]}, "result": "Toolkit", "errors": ["refused"]},
+      "pack": {"description": "Supplies a callable in an imported generic record and returns it through nested generic containers and a live generic record.", "request": {"apply": "boxes.Box", "with": {"T": "Unary"}}, "result": {"apply": "boxes.Batch", "with": {"T": {"apply": "Bundle", "with": {"T": "Count"}}}}}
     }
   }
 }

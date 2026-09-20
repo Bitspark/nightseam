@@ -22,6 +22,7 @@ type file struct {
 	imports *emit.Imports
 	prefix  string
 	uses    []render.Use // lexical type parameters of the declaration being emitted
+	codecs  []render.Use // parameters supplied with boundary converters
 }
 
 func (f *file) line(text string)                 { f.w.Line(text) }
