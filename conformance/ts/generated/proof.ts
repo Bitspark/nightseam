@@ -1,6 +1,8 @@
 import * as proof from './api/ts/proof-client/src/index.ts';
+import * as binding from './api/ts/proof-binding/src/index.ts';
 import * as probe from './api/ts/probe-client/src/index.ts';
 import { validateUnicodeJSON, type TypeExpression } from '@nightseam/runtime';
+import { Served } from './server.ts';
 
 type Args = Record<string, unknown>;
 type Client = proof.Client<probe.Family, string>;
@@ -23,8 +25,14 @@ class Dialled {
   }
 }
 const handles = new Map<string, Dialled>();
+const servers = new Map<string, Served<binding.Remote<probe.Family, string>>>();
 let next = 0;
-export function resetProof(): void { for (const d of handles.values()) d.client.close(); handles.clear(); }
+export function resetProof(): void {
+  for (const d of handles.values()) d.client.close();
+  for (const s of servers.values()) s.shutdown();
+  handles.clear();
+  servers.clear();
+}
 function lookup(args: Args): Dialled {
   const d = handles.get(String(args.on));
   if (!d) throw new ProofFailure('unknown_handle', String(args.on));
@@ -46,8 +54,41 @@ function eventKind(value: proof.RichPart): string {
     case 'table': { const table: proof.RichPartTable = value.value; return Array.isArray(table.rows) ? 'table' : 'invalid'; }
   }
 }
+function classify(value: proof.Part): string {
+  switch (value.type) {
+    case 'text': return 'text:' + value.value.body;
+    case 'image': return 'image:' + value.value.url;
+    case 'count': return 'count:' + String(value.value);
+  }
+}
+const handler: binding.Handler<probe.Family, string> = {
+  echo: params => params,
+  noArgs: () => 'proof',
+  seen: () => [],
+  classify,
+  classifyRich: params => params.type === 'table' ? 'table:' + String(params.value.rows.length) : classify(params),
+  parts: () => ({ kind: 'ok', value: { items: [
+    { type: 'text', value: { type: 'text', body: 'hello 😀 �' } },
+    { type: 'count', value: 7 },
+    { type: 'image', value: { url: 'https://example.org/image', alt: null } },
+  ] } }),
+  relay: params => ({ kind: 'some', value: params.message }),
+};
 export const proofOps: Record<string, (args: Args) => unknown | Promise<unknown>> = {
-  'gen.proof_serve': () => { throw new ProofFailure('unsupported', 'TypeScript renders a client and no binding'); },
+  'gen.proof_serve': async () => {
+    const s = await new Served(socket => binding.serve<probe.Family, string>(socket, probe.family, slots.Item, {}, handler, {}).then(peer => new binding.Remote<probe.Family, string>(peer, probe.family, slots.Item))).listen();
+    const handle = `proofsrv${++next}`;
+    servers.set(handle, s);
+    return { handle, url: s.url };
+  },
+  'server.proof_emit': async args => {
+    const s = servers.get(String(args.on));
+    if (!s) throw new ProofFailure('unknown_handle', String(args.on));
+    const remote = await s.remote(typeof args.within_ms === 'number' ? args.within_ms : 5000);
+    if (!remote) throw new ProofFailure('timeout', 'no proof client');
+    await remote.emitPartAdded(args.data as proof.RichPart);
+    return {};
+  },
   'gen.proof_dial': async args => {
     const d = new Dialled();
     d.client = await proof.Client.dial<probe.Family,string>(String(args.url), probe.family, slots.Item, {}, undefined, {partAdded:data=>d.receive(data)});

@@ -9,12 +9,12 @@
  * generated code compiled long before it worked, which is why this is driven
  * rather than only built.
  *
- * TypeScript renders a client and no binding, so serving is unsupported here
- * and the runs that matter are the ones with a Go binding on the other side:
- * this peer's functions are handed to it and invoked there, and the ones it
- * answers are invoked here.
+ * The generated client and binding each hand this peer's functions to the
+ * other and invoke the functions it answers.
  */
 import * as combinator from './api/ts/combinator-client/src/index.ts';
+import * as binding from './api/ts/combinator-binding/src/index.ts';
+import { Served } from './server.ts';
 
 type Args = Record<string, unknown>;
 
@@ -53,11 +53,36 @@ class CombinatorDialled {
 }
 
 const handles = new Map<string, CombinatorDialled>();
+/** Ordinary functions and containers implementing the declaration's server. */
+export class CombinatorServer implements binding.Handler {
+  readonly applied: number[] = [];
+  name(): string { return 'combinator'; }
+  pack: binding.Handler['pack'] = params => ({
+    label: 'retained',
+    items: [
+      { kind: 'none' },
+      { kind: 'some', value: { item: {
+        call: { metadata: { seed: 7 }, run: async (value: number, options?: { signal?: AbortSignal }) => params.item(await params.item(value, options), options) },
+        empty: null,
+      } } },
+    ],
+  });
+  toolkit(params: combinator.ToolkitRequest): combinator.Toolkit {
+    return {
+      twice: async once => async (value, options) => once(await once(value, options), options),
+      identity: async () => async value => value,
+      apply: async (each, options) => { this.applied.push(await each(params.seed, options)); },
+    };
+  }
+}
+const servers = new Map<string, { served: Served<binding.Remote>; server: CombinatorServer }>();
 let next = 0;
 
 export function resetCombinator(): void {
   for (const d of handles.values()) d.shutdown();
+  for (const s of servers.values()) s.served.shutdown();
   handles.clear();
+  servers.clear();
 }
 
 function lookup(args: Args): CombinatorDialled {
@@ -65,10 +90,6 @@ function lookup(args: Args): CombinatorDialled {
   if (!d) throw new CombinatorFailure('unknown_handle', String(args.on));
   return d;
 }
-
-const unsupported = () => {
-  throw new CombinatorFailure('unsupported', 'TypeScript renders a client and no binding');
-};
 
 export const combinatorOps: Record<string, (args: Args) => unknown | Promise<unknown>> = {
   'client.combinator_pack': async (args: Args) => {
@@ -79,8 +100,18 @@ export const combinatorOps: Record<string, (args: Args) => unknown | Promise<unk
     const members = some.value.item;
     return { value: await members.call!.run(Number(args.with)), seed: members.call!.metadata.seed, none: batch.items[0]?.kind === 'none', null: members.empty === null, absent: !Object.hasOwn(batch, 'next'), extra: batch.label === 'retained' };
   },
-  'gen.combinator_serve': unsupported,
-  'gen.combinator_seen': unsupported,
+  'gen.combinator_serve': async () => {
+    const server = new CombinatorServer();
+    const served = await new Served(socket => binding.serve(socket, {}, server, {}).then(peer => new binding.Remote(peer))).listen();
+    const handle = 'combsrv' + String(++next);
+    servers.set(handle, { served, server });
+    return { handle, url: served.url };
+  },
+  'gen.combinator_seen': args => {
+    const s = servers.get(String(args.on));
+    if (!s) throw new CombinatorFailure('unknown_handle', String(args.on));
+    return { applied: [...s.server.applied] };
+  },
   'gen.combinator_dial': async (args: Args) => {
     const d = new CombinatorDialled();
     d.client = await combinator.Client.dial(String(args.url), {}, undefined, {});

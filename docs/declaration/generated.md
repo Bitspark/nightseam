@@ -3,8 +3,8 @@
 What comes out of the generator for a family, in each language: the names a
 consumer writes against. This page is drawn from the probe family of the
 generator's own corpus, whose exported Go surface is held file for file
-under `cmd/nightseam/testdata/surface` and whose TypeScript client is a
-golden under `cmd/nightseam/testdata/golden`; a family of your own renders
+under `cmd/nightseam/testdata/surface` and whose TypeScript packages are held
+as goldens under `cmd/nightseam/testdata/golden`; a family of your own renders
 the same shapes under its own names. [A family in tiers](families.md) is
 the input, [the generator](generator.md) the tool, and the specification
 beside them, `api/spec/<f>/README.md`, is the family's own reference.
@@ -115,9 +115,6 @@ func (*Client) OnChanged(handler func(context.Context, protocol.Payload)) error
 func (*Client) Close() error
 type Caller interface{ Echo(…); NoArgs(…); Seen(…) }
 type Handler interface{ Reverse(ctx context.Context, client *Client, params protocol.Payload) (protocol.Payload, error) }
-func Decides(method string) bool
-func Asks(method string) bool
-var Conversation = struct{ Event, Path string }{…}
 ```
 
 The mirror image: `Client` calls the server's methods, emits the client's
@@ -132,23 +129,25 @@ families install events before running the caller's `Prepare`. An empty
 `Events{}` handles none.
 `OnX` is for later registration; it cannot recover already delivered events.
 
-## TypeScript: one package
+## TypeScript: client and binding packages
 
-`api/ts/<f>-client`, an npm package under the consumer's scope, with
-`types.ts` and `index.ts` and a `package.json` depending on
-`@nightseam/runtime` and `@nightseam/tunnel`.
+`api/ts/<f>-client` and `api/ts/<f>-binding` are npm packages under the
+consumer's scope. The client contains shared types, validators and live
+conversion helpers in `src/types.ts`, exported as `@scope/<f>-client/types`.
+Both package entry points re-export those declarations; the binding imports
+that subpath so it shares the protocol without importing the client class.
 
-The TypeScript target emits no server-binding package. Its `Handler`
-implements operations declared on the **client** side, called by the server;
-it is not the counterpart of Go's binding `Handler`. The runtime can serve
-requests and export callables in either peer role, but those capabilities
-do not supply generated server bindings. See the
-[generated-role evidence](proof-findings.md#generated-roles-and-skips) for
-the roles the conformance suite executes and skips.
+The client depends on `@nightseam/runtime` and `@nightseam/tunnel`; the
+binding depends on the runtime and its sibling client package. Each also
+declares the generated families it references and `@nightseam/live` when
+it carries live values. Neither generated package provides a socket listener.
 
 A family with only a model tier emits its types, validator and family
-binding in the same package layout. It depends on the runtime alone and
-declares no client or protocol helpers.
+binding in the client package layout, with no server-binding package. Of
+the runtime components it needs only the runtime, and it declares no client
+or protocol helpers.
+
+### Shared protocol declarations
 
 `types.ts` is one interface or type per declared type — a field not
 `required` is optional, one `nullable` is `T | null`, an `open` record has
@@ -182,7 +181,9 @@ follow the source family's overrides; associated-type keys retain their
 declaration names. Extended sides retain their source operation names and
 validate their fixed or forwarded parameter bindings on calls and events.
 
-`nightseam init` writes a handler whose method types come from its `Handler`
+### The client package
+
+`nightseam init` writes a client handler whose method types come from its `Handler`
 annotation. For a generic family, choose concrete arguments on that annotation
 when implementing the handler; the initial stub uses the interface's defaults.
 
@@ -192,9 +193,6 @@ when implementing the handler; the initial stub uses the interface's defaults.
 export interface Events { changed?: (data: Payload, context: EventContext) => void | Promise<void> }
 export interface Handler { reverse(params: Payload, context: RequestContext): Payload | Promise<Payload> }
 export interface Caller { echo(params: Payload, options?: CallOptions): Promise<Payload>; noArgs(options?: CallOptions): Promise<string>; … }
-export const decides: ReadonlySet<string>;
-export const asks: ReadonlySet<string>;
-export const conversation: { event: "changed"; path: "text" };
 export const errors: { denied: "denied"; notFound: "not_found" };
 export type ErrorCode = (typeof errors)[keyof typeof errors];
 export class Client implements Caller {
@@ -214,6 +212,88 @@ params and result, a reverse call's, an event's data — and installs the
 `Handler` and `Events` before the peer has a connection, so the server's first reverse call or event meets them. Pass `{}` for no event handlers;
 use `onX` for later registration, before the event-producing flow begins. The `families` option is filled in for the observer, so a
 frame event names the family.
+
+### The binding package
+
+The binding's `Handler` implements the declared server methods, while its
+`Remote` calls the client's methods and exchanges typed events:
+
+```ts
+export interface Handler {
+  echo(params: Payload, remote: Remote, context: RequestContext): Payload | Promise<Payload>;
+  noArgs(params: Record<string, never>, remote: Remote, context: RequestContext): string | Promise<string>;
+  seen(params: Seen, remote: Remote, context: RequestContext): Payloads | Promise<Payloads>;
+}
+export interface Events {
+  noticed?: (data: Seen, context: EventContext) => void | Promise<void>;
+}
+export class Remote {
+  constructor(peer: DuplexPeer);
+  readonly peer: DuplexPeer;
+  reverse(params: Payload, options?: CallOptions): Promise<Payload>;
+  emitChanged(data: Payload, options?: EmitOptions): Promise<void>;
+  onNoticed(handler: (data: Seen, context: EventContext) => void | Promise<void>): () => void;
+  close(): void;
+}
+export function serve(
+  connection: FrameConnection | WebSocketLike,
+  options: PeerOptions,
+  handler: Handler,
+  events?: Events,
+): Promise<DuplexPeer>;
+export function install(peer: DuplexPeer, handler: Handler, events?: Events): Remote;
+```
+
+The host accepts the connection, including any authentication, origin checks
+and HTTP upgrade, then calls `serve` for it. For example, with an accepted
+`connection` and imports from the generated binding:
+
+```ts
+const peer = await serve(connection, {}, {
+  echo: (params, remote, context) => remote.reverse(params, { signal: context.signal }),
+  noArgs: () => 'none',
+  seen: () => [],
+}, {
+  noticed: data => console.log('noticed', data),
+});
+const remote = new Remote(peer);
+await remote.emitChanged({ text: 'ready', count: 0 });
+```
+
+`serve` fixes the peer's role to `server`, preserves the other peer options
+including a fallback `dispatch`, and supplies the family's observer labels.
+It checks required handlers, registers methods and supplied event listeners,
+and installs the live layer when needed before attaching the connection.
+Params and results pass through the same validators and boundary converters
+as the client. Invalid request params become `invalid_params`; invalid event
+data closes the peer. The returned peer is the host's to close; a `Remote`
+constructed from it exposes the typed server surface outside a handler.
+Later `onX` registration cannot recover events already delivered, so use the
+`events` argument for listeners that must see the first frame.
+
+Use `install` when the host configures the peer before attaching, such as
+setting live registry bounds. With the live family's `handler` and `events`,
+and `install` imported from its binding package:
+
+```ts
+const peer = new DuplexPeer({ ...options, role: 'server' });
+liveOver(peer, { maxExports: 64, maxImports: 64 });
+const remote = install(peer, handler, events);
+await peer.attach(connection);
+```
+
+`install` registers the same typed handlers and event listeners and returns
+their `Remote`. For a live family it preserves an existing scope and its
+bounds, creating a default scope only when none exists. It leaves the peer's
+role, observer family labels and other options with the host. Call it before
+attaching so the first frame reaches the installed handlers. `serve`
+constructs the server peer, calls `install`, then attaches the connection.
+
+A generic binding takes the same explicit family and type bindings as its
+client, before `options` in `serve` and after `peer` in `install` and
+`new Remote`.
+See the [generated-role evidence](proof-findings.md#generated-roles-and-skips)
+for the real-socket coverage of both languages' client and binding packages.
 
 ## Live values
 
@@ -263,8 +343,9 @@ export function importJob(owner: LiveOwner, raw: unknown): Job;
 Export walks the value, makes a binding of each local function and writes the
 reference that names it in its place; import validates, attaches, and replaces
 each reference with a typed proxy. The generated client and binding call these
-for an operation that carries callables, and install the scope over the peer in
-`Prepare`, before it reads — as a tunnel is made.
+for an operation that carries callables, and install the scope before the peer
+reads: through `Prepare` in Go, and client construction or binding `install`
+in TypeScript.
 
 Choose a lifetime with `scope.Owner().Child()` or `scope.owner().child()`.
 For a generated operation or callable invocation, Go selects it through

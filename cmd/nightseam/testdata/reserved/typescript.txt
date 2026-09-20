@@ -1,4 +1,7 @@
 Client
+Remote
+serve
+install
 Caller
 Handler
 Events
@@ -16,9 +19,16 @@ DuplexPeer
 DuplexError
 PeerOptions
 CallOptions
+EmitOptions
 RequestContext
+EventContext
 FrameConnection
+WebSocketLike
 Tunnel
+LiveOwner
+liveOver
+scopeOf
+conversion
 createValidator
 TypeExpression
 WireFamily

@@ -54,7 +54,7 @@ func TestLanguageCallsCompile(t *testing.T) {
 							source = goDocumentCalls(t, source, "remote", "Remote", calls)
 						case strings.HasSuffix(file.Path, "client_generated.go"):
 							source = goDocumentCalls(t, source, "client", "Client", calls)
-						case strings.HasSuffix(file.Path, "src/index.ts") && f.HasProtocol():
+						case strings.HasSuffix(file.Path, "src/index.ts") && f.HasProtocol() && strings.Contains(source, "export class Client"):
 							source = tsDocumentCalls(t, source, f, calls)
 						default:
 							continue
@@ -65,10 +65,9 @@ func TestLanguageCallsCompile(t *testing.T) {
 			}
 			fixtureModule(t, directory, root)
 			runFixture(t, directory, "go", "vet", "./...")
-			paths := map[string][]string{scope + "/*": {"./api/ts/*/src/index.ts"}}
+			paths := fixtureTypeScriptPaths(t, directory)
 			for _, component := range []string{"runtime", "duplex", "tunnel", "live"} {
 				copyFixtureTree(t, filepath.Join(root, component, "ts"), filepath.Join(directory, component, "ts"))
-				paths["@nightseam/"+component] = []string{"./" + component + "/ts/src/index.ts"}
 			}
 			config, err := json.Marshal(map[string]any{
 				"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": paths},

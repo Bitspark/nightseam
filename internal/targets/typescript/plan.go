@@ -16,6 +16,9 @@ import (
 // these constants and nothing else of their own.
 const (
 	identClient        = "Client"
+	identRemote        = "Remote"
+	identServe         = "serve"
+	identInstall       = "install"
 	identCaller        = "Caller"
 	identHandler       = "Handler"
 	identEvents        = "Events"
@@ -41,7 +44,7 @@ const (
 // imported are the names the generated module imports from the runtime
 // and the tunnel; globals are the ones of the language it uses. A type of
 // either name would shadow them.
-var imported = []string{"DuplexPeer", "DuplexError", "PeerOptions", "CallOptions", "RequestContext", "FrameConnection", "Tunnel", "createValidator", "TypeExpression", "WireFamily"}
+var imported = []string{"DuplexPeer", "DuplexError", "PeerOptions", "CallOptions", "EmitOptions", "RequestContext", "EventContext", "FrameConnection", "WebSocketLike", "Tunnel", "LiveOwner", "liveOver", "scopeOf", "conversion", "createValidator", "TypeExpression", "WireFamily"}
 var globals = []string{"Array", "Record", "Promise", "Set", "Error", "String"}
 
 // An omitted Events field must be absent on an ordinary {}. Inherited
@@ -56,7 +59,7 @@ var eventObjectMembers = []string{
 // Reserved is every identifier the generated module declares of itself,
 // imports, or uses of the language.
 func Reserved() []string {
-	names := []string{identClient, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identProtocol}
+	names := []string{identClient, identRemote, identServe, identInstall, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identProtocol}
 	names = append(names, imported...)
 	names = append(names, globals...)
 	names = append(names, identPeer, identSlotsField, identClose, identConstructor, identThen)
@@ -76,6 +79,7 @@ type plan struct {
 	family     *render.Family
 	module     *emit.Namespace // what the module declares and imports
 	client     *emit.Namespace // members of Client
+	remote     *emit.Namespace // members of Remote
 	types      map[string]string
 	operations map[string]string // method or event name → member
 	errors     map[string]string // code → member of errors, quoted when not an identifier
@@ -86,8 +90,8 @@ type plan struct {
 }
 
 func newPlan(f *render.Family) (*plan, []diag.Diagnostic) {
-	p := &plan{family: f, module: emit.NewNamespace("module"), client: emit.NewNamespace("client"), types: map[string]string{}, operations: map[string]string{}, errors: map[string]string{}, List: diag.List{Family: f.Name}}
-	p.module.Fix("generated declaration", identClient, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identProtocol)
+	p := &plan{family: f, module: emit.NewNamespace("module"), client: emit.NewNamespace("client"), remote: emit.NewNamespace("remote"), types: map[string]string{}, operations: map[string]string{}, errors: map[string]string{}, List: diag.List{Family: f.Name}}
+	p.module.Fix("generated declaration", identClient, identRemote, identServe, identInstall, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identProtocol)
 	p.module.Fix("generated import", imported...)
 	p.module.Fix("generated use of a global", globals...)
 	p.client.Fix("generated client field", identPeer, identSlotsField)
@@ -96,6 +100,9 @@ func newPlan(f *render.Family) (*plan, []diag.Diagnostic) {
 	// breaking the async dial factory through JavaScript's thenable
 	// assimilation.
 	p.client.Fix("generated client's promise", identThen)
+	p.remote.Fix("generated remote field", identPeer, identSlotsField)
+	p.remote.Fix("generated remote method", identClose, identConstructor)
+	p.remote.Fix("generated remote's promise", identThen)
 	p.plan()
 	diag.Sort(p.Diagnostics)
 	return p, p.Diagnostics
@@ -158,6 +165,7 @@ func (p *plan) plan() {
 			p.Addf(parameter.At.Sub("name"), "generated_name_collision", "Generated parameter binding %s collides with the %s.", binding, what)
 		} else {
 			p.client.Fix("binding of parameter "+parameter.Name, binding)
+			p.remote.Fix("binding of parameter "+parameter.Name, binding)
 		}
 	}
 	p.planLive()
@@ -189,18 +197,24 @@ func (p *plan) plan() {
 		p.declare(p.client, member, at, "method")
 	}
 	for _, m := range f.Client.Methods {
-		operation(m.Name, m.At, m.Origin, "Method name")
+		member, at := operation(m.Name, m.At, m.Origin, "Method name")
+		p.declare(p.remote, member, at, "reverse method")
 	}
 	events := emit.NewNamespace("Events interface")
 	events.Fix("generated event object's inherited member", eventObjectMembers...)
+	remoteEvents := emit.NewNamespace("binding Events interface")
+	remoteEvents.Fix("generated event object's inherited member", eventObjectMembers...)
 	for _, e := range f.Server.Events {
 		member, at := operation(e.Name, e.At, e.Origin, "Event name")
 		p.declare(events, member, at, "typed event field")
 		p.declare(p.client, identOn+upperFirst(member), at, "event handler")
+		p.declare(p.remote, identEmit+upperFirst(member), at, "event emitter")
 	}
 	for _, e := range f.Client.Events {
 		member, at := operation(e.Name, e.At, e.Origin, "Event name")
 		p.declare(p.client, identEmit+upperFirst(member), at, "event emitter")
+		p.declare(remoteEvents, member, at, "typed event field")
+		p.declare(p.remote, identOn+upperFirst(member), at, "event handler")
 	}
 }
 

@@ -1,6 +1,8 @@
 /** Generated native values with explicit caller and handler lifetimes. */
 import * as owners from './api/ts/owners-client/src/index.ts';
 import * as worker from './api/ts/worker-client/src/index.ts';
+import * as binding from './api/ts/owners-binding/src/index.ts';
+import { Served } from './server.ts';
 import { DuplexPeer, DuplexError } from '@nightseam/runtime';
 import { liveOver, type LiveScope, type LiveOwner } from '@nightseam/live';
 
@@ -11,6 +13,28 @@ export class OwnerFailure extends Error {
 }
 interface Dialled { client: owners.Client; scope: LiveScope; owner?: LiveOwner; job?: worker.Job; reports: number }
 const handles = new Map<string, Dialled>();
+class OwnersServer implements binding.Handler {
+  scope!: LiveScope;
+  readonly held: LiveOwner[] = [];
+  create: binding.Handler['create'] = async (params, _remote, context) => {
+    if (!context.owner || context.owner.scope !== this.scope || context.owner === this.scope.owner()) throw new OwnerFailure('invalid', 'handler received no per-invocation child owner');
+    this.held.push(context.owner);
+    await params.progress.report(50, { signal: context.signal, owner: context.owner });
+    return { items: [{ ticket: params.ticket.id, cancel: async () => {}, rename: async ticket => ticket }] };
+  };
+  pack: binding.Handler['pack'] = (params, _remote, context) => {
+    if (!context.owner || context.owner.scope !== this.scope || context.owner === this.scope.owner()) throw new OwnerFailure('invalid', 'handler received no per-invocation child owner');
+    this.held.push(context.owner);
+    return { metadata: { seed: 7 }, run: async n => params.item(await params.item(n)) };
+  };
+  drop(): boolean { for (const owner of this.held.splice(0)) owner.release(); return true; }
+  references(): unknown {
+    const owner = this.scope.owner().child();
+    this.held.push(owner);
+    return Array.from({ length: 3 }, () => worker.exportReport(owner, async () => {}));
+  }
+}
+const servers = new Map<string, { served: Served<binding.Remote>; server: OwnersServer }>();
 let next = 0;
 const within = (args: Args) => Number(args.within_ms ?? 5000);
 const lookup = (args: Args): Dialled => {
@@ -18,7 +42,7 @@ const lookup = (args: Args): Dialled => {
   if (!d) throw new OwnerFailure('unknown_handle', String(args.on));
   return d;
 };
-export function resetOwners(): void { for (const d of handles.values()) d.client.close(); handles.clear(); }
+export function resetOwners(): void { for (const d of handles.values()) d.client.close(); for (const s of servers.values()) s.served.shutdown(); handles.clear(); servers.clear(); }
 async function zero(scope: LiveScope, timeout: number): Promise<void> {
   const deadline = Date.now() + timeout;
   while (scope.counts().exports !== 0 || scope.counts().imports !== 0) {
@@ -32,8 +56,26 @@ function code(error: unknown): string {
 }
 
 export const ownersOps: Record<string, (args: Args) => unknown | Promise<unknown>> = {
-  'gen.owners_serve': () => { throw new OwnerFailure('unsupported', 'TypeScript binding supplied by the server-binding lane'); },
-  'gen.owners_counts': () => { throw new OwnerFailure('unsupported', 'TypeScript binding supplied by the server-binding lane'); },
+  'gen.owners_serve': async () => {
+    const server = new OwnersServer();
+    const served = await new Served(async socket => {
+      const peer = new DuplexPeer({ role: 'server' });
+      server.scope = liveOver(peer, { maxExports: 4, maxImports: 4 });
+      const remote = binding.install(peer, server, {});
+      await peer.attach(socket);
+      return remote;
+    }).listen();
+    const handle = 'ownerssrv' + String(++next);
+    servers.set(handle, { served, server });
+    return { handle, url: served.url };
+  },
+  'gen.owners_counts': async args => {
+    const s = servers.get(String(args.on));
+    if (!s) throw new OwnerFailure('unknown_handle', String(args.on));
+    if (!await s.served.remote(within(args))) throw new OwnerFailure('timeout', 'no owner client attached');
+    await zero(s.server.scope, within(args));
+    return s.server.scope.counts();
+  },
   'gen.owners_dial': async args => {
     const peer = new DuplexPeer();
     const scope = liveOver(peer, { maxExports: 4, maxImports: Number(args.max_imports ?? 4) });
