@@ -324,19 +324,31 @@ A release that adds a package therefore goes:
 
 1. Rehearse. The rehearsal names it — `first publish: @nightseam/…` — and
    publishes nothing.
-2. Create the granular token and store it as the `NPM_TOKEN` secret.
+2. Create the [granular token](https://docs.npmjs.com/creating-and-viewing-access-tokens/)
+   with **Read and write (publish and stage)** permission for the
+   `@nightseam` scope under **Packages and scopes**, **Bypass two-factor
+   authentication** enabled, and one day's expiry. Store it as the
+   `NPM_TOKEN` secret in this repository's `release` environment.
 3. Tag. The new name goes up by the token, the established ones by their
    trusted publishers.
-4. Give the new package this repository's `release.yml` in the `release`
-   environment as its trusted publisher, and delete the secret again. The next
-   release publishes every name by OIDC, and `first-publish.mjs` says so.
+4. In the new package's npm settings, add a
+   [trusted publisher](https://docs.npmjs.com/trusted-publishers/) for
+   organization `Bitspark`, repository `nightseam`, workflow `release.yml`,
+   environment `release`, with direct `npm publish` allowed. This setup
+   requires the maintainer's npm login and
+   [interactive two-factor authentication](https://docs.npmjs.com/cli/v12/commands/npm-trust/#prerequisites);
+   the bootstrap token cannot configure it. Then revoke the
+   bootstrap token and delete the `NPM_TOKEN` secret. The next release
+   publishes every name by OIDC. `first-publish.mjs` verifies that names
+   exist; it does not verify their trusted-publisher configuration.
 
 ## Once, before the first release
 
 - The `@nightseam` organization exists on npm. The first publish of each
   package name is made with a granular access token — read and write on the
-  `@nightseam` scope alone, one day's expiry — stored as the `NPM_TOKEN`
-  secret for that one run, because npm's trusted publishing is configured on
+  `@nightseam` scope alone, one day's expiry and the publishing permissions
+  above — stored as the `NPM_TOKEN` secret for that one run, because npm's
+  trusted publishing is configured on
   a package that already exists. Once they exist, each is given this
   repository's `release.yml` in the `release` environment as its trusted
   publisher, the secret is deleted, and every later publish authenticates
