@@ -426,10 +426,7 @@ func ImportFactory(owner *live.Owner, raw json.RawMessage) (Factory, error) {
 	return func(ctx context.Context, params Unary) (Unary, error) {
 		owner := scope.Owner()
 		var zero Unary
-		if supplied, ok := live.OwnerOf(ctx); ok {
-			if supplied.Scope() != owner.Scope() {
-				return zero, &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
-			}
+		if supplied, ok := live.OwnerOf(ctx); ok && supplied.Scope() == scope {
 			owner = supplied
 		}
 		request, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
@@ -546,10 +543,7 @@ func ImportProducer(owner *live.Owner, raw json.RawMessage) (Producer, error) {
 	return func(ctx context.Context) (Unary, error) {
 		owner := scope.Owner()
 		var zero Unary
-		if supplied, ok := live.OwnerOf(ctx); ok {
-			if supplied.Scope() != owner.Scope() {
-				return zero, &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
-			}
+		if supplied, ok := live.OwnerOf(ctx); ok && supplied.Scope() == scope {
 			owner = supplied
 		}
 		result, err := invoke(ctx, nil)
@@ -662,10 +656,7 @@ func ImportSink(owner *live.Owner, raw json.RawMessage) (Sink, error) {
 	scope := owner.Scope()
 	return func(ctx context.Context, params Unary) error {
 		owner := scope.Owner()
-		if supplied, ok := live.OwnerOf(ctx); ok {
-			if supplied.Scope() != owner.Scope() {
-				return &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
-			}
+		if supplied, ok := live.OwnerOf(ctx); ok && supplied.Scope() == scope {
 			owner = supplied
 		}
 		request, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
@@ -851,16 +842,8 @@ func ImportUnary(owner *live.Owner, raw json.RawMessage) (Unary, error) {
 	if err != nil {
 		return nil, err
 	}
-	scope := owner.Scope()
 	return func(ctx context.Context, params Count) (Count, error) {
-		owner := scope.Owner()
 		var zero Count
-		if supplied, ok := live.OwnerOf(ctx); ok {
-			if supplied.Scope() != owner.Scope() {
-				return zero, &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
-			}
-			owner = supplied
-		}
 		request, err := runtime.MarshalJSON(params)
 		if err == nil {
 			err = schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), request)

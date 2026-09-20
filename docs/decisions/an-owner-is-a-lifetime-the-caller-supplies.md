@@ -15,7 +15,11 @@ binding-wide barrier, not cancellation or reference counting.
 
 Generated helpers take an owner. Generated calls and events carrying live
 values select one from the Go context or TypeScript options, defaulting to the
-scope's root. Their handlers and callable implementations receive a child
+scope's root. Selection is connection-local: an owner of another connection
+does not apply, so a forwarded native proxy uses its origin connection's root
+unless given an owner of that connection. This preserves plain-function
+forwarding without discovering function identity or transferring ownership.
+Their handlers and callable implementations receive a child
 owner; returned functions are exported under it. The implementation can keep
 that owner and release it later. Finishing the invocation does not dispose of
 its live values, and values gain no wrapper or native identity registry.

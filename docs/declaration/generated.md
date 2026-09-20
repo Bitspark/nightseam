@@ -355,10 +355,14 @@ for an operation that carries callables, and install the scope over the peer in
 Choose a lifetime with `scope.Owner().Child()` or `scope.owner().child()`.
 For a generated operation or callable invocation, Go selects it through
 `live.WithOwner(ctx, owner)`; TypeScript adds `owner?: LiveOwner` to its call
-options (or event emit options). With no selection, conversion uses the
-connection's current root owner. An owner from another connection is refused
-as `reference_foreign`. This does not change the attachment through which an
-already imported function is called.
+options (or event emit options). A supplied owner applies to its own connection.
+When it belongs to another connection, or none is supplied, conversion uses
+the current connection's root owner. Thus a native proxy forwarded through
+another connection still works; narrower ownership on the origin connection
+requires an owner for that connection. A released owner of the same connection
+is still the selected owner. This does not change the attachment through which
+an already imported function is called, or the low-level refusal of foreign
+native references.
 
 Generated handlers that receive or return live values get a per-invocation
 child owner: `live.OwnerOf(ctx)` in Go, `context.owner` in TypeScript. Live

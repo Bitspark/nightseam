@@ -4,7 +4,6 @@ export type { AnyFamily, FamilyBinding, TypeBinding, Slots, TypeExpression };
 import type * as worker from "@example/worker-client";
 import { validateWire as validate_worker } from "@example/worker-client";
 import type { LiveOwner } from "@nightseam/live";
-import { DuplexError } from "@nightseam/runtime";
 import * as live_worker from "@example/worker-client";
 /** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */
 export interface Envelope {
