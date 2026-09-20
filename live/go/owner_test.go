@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -184,5 +185,46 @@ func TestConcurrentOwnerReleaseAndAcquisition(t *testing.T) {
 		if owner.Counts() != (live.Counts{}) || p.A.Counts() != (live.Counts{}) {
 			t.Fatal("concurrent release retained bindings")
 		}
+	}
+}
+
+func TestImportRollbackDoesNotRepeatAnAlreadyReleasedAllocation(t *testing.T) {
+	seen := &recorder{}
+	p := overObserved(t, live.Options{MaxImports: 1, MaxExports: 1}, seen)
+	defer p.Close()
+	owner := p.A.Owner().Child()
+	err := owner.ImportValue(func(batch *live.Owner) error {
+		// Import need not prove a binding exists remotely; these references exercise
+		// attachment bookkeeping without depending on remote event delivery speed.
+		for i := range 8 {
+			raw, _ := json.Marshal(map[string]string{"binding": fmt.Sprintf("remote.%d", i), "contract": "test/Call"})
+			ref, err := p.A.Decode(raw)
+			if err != nil {
+				return err
+			}
+			if _, err := batch.Import(ref, "test/Call"); err != nil {
+				return err
+			}
+			if err := p.A.Release(ref); err != nil {
+				return err
+			}
+		}
+		return errors.New("later failure")
+	})
+	if err == nil {
+		t.Fatal("failed import succeeded")
+	}
+	_ = owner.Release()
+	emitted := 0
+	for _, event := range seen.events() {
+		if e, ok := event.(runtime.EventEmitted); ok && e.Name == live.ReleaseEvent {
+			emitted++
+		}
+	}
+	if emitted != 8 {
+		t.Fatalf("each allocation needs exactly one release; got %d events", emitted)
+	}
+	if owner.Counts() != (live.Counts{}) || p.A.Counts() != (live.Counts{}) {
+		t.Fatal("rollback retained allocations")
 	}
 }

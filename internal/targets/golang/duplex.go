@@ -107,6 +107,9 @@ func emitClient(f *file) {
 		f.labels()
 		f.line("prepare := options.Prepare")
 		f.w.Block(fmt.Sprintf("options.Prepare = func(peer *%s.Peer) error {", runtime), "}", func() {
+			if fam.Live {
+				f.line("if prepare != nil { if err := prepare(peer); err != nil { return err } }")
+			}
 			f.liveOver()
 			if len(fam.Server.Events) > 0 {
 				f.linef("client := &%s%s{%s: peer}", identClient, args, identPeer)
@@ -115,7 +118,9 @@ func emitClient(f *file) {
 				name := p.operations[e.Name]
 				f.linef("if events.%s != nil { if err := client.%s%s(events.%s); err != nil { return err } }", name, identOn, name, name)
 			}
-			f.line("if prepare != nil { return prepare(peer) }")
+			if !fam.Live {
+				f.line("if prepare != nil { return prepare(peer) }")
+			}
 			f.line("return nil")
 		})
 		f.line("return nil")
@@ -154,11 +159,15 @@ func (f *file) registration(m render.Method, handler, remote string) {
 	f.linef("if _, exists := handlers[%q]; exists { return %s.Errorf(\"duplicate handler %%s\", %q) }", m.Name, f.std("fmt"), m.Name)
 	f.w.Block(fmt.Sprintf("handlers[%q] = func(ctx %s.Context, peer *%s.Peer, raw %s.RawMessage) (any, error) {", m.Name, f.std("context"), runtime, json), "}", func() {
 		params := ""
+		if (m.Request != nil && f.family.IsLive(m.Request)) || f.family.IsLive(m.Result) {
+			f.linef("scope, ok := %s.ScopeOf(peer)", f.live())
+			f.linef("if !ok { return nil, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", runtime, f.live())
+			f.line("owner := scope.Owner().Child()")
+			f.linef("ctx = %s.WithOwner(ctx, owner)", f.live())
+		}
 		if m.Request != nil && f.family.IsLive(m.Request) {
 			// A live request is imported rather than unmarshalled: the
 			// handler is given native functions, and never a reference.
-			f.linef("scope, ok := %s.ScopeOf(peer)", f.live())
-			f.linef("if !ok { return nil, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", runtime, f.live())
 			f.liveBoundary(m.Request, "raw", "params", false)
 			f.linef("if err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", runtime)
 			params = ", params"
@@ -175,10 +184,6 @@ func (f *file) registration(m render.Method, handler, remote string) {
 		f.linef("result, err := %s.%s(ctx, %s%s)", handler, p.operations[m.Name], remote, params)
 		f.line("if err != nil { return nil, err }")
 		if f.family.IsLive(m.Result) {
-			if params == "" || !f.family.IsLive(m.Request) {
-				f.linef("scope, ok := %s.ScopeOf(peer)", f.live())
-				f.linef("if !ok { return nil, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", runtime, f.live())
-			}
 			f.liveBoundary(m.Result, "result", "sent", true)
 			f.line("return sent, err")
 			return
@@ -236,6 +241,9 @@ func (f *file) caller(m render.Method, receiver string) {
 		if live {
 			f.linef("scope, ok := %s.ScopeOf(c.%s)", f.live(), identPeer)
 			f.linef("if !ok { return result, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", f.runtime(), f.live())
+			f.linef("owner, ok := %s.OwnerOf(ctx)", f.live())
+			f.line("if !ok { owner = scope.Owner() }")
+			f.linef("if owner.Scope() != scope { return result, &%s.PublicError{Code: %s.ErrorReferenceForeign, Message: \"the owner belongs to another connection\"} }", f.runtime(), f.live())
 		}
 		switch {
 		case m.Request != nil && f.family.IsLive(m.Request):
@@ -268,6 +276,9 @@ func (f *file) events(receiver string, received, sent []render.Event) {
 			f.w.Block(fmt.Sprintf("func (c *%s) %s%s(ctx %s.Context, data %s) error {", receiver, identEmit, p.operations[e.Name], ctx, f.spell(e.Type)), "}", func() {
 				f.linef("scope, ok := %s.ScopeOf(c.%s)", f.live(), identPeer)
 				f.linef("if !ok { return &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", f.runtime(), f.live())
+				f.linef("owner, ok := %s.OwnerOf(ctx)", f.live())
+				f.line("if !ok { owner = scope.Owner() }")
+				f.linef("if owner.Scope() != scope { return &%s.PublicError{Code: %s.ErrorReferenceForeign, Message: \"the owner belongs to another connection\"} }", f.runtime(), f.live())
 				f.liveBoundary(e.Type, "data", "sent", true)
 				f.line("if err != nil { return err }")
 				f.linef("return c.%s.Emit(ctx, %q, sent)", identPeer, e.Name)
@@ -294,6 +305,8 @@ func (f *file) eventHandler(e render.Event, callback func()) {
 		if f.family.IsLive(e.Type) {
 			f.linef("scope, ok := %s.ScopeOf(peer)", f.live())
 			f.line("if !ok { _ = peer.Close(); return }")
+			f.line("owner := scope.Owner().Child()")
+			f.linef("ctx = %s.WithOwner(ctx, owner)", f.live())
 			f.liveBoundary(e.Type, "raw", "data", false)
 			f.line("if err != nil { _ = peer.Close(); return }")
 			callback()
@@ -320,11 +333,11 @@ func (f *file) liveScope(inner func()) {
 	}
 	f.line("prepare := options.Prepare")
 	f.w.Block(fmt.Sprintf("options.Prepare = func(peer *%s.Peer) error {", f.runtime()), "}", func() {
+		f.line("if prepare != nil { if err := prepare(peer); err != nil { return err } }")
 		f.liveOver()
 		if inner != nil {
 			inner()
 		}
-		f.line("if prepare != nil { return prepare(peer) }")
 		f.line("return nil")
 	})
 }
@@ -335,5 +348,5 @@ func (f *file) liveOver() {
 	if !f.family.Live {
 		return
 	}
-	f.linef("if _, err := %s.Over(peer, %s.Options{}); err != nil { return err }", f.live(), f.live())
+	f.linef("if _, ok := %s.ScopeOf(peer); !ok { if _, err := %s.Over(peer, %s.Options{}); err != nil { return err } }", f.live(), f.live(), f.live())
 }

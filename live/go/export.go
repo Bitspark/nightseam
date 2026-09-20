@@ -91,6 +91,11 @@ func (o *Owner) finish(committed bool) {
 	var notices []releaseNotice
 	if !committed {
 		for _, allocation := range allocations {
+			// Explicit release or a remote notification may already have
+			// removed this allocation. A bounded tombstone is not its lifetime.
+			if s.exports[allocation.id] == nil && s.imports[allocation.id] == nil {
+				continue
+			}
 			notices = append(notices, s.takeRelease(allocation.id, allocation.imported))
 		}
 	}

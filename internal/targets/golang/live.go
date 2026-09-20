@@ -17,13 +17,13 @@ import (
 // acquires no shared identity and no shared lifetime.
 //
 // Go will not marshal a `func`, and that is the semantics being honest rather
-// than a wart: **a live value has no scope-free encoding**, because a
-// reference only means anything inside the scope that minted it. So a live
+// than a wart: **a live value has no owner-free encoding**, because a
+// reference only means anything inside the owner that minted it. So a live
 // type's `MarshalJSON` refuses, and the conversion is a pair of generated
-// functions that take the scope:
+// functions that take the owner:
 //
-//	func ExportJob(scope *live.Scope, v Job) (json.RawMessage, error)
-//	func ImportJob(scope *live.Scope, raw json.RawMessage) (Job, error)
+//	func ExportJob(owner *live.Owner, v Job) (json.RawMessage, error)
+//	func ImportJob(owner *live.Owner, raw json.RawMessage) (Job, error)
 //
 // Export walks the value, exports each local function as a binding and writes
 // the reference in its place; Import validates, and replaces each reference
@@ -79,7 +79,7 @@ func (f *file) emitLive() {
 func (f *file) emitCallable(t *render.Type) {
 	name := f.plan.types[t.Name]
 	json := f.std("json")
-	scope := f.live() + ".Scope"
+	owner := f.live() + ".Owner"
 	f.line("")
 	if t.Description != "" {
 		f.linef("// %s: %s", name, t.Description)
@@ -91,17 +91,20 @@ func (f *file) emitCallable(t *render.Type) {
 	f.linef("const %s = %s", f.plan.contracts[t.Name], quote(t.Contract))
 	f.line("")
 	f.linef("// %s makes a binding of a local %s and writes the reference that names it.", f.plan.exports[t.Name], name)
-	f.w.Block(fmt.Sprintf("func %s(scope *%s, v %s) (%s.RawMessage, error) {", f.plan.exports[t.Name], scope, name, json), "}", func() {
-		f.linef("if scope == nil { return nil, %s.Errorf(\"%s: a live value is exported into a scope\") }", f.std("fmt"), name)
+	f.w.Block(fmt.Sprintf("func %s(owner *%s, v %s) (%s.RawMessage, error) {", f.plan.exports[t.Name], owner, name, json), "}", func() {
+		f.linef("if owner == nil { return nil, %s.Errorf(\"%s: a live value is exported into an owner\") }", f.std("fmt"), name)
 		f.linef("if v == nil { return nil, %s.Errorf(\"%s: no implementation to export\") }", f.std("fmt"), name)
-		f.w.Block(fmt.Sprintf("return scope.ExportValue(func(scope *%s) (%s.RawMessage, error) {", scope, json), "})", func() {
-			f.w.Block(fmt.Sprintf("reference, err := scope.Export(%s, func(ctx %s.Context, request %s.RawMessage) (%s.RawMessage, error) {", f.plan.contracts[t.Name], f.std("context"), json, json), "})", func() {
+		f.w.Block(fmt.Sprintf("return owner.ExportValue(func(owner *%s) (%s.RawMessage, error) {", owner, json), "})", func() {
+			f.w.Block(fmt.Sprintf("reference, err := owner.Export(%s, func(ctx %s.Context, request %s.RawMessage) (%s.RawMessage, error) {", f.plan.contracts[t.Name], f.std("context"), json, json), "})", func() {
+				f.line("owner := owner.Child()")
+				f.linef("ctx = %s.WithOwner(ctx, owner)", f.live())
 				if t.Request != nil {
 					f.linef("if err := %s; err != nil { return nil, err }", f.validateExpression(t.Request, "request"))
 					// A callable's own request is converted like any other
 					// position: a callable that takes a callable is handed a
 					// native function, not a reference.
-					f.liveExpr(t.Request, "request", "argument", false, "nil")
+					f.liveBoundary(t.Request, "request", "argument", false)
+					f.line("if err != nil { return nil, err }")
 				}
 				if t.Result == nil {
 					f.linef("return nil, v(ctx%s)", callArgument(t))
@@ -119,38 +122,49 @@ func (f *file) emitCallable(t *render.Type) {
 	})
 	f.line("")
 	f.linef("// %s is a %s that calls the binding a reference names.", f.plan.imports_[t.Name], name)
-	f.w.Block(fmt.Sprintf("func %s(scope *%s, raw %s.RawMessage) (%s, error) {", f.plan.imports_[t.Name], scope, json, name), "}", func() {
-		f.linef("if scope == nil { return nil, %s.Errorf(\"%s: a live value is imported into a scope\") }", f.std("fmt"), name)
-		f.line("reference, err := scope.Decode(raw)")
+	f.w.Block(fmt.Sprintf("func %s(owner *%s, raw %s.RawMessage) (%s, error) {", f.plan.imports_[t.Name], owner, json, name), "}", func() {
+		f.linef("if owner == nil { return nil, %s.Errorf(\"%s: a live value is imported into an owner\") }", f.std("fmt"), name)
+		f.line("reference, err := owner.Scope().Decode(raw)")
 		f.line("if err != nil { return nil, err }")
-		f.linef("invoke, err := scope.Import(reference, %s)", f.plan.contracts[t.Name])
+		f.linef("invoke, err := owner.Import(reference, %s)", f.plan.contracts[t.Name])
 		f.line("if err != nil { return nil, err }")
+		f.line("scope := owner.Scope()")
 		f.w.Block(fmt.Sprintf("return func(ctx %s.Context, %s) %s {", f.std("context"), f.callableParam(t), f.callableResult(t)), "}, nil", func() {
+			f.line("owner := scope.Owner()")
 			zero := ""
 			if t.Result != nil {
 				f.linef("var zero %s", f.spell(t.Result))
 				zero = "zero, "
 			}
-			if t.Request == nil {
-				f.linef("result, err := invoke(ctx, nil)")
-			} else {
-				// And what a caller sends: a callable it passes becomes a
-				// binding of this scope, as it would in any other position.
-				f.liveBoundary(t.Request, "params", "request", true)
-				f.linef("if err != nil { return %serr }", zero)
-				f.line("result, err := invoke(ctx, request)")
-			}
-			f.linef("if err != nil { return %serr }", zero)
-			if t.Result == nil {
-				f.line("_ = result")
-				f.line("return nil")
-				return
-			}
-			f.linef("if err := %s; err != nil { return zero, err }", f.validateExpression(t.Result, "result"))
-			f.liveExpr(t.Result, "result", "answer", false, "zero")
-			f.line("return answer, nil")
+			f.linef("if supplied, ok := %s.OwnerOf(ctx); ok {", f.live())
+			f.linef("if supplied.Scope() != owner.Scope() { return %s&%s.PublicError{Code: %s.ErrorReferenceForeign, Message: \"the owner belongs to another connection\"} }", zero, f.runtime(), f.live())
+			f.line("owner = supplied")
+			f.line("}")
+			f.emitCallableInvoke(t, zero)
 		})
 	})
+}
+
+func (f *file) emitCallableInvoke(t *render.Type, zero string) {
+	if t.Request == nil {
+		f.linef("result, err := invoke(ctx, nil)")
+	} else {
+		// And what a caller sends: a callable it passes becomes a
+		// binding of this owner, as it would in any other position.
+		f.liveBoundary(t.Request, "params", "request", true)
+		f.linef("if err != nil { return %serr }", zero)
+		f.line("result, err := invoke(ctx, request)")
+	}
+	f.linef("if err != nil { return %serr }", zero)
+	if t.Result == nil {
+		f.line("_ = result")
+		f.line("return nil")
+		return
+	}
+	f.linef("if err := %s; err != nil { return zero, err }", f.validateExpression(t.Result, "result"))
+	f.liveBoundary(t.Result, "result", "answer", false)
+	f.line("if err != nil { return zero, err }")
+	f.line("return answer, nil")
 }
 
 // callableParam is the request a callable takes, as a Go parameter, or none.
@@ -184,20 +198,20 @@ func (f *file) emitLiveConversion(t *render.Type) {
 	name := f.plan.types[t.Name]
 	json := f.std("json")
 	self := name + apply(t.Uses)
-	scope := ""
+	owner := ""
 	if t.IsLive {
-		scope = "scope *" + f.live() + ".Scope, "
+		owner = "owner *" + f.live() + ".Owner, "
 	}
 	f.line("")
 	if len(t.Uses) > 0 {
 		f.linef("// %s writes %s using the supplied conversion for each type argument.", f.plan.exports[t.Name], name)
 	} else {
-		f.linef("// %s writes %s as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place.", f.plan.exports[t.Name], name)
+		f.linef("// %s writes %s as it travels: each callable in it becomes a binding of the owner, and the reference that names it takes its place.", f.plan.exports[t.Name], name)
 	}
-	f.w.Block(fmt.Sprintf("func %s%s(%sv %s%s) (%s.RawMessage, error) {", f.plan.exports[t.Name], declare(t.Uses), scope, self, f.converterParameters(t, true), json), "}", func() {
+	f.w.Block(fmt.Sprintf("func %s%s(%sv %s%s) (%s.RawMessage, error) {", f.plan.exports[t.Name], declare(t.Uses), owner, self, f.converterParameters(t, true), json), "}", func() {
 		if t.IsLive {
-			f.linef("if scope == nil { return nil, %s.Errorf(\"%s: a live value is exported into a scope\") }", f.std("fmt"), name)
-			f.w.Block(fmt.Sprintf("return scope.ExportValue(func(scope *%s.Scope) (%s.RawMessage, error) {", f.live(), json), "})", func() {
+			f.linef("if owner == nil { return nil, %s.Errorf(\"%s: a live value is exported into an owner\") }", f.std("fmt"), name)
+			f.w.Block(fmt.Sprintf("return owner.ExportValue(func(owner *%s.Owner) (%s.RawMessage, error) {", f.live(), json), "})", func() {
 				f.liveBody(t, true)
 			})
 			return
@@ -210,10 +224,21 @@ func (f *file) emitLiveConversion(t *render.Type) {
 	} else {
 		f.linef("// %s reads %s as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.", f.plan.imports_[t.Name], name)
 	}
-	f.w.Block(fmt.Sprintf("func %s%s(%sraw %s.RawMessage%s) (%s, error) {", f.plan.imports_[t.Name], declare(t.Uses), scope, json, f.converterParameters(t, false), self), "}", func() {
+	f.w.Block(fmt.Sprintf("func %s%s(%sraw %s.RawMessage%s) (%s, error) {", f.plan.imports_[t.Name], declare(t.Uses), owner, json, f.converterParameters(t, false), self), "}", func() {
 		f.linef("var value %s", self)
 		if t.IsLive {
-			f.linef("if scope == nil { return value, %s.Errorf(\"%s: a live value is imported into a scope\") }", f.std("fmt"), name)
+			f.linef("if owner == nil { return value, %s.Errorf(\"%s: a live value is imported into an owner\") }", f.std("fmt"), name)
+			f.linef("err := owner.ImportValue(func(owner *%s.Owner) error {", f.live())
+			f.linef("converted, err := func() (%s, error) {", self)
+			f.linef("var value %s", self)
+			f.liveBody(t, false)
+			f.line("}()")
+			f.line("value = converted")
+			f.line("return err")
+			f.line("})")
+			f.linef("if err != nil { var zero %s; return zero, err }", self)
+			f.line("return value, nil")
+			return
 		}
 		f.liveBody(t, false)
 	})
@@ -369,8 +394,8 @@ func (f *file) liveExpr(e model.TypeExpr, src, dst string, export bool, fail str
 		return fail + ", err"
 	}
 	if codec := f.parameterConverter(e); codec != "" {
-		if export && f.scopedCodecs {
-			src = "scope, " + src
+		if f.scopedCodecs {
+			src = "owner, " + src
 		}
 		f.linef("%s, err := %s(%s)", dst, codec, src)
 		f.linef("if err != nil { return %s }", failure())
@@ -553,17 +578,17 @@ func (f *file) liveUnion(t *render.Type, export bool) {
 }
 
 // emitLiveRefusal replaces the ordinary codecs of a live type. A live value
-// has no scope-free encoding — a reference means nothing outside the scope
+// has no owner-free encoding — a reference means nothing outside the owner
 // that minted its binding — so the refusal is the contract, not a gap, and it
-// names the pair that does have a scope.
+// names the pair that does have a owner.
 func (f *file) emitLiveRefusal(self string, t *render.Type) {
 	name := f.plan.types[t.Name]
-	f.linef("// %s refuses: %s carries a callable, and a live value has no encoding apart from the scope its bindings belong to.", identMarshalJSON, name)
+	f.linef("// %s refuses: %s carries a callable, and a live value has no encoding apart from the owner its bindings belong to.", identMarshalJSON, name)
 	f.linef("func (v %s) %s() ([]byte, error) { return nil, %s.Errorf(%s) }", self, identMarshalJSON, f.std("fmt"),
-		quote(name+" carries a callable; write it with "+f.plan.exports[t.Name]+", which takes the live scope its bindings are made in"))
-	f.linef("// %s refuses for the same reason: a reference resolves in a scope or nowhere.", identUnmarshalJSON)
+		quote(name+" carries a callable; write it with "+f.plan.exports[t.Name]+", which takes the live owner its bindings are made in"))
+	f.linef("// %s refuses for the same reason: a reference resolves in a owner or nowhere.", identUnmarshalJSON)
 	f.linef("func (v *%s) %s(data []byte) error { return %s.Errorf(%s) }", self, identUnmarshalJSON, f.std("fmt"),
-		quote(name+" carries a callable; read it with "+f.plan.imports_[t.Name]+", which takes the live scope its references resolve in"))
+		quote(name+" carries a callable; read it with "+f.plan.imports_[t.Name]+", which takes the live owner its references resolve in"))
 }
 
 // validateExpression holds a value to one declared expression, which is what
