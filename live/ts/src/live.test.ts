@@ -8,12 +8,16 @@ import {
   scopeOf,
   CONTRACT_INVALID,
   REFERENCE_FOREIGN,
+  REFERENCE_RELEASED,
+  RELEASE_EVENT,
   REFERENCE_UNKNOWN,
   TOO_MANY_EXPORTS,
   TOO_MANY_IMPORTS,
   Reference,
   type LiveOptions,
+  type Invoke,
   type LiveScope,
+  type LiveOwner,
 } from './index.ts';
 
 /** Two scopes over a pipe: the pair every shared case runs on. */
@@ -56,7 +60,7 @@ for (const one of cases()) {
 
 async function serializedReferenceNewConnection(): Promise<void> {
   const first = await over();
-  const exported = first.a.export(SINK, echo);
+  const exported = first.a.owner().export(SINK, echo);
   const carried = JSON.parse(JSON.stringify(exported));
   first.close();
 
@@ -66,7 +70,7 @@ async function serializedReferenceNewConnection(): Promise<void> {
     // Decode accepts these bytes and import attaches; only invocation proves
     // that the new exporting scope has no binding with the old nonce.
     const arrived = second.b.decode(carried);
-    const invoke = second.b.import(arrived, SINK);
+    const invoke = second.b.owner().import(arrived, SINK);
     assert.deepEqual(second.a.counts(), { exports: 1, imports: 0 });
     assert.deepEqual(second.b.counts(), { exports: 0, imports: 2 });
     await assert.rejects(
@@ -114,17 +118,17 @@ test('the scope over a peer is found on it', async () => {
 test('the bounds refuse and leave nothing', async () => {
   const p = await over({ maxExports: 1, maxImports: 1 });
   try {
-    const first = p.a.export(SINK, echo);
+    const first = p.a.owner().export(SINK, echo);
     assert.throws(
-      () => p.a.export(SINK, echo),
+      () => p.a.owner().export(SINK, echo),
       (error: DuplexError) => error.code === TOO_MANY_EXPORTS,
     );
     assert.equal(p.a.counts().exports, 1, 'a refused export left a binding behind');
 
-    p.b.import(p.b.decode(JSON.parse(JSON.stringify(first))), SINK);
+    p.b.owner().import(p.b.decode(JSON.parse(JSON.stringify(first))), SINK);
     const second = p.b.decode({ binding: 'deadbeefdeadbeef.9', contract: SINK });
     assert.throws(
-      () => p.b.import(second, SINK),
+      () => p.b.owner().import(second, SINK),
       (error: DuplexError) => error.code === TOO_MANY_IMPORTS,
     );
     assert.equal(p.b.counts().imports, 1, 'a refused import left an attachment behind');
@@ -167,7 +171,7 @@ test('a reference is not a constructible value', async () => {
       (e: DuplexError) => e.code === CONTRACT_INVALID,
     );
     assert.throws(
-      () => p.b.import({ binding: 'a.1', contract: SINK } as unknown as Reference, SINK),
+      () => p.b.owner().import({ binding: 'a.1', contract: SINK } as unknown as Reference, SINK),
       (error: DuplexError) => error.code === REFERENCE_FOREIGN,
     );
   } finally {
@@ -179,8 +183,8 @@ test('the observer is told and sees no payload', async () => {
   const seen: ObserverEvent[] = [];
   const p = await over({}, { observe: (event) => void seen.push(event) });
   try {
-    const exported = p.a.export(SINK, echo);
-    assert.throws(() => p.a.export('', echo));
+    const exported = p.a.owner().export(SINK, echo);
+    assert.throws(() => p.a.owner().export('', echo));
     handed(p.a, p.b, SINK, echo);
     p.a.release(exported);
 
@@ -199,7 +203,7 @@ test('the observer is told and sees no payload', async () => {
 test('a reference marshals as a binding and a contract, and nothing else', async () => {
   const p = await over();
   try {
-    const exported = p.a.export(SINK, echo);
+    const exported = p.a.owner().export(SINK, echo);
     const wire = JSON.parse(JSON.stringify(exported)) as Record<string, unknown>;
     assert.deepEqual(Object.keys(wire).sort(), ['binding', 'contract']);
     assert.equal(wire.contract, SINK);
@@ -223,13 +227,13 @@ test('exportValue tracks only its own allocations and completed views start fres
   const p = await over();
   try {
     let retained: Reference | undefined;
-    let captured: LiveScope | undefined;
+    let captured: LiveOwner | undefined;
     assert.throws(
       () =>
-        p.a.exportValue((scope) => {
+        p.a.owner().exportValue((scope) => {
           captured = scope;
           scope.export(SINK, echo);
-          retained = p.a.export(SINK, echo);
+          retained = p.a.owner().export(SINK, echo);
           scope.exportValue((nested) => nested.export(SINK, echo).toJSON());
           throw new Error('later conversion failed');
         }),
@@ -241,9 +245,9 @@ test('exportValue tracks only its own allocations and completed views start fres
     assert.equal(await captured.import(retained, SINK)(7), 7);
     const raw = captured.exportValue((next) => next.export(SINK, echo).toJSON());
     assert.equal(p.a.counts().exports, 2);
-    captured.release(p.a.decode(raw));
+    captured.scope.release(p.a.decode(raw));
     assert.equal(p.a.counts().exports, 1);
-    captured.close();
+    captured.scope.close();
     assert.equal(scopeOf(p.a.peer), undefined, 'closing a view must unregister the scope');
   } finally {
     p.close();
@@ -258,7 +262,7 @@ test('exportValue unwinds serialization failures and throws before publication',
     for (const value of [cycle, 1n, 'throw']) {
       for (let i = 0; i < 3; i++) {
         assert.throws(() =>
-          p.a.exportValue((scope) => {
+          p.a.owner().exportValue((scope) => {
             scope.export(SINK, echo);
             if (value === 'throw') throw new Error('conversion failed');
             return value;
@@ -268,9 +272,128 @@ test('exportValue unwinds serialization failures and throws before publication',
       }
     }
     const source = { value: 1 };
-    const wire = p.a.exportValue(() => source);
+    const wire = p.a.owner().exportValue(() => source);
     source.value = 2;
     assert.deepEqual(wire, { value: 1 }, 'the completed payload must be a serialized snapshot');
+  } finally {
+    p.close();
+  }
+});
+
+test('importValue bound failure preserves prior attachments', async () => {
+  const p = await over({ maxImports: 2 });
+  try {
+    const refs = Array.from({ length: 3 }, () =>
+      p.b.decode(JSON.parse(JSON.stringify(p.a.owner().export(SINK, echo)))),
+    );
+    const retained = p.b.owner().import(refs[0]!, SINK);
+    const owner = p.b.owner().child();
+    let fresh!: Invoke;
+    assert.throws(
+      () =>
+        owner.importValue((batch) => {
+          fresh = batch.import(refs[1]!, SINK);
+          batch.import(refs[0]!, SINK);
+          batch.import(refs[2]!, SINK);
+        }),
+      { code: TOO_MANY_IMPORTS },
+    );
+    assert.deepEqual(owner.counts(), { exports: 0, imports: 0 });
+    assert.deepEqual(p.b.counts(), { exports: 0, imports: 1 });
+    await assert.rejects(() => fresh(null), { code: REFERENCE_RELEASED });
+    assert.equal(await retained(7), 7);
+    p.a.owner().release();
+    p.b.owner().release();
+  } finally {
+    p.close();
+  }
+});
+
+test('owner release revokes all aliases before observer reentry', async () => {
+  let owner!: LiveOwner;
+  const aliases: Invoke[] = [];
+  const pending: Promise<void>[] = [];
+  const seen: ObserverEvent[] = [];
+  let reentries = 0;
+  const p = await over(
+    {},
+    {
+      observe(event) {
+        seen.push(event);
+        if (event.type !== 'live.released') return;
+        reentries++;
+        owner.release();
+        for (const alias of aliases) pending.push(assert.rejects(() => alias(null), { code: REFERENCE_RELEASED }));
+      },
+    },
+  );
+  try {
+    owner = p.a.owner().child();
+    for (let i = 0; i < 3; i++) aliases.push(p.a.owner().import(owner.child().export(SINK, echo), SINK));
+    owner.release();
+    assert.equal(reentries, 3);
+    await Promise.all(pending);
+    assert.equal(seen.filter((event) => event.type === 'event.emitted' && event.name === RELEASE_EVENT).length, 3);
+    assert.deepEqual(p.a.counts(), { exports: 0, imports: 0 });
+  } finally {
+    p.close();
+  }
+});
+
+test('unpublished export rollback emits no release', async () => {
+  const seen: ObserverEvent[] = [];
+  const p = await over({}, { observe: (event) => void seen.push(event) });
+  try {
+    const owner = p.a.owner().child();
+    assert.throws(
+      () =>
+        owner.exportValue((batch) => {
+          batch.export(SINK, echo);
+          throw new Error('unpublished');
+        }),
+      /unpublished/,
+    );
+    owner.release();
+    assert.equal(seen.filter((event) => event.type === 'event.emitted' && event.name === RELEASE_EVENT).length, 0);
+    assert.deepEqual(owner.counts(), { exports: 0, imports: 0 });
+    assert.deepEqual(p.a.counts(), { exports: 0, imports: 0 });
+  } finally {
+    p.close();
+  }
+});
+
+test('empty owners and released allocations retain no parent bookkeeping', async () => {
+  const p = await over();
+  try {
+    const root = p.a.owner();
+    const parent = root.child();
+    const borrowed = root.export(SINK, echo);
+    for (let i = 0; i < 40; i++) {
+      const empty = parent.child();
+      empty.import(borrowed, SINK);
+      assert.equal(root['state'].children?.size ?? 0, 0);
+      const owned = empty.export(SINK, echo);
+      assert.equal(root['state'].children?.size, 1);
+      p.a.release(owned);
+      assert.equal(root['state'].children?.size ?? 0, 0);
+    }
+    root.release();
+    assert.deepEqual(p.a.counts(), { exports: 0, imports: 0 });
+  } finally {
+    p.close();
+  }
+});
+
+test('Symbol.dispose releases an owner and leaves the scope usable', async () => {
+  const p = await over();
+  try {
+    const owner = p.a.owner().child();
+    owner.export(SINK, echo);
+    owner[Symbol.dispose]();
+    assert.deepEqual(p.a.counts(), { exports: 0, imports: 0 });
+    p.a.owner().export(SINK, echo);
+    assert.deepEqual(p.a.counts(), { exports: 1, imports: 0 });
+    p.a.owner().release();
   } finally {
     p.close();
   }

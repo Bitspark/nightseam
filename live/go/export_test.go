@@ -14,8 +14,8 @@ func TestExportValueTracksOnlyItsOwnAllocations(t *testing.T) {
 	defer p.Close()
 	echo := func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) { return raw, nil }
 	var retained live.Reference
-	var captured *live.Scope
-	_, err := p.A.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+	var captured *live.Owner
+	_, err := p.A.Owner().ExportValue(func(scope *live.Owner) (json.RawMessage, error) {
 		captured = scope
 		if _, err := scope.Export("test/Call", echo); err != nil {
 			t.Fatal(err)
@@ -25,10 +25,10 @@ func TestExportValueTracksOnlyItsOwnAllocations(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			retained, _ = p.A.Export("test/Call", echo)
+			retained, _ = p.A.Owner().Export("test/Call", echo)
 		}()
 		<-done
-		_, err := scope.ExportValue(func(nested *live.Scope) (json.RawMessage, error) {
+		_, err := scope.ExportValue(func(nested *live.Owner) (json.RawMessage, error) {
 			ref, err := nested.Export("test/Call", echo)
 			if err != nil {
 				return nil, err
@@ -51,7 +51,7 @@ func TestExportValueTracksOnlyItsOwnAllocations(t *testing.T) {
 		t.Fatalf("retained binding: %s %v", raw, err)
 	}
 	// Captured views cannot retain a completed batch or roll back later work.
-	raw, err := captured.ExportValue(func(next *live.Scope) (json.RawMessage, error) {
+	raw, err := captured.ExportValue(func(next *live.Owner) (json.RawMessage, error) {
 		ref, err := next.Export("test/Call", echo)
 		if err != nil {
 			return nil, err
@@ -65,13 +65,13 @@ func TestExportValueTracksOnlyItsOwnAllocations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := captured.Release(ref); err != nil {
+	if err := captured.Scope().Release(ref); err != nil {
 		t.Fatal(err)
 	}
 	if p.A.Counts().Exports != 1 {
 		t.Fatal(p.A.Counts())
 	}
-	if err := captured.Close(); err != nil {
+	if err := captured.Scope().Close(); err != nil {
 		t.Fatal(err)
 	}
 	if _, found := live.ScopeOf(p.A.Peer()); found {
@@ -90,7 +90,7 @@ func TestExportValueUnwindsInvalidJSONAndPanic(t *testing.T) {
 						t.Errorf("panic changed: %v", recovered)
 					}
 				}()
-				_, err := p.A.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+				_, err := p.A.Owner().ExportValue(func(scope *live.Owner) (json.RawMessage, error) {
 					_, err := scope.Export("test/Call", func(context.Context, json.RawMessage) (json.RawMessage, error) { return nil, nil })
 					if err != nil {
 						t.Fatal(err)
