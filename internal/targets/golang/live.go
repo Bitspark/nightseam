@@ -128,17 +128,24 @@ func (f *file) emitCallable(t *render.Type) {
 		f.line("if err != nil { return nil, err }")
 		f.linef("invoke, err := owner.Import(reference, %s)", f.plan.contracts[t.Name])
 		f.line("if err != nil { return nil, err }")
-		f.line("scope := owner.Scope()")
+		carriesLive := f.needsConversion(t.Request) || f.needsConversion(t.Result)
+		if carriesLive {
+			f.line("scope := owner.Scope()")
+		}
 		f.w.Block(fmt.Sprintf("return func(ctx %s.Context, %s) %s {", f.std("context"), f.callableParam(t), f.callableResult(t)), "}, nil", func() {
-			f.line("owner := scope.Owner()")
+			if carriesLive {
+				f.line("owner := scope.Owner()")
+			}
 			zero := ""
 			if t.Result != nil {
 				f.linef("var zero %s", f.spell(t.Result))
 				zero = "zero, "
 			}
-			f.linef("if supplied, ok := %s.OwnerOf(ctx); ok && supplied.Scope() == scope {", f.live())
-			f.line("owner = supplied")
-			f.line("}")
+			if carriesLive {
+				f.linef("if supplied, ok := %s.OwnerOf(ctx); ok && supplied.Scope() == scope {", f.live())
+				f.line("owner = supplied")
+				f.line("}")
+			}
 			f.emitCallableInvoke(t, zero)
 		})
 	})
