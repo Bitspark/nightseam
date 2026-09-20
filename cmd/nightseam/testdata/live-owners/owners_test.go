@@ -162,3 +162,62 @@ func TestGenericImportBatchOwnsConverterAcquisitions(t *testing.T) {
 		zero(t, sa, sb)
 	}
 }
+
+func TestGeneratedCallableOwnerReleaseIsABarrier(t *testing.T) {
+	for _, side := range []string{"exporter", "caller", "both"} {
+		t.Run(side, func(t *testing.T) {
+			sa, sb := pair(t, 4)
+			exporter, caller := sa.Owner().Child(), sb.Owner().Child()
+			entered, resume := make(chan struct{}), make(chan struct{})
+			raw, err := combinator.ExportUnary(exporter, func(ctx context.Context, value combinator.Count) (combinator.Count, error) {
+				close(entered)
+				select {
+				case <-resume:
+					return value + 1, nil
+				case <-ctx.Done():
+					return 0, ctx.Err()
+				}
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			invoke, err := combinator.ImportUnary(caller, raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			type result struct {
+				value combinator.Count
+				err   error
+			}
+			settled := make(chan result, 1)
+			go func() { value, err := invoke(live.WithOwner(ctx, caller), 8); settled <- result{value, err} }()
+			select {
+			case <-entered:
+			case <-ctx.Done():
+				t.Fatal("generated callback never entered")
+			}
+			if side == "exporter" || side == "both" {
+				release(t, exporter)
+			}
+			if side == "caller" || side == "both" {
+				release(t, caller)
+			}
+			close(resume)
+			select {
+			case got := <-settled:
+				if got.err != nil || got.value != 9 {
+					t.Fatalf("release changed an already dispatched scalar result: value=%d error=%v", got.value, got.err)
+				}
+			case <-ctx.Done():
+				t.Fatal("released callback did not settle")
+			}
+			_, err = invoke(ctx, 9)
+			refusal(t, err, live.ErrorReferenceReleased)
+			release(t, caller)
+			release(t, exporter)
+			zero(t, sa, sb)
+		})
+	}
+}
