@@ -115,33 +115,77 @@ connection requires an explicit export there, such as forwarding.
 
 ## The rules a consumer can rely on
 
-- **A reference outlives the call that introduced it.** A callable supplied as an
-  argument can be invoked long after that call returned, which is the whole point
-  of the layer.
-- **One binding is one attachment.** The same binding imported twice gives the
-  same function back; two attachments would be two readers competing for one
-  reply.
-- **A reference of this side's own making, handed back, reaches the function.**
-  It does not open a loop through the connection.
-- **Exporting the same function twice makes two bindings.** Native identity is
-  nobody's guarantee across a wire, and two bindings are two lifetimes — which is
-  what separate release needs. A record of callables is a record of references,
-  each with its own binding and its own release; there is no record-wide
-  lifetime.
-- **Release is a barrier, closure is not.** Release refuses the next invocation
-  and lets the dispatched ones settle. Closing the scope settles its outgoing,
-  incoming and local self-reference calls with `scope_closed`, while the peer
-  remains usable for ordinary RPC. Implementations are told to cancel; a body
-  that ignores cancellation can continue its effects, but its late result
-  cannot replace the caller's closure outcome.
-- **Reconnection revives nothing.** The next connection is another scope, and a
-  binding of the old one resolves nowhere in it.
-- **Forwarding takes no ownership.** `Forward` gives another scope a binding of
-  its own over a function this one imported — it is composition, and it is spelled
-  out only because the lifetime relationship has to be stated. Releasing the
-  forwarded binding leaves the origin as it was; an invocation through a released
-  origin fails with the origin's refusal, which is what the destination's caller
-  is told.
+The lifetimes below are separate. Named cases refer to the paired
+[Go](../../live/go/livetest/conformance.go) and
+[TypeScript](../../live/ts/src/conformance.ts) shared suites unless another
+source is linked.
+
+| lifetime | what ends, and what remains | evidence |
+| --- | --- | --- |
+| call | Cancellation withdraws one invocation; its binding remains available. Application effects are not rolled back. | `cancellationIsNotRelease`; [socket case](../../conformance/scenarios/live/withdrawing-an-invocation-is-not-releasing.json) |
+| binding | One export names one function and can outlive the call that introduced it. Release prevents later use but lets an already-dispatched implementation finish. | `higherOrder`, `independentSuppliers`, `releaseIsABarrier`; [returned-callable case](../../conformance/scenarios/live/a-returned-callable-reaches-a-supplied-one.json) |
+| aliases | Repeated remote imports share one attachment. Releasing that binding invalidates every existing alias; each import does not acquire a separate lease. | `aliases`, `releaseInvalidatesAliases`; [repeated-import case](../../conformance/scenarios/live/one-binding-imported-twice-is-one-attachment.json) |
+| record | Its callable members carry individual references. The record has no runtime identity, remote-object equality, shared lease or atomic record-wide revocation. | The per-reference `Export`, `Import` and `Release` APIs in [Go](../../live/go/live.go) and [TypeScript](../../live/ts/src/index.ts); no record-wide lifecycle API |
+| connection | Closing its scopes invalidates their bindings and settles their calls. A new connection revives no binding and replays no invocation. | `closeSettles`, the [Go closure cases](../../live/go/livetest/close.go) and TypeScript's `closeImplementation`; `serializedReferenceNewConnection` and its [socket case](../../conformance/scenarios/live/serialized-reference-scope.json) |
+
+**A binding is a function, not a remote object.** Each call to `Export` /
+`export` allocates a new binding id, even for the same native function. Those
+exports have independent releases; native function identity does not combine
+them. This follows directly from the allocation in both runtime
+implementations. `independentSuppliers` separately holds that distinct exports
+route to their own implementations. A reference to this side's own export,
+handed back, reaches its implementation locally; `selfReference` holds that
+behavior without a network loop.
+
+**Release invalidates a binding; it does not count owners.** Releasing one alias
+invalidates its siblings, rather than decrementing an ownership count until
+the last holder leaves. Releasing one member of a record leaves different
+bindings untouched, including separately exported returned functions; other
+members that alias the released binding are invalidated with it. A record groups
+values; it does not supply a disposal operation for that group.
+
+**Release is a local barrier, not a synchronized global revocation point.**
+The releasing scope updates its tables and sends one `live.release` event;
+the receiver updates its own tables when that event arrives. There is no
+acknowledgment. Go discards an event-send error and TypeScript catches it, so a
+successful local return does not prove remote receipt. Release permits work
+already dispatched to its implementation to finish; a request merely sent may
+still lose the race to release before dispatch. It cancels neither that RPC nor
+the application's work, and rolls back no effects. Cancelling an invocation is
+a separate operation, and an application-defined `Job.cancel()` is separate
+again. The [wire contract](../wire/live.md#release-is-a-barrier-closure-is-not)
+describes this boundary.
+
+**Scope closure settles calls.** Closing a scope settles its outgoing, incoming
+and local self-reference calls with `scope_closed`, while the peer remains
+usable for ordinary RPC. Implementations are told to cancel; a body that ignores
+cancellation can continue its effects, but its late result cannot replace the
+caller's closure outcome. Connection loss ends the scopes carried on that
+connection. The paired closure cases above and
+[#260](https://github.com/Bitspark/nightseam/issues/260) hold these rules.
+
+**Reconnection revives and replays nothing.** The next connection has new scopes
+and needs fresh bindings. An application may retain its own durable identity
+or resume cursor, use that data to resume its own protocol, and acquire new
+temporary live bindings. Neither the live layer nor the removal of tunnel
+`after` forbids such application behavior; neither supplies its storage, replay
+or recovery guarantees.
+
+**Forwarding creates a dependent binding and takes no origin ownership.**
+`Forward` / `forward` exports an imported invocation function in the destination
+scope. Releasing the destination binding leaves the origin usable. Releasing
+or losing the origin, or losing the intermediary connection, makes later use
+through that route fail; forwarding makes no binding durable. `forwarding` and
+the [scalar socket case](../../conformance/scenarios/live/forwarding-gives-the-destination-its-own-lifetime.json)
+hold the independent destination release. The generated higher-order proof in
+[#263](https://github.com/Bitspark/nightseam/issues/263) is described below.
+
+These runtime facts do not settle how generated plain functions expose
+ownership or disposal, or who retains bindings after an uncertain publication.
+Those decisions belong to [#257](https://github.com/Bitspark/nightseam/issues/257)
+and [#259](https://github.com/Bitspark/nightseam/issues/259).
+[#241](https://github.com/Bitspark/nightseam/issues/241) reconciles their landed
+resolutions with this guide for the final release.
 
 ## Forwarding callable-bearing values
 

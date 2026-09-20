@@ -20,6 +20,11 @@ ordinary value of whatever message holds it:
 {"binding": "9f2c4ab11e07d3a5.3", "contract": "probe/Report"}
 ```
 
+Each export mints a separate binding, including repeated exports of the same
+native function. Repeated imports of one binding are aliases of one attachment,
+not separately owned leases. A record of callable references has no additional
+wire identity, equality, shared lifetime or atomic record-wide release.
+
 `binding` is opaque and the exporting side's to mint; `contract` names the
 declaration the callable was declared at, `family/Type`. The runtime compares
 that string and never parses it: what makes a declaration produce one is the
@@ -45,6 +50,11 @@ scope is made. Invocation resolves the complete id in that scope's export
 table; fresh nonces keep counter reuse on another connection from identifying
 an unrelated binding. Reconnection makes a new scope; nothing is revived and
 nothing is replayed.
+
+An application can carry its own persistent identity or resume cursor as data
+and reacquire temporary bindings on the new connection. That is an application
+protocol, with its own persistence and recovery rules; removing tunnel `after`
+does not prohibit application cursors or add replay to the live layer.
 
 The descriptor is serializable, and public `Decode` / `decode` accepts
 caller-supplied bytes without proving inbound-message provenance. Bytes from a
@@ -83,8 +93,12 @@ frames.**
 ```
 
 The side that sends it has already released; the side that receives it releases
-too and says nothing back. Release is idempotent and reaches every alias of the
-binding at once.
+too and says nothing back. Release is idempotent and invalidates every existing
+alias in each scope when that scope processes the release. It is not reference
+counting: another alias does not keep the binding alive. There is no
+acknowledgment, so the sender's return is not evidence that the remote side has
+processed the event, nor a synchronized global revocation point. Both runtimes
+keep the local release even if sending the event fails.
 
 ## What is refused, and with what
 
@@ -103,13 +117,19 @@ stands before a frame is sent. The same eight codes in every language:
 
 ## Release is a barrier; closure is not
 
-Releasing a binding refuses the **next** invocation of it and leaves the ones
-already dispatched to settle and be delivered: a release is a statement about the
-reference, not about work already asked for. Closing the scope, or the connection
-carrying it, is the harder stop — every invocation in flight is settled at once.
-Neither rolls back an effect an invocation already had, and neither is an
-application's own cancellation: a `Job.cancel()` that an application declares is
-an ordinary callable, and this layer has never heard of it.
+After a scope processes release, it refuses subsequent use of that binding.
+Implementations already dispatched may finish and deliver their results; a
+request merely sent is not guaranteed to have reached that point before release.
+Release cancels no invocation or application work, and releases no other binding,
+including separately exported functions previously returned by the released
+function. Record members that alias the same binding share its invalidation.
+
+Closing the scope, or the connection carrying it, settles its calls in flight
+and signals cancellation to their implementations. Neither release nor closure
+rolls back an effect an invocation already had. Application cancellation is
+another contract: a `Job.cancel()` that an application declares is an ordinary
+callable. The [lifetime table and named evidence](../runtime/live.md#the-rules-a-consumer-can-rely-on)
+distinguish calls, bindings, aliases, records and connections in both runtimes.
 
 ## Why this and not a channel each
 
