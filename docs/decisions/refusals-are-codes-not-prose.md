@@ -1,18 +1,19 @@
 # Refusals are codes, not prose
 
-**The question.** A consumer's server calls into the session layer, and a
-call may be refused. What does the refusal carry, and is it the same thing
-in every language?
+**The question.** A consumer's server is called and may refuse. What does
+the refusal carry, and is it the same thing in every language?
 
 **Decided.** A code a program branches on, never prose it would have to
-match: one vocabulary of ten, the same in both languages name for name,
-each code a constant. In Go a `*session.Error` with `Code` and `Message`
-reached by `errors.As` and by `errors.Is` matching on the code alone; in
-TypeScript a `DuplexError` whose `code` is the same string. A close is not a
-refusal and carries a code of its own, and the reason a close carries is
-one closed set of sentences in both languages, word for word. The session's
-own pages went with the layer in 0.5.0; the rule is what any layer's
-refusals are held to.
+match: one vocabulary, the same in both languages name for name, each code
+a constant. In Go a `*runtime.PublicError` with `Code` and `Message`, told
+apart by `IsError(err, code)` on the code alone; in TypeScript a
+`DuplexError` whose `code` is the same string
+([the peer](../runtime/peer.md#errors)). A close is not a refusal and
+carries a code of its own, and the reason a close carries is one closed set
+of sentences in both languages, word for word. The vocabulary this was
+first decided over was the session layer's ten, and went with that layer in
+0.5.0; the rule is what any layer's refusals are held to, and what the
+peer's own codes and a family's declared errors follow.
 
 **Why.** What a call refuses with is part of the surface a consumer writes
 against, and a consumer cannot ask which runtime wrote the relay it called

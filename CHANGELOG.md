@@ -8,6 +8,11 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Clarified
 
+- The refusal decision illustrates its rule with `*runtime.PublicError` and
+  `IsError`, which carry a refusal, rather than the `session.Error` and the
+  vocabulary of ten that went with the session layer in 0.5.0. The rule and its
+  reasoning are unchanged.
+
 - The tiers page records that the TypeScript target renders both generated
   roles since #315, that no `generator` cell holds a skip, and that the gate's
   tolerance of skips — not an absent TypeScript binding — is what #295 closes.
