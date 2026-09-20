@@ -61,6 +61,16 @@ the server side's, and the two swap. The declaration picks the direction.
 
 ## The rules, and who makes them
 
+This historical channel composition counts imported aliases and closes an
+attachment when its last alias is released. That is its own application policy,
+held by `TestRepeatedImportAndRelease`; it is **not** the production live
+runtime's release contract. Production `Release` / `release` invalidates a whole
+binding and every existing alias without counting owners. Its one-way event has
+no acknowledgment, and neither a record of callables nor a forwarded function
+acquires a shared lease. The production
+[lifetime table](live.md#the-rules-a-consumer-can-rely-on) states those rules and
+their paired evidence.
+
 None of the following is a guarantee something else makes. Each is a few lines
 of ordinary application state — a map, a mutex, a counter — in
 `testdata/compositions/go/scope_test.go` and its TypeScript twin in
@@ -87,7 +97,8 @@ says why.
 
 ## Three cancellations, three outcomes
 
-`TestReleaseCancelAndJobCancelDiffer` runs all three against one job:
+`TestReleaseCancelAndJobCancelDiffer` runs all three against one job in the
+channel composition above; its attachment release is that composition's policy:
 
 - **An RPC cancelled** ends that call. No reference is released, and the job
   it was made beside is untouched.

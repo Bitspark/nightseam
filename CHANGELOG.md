@@ -8,6 +8,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Clarified
 
+- Live lifetime documentation distinguishes calls, bindings, aliases, records
+  and connections; release invalidates aliases without counting owners or
+  acknowledging remote receipt, forwarding retains its origin dependency, and
+  application resume data supplies no automatic binding revival.
 - Generated-role coverage distinguishes Go server bindings from TypeScript
   clients, accounts for every TypeScript generator skip, and records the
   unresolved tier-1 release-policy gap without changing the gate.
