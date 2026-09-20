@@ -8,6 +8,7 @@
  * released is a leak, and a suite that only compares payloads never sees one.
  */
 import { DuplexError } from '@nightseam/runtime';
+import { publicationCases } from './publication.ts';
 import {
   CONTRACT_INVALID,
   CONTRACT_MISMATCH,
@@ -136,6 +137,7 @@ export function cases(): Case[] {
     { name: 'a reference handed back to its exporter needs no wire', run: selfReference },
     { name: 'forwarding gives the destination its own lifetime', run: forwarding },
     { name: 'a refused export leaves no binding behind', run: boundsLeaveNothing },
+    ...publicationCases(),
   ];
 }
 

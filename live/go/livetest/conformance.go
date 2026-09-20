@@ -61,7 +61,7 @@ type Case struct {
 
 // Cases is the suite, in order.
 func Cases() []Case {
-	return []Case{
+	return append([]Case{
 		{"a callback reaches the side that supplied it", callbackAndResult},
 		{"a returned callable outlives the call that returned it", higherOrder},
 		{"two suppliers are told apart", independentSuppliers},
@@ -80,7 +80,7 @@ func Cases() []Case {
 		{"a reference handed back to its exporter needs no wire", selfReference},
 		{"forwarding gives the destination its own lifetime", forwarding},
 		{"a refused export leaves no binding behind", boundsLeaveNothing},
-	}
+	}, publicationCases()...)
 }
 
 const (
