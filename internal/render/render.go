@@ -357,19 +357,18 @@ func wire(f *analysis.Family) string {
 	return string(data)
 }
 
-// Form is one form of the declaration language, named as a diagnostic names
-// it. A target that does not render a form yet refuses a family that uses
-// one, saying which form and which target, rather than emitting something
-// that is not what was declared — never a panic, and never silence.
+// Form is one form of the declaration language a family uses, named in the
+// words a diagnostic once named it in and located where the family writes it.
 type Form struct {
 	Name string
 	At   diag.Location
 }
 
-// FormsUsed is every form of the declaration language the family uses that
-// a target may not render, each named once, in the order they are met. A
-// target whose renderer has learned a form drops it from what it refuses;
-// the list is what the targets of a language still owe the language.
+// FormsUsed is every form of the declaration language the family uses, each
+// named once, in the order they are met. Every target renders every form, so
+// this is no longer what a target owes: it is the inventory the proof family
+// is held to, so that dropping a form from that declaration cannot silently
+// leave the form unproved.
 func FormsUsed(f *Family) []Form {
 	var forms []Form
 	seen := map[string]bool{}
@@ -442,16 +441,6 @@ func FormsUsed(f *Family) []Form {
 		}
 	}
 	return forms
-}
-
-// Unrendered is the diagnostics a target reports for the forms it does not
-// render yet: one per form, naming the form and the target.
-func Unrendered(f *Family, target string) []diag.Diagnostic {
-	var diagnostics []diag.Diagnostic
-	for _, form := range FormsUsed(f) {
-		diagnostics = append(diagnostics, diag.New(f.Name, form.At, "unrendered_form", "The "+target+" target does not render "+form.Name+" yet."))
-	}
-	return diagnostics
 }
 
 // IsLive reports whether values of an expression carry a callable, in this
