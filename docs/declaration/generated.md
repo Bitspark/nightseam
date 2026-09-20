@@ -244,6 +244,7 @@ export function serve(
   handler: Handler,
   events?: Events,
 ): Promise<DuplexPeer>;
+export function install(peer: DuplexPeer, handler: Handler, events?: Events): Remote;
 ```
 
 The host accepts the connection, including any authentication, origin checks
@@ -273,8 +274,27 @@ constructed from it exposes the typed server surface outside a handler.
 Later `onX` registration cannot recover events already delivered, so use the
 `events` argument for listeners that must see the first frame.
 
+Use `install` when the host configures the peer before attaching, such as
+setting live registry bounds. With the live family's `handler` and `events`,
+and `install` imported from its binding package:
+
+```ts
+const peer = new DuplexPeer({ ...options, role: 'server' });
+liveOver(peer, { maxExports: 64, maxImports: 64 });
+const remote = install(peer, handler, events);
+await peer.attach(connection);
+```
+
+`install` registers the same typed handlers and event listeners and returns
+their `Remote`. For a live family it preserves an existing scope and its
+bounds, creating a default scope only when none exists. It leaves the peer's
+role, observer family labels and other options with the host. Call it before
+attaching so the first frame reaches the installed handlers. `serve`
+constructs the server peer, calls `install`, then attaches the connection.
+
 A generic binding takes the same explicit family and type bindings as its
-client, before `options` in `serve` and after `peer` in `new Remote`.
+client, before `options` in `serve` and after `peer` in `install` and
+`new Remote`.
 See the [generated-role evidence](proof-findings.md#generated-roles-and-skips)
 for the real-socket coverage of both languages' client and binding packages.
 
