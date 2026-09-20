@@ -40,6 +40,21 @@ export interface Handle {
 }
 /** The family: its name and the wire types a slot of it draws on. */
 export interface Family { readonly name: "relay"; Envelope: Envelope; Handle: Handle }
+/** Writes Carried using the supplied conversion for each type argument. */
+export function exportCarried<S extends AnyFamily = AnyFamily>(value: Carried<S>, convert_S_Envelope: (value: S["Envelope"]) => unknown, convert_S_Handle: (value: S["Handle"]) => unknown): unknown {
+  const out: Record<string, unknown> = {};
+  out["message"] = convert_S_Envelope((value["message"]) as S["Envelope"]);
+  out["back"] = (value["back"] === null ? null : convert_S_Handle((value["back"]) as S["Handle"]));
+  return out;
+}
+/** Reads Carried using the supplied conversion for each type argument. */
+export function importCarried<S extends AnyFamily = AnyFamily>(raw: unknown, convert_S_Envelope: (value: unknown) => S["Envelope"], convert_S_Handle: (value: unknown) => S["Handle"]): Carried<S> {
+  const wire = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  out["message"] = convert_S_Envelope(wire["message"]);
+  out["back"] = (wire["back"] === null ? null : convert_S_Handle(wire["back"]));
+  return out as unknown as Carried<S>;
+}
 
 const contractTypes = {"types":{"Carried":{"kind":"record","fields":[{"name":"message","type":"S.Envelope","required":true},{"name":"back","type":{"nullable":"S.Handle"},"required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]}},"parameters":[{"name":"S","of":"live"}]} as unknown as WireFamily;
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */

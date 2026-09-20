@@ -49,6 +49,44 @@ export interface Handle {
 }
 /** The family: its name and the wire types a slot of it draws on. */
 export interface Family { readonly name: "carrier"; AttachParams: AttachParams; Envelope: Envelope; Handle: Handle }
+/** Writes Attachment using the supplied conversion for each type argument. */
+export function exportAttachment<S extends AnyFamily = AnyFamily>(value: Attachment<S>, convert_S_Handle: (value: S["Handle"]) => unknown): unknown {
+  const out: Record<string, unknown> = {};
+  out["connection"] = convert_S_Handle((value["connection"]) as S["Handle"]);
+  out["last"] = value["last"];
+  return out;
+}
+/** Reads Attachment using the supplied conversion for each type argument. */
+export function importAttachment<S extends AnyFamily = AnyFamily>(raw: unknown, convert_S_Handle: (value: unknown) => S["Handle"]): Attachment<S> {
+  const wire = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  out["connection"] = convert_S_Handle(wire["connection"]);
+  out["last"] = wire["last"];
+  return out as unknown as Attachment<S>;
+}
+/** Writes Frame using the supplied conversion for each type argument. */
+export function exportFrame<S extends AnyFamily = AnyFamily>(value: Frame<S>, convert_S_Envelope: (value: S["Envelope"]) => unknown): unknown {
+  const out: Record<string, unknown> = {};
+  out["sequence"] = value["sequence"];
+  out["message"] = convert_S_Envelope((value["message"]) as S["Envelope"]);
+  return out;
+}
+/** Reads Frame using the supplied conversion for each type argument. */
+export function importFrame<S extends AnyFamily = AnyFamily>(raw: unknown, convert_S_Envelope: (value: unknown) => S["Envelope"]): Frame<S> {
+  const wire = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  out["sequence"] = wire["sequence"];
+  out["message"] = convert_S_Envelope(wire["message"]);
+  return out as unknown as Frame<S>;
+}
+/** Writes Frames using the supplied conversion for each type argument. */
+export function exportFrames<S extends AnyFamily = AnyFamily>(value: Frames<S>, convert_S_Envelope: (value: S["Envelope"]) => unknown): unknown {
+  return (value as unknown[]).map((item) => exportFrame<S>((item) as Frame<S>, (input: S["Envelope"]): unknown => convert_S_Envelope((input) as S["Envelope"])));
+}
+/** Reads Frames using the supplied conversion for each type argument. */
+export function importFrames<S extends AnyFamily = AnyFamily>(raw: unknown, convert_S_Envelope: (value: unknown) => S["Envelope"]): Frames<S> {
+  return (raw as unknown[]).map((item) => importFrame<S>(item, (input: unknown): S["Envelope"] => (convert_S_Envelope(input)) as S["Envelope"]));
+}
 
 const contractTypes = {"types":{"AttachParams":{"kind":"record","fields":[{"name":"id","type":"string","required":true}]},"Attachment":{"kind":"record","fields":[{"name":"connection","type":"S.Handle","required":true},{"name":"last","type":"integer","required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Frame":{"kind":"record","fields":[{"name":"sequence","type":"integer","required":true},{"name":"message","type":"S.Envelope","required":true}]},"Frames":{"kind":"alias","type":{"array":"Frame"}},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]}},"parameters":[{"name":"S","of":"protocol"}]} as unknown as WireFamily;
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */

@@ -57,7 +57,7 @@ export interface Family { readonly name: "supervisor"; Envelope: Envelope; Handl
 export function exportRelieveRequest(scope: LiveScope, value: RelieveRequest): unknown {
   const out: Record<string, unknown> = {};
   out["shift"] = value["shift"];
-  out["sink"] = live_worker.exportProgressSink(scope, value["sink"] as worker.ProgressSink);
+  out["sink"] = live_worker.exportProgressSink(scope, (value["sink"]) as worker.ProgressSink);
   return out;
 }
 /** Reads RelieveRequest as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
@@ -72,8 +72,8 @@ export function importRelieveRequest(scope: LiveScope, raw: unknown): RelieveReq
 export function exportWatch(scope: LiveScope, value: Watch): unknown {
   const out: Record<string, unknown> = {};
   out["shift"] = value["shift"];
-  out["sink"] = live_worker.exportProgressSink(scope, value["sink"] as worker.ProgressSink);
-  if (value["spares"] !== undefined) out["spares"] = (value["spares"] as unknown[]).map((item) => live_worker.exportProgressSink(scope, item as worker.ProgressSink));
+  out["sink"] = live_worker.exportProgressSink(scope, (value["sink"]) as worker.ProgressSink);
+  if (value["spares"] !== undefined) out["spares"] = (value["spares"] as unknown[]).map((item) => live_worker.exportProgressSink(scope, (item) as worker.ProgressSink));
   return out;
 }
 /** Reads Watch as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */

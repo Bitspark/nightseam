@@ -42,12 +42,17 @@ It costs anonymity. A record cannot say `{"name": "report", "type":
 a callable written inline is refused with a diagnostic that says so. For a
 one-off callback that is a line of ceremony.
 
-It costs generics, for now. A generic callable would have one identity per
-application rather than one declaration, which is the structural answer
-arriving by another door; `parameters` on a callable is refused until that has
-its own verdict. A *container* generic over a live type — `Page<Job>` — is
-refused for a different reason, that the boundary conversion of a generic
-declared in a lower tier would have to be generic in a way nothing generates.
+Generic callables remain refused. Their identities could still be nominal,
+with applied arguments, but that requires a canonical spelling of arguments
+shared by every language. It does not follow from nominal identity alone.
+The operator chose option C in [#247](https://github.com/Bitspark/nightseam/issues/247):
+keep that refusal and support generic containers of live values.
+
+A *container* generic over a live type — `Page<Job>` — needs no identity of
+its own. Generated conversion helpers take converters for their parameters;
+the live caller supplies converters closed over its scope. The declaration
+of `Page` remains data-only, with no live runtime dependency, while its live
+application belongs in `live.json`. Only the callable members carry contracts.
 
 It costs nothing in expressiveness that matters here. An interface is a record
 of callable members, which is what both prior models converge on, and nothing

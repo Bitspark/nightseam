@@ -109,7 +109,7 @@ export function importStop(scope: LiveScope, raw: unknown): Stop {
 /** Writes Subscription as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportSubscription(scope: LiveScope, value: Subscription): unknown {
   const out: Record<string, unknown> = {};
-  out["stop"] = exportStop(scope, value["stop"] as Stop);
+  out["stop"] = exportStop(scope, (value["stop"]) as Stop);
   return out;
 }
 /** Reads Subscription as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
@@ -123,7 +123,7 @@ export function importSubscription(scope: LiveScope, raw: unknown): Subscription
 export function exportWatch(scope: LiveScope, value: Watch): unknown {
   const out: Record<string, unknown> = {};
   out["label"] = value["label"];
-  out["watcher"] = exportWatcher(scope, value["watcher"] as Watcher);
+  out["watcher"] = exportWatcher(scope, (value["watcher"]) as Watcher);
   return out;
 }
 /** Reads Watch as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
@@ -137,7 +137,7 @@ export function importWatch(scope: LiveScope, raw: unknown): Watch {
 /** Writes Watcher as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportWatcher(scope: LiveScope, value: Watcher): unknown {
   const out: Record<string, unknown> = {};
-  out["notice"] = exportNotice(scope, value["notice"] as Notice);
+  out["notice"] = exportNotice(scope, (value["notice"]) as Notice);
   return out;
 }
 /** Reads Watcher as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */

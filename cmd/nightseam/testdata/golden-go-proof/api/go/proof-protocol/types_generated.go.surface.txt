@@ -71,6 +71,14 @@ func (RichPartTable) WireType() runtime.TypeBinding
 func (TextPart) MarshalJSON() ([]byte, error)
 func (TextPart) Of() Tag
 func (TextPart) WireType() runtime.TypeBinding
+func ExportCarried[SEnvelope any, SHandle any, Item any](v Carried[SEnvelope, SHandle, Item], convertSEnvelope func(SEnvelope) (json.RawMessage, error), typeSEnvelope runtime.TypeBinding, convertSHandle func(SHandle) (json.RawMessage, error), typeSHandle runtime.TypeBinding, convertItem func(Item) (json.RawMessage, error), typeItem runtime.TypeBinding) (json.RawMessage, error)
+func ExportOption[T any](v Option[T], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error)
+func ExportPage[T any](v Page[T], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error)
+func ExportResult[T any, E any](v Result[T, E], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding, convertE func(E) (json.RawMessage, error), typeE runtime.TypeBinding) (json.RawMessage, error)
+func ImportCarried[SEnvelope any, SHandle any, Item any](raw json.RawMessage, convertSEnvelope func(json.RawMessage) (SEnvelope, error), typeSEnvelope runtime.TypeBinding, convertSHandle func(json.RawMessage) (SHandle, error), typeSHandle runtime.TypeBinding, convertItem func(json.RawMessage) (Item, error), typeItem runtime.TypeBinding) (Carried[SEnvelope, SHandle, Item], error)
+func ImportOption[T any](raw json.RawMessage, convertT func(json.RawMessage) (T, error), typeT runtime.TypeBinding) (Option[T], error)
+func ImportPage[T any](raw json.RawMessage, convertT func(json.RawMessage) (T, error), typeT runtime.TypeBinding) (Page[T], error)
+func ImportResult[T any, E any](raw json.RawMessage, convertT func(json.RawMessage) (T, error), typeT runtime.TypeBinding, convertE func(json.RawMessage) (E, error), typeE runtime.TypeBinding) (Result[T, E], error)
 func IsError(err error, code string) bool
 func NarrowRichPartToPart(v RichPart) (Part, bool)
 func WidenRichPartFromPart(v Part) RichPart

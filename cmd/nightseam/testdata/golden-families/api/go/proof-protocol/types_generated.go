@@ -752,6 +752,317 @@ func (TextPart) WireType() runtime.TypeBinding {
 	return runtime.TypeBinding{Schema: schema, Type: "TextPart"}
 }
 
+// ExportCarried writes Carried using the supplied conversion for each type argument.
+func ExportCarried[SEnvelope, SHandle, Item any](v Carried[SEnvelope, SHandle, Item], convertSEnvelope func(SEnvelope) (json.RawMessage, error), typeSEnvelope runtime.TypeBinding, convertSHandle func(SHandle) (json.RawMessage, error), typeSHandle runtime.TypeBinding, convertItem func(Item) (json.RawMessage, error), typeItem runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	var messageMember json.RawMessage
+	messageMemberConverted, err := convertSEnvelope(v.Message)
+	if err != nil {
+		return nil, err
+	}
+	messageMember = messageMemberConverted
+	wire["message"] = messageMember
+	var backMember json.RawMessage
+	var backMemberConverted json.RawMessage
+	if v.Back.Null {
+		backMemberConverted = json.RawMessage("null")
+	} else {
+		backMemberConvertedHeld, err := convertSHandle(v.Back.Value)
+		if err != nil {
+			return nil, err
+		}
+		backMemberConverted = backMemberConvertedHeld
+	}
+	backMember = backMemberConverted
+	wire["back"] = backMember
+	var pageMember json.RawMessage
+	pageMemberConvertedConvert0 := func(input Item) (json.RawMessage, error) {
+		converted, err := convertItem(input)
+		if err != nil {
+			return nil, err
+		}
+		return converted, nil
+	}
+	pageMemberConverted, err := ExportPage[Item](v.Page, pageMemberConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle, "Item": typeItem}, nil), Type: runtime.MustTypeExpression("\"Item\"")})
+	if err != nil {
+		return nil, err
+	}
+	pageMember = pageMemberConverted
+	wire["page"] = pageMember
+	data, err := runtime.MarshalObject([]string{"message", "back", "page"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle, "Item": typeItem}, nil).ValidateExpressionRaw("Carried", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportCarried reads Carried using the supplied conversion for each type argument.
+func ImportCarried[SEnvelope, SHandle, Item any](raw json.RawMessage, convertSEnvelope func(json.RawMessage) (SEnvelope, error), typeSEnvelope runtime.TypeBinding, convertSHandle func(json.RawMessage) (SHandle, error), typeSHandle runtime.TypeBinding, convertItem func(json.RawMessage) (Item, error), typeItem runtime.TypeBinding) (Carried[SEnvelope, SHandle, Item], error) {
+	var value Carried[SEnvelope, SHandle, Item]
+	if err := schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle, "Item": typeItem}, nil).ValidateExpressionRaw("Carried", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["message"]; present {
+		var held SEnvelope
+		heldConverted, err := convertSEnvelope(member)
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Message = held
+	}
+	if member, present := wire["back"]; present {
+		var held runtime.Nullable[SHandle]
+		var heldConverted runtime.Nullable[SHandle]
+		if string(member) == "null" {
+			heldConverted = runtime.Null[SHandle]()
+		} else {
+			heldConvertedHeld, err := convertSHandle(member)
+			if err != nil {
+				return value, err
+			}
+			heldConverted = runtime.NonNull(heldConvertedHeld)
+		}
+		held = heldConverted
+		value.Back = held
+	}
+	if member, present := wire["page"]; present {
+		var held Page[Item]
+		heldConvertedConvert0 := func(input json.RawMessage) (Item, error) {
+			var zero Item
+			converted, err := convertItem(input)
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}
+		heldConverted, err := ImportPage[Item](member, heldConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle, "Item": typeItem}, nil), Type: runtime.MustTypeExpression("\"Item\"")})
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Page = held
+	}
+	return value, nil
+}
+
+// ExportOption writes Option using the supplied conversion for each type argument.
+func ExportOption[T any](v Option[T], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	tag, err := runtime.MarshalJSON(string(v.Kind()))
+	if err != nil {
+		return nil, err
+	}
+	wire["kind"] = tag
+	switch v.Kind() {
+	case OptionKindNone:
+		payload, err := runtime.MarshalJSON(*v.None)
+		if err != nil {
+			return nil, err
+		}
+		wire["value"] = payload
+	case OptionKindSome:
+		payload, err := convertT(v.Some.Value)
+		if err != nil {
+			return nil, err
+		}
+		wire["value"] = payload
+	default:
+		return nil, fmt.Errorf("Option: no variant is selected")
+	}
+	data, err := runtime.MarshalObject([]string{"kind", "value"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw("Option", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportOption reads Option using the supplied conversion for each type argument.
+func ImportOption[T any](raw json.RawMessage, convertT func(json.RawMessage) (T, error), typeT runtime.TypeBinding) (Option[T], error) {
+	var value Option[T]
+	if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw("Option", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	var tag string
+	if err := json.Unmarshal(wire["kind"], &tag); err != nil {
+		return value, err
+	}
+	switch OptionKind(tag) {
+	case OptionKindNone:
+		var payload OptionNone
+		if err := json.Unmarshal(wire["value"], &payload); err != nil {
+			return value, err
+		}
+		value.None = &payload
+	case OptionKindSome:
+		payload, err := convertT(wire["value"])
+		if err != nil {
+			return value, err
+		}
+		value.Some = &OptionSomeValue[T]{Value: payload}
+	default:
+		return value, fmt.Errorf("Option: unknown variant %q", tag)
+	}
+	return value, nil
+}
+
+// ExportPage writes Page using the supplied conversion for each type argument.
+func ExportPage[T any](v Page[T], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	var itemsMember json.RawMessage
+	itemsMemberConvertedItems := make([]json.RawMessage, 0, len(v.Items))
+	for _, item := range v.Items {
+		element, err := convertT(item)
+		if err != nil {
+			return nil, err
+		}
+		itemsMemberConvertedItems = append(itemsMemberConvertedItems, element)
+	}
+	itemsMemberConverted, err := runtime.MarshalJSON(itemsMemberConvertedItems)
+	if err != nil {
+		return nil, err
+	}
+	itemsMember = itemsMemberConverted
+	wire["items"] = itemsMember
+	if v.Next.Present {
+		var member json.RawMessage
+		memberConverted, err := runtime.MarshalJSON(v.Next.Value)
+		if err != nil {
+			return nil, err
+		}
+		member = memberConverted
+		wire["next"] = member
+	}
+	data, err := runtime.MarshalObject([]string{"items", "next"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw("Page", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportPage reads Page using the supplied conversion for each type argument.
+func ImportPage[T any](raw json.RawMessage, convertT func(json.RawMessage) (T, error), typeT runtime.TypeBinding) (Page[T], error) {
+	var value Page[T]
+	if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw("Page", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["items"]; present {
+		var held []T
+		var heldConvertedRaw []json.RawMessage
+		if err := json.Unmarshal(member, &heldConvertedRaw); err != nil {
+			return value, err
+		}
+		heldConverted := make([]T, 0, len(heldConvertedRaw))
+		for _, item := range heldConvertedRaw {
+			element, err := convertT(item)
+			if err != nil {
+				return value, err
+			}
+			heldConverted = append(heldConverted, element)
+		}
+		held = heldConverted
+		value.Items = held
+	}
+	if member, present := wire["next"]; present && string(member) != "undefined" {
+		var held runtime.Nullable[string]
+		var heldConverted runtime.Nullable[string]
+		if err := json.Unmarshal(member, &heldConverted); err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Next = runtime.Some(held)
+	}
+	return value, nil
+}
+
+// ExportResult writes Result using the supplied conversion for each type argument.
+func ExportResult[T, E any](v Result[T, E], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding, convertE func(E) (json.RawMessage, error), typeE runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	tag, err := runtime.MarshalJSON(string(v.Kind()))
+	if err != nil {
+		return nil, err
+	}
+	wire["kind"] = tag
+	switch v.Kind() {
+	case ResultKindErr:
+		payload, err := convertE(v.Err.Value)
+		if err != nil {
+			return nil, err
+		}
+		wire["value"] = payload
+	case ResultKindOk:
+		payload, err := convertT(v.Ok.Value)
+		if err != nil {
+			return nil, err
+		}
+		wire["value"] = payload
+	default:
+		return nil, fmt.Errorf("Result: no variant is selected")
+	}
+	data, err := runtime.MarshalObject([]string{"kind", "value"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"T": typeT, "E": typeE}, nil).ValidateExpressionRaw("Result", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportResult reads Result using the supplied conversion for each type argument.
+func ImportResult[T, E any](raw json.RawMessage, convertT func(json.RawMessage) (T, error), typeT runtime.TypeBinding, convertE func(json.RawMessage) (E, error), typeE runtime.TypeBinding) (Result[T, E], error) {
+	var value Result[T, E]
+	if err := schema.Bind(map[string]any{"T": typeT, "E": typeE}, nil).ValidateExpressionRaw("Result", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	var tag string
+	if err := json.Unmarshal(wire["kind"], &tag); err != nil {
+		return value, err
+	}
+	switch ResultKind(tag) {
+	case ResultKindErr:
+		payload, err := convertE(wire["value"])
+		if err != nil {
+			return value, err
+		}
+		value.Err = &ResultErrValue[T, E]{Value: payload}
+	case ResultKindOk:
+		payload, err := convertT(wire["value"])
+		if err != nil {
+			return value, err
+		}
+		value.Ok = &ResultOkValue[T, E]{Value: payload}
+	default:
+		return value, fmt.Errorf("Result: unknown variant %q", tag)
+	}
+	return value, nil
+}
+
 // The public errors of the family: what a handler returns, as the Code of a *runtime.PublicError, and a caller tells apart with IsError.
 const (
 	// ErrorDenied: The caller is denied

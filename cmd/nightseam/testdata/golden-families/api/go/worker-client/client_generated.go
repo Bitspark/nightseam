@@ -48,7 +48,17 @@ func install(handler Handler, events Events, options *runtime.Options) error {
 		if !ok {
 			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 		}
-		params, err := protocol.ImportSupervise(scope, raw)
+		params, err := func() (protocol.Supervise, error) {
+			var zero protocol.Supervise
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Supervise\""), raw); err != nil {
+				return zero, err
+			}
+			converted, err := protocol.ImportSupervise(scope, raw)
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}()
 		if err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
@@ -56,7 +66,18 @@ func install(handler Handler, events Events, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		return protocol.ExportOutcome(scope, result)
+		sent, err := func() (json.RawMessage, error) {
+			var zero json.RawMessage
+			converted, err := protocol.ExportOutcome(scope, result)
+			if err != nil {
+				return zero, err
+			}
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), converted); err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}()
+		return sent, err
 	}
 	options.Handlers = handlers
 	families := map[string]string{}
@@ -150,7 +171,17 @@ func (c *Client) Start(ctx context.Context, params protocol.Start) (protocol.Job
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := protocol.ExportStart(scope, params)
+	sent, err := func() (json.RawMessage, error) {
+		var zero json.RawMessage
+		converted, err := protocol.ExportStart(scope, params)
+		if err != nil {
+			return zero, err
+		}
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Start\""), converted); err != nil {
+			return zero, err
+		}
+		return converted, nil
+	}()
 	if err != nil {
 		return result, err
 	}
@@ -158,7 +189,18 @@ func (c *Client) Start(ctx context.Context, params protocol.Start) (protocol.Job
 	if err := c.Peer.Call(ctx, "start", sent, &raw); err != nil {
 		return result, err
 	}
-	return protocol.ImportJob(scope, raw)
+	received, err := func() (protocol.Job, error) {
+		var zero protocol.Job
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Job\""), raw); err != nil {
+			return zero, err
+		}
+		converted, err := protocol.ImportJob(scope, raw)
+		if err != nil {
+			return zero, err
+		}
+		return converted, nil
+	}()
+	return received, err
 }
 func (c *Client) OnSettled(handler func(context.Context, protocol.Outcome)) error {
 	return c.Peer.HandleEvent("settled", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
@@ -167,7 +209,17 @@ func (c *Client) OnSettled(handler func(context.Context, protocol.Outcome)) erro
 			_ = peer.Close()
 			return
 		}
-		data, err := protocol.ImportOutcome(scope, raw)
+		data, err := func() (protocol.Outcome, error) {
+			var zero protocol.Outcome
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), raw); err != nil {
+				return zero, err
+			}
+			converted, err := protocol.ImportOutcome(scope, raw)
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}()
 		if err != nil {
 			_ = peer.Close()
 			return

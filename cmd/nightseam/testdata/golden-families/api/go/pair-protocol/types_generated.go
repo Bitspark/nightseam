@@ -226,3 +226,222 @@ func (Named) Of() Tag { return Tag{} }
 func (Named) WireType() runtime.TypeBinding {
 	return runtime.TypeBinding{Schema: schema, Type: "Named"}
 }
+
+// ExportBoth writes Both using the supplied conversion for each type argument.
+func ExportBoth[SEnvelope, SHandle, TEnvelope any](v Both[SEnvelope, SHandle, TEnvelope], convertSEnvelope func(SEnvelope) (json.RawMessage, error), typeSEnvelope runtime.TypeBinding, convertSHandle func(SHandle) (json.RawMessage, error), typeSHandle runtime.TypeBinding, convertTEnvelope func(TEnvelope) (json.RawMessage, error), typeTEnvelope runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	var frameMember json.RawMessage
+	frameMemberConvertedConvert0 := func(input SEnvelope) (json.RawMessage, error) {
+		converted, err := convertSEnvelope(input)
+		if err != nil {
+			return nil, err
+		}
+		return converted, nil
+	}
+	frameMemberConvertedConvert1 := func(input SHandle) (json.RawMessage, error) {
+		converted, err := convertSHandle(input)
+		if err != nil {
+			return nil, err
+		}
+		return converted, nil
+	}
+	frameMemberConverted, err := ExportFrame[SEnvelope, SHandle](v.Frame, frameMemberConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle, "T.Envelope": typeTEnvelope}, nil), Type: runtime.MustTypeExpression("\"S.Envelope\"")}, frameMemberConvertedConvert1, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle, "T.Envelope": typeTEnvelope}, nil), Type: runtime.MustTypeExpression("\"S.Handle\"")})
+	if err != nil {
+		return nil, err
+	}
+	frameMember = frameMemberConverted
+	wire["frame"] = frameMember
+	var echoesMember json.RawMessage
+	echoesMemberConvertedItems := make([]json.RawMessage, 0, len(v.Echoes))
+	for _, item := range v.Echoes {
+		elementConvert0 := func(input TEnvelope) (json.RawMessage, error) {
+			converted, err := convertTEnvelope(input)
+			if err != nil {
+				return nil, err
+			}
+			return converted, nil
+		}
+		element, err := ExportEcho[TEnvelope](item, elementConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle, "T.Envelope": typeTEnvelope}, nil), Type: runtime.MustTypeExpression("\"T.Envelope\"")})
+		if err != nil {
+			return nil, err
+		}
+		echoesMemberConvertedItems = append(echoesMemberConvertedItems, element)
+	}
+	echoesMemberConverted, err := runtime.MarshalJSON(echoesMemberConvertedItems)
+	if err != nil {
+		return nil, err
+	}
+	echoesMember = echoesMemberConverted
+	wire["echoes"] = echoesMember
+	data, err := runtime.MarshalObject([]string{"frame", "echoes"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle, "T.Envelope": typeTEnvelope}, nil).ValidateExpressionRaw("Both", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportBoth reads Both using the supplied conversion for each type argument.
+func ImportBoth[SEnvelope, SHandle, TEnvelope any](raw json.RawMessage, convertSEnvelope func(json.RawMessage) (SEnvelope, error), typeSEnvelope runtime.TypeBinding, convertSHandle func(json.RawMessage) (SHandle, error), typeSHandle runtime.TypeBinding, convertTEnvelope func(json.RawMessage) (TEnvelope, error), typeTEnvelope runtime.TypeBinding) (Both[SEnvelope, SHandle, TEnvelope], error) {
+	var value Both[SEnvelope, SHandle, TEnvelope]
+	if err := schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle, "T.Envelope": typeTEnvelope}, nil).ValidateExpressionRaw("Both", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["frame"]; present {
+		var held Frame[SEnvelope, SHandle]
+		heldConvertedConvert0 := func(input json.RawMessage) (SEnvelope, error) {
+			var zero SEnvelope
+			converted, err := convertSEnvelope(input)
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}
+		heldConvertedConvert1 := func(input json.RawMessage) (SHandle, error) {
+			var zero SHandle
+			converted, err := convertSHandle(input)
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}
+		heldConverted, err := ImportFrame[SEnvelope, SHandle](member, heldConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle, "T.Envelope": typeTEnvelope}, nil), Type: runtime.MustTypeExpression("\"S.Envelope\"")}, heldConvertedConvert1, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle, "T.Envelope": typeTEnvelope}, nil), Type: runtime.MustTypeExpression("\"S.Handle\"")})
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Frame = held
+	}
+	if member, present := wire["echoes"]; present {
+		var held []Echo[TEnvelope]
+		var heldConvertedRaw []json.RawMessage
+		if err := json.Unmarshal(member, &heldConvertedRaw); err != nil {
+			return value, err
+		}
+		heldConverted := make([]Echo[TEnvelope], 0, len(heldConvertedRaw))
+		for _, item := range heldConvertedRaw {
+			elementConvert0 := func(input json.RawMessage) (TEnvelope, error) {
+				var zero TEnvelope
+				converted, err := convertTEnvelope(input)
+				if err != nil {
+					return zero, err
+				}
+				return converted, nil
+			}
+			element, err := ImportEcho[TEnvelope](item, elementConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle, "T.Envelope": typeTEnvelope}, nil), Type: runtime.MustTypeExpression("\"T.Envelope\"")})
+			if err != nil {
+				return value, err
+			}
+			heldConverted = append(heldConverted, element)
+		}
+		held = heldConverted
+		value.Echoes = held
+	}
+	return value, nil
+}
+
+// ExportEcho writes Echo using the supplied conversion for each type argument.
+func ExportEcho[TEnvelope any](v Echo[TEnvelope], convertTEnvelope func(TEnvelope) (json.RawMessage, error), typeTEnvelope runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	var heardMember json.RawMessage
+	heardMemberConverted, err := convertTEnvelope(v.Heard)
+	if err != nil {
+		return nil, err
+	}
+	heardMember = heardMemberConverted
+	wire["heard"] = heardMember
+	data, err := runtime.MarshalObject([]string{"heard"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"T.Envelope": typeTEnvelope}, nil).ValidateExpressionRaw("Echo", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportEcho reads Echo using the supplied conversion for each type argument.
+func ImportEcho[TEnvelope any](raw json.RawMessage, convertTEnvelope func(json.RawMessage) (TEnvelope, error), typeTEnvelope runtime.TypeBinding) (Echo[TEnvelope], error) {
+	var value Echo[TEnvelope]
+	if err := schema.Bind(map[string]any{"T.Envelope": typeTEnvelope}, nil).ValidateExpressionRaw("Echo", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["heard"]; present {
+		var held TEnvelope
+		heldConverted, err := convertTEnvelope(member)
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Heard = held
+	}
+	return value, nil
+}
+
+// ExportFrame writes Frame using the supplied conversion for each type argument.
+func ExportFrame[SEnvelope, SHandle any](v Frame[SEnvelope, SHandle], convertSEnvelope func(SEnvelope) (json.RawMessage, error), typeSEnvelope runtime.TypeBinding, convertSHandle func(SHandle) (json.RawMessage, error), typeSHandle runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	var messageMember json.RawMessage
+	messageMemberConverted, err := convertSEnvelope(v.Message)
+	if err != nil {
+		return nil, err
+	}
+	messageMember = messageMemberConverted
+	wire["message"] = messageMember
+	var backMember json.RawMessage
+	backMemberConverted, err := convertSHandle(v.Back)
+	if err != nil {
+		return nil, err
+	}
+	backMember = backMemberConverted
+	wire["back"] = backMember
+	data, err := runtime.MarshalObject([]string{"message", "back"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle}, nil).ValidateExpressionRaw("Frame", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportFrame reads Frame using the supplied conversion for each type argument.
+func ImportFrame[SEnvelope, SHandle any](raw json.RawMessage, convertSEnvelope func(json.RawMessage) (SEnvelope, error), typeSEnvelope runtime.TypeBinding, convertSHandle func(json.RawMessage) (SHandle, error), typeSHandle runtime.TypeBinding) (Frame[SEnvelope, SHandle], error) {
+	var value Frame[SEnvelope, SHandle]
+	if err := schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle}, nil).ValidateExpressionRaw("Frame", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["message"]; present {
+		var held SEnvelope
+		heldConverted, err := convertSEnvelope(member)
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Message = held
+	}
+	if member, present := wire["back"]; present {
+		var held SHandle
+		heldConverted, err := convertSHandle(member)
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Back = held
+	}
+	return value, nil
+}

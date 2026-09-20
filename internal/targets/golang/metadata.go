@@ -25,7 +25,13 @@ func (f *file) boundSchema(uses []render.Use) string {
 		if use.Type != "" {
 			name += "." + use.Type
 		}
-		bindings = append(bindings, fmt.Sprintf("%q: %s.TypeArgument[%s]()", name, f.runtime(), parameterName(use)))
+		value := fmt.Sprintf("%s.TypeArgument[%s]()", f.runtime(), parameterName(use))
+		for _, codec := range f.codecs {
+			if codec == use {
+				value = "type" + parameterName(use)
+			}
+		}
+		bindings = append(bindings, fmt.Sprintf("%q: %s", name, value))
 	}
 	return schema + ".Bind(map[string]any{" + strings.Join(bindings, ", ") + "}, nil)"
 }

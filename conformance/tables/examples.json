@@ -836,6 +836,113 @@
           }
         ]
       },
+      "boxes": {
+        "types": {
+          "Batch": {
+            "kind": "alias",
+            "type": {
+              "apply": "Page",
+              "with": {
+                "T": {
+                  "apply": "Result",
+                  "with": {
+                    "T": {
+                      "apply": "Box",
+                      "with": {
+                        "T": {
+                          "map": {
+                            "nullable": "T"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "parameters": [
+              {
+                "name": "T"
+              }
+            ]
+          },
+          "Box": {
+            "kind": "record",
+            "fields": [
+              {
+                "name": "item",
+                "type": "T",
+                "required": true
+              }
+            ],
+            "parameters": [
+              {
+                "name": "T"
+              }
+            ]
+          },
+          "Choice": {
+            "kind": "union",
+            "parameters": [
+              {
+                "name": "T"
+              }
+            ],
+            "tag": "kind",
+            "variants": {
+              "none": {
+                "empty": true
+              },
+              "some": "T"
+            }
+          },
+          "Page": {
+            "kind": "record",
+            "fields": [
+              {
+                "name": "items",
+                "type": {
+                  "array": "T"
+                },
+                "required": true
+              },
+              {
+                "name": "next",
+                "type": {
+                  "nullable": "T"
+                },
+                "required": false
+              }
+            ],
+            "open": true,
+            "parameters": [
+              {
+                "name": "T"
+              }
+            ]
+          },
+          "Result": {
+            "kind": "union",
+            "extends": [
+              {
+                "apply": "Choice",
+                "with": {
+                  "T": "T"
+                }
+              }
+            ],
+            "parameters": [
+              {
+                "name": "T"
+              }
+            ],
+            "tag": "kind",
+            "variants": {
+              "error": "string"
+            }
+          }
+        }
+      },
       "carrier": {
         "types": {
           "AttachParams": {
@@ -1111,6 +1218,35 @@
       },
       "combinator": {
         "types": {
+          "Bundle": {
+            "kind": "record",
+            "fields": [
+              {
+                "name": "metadata",
+                "type": {
+                  "kind": "record",
+                  "fields": [
+                    {
+                      "name": "seed",
+                      "type": "T",
+                      "required": true
+                    }
+                  ]
+                },
+                "required": true
+              },
+              {
+                "name": "run",
+                "type": "Unary",
+                "required": true
+              }
+            ],
+            "parameters": [
+              {
+                "name": "T"
+              }
+            ]
+          },
           "Count": {
             "kind": "alias",
             "type": "integer"
@@ -4630,6 +4766,209 @@
     },
     {
       "corpus": "families",
+      "family": "boxes",
+      "path": "types/Batch",
+      "expression": {
+        "apply": "Batch",
+        "with": {
+          "T": "string"
+        }
+      },
+      "value": {
+        "items": [
+          {
+            "kind": "none"
+          }
+        ],
+        "next": {
+          "kind": "none"
+        }
+      },
+      "bindings": {
+        "T": {
+          "Type": "string"
+        }
+      }
+    },
+    {
+      "corpus": "families",
+      "family": "boxes",
+      "path": "types/Box",
+      "expression": {
+        "apply": "Box",
+        "with": {
+          "T": "string"
+        }
+      },
+      "value": {
+        "item": "‹item›"
+      },
+      "bindings": {
+        "T": {
+          "Type": "string"
+        }
+      }
+    },
+    {
+      "corpus": "families",
+      "family": "boxes",
+      "path": "types/Choice",
+      "expression": {
+        "apply": "Choice",
+        "with": {
+          "T": "string"
+        }
+      },
+      "value": {
+        "kind": "none"
+      },
+      "bindings": {
+        "T": {
+          "Type": "string"
+        }
+      }
+    },
+    {
+      "corpus": "families",
+      "family": "boxes",
+      "path": "types/Choice/variants/none",
+      "expression": {
+        "apply": "Choice",
+        "with": {
+          "T": "string"
+        }
+      },
+      "value": {
+        "kind": "none"
+      },
+      "bindings": {
+        "T": {
+          "Type": "string"
+        }
+      }
+    },
+    {
+      "corpus": "families",
+      "family": "boxes",
+      "path": "types/Choice/variants/some",
+      "expression": {
+        "apply": "Choice",
+        "with": {
+          "T": "string"
+        }
+      },
+      "value": {
+        "kind": "some",
+        "value": "‹some›"
+      },
+      "bindings": {
+        "T": {
+          "Type": "string"
+        }
+      }
+    },
+    {
+      "corpus": "families",
+      "family": "boxes",
+      "path": "types/Page",
+      "expression": {
+        "apply": "Page",
+        "with": {
+          "T": "string"
+        }
+      },
+      "value": {
+        "items": [
+          "‹items›"
+        ],
+        "next": "‹next›"
+      },
+      "bindings": {
+        "T": {
+          "Type": "string"
+        }
+      }
+    },
+    {
+      "corpus": "families",
+      "family": "boxes",
+      "path": "types/Result",
+      "expression": {
+        "apply": "Result",
+        "with": {
+          "T": "string"
+        }
+      },
+      "value": {
+        "kind": "none"
+      },
+      "bindings": {
+        "T": {
+          "Type": "string"
+        }
+      }
+    },
+    {
+      "corpus": "families",
+      "family": "boxes",
+      "path": "types/Result/variants/none",
+      "expression": {
+        "apply": "Result",
+        "with": {
+          "T": "string"
+        }
+      },
+      "value": {
+        "kind": "none"
+      },
+      "bindings": {
+        "T": {
+          "Type": "string"
+        }
+      }
+    },
+    {
+      "corpus": "families",
+      "family": "boxes",
+      "path": "types/Result/variants/some",
+      "expression": {
+        "apply": "Result",
+        "with": {
+          "T": "string"
+        }
+      },
+      "value": {
+        "kind": "some",
+        "value": "‹some›"
+      },
+      "bindings": {
+        "T": {
+          "Type": "string"
+        }
+      }
+    },
+    {
+      "corpus": "families",
+      "family": "boxes",
+      "path": "types/Result/variants/error",
+      "expression": {
+        "apply": "Result",
+        "with": {
+          "T": "string"
+        }
+      },
+      "value": {
+        "kind": "error",
+        "value": "‹error›"
+      },
+      "bindings": {
+        "T": {
+          "Type": "string"
+        }
+      }
+    },
+    {
+      "corpus": "families",
       "family": "carrier",
       "path": "types/AttachParams",
       "expression": "AttachParams",
@@ -5106,6 +5445,54 @@
     {
       "corpus": "families",
       "family": "combinator",
+      "path": "types/Bundle",
+      "expression": {
+        "apply": "Bundle",
+        "with": {
+          "T": "string"
+        }
+      },
+      "value": {
+        "metadata": {
+          "seed": "‹seed›"
+        },
+        "run": {
+          "binding": "‹binding›",
+          "contract": "combinator/Unary"
+        }
+      },
+      "bindings": {
+        "T": {
+          "Type": "string"
+        }
+      }
+    },
+    {
+      "corpus": "families",
+      "family": "combinator",
+      "path": "types/BundleMetadata",
+      "expression": {
+        "kind": "record",
+        "fields": [
+          {
+            "name": "seed",
+            "type": "T",
+            "required": true
+          }
+        ]
+      },
+      "value": {
+        "seed": "‹seed›"
+      },
+      "bindings": {
+        "T": {
+          "Type": "string"
+        }
+      }
+    },
+    {
+      "corpus": "families",
+      "family": "combinator",
       "path": "types/Count",
       "expression": "Count",
       "value": 0
@@ -5243,6 +5630,64 @@
         "kind": "response",
         "id": "c:1",
         "result": "‹result›"
+      },
+      "to": "client",
+      "member": "result"
+    },
+    {
+      "corpus": "families",
+      "family": "combinator",
+      "path": "server/methods/pack/request",
+      "expression": {
+        "apply": "boxes.Box",
+        "with": {
+          "T": "Unary"
+        }
+      },
+      "value": {
+        "version": 1,
+        "kind": "request",
+        "id": "c:1",
+        "method": "pack",
+        "params": {
+          "item": {
+            "binding": "‹binding›",
+            "contract": "combinator/Unary"
+          }
+        }
+      },
+      "to": "server",
+      "member": "params"
+    },
+    {
+      "corpus": "families",
+      "family": "combinator",
+      "path": "server/methods/pack/response",
+      "expression": {
+        "apply": "boxes.Batch",
+        "with": {
+          "T": {
+            "apply": "Bundle",
+            "with": {
+              "T": "Count"
+            }
+          }
+        }
+      },
+      "value": {
+        "version": 1,
+        "kind": "response",
+        "id": "c:1",
+        "result": {
+          "items": [
+            {
+              "kind": "none"
+            }
+          ],
+          "next": {
+            "kind": "none"
+          }
+        }
       },
       "to": "client",
       "member": "result"

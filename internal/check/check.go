@@ -479,7 +479,6 @@ func (c *checker) drawn(x model.Drawn, at diag.Location, where site) {
 // family parameter.
 func (c *checker) apply(x model.Apply, at diag.Location, where site) {
 	f := c.f
-	c.liveApplication(x, at)
 	target, declared := f.Applied(x)
 	if !declared {
 		if x.Family == "" {
@@ -587,22 +586,6 @@ func lookup(parameters []model.Parameter, name string) (model.Parameter, bool) {
 		}
 	}
 	return model.Parameter{}, false
-}
-
-// liveApplication refuses an application that is live only because of what
-// fills it. A callable declares no parameters, so an applied declaration is
-// never live of itself; Page<Job> is live only through its binding, and the
-// boundary conversion would have to be generic in a way nothing generates.
-// The remedy is a declaration: name the filled shape in the live tier.
-func (c *checker) liveApplication(x model.Apply, at diag.Location) {
-	if !c.f.IsLive(x) {
-		return
-	}
-	name := x.Name
-	if x.Family != "" {
-		name = x.Family + "." + x.Name
-	}
-	c.Addf(at, "live_application", "The application of %s here carries a callable, which it has only from what fills it; a generic declaration of a lower tier has no boundary conversion of its own. Declare the filled shape in %s and name it.", name, model.LiveFile)
 }
 
 // liveDraw refuses drawing a live type through a family parameter. Every

@@ -193,3 +193,170 @@ func (Handle) Of() Tag { return Tag{} }
 func (Handle) WireType() runtime.TypeBinding {
 	return runtime.TypeBinding{Schema: schema, Type: "Handle"}
 }
+
+// ExportAttachment writes Attachment using the supplied conversion for each type argument.
+func ExportAttachment[SHandle any](v Attachment[SHandle], convertSHandle func(SHandle) (json.RawMessage, error), typeSHandle runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	var connectionMember json.RawMessage
+	connectionMemberConverted, err := convertSHandle(v.Connection)
+	if err != nil {
+		return nil, err
+	}
+	connectionMember = connectionMemberConverted
+	wire["connection"] = connectionMember
+	var lastMember json.RawMessage
+	lastMemberConverted, err := runtime.MarshalJSON(v.Last)
+	if err != nil {
+		return nil, err
+	}
+	lastMember = lastMemberConverted
+	wire["last"] = lastMember
+	data, err := runtime.MarshalObject([]string{"connection", "last"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"S.Handle": typeSHandle}, nil).ValidateExpressionRaw("Attachment", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportAttachment reads Attachment using the supplied conversion for each type argument.
+func ImportAttachment[SHandle any](raw json.RawMessage, convertSHandle func(json.RawMessage) (SHandle, error), typeSHandle runtime.TypeBinding) (Attachment[SHandle], error) {
+	var value Attachment[SHandle]
+	if err := schema.Bind(map[string]any{"S.Handle": typeSHandle}, nil).ValidateExpressionRaw("Attachment", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["connection"]; present {
+		var held SHandle
+		heldConverted, err := convertSHandle(member)
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Connection = held
+	}
+	if member, present := wire["last"]; present {
+		var held int64
+		var heldConverted int64
+		if err := json.Unmarshal(member, &heldConverted); err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Last = held
+	}
+	return value, nil
+}
+
+// ExportFrame writes Frame using the supplied conversion for each type argument.
+func ExportFrame[SEnvelope any](v Frame[SEnvelope], convertSEnvelope func(SEnvelope) (json.RawMessage, error), typeSEnvelope runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	var sequenceMember json.RawMessage
+	sequenceMemberConverted, err := runtime.MarshalJSON(v.Sequence)
+	if err != nil {
+		return nil, err
+	}
+	sequenceMember = sequenceMemberConverted
+	wire["sequence"] = sequenceMember
+	var messageMember json.RawMessage
+	messageMemberConverted, err := convertSEnvelope(v.Message)
+	if err != nil {
+		return nil, err
+	}
+	messageMember = messageMemberConverted
+	wire["message"] = messageMember
+	data, err := runtime.MarshalObject([]string{"sequence", "message"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"S.Envelope": typeSEnvelope}, nil).ValidateExpressionRaw("Frame", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportFrame reads Frame using the supplied conversion for each type argument.
+func ImportFrame[SEnvelope any](raw json.RawMessage, convertSEnvelope func(json.RawMessage) (SEnvelope, error), typeSEnvelope runtime.TypeBinding) (Frame[SEnvelope], error) {
+	var value Frame[SEnvelope]
+	if err := schema.Bind(map[string]any{"S.Envelope": typeSEnvelope}, nil).ValidateExpressionRaw("Frame", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["sequence"]; present {
+		var held int64
+		var heldConverted int64
+		if err := json.Unmarshal(member, &heldConverted); err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Sequence = held
+	}
+	if member, present := wire["message"]; present {
+		var held SEnvelope
+		heldConverted, err := convertSEnvelope(member)
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Message = held
+	}
+	return value, nil
+}
+
+// ExportFrames writes Frames using the supplied conversion for each type argument.
+func ExportFrames[SEnvelope any](v Frames[SEnvelope], convertSEnvelope func(SEnvelope) (json.RawMessage, error), typeSEnvelope runtime.TypeBinding) (json.RawMessage, error) {
+	convertedItems := make([]json.RawMessage, 0, len(v))
+	for _, item := range v {
+		elementConvert0 := func(input SEnvelope) (json.RawMessage, error) {
+			converted, err := convertSEnvelope(input)
+			if err != nil {
+				return nil, err
+			}
+			return converted, nil
+		}
+		element, err := ExportFrame[SEnvelope](item, elementConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope}, nil), Type: runtime.MustTypeExpression("\"S.Envelope\"")})
+		if err != nil {
+			return nil, err
+		}
+		convertedItems = append(convertedItems, element)
+	}
+	converted, err := runtime.MarshalJSON(convertedItems)
+	if err != nil {
+		return nil, err
+	}
+	return converted, nil
+}
+
+// ImportFrames reads Frames using the supplied conversion for each type argument.
+func ImportFrames[SEnvelope any](raw json.RawMessage, convertSEnvelope func(json.RawMessage) (SEnvelope, error), typeSEnvelope runtime.TypeBinding) (Frames[SEnvelope], error) {
+	var value Frames[SEnvelope]
+	var convertedRaw []json.RawMessage
+	if err := json.Unmarshal(raw, &convertedRaw); err != nil {
+		return value, err
+	}
+	converted := make([]Frame[SEnvelope], 0, len(convertedRaw))
+	for _, item := range convertedRaw {
+		elementConvert0 := func(input json.RawMessage) (SEnvelope, error) {
+			var zero SEnvelope
+			converted, err := convertSEnvelope(input)
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}
+		element, err := ImportFrame[SEnvelope](item, elementConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope}, nil), Type: runtime.MustTypeExpression("\"S.Envelope\"")})
+		if err != nil {
+			return value, err
+		}
+		converted = append(converted, element)
+	}
+	value = converted
+	return value, nil
+}

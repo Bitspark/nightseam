@@ -21,8 +21,13 @@ func addLanguages(d *Family, f *render.Family, spellers map[string]spi.Speller) 
 	for _, group := range [][]*Type{d.Types, d.Carried} {
 		for _, typ := range group {
 			typ.Languages = make(map[string]Language, len(spellers))
+			resolved := f.Type(typ.Name)
+			expression := model.TypeExpr(model.Named{Name: typ.Name})
+			if resolved.Inline {
+				expression = model.Inline{Type: resolved.Declaration}
+			}
 			for name, speller := range spellers {
-				typ.Languages[name] = Language{Name: speller.Spell(f, model.Named{Name: typ.Name}), Declare: speller.Declare(f, f.Type(typ.Name).Declaration)}
+				typ.Languages[name] = Language{Name: speller.Spell(f, expression), Declare: speller.Declare(f, resolved.Declaration)}
 			}
 		}
 	}

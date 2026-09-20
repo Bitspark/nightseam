@@ -71,6 +71,14 @@ const unsupported = () => {
 };
 
 export const combinatorOps: Record<string, (args: Args) => unknown | Promise<unknown>> = {
+  'client.combinator_pack': async (args: Args) => {
+    const add = Number(args.add);
+    const batch = await lookup(args).client.pack({ item: async (value: number) => value + add });
+    const some = batch.items[1];
+    if (some?.kind !== 'some') throw new CombinatorFailure('invalid', 'the generic result lost its payload');
+    const members = some.value.item;
+    return { value: await members.call!.run(Number(args.with)), seed: members.call!.metadata.seed, none: batch.items[0]?.kind === 'none', null: members.empty === null, absent: !Object.hasOwn(batch, 'next'), extra: batch.label === 'retained' };
+  },
   'gen.combinator_serve': unsupported,
   'gen.combinator_seen': unsupported,
   'gen.combinator_dial': async (args: Args) => {

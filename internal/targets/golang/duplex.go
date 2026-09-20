@@ -159,7 +159,7 @@ func (f *file) registration(m render.Method, handler, remote string) {
 			// handler is given native functions, and never a reference.
 			f.linef("scope, ok := %s.ScopeOf(peer)", f.live())
 			f.linef("if !ok { return nil, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", runtime, f.live())
-			f.linef("params, err := %s(scope, raw)", f.liveCall(m.Request, false))
+			f.liveBoundary(m.Request, "raw", "params", false)
 			f.linef("if err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", runtime)
 			params = ", params"
 		} else if m.Request != nil {
@@ -179,7 +179,8 @@ func (f *file) registration(m render.Method, handler, remote string) {
 				f.linef("scope, ok := %s.ScopeOf(peer)", f.live())
 				f.linef("if !ok { return nil, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", runtime, f.live())
 			}
-			f.linef("return %s(scope, result)", f.liveCall(m.Result, true))
+			f.liveBoundary(m.Result, "result", "sent", true)
+			f.line("return sent, err")
 			return
 		}
 		f.linef("if err = %s.%s(%s%s(%s), result); err != nil { return nil, err }", f.boundSchema(f.uses), identValidateValue, f.proto(), identMustTypeExpression, expression(m.Result))
@@ -238,7 +239,7 @@ func (f *file) caller(m render.Method, receiver string) {
 		}
 		switch {
 		case m.Request != nil && f.family.IsLive(m.Request):
-			f.linef("sent, err := %s(scope, params)", f.liveCall(m.Request, true))
+			f.liveBoundary(m.Request, "params", "sent", true)
 			f.line("if err != nil { return result, err }")
 			argument = "sent"
 		case m.Request != nil:
@@ -247,7 +248,8 @@ func (f *file) caller(m render.Method, receiver string) {
 		f.linef("var raw %s.RawMessage", json)
 		f.linef("if err := c.%s.Call(ctx, %q, %s, &raw); err != nil { return result, err }", identPeer, m.Name, argument)
 		if f.family.IsLive(m.Result) {
-			f.linef("return %s(scope, raw)", f.liveCall(m.Result, false))
+			f.liveBoundary(m.Result, "raw", "received", false)
+			f.line("return received, err")
 			return
 		}
 		f.linef("if err := %s.%s(%s%s(%s), raw); err != nil { return result, err }", f.boundSchema(f.uses), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(m.Result))
@@ -266,7 +268,7 @@ func (f *file) events(receiver string, received, sent []render.Event) {
 			f.w.Block(fmt.Sprintf("func (c *%s) %s%s(ctx %s.Context, data %s) error {", receiver, identEmit, p.operations[e.Name], ctx, f.spell(e.Type)), "}", func() {
 				f.linef("scope, ok := %s.ScopeOf(c.%s)", f.live(), identPeer)
 				f.linef("if !ok { return &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", f.runtime(), f.live())
-				f.linef("sent, err := %s(scope, data)", f.liveCall(e.Type, true))
+				f.liveBoundary(e.Type, "data", "sent", true)
 				f.line("if err != nil { return err }")
 				f.linef("return c.%s.Emit(ctx, %q, sent)", identPeer, e.Name)
 			})
@@ -292,7 +294,7 @@ func (f *file) eventHandler(e render.Event, callback func()) {
 		if f.family.IsLive(e.Type) {
 			f.linef("scope, ok := %s.ScopeOf(peer)", f.live())
 			f.line("if !ok { _ = peer.Close(); return }")
-			f.linef("data, err := %s(scope, raw)", f.liveCall(e.Type, false))
+			f.liveBoundary(e.Type, "raw", "data", false)
 			f.line("if err != nil { _ = peer.Close(); return }")
 			callback()
 			return

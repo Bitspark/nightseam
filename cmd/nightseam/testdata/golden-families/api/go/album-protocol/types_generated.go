@@ -227,3 +227,206 @@ func (Mine[AEnvelope]) Of() Tag { return Tag{} }
 func (Mine[AEnvelope]) WireType() runtime.TypeBinding {
 	return runtime.TypeBinding{Schema: schema.Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope]()}, nil), Type: "Mine"}
 }
+
+// ExportBorrowed writes Borrowed using the supplied conversion for each type argument.
+func ExportBorrowed[BEnvelope any](v Borrowed[BEnvelope], convertBEnvelope func(BEnvelope) (json.RawMessage, error), typeBEnvelope runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	var frameMember json.RawMessage
+	frameMemberConvertedConvert0 := func(input BEnvelope) (json.RawMessage, error) {
+		converted, err := convertBEnvelope(input)
+		if err != nil {
+			return nil, err
+		}
+		return converted, nil
+	}
+	frameMemberConverted, err := carrierprotocol.ExportFrame[BEnvelope](v.Frame, frameMemberConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"B.Envelope": typeBEnvelope}, nil), Type: runtime.MustTypeExpression("\"B.Envelope\"")})
+	if err != nil {
+		return nil, err
+	}
+	frameMember = frameMemberConverted
+	wire["frame"] = frameMember
+	data, err := runtime.MarshalObject([]string{"frame"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"B.Envelope": typeBEnvelope}, nil).ValidateExpressionRaw("Borrowed", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportBorrowed reads Borrowed using the supplied conversion for each type argument.
+func ImportBorrowed[BEnvelope any](raw json.RawMessage, convertBEnvelope func(json.RawMessage) (BEnvelope, error), typeBEnvelope runtime.TypeBinding) (Borrowed[BEnvelope], error) {
+	var value Borrowed[BEnvelope]
+	if err := schema.Bind(map[string]any{"B.Envelope": typeBEnvelope}, nil).ValidateExpressionRaw("Borrowed", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["frame"]; present {
+		var held carrierprotocol.Frame[BEnvelope]
+		heldConvertedConvert0 := func(input json.RawMessage) (BEnvelope, error) {
+			var zero BEnvelope
+			converted, err := convertBEnvelope(input)
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}
+		heldConverted, err := carrierprotocol.ImportFrame[BEnvelope](member, heldConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"B.Envelope": typeBEnvelope}, nil), Type: runtime.MustTypeExpression("\"B.Envelope\"")})
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Frame = held
+	}
+	return value, nil
+}
+
+// ExportBoth writes Both using the supplied conversion for each type argument.
+func ExportBoth[AEnvelope, BEnvelope any](v Both[AEnvelope, BEnvelope], convertAEnvelope func(AEnvelope) (json.RawMessage, error), typeAEnvelope runtime.TypeBinding, convertBEnvelope func(BEnvelope) (json.RawMessage, error), typeBEnvelope runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	var mineMember json.RawMessage
+	mineMemberConvertedConvert0 := func(input AEnvelope) (json.RawMessage, error) {
+		converted, err := convertAEnvelope(input)
+		if err != nil {
+			return nil, err
+		}
+		return converted, nil
+	}
+	mineMemberConverted, err := ExportMine[AEnvelope](v.Mine, mineMemberConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"A.Envelope": typeAEnvelope, "B.Envelope": typeBEnvelope}, nil), Type: runtime.MustTypeExpression("\"A.Envelope\"")})
+	if err != nil {
+		return nil, err
+	}
+	mineMember = mineMemberConverted
+	wire["mine"] = mineMember
+	var borrowedMember json.RawMessage
+	borrowedMemberConvertedConvert0 := func(input BEnvelope) (json.RawMessage, error) {
+		converted, err := convertBEnvelope(input)
+		if err != nil {
+			return nil, err
+		}
+		return converted, nil
+	}
+	borrowedMemberConverted, err := ExportBorrowed[BEnvelope](v.Borrowed, borrowedMemberConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"A.Envelope": typeAEnvelope, "B.Envelope": typeBEnvelope}, nil), Type: runtime.MustTypeExpression("\"B.Envelope\"")})
+	if err != nil {
+		return nil, err
+	}
+	borrowedMember = borrowedMemberConverted
+	wire["borrowed"] = borrowedMember
+	var fixedMember json.RawMessage
+	fixedMemberConverted, err := runtime.MarshalJSON(v.Fixed)
+	if err != nil {
+		return nil, err
+	}
+	fixedMember = fixedMemberConverted
+	wire["fixed"] = fixedMember
+	data, err := runtime.MarshalObject([]string{"mine", "borrowed", "fixed"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"A.Envelope": typeAEnvelope, "B.Envelope": typeBEnvelope}, nil).ValidateExpressionRaw("Both", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportBoth reads Both using the supplied conversion for each type argument.
+func ImportBoth[AEnvelope, BEnvelope any](raw json.RawMessage, convertAEnvelope func(json.RawMessage) (AEnvelope, error), typeAEnvelope runtime.TypeBinding, convertBEnvelope func(json.RawMessage) (BEnvelope, error), typeBEnvelope runtime.TypeBinding) (Both[AEnvelope, BEnvelope], error) {
+	var value Both[AEnvelope, BEnvelope]
+	if err := schema.Bind(map[string]any{"A.Envelope": typeAEnvelope, "B.Envelope": typeBEnvelope}, nil).ValidateExpressionRaw("Both", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["mine"]; present {
+		var held Mine[AEnvelope]
+		heldConvertedConvert0 := func(input json.RawMessage) (AEnvelope, error) {
+			var zero AEnvelope
+			converted, err := convertAEnvelope(input)
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}
+		heldConverted, err := ImportMine[AEnvelope](member, heldConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"A.Envelope": typeAEnvelope, "B.Envelope": typeBEnvelope}, nil), Type: runtime.MustTypeExpression("\"A.Envelope\"")})
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Mine = held
+	}
+	if member, present := wire["borrowed"]; present {
+		var held Borrowed[BEnvelope]
+		heldConvertedConvert0 := func(input json.RawMessage) (BEnvelope, error) {
+			var zero BEnvelope
+			converted, err := convertBEnvelope(input)
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}
+		heldConverted, err := ImportBorrowed[BEnvelope](member, heldConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"A.Envelope": typeAEnvelope, "B.Envelope": typeBEnvelope}, nil), Type: runtime.MustTypeExpression("\"B.Envelope\"")})
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Borrowed = held
+	}
+	if member, present := wire["fixed"]; present {
+		var held Fixed
+		var heldConverted Fixed
+		if err := json.Unmarshal(member, &heldConverted); err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Fixed = held
+	}
+	return value, nil
+}
+
+// ExportMine writes Mine using the supplied conversion for each type argument.
+func ExportMine[AEnvelope any](v Mine[AEnvelope], convertAEnvelope func(AEnvelope) (json.RawMessage, error), typeAEnvelope runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	var heldMember json.RawMessage
+	heldMemberConverted, err := convertAEnvelope(v.Held)
+	if err != nil {
+		return nil, err
+	}
+	heldMember = heldMemberConverted
+	wire["held"] = heldMember
+	data, err := runtime.MarshalObject([]string{"held"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"A.Envelope": typeAEnvelope}, nil).ValidateExpressionRaw("Mine", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportMine reads Mine using the supplied conversion for each type argument.
+func ImportMine[AEnvelope any](raw json.RawMessage, convertAEnvelope func(json.RawMessage) (AEnvelope, error), typeAEnvelope runtime.TypeBinding) (Mine[AEnvelope], error) {
+	var value Mine[AEnvelope]
+	if err := schema.Bind(map[string]any{"A.Envelope": typeAEnvelope}, nil).ValidateExpressionRaw("Mine", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["held"]; present {
+		var held AEnvelope
+		heldConverted, err := convertAEnvelope(member)
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Held = held
+	}
+	return value, nil
+}

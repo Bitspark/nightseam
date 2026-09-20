@@ -22,6 +22,12 @@ func (Handle) WireType() runtime.TypeBinding
 func (Mine[AEnvelope]) MarshalJSON() ([]byte, error)
 func (Mine[AEnvelope]) Of() Tag
 func (Mine[AEnvelope]) WireType() runtime.TypeBinding
+func ExportBorrowed[BEnvelope any](v Borrowed[BEnvelope], convertBEnvelope func(BEnvelope) (json.RawMessage, error), typeBEnvelope runtime.TypeBinding) (json.RawMessage, error)
+func ExportBoth[AEnvelope any, BEnvelope any](v Both[AEnvelope, BEnvelope], convertAEnvelope func(AEnvelope) (json.RawMessage, error), typeAEnvelope runtime.TypeBinding, convertBEnvelope func(BEnvelope) (json.RawMessage, error), typeBEnvelope runtime.TypeBinding) (json.RawMessage, error)
+func ExportMine[AEnvelope any](v Mine[AEnvelope], convertAEnvelope func(AEnvelope) (json.RawMessage, error), typeAEnvelope runtime.TypeBinding) (json.RawMessage, error)
+func ImportBorrowed[BEnvelope any](raw json.RawMessage, convertBEnvelope func(json.RawMessage) (BEnvelope, error), typeBEnvelope runtime.TypeBinding) (Borrowed[BEnvelope], error)
+func ImportBoth[AEnvelope any, BEnvelope any](raw json.RawMessage, convertAEnvelope func(json.RawMessage) (AEnvelope, error), typeAEnvelope runtime.TypeBinding, convertBEnvelope func(json.RawMessage) (BEnvelope, error), typeBEnvelope runtime.TypeBinding) (Both[AEnvelope, BEnvelope], error)
+func ImportMine[AEnvelope any](raw json.RawMessage, convertAEnvelope func(json.RawMessage) (AEnvelope, error), typeAEnvelope runtime.TypeBinding) (Mine[AEnvelope], error)
 type Borrowed[BEnvelope any] struct{Frame carrierprotocol.Frame[BEnvelope] `json:"frame"`}
 type Both[AEnvelope any, BEnvelope any] struct{Mine Mine[AEnvelope] `json:"mine"`; Borrowed Borrowed[BEnvelope] `json:"borrowed"`; Fixed Fixed `json:"fixed"`; Params carrierprotocol.AttachParams `json:"params"`}
 type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`; Traceparent runtime.Optional[string] `json:"traceparent,omitzero"`; Tracestate runtime.Optional[string] `json:"tracestate,omitzero"`; Meta runtime.Optional[map[string]string] `json:"meta,omitzero"`}

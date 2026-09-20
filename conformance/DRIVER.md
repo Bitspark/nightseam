@@ -485,6 +485,14 @@ promises and what these scenarios are for.
 | `gen.live_supervise` | **`on`**, **`sinks`**, `within_ms` | `{"state"}` — waits for the server's client attachment, then calls the client with a map of callables and reads back a sum, within one deadline |
 | `gen.live_seen` | **`on`** | `{"started", "calls"}` — how many starts the served side took, and what was called on it |
 
+The generated `combinator` family also supports `client.combinator_pack` with
+`on`, `add`, and `with`. It supplies a callable in `boxes.Box`, receives it
+through `boxes.Batch` (a generic alias, open record, inherited union, map and nullable), and
+invokes a returned generic live record's function after the RPC. That record
+captures its parameter in an inline metadata record. It answers `{"value", "seed", "none",
+"null", "absent", "extra"}`, holding the callback result, preserved empty
+forms and an additional field on the open record.
+
 An argument is merged into the request envelope, so no op names one `id`;
 `ticket` is the entity key where one is meant. `job` names what
 `client.live_start` answered, which is this testee's own name for the record

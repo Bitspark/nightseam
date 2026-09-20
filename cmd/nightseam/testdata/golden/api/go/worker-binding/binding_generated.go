@@ -28,7 +28,17 @@ func (c *Remote) Supervise(ctx context.Context, params protocol.Supervise) (prot
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := protocol.ExportSupervise(scope, params)
+	sent, err := func() (json.RawMessage, error) {
+		var zero json.RawMessage
+		converted, err := protocol.ExportSupervise(scope, params)
+		if err != nil {
+			return zero, err
+		}
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Supervise\""), converted); err != nil {
+			return zero, err
+		}
+		return converted, nil
+	}()
 	if err != nil {
 		return result, err
 	}
@@ -36,7 +46,18 @@ func (c *Remote) Supervise(ctx context.Context, params protocol.Supervise) (prot
 	if err := c.Peer.Call(ctx, "supervise", sent, &raw); err != nil {
 		return result, err
 	}
-	return protocol.ImportOutcome(scope, raw)
+	received, err := func() (protocol.Outcome, error) {
+		var zero protocol.Outcome
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), raw); err != nil {
+			return zero, err
+		}
+		converted, err := protocol.ImportOutcome(scope, raw)
+		if err != nil {
+			return zero, err
+		}
+		return converted, nil
+	}()
+	return received, err
 }
 
 // install registers the family's methods on the options a peer is made with and labels its names with the family.
@@ -76,7 +97,17 @@ func install(handler Handler, options *runtime.Options) error {
 		if !ok {
 			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 		}
-		params, err := protocol.ImportStart(scope, raw)
+		params, err := func() (protocol.Start, error) {
+			var zero protocol.Start
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Start\""), raw); err != nil {
+				return zero, err
+			}
+			converted, err := protocol.ImportStart(scope, raw)
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}()
 		if err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
@@ -84,7 +115,18 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		return protocol.ExportJob(scope, result)
+		sent, err := func() (json.RawMessage, error) {
+			var zero json.RawMessage
+			converted, err := protocol.ExportJob(scope, result)
+			if err != nil {
+				return zero, err
+			}
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Job\""), converted); err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}()
+		return sent, err
 	}
 	options.Handlers = handlers
 	families := map[string]string{}
@@ -129,7 +171,17 @@ func (c *Remote) EmitSettled(ctx context.Context, data protocol.Outcome) error {
 	if !ok {
 		return &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := protocol.ExportOutcome(scope, data)
+	sent, err := func() (json.RawMessage, error) {
+		var zero json.RawMessage
+		converted, err := protocol.ExportOutcome(scope, data)
+		if err != nil {
+			return zero, err
+		}
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), converted); err != nil {
+			return zero, err
+		}
+		return converted, nil
+	}()
 	if err != nil {
 		return err
 	}

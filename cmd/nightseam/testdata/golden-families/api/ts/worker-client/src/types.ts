@@ -99,8 +99,8 @@ export function importCancel(scope: LiveScope, raw: unknown): Cancel {
 export function exportJob(scope: LiveScope, value: Job): unknown {
   const out: Record<string, unknown> = {};
   out["ticket"] = value["ticket"];
-  out["cancel"] = exportCancel(scope, value["cancel"] as Cancel);
-  if (value["rename"] !== undefined) out["rename"] = exportRename(scope, value["rename"] as Rename);
+  out["cancel"] = exportCancel(scope, (value["cancel"]) as Cancel);
+  if (value["rename"] !== undefined) out["rename"] = exportRename(scope, (value["rename"]) as Rename);
   return out;
 }
 /** Reads Job as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
@@ -117,7 +117,7 @@ export function exportOutcome(scope: LiveScope, value: Outcome): unknown {
   const held = value as Record<string, unknown>;
   switch (held["state"]) {
     case "finished": return { "state": "finished" };
-    case "running": return { "state": "running", "value": exportJob(scope, held["value"] as Job) };
+    case "running": return { "state": "running", "value": exportJob(scope, (held["value"]) as Job) };
   }
   throw new Error("Outcome: unknown variant " + String(held["state"]));
 }
@@ -133,7 +133,7 @@ export function importOutcome(scope: LiveScope, raw: unknown): Outcome {
 /** Writes ProgressSink as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportProgressSink(scope: LiveScope, value: ProgressSink): unknown {
   const out: Record<string, unknown> = {};
-  out["report"] = exportReport(scope, value["report"] as Report);
+  out["report"] = exportReport(scope, (value["report"]) as Report);
   return out;
 }
 /** Reads ProgressSink as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
@@ -192,7 +192,7 @@ export function importReport(scope: LiveScope, raw: unknown): Report {
 }
 /** Writes Sinks as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportSinks(scope: LiveScope, value: Sinks): unknown {
-  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, exportProgressSink(scope, item as ProgressSink)]));
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, exportProgressSink(scope, (item) as ProgressSink)]));
 }
 /** Reads Sinks as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
 export function importSinks(scope: LiveScope, raw: unknown): Sinks {
@@ -202,8 +202,8 @@ export function importSinks(scope: LiveScope, raw: unknown): Sinks {
 export function exportStart(scope: LiveScope, value: Start): unknown {
   const out: Record<string, unknown> = {};
   out["ticket"] = value["ticket"];
-  out["progress"] = exportProgressSink(scope, value["progress"] as ProgressSink);
-  if (value["watchers"] !== undefined) out["watchers"] = exportWatchers(scope, value["watchers"] as Watchers);
+  out["progress"] = exportProgressSink(scope, (value["progress"]) as ProgressSink);
+  if (value["watchers"] !== undefined) out["watchers"] = exportWatchers(scope, (value["watchers"]) as Watchers);
   return out;
 }
 /** Reads Start as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
@@ -218,7 +218,7 @@ export function importStart(scope: LiveScope, raw: unknown): Start {
 /** Writes Supervise as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportSupervise(scope: LiveScope, value: Supervise): unknown {
   const out: Record<string, unknown> = {};
-  out["sinks"] = exportSinks(scope, value["sinks"] as Sinks);
+  out["sinks"] = exportSinks(scope, (value["sinks"]) as Sinks);
   return out;
 }
 /** Reads Supervise as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
@@ -230,7 +230,7 @@ export function importSupervise(scope: LiveScope, raw: unknown): Supervise {
 }
 /** Writes Watchers as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportWatchers(scope: LiveScope, value: Watchers): unknown {
-  return (value as unknown[]).map((item) => (item === null ? null : exportReport(scope, item as Report)));
+  return (value as unknown[]).map((item) => (item === null ? null : exportReport(scope, (item) as Report)));
 }
 /** Reads Watchers as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
 export function importWatchers(scope: LiveScope, raw: unknown): Watchers {

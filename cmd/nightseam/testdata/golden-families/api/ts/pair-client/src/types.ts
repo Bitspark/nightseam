@@ -51,6 +51,49 @@ export interface Named {
 }
 /** The family: its name and the wire types a slot of it draws on. */
 export interface Family { readonly name: "pair"; Envelope: Envelope; Handle: Handle; Named: Named }
+/** Writes Both using the supplied conversion for each type argument. */
+export function exportBoth<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyFamily>(value: Both<S, T>, convert_S_Envelope: (value: S["Envelope"]) => unknown, convert_S_Handle: (value: S["Handle"]) => unknown, convert_T_Envelope: (value: T["Envelope"]) => unknown): unknown {
+  const out: Record<string, unknown> = {};
+  out["frame"] = exportFrame<S>((value["frame"]) as Frame<S>, (input: S["Envelope"]): unknown => convert_S_Envelope((input) as S["Envelope"]), (input: S["Handle"]): unknown => convert_S_Handle((input) as S["Handle"]));
+  out["echoes"] = (value["echoes"] as unknown[]).map((item) => exportEcho<T>((item) as Echo<T>, (input: T["Envelope"]): unknown => convert_T_Envelope((input) as T["Envelope"])));
+  return out;
+}
+/** Reads Both using the supplied conversion for each type argument. */
+export function importBoth<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyFamily>(raw: unknown, convert_S_Envelope: (value: unknown) => S["Envelope"], convert_S_Handle: (value: unknown) => S["Handle"], convert_T_Envelope: (value: unknown) => T["Envelope"]): Both<S, T> {
+  const wire = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  out["frame"] = importFrame<S>(wire["frame"], (input: unknown): S["Envelope"] => (convert_S_Envelope(input)) as S["Envelope"], (input: unknown): S["Handle"] => (convert_S_Handle(input)) as S["Handle"]);
+  out["echoes"] = (wire["echoes"] as unknown[]).map((item) => importEcho<T>(item, (input: unknown): T["Envelope"] => (convert_T_Envelope(input)) as T["Envelope"]));
+  return out as unknown as Both<S, T>;
+}
+/** Writes Echo using the supplied conversion for each type argument. */
+export function exportEcho<T extends AnyFamily = AnyFamily>(value: Echo<T>, convert_T_Envelope: (value: T["Envelope"]) => unknown): unknown {
+  const out: Record<string, unknown> = {};
+  out["heard"] = convert_T_Envelope((value["heard"]) as T["Envelope"]);
+  return out;
+}
+/** Reads Echo using the supplied conversion for each type argument. */
+export function importEcho<T extends AnyFamily = AnyFamily>(raw: unknown, convert_T_Envelope: (value: unknown) => T["Envelope"]): Echo<T> {
+  const wire = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  out["heard"] = convert_T_Envelope(wire["heard"]);
+  return out as unknown as Echo<T>;
+}
+/** Writes Frame using the supplied conversion for each type argument. */
+export function exportFrame<S extends AnyFamily = AnyFamily>(value: Frame<S>, convert_S_Envelope: (value: S["Envelope"]) => unknown, convert_S_Handle: (value: S["Handle"]) => unknown): unknown {
+  const out: Record<string, unknown> = {};
+  out["message"] = convert_S_Envelope((value["message"]) as S["Envelope"]);
+  out["back"] = convert_S_Handle((value["back"]) as S["Handle"]);
+  return out;
+}
+/** Reads Frame using the supplied conversion for each type argument. */
+export function importFrame<S extends AnyFamily = AnyFamily>(raw: unknown, convert_S_Envelope: (value: unknown) => S["Envelope"], convert_S_Handle: (value: unknown) => S["Handle"]): Frame<S> {
+  const wire = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  out["message"] = convert_S_Envelope(wire["message"]);
+  out["back"] = convert_S_Handle(wire["back"]);
+  return out as unknown as Frame<S>;
+}
 
 const contractTypes = {"types":{"Both":{"kind":"record","fields":[{"name":"frame","type":"Frame","required":true},{"name":"echoes","type":{"array":"Echo"},"required":true}]},"Echo":{"kind":"record","fields":[{"name":"heard","type":"T.Envelope","required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Frame":{"kind":"record","fields":[{"name":"message","type":"S.Envelope","required":true},{"name":"back","type":"S.Handle","required":true}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Named":{"kind":"record","fields":[{"name":"held","type":"probe.Envelope","required":true}]}},"parameters":[{"name":"S","of":"protocol"},{"name":"T","of":"protocol"}]} as unknown as WireFamily;
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */

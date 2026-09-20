@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"sync"
 
+	boxes "example.test/generated/api/go/boxes-protocol"
 	combinatorbinding "example.test/generated/api/go/combinator-binding"
 	combinatorclient "example.test/generated/api/go/combinator-client"
 	combinator "example.test/generated/api/go/combinator-protocol"
@@ -30,6 +31,20 @@ import (
 type combinatorServer struct {
 	mu      sync.Mutex
 	applied []int64
+}
+
+func (s *combinatorServer) Pack(_ context.Context, _ *combinatorbinding.Remote, params boxes.Box[combinator.Unary]) (boxes.Batch[combinator.Bundle[combinator.Count]], error) {
+	twice := func(ctx context.Context, value combinator.Count) (combinator.Count, error) {
+		first, err := params.Item(ctx, value)
+		if err != nil {
+			return 0, err
+		}
+		return params.Item(ctx, first)
+	}
+	return boxes.Batch[combinator.Bundle[combinator.Count]]{AdditionalFields: map[string]json.RawMessage{"label": json.RawMessage(`"retained"`)}, Items: []boxes.Result[boxes.Box[map[string]runtime.Nullable[combinator.Bundle[combinator.Count]]]]{
+		{None: &struct{}{}},
+		{Some: &boxes.ChoiceSomeValue[boxes.Box[map[string]runtime.Nullable[combinator.Bundle[combinator.Count]]]]{Value: boxes.Box[map[string]runtime.Nullable[combinator.Bundle[combinator.Count]]]{Item: map[string]runtime.Nullable[combinator.Bundle[combinator.Count]]{"call": runtime.NonNull(combinator.Bundle[combinator.Count]{Metadata: combinator.BundleMetadata[combinator.Count]{Seed: 7}, Run: twice}), "empty": runtime.Null[combinator.Bundle[combinator.Count]]()}}}},
+	}}, nil
 }
 
 func (s *combinatorServer) Name(context.Context, *combinatorbinding.Remote) (string, error) {
@@ -107,6 +122,27 @@ func (d *combinatorDialled) toolkit(name string) (combinator.Toolkit, bool) {
 
 func (t *testee) combinatorDispatch(op string, raw map[string]json.RawMessage) (any, error) {
 	switch op {
+	case "client.combinator_pack":
+		d, err := liveOf[*combinatorDialled](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), within(raw))
+		defer cancel()
+		add := number(raw, "add")
+		batch, err := d.client.Pack(ctx, boxes.Box[combinator.Unary]{Item: func(_ context.Context, value combinator.Count) (combinator.Count, error) { return value + add, nil }})
+		if err != nil {
+			return nil, err
+		}
+		if len(batch.Items) != 2 || batch.Items[1].Some == nil {
+			return nil, fail("invalid", "the generic result lost its payload")
+		}
+		members := batch.Items[1].Some.Value.Item
+		value, err := members["call"].Value.Run(ctx, number(raw, "with"))
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"value": value, "seed": members["call"].Value.Metadata.Seed, "none": batch.Items[0].None != nil, "null": members["empty"].Null, "absent": !batch.Next.Present, "extra": string(batch.AdditionalFields["label"]) == `"retained"`}, nil
 	case "gen.combinator_serve":
 		s := &combinatorServed{server: &combinatorServer{}}
 		handler, err := combinatorbinding.NewHandler(s.server, runtime.ServerOptions{

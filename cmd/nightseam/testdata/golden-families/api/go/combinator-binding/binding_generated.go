@@ -4,6 +4,7 @@ package combinatorbinding
 import (
 	context "context"
 	json "encoding/json"
+	boxesprotocol "example.test/generated/api/go/boxes-protocol"
 	protocol "example.test/generated/api/go/combinator-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
@@ -17,6 +18,8 @@ type Remote struct{ Peer *runtime.Peer }
 type Handler interface {
 	// Name: Ordinary RPC, so the family has a data surface too.
 	Name(ctx context.Context, remote *Remote) (string, error)
+	// Pack: Supplies a callable in an imported generic record and returns it through nested generic containers and a live generic record.
+	Pack(ctx context.Context, remote *Remote, params boxesprotocol.Box[protocol.Unary]) (boxesprotocol.Batch[protocol.Bundle[protocol.Count]], error)
 	// Toolkit: Answers callables that take and answer callables.
 	Toolkit(ctx context.Context, remote *Remote, params protocol.ToolkitRequest) (protocol.Toolkit, error)
 }
@@ -46,6 +49,67 @@ func install(handler Handler, options *runtime.Options) error {
 		}
 		return result, nil
 	}
+	if _, exists := handlers["pack"]; exists {
+		return fmt.Errorf("duplicate handler %s", "pack")
+	}
+	handlers["pack"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
+		scope, ok := live.ScopeOf(peer)
+		if !ok {
+			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
+		}
+		params, err := func() (boxesprotocol.Box[protocol.Unary], error) {
+			var zero boxesprotocol.Box[protocol.Unary]
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"apply\":\"boxes.Box\",\"with\":{\"T\":\"Unary\"}}"), raw); err != nil {
+				return zero, err
+			}
+			convertedConvert0 := func(input json.RawMessage) (protocol.Unary, error) {
+				var zero protocol.Unary
+				converted, err := protocol.ImportUnary(scope, input)
+				if err != nil {
+					return zero, err
+				}
+				return converted, nil
+			}
+			converted, err := boxesprotocol.ImportBox[protocol.Unary](raw, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Unary\"")})
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}()
+		if err != nil {
+			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+		}
+		result, err := handler.Pack(ctx, &Remote{Peer: peer}, params)
+		if err != nil {
+			return nil, err
+		}
+		sent, err := func() (json.RawMessage, error) {
+			var zero json.RawMessage
+			convertedConvert0 := func(input protocol.Bundle[protocol.Count]) (json.RawMessage, error) {
+				convertedConvert0 := func(input protocol.Count) (json.RawMessage, error) {
+					converted, err := runtime.MarshalJSON(input)
+					if err != nil {
+						return nil, err
+					}
+					return converted, nil
+				}
+				converted, err := protocol.ExportBundle[protocol.Count](scope, input, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")})
+				if err != nil {
+					return nil, err
+				}
+				return converted, nil
+			}
+			converted, err := boxesprotocol.ExportBatch[protocol.Bundle[protocol.Count]](result, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("{\"apply\":\"Bundle\",\"with\":{\"T\":\"Count\"}}")})
+			if err != nil {
+				return zero, err
+			}
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"apply\":\"boxes.Batch\",\"with\":{\"T\":{\"apply\":\"Bundle\",\"with\":{\"T\":\"Count\"}}}}"), converted); err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}()
+		return sent, err
+	}
 	if _, exists := handlers["toolkit"]; exists {
 		return fmt.Errorf("duplicate handler %s", "toolkit")
 	}
@@ -65,7 +129,18 @@ func install(handler Handler, options *runtime.Options) error {
 		if !ok {
 			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 		}
-		return protocol.ExportToolkit(scope, result)
+		sent, err := func() (json.RawMessage, error) {
+			var zero json.RawMessage
+			converted, err := protocol.ExportToolkit(scope, result)
+			if err != nil {
+				return zero, err
+			}
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Toolkit\""), converted); err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}()
+		return sent, err
 	}
 	options.Handlers = handlers
 	families := map[string]string{}
@@ -73,6 +148,7 @@ func install(handler Handler, options *runtime.Options) error {
 		families[name] = existing
 	}
 	families["name"] = "combinator"
+	families["pack"] = "combinator"
 	families["toolkit"] = "combinator"
 	options.Families = families
 	prepare := options.Prepare

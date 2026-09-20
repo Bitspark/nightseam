@@ -295,8 +295,9 @@ each optional: `Cancel` above takes nothing and answers nothing. It is referred
 to by name, like any other type, and **may not be written inline** — a
 reference to a callable carries the identity of the declaration it implements,
 and a callable written where a type is named has no declaration to carry. It
-declares no `parameters`, for the same reason: a generic callable would have one
-identity per application rather than one declaration.
+declares no `parameters`: generic callable identities would require a shared
+canonical spelling of their applied arguments, which is not part of the
+current contract. This restriction does not apply to generic containers.
 
 An **interface is a record of callable members**, as `ProgressSink` is. Nothing
 about it is a service, a stream, a cell or a topic; those are protocols a
@@ -329,7 +330,7 @@ machinery of its own: a callable is declared in `live.json`, so it ranks with
 the live tier, so a `model.json` record or a `protocol.json` operation that
 names one — or names anything that reaches one — is already refused. **That is
 why data and RPC stay usable with no live runtime at all**: a checkout with no
-`live.json` renders exactly what it rendered before, imports no live package,
+`live.json` imports no live package,
 and needs no registry. It is not a promise about the implementation; it is a
 consequence of the language.
 
@@ -338,12 +339,16 @@ callable is refused, and so is an operation there: an ordinary RPC method
 belongs in `protocol.json`, where a consumer can use it without a live runtime,
 and admitting it here would make the live tier the place things drift to.
 
-Two forms are refused for now, each with the reason in the diagnostic. An
-**application** that is live only through what fills it — `Page<Job>`, where
-`Page` is a generic record of a lower tier — has no boundary conversion of its
-own; declare the filled shape in `live.json` and name it. And a **live type
-drawn through a family parameter** has none either, since what fills the
-parameter is the consumer's to choose.
+An **application** can become live through what fills it: `Page<Job>`, where
+`Page` is a generic record of a lower tier, is supported in `live.json`.
+The generated boundary helpers pass converters through records, unions,
+aliases and nested applications, including imported containers. The generic
+container itself has no live dependency; its caller supplies the scope-aware
+conversion for each live argument. `Page<Payload>` remains ordinary data.
+
+A **live type drawn through a family parameter** remains refused: what fills
+that family parameter is the consumer's to choose, and its boundary conversion
+is not supplied by the family-binding contract.
 
 ### What a reference carries
 

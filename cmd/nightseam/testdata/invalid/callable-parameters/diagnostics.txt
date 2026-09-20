@@ -1,3 +1,2 @@
 x/live.json#/types/Handler/parameters/0: Callable Handler declares parameters. A reference to a callable carries the identity of the declaration it implements, and a generic callable has one identity per application rather than one declaration; declare a callable for each filled shape until that is settled. [callable_parameters]
-x/live.json#/types/Sink/fields/0/type: The application of Handler here carries a callable, which it has only from what fills it; a generic declaration of a lower tier has no boundary conversion of its own. Declare the filled shape in live.json and name it. [live_application]
-error: 2 problems
+error: 1 problems
