@@ -19,6 +19,43 @@ async function zero(...scopes: LiveScope[]) {
 }
 const isCode=(code:string)=>(error:unknown)=>error instanceof DuplexError&&error.code===code;
 
+for (const path of ['callable', 'operation']) {
+  for (const selection of ['foreign', 'released-foreign', 'local']) {
+    const { sa, sb, close } = await pair(4);
+    try {
+      let invoke: combinator.Factory;
+      if (path === 'callable') {
+        invoke = combinator.importFactory(sb.owner().child(), combinator.exportFactory(sa.owner(), async input => input));
+      } else {
+        const serverOwner = sa.owner().child();
+        sa.peer.handle('pack', raw => {
+          const input = combinator.importUnary(serverOwner, (raw as {item: unknown}).item);
+          return { metadata: { seed: 7 }, run: combinator.exportUnary(serverOwner, input) };
+        });
+        const client = new owners.Client(sb.peer, undefined, {});
+        invoke = async (input, options) => (await client.pack({item: input}, options)).run;
+      }
+      const foreign = sa.owner().child();
+      let supplied = foreign, selected = sb.owner();
+      if (selection === 'released-foreign') foreign.release();
+      if (selection === 'local') { selected = sb.owner().child(); supplied = selected; }
+      const callback: combinator.Unary = async value => value + 2;
+      const returned = await invoke(callback, {owner: supplied, signal: AbortSignal.timeout(5000)});
+      assert.deepEqual(selected.counts(), {exports: 1, imports: 1}, path + '/' + selection + ': request/result selection');
+      assert.deepEqual(foreign.counts(), {exports: 0, imports: 0}, 'foreign owner acquired bindings');
+      if (selection === 'local') assert.deepEqual(sb.owner().counts(), {exports: 0, imports: 0}, 'narrow override leaked to root');
+      assert.equal(await returned(10), 12);
+      selected.release();
+      assert.deepEqual(selected.counts(), {exports: 0, imports: 0});
+      await assert.rejects(() => returned(10), isCode('reference_released'));
+      await assert.rejects(() => invoke(callback, {owner: selected}), isCode('reference_released'));
+      sb.owner().release();
+      sa.owner().release();
+      await zero(sa, sb);
+    } finally { close(); }
+  }
+}
+
 for (const side of ['exporter', 'caller', 'both']) {
   const { sa, sb, close } = await pair(4);
   try {
