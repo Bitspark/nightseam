@@ -100,19 +100,30 @@ func TestSameSignatureAssignmentUsesDestinationContract(t *testing.T) {
 `
 
 const tsCallableNominalityFixture = `import * as nominal from './api/ts/nominal-client/src/index.ts';
+import * as binding from './api/ts/nominal-binding/src/index.ts';
 import { pipe } from '@nightseam/duplex';
 import { DuplexError, DuplexPeer } from '@nightseam/runtime';
-import { CONTRACT_MISMATCH, liveOver } from '@nightseam/live';
+import { CONTRACT_MISMATCH, liveOver, scopeOf } from '@nightseam/live';
 
+for (const configured of [false, true]) {
 const [a, b] = pipe();
 const pa = new DuplexPeer({ role: 'client' });
-const pb = new DuplexPeer({ role: 'server' });
 const from = liveOver(pa);
-const to = liveOver(pb);
+let pb: DuplexPeer | undefined;
 try {
-  await Promise.all([pa.attach(a), pb.attach(b)]);
+  if (configured) {
+    pb = new DuplexPeer({ role: 'server' });
+    const existing = liveOver(pb, {maxExports:1, maxImports:1});
+    binding.install(pb, {});
+    if (scopeOf(pb) !== existing) throw new Error('install replaced the host live scope');
+    await Promise.all([pa.attach(a), pb.attach(b)]);
+  } else {
+    [pb] = await Promise.all([binding.serve(b, {}, {}), pa.attach(a)]);
+  }
+  const to = scopeOf(pb);
+  if (!to) throw new Error('binding installed no live scope');
   const report: nominal.Report = async value => value + 1;
-  const volume: nominal.SetVolume = report; // No assertion or cast: the aliases have the same signature.
+  const volume: binding.SetVolume = report; // Both roles share the same nominal protocol types.
   const raw = nominal.exportSetVolume(from, volume);
   const descriptor = raw as { binding: string; contract: string };
   if (!descriptor.binding || descriptor.contract !== 'nominal/SetVolume') {
@@ -123,18 +134,19 @@ try {
   try { nominal.validateWire('Report', raw); } catch { refused = true; }
   if (!refused) throw new Error('validator accepted the destination descriptor as the source contract');
   refused = false;
-  try { nominal.importReport(to, raw); }
+  try { binding.importReport(to, raw); }
   catch (error) {
     if (!(error instanceof DuplexError) || error.code !== CONTRACT_MISMATCH) throw error;
     refused = true;
   }
   if (!refused) throw new Error('import accepted the wrong contract');
-  const imported = nominal.importSetVolume(to, raw);
+  const imported = binding.importSetVolume(to, raw);
   if (await imported(41, { signal: AbortSignal.timeout(5000) }) !== 42) {
     throw new Error('assigned implementation answered wrongly');
   }
 } finally {
   pa.close();
-  pb.close();
+  pb?.close();
+}
 }
 `

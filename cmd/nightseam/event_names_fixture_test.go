@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"testing"
 )
@@ -22,19 +23,14 @@ func TestGeneratedEventNameOverride(t *testing.T) {
 		copyFixtureTree(t, filepath.Join(root, component, "ts"), filepath.Join(directory, component, "ts"))
 	}
 	writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))
-	writeFixture(t, directory, "tsconfig.json", []byte(`{
-		"compilerOptions": {
-			"target":"ES2022", "module":"NodeNext", "moduleResolution":"NodeNext",
-			"strict":true, "skipLibCheck":true, "noEmit":true, "allowImportingTsExtensions":true,
-			"paths": {
-				"@nightseam/runtime":["./runtime/ts/src/index.ts"],
-				"@nightseam/duplex":["./duplex/ts/src/index.ts"],
-				"@nightseam/tunnel":["./tunnel/ts/src/index.ts"],
-				"@nightseam/live":["./live/ts/src/index.ts"]
-			}
-		},
-		"include":["api/ts/**/*.ts","events.ts"]
-	}`))
+	config, err := json.Marshal(map[string]any{
+		"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": fixtureTypeScriptPaths(t, directory)},
+		"include":         []string{"api/ts/**/*.ts", "events.ts"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFixture(t, directory, "tsconfig.json", config)
 	writeFixture(t, directory, "events.ts", []byte(tsEventNameOverrideFixture))
 	writeFixture(t, directory, "events_test.go", []byte(goEventNameOverrideFixture))
 	writeFixture(t, directory, "runtime-loader.mjs", []byte(runtimeLoader))
