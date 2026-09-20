@@ -5,7 +5,7 @@
 // check nobody has run.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { covered, duplicated, formless, pagesOf, parts, sets, uncovered } from "./docs.mjs";
+import { covered, driverInventory, driverOps, duplicated, formless, pagesOf, parts, sets, uncovered } from "./docs.mjs";
 
 /** The five parts, as a page in the form spells them. */
 const whole = [
@@ -108,5 +108,125 @@ test("every set names an index inside the tree it indexes", () => {
     assert.ok(directory.startsWith("docs/"), `${directory} is not documentation`);
     assert.ok(index.endsWith("/README.md"), `${index} is not a README`);
     assert.ok(directory.startsWith(index.slice(0, index.lastIndexOf("/"))), `${index} is not above ${directory}`);
+  }
+});
+
+/** The driver documents operations in the first column of its op tables. */
+const driver = (...ops) => [
+  "| op | arguments | answer |",
+  "| --- | --- | --- |",
+  ...ops.map(op => `| \`${op}\` | none | {} |`),
+].join("\n");
+const scenario = (...ops) => ({ steps: ops.map(op => ({ on: "a", op })) });
+
+test("a driven op without a driver row is refused by name and scenario", () => {
+  const { problems, notes } = driverInventory(driver("peer.call"), new Map([
+    ["conformance/scenarios/peer/missing.json", scenario("peer.call", "peer.forgotten", "peer.forgotten")],
+  ]));
+  assert.deepEqual(problems, [{
+    page: "conformance/scenarios/peer/missing.json",
+    reason: "drives peer.forgotten, which has no op row in conformance/DRIVER.md",
+  }]);
+  assert.deepEqual(notes, []);
+});
+
+test("a documented but undriven op is a note and never a refusal", () => {
+  assert.deepEqual(driverInventory(driver("peer.call", "peer.future"), new Map([
+    ["conformance/scenarios/peer/call.json", scenario("peer.call")],
+  ])), {
+    problems: [],
+    notes: [{ page: "conformance/DRIVER.md", reason: "documents peer.future, which no scenario drives" }],
+  });
+});
+
+test("every driven op with a row satisfies the inventory, including runner ops", () => {
+  assert.deepEqual(driverInventory(driver("peer.call", "pair.peers"), new Map([
+    ["conformance/scenarios/peer/call.json", { steps: [
+      { on: "runner", op: "pair.peers" },
+      { on: "a", op: "peer.call", repeat: { max: 3 } },
+    ] }],
+  ])), { problems: [], notes: [] });
+});
+
+test("scenario payloads and expectations do not drive their op members", () => {
+  assert.deepEqual(driverInventory(driver("peer.call"), new Map([
+    ["conformance/scenarios/peer/data.json", { steps: [{
+      on: "a", op: "peer.call",
+      args: { params: { op: "application.input" } },
+      expect: { op: "application.output" },
+    }] }],
+  ])), { problems: [], notes: [] });
+});
+
+test("inventory diagnostics are ordered by scenario and op and deduplicate repeated steps", () => {
+  const result = driverInventory(driver("peer.z", "peer.a"), new Map([
+    ["conformance/scenarios/z.json", scenario("conn.send")],
+    ["conformance/scenarios/a.json", scenario("peer.zed", "peer.absent", "peer.absent")],
+  ]));
+  assert.deepEqual(result.problems, [
+    { page: "conformance/scenarios/a.json", reason: "drives peer.absent, which has no op row in conformance/DRIVER.md" },
+    { page: "conformance/scenarios/a.json", reason: "drives peer.zed, which has no op row in conformance/DRIVER.md" },
+    { page: "conformance/scenarios/z.json", reason: "drives conn.send, which has no op row in conformance/DRIVER.md" },
+  ]);
+  assert.deepEqual(result.notes, [
+    { page: "conformance/DRIVER.md", reason: "documents peer.a, which no scenario drives" },
+    { page: "conformance/DRIVER.md", reason: "documents peer.z, which no scenario drives" },
+  ]);
+});
+
+test("only op table first cells document operations, not prose, arguments or observer events", () => {
+  const markdown = [
+    "A mention of `peer.prose` is not a row.",
+    driver("peer.call"),
+    "| `peer.emit`, `peer.await_event` | uses `peer.argument` | {} |",
+    "",
+    "| event | members |",
+    "| --- | --- |",
+    "| `request.started` | id |",
+    "",
+    "| op | arguments |",
+    "This is not a table delimiter.",
+    "| `peer.orphan` | none |",
+  ].join("\n");
+  assert.deepEqual([...driverOps(markdown)].sort(), ["peer.await_event", "peer.call", "peer.emit"]);
+});
+
+test("op tables in fenced examples do not document operations", () => {
+  const markdown = [
+    "````markdown", driver("peer.example"), "```", driver("peer.still_example"), "````",
+    "~~~markdown", "<!-- a comment in an example opens no real comment", driver("peer.tilde_example"), "~~~",
+    driver("peer.call"),
+  ].join("\r\n");
+  assert.deepEqual([...driverOps(markdown)], ["peer.call"]);
+});
+
+test("a prose mention cannot hide a scenario op missing its driver row", () => {
+  const result = driverInventory("See `peer.forgotten` in a future table.\n", new Map([
+    ["conformance/scenarios/peer/missing.json", scenario("peer.forgotten")],
+  ]));
+  assert.equal(result.problems.length, 1);
+  assert.match(result.problems[0].reason, /peer\.forgotten/);
+});
+
+test("HTML comments cannot hide a missing driver row", () => {
+  const markdown = [
+    "<!--", driver("peer.hidden"), "-->",
+    "<!-- " + driver("peer.inline").replaceAll("\n", " -->\n<!-- ") + " -->",
+    "<!-- ``` -->",
+    driver("peer.call"),
+  ].join("\n");
+  const result = driverInventory(markdown, new Map([
+    ["conformance/scenarios/peer/missing.json", scenario("peer.hidden", "peer.inline", "peer.call")],
+  ]));
+  assert.equal(result.problems.length, 2);
+  assert.match(result.problems[0].reason, /peer\.hidden/);
+  assert.match(result.problems[1].reason, /peer\.inline/);
+  assert.deepEqual(result.notes, []);
+});
+
+test("an op table needs a whole delimiter row with the header's column count", () => {
+  for (const delimiter of ["| --- | prose | --- |", "| --- | --- |", "| --- | --- | --- | --- |"]) {
+    const markdown = ["| op | arguments | answer |", delimiter, "| `peer.forgotten` | none | {} |"].join("\n");
+    assert.deepEqual([...driverOps(markdown)], [], delimiter);
   }
 });

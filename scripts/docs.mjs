@@ -9,7 +9,7 @@
 //
 //	node scripts/docs.mjs     # fail, naming each, on a page no index covers
 //
-// What it holds, in two claims:
+// What it holds:
 //
 //   - **Coverage.** Every Markdown page of a documented set is linked from
 //     that set's index. The sets are below, each with the page that indexes
@@ -26,6 +26,10 @@
 //     specifically. The *why* is matched by its opening word alone, because a
 //     page recording two verdicts says which it is arguing against, and
 //     decisions/README.md allows that page.
+//
+//   - **Driver inventory.** Every op a scenario drives has a row in DRIVER.md,
+//     so a testee written from that document can run the scenarios. A row no
+//     scenario drives is only a note: it may precede the scenario that uses it.
 //
 // What it does not hold is prose: which sets exist, what an index row says
 // about a page and in what order the rows stand stays editorial. A page
@@ -134,27 +138,110 @@ export function formless(pages, tracked) {
   return problems;
 }
 
+const driverPath = "conformance/DRIVER.md";
+
+/** Operations in the first column of op tables, outside fenced examples. */
+export function driverOps(markdown) {
+  const found = new Set();
+  let fence = null;
+  let comment = false;
+  let header = 0;
+  let table = false;
+  for (const raw of markdown.split(/\r?\n/)) {
+    if (fence) {
+      const closing = raw.match(/^ {0,3}(`{3,}|~{3,})\s*$/);
+      if (closing && closing[1][0] === fence[0] && closing[1].length >= fence.length) fence = null;
+      continue;
+    }
+    let line = "";
+    let rest = raw;
+    while (rest) {
+      const at = rest.indexOf(comment ? "-->" : "<!--");
+      if (at < 0) {
+        if (!comment) line += rest;
+        break;
+      }
+      if (!comment) line += rest.slice(0, at);
+      rest = rest.slice(at + (comment ? 3 : 4));
+      comment = !comment;
+    }
+    const opening = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (opening) {
+      fence = opening[1];
+      header = 0;
+      table = false;
+      continue;
+    }
+    if (!/^ {0,3}\|[^|]*\|/.test(line)) {
+      header = 0;
+      table = false;
+      continue;
+    }
+    const cells = line.trim().slice(1).replace(/\|$/, "").split("|").map(cell => cell.trim());
+    const cell = cells[0];
+    if (header) {
+      table = cells.length === header && cells.every(value => /^:?-+:?$/.test(value));
+      header = 0;
+      continue;
+    }
+    if (cell === "op") {
+      header = cells.length;
+      table = false;
+      continue;
+    }
+    if (!table) continue;
+    for (const match of cell.matchAll(/`([a-z]+\.[a-z_]+)`/g)) found.add(match[1]);
+  }
+  return found;
+}
+
+/**
+ * A scenario's steps drive ops; op members inside arguments or expected values
+ * are application data. Missing rows refuse, while unused rows only note.
+ */
+export function driverInventory(markdown, scenarios) {
+  const documented = driverOps(markdown);
+  const driven = new Set();
+  const problems = [];
+  for (const page of [...scenarios.keys()].sort()) {
+    const ops = new Set(scenarios.get(page).steps.map(step => step.op));
+    for (const op of [...ops].sort()) {
+      driven.add(op);
+      if (!documented.has(op)) problems.push({ page, reason: `drives ${op}, which has no op row in ${driverPath}` });
+    }
+  }
+  const notes = [...documented].sort()
+    .filter(op => !driven.has(op))
+    .map(op => ({ page: driverPath, reason: `documents ${op}, which no scenario drives` }));
+  return { problems, notes };
+}
+
 // Run as a script; imported by the tests, which call the functions above.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const tracked = new Set(
-    execFileSync("git", ["ls-files", "-z", "docs"], { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean),
+    execFileSync("git", ["ls-files", "-z", "docs", driverPath, "conformance/scenarios"], { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean),
   );
   const pages = new Map();
+  const scenarios = new Map();
   for (const path of tracked) {
-    if (!path.endsWith(".md")) continue;
     try {
-      pages.set(path, decodeMarkdown(readFileSync(join(root, path)), path));
+      if (path.endsWith(".md")) pages.set(path, decodeMarkdown(readFileSync(join(root, path)), path));
+      else if (path.endsWith(".json") && path.startsWith("conformance/scenarios/")) {
+        scenarios.set(path, JSON.parse(readFileSync(join(root, path), "utf8")));
+      }
     } catch (error) {
-      console.error(error.message);
+      console.error(`${path}: ${error.message}`);
       process.exit(1);
     }
   }
-  const problems = [...uncovered(pages, tracked), ...duplicated(pages, tracked), ...formless(pages, tracked)];
+  const inventory = driverInventory(pages.get(driverPath) ?? "", scenarios);
+  const problems = [...uncovered(pages, tracked), ...duplicated(pages, tracked), ...formless(pages, tracked), ...inventory.problems];
   for (const { page, reason } of problems) console.error(`${page}: ${reason}`);
+  for (const { page, reason } of inventory.notes) console.log(`note: ${page}: ${reason}`);
   if (problems.length > 0) {
-    console.error(`${problems.length} page${problems.length === 1 ? "" : "s"} the documentation does not account for; an index is a claim that a directory is covered.`);
+    console.error(`${problems.length} documentation claim${problems.length === 1 ? "" : "s"} not satisfied.`);
     process.exit(1);
   }
   const counted = sets.reduce((total, { directory }) => total + pagesOf(directory, tracked).length, 0);
-  console.log(`${counted} pages in ${sets.length} sets are indexed, and every decision carries its five parts`);
+  console.log(`${counted} pages in ${sets.length} sets are indexed, every decision carries its five parts, and every scenario op has a driver row`);
 }
