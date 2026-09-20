@@ -6,7 +6,8 @@ import { liveOver, type LiveScope, type LiveOwner } from '@nightseam/live';
 
 type Args = Record<string, unknown>;
 export class OwnerFailure extends Error {
-  constructor(readonly code: string, message: string) { super(message); }
+  readonly code: string;
+  constructor(code: string, message: string) { super(message); this.code = code; }
 }
 interface Dialled { client: owners.Client; scope: LiveScope; owner?: LiveOwner; job?: worker.Job; reports: number }
 const handles = new Map<string, Dialled>();
