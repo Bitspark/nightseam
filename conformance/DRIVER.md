@@ -545,8 +545,9 @@ RPC whose implementation later releases those saved handler owners.
 | `gen.owners_counts` | **`on`**, `within_ms` | `{"exports":0,"imports":0}` once the server reaches baseline |
 
 The import-refusal operation uses a fixture-only `references` method returning
-three otherwise valid generated `Report` exports. This supplies malformed
-conversion input; it is separate evidence from the ordinary generated
+three valid generated `Report` exports. Importing them exceeds the client's
+capacity and exercises rollback of a partially completed conversion;
+it is separate evidence from the ordinary generated
 operations above. No owner operation extracts a reference from a native
 value to release it, and no connection closes to make a count assertion pass.
 

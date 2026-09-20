@@ -343,8 +343,9 @@ export function importJob(owner: LiveOwner, raw: unknown): Job;
 Export walks the value, makes a binding of each local function and writes the
 reference that names it in its place; import validates, attaches, and replaces
 each reference with a typed proxy. The generated client and binding call these
-for an operation that carries callables, and install the scope over the peer in
-`Prepare`, before it reads — as a tunnel is made.
+for an operation that carries callables, and install the scope before the peer
+reads: through `Prepare` in Go, and client construction or binding `install`
+in TypeScript.
 
 Choose a lifetime with `scope.Owner().Child()` or `scope.owner().child()`.
 For a generated operation or callable invocation, Go selects it through
