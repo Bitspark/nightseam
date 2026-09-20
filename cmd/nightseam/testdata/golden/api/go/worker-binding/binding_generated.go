@@ -32,22 +32,28 @@ func (c *Remote) Supervise(ctx context.Context, params protocol.Supervise) (prot
 	if !ok || owner.Scope() != scope {
 		owner = scope.Owner()
 	}
-	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		var zero json.RawMessage
-		converted, err := protocol.ExportSupervise(owner, params)
-		if err != nil {
-			return zero, err
-		}
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Supervise\""), converted); err != nil {
-			return zero, err
-		}
-		return converted, nil
-	})
+	raw, err := owner.PublishValue(
+		func(owner *live.Owner) (json.RawMessage, error) {
+			sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
+				var zero json.RawMessage
+				converted, err := protocol.ExportSupervise(owner, params)
+				if err != nil {
+					return zero, err
+				}
+				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Supervise\""), converted); err != nil {
+					return zero, err
+				}
+				return converted, nil
+			})
+			return sent, err
+		},
+		func(sent json.RawMessage) (json.RawMessage, error) {
+			var raw json.RawMessage
+			err := c.Peer.Call(ctx, "supervise", sent, &raw)
+			return raw, err
+		},
+	)
 	if err != nil {
-		return result, err
-	}
-	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "supervise", sent, &raw); err != nil {
 		return result, err
 	}
 	received, err := func() (protocol.Outcome, error) {
@@ -209,19 +215,24 @@ func (c *Remote) EmitSettled(ctx context.Context, data protocol.Outcome) error {
 	if !ok || owner.Scope() != scope {
 		owner = scope.Owner()
 	}
-	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		var zero json.RawMessage
-		converted, err := protocol.ExportOutcome(owner, data)
-		if err != nil {
-			return zero, err
-		}
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), converted); err != nil {
-			return zero, err
-		}
-		return converted, nil
-	})
-	if err != nil {
-		return err
-	}
-	return c.Peer.Emit(ctx, "settled", sent)
+	_, err := owner.PublishValue(
+		func(owner *live.Owner) (json.RawMessage, error) {
+			sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
+				var zero json.RawMessage
+				converted, err := protocol.ExportOutcome(owner, data)
+				if err != nil {
+					return zero, err
+				}
+				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), converted); err != nil {
+					return zero, err
+				}
+				return converted, nil
+			})
+			return sent, err
+		},
+		func(sent json.RawMessage) (json.RawMessage, error) {
+			return nil, c.Peer.Emit(ctx, "settled", sent)
+		},
+	)
+	return err
 }

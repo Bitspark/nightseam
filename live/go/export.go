@@ -3,6 +3,8 @@ package live
 import (
 	"encoding/json"
 	"errors"
+
+	"github.com/Bitspark/nightseam/runtime/go"
 )
 
 type allocation struct {
@@ -39,21 +41,44 @@ type valueBatch struct {
 // does not roll them back. Unpublished exports are discarded without a release
 // event; new import attachments are released with the ordinary notification.
 func (o *Owner) ExportValue(build func(*Owner) (json.RawMessage, error)) (value json.RawMessage, err error) {
+	value, _, err = o.buildExport(build)
+	return value, err
+}
+
+// PublishValue builds a complete payload, then attempts to publish it. Only a
+// local UnpublishedError unwinds this build's new allocations. Timeouts,
+// cancellation after dispatch, remote errors and lost replies retain them under
+// the owner until explicit release or scope end. The build view is inactive
+// before publish runs, so later conversions start independent batches.
+func (o *Owner) PublishValue(build func(*Owner) (json.RawMessage, error), publish func(json.RawMessage) (json.RawMessage, error)) (json.RawMessage, error) {
+	value, allocations, err := o.buildExport(build)
+	if err != nil {
+		return nil, err
+	}
+	result, err := publish(value)
+	var proof *runtime.UnpublishedError
+	if errors.As(err, &proof) {
+		o.discard(allocations)
+	}
+	return result, err
+}
+
+func (o *Owner) buildExport(build func(*Owner) (json.RawMessage, error)) (value json.RawMessage, allocations []allocation, err error) {
 	view, err := o.begin()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	committed := false
-	defer func() { view.finish(committed) }()
+	defer func() { allocations = view.finish(committed) }()
 	value, err = build(view)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if value != nil && !json.Valid(value) {
-		return nil, errors.New("a live export must produce valid JSON")
+		return nil, nil, errors.New("a live export must produce valid JSON")
 	}
 	committed = true
-	return value, nil
+	return value, nil, nil
 }
 
 // ImportValue walks a received value synchronously under a batch owner view.
@@ -90,7 +115,7 @@ func (o *Owner) begin() (*Owner, error) {
 	return &Owner{state: o.state, batch: batch}, nil
 }
 
-func (o *Owner) finish(committed bool) {
+func (o *Owner) finish(committed bool) []allocation {
 	s := o.Scope()
 	s.mu.Lock()
 	batch := o.batch
@@ -99,16 +124,24 @@ func (o *Owner) finish(committed bool) {
 		batch.parent.allocations = append(batch.parent.allocations, allocations...)
 	}
 	batch.active, batch.allocations, batch.parent = false, nil, nil
-	var notices []releaseNotice
+	s.mu.Unlock()
 	if !committed {
-		for _, allocation := range allocations {
-			// A release may have removed this allocation, and tombstone
-			// eviction can let another owner attach to the same binding ID.
-			if !allocation.current(s) {
-				continue
-			}
-			notices = append(notices, s.takeRelease(allocation.id, allocation.imported))
+		o.discard(allocations)
+	}
+	return allocations
+}
+
+func (o *Owner) discard(allocations []allocation) {
+	s := o.Scope()
+	s.mu.Lock()
+	var notices []releaseNotice
+	for _, allocation := range allocations {
+		// Explicit release or a remote notification may already have
+		// removed this allocation. A bounded tombstone is not its lifetime.
+		if !allocation.current(s) {
+			continue
 		}
+		notices = append(notices, s.takeRelease(allocation.id, allocation.imported))
 	}
 	s.mu.Unlock()
 	for _, notice := range notices {

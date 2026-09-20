@@ -193,22 +193,28 @@ func (c *Client) Start(ctx context.Context, params protocol.Start) (protocol.Job
 	if !ok || owner.Scope() != scope {
 		owner = scope.Owner()
 	}
-	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		var zero json.RawMessage
-		converted, err := protocol.ExportStart(owner, params)
-		if err != nil {
-			return zero, err
-		}
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Start\""), converted); err != nil {
-			return zero, err
-		}
-		return converted, nil
-	})
+	raw, err := owner.PublishValue(
+		func(owner *live.Owner) (json.RawMessage, error) {
+			sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
+				var zero json.RawMessage
+				converted, err := protocol.ExportStart(owner, params)
+				if err != nil {
+					return zero, err
+				}
+				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Start\""), converted); err != nil {
+					return zero, err
+				}
+				return converted, nil
+			})
+			return sent, err
+		},
+		func(sent json.RawMessage) (json.RawMessage, error) {
+			var raw json.RawMessage
+			err := c.Peer.Call(ctx, "start", sent, &raw)
+			return raw, err
+		},
+	)
 	if err != nil {
-		return result, err
-	}
-	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "start", sent, &raw); err != nil {
 		return result, err
 	}
 	received, err := func() (protocol.Job, error) {

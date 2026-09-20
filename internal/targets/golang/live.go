@@ -154,9 +154,13 @@ func (f *file) emitCallable(t *render.Type) {
 func (f *file) emitCallableInvoke(t *render.Type, zero string) {
 	if t.Request == nil {
 		f.linef("result, err := invoke(ctx, nil)")
-	} else {
+	} else if f.needsConversion(t.Request) {
 		// And what a caller sends: a callable it passes becomes a
 		// binding of this owner, as it would in any other position.
+		f.publishBoundary(t.Request, "params", "result", func() {
+			f.line("return invoke(ctx, sent)")
+		})
+	} else {
 		f.liveBoundary(t.Request, "params", "request", true)
 		f.linef("if err != nil { return %serr }", zero)
 		f.line("result, err := invoke(ctx, request)")

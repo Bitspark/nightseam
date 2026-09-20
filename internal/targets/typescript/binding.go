@@ -90,14 +90,14 @@ func emitBinding(f *file) {
 				initial = "const params = {}; "
 			}
 			if f.liveNeeded(m.Request, m.Result) {
-				f.linef("async %s(%s): Promise<%s> { %s%s const sent = %s; const result = await this.peer.call<unknown>(%s, sent, options); validateWire(%s, result%s); return %s; }", p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, f.liveOwner(false), f.liveExport(m.Request, "params", slots), quote(m.Name), expression(m.Result), slots, f.liveConversion(m.Result, "result", false))
+				f.linef("async %s(%s): Promise<%s> { %s%s const result = await %s; validateWire(%s, result%s); return %s; }", p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, f.liveOwner(false), f.livePublish(m.Request, "params", slots, fmt.Sprintf("this.peer.call<unknown>(%s, %%s, options)", quote(m.Name))), expression(m.Result), slots, f.liveConversion(m.Result, "result", false))
 			} else {
 				f.linef("async %s(%s): Promise<%s> { %svalidateWire(%s, params%s); const result = await this.peer.call<%s>(%s, params, options); validateWire(%s, result%s); return result; }", p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, requestExpression(m), slots, f.spell(m.Result), quote(m.Name), expression(m.Result), slots)
 			}
 		}
 		for _, e := range fam.Server.Events {
 			if f.liveNeeded(e.Type) {
-				f.linef("async emit%s(data: %s, options?: EmitOptions & { owner?: LiveOwner }): Promise<void> { %s const sent = %s; await this.peer.emit(%s, sent, options); }", upperFirst(p.operations[e.Name]), f.spell(e.Type), f.liveOwner(false), f.liveExport(e.Type, "data", slots), quote(e.Name))
+				f.linef("async emit%s(data: %s, options?: EmitOptions & { owner?: LiveOwner }): Promise<void> { %s await %s; }", upperFirst(p.operations[e.Name]), f.spell(e.Type), f.liveOwner(false), f.livePublish(e.Type, "data", slots, fmt.Sprintf("this.peer.emit(%s, %%s, options)", quote(e.Name))))
 			} else {
 				f.linef("async emit%s(data: %s, options?: EmitOptions): Promise<void> { validateWire(%s, data%s); await this.peer.emit(%s, data, options); }", upperFirst(p.operations[e.Name]), f.spell(e.Type), expression(e.Type), slots, quote(e.Name))
 			}

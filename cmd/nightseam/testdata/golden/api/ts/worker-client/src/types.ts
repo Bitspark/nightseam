@@ -185,8 +185,7 @@ export function importRename(owner: LiveOwner, raw: unknown): Rename {
   const scope = owner.scope;
   return async (request: Ticket, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
-    const sent = (() => { const converted = request; validateWire("Ticket", converted); return converted; })();
-    const result = await invoke(sent, options);
+    const result = await invoke((() => { const converted = request; validateWire("Ticket", converted); return converted; })(), options);
     validateWire("Ticket", result);
     return result as Ticket;
   };
@@ -214,8 +213,7 @@ export function importReport(owner: LiveOwner, raw: unknown): Report {
   const scope = owner.scope;
   return async (request: Percent, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
-    const sent = (() => { const converted = request; validateWire("Percent", converted); return converted; })();
-    await invoke(sent, options);
+    await invoke((() => { const converted = request; validateWire("Percent", converted); return converted; })(), options);
     return;
   };
 }

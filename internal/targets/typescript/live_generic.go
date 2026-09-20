@@ -16,6 +16,14 @@ func (f *file) liveExport(e model.TypeExpr, src, slots string) string {
 	return fmt.Sprintf("owner.exportValue((owner) => { const converted = %s; %s(%s, converted%s); return converted; })", f.liveConversion(e, src, true), identValidateWire, expression(e), slots)
 }
 
+func (f *file) livePublish(e model.TypeExpr, src, slots, send string) string {
+	value := f.liveExport(e, src, slots)
+	if !f.needsConversion(e) {
+		return fmt.Sprintf(send, value)
+	}
+	return fmt.Sprintf("owner.publishValue(owner => %s, sent => %s)", value, fmt.Sprintf(send, "sent"))
+}
+
 func converterName(use render.Use) string { return "convert_" + use.Parameter + "_" + use.Type }
 func useExpression(use render.Use) model.TypeExpr {
 	if use.Type == "" {

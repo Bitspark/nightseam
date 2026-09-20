@@ -1,0 +1,13 @@
+{
+  "name": "generated callbacks retain uncertain publications until their owners release",
+  "layer": "generated",
+  "description": "Both caller directions on one real socket, with four exports and imports per scope: seven fresh callback supplies fail busy, followed by remote cancellation and frame-size errors, timeout, cancellation after a delivery barrier, suppressed replies, events and a handler-returned callback whose reply is lost. Every retained callback remains callable after failure, every explicit owner release revokes its remote alias, and every cycle reaches baseline before the next. Pre-cancelled requests and oversized events prove local non-publication unwinds only their new exports. Both generated bindings must serve this scenario without skips.",
+  "needs": ["generated"],
+  "mirror": true,
+  "steps": [
+    {"on":"a","op":"gen.publication_serve","bind":{"handle":"server","url":"url"}},
+    {"on":"b","op":"gen.publication_dial","args":{"url":"$url"},"bind":"client"},
+    {"on":"b","op":"gen.publication_exercise","args":{"on":"$client","within_ms":10000},"expect":{"cycles":16,"completed":["busy","busy","busy","busy","busy","busy","busy","cancelled","frame_too_large","timeout","cancel","lost_reply","event","returned_reply_lost","unpublished","event_unpublished"],"counts":{"exports":0,"imports":0}}},
+    {"on":"a","op":"gen.publication_exercise","args":{"on":"$server","within_ms":10000},"expect":{"cycles":16,"completed":["busy","busy","busy","busy","busy","busy","busy","cancelled","frame_too_large","timeout","cancel","lost_reply","event","returned_reply_lost","unpublished","event_unpublished"],"counts":{"exports":0,"imports":0}}}
+  ]
+}

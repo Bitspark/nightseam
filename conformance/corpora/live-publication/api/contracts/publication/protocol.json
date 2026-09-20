@@ -1,0 +1,13 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {"methods": {
+    "inspect": {"result": "Counts"},
+    "invoke": {"result": "integer"},
+    "drop": {"result": "boolean"}
+  }},
+  "client": {"methods": {
+    "inspect_back": {"result": "Counts"},
+    "invoke_back": {"result": "integer"},
+    "drop_back": {"result": "boolean"}
+  }}
+}

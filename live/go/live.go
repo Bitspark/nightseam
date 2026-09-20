@@ -402,9 +402,9 @@ func (s *Scope) local(own *binding) Invoke {
 		s.mu.Unlock()
 		switch {
 		case closed:
-			return nil, &runtime.PublicError{Code: ErrorScopeClosed, Message: "the scope ended"}
+			return nil, runtime.Unpublished(&runtime.PublicError{Code: ErrorScopeClosed, Message: "the scope ended"})
 		case released:
-			return nil, &runtime.PublicError{Code: ErrorReferenceReleased, Message: "the binding was released"}
+			return nil, runtime.Unpublished(&runtime.PublicError{Code: ErrorReferenceReleased, Message: "the binding was released"})
 		}
 		return s.invokeScoped(ctx, invoke, request)
 	}
@@ -419,11 +419,11 @@ func (s *Scope) remote(id string, held *attachment) Invoke {
 		s.mu.Lock()
 		if s.closed {
 			s.mu.Unlock()
-			return nil, &runtime.PublicError{Code: ErrorScopeClosed, Message: "the scope ended"}
+			return nil, runtime.Unpublished(&runtime.PublicError{Code: ErrorScopeClosed, Message: "the scope ended"})
 		}
 		if held.released {
 			s.mu.Unlock()
-			return nil, &runtime.PublicError{Code: ErrorReferenceReleased, Message: "the binding was released"}
+			return nil, runtime.Unpublished(&runtime.PublicError{Code: ErrorReferenceReleased, Message: "the binding was released"})
 		}
 		call, cancel := context.WithCancel(ctx)
 		ticket := s.call

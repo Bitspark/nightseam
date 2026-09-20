@@ -159,19 +159,18 @@ func (f *file) emitCallable(t *render.Type) {
 		f.line("const scope = owner.scope;")
 		f.w.Block(fmt.Sprintf("return async (%s) => {", f.callableParams(t)), "};", func() {
 			f.line("const owner = options?.owner?.scope === scope ? options.owner : scope.owner();")
-			call := "undefined, options"
+			call := "invoke(undefined, options)"
 			if t.Request != nil {
 				// And what a caller sends: a callable it passes becomes a
 				// binding of this owner, as it would in any other position.
-				f.linef("const sent = %s;", f.liveExport(t.Request, "request", ""))
-				call = "sent, options"
+				call = f.livePublish(t.Request, "request", "", "invoke(%s, options)")
 			}
 			if t.Result == nil {
-				f.linef("await invoke(%s);", call)
+				f.linef("await %s;", call)
 				f.line("return;")
 				return
 			}
-			f.linef("const result = await invoke(%s);", call)
+			f.linef("const result = await %s;", call)
 			f.linef("%s(%s, result);", identValidateWire, expression(t.Result))
 			f.linef("return %s;", f.liveConversion(t.Result, "result", false))
 		})

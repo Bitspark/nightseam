@@ -56,7 +56,11 @@ func renderTestees(checkout, dir string) error {
 	world.Families["owners"] = owners.Families["owners"]
 	world.Problems["owners"] = owners.Problems["owners"]
 	world.Names = append(world.Names, "owners")
-	for _, name := range []string{"probe", "proof", "worker", "boxes", "combinator", "owners"} {
+	publication := k.Load(os.DirFS(filepath.Join(checkout, "conformance", "corpora", "live-publication")), "api/contracts")
+	world.Families["publication"] = publication.Families["publication"]
+	world.Problems["publication"] = publication.Problems["publication"]
+	world.Names = append(world.Names, "publication")
+	for _, name := range []string{"probe", "proof", "worker", "boxes", "combinator", "owners", "publication"} {
 		result, err := k.Render(world, name)
 		if err != nil {
 			return fmt.Errorf("render the testees: %w", err)

@@ -1,0 +1,394 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"strings"
+	"sync"
+	"time"
+
+	binding "example.test/generated/api/go/publication-binding"
+	client "example.test/generated/api/go/publication-client"
+	publication "example.test/generated/api/go/publication-protocol"
+	"github.com/Bitspark/nightseam/live/go"
+	"github.com/Bitspark/nightseam/runtime/go"
+)
+
+// The fixture uses only native generated functions and explicit owners. The
+// callback invoked with -1 is a delivery barrier, not a wire acknowledgement.
+type publicationReceiver struct {
+	mu       sync.Mutex
+	scope    *live.Scope
+	owner    *live.Owner
+	callback publication.Callback
+	failure  error
+}
+
+func (r *publicationReceiver) retain(ctx context.Context, value publication.Supply) error {
+	o, ok := live.OwnerOf(ctx)
+	if !ok || o.Scope() != r.scope || o == r.scope.Owner() {
+		return fmt.Errorf("generated receiver did not supply a child owner")
+	}
+	r.mu.Lock()
+	r.owner, r.callback = o, value.Callback
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *publicationReceiver) supply(ctx context.Context, value publication.Supply) (int64, error) {
+	if err := r.retain(ctx, value); err != nil {
+		return 0, err
+	}
+	if _, err := value.Callback(context.Background(), -1); err != nil {
+		return 0, err
+	}
+	switch value.Mode {
+	case "busy", "cancelled", "frame_too_large":
+		return 0, &runtime.PublicError{Code: value.Mode, Message: "retained before refusal"}
+	case "timeout", "cancel":
+		<-ctx.Done()
+		return 0, ctx.Err()
+	case "lost_reply":
+		<-ctx.Done()
+		return 0, nil // The generated response is too late for the withdrawn request.
+	}
+	return 0, fmt.Errorf("unknown supply mode %s", value.Mode)
+}
+
+func (r *publicationReceiver) produce(ctx context.Context, value publication.Supply) (publication.Callback, error) {
+	if err := r.retain(ctx, value); err != nil {
+		return nil, err
+	}
+	if _, err := value.Callback(context.Background(), -1); err != nil {
+		return nil, err
+	}
+	<-ctx.Done()
+	// The wrapper exports this after the caller withdrew. The saved handler
+	// owner must still contain the export when the reply cannot reach it.
+	return func(_ context.Context, n int64) (int64, error) { return n + 2, nil }, nil
+}
+
+func (r *publicationReceiver) event(ctx context.Context, value publication.Supply) {
+	err := r.retain(ctx, value)
+	if err == nil {
+		_, err = value.Callback(context.Background(), -1)
+	}
+	if err != nil {
+		r.mu.Lock()
+		r.failure = err
+		r.mu.Unlock()
+	}
+}
+
+func (r *publicationReceiver) inspect() (publication.Counts, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.failure != nil {
+		return publication.Counts{}, r.failure
+	}
+	c, owned := r.scope.Counts(), live.Counts{}
+	if r.owner != nil {
+		owned = r.owner.Counts()
+	}
+	return publication.Counts{Exports: int64(c.Exports), Imports: int64(c.Imports), OwnedExports: int64(owned.Exports), OwnedImports: int64(owned.Imports)}, nil
+}
+
+func (r *publicationReceiver) invoke(ctx context.Context) (int64, error) {
+	r.mu.Lock()
+	callback := r.callback
+	r.mu.Unlock()
+	if callback == nil {
+		return 0, fmt.Errorf("no retained callback")
+	}
+	return callback(ctx, 40)
+}
+
+func (r *publicationReceiver) drop() (bool, error) {
+	r.mu.Lock()
+	owner := r.owner
+	r.owner = nil
+	r.mu.Unlock()
+	if owner != nil {
+		if err := owner.Release(); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+type publicationServer struct{ *publicationReceiver }
+
+func (s *publicationServer) Supply(ctx context.Context, _ *binding.Remote, value publication.Supply) (int64, error) {
+	return s.supply(ctx, value)
+}
+func (s *publicationServer) Produce(ctx context.Context, _ *binding.Remote, value publication.Supply) (publication.Callback, error) {
+	return s.produce(ctx, value)
+}
+func (s *publicationServer) Inspect(context.Context, *binding.Remote) (publication.Counts, error) {
+	return s.inspect()
+}
+func (s *publicationServer) Invoke(ctx context.Context, _ *binding.Remote) (int64, error) {
+	return s.invoke(ctx)
+}
+func (s *publicationServer) Drop(context.Context, *binding.Remote) (bool, error) { return s.drop() }
+
+type publicationClient struct{ *publicationReceiver }
+
+func (s *publicationClient) SupplyBack(ctx context.Context, _ *client.Client, value publication.Supply) (int64, error) {
+	return s.supply(ctx, value)
+}
+func (s *publicationClient) ProduceBack(ctx context.Context, _ *client.Client, value publication.Supply) (publication.Callback, error) {
+	return s.produce(ctx, value)
+}
+func (s *publicationClient) InspectBack(context.Context, *client.Client) (publication.Counts, error) {
+	return s.inspect()
+}
+func (s *publicationClient) InvokeBack(ctx context.Context, _ *client.Client) (int64, error) {
+	return s.invoke(ctx)
+}
+func (s *publicationClient) DropBack(context.Context, *client.Client) (bool, error) { return s.drop() }
+
+type publicationEndpoint struct {
+	scope   *live.Scope
+	supply  func(context.Context, publication.Supply) (int64, error)
+	produce func(context.Context, publication.Supply) (publication.Callback, error)
+	emit    func(context.Context, publication.Supply) error
+	inspect func(context.Context) (publication.Counts, error)
+	invoke  func(context.Context) (int64, error)
+	drop    func(context.Context) (bool, error)
+	close   func() error
+}
+
+type publicationHandle struct {
+	endpoint *publicationEndpoint
+	ready    chan struct{}
+	http     *http.Server
+}
+
+func (h *publicationHandle) shutdown() {
+	select {
+	case <-h.ready:
+		_ = h.endpoint.close()
+	default:
+	}
+	if h.http != nil {
+		_ = h.http.Close()
+	}
+}
+
+func publicationCode(err error) string {
+	if errors.Is(err, context.Canceled) {
+		return "cancelled"
+	}
+	if err == nil {
+		return "success"
+	}
+	return callError(err)["code"].(string)
+}
+
+func (e *publicationEndpoint) awaitCounts(ctx context.Context, exports, imports int64) (publication.Counts, error) {
+	for {
+		counts, err := e.inspect(ctx)
+		if err != nil {
+			return counts, err
+		}
+		if counts.Exports == exports && counts.Imports == imports && counts.OwnedExports == exports && counts.OwnedImports == imports {
+			return counts, nil
+		}
+		select {
+		case <-ctx.Done():
+			return counts, fmt.Errorf("counts never reached %d/%d: %+v", exports, imports, counts)
+		case <-time.After(time.Millisecond):
+		}
+	}
+}
+
+func (e *publicationEndpoint) exercise(ctx context.Context) (any, error) {
+	completed := []string{}
+	modes := []string{"busy", "busy", "busy", "busy", "busy", "busy", "busy", "cancelled", "frame_too_large", "timeout", "cancel", "lost_reply", "event", "returned_reply_lost", "unpublished", "event_unpublished"}
+	for _, mode := range modes {
+		owner := e.scope.Owner().Child()
+		started := make(chan struct{})
+		var once sync.Once
+		value := publication.Supply{Mode: mode, Callback: func(_ context.Context, n int64) (int64, error) {
+			if n == -1 {
+				once.Do(func() { close(started) })
+			}
+			return n + 1, nil
+		}}
+		callCtx, cancel := context.WithTimeout(live.WithOwner(ctx, owner), time.Second)
+		var callErr error
+		if mode == "unpublished" {
+			cancel()
+			_, callErr = e.supply(callCtx, value)
+		} else if mode == "event_unpublished" {
+			value.Mode = strings.Repeat("x", 2048)
+			callErr = e.emit(callCtx, value)
+		} else if mode == "event" {
+			callErr = e.emit(callCtx, value)
+			if callErr == nil {
+				select {
+				case <-started:
+				case <-callCtx.Done():
+					callErr = callCtx.Err()
+				}
+			}
+		} else {
+			finished := make(chan error, 1)
+			go func() {
+				if mode == "returned_reply_lost" {
+					_, err := e.produce(callCtx, value)
+					finished <- err
+				} else {
+					_, err := e.supply(callCtx, value)
+					finished <- err
+				}
+			}()
+			select {
+			case <-started:
+				if mode == "cancel" || mode == "returned_reply_lost" {
+					cancel()
+				}
+			case <-ctx.Done():
+				cancel()
+				return nil, ctx.Err()
+			}
+			callErr = <-finished
+		}
+		cancel()
+		var proof *runtime.UnpublishedError
+		unpublished := mode == "unpublished" || mode == "event_unpublished"
+		if errors.As(callErr, &proof) != unpublished {
+			return nil, fmt.Errorf("%s: non-publication proof did not belong to this send attempt: %v", mode, callErr)
+		}
+		want := mode
+		switch mode {
+		case "cancel", "unpublished", "returned_reply_lost":
+			want = "cancelled"
+		case "timeout", "lost_reply":
+			want = "request_timeout"
+		case "event":
+			want = "success"
+		case "event_unpublished":
+			want = "frame_too_large"
+		}
+		if code := publicationCode(callErr); mode != "event_unpublished" && code != want {
+			return nil, fmt.Errorf("%s: got %s, want %s (%v)", mode, code, want, callErr)
+		}
+		if mode == "unpublished" || mode == "event_unpublished" {
+			if counts := owner.Counts(); counts != (live.Counts{}) {
+				return nil, fmt.Errorf("%s retained unsent export: %+v", mode, counts)
+			}
+			select {
+			case <-started:
+				return nil, fmt.Errorf("%s reached receiver", mode)
+			default:
+			}
+			if _, err := e.awaitCounts(ctx, 0, 0); err != nil {
+				return nil, err
+			}
+		} else {
+			if counts := owner.Counts(); counts != (live.Counts{Exports: 1}) {
+				return nil, fmt.Errorf("%s lost caller-owned export: %+v", mode, counts)
+			}
+			exports := int64(0)
+			if mode == "returned_reply_lost" {
+				exports = 1
+			}
+			if _, err := e.awaitCounts(ctx, exports, 1); err != nil {
+				return nil, fmt.Errorf("%s: %w", mode, err)
+			}
+			result, err := e.invoke(ctx)
+			if err != nil || result != 41 {
+				return nil, fmt.Errorf("%s retained callback refused after failed supply: %d, %v", mode, result, err)
+			}
+			if err := owner.Release(); err != nil {
+				return nil, err
+			}
+			if _, err := e.awaitCounts(ctx, exports, 0); err != nil {
+				return nil, err
+			}
+			if _, err := e.invoke(ctx); publicationCode(err) != live.ErrorReferenceReleased {
+				return nil, fmt.Errorf("%s owner release left remote alias usable: %v", mode, err)
+			}
+		}
+		if err := owner.Release(); err != nil {
+			return nil, err
+		}
+		if ok, err := e.drop(ctx); err != nil || !ok {
+			return nil, fmt.Errorf("%s drop: %v", mode, err)
+		}
+		if _, err := e.awaitCounts(ctx, 0, 0); err != nil {
+			return nil, err
+		}
+		if counts := e.scope.Counts(); counts != (live.Counts{}) {
+			return nil, fmt.Errorf("%s leaked caller bindings: %+v", mode, counts)
+		}
+		completed = append(completed, mode)
+	}
+	return map[string]any{"completed": completed, "cycles": len(completed), "counts": ownerCounts(e.scope)}, nil
+}
+
+func (t *testee) publicationDispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), within(raw))
+	defer cancel()
+	switch op {
+	case "gen.publication_serve":
+		h := &publicationHandle{ready: make(chan struct{})}
+		r := &publicationReceiver{}
+		handler, err := binding.NewHandler(&publicationServer{r}, runtime.ServerOptions{
+			Authenticate: func(req *http.Request) (context.Context, error) { return req.Context(), nil }, CheckOrigin: func(*http.Request) bool { return true },
+			Options: runtime.Options{MaxFrameBytes: 1024, Prepare: func(peer *runtime.Peer) (err error) {
+				r.scope, err = live.Over(peer, live.Options{MaxExports: 4, MaxImports: 4})
+				if err != nil {
+					return err
+				}
+				return (&binding.Remote{Peer: peer}).OnOfferedBack(r.event)
+			}},
+			OnConnect: func(peer *runtime.Peer) {
+				remote := &binding.Remote{Peer: peer}
+				h.endpoint = &publicationEndpoint{r.scope, remote.SupplyBack, remote.ProduceBack, remote.EmitOffered, remote.InspectBack, remote.InvokeBack, remote.DropBack, peer.Close}
+				close(h.ready)
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		h.http = &http.Server{Handler: handler}
+		go func() { _ = h.http.Serve(listener) }()
+		return map[string]any{"handle": t.mint("publicationsrv", h), "url": "ws://" + listener.Addr().String()}, nil
+	case "gen.publication_dial":
+		h := &publicationHandle{ready: make(chan struct{})}
+		r := &publicationReceiver{}
+		c, err := client.Dial(context.Background(), str(raw, "url"), runtime.DialOptions{Options: runtime.Options{MaxFrameBytes: 1024, Prepare: func(peer *runtime.Peer) (err error) {
+			r.scope, err = live.Over(peer, live.Options{MaxExports: 4, MaxImports: 4})
+			return
+		}}}, &publicationClient{r}, client.Events{Offered: r.event})
+		if err != nil {
+			return nil, err
+		}
+		h.endpoint = &publicationEndpoint{r.scope, c.Supply, c.Produce, c.EmitOfferedBack, c.Inspect, c.Invoke, c.Drop, c.Close}
+		close(h.ready)
+		return map[string]any{"handle": t.mint("publicationcl", h)}, nil
+	case "gen.publication_exercise":
+		h, err := liveOf[*publicationHandle](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		select {
+		case <-h.ready:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		return h.endpoint.exercise(ctx)
+	}
+	return nil, fail("unsupported", "no publication operation %s", op)
+}
