@@ -81,8 +81,8 @@ are one number. Entries are in the words of the commits that landed them.
 - A consumer operation under a layer's reserved prefix is refused, read off
   the built-in families that speak on the wire rather than written out: it
   covers `channel.` and `live.` by one rule.
-- The packed-install smoke imports every published package from outside the
-  workspace, at every entry point its `publishConfig.exports` declares:
+- The packed-install and registry smokes import every published package from
+  outside the workspace, at every entry point its `publishConfig.exports` declares:
   type-checked with library checking on, then loaded by Node. A package the
   getting-started example does not itself import is no longer packed,
   installed and never opened.
