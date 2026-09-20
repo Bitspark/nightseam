@@ -12,3 +12,18 @@ export class DuplexError extends Error {
     this.data = data;
   }
 }
+
+/** A local refusal before this send attempt's frame entered the outbound queue. */
+export class UnpublishedError extends DuplexError {
+  override readonly cause: unknown;
+
+  constructor(cause: unknown) {
+    super(
+      cause instanceof DuplexError ? cause.code : 'send_failed',
+      cause instanceof Error ? cause.message : 'Duplex operation failed.',
+      cause instanceof DuplexError ? cause.data : undefined,
+    );
+    this.name = 'UnpublishedError';
+    this.cause = cause;
+  }
+}

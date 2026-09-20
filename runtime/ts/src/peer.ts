@@ -1,5 +1,5 @@
-import { DuplexError } from './error.ts';
-export { DuplexError } from './error.ts';
+import { DuplexError, UnpublishedError } from './error.ts';
+export { DuplexError, UnpublishedError } from './error.ts';
 import { decodeEnvelope, carrying, requireName, isObject, type Envelope } from './envelope.ts';
 import { webSocketConnection } from '@nightseam/duplex';
 import type { Frame, FrameConnection, WebSocketLike } from '@nightseam/duplex';
@@ -352,20 +352,31 @@ export class DuplexPeer {
       requireName(method, 'method');
       if (options.timeoutMs !== undefined) positiveInteger(options.timeoutMs, 'timeoutMs', true);
     } catch (error) {
-      return Promise.reject(error);
+      return Promise.reject(new UnpublishedError(error));
     }
-    if (!this.isOpen()) return Promise.reject(new DuplexError('not_connected', 'Peer is not connected.'));
+    if (!this.isOpen())
+      return Promise.reject(new UnpublishedError(new DuplexError('not_connected', 'Peer is not connected.')));
     if (options.signal?.aborted)
-      return Promise.reject(new DuplexError('cancelled', 'Call was cancelled before sending.'));
+      return Promise.reject(new UnpublishedError(new DuplexError('cancelled', 'Call was cancelled before sending.')));
     if (this.pending.size >= this.limits.maxPendingRequests) {
-      return Promise.reject(new DuplexError('busy', 'Outstanding call limit reached.'));
+      return Promise.reject(new UnpublishedError(new DuplexError('busy', 'Outstanding call limit reached.')));
     }
     if (this.nextID >= Number.MAX_SAFE_INTEGER) {
-      return Promise.reject(new DuplexError('identifier_exhausted', 'Create a new peer before issuing further calls.'));
+      return Promise.reject(
+        new UnpublishedError(
+          new DuplexError('identifier_exhausted', 'Create a new peer before issuing further calls.'),
+        ),
+      );
     }
     const id = this.localPrefix + (++this.nextID).toString(10);
     // One trace for the exchange: the request carries it and its cancel repeats it.
     const trace = this.propagator.inject(options.context);
+    let request: Envelope;
+    try {
+      request = carrying(traced({ version: 1, kind: 'request', id, method, params }, trace), options.meta);
+    } catch (error) {
+      return Promise.reject(new UnpublishedError(error));
+    }
     return new Promise<T>((resolve, reject) => {
       const pending: Pending = { resolve: (value) => resolve(value as T), reject, method, started: Date.now(), trace };
       this.pending.set(id, pending);
@@ -399,10 +410,7 @@ export class DuplexPeer {
         options.signal.addEventListener('abort', abort, { once: true });
         pending.removeAbort = () => options.signal!.removeEventListener('abort', abort);
       }
-      void this.send(
-        carrying(traced({ version: 1, kind: 'request', id, method, params }, trace), options.meta),
-        method,
-      ).catch((failure) => {
+      void this.send(request, method).catch((failure) => {
         const unsent = this.takePending(id);
         if (!unsent) return;
         const error = asError(failure, 'send_failed');
@@ -420,16 +428,16 @@ export class DuplexPeer {
   emit(event: string, data: unknown = null, options: EmitOptions = {}): Promise<void> {
     try {
       requireName(event, 'event');
+      return this.send(
+        carrying(
+          traced({ version: 1, kind: 'event', event, data }, this.propagator.inject(options.context)),
+          options.meta,
+        ),
+        event,
+      );
     } catch (error) {
-      return Promise.reject(error);
+      return Promise.reject(new UnpublishedError(error));
     }
-    return this.send(
-      carrying(
-        traced({ version: 1, kind: 'event', event, data }, this.propagator.inject(options.context)),
-        options.meta,
-      ),
-      event,
-    );
   }
 
   private isOpen(): boolean {
@@ -446,90 +454,97 @@ export class DuplexPeer {
   }
 
   private async send(envelope: Envelope, name = ''): Promise<void> {
-    if (!this.isOpen()) throw new DuplexError('not_connected', 'Peer is not connected.');
-    let text: string;
+    let queued = false;
     try {
-      text = JSON.stringify(envelope, (_key, value: unknown) => {
-        if (
-          typeof value === 'function' ||
-          typeof value === 'symbol' ||
-          (typeof value === 'number' && !Number.isFinite(value))
-        ) {
-          throw new Error('Not a JSON value.');
-        }
-        return value;
-      });
-      scalarJSON(text);
-    } catch {
-      return Promise.reject(new DuplexError('invalid_message', 'Frame must contain serializable JSON values.'));
-    }
-    const bytes = new TextEncoder().encode(text).byteLength;
-    if (bytes > this.limits.maxFrameBytes) {
-      return Promise.reject(new DuplexError('frame_too_large', 'Outgoing frame exceeds the size limit.'));
-    }
-    // A full queue can be a healthy transient burst — durable event replay,
-    // say — so the producer is paced for one write deadline before the
-    // consumer is declared stalled, as the Go peer paces it. A sender that
-    // waits here may be overtaken by one that does not, exactly as two
-    // goroutines blocked on a Go channel may be: the order of concurrent
-    // senders is no promise of the profile, and one sender's own frames keep
-    // their order because it awaits each in turn.
-    let paced = false;
-    for (;;) {
       if (!this.isOpen()) throw new DuplexError('not_connected', 'Peer is not connected.');
-      if (this.outgoing.length < this.limits.queueCapacity) break;
-      // Told once per send, however many times it is woken and finds the queue
-      // full again: one burst is one thing the observer is told about.
-      if (!paced) {
-        paced = true;
-        if (this.observer) this.pressure(this.outgoing.length, false);
+      let text: string;
+      try {
+        text = JSON.stringify(envelope, (_key, value: unknown) => {
+          if (
+            typeof value === 'function' ||
+            typeof value === 'symbol' ||
+            (typeof value === 'number' && !Number.isFinite(value))
+          ) {
+            throw new Error('Not a JSON value.');
+          }
+          return value;
+        });
+        scalarJSON(text);
+      } catch {
+        throw new DuplexError('invalid_message', 'Frame must contain serializable JSON values.');
       }
-      const room = await new Promise<boolean>((resolve) => {
-        const wake = (value: boolean) => {
-          clearTimeout(timer);
-          this.waitingForRoom.delete(wake);
-          resolve(value);
-        };
-        const timer = setTimeout(() => wake(false), this.limits.writeTimeoutMs);
-        this.waitingForRoom.add(wake);
-      });
-      if (!room) {
-        const error = new DuplexError('busy', 'Output consumer is stalled; queue limit reached.');
-        if (this.observer) this.pressure(this.outgoing.length, true);
-        this.fail(error);
-        throw error;
+      const bytes = new TextEncoder().encode(text).byteLength;
+      if (bytes > this.limits.maxFrameBytes) {
+        throw new DuplexError('frame_too_large', 'Outgoing frame exceeds the size limit.');
       }
+      // A full queue can be a healthy transient burst — durable event replay,
+      // say — so the producer is paced for one write deadline before the
+      // consumer is declared stalled, as the Go peer paces it. A sender that
+      // waits here may be overtaken by one that does not, exactly as two
+      // goroutines blocked on a Go channel may be: the order of concurrent
+      // senders is no promise of the profile, and one sender's own frames keep
+      // their order because it awaits each in turn.
+      let paced = false;
+      for (;;) {
+        if (!this.isOpen()) throw new DuplexError('not_connected', 'Peer is not connected.');
+        if (this.outgoing.length < this.limits.queueCapacity) break;
+        // Told once per send, however many times it is woken and finds the queue
+        // full again: one burst is one thing the observer is told about.
+        if (!paced) {
+          paced = true;
+          if (this.observer) this.pressure(this.outgoing.length, false);
+        }
+        const room = await new Promise<boolean>((resolve) => {
+          const wake = (value: boolean) => {
+            clearTimeout(timer);
+            this.waitingForRoom.delete(wake);
+            resolve(value);
+          };
+          const timer = setTimeout(() => wake(false), this.limits.writeTimeoutMs);
+          this.waitingForRoom.add(wake);
+        });
+        if (!room) {
+          const error = new DuplexError('busy', 'Output consumer is stalled; queue limit reached.');
+          if (this.observer) this.pressure(this.outgoing.length, true);
+          this.fail(error);
+          throw error;
+        }
+      }
+      const kind = envelope.kind as string;
+      const trace = traceOf(envelope);
+      const family = this.family(name);
+      // What the peer did comes before the frame that carried it, as the Go
+      // peer tells it: an event is emitted, then its frame is sent. The frame
+      // itself is observed by the writer, immediately before the bytes leave —
+      // one serialization point per peer, so that nothing a frame draws can be
+      // observed received ahead of it (docs/runtime/observer.md).
+      if (this.observer && kind === 'event')
+        this.observe({ type: 'event.emitted', at: new Date(), name, bytes, trace, family });
+      const observeSent = this.observer
+        ? () =>
+            this.observe({
+              type: 'frame.sent',
+              at: new Date(),
+              kind,
+              name,
+              bytes,
+              id: envelope.id as string | undefined,
+              trace,
+              family,
+            })
+        : undefined;
+      // Accepted for sending is queued, as the profile says and as the Go peer
+      // returns: what the transport does with the frame after that is the
+      // transport's, held to the write deadline the flush keeps, and a sender
+      // that waited on the drain could never reach the frame that fills the
+      // queue — which is what is being paced above.
+      this.outgoing.push({ text, started: Date.now(), sent: false, waited: false, observeSent });
+      queued = true;
+      this.flush();
+    } catch (error) {
+      if (!queued) throw new UnpublishedError(error);
+      throw error;
     }
-    const kind = envelope.kind as string;
-    const trace = traceOf(envelope);
-    const family = this.family(name);
-    // What the peer did comes before the frame that carried it, as the Go
-    // peer tells it: an event is emitted, then its frame is sent. The frame
-    // itself is observed by the writer, immediately before the bytes leave —
-    // one serialization point per peer, so that nothing a frame draws can be
-    // observed received ahead of it (docs/runtime/observer.md).
-    if (this.observer && kind === 'event')
-      this.observe({ type: 'event.emitted', at: new Date(), name, bytes, trace, family });
-    const observeSent = this.observer
-      ? () =>
-          this.observe({
-            type: 'frame.sent',
-            at: new Date(),
-            kind,
-            name,
-            bytes,
-            id: envelope.id as string | undefined,
-            trace,
-            family,
-          })
-      : undefined;
-    // Accepted for sending is queued, as the profile says and as the Go peer
-    // returns: what the transport does with the frame after that is the
-    // transport's, held to the write deadline the flush keeps, and a sender
-    // that waited on the drain could never reach the frame that fills the
-    // queue — which is what is being paced above.
-    this.outgoing.push({ text, started: Date.now(), sent: false, waited: false, observeSent });
-    this.flush();
   }
 
   private flush(): void {
