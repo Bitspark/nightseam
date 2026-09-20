@@ -22,6 +22,6 @@ name the source file; outgoing values are checked while malformed text is
 still visible, including the output of custom encoders. Generated codecs
 use the same strict boundary as the peer.
 
-Sessions apply the guard when reading profile frames over raw connections,
-before names are interpreted or payloads forwarded. An origin must be
-scalar text before attachment, since control notifications publish it.
+Peers apply the guard when reading profile frames over raw connections,
+before names are interpreted or payloads forwarded; a live scope reads a
+reference through the same peer, so nothing it decodes is checked less.

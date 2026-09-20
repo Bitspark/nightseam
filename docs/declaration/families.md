@@ -142,7 +142,7 @@ A union may extend other unions, adding variants with the same tag and
 value member. A base's tag cannot be redeclared; conflicting inherited tags
 or bindings and inheritance cycles are refused. A base value validates
 against the extended union; the reverse does not. String `enum` stays
-unchanged. [A union is adjacently tagged](../decisions/a-union-is-internally-tagged.md)
+unchanged. [A union is adjacently tagged](../decisions/a-union-is-adjacently-tagged.md)
 records the carrier and why it replaced the original flat form.
 
 ### Inheritance arguments

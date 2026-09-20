@@ -6,14 +6,14 @@ and a TypeScript client that speak it over a WebSocket. It is the repository
 README's three code blocks, made to run.
 
 It is a **consumer checkout**, not part of this repository's workspace: it
-depends on `@nightseam/runtime` and `@nightseam/tunnel` at the released
-version and on `github.com/Bitspark/nightseam` at the same one, with no
-`workspace:*` link and no `replace` standing in for either. So it resolves
-what is published and nothing else — which is the point of it, and why
-`scripts/smoke-packed.mjs` installs it from the packed tarballs before
-every release and `scripts/smoke-registry.mjs` installs it from npm and the
-module proxy after every tag. The commands below are the ones those two
-run.
+depends on `@nightseam/runtime`, `@nightseam/tunnel` and `@nightseam/live`
+at the released version and on `github.com/Bitspark/nightseam` at the same
+one, with no `workspace:*` link and no `replace` standing in for either. So
+it resolves what is published and nothing else — which is the point of it,
+and why `scripts/smoke-packed.mjs` installs it from the packed tarballs
+before every release and `scripts/smoke-registry.mjs` installs it from npm
+and the module proxy after every tag. The commands below are the ones those
+two run.
 
 ## Take it
 
@@ -27,7 +27,7 @@ cp -r examples/probe ~/probe && cd ~/probe
 ## Run it
 
 ```
-pnpm install                # @nightseam/runtime and @nightseam/tunnel, from npm
+pnpm install                # @nightseam/runtime, @nightseam/tunnel and @nightseam/live, from npm
 go mod download all         # the runtime, and the generator this module names as a tool
 go run ./server             # ws://127.0.0.1:8080/probe
 ```
@@ -41,14 +41,22 @@ pnpm start
 ```
 echo    -> olleh
 changed -> hello
+notice  -> demo
+stopped -> demo done
 ```
 
-Two lines, and between them the whole of the profile. `pnpm start` dialled
-the server and called `echo`; the server emitted `changed` and then — inside
-the request it was still serving — called the client's `reverse` back, which
-is what `olleh` is. Neither side wrote an envelope, correlated a response to
-its request, or checked a frame against the declaration: that is the
-generated packages and the runtime beneath them.
+Four lines, and between them the three levels. The first two are the
+profile: `pnpm start` dialled the server and called `echo`; the server
+emitted `changed` and then — inside the request it was still serving —
+called the client's `reverse` back, which is what `olleh` is. The last two
+are the live tier: the client called `watch` with a `notice` function it
+wrote as an ordinary function, and was handed back a `stop` function the
+same way; the server called `notice` inside `watch`, and called it again
+from inside `stop`, after the request that carried it had returned. Neither
+side wrote an envelope, correlated a response to its request, exported a
+reference, or checked a frame against the declaration: that is the
+generated packages and the runtimes beneath them. Both installation smokes
+hold these four lines, whole.
 
 `pnpm check` type-checks the client and the generated package against the
 declarations the published packages ship.

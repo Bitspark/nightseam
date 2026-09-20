@@ -8,6 +8,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Clarified
 
+- The tiers page names the live profile beside the four it had, and its
+  table is held to `conformance/profiles.json`, so the page a release reads
+  for what a tier guarantees cannot omit a profile the gate requires.
 - Live lifetime documentation distinguishes calls, bindings, aliases, records
   and connections; release invalidates aliases without counting owners or
   acknowledging remote receipt, forwarding retains its origin dependency, and
@@ -15,6 +18,9 @@ are one number. Entries are in the words of the commits that landed them.
 - Generated-role coverage distinguishes Go server bindings from TypeScript
   clients, accounts for every TypeScript generator skip, and records the
   unresolved tier-1 release-policy gap without changing the gate.
+- The union decision is named for the adjacent carrier #146 settled on, rather
+  than the internal tagging #56 chose and #146 withdrew, so that the decisions
+  index states the verdict that holds.
 
 ### Added
 
@@ -26,6 +32,21 @@ are one number. Entries are in the words of the commits that landed them.
   Acquisition moves from scopes to owners, and intrinsically live generic
   converters take the active owner on both imports and exports.
 
+- The OpenTelemetry adapter holds the live layer's four events as it holds
+  the tunnel's, in both languages: `otel/ts`'s compile-time check of the
+  observer registry imports `@nightseam/live` so that it sees them, and
+  `otel/go`'s suite holds them by one stand-in event, with the reason
+  written down.
+- The admission test: what a concept passes to be Nightseam's — scope, the
+  basis one level down with nothing grandfathered, the composition attempt,
+  what an obstruction is and is not, the smallest primitive, the
+  alternatives — the four classes a concept ends in, and a table classifying
+  every concept the tree has or was offered, kept at what shipped.
+- The composition attempt the admission test asks for, run rather than
+  argued: live references built from peers, tunnels and handles alone, as a
+  checkout of six families under `cmd/nightseam/testdata/compositions`, its
+  derived interface, stream, cell and topic run in both languages, and the
+  four findings that gave the live layer its shape.
 - A shared generated forwarding proof carries higher-order functions through
   Go and TypeScript intermediaries over two socket connections, checks retained
   results and four registry counts, and distinguishes typed conversion from
