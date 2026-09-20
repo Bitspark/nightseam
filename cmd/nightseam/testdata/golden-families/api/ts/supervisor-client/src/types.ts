@@ -55,10 +55,12 @@ export interface Watch {
 export interface Family { readonly name: "supervisor"; Envelope: Envelope; Handle: Handle; RelieveRequest: RelieveRequest; Shift: Shift; Watch: Watch }
 /** Writes RelieveRequest as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportRelieveRequest(scope: LiveScope, value: RelieveRequest): unknown {
-  const out: Record<string, unknown> = {};
-  out["shift"] = value["shift"];
-  out["sink"] = live_worker.exportProgressSink(scope, (value["sink"]) as worker.ProgressSink);
-  return out;
+  return scope.exportValue((scope) => {
+    const out: Record<string, unknown> = {};
+    out["shift"] = value["shift"];
+    out["sink"] = live_worker.exportProgressSink(scope, (value["sink"]) as worker.ProgressSink);
+    return out;
+  });
 }
 /** Reads RelieveRequest as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
 export function importRelieveRequest(scope: LiveScope, raw: unknown): RelieveRequest {
@@ -70,11 +72,13 @@ export function importRelieveRequest(scope: LiveScope, raw: unknown): RelieveReq
 }
 /** Writes Watch as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportWatch(scope: LiveScope, value: Watch): unknown {
-  const out: Record<string, unknown> = {};
-  out["shift"] = value["shift"];
-  out["sink"] = live_worker.exportProgressSink(scope, (value["sink"]) as worker.ProgressSink);
-  if (value["spares"] !== undefined) out["spares"] = (value["spares"] as unknown[]).map((item) => live_worker.exportProgressSink(scope, (item) as worker.ProgressSink));
-  return out;
+  return scope.exportValue((scope) => {
+    const out: Record<string, unknown> = {};
+    out["shift"] = value["shift"];
+    out["sink"] = live_worker.exportProgressSink(scope, (value["sink"]) as worker.ProgressSink);
+    if (value["spares"] !== undefined) out["spares"] = (value["spares"] as unknown[]).map((item) => live_worker.exportProgressSink(scope, (item) as worker.ProgressSink));
+    return out;
+  });
 }
 /** Reads Watch as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
 export function importWatch(scope: LiveScope, raw: unknown): Watch {

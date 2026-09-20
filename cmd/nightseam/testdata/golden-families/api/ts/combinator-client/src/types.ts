@@ -71,10 +71,12 @@ export type Unary = (request: Count, options?: { signal?: AbortSignal }) => Prom
 export interface Family { readonly name: "combinator"; Count: Count; Envelope: Envelope; Factory: Factory; Handle: Handle; Producer: Producer; Sink: Sink; Toolkit: Toolkit; ToolkitRequest: ToolkitRequest; Unary: Unary }
 /** Writes Bundle using the supplied conversion for each type argument. */
 export function exportBundle<T = unknown>(scope: LiveScope, value: Bundle<T>, convert_T_: (value: T) => unknown): unknown {
-  const out: Record<string, unknown> = {};
-  out["metadata"] = exportBundleMetadata<T>((value["metadata"]) as BundleMetadata<T>, (input: T): unknown => convert_T_((input) as T));
-  out["run"] = exportUnary(scope, (value["run"]) as Unary);
-  return out;
+  return scope.exportValue((scope) => {
+    const out: Record<string, unknown> = {};
+    out["metadata"] = exportBundleMetadata<T>((value["metadata"]) as BundleMetadata<T>, (input: T): unknown => convert_T_((input) as T));
+    out["run"] = exportUnary(scope, (value["run"]) as Unary);
+    return out;
+  });
 }
 /** Reads Bundle using the supplied conversion for each type argument. */
 export function importBundle<T = unknown>(scope: LiveScope, raw: unknown, convert_T_: (value: unknown) => T): Bundle<T> {
@@ -101,22 +103,21 @@ export function importBundleMetadata<T = unknown>(raw: unknown, convert_T_: (val
 export const contractFactory = "combinator/Factory";
 /** Makes a binding of a local Factory and answers the reference that names it. */
 export function exportFactory(scope: LiveScope, value: Factory): unknown {
-  const reference = scope.export(contractFactory, async (request, options) => {
-    validateWire("Unary", request);
-    const argument = importUnary(scope, request);
-    const result = await value(argument, options);
-    const sent = exportUnary(scope, (result) as Unary);
-    validateWire("Unary", sent);
-    return sent;
+  return scope.exportValue((scope) => {
+    const reference = scope.export(contractFactory, async (request, options) => {
+      validateWire("Unary", request);
+      const argument = importUnary(scope, request);
+      const result = await value(argument, options);
+      return scope.exportValue((scope) => { const converted = exportUnary(scope, (result) as Unary); validateWire("Unary", converted); return converted; });
+    });
+    return reference.toJSON();
   });
-  return reference.toJSON();
 }
 /** A Factory that calls the binding a reference names. */
 export function importFactory(scope: LiveScope, raw: unknown): Factory {
   const invoke = scope.import(scope.decode(raw), contractFactory);
   return async (request: Unary, options?: { signal?: AbortSignal }) => {
-    const sent = exportUnary(scope, (request) as Unary);
-    validateWire("Unary", sent);
+    const sent = scope.exportValue((scope) => { const converted = exportUnary(scope, (request) as Unary); validateWire("Unary", converted); return converted; });
     const result = await invoke(sent, options);
     validateWire("Unary", result);
     return importUnary(scope, result);
@@ -126,13 +127,13 @@ export function importFactory(scope: LiveScope, raw: unknown): Factory {
 export const contractProducer = "combinator/Producer";
 /** Makes a binding of a local Producer and answers the reference that names it. */
 export function exportProducer(scope: LiveScope, value: Producer): unknown {
-  const reference = scope.export(contractProducer, async (request, options) => {
-    const result = await value(options);
-    const sent = exportUnary(scope, (result) as Unary);
-    validateWire("Unary", sent);
-    return sent;
+  return scope.exportValue((scope) => {
+    const reference = scope.export(contractProducer, async (request, options) => {
+      const result = await value(options);
+      return scope.exportValue((scope) => { const converted = exportUnary(scope, (result) as Unary); validateWire("Unary", converted); return converted; });
+    });
+    return reference.toJSON();
   });
-  return reference.toJSON();
 }
 /** A Producer that calls the binding a reference names. */
 export function importProducer(scope: LiveScope, raw: unknown): Producer {
@@ -147,31 +148,34 @@ export function importProducer(scope: LiveScope, raw: unknown): Producer {
 export const contractSink = "combinator/Sink";
 /** Makes a binding of a local Sink and answers the reference that names it. */
 export function exportSink(scope: LiveScope, value: Sink): unknown {
-  const reference = scope.export(contractSink, async (request, options) => {
-    validateWire("Unary", request);
-    const argument = importUnary(scope, request);
-    await value(argument, options);
-    return undefined;
+  return scope.exportValue((scope) => {
+    const reference = scope.export(contractSink, async (request, options) => {
+      validateWire("Unary", request);
+      const argument = importUnary(scope, request);
+      await value(argument, options);
+      return undefined;
+    });
+    return reference.toJSON();
   });
-  return reference.toJSON();
 }
 /** A Sink that calls the binding a reference names. */
 export function importSink(scope: LiveScope, raw: unknown): Sink {
   const invoke = scope.import(scope.decode(raw), contractSink);
   return async (request: Unary, options?: { signal?: AbortSignal }) => {
-    const sent = exportUnary(scope, (request) as Unary);
-    validateWire("Unary", sent);
+    const sent = scope.exportValue((scope) => { const converted = exportUnary(scope, (request) as Unary); validateWire("Unary", converted); return converted; });
     await invoke(sent, options);
     return;
   };
 }
 /** Writes Toolkit as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportToolkit(scope: LiveScope, value: Toolkit): unknown {
-  const out: Record<string, unknown> = {};
-  out["twice"] = exportFactory(scope, (value["twice"]) as Factory);
-  out["identity"] = exportProducer(scope, (value["identity"]) as Producer);
-  out["apply"] = exportSink(scope, (value["apply"]) as Sink);
-  return out;
+  return scope.exportValue((scope) => {
+    const out: Record<string, unknown> = {};
+    out["twice"] = exportFactory(scope, (value["twice"]) as Factory);
+    out["identity"] = exportProducer(scope, (value["identity"]) as Producer);
+    out["apply"] = exportSink(scope, (value["apply"]) as Sink);
+    return out;
+  });
 }
 /** Reads Toolkit as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
 export function importToolkit(scope: LiveScope, raw: unknown): Toolkit {
@@ -186,22 +190,21 @@ export function importToolkit(scope: LiveScope, raw: unknown): Toolkit {
 export const contractUnary = "combinator/Unary";
 /** Makes a binding of a local Unary and answers the reference that names it. */
 export function exportUnary(scope: LiveScope, value: Unary): unknown {
-  const reference = scope.export(contractUnary, async (request, options) => {
-    validateWire("Count", request);
-    const argument = request as Count;
-    const result = await value(argument, options);
-    const sent = result;
-    validateWire("Count", sent);
-    return sent;
+  return scope.exportValue((scope) => {
+    const reference = scope.export(contractUnary, async (request, options) => {
+      validateWire("Count", request);
+      const argument = request as Count;
+      const result = await value(argument, options);
+      return scope.exportValue((scope) => { const converted = result; validateWire("Count", converted); return converted; });
+    });
+    return reference.toJSON();
   });
-  return reference.toJSON();
 }
 /** A Unary that calls the binding a reference names. */
 export function importUnary(scope: LiveScope, raw: unknown): Unary {
   const invoke = scope.import(scope.decode(raw), contractUnary);
   return async (request: Count, options?: { signal?: AbortSignal }) => {
-    const sent = request;
-    validateWire("Count", sent);
+    const sent = scope.exportValue((scope) => { const converted = request; validateWire("Count", converted); return converted; });
     const result = await invoke(sent, options);
     validateWire("Count", result);
     return result as Count;
