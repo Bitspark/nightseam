@@ -263,6 +263,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Conformance and release gates reject skipped scenarios in a language's
+  required profiles, including absent generated server roles. The matrix
+  keeps the skips visible; optional profiles retain their existing tier policy.
 - Generated TypeScript methods with no request and a live callback result
   validate the empty request correctly in both client and server bindings.
 

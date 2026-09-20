@@ -49,7 +49,7 @@ func TestATesteeIsHeldToItsTier(t *testing.T) {
 }
 
 // TestVerdictsFollowTheTierTable: one verdict per onFailure value, from a
-// row with one failure in a required profile, and ok without.
+// row with one failure or skip in a required profile, and ok without either.
 func TestVerdictsFollowTheTierTable(t *testing.T) {
 	p := tiered()
 	m := NewMatrix(p)
@@ -75,9 +75,51 @@ func TestVerdictsFollowTheTierTable(t *testing.T) {
 	}
 	ok := NewMatrix(p)
 	ok.Record("go", "core", Outcome{})
-	ok.Record("go", "tunnel", Outcome{Skipped: "not today"})
+	ok.Record("go", "tunnel", Outcome{})
 	if got := ok.Verdict(p, "go"); got != "ok" {
-		t.Errorf("a row of passes and skips is %s", got)
+		t.Errorf("a row of passes is %s", got)
+	}
+	for _, language := range []string{"go", "second", "third", "fourth"} {
+		t.Run(language+"/required-skip", func(t *testing.T) {
+			m := NewMatrix(p)
+			m.Record(language, "core", Outcome{})
+			m.Record(language, "core", Outcome{Skipped: "missing required operation"})
+			if got := m.Verdict(p, language); got != want[language] {
+				t.Errorf("required skip: verdict %s, want %s", got, want[language])
+			}
+		})
+	}
+}
+
+func TestRequiredGeneratedServerRoleCannotSkip(t *testing.T) {
+	p := tiered()
+	p.Languages["typescript"] = Language{Tier: 1}
+	m := NewMatrix(p)
+	m.Record("typescript", "generator", Outcome{})
+	m.Record("typescript", "generator", Outcome{Skipped: "the typescript testee does not support gen.serve: generated server binding absent"})
+	if got := m.Verdict(p, "typescript"); got != "blocking" {
+		t.Fatalf("missing required gen.serve role: verdict %s, want blocking", got)
+	}
+	if got := strings.Join(m.Blocking(p), ","); got != "typescript" {
+		t.Errorf("blocking languages = %s, want typescript", got)
+	}
+	cell := m.rows["typescript"]["generator"]
+	if cell.Passed != 1 || cell.Skipped != 1 || cell.Failed != 0 {
+		t.Errorf("the unsupported role must remain visible as a skip: %+v", cell)
+	}
+}
+
+func TestOptionalProfileSkipsRemainInformational(t *testing.T) {
+	p := tiered()
+	for _, language := range []string{"second", "third", "fourth"} {
+		t.Run(language, func(t *testing.T) {
+			m := NewMatrix(p)
+			m.Record(language, "core", Outcome{})
+			m.Record(language, "tunnel", Outcome{Skipped: "optional profile absent"})
+			if got := m.Verdict(p, language); got != "ok" {
+				t.Errorf("optional skip: verdict %s, want ok", got)
+			}
+		})
 	}
 }
 
@@ -107,7 +149,7 @@ func TestTheMatrixIsWrittenTheSameTwice(t *testing.T) {
 	if string(first) != string(second) {
 		t.Fatalf("the matrix differs by the order outcomes came in:\n%s\n%s", first, second)
 	}
-	if !strings.Contains(string(first), `"verdict": "ok"`) || !strings.Contains(string(first), `"tier": 1`) {
+	if !strings.Contains(string(first), `"verdict": "blocking"`) || !strings.Contains(string(first), `"verdict": "provisional"`) || !strings.Contains(string(first), `"tier": 1`) {
 		t.Fatalf("the matrix lacks its verdicts or tiers:\n%s", first)
 	}
 }

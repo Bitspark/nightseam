@@ -24,15 +24,6 @@ The promises nest: P2 assumes P1, P3 assumes P2, P4 assumes P3. There is no
 fifth: anything finer than these is progress within a language, which the
 matrix shows and no tier needs to name.
 
-These are the policy promises. The current gate does not prove all of P3:
-`Matrix.Verdict` counts failures in required profiles and tolerates skips,
-so an `ok` verdict is not by itself proof that every scenario passed. The
-gap it was written for is closed — [#271](https://github.com/Bitspark/nightseam/issues/271)
-settled that v0.5.0 requires generated server-role parity, the TypeScript
-binding landed with #315, and no `generator` cell records a skip today — but
-the tolerance is still in the gate, and refusing a skip in a required
-profile is [#295](https://github.com/Bitspark/nightseam/issues/295).
-
 ## Profiles
 
 A profile is a named set of scenarios, and a scenario belongs to exactly
@@ -70,6 +61,12 @@ red cells stop a release.
 | **2** | `core` and `generator` always; every other profile within one minor release of tier 1 | one minor release | in `core` or `generator`, stops the release; elsewhere, stops the *next* one |
 | **3** | `core` and `generator` | — | in `core` or `generator`, marks the language *provisional* in the matrix; the release ships; elsewhere, informational |
 | **4** | `core` | — | in `core`, marks the language provisional; elsewhere, informational |
+
+A skipped scenario in a required profile is a red cell, just like a failure
+there. The runner keeps its skip reason visible, and the matrix keeps its
+count. Skips outside the tier's required profiles remain informational;
+only failures there spend
+tier 2's release lag.
 
 Tier 1 defines the profiles: a scenario is born as a pair of tier-1 twins,
 and the Go testee is the reference every other language is held to on both
@@ -131,13 +128,12 @@ tolerates — is an issue against the scenario, since the reference decides.
 
 The runtime testee's advertised layers and features are checked against its
 tier by `HoldToTier`; the generated layer belongs to a separate testee and
-is excluded from that hello check. `Matrix.Verdict` counts failures in
-required profiles, not skips. The existing
+is excluded from that hello check. `Matrix.Verdict` treats both failures and
+skips in required profiles according to the tier's failure disposition. The
 [`TestVerdictsFollowTheTierTable`](../../conformance/go/profiles_test.go)
-explicitly holds a row of passes and skips to verdict `ok`. Thus the
-matrix preserves missing coverage, but its release verdict does not reject
-a skip. Closing that difference from the complete tier-1 promise is the
-lane named above, not an implicit exception introduced by this description.
+test holds this rule at every tier, including a missing required generated
+server role. The release script independently applies the same rule to the
+matrix's cells; a stored `ok` verdict cannot hide missing coverage.
 
 The release workflow refuses a tag whose matrix has a cell that the tier
 table says stops the release, and marks the languages that the table says

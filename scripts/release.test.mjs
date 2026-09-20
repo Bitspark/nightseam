@@ -72,6 +72,23 @@ test("a tier 1 language failing a profile refuses the tag", () => {
   assert.match(out, /`typescript` \(tier 1\) fails tunnel, which tier 1 stops a release for/);
 });
 
+test("a skipped required generated server role refuses the tag despite a stored ok verdict", () => {
+  const incomplete = {
+    ...green,
+    languages: {
+      ...green.languages,
+      typescript: {
+        ...green.languages.typescript,
+        cells: { ...green.languages.typescript.cells, generator: { passed: 19, skipped: 1, failed: 0 } },
+      },
+    },
+  };
+  const { code, out } = prepare("--matrix", write("missing-generated-server.json", incomplete), "--no-previous");
+  assert.equal(code, 1, out);
+  assert.match(out, /not ready to release/);
+  assert.match(out, /`typescript` \(tier 1\) skips generator, which tier 1 stops a release for/);
+});
+
 test("a tier 3 language failing what it guarantees ships, and the release names it", () => {
   const { code, out } = prepare("--matrix", withFailure("tier3.json", "java", 3, "core"), "--no-previous");
   assert.equal(code, 0, out);
