@@ -299,10 +299,10 @@ func emitClient(f *file) {
 			for _, m := range fam.Client.Methods {
 				f.line("if (!handler) throw new Error('reverse-call handler is required');")
 				if f.liveNeeded(m.Request, m.Result) {
-					f.linef("peer.handle(%s, async (raw, context) => { %s try { %s(%s, raw%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = %s; const result = await handler.%s(params as %s, context); const sent = %s; %s(%s, sent%s); return sent; });",
+					f.linef("peer.handle(%s, async (raw, context) => { %s try { %s(%s, raw%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = %s; const result = await handler.%s(params as %s, context); return %s; });",
 						quote(m.Name), f.liveScope(), identValidateWire, requestExpression(m), slots,
 						f.liveConversion(m.Request, "raw", false), p.operations[m.Name], f.request(m),
-						f.liveConversion(m.Result, "result", true), identValidateWire, expression(m.Result), slots)
+						f.liveExport(m.Result, "result", slots))
 					continue
 				}
 				f.linef("peer.handle(%s, async (params, context) => { try { %s(%s, params%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, context); %s(%s, result%s); return result; });", quote(m.Name), identValidateWire, requestExpression(m), slots, p.operations[m.Name], f.request(m), identValidateWire, expression(m.Result), slots)
@@ -327,9 +327,9 @@ func emitClient(f *file) {
 				f.linef("/** %s */", comment(m.Description))
 			}
 			if f.liveNeeded(m.Request, m.Result) {
-				f.linef("async %s(%s): Promise<%s> { %s%s const sent = %s; %s(%s, sent%s); const result = await this.%s.call<unknown>(%s, sent, options); %s(%s, result%s); return %s; }",
+				f.linef("async %s(%s): Promise<%s> { %s%s const sent = %s; const result = await this.%s.call<unknown>(%s, sent, options); %s(%s, result%s); return %s; }",
 					p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, f.liveScope(),
-					f.liveConversion(m.Request, "params", true), identValidateWire, requestExpression(m), slots,
+					f.liveExport(m.Request, "params", slots),
 					identPeer, quote(m.Name), identValidateWire, expression(m.Result), slots,
 					f.liveConversion(m.Result, "result", false))
 				continue
@@ -338,9 +338,9 @@ func emitClient(f *file) {
 		}
 		for _, e := range fam.Client.Events {
 			if f.liveNeeded(e.Type) {
-				f.linef("async %s%s(data: %s, options?: EmitOptions): Promise<void> { %s const sent = %s; %s(%s, sent%s); await this.%s.emit(%s, sent, options); }",
+				f.linef("async %s%s(data: %s, options?: EmitOptions): Promise<void> { %s const sent = %s; await this.%s.emit(%s, sent, options); }",
 					identEmit, upperFirst(p.operations[e.Name]), f.spell(e.Type), f.liveScope(),
-					f.liveConversion(e.Type, "data", true), identValidateWire, expression(e.Type), slots, identPeer, quote(e.Name))
+					f.liveExport(e.Type, "data", slots), identPeer, quote(e.Name))
 				continue
 			}
 			f.linef("async %s%s(data: %s, options?: EmitOptions): Promise<void> { %s(%s, data%s); await this.%s.emit(%s, data, options); }", identEmit, upperFirst(p.operations[e.Name]), f.spell(e.Type), identValidateWire, expression(e.Type), slots, identPeer, quote(e.Name))

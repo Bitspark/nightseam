@@ -218,3 +218,58 @@ test('a scope ends with the connection carrying it', async () => {
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.deepEqual(scope.counts(), { exports: 0, imports: 0 });
 });
+
+test('exportValue tracks only its own allocations and completed views start fresh', async () => {
+  const p = await over();
+  try {
+    let retained: Reference | undefined;
+    let captured: LiveScope | undefined;
+    assert.throws(
+      () =>
+        p.a.exportValue((scope) => {
+          captured = scope;
+          scope.export(SINK, echo);
+          retained = p.a.export(SINK, echo);
+          scope.exportValue((nested) => nested.export(SINK, echo).toJSON());
+          throw new Error('later conversion failed');
+        }),
+      /later conversion failed/,
+    );
+    assert.equal(p.a.counts().exports, 1);
+    assert.ok(captured);
+    assert.ok(retained);
+    assert.equal(await captured.import(retained, SINK)(7), 7);
+    const raw = captured.exportValue((next) => next.export(SINK, echo).toJSON());
+    assert.equal(p.a.counts().exports, 2);
+    captured.release(p.a.decode(raw));
+    assert.equal(p.a.counts().exports, 1);
+  } finally {
+    p.close();
+  }
+});
+
+test('exportValue unwinds serialization failures and throws before publication', async () => {
+  const p = await over({ maxExports: 1 });
+  try {
+    const cycle: Record<string, unknown> = {};
+    cycle.self = cycle;
+    for (const value of [cycle, 1n, 'throw']) {
+      for (let i = 0; i < 3; i++) {
+        assert.throws(() =>
+          p.a.exportValue((scope) => {
+            scope.export(SINK, echo);
+            if (value === 'throw') throw new Error('conversion failed');
+            return value;
+          }),
+        );
+        assert.equal(p.a.counts().exports, 0);
+      }
+    }
+    const source = { value: 1 };
+    const wire = p.a.exportValue(() => source);
+    source.value = 2;
+    assert.deepEqual(wire, { value: 1 }, 'the completed payload must be a serialized snapshot');
+  } finally {
+    p.close();
+  }
+});

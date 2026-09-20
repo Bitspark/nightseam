@@ -49,6 +49,7 @@ const scope = scopeOf(context.peer);
 | the scope over a peer | `live.Over(peer, options)` → `*Scope` | `liveOver(peer, options)` |
 | find it again | `live.ScopeOf(peer)` → `(*Scope, bool)` | `scopeOf(peer)` |
 | export a function, and name it | `scope.Export(contract, invoke)` → `Reference` | `scope.export(contract, invoke)` |
+| construct an unpublished payload | `scope.ExportValue(build)` → `(json.RawMessage, error)` | `scope.exportValue(build)` → `unknown` |
 | read a reference out of a payload | `scope.Decode(raw)` → `Reference` | `scope.decode(raw)` |
 | attach to one | `scope.Import(reference, contract)` → `Invoke` | `scope.import(reference, contract)` |
 | end a binding | `scope.Release(reference)` | `scope.release(reference)` |
@@ -155,6 +156,34 @@ Invocations in flight are already bounded by the peer's own
 it is paced like one. A refused export or import registers nothing, and
 `Counts()` is what a test reads to hold that — a binding nobody released is a
 leak, and a suite that only compares payloads never sees one.
+
+## Constructing a payload before publication
+
+`ExportValue` takes `func(*Scope) (json.RawMessage, error)`; `exportValue` takes
+`(scope: LiveScope) => unknown`. The callback receives a view of the same scope.
+Finish conversion and validation synchronously through that view, including
+any parameter-converter closures, and return the complete payload. The callback
+must not publish partial values or start asynchronous conversion work.
+
+An error, panic, throw or serialization failure discards only exports allocated
+through that view. Prior bindings and independent conversions remain usable.
+Nested successful conversions join their enclosing build, so a later failure
+can unwind the whole payload. No release event is sent for unpublished bindings.
+Go verifies the returned JSON; TypeScript serializes and parses the completed
+value into a JSON snapshot. The view retains the original scope identity, and
+later conversions through a captured view start fresh builds.
+
+Generated live helpers and operation/callable boundaries use this mechanism.
+Generic data helpers take arbitrary converters and have no live runtime
+dependency: when composing them directly with live converters, enclose the
+whole conversion and validation in `ExportValue`/`exportValue`, and close every
+converter over the callback's scope view. Effects through some other scope
+handle are outside that build.
+
+Success commits the exports before the caller publishes the payload. This
+construction boundary does not reclaim bindings on a subsequent RPC timeout,
+cancellation or error, which cannot prove that the value was never delivered.
+It does not define ownership transfer or disposal for published values.
 
 ## Observing it
 

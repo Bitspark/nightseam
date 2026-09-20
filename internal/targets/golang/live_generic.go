@@ -15,7 +15,11 @@ func (f *file) liveBoundary(e model.TypeExpr, src, dst string, export bool) {
 	if export {
 		result = f.std("json") + ".RawMessage"
 	}
-	f.w.Block(fmt.Sprintf("%s, err := func() (%s, error) {", dst, result), "}()", func() {
+	open, close := fmt.Sprintf("%s, err := func() (%s, error) {", dst, result), "}()"
+	if export {
+		open, close = fmt.Sprintf("%s, err := scope.ExportValue(func(scope *%s.Scope) (%s, error) {", dst, f.live(), result), "})"
+	}
+	f.w.Block(open, close, func() {
 		f.linef("var zero %s", result)
 		if !export {
 			f.linef("if err := %s; err != nil { return zero, err }", f.validateExpression(e, src))

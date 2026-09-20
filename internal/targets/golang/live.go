@@ -92,26 +92,28 @@ func (f *file) emitCallable(t *render.Type) {
 	f.w.Block(fmt.Sprintf("func %s(scope *%s, v %s) (%s.RawMessage, error) {", f.plan.exports[t.Name], scope, name, json), "}", func() {
 		f.linef("if scope == nil { return nil, %s.Errorf(\"%s: a live value is exported into a scope\") }", f.std("fmt"), name)
 		f.linef("if v == nil { return nil, %s.Errorf(\"%s: no implementation to export\") }", f.std("fmt"), name)
-		f.w.Block(fmt.Sprintf("reference, err := scope.Export(%s, func(ctx %s.Context, request %s.RawMessage) (%s.RawMessage, error) {", f.plan.contracts[t.Name], f.std("context"), json, json), "})", func() {
-			if t.Request != nil {
-				f.linef("if err := %s; err != nil { return nil, err }", f.validateExpression(t.Request, "request"))
-				// A callable's own request is converted like any other
-				// position: a callable that takes a callable is handed a
-				// native function, not a reference.
-				f.liveExpr(t.Request, "request", "argument", false, "nil")
-			}
-			if t.Result == nil {
-				f.linef("return nil, v(ctx%s)", callArgument(t))
-			} else {
-				f.linef("result, err := v(ctx%s)", callArgument(t))
-				f.line("if err != nil { return nil, err }")
-				f.liveExpr(t.Result, "result", "data", true, "nil")
-				f.linef("if err := %s; err != nil { return nil, err }", f.validateExpression(t.Result, "data"))
-				f.line("return data, nil")
-			}
+		f.w.Block(fmt.Sprintf("return scope.ExportValue(func(scope *%s) (%s.RawMessage, error) {", scope, json), "})", func() {
+			f.w.Block(fmt.Sprintf("reference, err := scope.Export(%s, func(ctx %s.Context, request %s.RawMessage) (%s.RawMessage, error) {", f.plan.contracts[t.Name], f.std("context"), json, json), "})", func() {
+				if t.Request != nil {
+					f.linef("if err := %s; err != nil { return nil, err }", f.validateExpression(t.Request, "request"))
+					// A callable's own request is converted like any other
+					// position: a callable that takes a callable is handed a
+					// native function, not a reference.
+					f.liveExpr(t.Request, "request", "argument", false, "nil")
+				}
+				if t.Result == nil {
+					f.linef("return nil, v(ctx%s)", callArgument(t))
+				} else {
+					f.linef("result, err := v(ctx%s)", callArgument(t))
+					f.line("if err != nil { return nil, err }")
+					f.liveBoundary(t.Result, "result", "data", true)
+					f.line("if err != nil { return nil, err }")
+					f.line("return data, nil")
+				}
+			})
+			f.line("if err != nil { return nil, err }")
+			f.linef("return %s.MarshalJSON(reference)", f.runtime())
 		})
-		f.line("if err != nil { return nil, err }")
-		f.linef("return %s.MarshalJSON(reference)", f.runtime())
 	})
 	f.line("")
 	f.linef("// %s is a %s that calls the binding a reference names.", f.plan.imports_[t.Name], name)
@@ -122,18 +124,18 @@ func (f *file) emitCallable(t *render.Type) {
 		f.linef("invoke, err := scope.Import(reference, %s)", f.plan.contracts[t.Name])
 		f.line("if err != nil { return nil, err }")
 		f.w.Block(fmt.Sprintf("return func(ctx %s.Context, %s) %s {", f.std("context"), f.callableParam(t), f.callableResult(t)), "}, nil", func() {
-			zero, fail := "", ""
+			zero := ""
 			if t.Result != nil {
 				f.linef("var zero %s", f.spell(t.Result))
-				zero, fail = "zero, ", "zero"
+				zero = "zero, "
 			}
 			if t.Request == nil {
 				f.linef("result, err := invoke(ctx, nil)")
 			} else {
 				// And what a caller sends: a callable it passes becomes a
 				// binding of this scope, as it would in any other position.
-				f.liveExpr(t.Request, "params", "request", true, fail)
-				f.linef("if err := %s; err != nil { return %serr }", f.validateExpression(t.Request, "request"), zero)
+				f.liveBoundary(t.Request, "params", "request", true)
+				f.linef("if err != nil { return %serr }", zero)
 				f.line("result, err := invoke(ctx, request)")
 			}
 			f.linef("if err != nil { return %serr }", zero)
@@ -193,6 +195,10 @@ func (f *file) emitLiveConversion(t *render.Type) {
 	f.w.Block(fmt.Sprintf("func %s%s(%sv %s%s) (%s.RawMessage, error) {", f.plan.exports[t.Name], declare(t.Uses), scope, self, f.converterParameters(t, true), json), "}", func() {
 		if t.IsLive {
 			f.linef("if scope == nil { return nil, %s.Errorf(\"%s: a live value is exported into a scope\") }", f.std("fmt"), name)
+			f.w.Block(fmt.Sprintf("return scope.ExportValue(func(scope *%s.Scope) (%s.RawMessage, error) {", f.live(), json), "})", func() {
+				f.liveBody(t, true)
+			})
+			return
 		}
 		f.liveBody(t, true)
 	})
