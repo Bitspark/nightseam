@@ -121,6 +121,27 @@ interface Attachment {
   released: boolean;
 }
 
+interface ExportBatch {
+  parent?: ExportBatch;
+  active: boolean;
+  ids: string[];
+}
+
+interface ScopeState {
+  root: LiveScope;
+  peer: DuplexPeer;
+  nonce: string;
+  maxExports: number;
+  maxImports: number;
+  exports: Map<string, Binding>;
+  imports: Map<string, Attachment>;
+  gone: Set<string>;
+  order: string[];
+  inflight: Set<AbortController>;
+  next: number;
+  closed: boolean;
+}
+
 const OVER = new WeakMap<DuplexPeer, LiveScope>();
 
 /**
@@ -156,25 +177,65 @@ export function forward(destination: LiveScope, contract: string, origin: Invoke
 
 /** The live layer over one peer: what this side exported over that connection, what it imported, and nothing that outlives it. */
 export class LiveScope {
-  private readonly nonce: string;
-  private readonly maxExports: number;
-  private readonly maxImports: number;
-  private readonly exports = new Map<string, Binding>();
-  private readonly imports = new Map<string, Attachment>();
-  private readonly gone = new Set<string>();
-  private readonly order: string[] = [];
-  private readonly inflight = new Set<AbortController>();
-  private next = 1;
-  private closed = false;
+  private state: ScopeState;
+  private batch?: ExportBatch;
+  private get nonce() {
+    return this.state.nonce;
+  }
+  private get maxExports() {
+    return this.state.maxExports;
+  }
+  private get maxImports() {
+    return this.state.maxImports;
+  }
+  private get exports() {
+    return this.state.exports;
+  }
+  private get imports() {
+    return this.state.imports;
+  }
+  private get gone() {
+    return this.state.gone;
+  }
+  private get order() {
+    return this.state.order;
+  }
+  private get inflight() {
+    return this.state.inflight;
+  }
+  private get next() {
+    return this.state.next;
+  }
+  private set next(value: number) {
+    this.state.next = value;
+  }
+  private get closed() {
+    return this.state.closed;
+  }
+  private set closed(value: boolean) {
+    this.state.closed = value;
+  }
   /** The peer the scope runs over. */
-  readonly peer: DuplexPeer;
+  get peer(): DuplexPeer {
+    return this.state.peer;
+  }
 
   constructor(peer: DuplexPeer, options: LiveOptions = {}) {
     if (!peer) throw new DuplexError(CONTRACT_INVALID, 'A live scope needs a peer.');
-    this.peer = peer;
-    this.maxExports = bound(options.maxExports, 'maxExports');
-    this.maxImports = bound(options.maxImports, 'maxImports');
-    this.nonce = nonce();
+    this.state = {
+      root: this,
+      peer,
+      nonce: nonce(),
+      maxExports: bound(options.maxExports, 'maxExports'),
+      maxImports: bound(options.maxImports, 'maxImports'),
+      exports: new Map(),
+      imports: new Map(),
+      gone: new Set(),
+      order: [],
+      inflight: new Set(),
+      next: 1,
+      closed: false,
+    };
     peer.handle(INVOKE_METHOD, (params, context) => this.onInvoke(params, context.signal));
     peer.onEvent(RELEASE_EVENT, (data) => this.onRelease(data));
     // A reference does not survive its connection and reconnection revives
@@ -186,6 +247,37 @@ export class LiveScope {
   /** What the scope holds now. */
   counts(): Counts {
     return { exports: this.exports.size, imports: this.imports.size };
+  }
+
+  /**
+   * Constructs an unpublished JSON payload. build must finish synchronously
+   * using its supplied view and must not publish partial values. A throw or
+   * serialization failure discards only this build's exports; nested successful
+   * builds join their parent. Completed views retain this scope's identity and
+   * can start fresh conversions during later invocations. A successful build
+   * commits its allocations; an RPC error afterward does not roll them back.
+   */
+  exportValue(build: (scope: LiveScope) => unknown): unknown {
+    const batch: ExportBatch = { active: true, ids: [] };
+    if (this.batch?.active) batch.parent = this.batch;
+    const view: LiveScope = Object.create(LiveScope.prototype);
+    view.state = this.state;
+    view.batch = batch;
+    let committed = false;
+    try {
+      const value = build(view);
+      if (value instanceof Promise) throw new TypeError('A live export must finish synchronously.');
+      const encoded = JSON.stringify(value);
+      committed = true;
+      return encoded === undefined ? undefined : JSON.parse(encoded);
+    } finally {
+      const ids = batch.ids;
+      if (committed && batch.parent?.active) batch.parent.ids.push(...ids);
+      batch.active = false;
+      batch.ids = [];
+      delete batch.parent;
+      if (!committed) for (const id of ids) this.releaseBinding(id, false);
+    }
   }
 
   /**
@@ -202,8 +294,9 @@ export class LiveScope {
       throw this.refuse(contract, TOO_MANY_EXPORTS, 'No room for another exported binding.');
     const id = `${this.nonce}.${this.next++}`;
     this.exports.set(id, { contract, invoke, released: false });
+    if (this.batch?.active) this.batch.ids.push(id);
     this.observe({ type: 'live.exported', at: new Date(), contract, binding: id });
-    return new Reference(id, contract, this, MINTED);
+    return new Reference(id, contract, this.state.root, MINTED);
   }
 
   /**
@@ -220,7 +313,7 @@ export class LiveScope {
     if (!wire.binding || !wire.contract) {
       throw new DuplexError(CONTRACT_INVALID, 'A live reference is a binding and a contract.');
     }
-    return new Reference(wire.binding, wire.contract, this, MINTED);
+    return new Reference(wire.binding, wire.contract, this.state.root, MINTED);
   }
 
   /**
@@ -232,7 +325,7 @@ export class LiveScope {
    */
   import(reference: Reference, contract: string): Invoke {
     if (!contract) throw this.refuse(contract, CONTRACT_INVALID, 'A binding is imported for a contract.');
-    if (!(reference instanceof Reference) || reference.scope !== this)
+    if (!(reference instanceof Reference) || reference.scope !== this.state.root)
       throw this.refuse(contract, REFERENCE_FOREIGN, 'The reference was minted in another scope.');
     if (reference.contract !== contract)
       throw this.refuse(
@@ -273,7 +366,7 @@ export class LiveScope {
    * application does behind the callable.
    */
   release(reference: Reference): void {
-    if (!(reference instanceof Reference) || reference.scope !== this)
+    if (!(reference instanceof Reference) || reference.scope !== this.state.root)
       throw this.refuse(reference?.contract ?? '', REFERENCE_FOREIGN, 'The reference was minted in another scope.');
     this.releaseBinding(reference.binding, true);
   }
@@ -291,7 +384,7 @@ export class LiveScope {
   private end(): void {
     if (this.closed) return;
     this.closed = true;
-    if (OVER.get(this.peer) === this) OVER.delete(this.peer);
+    if (OVER.get(this.peer) === this.state.root) OVER.delete(this.peer);
     const pending = [...this.inflight];
     this.inflight.clear();
     this.exports.clear();

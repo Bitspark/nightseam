@@ -8,6 +8,11 @@ import (
 	"github.com/Bitspark/nightseam/internal/render"
 )
 
+// Conversion and validation both finish before the value can be published.
+func (f *file) liveExport(e model.TypeExpr, src, slots string) string {
+	return fmt.Sprintf("scope.exportValue((scope) => { const converted = %s; %s(%s, converted%s); return converted; })", f.liveConversion(e, src, true), identValidateWire, expression(e), slots)
+}
+
 func converterName(use render.Use) string { return "convert_" + use.Parameter + "_" + use.Type }
 func useExpression(use render.Use) model.TypeExpr {
 	if use.Type == "" {

@@ -143,6 +143,13 @@ type attachment struct {
 // Scope is the live layer over one peer: what this side has exported over that
 // connection, what it has imported over it, and nothing that outlives it.
 type Scope struct {
+	*scopeState
+	batch *exportBatch
+}
+
+// Every conversion view shares the connection's state and canonical identity.
+type scopeState struct {
+	root    *Scope
 	peer    *runtime.Peer
 	options Options
 	nonce   string
@@ -177,7 +184,7 @@ func Over(peer *runtime.Peer, options Options) (*Scope, error) {
 	if _, err := rand.Read(nonce); err != nil {
 		return nil, fmt.Errorf("a live scope needs a nonce: %w", err)
 	}
-	s := &Scope{
+	s := &Scope{scopeState: &scopeState{
 		peer:     peer,
 		options:  o,
 		nonce:    hex.EncodeToString(nonce),
@@ -186,7 +193,8 @@ func Over(peer *runtime.Peer, options Options) (*Scope, error) {
 		imports:  map[string]*attachment{},
 		gone:     map[string]struct{}{},
 		inflight: map[int64]context.CancelFunc{},
-	}
+	}}
+	s.root = s
 	if err := peer.Handle(InvokeMethod, s.onInvoke); err != nil {
 		return nil, err
 	}
@@ -284,9 +292,12 @@ func (s *Scope) Export(contract string, invoke Invoke) (Reference, error) {
 	id := s.nonce + "." + strconv.FormatInt(s.next, 10)
 	s.next++
 	s.exports[id] = &binding{contract: contract, invoke: invoke}
+	if s.batch != nil && s.batch.active {
+		s.batch.ids = append(s.batch.ids, id)
+	}
 	s.mu.Unlock()
 	s.observeExported(contract, id)
-	return Reference{binding: id, contract: contract, scope: s}, nil
+	return Reference{binding: id, contract: contract, scope: s.root}, nil
 }
 
 // Decode reads a reference out of a payload of this scope. It is the only way
@@ -301,7 +312,7 @@ func (s *Scope) Decode(raw json.RawMessage) (Reference, error) {
 	if wire.Binding == "" || wire.Contract == "" {
 		return Reference{}, &runtime.PublicError{Code: ErrorContractInvalid, Message: "a live reference is a binding and a contract"}
 	}
-	return Reference{binding: wire.Binding, contract: wire.Contract, scope: s}, nil
+	return Reference{binding: wire.Binding, contract: wire.Contract, scope: s.root}, nil
 }
 
 // Import is the attachment to a binding, as a function to call it with. The
@@ -313,7 +324,7 @@ func (s *Scope) Import(r Reference, contract string) (Invoke, error) {
 	if contract == "" {
 		return nil, s.refuse(contract, ErrorContractInvalid, "a binding is imported for a contract")
 	}
-	if r.scope == nil || r.scope != s {
+	if r.scope == nil || r.scope != s.root {
 		return nil, s.refuse(contract, ErrorReferenceForeign, "the reference was minted in another scope")
 	}
 	if r.contract != contract {
@@ -493,7 +504,7 @@ func (s *Scope) onRelease(_ context.Context, _ *runtime.Peer, raw json.RawMessag
 // is not a cancellation — neither of an invocation in flight nor of whatever
 // the application does behind the callable.
 func (s *Scope) Release(r Reference) error {
-	if r.scope == nil || r.scope != s {
+	if r.scope == nil || r.scope != s.root {
 		return s.refuse(r.contract, ErrorReferenceForeign, "the reference was minted in another scope")
 	}
 	s.release(r.binding, true)
