@@ -238,10 +238,13 @@ reference reaches an unrelated implementation" is an omission in generated
 code rather than an absent guarantee — a distinction
 [#199](https://github.com/Bitspark/nightseam/issues/199) §3 asks for
 explicitly.
-**Answered:** a live scope checks a reference's contract at import, and the
-exporting scope checks it again at invocation. The shared scenario
+**Answered:** a live scope checks a reference's contract at import. The
+invocation handlers in [Go](../../live/go/live.go) and
+[TypeScript](../../live/ts/src/index.ts) check it against the exported binding
+again when a call arrives. The shared scenario
 [`a-wrong-contract-and-a-binding-of-no-scope`](../../conformance/scenarios/live/a-wrong-contract-and-a-binding-of-no-scope.json)
-holds the refusal in both languages and across the wire.
+holds the import's contract mismatch and invocation's unknown-binding refusal
+in both languages and across the wire.
 
 **3. A reference carries no evidence of its scope.** `{"channel": N}` says
 nothing about the connection it was minted on. Two callers of one server mint
@@ -292,10 +295,10 @@ above. Their classification under the admission policy does not prove that
 every desired behavior follows from a record of functions, or settle whether
 a reusable implementation should ship.
 
-Every rule in the table above is bookkeeping a consumer would otherwise write
-again for each application, and the generated channel import leaves attachment
-sharing and contract checks to that consumer. The live layer supplies those
-guarantees. This construction is the evidence
+The generated channel import leaves attachment sharing and contract checks to
+the consumer. The live layer supplies one attachment per binding and explicit
+contract checks; it does not adopt this example's last-alias release policy or
+the derived compositions' application contracts. This construction is the evidence
 [#201](https://github.com/Bitspark/nightseam/issues/201) and
 [#202](https://github.com/Bitspark/nightseam/issues/202) asked for before
 settling what replaces it.

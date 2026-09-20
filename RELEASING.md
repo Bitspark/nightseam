@@ -7,6 +7,10 @@ client's manifest (`DefaultRuntimeVersion` in
 of every Go module nested in it. They move together, and a test in the fast
 tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
 
+This is the current lockstep release policy. The 0.5.0 removal of the governed
+session layer is a clean break under [COLLABORATION.md](COLLABORATION.md), not
+a permanent compatibility policy for consumers of future releases.
+
 ## What is published
 
 - **npm**: every package under `*/ts`, in the `@nightseam` organization,
@@ -62,15 +66,18 @@ that names another commit.
 1. Start a release issue and its own worktree from `origin/main`, following
    [COLLABORATION.md](COLLABORATION.md). Keep the release scope fixed while
    preparing it; unfinished feature lanes may continue in their own
-   worktrees. Hold the candidate to both tiers: `go test -short ./...`,
+   worktrees. Install with `pnpm install --frozen-lockfile` and hold the
+   candidate to root vet and both tiers: `go vet ./...`, `go test -short ./...`,
    `go test ./...`,
-   `pnpm -r check && pnpm -r build && pnpm -r test`,
+   `pnpm format:check && pnpm -r check && pnpm -r build && pnpm -r test`,
    `node scripts/matrix-table.mjs --check`, and `go vet ./... && go test ./...` in
    each nested Go module — `otel/go` — which the root module's `./...` does
    not enter. The conformance suite runs with the full tier and writes
    `conformance/matrix.json`; commit it with whatever moved it, since the
    release is weighed against the matrix the tag carries. *What a release
-   refuses*, below, says what a red cell does.
+   refuses*, below, says what a red cell does. Also run the script tests
+   (`node --test 'scripts/*.test.mjs'`), `node scripts/links.mjs`, and
+   `go run ./cmd/nightseam --root examples/probe check`, as CI does.
 2. Set the version everywhere: `node scripts/version.mjs 0.5.0`. It rewrites
    every manifest, the generator's constant, every nested module's
    requirement on the root module, and what the getting-started example
@@ -82,7 +89,9 @@ that names another commit.
    and release notes, then the generated goldens separately, following the
    golden discipline. Move the changelog's *Unreleased* entries under the
    version, describing the behavior at the release cutoff and identifying
-   unfinished features. Land this release preparation through its pull
+   unfinished features. Repeat the checks above after versioning and
+   regeneration, and run the packed installation smoke described below, so
+   they hold the candidate that will land. Land this preparation through its pull
    request with auto-squash; never push `main` directly.
 3. Record the merged release commit, verify it is on `origin/main`, and
    rehearse that exact commit through the release workflow before tagging.

@@ -17,13 +17,16 @@ the client calls the server with, declared in the same file and typed the
 same way — which is what a browser, an agent and a forwarder need, and
 what a request-and-response contract has no way to state.
 
-The declaration language has independent data, RPC and live levels. Go and
+The declaration language separates data, RPC and live levels. Go and
 TypeScript generate and validate unions, nullable and literal expressions,
 inline shapes, type and family parameters, and inherited operations. The live
 tier adds callable values — functions that may take or return functions, and
 generic data containers applied to them — with scoped export, import and
 release. The [changelog](CHANGELOG.md) records the implemented forms and the
-removal of the governed session layer.
+removal of the governed session layer. Generic callables and live types drawn
+through family parameters remain unsupported; the
+[generated surface](docs/declaration/generated.md#generic-boundary-helpers)
+distinguishes those limits.
 
 ### Declare it
 
@@ -80,10 +83,12 @@ the declaration — or the second language's copy of any of it.
 
 ## Status
 
-Pre-1.0. The declaration language, the generated surface and the profile
-move with minor versions; `CHANGELOG.md` says what each version holds. What
-is already held fixed is the agreement between the languages: the
-conformance suite under [conformance/](conformance/) holds every language's
+Pre-1.0. Published packages, the generator's runtime dependency version and
+Go module tags move in lockstep. The 0.5.0 work replaces the governed session
+layer directly, with no compatibility shim; this is the current release
+policy, not a settled compatibility policy for a mature ecosystem.
+`CHANGELOG.md` says what each version holds. The conformance suite under
+[conformance/](conformance/) holds every language's
 seam, runtime, tunnel, live and generated packages to Go's over a real socket,
 scenario by scenario, so a peer of any language is held to the reference
 before it is released; `conformance/matrix.json` is the last run's standing

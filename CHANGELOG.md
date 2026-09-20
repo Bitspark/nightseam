@@ -63,13 +63,16 @@ are one number. Entries are in the words of the commits that landed them.
   in rendering and stamped into the wire description both runtimes read. Each
   validator refuses a reference carrying another contract where one is
   expected, even of the same shape, and checks nothing else: it resolves no
-  binding, registers nothing and reaches no network.
+  binding, registers nothing and reaches no network. Native function assignment
+  remains structural; the identity contains no signature or revision and does
+  not prove compatibility after a declaration changes.
 - Generated Go and TypeScript render a callable as a **plain function value**,
   so a record of callables is a record whose members are functions and each
-  member is its own binding. `ExportX`/`ImportX` per live type convert at the
-  boundary against `live/go` and `@nightseam/live`, and the generated client
-  and binding install the scope in `Prepare`; a live type's own `MarshalJSON`
-  refuses, because a reference means nothing outside the scope that minted it.
+  member is its own binding. Go's `ExportX`/`ImportX` and TypeScript's
+  `exportX`/`importX` convert at the boundary against `live/go` and
+  `@nightseam/live`. Generated Go clients and bindings and TypeScript clients
+  install the connection's scope. A Go live type's own `MarshalJSON` refuses
+  because converting native functions requires that scope.
 - A consumer operation under a layer's reserved prefix is refused, read off
   the built-in families that speak on the wire rather than written out: it
   covers `channel.` and `live.` by one rule.
@@ -89,15 +92,17 @@ are one number. Entries are in the words of the commits that landed them.
   inside an ordinary payload, imports that share one dispatch per binding,
   release, forwarding and bounds. The layer speaks `live.invoke` and
   `live.release` as ordinary frames of the profile under a reserved `live.`
-  prefix, so it adds nothing to the envelope and needs no tunnel. A reference
-  is minted only by an export or by a scope's decode, carries that scope, and
-  is refused in another — so a token cannot be detached and imported again.
-  Release refuses the next invocation and lets dispatched ones settle; closing
-  a scope settles them all; cancelling an invocation is neither.
-- A `live` conformance profile: ten scenarios run in Go, in TypeScript and in
-  both cross-language directions over real sockets, each ending by counting
-  what its scopes still hold, so a retained binding fails a scenario whose
-  payloads all matched.
+  prefix, so it adds nothing to the envelope and needs no tunnel. Native
+  references belong to a scope; serialized bytes naming a live binding can be
+  decoded and imported again on its original connection. After reconnection,
+  lookup refuses stale binding IDs; fresh scope nonces prevent them from
+  naming an unrelated binding. Release invalidates all aliases locally and
+  sends an unacknowledged event; already dispatched work may finish. Scope
+  closure settles calls without undoing their effects, and invocation
+  cancellation releases no binding.
+- A `live` conformance profile runs Go and TypeScript in both peer roles over
+  real sockets. Registry-count assertions hold resource lifetime alongside
+  invocation results, closure, release, cancellation and reference checks.
 
 ### Changed
 
