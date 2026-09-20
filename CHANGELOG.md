@@ -14,6 +14,8 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- The declaration proof lists the selected wire and native API commitments,
+  their executable evidence and the limits of bounded example synthesis.
 - Generic data containers can carry live values when applied in the live tier.
   Both generators pass parameter converters through records, unions, aliases
   and nested imported applications; the data container needs no live runtime.

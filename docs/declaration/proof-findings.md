@@ -84,12 +84,13 @@ It checks Go structure and codecs, TypeScript type equality and refusal
 messages, and both languages' plain and generic clients against the
 opposite Go binding over real sockets.
 
-“A family parameter is a type parameter with a bound” held at the
-declaration level. Its native realization differs: Go draws separate
-associated types constrained at entry points by the same family tag; TypeScript uses a
-family interface plus a runtime validator binding. The independent `Item`
-argument remains string on both paths. An integer item, malformed family
-envelope, or malformed handle is refused on both paths.
+The declaration language keeps family parameters and type parameters as
+[two sorts](generics.md): `S` is filled by a family, `Item` by a type.
+Go draws separate associated types constrained at entry points by the same
+family tag; TypeScript uses a family interface plus a runtime validator
+binding. The independent `Item` argument remains string on both paths. An
+integer item, malformed family envelope, or malformed handle is refused
+on both paths.
 
 ## Path-derived names are readable and do move
 
@@ -136,3 +137,33 @@ it does not add a validator API error type. The scenario also holds the
 valid emoji pair and ordinary U+FFFD pass; an unpaired surrogate, including
 one hidden by a duplicate member, is refused before decoding loses it.
 The proof found no further contract decision to reopen.
+
+## Constraints the proof establishes
+
+The proof exercises selected declarations and values. Its successful round
+trips do not establish compatibility for arbitrary later changes to those
+declarations. The table separates chosen wire and API commitments from
+current implementation limits; neither classification is a promise that a
+future release can change the behavior without affecting consumers.
+
+| Commitment or limit | Consequence for a consumer | Executable evidence |
+| --- | --- | --- |
+| **Wire commitment: adjacent-tagged unions.** The discriminator and complete payload occupy separate members; an empty arm has no payload. | Adding an alternative widens the extended union only. A reader of the base declaration still refuses the new tag, even when the new payload resembles an old one. | [proof-unions](../../conformance/scenarios/generated/proof-unions.json) accepts `table` at `classify_rich` and refuses it at `classify`; the [validator table](../../conformance/tables/validator.json) covers payload forms and invalid tags. |
+| **Go API choice: alternative-pointer unions.** Go emits a struct with one pointer per alternative; TypeScript emits a discriminated union. | Go construction can select zero or several alternatives. The generated codec enforces exactly one; the Go type alone cannot. TypeScript narrowing also does not validate bytes received from the wire. | [TestGoProofRenderingAndSurfaceGolden](../../cmd/nightseam/proof_test.go) records the exported Go form. [TestConcreteUnionCodecCompilesAndRoundTrips](../../internal/targets/golang/union_codec_test.go) runs `TestSelectionAndTransactionalDecode`, refusing zero/multiple selections and preserving the receiver after failed decoding. |
+| **Naming commitment: an inline shape takes its name from its path.** Both targets use that derived name. | Moving an unchanged shape may rename public types. Declare a named shape when its API name should survive relocation; the measured move also changes which union accepts the alternative. | [TestProofInlineMoveChurnGolden and TestProofInlineMoveStillCompiles](../../cmd/nightseam/proof_churn_test.go), the [recorded diff](../../cmd/nightseam/testdata/golden-proof-churn/move-image.json), and [proof-names-and-domain](../../conformance/scenarios/generated/proof-names-and-domain.json). |
+| **Grammar commitment: inline shapes have specific positions.** Records, enums and unions may appear in fields, variants, operation requests/results/events and their array/map/nullable containers. | Inline entities, aliases of inline shapes, parameterized inline shapes and shapes used as generic arguments are refused. Use a named intermediate declaration in those positions. | The [inline-shape invalid fixture](../../cmd/nightseam/testdata/invalid/inline-shape/diagnostics.txt) holds alias/argument refusals; [the expression checker](../../internal/check/check.go) checks the admissible position and kind. |
+| **Binding commitment: generic inheritance takes explicit arguments.** A generic base's own and captured family parameters must be filled, including for a local base. | Same-spelled parameters do not bind themselves. Type and family slots remain different, and kind/tier checks still apply to the supplied arguments. | [The inheritance checks](../../internal/check/inheritance.go), [TestInheritanceKeepsExplicitBindingsAndTheirLocations](../../internal/model/inheritance_test.go), [TestProofMixedDiagramCommutes](../../cmd/nightseam/proof_diagram_test.go), and [proof-generics](../../conformance/scenarios/generated/proof-generics.json). The diagram proves its mixed instantiation, not every possible binding. |
+| **Side-inheritance commitment: the same side's operations and errors are inherited.** Names and bindings must remain unambiguous. | Extending a side does not inherit a family's lifecycle, ownership policy or unrelated semantics. | [proof-side-extends](../../conformance/scenarios/generated/proof-side-extends.json) uses a base client against the extended binding; the [extended-side-collision fixture](../../cmd/nightseam/testdata/invalid/extended-side-collision/diagnostics.txt) refuses conflicting inherited names. |
+| **Representation commitment: JSON data and object-shaped ordinary RPC requests.** The primitives are `string`, `boolean`, `integer`, `number`, `timestamp` and `json`; maps have string keys. | Native map keys outside strings require a representation choice. Ordinary method requests, including methods declared in `live.json`, must be object-shaped or absent; a callable's own request may be a general type expression, including a scalar. | [Type-expression definitions](../../internal/model/expr.go), [TestRules/operations](../../internal/check/check_test.go), the [protocol/callable checks](../../internal/check/check.go), [live method checks](../../internal/check/live.go), and the [shared validator table](../../conformance/tables/validator.json). |
+| **Portable value-domain commitment: Unicode scalar strings and one restricted pattern dialect.** Native string types can hold values outside that domain. | Invalid UTF-8 and unpaired surrogates are refused. Patterns use the supported ECMAScript Unicode subset without lookaround or backreferences; arbitrary host regex syntax is not portable declaration syntax. | [proof-names-and-domain](../../conformance/scenarios/generated/proof-names-and-domain.json), the [validator table](../../conformance/tables/validator.json), and the [malformed-Unicode](../../cmd/nightseam/testdata/invalid/malformed-unicode/diagnostics.txt) and [pattern-dialect](../../cmd/nightseam/testdata/invalid/pattern-dialect/diagnostics.txt) invalid fixtures. |
+| **Implementation limit: example synthesis is bounded.** A generic example displays the concrete bindings it demonstrates, or an explicit unavailability reason. | `unavailable` with kind `limit` does not prove that no value exists. A validated example establishes that value under those bindings; it is not an exhaustive proof of the declaration or every instantiation. | [TestDocumentExamplesTable](../../cmd/nightseam/document_examples_test.go) derives [examples.json](../../conformance/tables/examples.json); the [Go](../../runtime/go/document_examples_test.go) and [TypeScript](../../runtime/ts/src/document-examples.test.ts) tests validate its concrete rows. [TestUnavailableExamplesAreAccountedForWithoutInventedJSON](../../internal/doc/validated_examples_test.go) covers bounded synthesis, including large and recursive declarations. |
+
+The [family reference](families.md), [generic reference](generics.md) and
+[generated surface](generated.md) give the syntax and APIs behind these
+constraints. Generated language-role coverage, callable contract identity
+and generic live conversion have their own boundaries; this data-language
+proof does not establish those guarantees. Version coordination and the
+current clean-break release policy are described in
+[COLLABORATION.md](../../COLLABORATION.md#releases) and
+[RELEASING.md](../../RELEASING.md), rather than a permanent compatibility
+policy inferred from these fixtures.
