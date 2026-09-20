@@ -193,6 +193,9 @@ func TestImportRollbackDoesNotRepeatAnAlreadyReleasedAllocation(t *testing.T) {
 	p := overObserved(t, live.Options{MaxImports: 1, MaxExports: 1}, seen)
 	defer p.Close()
 	owner := p.A.Owner().Child()
+	sibling := p.A.Owner().Child()
+	var first live.Reference
+	var replacement live.Invoke
 	err := owner.ImportValue(func(batch *live.Owner) error {
 		// Import need not prove a binding exists remotely; these references exercise
 		// attachment bookkeeping without depending on remote event delivery speed.
@@ -202,6 +205,9 @@ func TestImportRollbackDoesNotRepeatAnAlreadyReleasedAllocation(t *testing.T) {
 			if err != nil {
 				return err
 			}
+			if i == 0 {
+				first = ref
+			}
 			if _, err := batch.Import(ref, "test/Call"); err != nil {
 				return err
 			}
@@ -209,10 +215,17 @@ func TestImportRollbackDoesNotRepeatAnAlreadyReleasedAllocation(t *testing.T) {
 				return err
 			}
 		}
+		// Its tombstone is gone, so the same binding ID now has a distinct
+		// attachment owned outside this batch. Rollback must not revoke it.
+		var err error
+		replacement, err = sibling.Import(first, "test/Call")
+		if err != nil {
+			return err
+		}
 		return errors.New("later failure")
 	})
-	if err == nil {
-		t.Fatal("failed import succeeded")
+	if err == nil || err.Error() != "later failure" {
+		t.Fatalf("unexpected import outcome: %v", err)
 	}
 	_ = owner.Release()
 	emitted := 0
@@ -224,7 +237,16 @@ func TestImportRollbackDoesNotRepeatAnAlreadyReleasedAllocation(t *testing.T) {
 	if emitted != 8 {
 		t.Fatalf("each allocation needs exactly one release; got %d events", emitted)
 	}
-	if owner.Counts() != (live.Counts{}) || p.A.Counts() != (live.Counts{}) {
-		t.Fatal("rollback retained allocations")
+	if owner.Counts() != (live.Counts{}) || sibling.Counts() != (live.Counts{Imports: 1}) || p.A.Counts() != (live.Counts{Imports: 1}) {
+		t.Fatalf("rollback changed sibling allocation: owner=%+v sibling=%+v scope=%+v", owner.Counts(), sibling.Counts(), p.A.Counts())
+	}
+	_, err = replacement(context.Background(), nil)
+	var public *runtime.PublicError
+	if !errors.As(err, &public) || public.Code != live.ErrorReferenceUnknown {
+		t.Fatalf("replacement attachment was revoked: %v", err)
+	}
+	_ = sibling.Release()
+	if p.A.Counts() != (live.Counts{}) {
+		t.Fatal("explicit sibling release retained an attachment")
 	}
 }
