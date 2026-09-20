@@ -224,13 +224,13 @@ importers:
 
   live/ts:
     dependencies:
-      '@nightseam/duplex':
-        specifier: workspace:*
-        version: link:../../duplex/ts
       '@nightseam/runtime':
         specifier: workspace:*
         version: link:../../runtime/ts
     devDependencies:
+      '@nightseam/duplex':
+        specifier: workspace:*
+        version: link:../../duplex/ts
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

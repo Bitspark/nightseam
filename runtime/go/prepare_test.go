@@ -17,7 +17,7 @@ import (
 
 // A tunnel installed in Prepare is there before the peer has read anything,
 // so the client's first channel.open — the natural first act of a consumer
-// that came for a session — meets a handler rather than method_not_found.
+// that came for a channel — meets a handler rather than method_not_found.
 // The hook takes a millisecond here on purpose: with Prepare, how long the
 // install takes cannot matter, because no frame is read while it runs. The
 // same server with the same install in OnConnect refuses 868 of these 1000

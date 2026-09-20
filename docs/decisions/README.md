@@ -54,5 +54,6 @@ both, and says so at the top.
 | [Nullness is a fact of a value](nullness-is-a-fact-of-a-value.md) | [declarative](../goals/declarative.md) | 0.4.0, #58 |
 | [A shape without a name is named by where it sits](a-shape-is-named-by-where-it-sits.md) | [declarative](../goals/declarative.md) | 0.4.0, #60 |
 | [A pattern has one dialect](a-pattern-has-one-dialect.md) | [agnosticism](../goals/agnosticism.md) | 0.4.0, #71 |
+| [Strings are Unicode scalar values](strings-are-unicode-scalars.md) | [agnosticism](../goals/agnosticism.md) | 0.5.0, #170 |
 | [Generic families render once and commute](generic-families-render-once-and-commute.md) | [agnosticism](../goals/agnosticism.md) | v2 |
 | [Tiers are promises, not rankings](tiers-are-promises-not-rankings.md) | [agnosticism](../goals/agnosticism.md) | 0.3.0 |

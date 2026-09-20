@@ -44,7 +44,6 @@
     }
   },
   "dependencies": {
-    "@nightseam/duplex": "workspace:*",
     "@nightseam/runtime": "workspace:*"
   },
   "scripts": {
@@ -53,6 +52,7 @@
     "test": "node --experimental-strip-types --test --test-timeout=10000 src/live.test.ts"
   },
   "devDependencies": {
+    "@nightseam/duplex": "workspace:*",
     "typescript": "^7.0.2"
   }
 }
