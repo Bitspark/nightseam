@@ -25,12 +25,13 @@ fifth: anything finer than these is progress within a language, which the
 matrix shows and no tier needs to name.
 
 These are the policy promises. The current gate does not prove all of P3:
-it accepts skipped scenarios, including generated server roles absent from
-the TypeScript target. An assigned tier and an `ok` verdict therefore need
-to be read alongside the supported roles below, not as proof that every
-scenario passed. This discrepancy is awaiting an operator verdict in
-[#271](https://github.com/Bitspark/nightseam/issues/271); the assignment and
-release gate remain unchanged pending that decision.
+`Matrix.Verdict` counts failures in required profiles and tolerates skips,
+so an `ok` verdict is not by itself proof that every scenario passed. The
+gap it was written for is closed — [#271](https://github.com/Bitspark/nightseam/issues/271)
+settled that v0.5.0 requires generated server-role parity, the TypeScript
+binding landed with #315, and no `generator` cell records a skip today — but
+the tolerance is still in the gate, and refusing a skip in a required
+profile is [#295](https://github.com/Bitspark/nightseam/issues/295).
 
 ## Profiles
 
@@ -101,17 +102,19 @@ Java and Swift follow at tier 4 and rise as they hold.
 | Target | Generated client | Generated server binding |
 |---|---|---|
 | Go | Yes, including reverse-call handlers and live conversion | Yes |
-| TypeScript | Yes, including reverse-call handlers and live conversion | No |
+| TypeScript | Yes, including reverse-call handlers and live conversion | Yes, since #315 |
 
 The client role can handle calls and export callables; that is not a
-generated implementation of the declaration's server side. The runtime
-`core` and `live` profiles exercise both languages in both peer roles,
-separately from the `generator` profile. Generated scenarios use a Go
-binding whenever they serve successfully. Mirroring exchanges driver
-sides and records an unsupported TypeScript binding as a skip; it cannot
-turn a client target into a server target. The
+generated implementation of the declaration's server side, which is why
+the two columns are separate and why a target answering `gen.serve` with
+`unsupported` is a target with one of them. The runtime `core` and `live`
+profiles exercise both languages in both peer roles, separately from the
+`generator` profile. Mirroring exchanges driver sides, so a generated
+scenario run across the two languages serves from each in turn. The
+`generator` cells of [the matrix](../../conformance/matrix.json) record no
+skip for either language, and the
 [proof inventory](../declaration/proof-findings.md#generated-roles-and-skips)
-maps each skip to its scenario and missing serve operation.
+names which generated operation each pairing exercises.
 
 ### What the gate checks
 
@@ -133,9 +136,8 @@ required profiles, not skips. The existing
 [`TestVerdictsFollowTheTierTable`](../../conformance/go/profiles_test.go)
 explicitly holds a row of passes and skips to verdict `ok`. Thus the
 matrix preserves missing coverage, but its release verdict does not reject
-these unsupported generated roles. Resolving that difference from the
-complete tier-1 promise is the policy decision above, not an implicit
-exception introduced by this description.
+a skip. Closing that difference from the complete tier-1 promise is the
+lane named above, not an implicit exception introduced by this description.
 
 The release workflow refuses a tag whose matrix has a cell that the tier
 table says stops the release, and marks the languages that the table says
