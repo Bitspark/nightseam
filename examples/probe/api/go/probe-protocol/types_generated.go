@@ -197,20 +197,22 @@ func ExportNotice(scope *live.Scope, v Notice) (json.RawMessage, error) {
 	if v == nil {
 		return nil, fmt.Errorf("Notice: no implementation to export")
 	}
-	reference, err := scope.Export(ContractNotice, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Payload\""), request); err != nil {
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		reference, err := scope.Export(ContractNotice, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Payload\""), request); err != nil {
+				return nil, err
+			}
+			var argument Payload
+			if err := json.Unmarshal(request, &argument); err != nil {
+				return nil, err
+			}
+			return nil, v(ctx, argument)
+		})
+		if err != nil {
 			return nil, err
 		}
-		var argument Payload
-		if err := json.Unmarshal(request, &argument); err != nil {
-			return nil, err
-		}
-		return nil, v(ctx, argument)
+		return runtime.MarshalJSON(reference)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return runtime.MarshalJSON(reference)
 }
 
 // ImportNotice is a Notice that calls the binding a reference names.
@@ -227,11 +229,18 @@ func ImportNotice(scope *live.Scope, raw json.RawMessage) (Notice, error) {
 		return nil, err
 	}
 	return func(ctx context.Context, params Payload) error {
-		request, err := runtime.MarshalJSON(params)
+		request, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+			var zero json.RawMessage
+			converted, err := runtime.MarshalJSON(params)
+			if err != nil {
+				return zero, err
+			}
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Payload\""), converted); err != nil {
+				return zero, err
+			}
+			return converted, nil
+		})
 		if err != nil {
-			return err
-		}
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Payload\""), request); err != nil {
 			return err
 		}
 		result, err := invoke(ctx, request)
@@ -258,13 +267,15 @@ func ExportStop(scope *live.Scope, v Stop) (json.RawMessage, error) {
 	if v == nil {
 		return nil, fmt.Errorf("Stop: no implementation to export")
 	}
-	reference, err := scope.Export(ContractStop, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-		return nil, v(ctx)
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		reference, err := scope.Export(ContractStop, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+			return nil, v(ctx)
+		})
+		if err != nil {
+			return nil, err
+		}
+		return runtime.MarshalJSON(reference)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return runtime.MarshalJSON(reference)
 }
 
 // ImportStop is a Stop that calls the binding a reference names.
@@ -295,22 +306,24 @@ func ExportSubscription(scope *live.Scope, v Subscription) (json.RawMessage, err
 	if scope == nil {
 		return nil, fmt.Errorf("Subscription: a live value is exported into a scope")
 	}
-	wire := map[string]json.RawMessage{}
-	var stopMember json.RawMessage
-	stopMemberConverted, err := ExportStop(scope, v.Stop)
-	if err != nil {
-		return nil, err
-	}
-	stopMember = stopMemberConverted
-	wire["stop"] = stopMember
-	data, err := runtime.MarshalObject([]string{"stop"}, wire)
-	if err != nil {
-		return nil, err
-	}
-	if err := schema.ValidateExpressionRaw("Subscription", data); err != nil {
-		return nil, err
-	}
-	return data, nil
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		wire := map[string]json.RawMessage{}
+		var stopMember json.RawMessage
+		stopMemberConverted, err := ExportStop(scope, v.Stop)
+		if err != nil {
+			return nil, err
+		}
+		stopMember = stopMemberConverted
+		wire["stop"] = stopMember
+		data, err := runtime.MarshalObject([]string{"stop"}, wire)
+		if err != nil {
+			return nil, err
+		}
+		if err := schema.ValidateExpressionRaw("Subscription", data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	})
 }
 
 // ImportSubscription reads Subscription as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
@@ -343,29 +356,31 @@ func ExportWatch(scope *live.Scope, v Watch) (json.RawMessage, error) {
 	if scope == nil {
 		return nil, fmt.Errorf("Watch: a live value is exported into a scope")
 	}
-	wire := map[string]json.RawMessage{}
-	var labelMember json.RawMessage
-	labelMemberConverted, err := runtime.MarshalJSON(v.Label)
-	if err != nil {
-		return nil, err
-	}
-	labelMember = labelMemberConverted
-	wire["label"] = labelMember
-	var watcherMember json.RawMessage
-	watcherMemberConverted, err := ExportWatcher(scope, v.Watcher)
-	if err != nil {
-		return nil, err
-	}
-	watcherMember = watcherMemberConverted
-	wire["watcher"] = watcherMember
-	data, err := runtime.MarshalObject([]string{"label", "watcher"}, wire)
-	if err != nil {
-		return nil, err
-	}
-	if err := schema.ValidateExpressionRaw("Watch", data); err != nil {
-		return nil, err
-	}
-	return data, nil
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		wire := map[string]json.RawMessage{}
+		var labelMember json.RawMessage
+		labelMemberConverted, err := runtime.MarshalJSON(v.Label)
+		if err != nil {
+			return nil, err
+		}
+		labelMember = labelMemberConverted
+		wire["label"] = labelMember
+		var watcherMember json.RawMessage
+		watcherMemberConverted, err := ExportWatcher(scope, v.Watcher)
+		if err != nil {
+			return nil, err
+		}
+		watcherMember = watcherMemberConverted
+		wire["watcher"] = watcherMember
+		data, err := runtime.MarshalObject([]string{"label", "watcher"}, wire)
+		if err != nil {
+			return nil, err
+		}
+		if err := schema.ValidateExpressionRaw("Watch", data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	})
 }
 
 // ImportWatch reads Watch as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
@@ -407,22 +422,24 @@ func ExportWatcher(scope *live.Scope, v Watcher) (json.RawMessage, error) {
 	if scope == nil {
 		return nil, fmt.Errorf("Watcher: a live value is exported into a scope")
 	}
-	wire := map[string]json.RawMessage{}
-	var noticeMember json.RawMessage
-	noticeMemberConverted, err := ExportNotice(scope, v.Notice)
-	if err != nil {
-		return nil, err
-	}
-	noticeMember = noticeMemberConverted
-	wire["notice"] = noticeMember
-	data, err := runtime.MarshalObject([]string{"notice"}, wire)
-	if err != nil {
-		return nil, err
-	}
-	if err := schema.ValidateExpressionRaw("Watcher", data); err != nil {
-		return nil, err
-	}
-	return data, nil
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		wire := map[string]json.RawMessage{}
+		var noticeMember json.RawMessage
+		noticeMemberConverted, err := ExportNotice(scope, v.Notice)
+		if err != nil {
+			return nil, err
+		}
+		noticeMember = noticeMemberConverted
+		wire["notice"] = noticeMember
+		data, err := runtime.MarshalObject([]string{"notice"}, wire)
+		if err != nil {
+			return nil, err
+		}
+		if err := schema.ValidateExpressionRaw("Watcher", data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	})
 }
 
 // ImportWatcher reads Watcher as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
