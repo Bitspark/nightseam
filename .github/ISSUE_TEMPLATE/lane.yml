@@ -6,8 +6,8 @@ body:
     attributes:
       value: |
         The form is COLLABORATION.md's. Fill what you can; a lane that cannot
-        yet say what holds it is a design question, not a lane — open a blank
-        issue for that instead.
+        yet say what holds it is a design question, not a lane — use the
+        Design form for that instead.
   - type: textarea
     id: what
     attributes:
@@ -34,18 +34,24 @@ body:
     attributes:
       label: Provenance
       description: What this was decomposed from — an issue, a decision, a report.
+    validations:
+      required: true
   - type: input
     id: waits
     attributes:
       label: Waits on
       description: The issues that land before this one, as "#N, #M", or "nothing".
       placeholder: "nothing"
+    validations:
+      required: true
   - type: input
     id: touches
     attributes:
       label: Touches
       description: "The directories this lane edits, as backticked paths: `runtime/go`, `docs/wire/tunnel.md`. The scope check on the PR reads this line and notes, never refuses, a file outside it."
       placeholder: "`tunnel/go`, `tunnel/ts`, `docs/wire/tunnel.md`"
+    validations:
+      required: true
   - type: dropdown
     id: parity
     attributes:
@@ -53,8 +59,7 @@ body:
       description: Every runtime component exists in both languages and is held to one suite.
       options:
         - Both languages, in this lane
-        - Go here, TypeScript in the lane that follows
-        - TypeScript here, Go in the lane that follows
         - The generator or the docs only — parity does not apply
+        - An additional-language port, following docs/languages/tiers.md
     validations:
       required: true
