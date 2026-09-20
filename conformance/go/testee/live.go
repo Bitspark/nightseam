@@ -159,7 +159,6 @@ func cannedInvoke(t *testee, s *scopeOn, contract string, b behavior) live.Invok
 			s.took(contract, "cancelled")
 			return nil, ctx.Err()
 		case "hold":
-			s.took(contract, "started")
 			// Held until the remote emits what releases it, its own
 			// cancellation notwithstanding: this is how a scenario holds
 			// *when* a withdrawn invocation settles. The one binding that
@@ -174,6 +173,7 @@ func cannedInvoke(t *testee, s *scopeOn, contract string, b behavior) live.Invok
 				}
 			})
 			defer unsubscribe()
+			s.took(contract, "started")
 			select {
 			case <-released:
 			case <-time.After(30 * time.Second):

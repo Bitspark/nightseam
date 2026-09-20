@@ -308,7 +308,7 @@ export class LiveScope {
     return async (request, options) => {
       if (this.closed) throw new DuplexError(SCOPE_CLOSED, 'The scope ended.');
       if (own.released) throw new DuplexError(REFERENCE_RELEASED, 'The binding was released.');
-      return own.invoke(request, options);
+      return this.invokeScoped(own.invoke, request, options?.signal);
     };
   }
 
@@ -364,8 +364,39 @@ export class LiveScope {
     if (own.contract !== named.contract)
       throw this.refuse(named.contract, CONTRACT_MISMATCH, `The binding carries ${own.contract}.`);
     if (own.released) throw this.refuse(own.contract, REFERENCE_RELEASED, 'The binding was released.');
-    const result = await own.invoke(named.request, { signal });
+    const result = await this.invokeScoped(own.invoke, named.request, signal);
     return result === undefined ? null : result;
+  }
+
+  /** Settle callers on closure even when their implementation ignores its signal. */
+  private async invokeScoped(invoke: Invoke, request: unknown, signal?: AbortSignal): Promise<unknown> {
+    if (this.closed) throw new DuplexError(SCOPE_CLOSED, 'The scope ended.');
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    this.inflight.add(controller);
+    let stopped!: () => void;
+    const ended = new Promise<never>((_, reject) => {
+      stopped = () =>
+        reject(
+          this.closed && !signal?.aborted
+            ? new DuplexError(SCOPE_CLOSED, 'The scope ended.')
+            : new DuplexError('cancelled', 'The invocation was cancelled.'),
+        );
+      controller.signal.addEventListener('abort', stopped, { once: true });
+    });
+    if (signal?.aborted) controller.abort();
+    try {
+      const result = Promise.resolve().then(() => {
+        if (controller.signal.aborted) return ended;
+        return invoke(request, { signal: controller.signal });
+      });
+      return await Promise.race([result, ended]);
+    } finally {
+      this.inflight.delete(controller);
+      signal?.removeEventListener('abort', abort);
+      controller.signal.removeEventListener('abort', stopped);
+    }
   }
 
   /**

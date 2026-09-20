@@ -110,20 +110,21 @@ function cannedInvoke(t: Testee, s: ScopeOn, contract: string, behavior: Args): 
         return null;
       }
       case 'hold': {
-        s.took(contract, 'started');
         // Held until the remote emits what releases it, its own cancellation
         // notwithstanding: how a scenario holds *when* a withdrawn invocation
         // settles. The one binding that does not stop when it is told to.
         const until = typeof behavior.until === 'string' ? behavior.until : '';
         await new Promise<void>((resolve) => {
           const stop = s.peer.peer.onEvent(until, () => {
+            clearTimeout(timer);
             stop();
             resolve();
           });
-          setTimeout(() => {
+          const timer = setTimeout(() => {
             stop();
             resolve();
           }, 30_000);
+          s.took(contract, 'started');
         });
         s.took(contract, 'ok');
         return behavior.value ?? null;

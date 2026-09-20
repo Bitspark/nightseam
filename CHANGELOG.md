@@ -167,6 +167,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Closing a live scope settles incoming and local self-reference calls as well
+  as outgoing calls, even when their implementations ignore cancellation.
+  The underlying peer remains usable; late results cannot replace closure.
 - Both installation smokes require the complete data/RPC/live example exchange,
   including the registry smoke's callback and returned-function results, and
   reject incorrect values that merely begin with the expected output.
