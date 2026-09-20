@@ -9,7 +9,8 @@ type Args = Record<string, unknown>;
 type OwnedCall = CallOptions & { owner?: LiveOwner };
 type OwnedEmit = EmitOptions & { owner?: LiveOwner };
 export class PublicationFailure extends Error {
-  constructor(readonly code: string, message: string) { super(message); }
+  readonly code: string;
+  constructor(code: string, message: string) { super(message); this.code = code; }
 }
 const check = (condition: boolean, message: string): void => { if (!condition) throw new PublicationFailure('invalid', message); };
 function code(error: unknown): string {
@@ -27,7 +28,8 @@ class Receiver {
   owner?: LiveOwner;
   callback?: publication.Callback;
   failure?: unknown;
-  constructor(readonly scope: LiveScope) {}
+  readonly scope: LiveScope;
+  constructor(scope: LiveScope) { this.scope = scope; }
   retain(value: publication.Supply, context: (RequestContext | EventContext) & { owner: LiveOwner }): void {
     check(context.owner.scope === this.scope && context.owner !== this.scope.owner(), 'generated receiver did not supply a child owner');
     this.owner = context.owner;
