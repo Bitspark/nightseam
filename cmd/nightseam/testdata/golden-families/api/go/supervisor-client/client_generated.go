@@ -121,7 +121,7 @@ func (c *Client) Relieve(ctx context.Context, params protocol.RelieveRequest) (p
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := func() (json.RawMessage, error) {
+	sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
 		var zero json.RawMessage
 		converted, err := protocol.ExportRelieveRequest(scope, params)
 		if err != nil {
@@ -131,7 +131,7 @@ func (c *Client) Relieve(ctx context.Context, params protocol.RelieveRequest) (p
 			return zero, err
 		}
 		return converted, nil
-	}()
+	})
 	if err != nil {
 		return result, err
 	}
@@ -155,7 +155,7 @@ func (c *Client) Watch(ctx context.Context, params protocol.Watch) (workerprotoc
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := func() (json.RawMessage, error) {
+	sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
 		var zero json.RawMessage
 		converted, err := protocol.ExportWatch(scope, params)
 		if err != nil {
@@ -165,7 +165,7 @@ func (c *Client) Watch(ctx context.Context, params protocol.Watch) (workerprotoc
 			return zero, err
 		}
 		return converted, nil
-	}()
+	})
 	if err != nil {
 		return result, err
 	}

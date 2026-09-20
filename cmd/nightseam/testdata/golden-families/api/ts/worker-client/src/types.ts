@@ -81,11 +81,13 @@ export interface Family { readonly name: "worker"; Cancel: Cancel; Envelope: Env
 export const contractCancel = "worker/Cancel";
 /** Makes a binding of a local Cancel and answers the reference that names it. */
 export function exportCancel(scope: LiveScope, value: Cancel): unknown {
-  const reference = scope.export(contractCancel, async (request, options) => {
-    await value(options);
-    return undefined;
+  return scope.exportValue((scope) => {
+    const reference = scope.export(contractCancel, async (request, options) => {
+      await value(options);
+      return undefined;
+    });
+    return reference.toJSON();
   });
-  return reference.toJSON();
 }
 /** A Cancel that calls the binding a reference names. */
 export function importCancel(scope: LiveScope, raw: unknown): Cancel {
@@ -97,11 +99,13 @@ export function importCancel(scope: LiveScope, raw: unknown): Cancel {
 }
 /** Writes Job as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportJob(scope: LiveScope, value: Job): unknown {
-  const out: Record<string, unknown> = {};
-  out["ticket"] = value["ticket"];
-  out["cancel"] = exportCancel(scope, (value["cancel"]) as Cancel);
-  if (value["rename"] !== undefined) out["rename"] = exportRename(scope, (value["rename"]) as Rename);
-  return out;
+  return scope.exportValue((scope) => {
+    const out: Record<string, unknown> = {};
+    out["ticket"] = value["ticket"];
+    out["cancel"] = exportCancel(scope, (value["cancel"]) as Cancel);
+    if (value["rename"] !== undefined) out["rename"] = exportRename(scope, (value["rename"]) as Rename);
+    return out;
+  });
 }
 /** Reads Job as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
 export function importJob(scope: LiveScope, raw: unknown): Job {
@@ -114,12 +118,14 @@ export function importJob(scope: LiveScope, raw: unknown): Job {
 }
 /** Writes Outcome as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportOutcome(scope: LiveScope, value: Outcome): unknown {
-  const held = value as Record<string, unknown>;
-  switch (held["state"]) {
-    case "finished": return { "state": "finished" };
-    case "running": return { "state": "running", "value": exportJob(scope, (held["value"]) as Job) };
-  }
-  throw new Error("Outcome: unknown variant " + String(held["state"]));
+  return scope.exportValue((scope) => {
+    const held = value as Record<string, unknown>;
+    switch (held["state"]) {
+      case "finished": return { "state": "finished" };
+      case "running": return { "state": "running", "value": exportJob(scope, (held["value"]) as Job) };
+    }
+    throw new Error("Outcome: unknown variant " + String(held["state"]));
+  });
 }
 /** Reads Outcome as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
 export function importOutcome(scope: LiveScope, raw: unknown): Outcome {
@@ -132,9 +138,11 @@ export function importOutcome(scope: LiveScope, raw: unknown): Outcome {
 }
 /** Writes ProgressSink as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportProgressSink(scope: LiveScope, value: ProgressSink): unknown {
-  const out: Record<string, unknown> = {};
-  out["report"] = exportReport(scope, (value["report"]) as Report);
-  return out;
+  return scope.exportValue((scope) => {
+    const out: Record<string, unknown> = {};
+    out["report"] = exportReport(scope, (value["report"]) as Report);
+    return out;
+  });
 }
 /** Reads ProgressSink as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
 export function importProgressSink(scope: LiveScope, raw: unknown): ProgressSink {
@@ -147,22 +155,21 @@ export function importProgressSink(scope: LiveScope, raw: unknown): ProgressSink
 export const contractRename = "worker/Rename";
 /** Makes a binding of a local Rename and answers the reference that names it. */
 export function exportRename(scope: LiveScope, value: Rename): unknown {
-  const reference = scope.export(contractRename, async (request, options) => {
-    validateWire("Ticket", request);
-    const argument = request as Ticket;
-    const result = await value(argument, options);
-    const sent = result;
-    validateWire("Ticket", sent);
-    return sent;
+  return scope.exportValue((scope) => {
+    const reference = scope.export(contractRename, async (request, options) => {
+      validateWire("Ticket", request);
+      const argument = request as Ticket;
+      const result = await value(argument, options);
+      return scope.exportValue((scope) => { const converted = result; validateWire("Ticket", converted); return converted; });
+    });
+    return reference.toJSON();
   });
-  return reference.toJSON();
 }
 /** A Rename that calls the binding a reference names. */
 export function importRename(scope: LiveScope, raw: unknown): Rename {
   const invoke = scope.import(scope.decode(raw), contractRename);
   return async (request: Ticket, options?: { signal?: AbortSignal }) => {
-    const sent = request;
-    validateWire("Ticket", sent);
+    const sent = scope.exportValue((scope) => { const converted = request; validateWire("Ticket", converted); return converted; });
     const result = await invoke(sent, options);
     validateWire("Ticket", result);
     return result as Ticket;
@@ -172,27 +179,30 @@ export function importRename(scope: LiveScope, raw: unknown): Rename {
 export const contractReport = "worker/Report";
 /** Makes a binding of a local Report and answers the reference that names it. */
 export function exportReport(scope: LiveScope, value: Report): unknown {
-  const reference = scope.export(contractReport, async (request, options) => {
-    validateWire("Percent", request);
-    const argument = request as Percent;
-    await value(argument, options);
-    return undefined;
+  return scope.exportValue((scope) => {
+    const reference = scope.export(contractReport, async (request, options) => {
+      validateWire("Percent", request);
+      const argument = request as Percent;
+      await value(argument, options);
+      return undefined;
+    });
+    return reference.toJSON();
   });
-  return reference.toJSON();
 }
 /** A Report that calls the binding a reference names. */
 export function importReport(scope: LiveScope, raw: unknown): Report {
   const invoke = scope.import(scope.decode(raw), contractReport);
   return async (request: Percent, options?: { signal?: AbortSignal }) => {
-    const sent = request;
-    validateWire("Percent", sent);
+    const sent = scope.exportValue((scope) => { const converted = request; validateWire("Percent", converted); return converted; });
     await invoke(sent, options);
     return;
   };
 }
 /** Writes Sinks as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportSinks(scope: LiveScope, value: Sinks): unknown {
-  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, exportProgressSink(scope, (item) as ProgressSink)]));
+  return scope.exportValue((scope) => {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, exportProgressSink(scope, (item) as ProgressSink)]));
+  });
 }
 /** Reads Sinks as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
 export function importSinks(scope: LiveScope, raw: unknown): Sinks {
@@ -200,11 +210,13 @@ export function importSinks(scope: LiveScope, raw: unknown): Sinks {
 }
 /** Writes Start as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportStart(scope: LiveScope, value: Start): unknown {
-  const out: Record<string, unknown> = {};
-  out["ticket"] = value["ticket"];
-  out["progress"] = exportProgressSink(scope, (value["progress"]) as ProgressSink);
-  if (value["watchers"] !== undefined) out["watchers"] = exportWatchers(scope, (value["watchers"]) as Watchers);
-  return out;
+  return scope.exportValue((scope) => {
+    const out: Record<string, unknown> = {};
+    out["ticket"] = value["ticket"];
+    out["progress"] = exportProgressSink(scope, (value["progress"]) as ProgressSink);
+    if (value["watchers"] !== undefined) out["watchers"] = exportWatchers(scope, (value["watchers"]) as Watchers);
+    return out;
+  });
 }
 /** Reads Start as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
 export function importStart(scope: LiveScope, raw: unknown): Start {
@@ -217,9 +229,11 @@ export function importStart(scope: LiveScope, raw: unknown): Start {
 }
 /** Writes Supervise as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportSupervise(scope: LiveScope, value: Supervise): unknown {
-  const out: Record<string, unknown> = {};
-  out["sinks"] = exportSinks(scope, (value["sinks"]) as Sinks);
-  return out;
+  return scope.exportValue((scope) => {
+    const out: Record<string, unknown> = {};
+    out["sinks"] = exportSinks(scope, (value["sinks"]) as Sinks);
+    return out;
+  });
 }
 /** Reads Supervise as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
 export function importSupervise(scope: LiveScope, raw: unknown): Supervise {
@@ -230,7 +244,9 @@ export function importSupervise(scope: LiveScope, raw: unknown): Supervise {
 }
 /** Writes Watchers as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
 export function exportWatchers(scope: LiveScope, value: Watchers): unknown {
-  return (value as unknown[]).map((item) => (item === null ? null : exportReport(scope, (item) as Report)));
+  return scope.exportValue((scope) => {
+    return (value as unknown[]).map((item) => (item === null ? null : exportReport(scope, (item) as Report)));
+  });
 }
 /** Reads Watchers as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
 export function importWatchers(scope: LiveScope, raw: unknown): Watchers {

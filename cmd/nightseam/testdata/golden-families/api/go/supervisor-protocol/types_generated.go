@@ -168,29 +168,31 @@ func ExportRelieveRequest(scope *live.Scope, v RelieveRequest) (json.RawMessage,
 	if scope == nil {
 		return nil, fmt.Errorf("RelieveRequest: a live value is exported into a scope")
 	}
-	wire := map[string]json.RawMessage{}
-	var shiftMember json.RawMessage
-	shiftMemberConverted, err := runtime.MarshalJSON(v.Shift)
-	if err != nil {
-		return nil, err
-	}
-	shiftMember = shiftMemberConverted
-	wire["shift"] = shiftMember
-	var sinkMember json.RawMessage
-	sinkMemberConverted, err := workerprotocol.ExportProgressSink(scope, v.Sink)
-	if err != nil {
-		return nil, err
-	}
-	sinkMember = sinkMemberConverted
-	wire["sink"] = sinkMember
-	data, err := runtime.MarshalObject([]string{"shift", "sink"}, wire)
-	if err != nil {
-		return nil, err
-	}
-	if err := schema.ValidateExpressionRaw(runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"shift\",\"type\":\"Shift\",\"required\":true},{\"name\":\"sink\",\"type\":\"worker.ProgressSink\",\"required\":true}]}"), data); err != nil {
-		return nil, err
-	}
-	return data, nil
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		wire := map[string]json.RawMessage{}
+		var shiftMember json.RawMessage
+		shiftMemberConverted, err := runtime.MarshalJSON(v.Shift)
+		if err != nil {
+			return nil, err
+		}
+		shiftMember = shiftMemberConverted
+		wire["shift"] = shiftMember
+		var sinkMember json.RawMessage
+		sinkMemberConverted, err := workerprotocol.ExportProgressSink(scope, v.Sink)
+		if err != nil {
+			return nil, err
+		}
+		sinkMember = sinkMemberConverted
+		wire["sink"] = sinkMember
+		data, err := runtime.MarshalObject([]string{"shift", "sink"}, wire)
+		if err != nil {
+			return nil, err
+		}
+		if err := schema.ValidateExpressionRaw(runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"shift\",\"type\":\"Shift\",\"required\":true},{\"name\":\"sink\",\"type\":\"worker.ProgressSink\",\"required\":true}]}"), data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	})
 }
 
 // ImportRelieveRequest reads RelieveRequest as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
@@ -232,46 +234,48 @@ func ExportWatch(scope *live.Scope, v Watch) (json.RawMessage, error) {
 	if scope == nil {
 		return nil, fmt.Errorf("Watch: a live value is exported into a scope")
 	}
-	wire := map[string]json.RawMessage{}
-	var shiftMember json.RawMessage
-	shiftMemberConverted, err := runtime.MarshalJSON(v.Shift)
-	if err != nil {
-		return nil, err
-	}
-	shiftMember = shiftMemberConverted
-	wire["shift"] = shiftMember
-	var sinkMember json.RawMessage
-	sinkMemberConverted, err := workerprotocol.ExportProgressSink(scope, v.Sink)
-	if err != nil {
-		return nil, err
-	}
-	sinkMember = sinkMemberConverted
-	wire["sink"] = sinkMember
-	if v.Spares.Present {
-		var member json.RawMessage
-		memberConvertedItems := make([]json.RawMessage, 0, len(v.Spares.Value))
-		for _, item := range v.Spares.Value {
-			element, err := workerprotocol.ExportProgressSink(scope, item)
-			if err != nil {
-				return nil, err
-			}
-			memberConvertedItems = append(memberConvertedItems, element)
-		}
-		memberConverted, err := runtime.MarshalJSON(memberConvertedItems)
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		wire := map[string]json.RawMessage{}
+		var shiftMember json.RawMessage
+		shiftMemberConverted, err := runtime.MarshalJSON(v.Shift)
 		if err != nil {
 			return nil, err
 		}
-		member = memberConverted
-		wire["spares"] = member
-	}
-	data, err := runtime.MarshalObject([]string{"shift", "sink", "spares"}, wire)
-	if err != nil {
-		return nil, err
-	}
-	if err := schema.ValidateExpressionRaw("Watch", data); err != nil {
-		return nil, err
-	}
-	return data, nil
+		shiftMember = shiftMemberConverted
+		wire["shift"] = shiftMember
+		var sinkMember json.RawMessage
+		sinkMemberConverted, err := workerprotocol.ExportProgressSink(scope, v.Sink)
+		if err != nil {
+			return nil, err
+		}
+		sinkMember = sinkMemberConverted
+		wire["sink"] = sinkMember
+		if v.Spares.Present {
+			var member json.RawMessage
+			memberConvertedItems := make([]json.RawMessage, 0, len(v.Spares.Value))
+			for _, item := range v.Spares.Value {
+				element, err := workerprotocol.ExportProgressSink(scope, item)
+				if err != nil {
+					return nil, err
+				}
+				memberConvertedItems = append(memberConvertedItems, element)
+			}
+			memberConverted, err := runtime.MarshalJSON(memberConvertedItems)
+			if err != nil {
+				return nil, err
+			}
+			member = memberConverted
+			wire["spares"] = member
+		}
+		data, err := runtime.MarshalObject([]string{"shift", "sink", "spares"}, wire)
+		if err != nil {
+			return nil, err
+		}
+		if err := schema.ValidateExpressionRaw("Watch", data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	})
 }
 
 // ImportWatch reads Watch as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.

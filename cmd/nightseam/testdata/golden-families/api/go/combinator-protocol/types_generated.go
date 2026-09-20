@@ -204,36 +204,38 @@ func ExportBundle[T any](scope *live.Scope, v Bundle[T], convertT func(T) (json.
 	if scope == nil {
 		return nil, fmt.Errorf("Bundle: a live value is exported into a scope")
 	}
-	wire := map[string]json.RawMessage{}
-	var metadataMember json.RawMessage
-	metadataMemberConvertedConvert0 := func(input T) (json.RawMessage, error) {
-		converted, err := convertT(input)
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		wire := map[string]json.RawMessage{}
+		var metadataMember json.RawMessage
+		metadataMemberConvertedConvert0 := func(input T) (json.RawMessage, error) {
+			converted, err := convertT(input)
+			if err != nil {
+				return nil, err
+			}
+			return converted, nil
+		}
+		metadataMemberConverted, err := ExportBundleMetadata[T](v.Metadata, metadataMemberConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: runtime.MustTypeExpression("\"T\"")})
 		if err != nil {
 			return nil, err
 		}
-		return converted, nil
-	}
-	metadataMemberConverted, err := ExportBundleMetadata[T](v.Metadata, metadataMemberConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: runtime.MustTypeExpression("\"T\"")})
-	if err != nil {
-		return nil, err
-	}
-	metadataMember = metadataMemberConverted
-	wire["metadata"] = metadataMember
-	var runMember json.RawMessage
-	runMemberConverted, err := ExportUnary(scope, v.Run)
-	if err != nil {
-		return nil, err
-	}
-	runMember = runMemberConverted
-	wire["run"] = runMember
-	data, err := runtime.MarshalObject([]string{"metadata", "run"}, wire)
-	if err != nil {
-		return nil, err
-	}
-	if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw("Bundle", data); err != nil {
-		return nil, err
-	}
-	return data, nil
+		metadataMember = metadataMemberConverted
+		wire["metadata"] = metadataMember
+		var runMember json.RawMessage
+		runMemberConverted, err := ExportUnary(scope, v.Run)
+		if err != nil {
+			return nil, err
+		}
+		runMember = runMemberConverted
+		wire["run"] = runMember
+		data, err := runtime.MarshalObject([]string{"metadata", "run"}, wire)
+		if err != nil {
+			return nil, err
+		}
+		if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw("Bundle", data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	})
 }
 
 // ImportBundle reads Bundle using the supplied conversion for each type argument.
@@ -335,31 +337,40 @@ func ExportFactory(scope *live.Scope, v Factory) (json.RawMessage, error) {
 	if v == nil {
 		return nil, fmt.Errorf("Factory: no implementation to export")
 	}
-	reference, err := scope.Export(ContractFactory, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), request); err != nil {
-			return nil, err
-		}
-		argument, err := ImportUnary(scope, request)
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		reference, err := scope.Export(ContractFactory, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), request); err != nil {
+				return nil, err
+			}
+			argument, err := ImportUnary(scope, request)
+			if err != nil {
+				return nil, err
+			}
+			result, err := v(ctx, argument)
+			if err != nil {
+				return nil, err
+			}
+			data, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+				var zero json.RawMessage
+				converted, err := ExportUnary(scope, result)
+				if err != nil {
+					return zero, err
+				}
+				if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), converted); err != nil {
+					return zero, err
+				}
+				return converted, nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			return data, nil
+		})
 		if err != nil {
 			return nil, err
 		}
-		result, err := v(ctx, argument)
-		if err != nil {
-			return nil, err
-		}
-		data, err := ExportUnary(scope, result)
-		if err != nil {
-			return nil, err
-		}
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), data); err != nil {
-			return nil, err
-		}
-		return data, nil
+		return runtime.MarshalJSON(reference)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return runtime.MarshalJSON(reference)
 }
 
 // ImportFactory is a Factory that calls the binding a reference names.
@@ -377,11 +388,18 @@ func ImportFactory(scope *live.Scope, raw json.RawMessage) (Factory, error) {
 	}
 	return func(ctx context.Context, params Unary) (Unary, error) {
 		var zero Unary
-		request, err := ExportUnary(scope, params)
+		request, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+			var zero json.RawMessage
+			converted, err := ExportUnary(scope, params)
+			if err != nil {
+				return zero, err
+			}
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), converted); err != nil {
+				return zero, err
+			}
+			return converted, nil
+		})
 		if err != nil {
-			return zero, err
-		}
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), request); err != nil {
 			return zero, err
 		}
 		result, err := invoke(ctx, request)
@@ -414,24 +432,33 @@ func ExportProducer(scope *live.Scope, v Producer) (json.RawMessage, error) {
 	if v == nil {
 		return nil, fmt.Errorf("Producer: no implementation to export")
 	}
-	reference, err := scope.Export(ContractProducer, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-		result, err := v(ctx)
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		reference, err := scope.Export(ContractProducer, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+			result, err := v(ctx)
+			if err != nil {
+				return nil, err
+			}
+			data, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+				var zero json.RawMessage
+				converted, err := ExportUnary(scope, result)
+				if err != nil {
+					return zero, err
+				}
+				if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), converted); err != nil {
+					return zero, err
+				}
+				return converted, nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			return data, nil
+		})
 		if err != nil {
 			return nil, err
 		}
-		data, err := ExportUnary(scope, result)
-		if err != nil {
-			return nil, err
-		}
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), data); err != nil {
-			return nil, err
-		}
-		return data, nil
+		return runtime.MarshalJSON(reference)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return runtime.MarshalJSON(reference)
 }
 
 // ImportProducer is a Producer that calls the binding a reference names.
@@ -479,20 +506,22 @@ func ExportSink(scope *live.Scope, v Sink) (json.RawMessage, error) {
 	if v == nil {
 		return nil, fmt.Errorf("Sink: no implementation to export")
 	}
-	reference, err := scope.Export(ContractSink, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), request); err != nil {
-			return nil, err
-		}
-		argument, err := ImportUnary(scope, request)
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		reference, err := scope.Export(ContractSink, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), request); err != nil {
+				return nil, err
+			}
+			argument, err := ImportUnary(scope, request)
+			if err != nil {
+				return nil, err
+			}
+			return nil, v(ctx, argument)
+		})
 		if err != nil {
 			return nil, err
 		}
-		return nil, v(ctx, argument)
+		return runtime.MarshalJSON(reference)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return runtime.MarshalJSON(reference)
 }
 
 // ImportSink is a Sink that calls the binding a reference names.
@@ -509,11 +538,18 @@ func ImportSink(scope *live.Scope, raw json.RawMessage) (Sink, error) {
 		return nil, err
 	}
 	return func(ctx context.Context, params Unary) error {
-		request, err := ExportUnary(scope, params)
+		request, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+			var zero json.RawMessage
+			converted, err := ExportUnary(scope, params)
+			if err != nil {
+				return zero, err
+			}
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), converted); err != nil {
+				return zero, err
+			}
+			return converted, nil
+		})
 		if err != nil {
-			return err
-		}
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), request); err != nil {
 			return err
 		}
 		result, err := invoke(ctx, request)
@@ -530,36 +566,38 @@ func ExportToolkit(scope *live.Scope, v Toolkit) (json.RawMessage, error) {
 	if scope == nil {
 		return nil, fmt.Errorf("Toolkit: a live value is exported into a scope")
 	}
-	wire := map[string]json.RawMessage{}
-	var twiceMember json.RawMessage
-	twiceMemberConverted, err := ExportFactory(scope, v.Twice)
-	if err != nil {
-		return nil, err
-	}
-	twiceMember = twiceMemberConverted
-	wire["twice"] = twiceMember
-	var identityMember json.RawMessage
-	identityMemberConverted, err := ExportProducer(scope, v.Identity)
-	if err != nil {
-		return nil, err
-	}
-	identityMember = identityMemberConverted
-	wire["identity"] = identityMember
-	var applyMember json.RawMessage
-	applyMemberConverted, err := ExportSink(scope, v.Apply)
-	if err != nil {
-		return nil, err
-	}
-	applyMember = applyMemberConverted
-	wire["apply"] = applyMember
-	data, err := runtime.MarshalObject([]string{"twice", "identity", "apply"}, wire)
-	if err != nil {
-		return nil, err
-	}
-	if err := schema.ValidateExpressionRaw("Toolkit", data); err != nil {
-		return nil, err
-	}
-	return data, nil
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		wire := map[string]json.RawMessage{}
+		var twiceMember json.RawMessage
+		twiceMemberConverted, err := ExportFactory(scope, v.Twice)
+		if err != nil {
+			return nil, err
+		}
+		twiceMember = twiceMemberConverted
+		wire["twice"] = twiceMember
+		var identityMember json.RawMessage
+		identityMemberConverted, err := ExportProducer(scope, v.Identity)
+		if err != nil {
+			return nil, err
+		}
+		identityMember = identityMemberConverted
+		wire["identity"] = identityMember
+		var applyMember json.RawMessage
+		applyMemberConverted, err := ExportSink(scope, v.Apply)
+		if err != nil {
+			return nil, err
+		}
+		applyMember = applyMemberConverted
+		wire["apply"] = applyMember
+		data, err := runtime.MarshalObject([]string{"twice", "identity", "apply"}, wire)
+		if err != nil {
+			return nil, err
+		}
+		if err := schema.ValidateExpressionRaw("Toolkit", data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	})
 }
 
 // ImportToolkit reads Toolkit as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
@@ -620,31 +658,40 @@ func ExportUnary(scope *live.Scope, v Unary) (json.RawMessage, error) {
 	if v == nil {
 		return nil, fmt.Errorf("Unary: no implementation to export")
 	}
-	reference, err := scope.Export(ContractUnary, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), request); err != nil {
-			return nil, err
-		}
-		var argument Count
-		if err := json.Unmarshal(request, &argument); err != nil {
-			return nil, err
-		}
-		result, err := v(ctx, argument)
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		reference, err := scope.Export(ContractUnary, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), request); err != nil {
+				return nil, err
+			}
+			var argument Count
+			if err := json.Unmarshal(request, &argument); err != nil {
+				return nil, err
+			}
+			result, err := v(ctx, argument)
+			if err != nil {
+				return nil, err
+			}
+			data, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+				var zero json.RawMessage
+				converted, err := runtime.MarshalJSON(result)
+				if err != nil {
+					return zero, err
+				}
+				if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), converted); err != nil {
+					return zero, err
+				}
+				return converted, nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			return data, nil
+		})
 		if err != nil {
 			return nil, err
 		}
-		data, err := runtime.MarshalJSON(result)
-		if err != nil {
-			return nil, err
-		}
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), data); err != nil {
-			return nil, err
-		}
-		return data, nil
+		return runtime.MarshalJSON(reference)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return runtime.MarshalJSON(reference)
 }
 
 // ImportUnary is a Unary that calls the binding a reference names.
@@ -662,11 +709,18 @@ func ImportUnary(scope *live.Scope, raw json.RawMessage) (Unary, error) {
 	}
 	return func(ctx context.Context, params Count) (Count, error) {
 		var zero Count
-		request, err := runtime.MarshalJSON(params)
+		request, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+			var zero json.RawMessage
+			converted, err := runtime.MarshalJSON(params)
+			if err != nil {
+				return zero, err
+			}
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), converted); err != nil {
+				return zero, err
+			}
+			return converted, nil
+		})
 		if err != nil {
-			return zero, err
-		}
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), request); err != nil {
 			return zero, err
 		}
 		result, err := invoke(ctx, request)
