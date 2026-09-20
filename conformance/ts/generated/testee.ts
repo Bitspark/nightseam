@@ -14,6 +14,7 @@ import { liveOps, resetLive, LiveFailure } from './live.ts';
 import { combinatorOps, resetCombinator, CombinatorFailure } from './combinator.ts';
 import { forwardingOps, resetForwarding, ForwardingFailure } from './forwarding.ts';
 import { ownersOps, resetOwners, OwnerFailure } from './owners.ts';
+import { publicationOps, resetPublication, PublicationFailure } from './publication.ts';
 import { createInterface } from 'node:readline';
 import { Client, DuplexError, errors, validateWire, type Payload, type Seen } from './api/ts/probe-client/src/index.ts';
 
@@ -65,6 +66,7 @@ const reset = () => {
   resetCombinator();
   resetForwarding();
   resetOwners();
+  resetPublication();
   for (const d of handles.values()) d.shutdown();
   handles.clear();
 };
@@ -101,6 +103,7 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
   ...combinatorOps,
   ...forwardingOps,
   ...ownersOps,
+  ...publicationOps,
   hello: () => ({ driver: 1, language: 'typescript', layers: ['generated'], features: [] }),
   reset: () => { reset(); return {}; },
   bye: () => { bye = true; reset(); return {}; },
@@ -158,7 +161,7 @@ const serve = async (line: string): Promise<string> => {
   try {
     return JSON.stringify({ id, ok: (await handler(args)) ?? {} });
   } catch (error) {
-    if (error instanceof Failure || error instanceof ProofFailure || error instanceof LiveFailure || error instanceof CombinatorFailure || error instanceof ForwardingFailure || error instanceof OwnerFailure) return JSON.stringify({ id, error: {code:error.code,message:error.message} });
+    if (error instanceof Failure || error instanceof ProofFailure || error instanceof LiveFailure || error instanceof CombinatorFailure || error instanceof ForwardingFailure || error instanceof OwnerFailure || error instanceof PublicationFailure) return JSON.stringify({ id, error: {code:error.code,message:error.message} });
     return JSON.stringify({ id, error: fail('internal', error instanceof Error ? error.message : String(error)) });
   }
 };
