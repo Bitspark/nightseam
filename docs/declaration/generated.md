@@ -115,9 +115,6 @@ func (*Client) OnChanged(handler func(context.Context, protocol.Payload)) error
 func (*Client) Close() error
 type Caller interface{ Echo(…); NoArgs(…); Seen(…) }
 type Handler interface{ Reverse(ctx context.Context, client *Client, params protocol.Payload) (protocol.Payload, error) }
-func Decides(method string) bool
-func Asks(method string) bool
-var Conversation = struct{ Event, Path string }{…}
 ```
 
 The mirror image: `Client` calls the server's methods, emits the client's
@@ -193,9 +190,6 @@ when implementing the handler; the initial stub uses the interface's defaults.
 export interface Events { changed?: (data: Payload, context: EventContext) => void | Promise<void> }
 export interface Handler { reverse(params: Payload, context: RequestContext): Payload | Promise<Payload> }
 export interface Caller { echo(params: Payload, options?: CallOptions): Promise<Payload>; noArgs(options?: CallOptions): Promise<string>; … }
-export const decides: ReadonlySet<string>;
-export const asks: ReadonlySet<string>;
-export const conversation: { event: "changed"; path: "text" };
 export const errors: { denied: "denied"; notFound: "not_found" };
 export type ErrorCode = (typeof errors)[keyof typeof errors];
 export class Client implements Caller {
