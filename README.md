@@ -191,7 +191,7 @@ who reads it:
 | --- | --- | --- |
 | [docs/goals/](docs/goals/) | a reviewer, a designer | the north stars: what Nightseam is for, in eight respects, at the limit — abstract, never done, and what a review measures the tree against |
 | [docs/wire/](docs/wire/) | a runtime in any language | what crosses the wire: the profile `nightseam.duplex/1`, the tunnel's operations, and the test that says where something new on the wire belongs |
-| [docs/runtime/](docs/runtime/) | a consumer of the packages | the surface of the peer, the tunnel and the observer, Go and TypeScript side by side |
+| [docs/runtime/](docs/runtime/) | a consumer of the packages | the surface of the peer, the tunnel, the live layer and the observer, and what a consumer composes out of them, Go and TypeScript side by side |
 | [docs/declaration/](docs/declaration/) | a consumer declaring a family | the tier files, a family generic in others, the generator's commands, what the generated packages export, and the pipeline for whoever changes it |
 | [docs/languages/](docs/languages/) | a consumer choosing a language, a contributor bringing one | the four promises, profiles and tiers, and how a language joins |
 | [docs/decisions/](docs/decisions/) | anyone asking why | the record: one page per decision — the question, what was decided, what the alternative cost, since when |
