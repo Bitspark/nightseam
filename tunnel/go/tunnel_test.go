@@ -82,11 +82,15 @@ func TestChannelIsAConnOverWebSocket(t *testing.T) {
 		options := tunnel.Options{MaxFrameBytes: limit}
 		accepted := make(chan *tunnel.Channel, 1)
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			peer, err := runtime.Accept(w, r, runtime.ServerOptions{Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil }, CheckOrigin: func(*http.Request) bool { return true }, Options: runtime.Options{MaxFrameBytes: 4 << 20}})
-			if err != nil {
-				return
-			}
-			tn, err := tunnel.New(peer, options)
+			var tn *tunnel.Tunnel
+			peer, err := runtime.Accept(w, r, runtime.ServerOptions{
+				Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
+				CheckOrigin:  func(*http.Request) bool { return true },
+				Options: runtime.Options{MaxFrameBytes: 4 << 20, Prepare: func(peer *runtime.Peer) (err error) {
+					tn, err = tunnel.New(peer, options)
+					return err
+				}},
+			})
 			if err != nil {
 				return
 			}
@@ -101,15 +105,17 @@ func TestChannelIsAConnOverWebSocket(t *testing.T) {
 		t.Cleanup(server.Close)
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		t.Cleanup(cancel)
-		peer, _, err := runtime.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), runtime.DialOptions{Options: runtime.Options{MaxFrameBytes: 4 << 20}})
+		var tn *tunnel.Tunnel
+		peer, _, err := runtime.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), runtime.DialOptions{
+			Options: runtime.Options{MaxFrameBytes: 4 << 20, Prepare: func(peer *runtime.Peer) (err error) {
+				tn, err = tunnel.New(peer, options)
+				return err
+			}},
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { peer.Close() })
-		tn, err := tunnel.New(peer, options)
-		if err != nil {
-			t.Fatal(err)
-		}
 		opened, err := tn.Open(ctx, "probe")
 		if err != nil {
 			t.Fatal(err)
