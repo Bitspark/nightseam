@@ -72,6 +72,8 @@ func Cases() []Case {
 		{"release invalidates every alias", releaseInvalidatesAliases},
 		{"cancelling an invocation is not releasing the binding", cancellationIsNotRelease},
 		{"a scope that closes settles what it had in flight", closeSettles},
+		{"closing the exporter settles a call without closing the peer", closeExporterSettles},
+		{"closing the scope settles a local self-reference call", closeLocalSettles},
 		{"a reference handed back to its exporter needs no wire", selfReference},
 		{"forwarding gives the destination its own lifetime", forwarding},
 		{"a refused export leaves no binding behind", boundsLeaveNothing},

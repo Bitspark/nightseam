@@ -382,6 +382,9 @@ to name a binding nobody exported, which is the stale token.
 `behavior` is the same canned set a peer's handler takes, plus `through`. A
 binding that `wait`s never settles of its own accord, and one that `hold`s waits
 for the remote to emit its `until` event however it is cancelled.
+Its `started` observation is a barrier: the event listener is installed before
+that observation is made. The exporter and local-call closure scenarios await
+caller settlement before sending the event, then verify ordinary RPC still works.
 
 `live.counts` is the suite's leak assertion: every `live.*` scenario ends by
 naming what each scope still holds, so a retained binding fails a scenario whose

@@ -22,7 +22,7 @@
           "failed": 0
         },
         "live": {
-          "passed": 10,
+          "passed": 12,
           "skipped": 0,
           "failed": 0
         },
@@ -53,7 +53,7 @@
           "failed": 0
         },
         "live": {
-          "passed": 20,
+          "passed": 24,
           "skipped": 0,
           "failed": 0
         },

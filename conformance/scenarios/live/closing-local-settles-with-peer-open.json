@@ -1,0 +1,208 @@
+{
+  "name": "closing a scope settles its local self-reference calls while the peer stays open",
+  "layer": "live",
+  "description": "A held implementation ignores cancellation until an explicit event releases it. Scope closure settles its caller before that event; the late result cannot replace the closure outcome or disturb ordinary RPC.",
+  "needs": [
+    "live",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "ordinary",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.over",
+      "args": {
+        "on": "$pa"
+      },
+      "bind": "la"
+    },
+    {
+      "on": "b",
+      "op": "live.over",
+      "args": {
+        "on": "$pb"
+      },
+      "bind": "lb"
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report",
+        "behavior": {
+          "kind": "hold",
+          "until": "finish",
+          "value": "late"
+        }
+      },
+      "bind": {
+        "reference": "r"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.import",
+      "args": {
+        "on": "$la",
+        "reference": "$r",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "handle": "at"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.invoke",
+      "args": {
+        "on": "$at",
+        "request": null
+      },
+      "bind": {
+        "handle": "pending"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.await_invocation",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report"
+      },
+      "expect": {
+        "contract": "probe/Report",
+        "outcome": "started"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.close",
+      "args": {
+        "on": "$la"
+      }
+    },
+    {
+      "on": "a",
+      "op": "call.await",
+      "args": {
+        "on": "$pending"
+      },
+      "expect": {
+        "error": {
+          "code": "scope_closed"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.counts",
+      "args": {
+        "on": "$la"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "ordinary",
+        "params": "alive"
+      },
+      "bind": "ordinary"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$ordinary"
+      },
+      "expect": {
+        "result": "alive"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.emit",
+      "args": {
+        "on": "$pb",
+        "event": "finish"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.await_invocation",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report"
+      },
+      "expect": {
+        "contract": "probe/Report",
+        "outcome": "ok"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "ordinary",
+        "params": "still alive"
+      },
+      "bind": "after"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$after"
+      },
+      "expect": {
+        "result": "still alive"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.close",
+      "args": {
+        "on": "$lb"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    }
+  ]
+}

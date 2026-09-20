@@ -377,7 +377,7 @@ func (s *Scope) local(own *binding) Invoke {
 		case released:
 			return nil, &runtime.PublicError{Code: ErrorReferenceReleased, Message: "the binding was released"}
 		}
-		return invoke(ctx, request)
+		return s.invokeScoped(ctx, invoke, request)
 	}
 }
 
@@ -465,7 +465,7 @@ func (s *Scope) onInvoke(ctx context.Context, _ *runtime.Peer, raw json.RawMessa
 	case released:
 		return nil, s.refuse(contract, ErrorReferenceReleased, "the binding was released")
 	}
-	result, err := invoke(ctx, params.Request)
+	result, err := s.invokeScoped(ctx, invoke, params.Request)
 	if err != nil {
 		return nil, err
 	}

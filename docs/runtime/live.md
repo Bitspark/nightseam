@@ -95,7 +95,11 @@ native function.
   each with its own binding and its own release; there is no record-wide
   lifetime.
 - **Release is a barrier, closure is not.** Release refuses the next invocation
-  and lets the dispatched ones settle. Closing the scope settles them all.
+  and lets the dispatched ones settle. Closing the scope settles its outgoing,
+  incoming and local self-reference calls with `scope_closed`, while the peer
+  remains usable for ordinary RPC. Implementations are told to cancel; a body
+  that ignores cancellation can continue its effects, but its late result
+  cannot replace the caller's closure outcome.
 - **Reconnection revives nothing.** The next connection is another scope, and a
   binding of the old one resolves nowhere in it.
 - **Forwarding takes no ownership.** `Forward` gives another scope a binding of

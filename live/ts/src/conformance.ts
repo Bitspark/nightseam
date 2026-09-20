@@ -14,6 +14,7 @@ import {
   REFERENCE_FOREIGN,
   REFERENCE_RELEASED,
   REFERENCE_UNKNOWN,
+  SCOPE_CLOSED,
   TOO_MANY_EXPORTS,
   TOO_MANY_IMPORTS,
   forward,
@@ -125,6 +126,11 @@ export function cases(): Case[] {
     { name: 'release invalidates every alias', run: releaseInvalidatesAliases },
     { name: 'cancelling an invocation is not releasing the binding', run: cancellationIsNotRelease },
     { name: 'a scope that closes settles what it had in flight', run: closeSettles },
+    {
+      name: 'closing the exporter settles a call without closing the peer',
+      run: (t, p) => closeImplementation(t, p, false),
+    },
+    { name: 'closing the scope settles a local self-reference call', run: (t, p) => closeImplementation(t, p, true) },
     { name: 'a reference handed back to its exporter needs no wire', run: selfReference },
     { name: 'forwarding gives the destination its own lifetime', run: forwarding },
     { name: 'a refused export leaves no binding behind', run: boundsLeaveNothing },
@@ -288,6 +294,42 @@ async function closeSettles(t: T, p: Pair): Promise<void> {
   if (outcome === undefined) t.fail('a scope that closed left an invocation answered');
   let_.resolve();
   holds(t, p.b, 0, 0, 'a closed scope holds nothing');
+}
+
+async function closeImplementation(t: T, p: Pair, local: boolean): Promise<void> {
+  const entered = deferred<void>();
+  const unblock = deferred<void>();
+  const finished = deferred<void>();
+  const { imported } = handed(p.a, local ? p.a : p.b, SINK, async () => {
+    entered.resolve();
+    await unblock.promise;
+    finished.resolve();
+    return 'late';
+  });
+  p.a.peer.handle('ordinary', async (raw) => raw);
+  const pending = imported(null).then(
+    () => undefined,
+    (error: unknown) => error,
+  );
+  try {
+    await within(t, entered.promise, 'the invocation entering');
+    p.a.close();
+    const outcome = await within(t, pending, 'closure settling the caller before its implementation');
+    refused(t, outcome, SCOPE_CLOSED);
+    holds(t, p.a, 0, 0, 'closed exporter');
+    const ordinary = async () => {
+      const answer = await within(t, p.b.peer.call('ordinary', 'alive'), 'ordinary RPC after live close');
+      if (answer !== 'alive') t.fail(`ordinary RPC answered ${String(answer)}`);
+    };
+    await ordinary();
+    unblock.resolve();
+    await within(t, finished.promise, 'the unblocked body finishing');
+    if ((await pending) !== outcome) t.fail('the late result replaced the closure outcome');
+    await ordinary();
+    await refuses(t, () => imported(null), SCOPE_CLOSED);
+  } finally {
+    unblock.resolve();
+  }
 }
 
 /** A reference of this side's own making, handed back: it reaches the function, not a second dispatch. */
