@@ -150,20 +150,13 @@
       "args": {
         "on": "$pa"
       },
-      "expect": {
-        "clean": true,
-        "code": 1000
-      }
+      "note": "both old peers must end before creating another connection; close-code classification is held by the peer scenarios"
     },
     {
       "on": "b",
       "op": "peer.await_close",
       "args": {
         "on": "$pb"
-      },
-      "expect": {
-        "clean": true,
-        "code": 1000
       }
     },
     {
