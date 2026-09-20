@@ -66,7 +66,7 @@ func install(handler Handler, events Events, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		sent, err := func() (json.RawMessage, error) {
+		sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
 			var zero json.RawMessage
 			converted, err := protocol.ExportOutcome(scope, result)
 			if err != nil {
@@ -76,7 +76,7 @@ func install(handler Handler, events Events, options *runtime.Options) error {
 				return zero, err
 			}
 			return converted, nil
-		}()
+		})
 		return sent, err
 	}
 	options.Handlers = handlers
@@ -171,7 +171,7 @@ func (c *Client) Start(ctx context.Context, params protocol.Start) (protocol.Job
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := func() (json.RawMessage, error) {
+	sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
 		var zero json.RawMessage
 		converted, err := protocol.ExportStart(scope, params)
 		if err != nil {
@@ -181,7 +181,7 @@ func (c *Client) Start(ctx context.Context, params protocol.Start) (protocol.Job
 			return zero, err
 		}
 		return converted, nil
-	}()
+	})
 	if err != nil {
 		return result, err
 	}

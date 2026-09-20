@@ -95,7 +95,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		sent, err := func() (json.RawMessage, error) {
+		sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
 			var zero json.RawMessage
 			converted, err := protocol.ExportSubscription(scope, result)
 			if err != nil {
@@ -105,7 +105,7 @@ func install(handler Handler, options *runtime.Options) error {
 				return zero, err
 			}
 			return converted, nil
-		}()
+		})
 		return sent, err
 	}
 	options.Handlers = handlers
