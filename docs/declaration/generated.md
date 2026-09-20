@@ -56,7 +56,9 @@ Generated records, enums, unions and literal types expose `WireType()` for
 automatic runtime validation of Go type arguments. Codecs bind ordinary
 parameters and family draws before validation, so nested generic values
 retain literal constraints, nullness and their declaring family's schema.
-Consumers pass Go type arguments without codec arguments or registration.
+Ordinary generated Go client calls take type arguments without caller-supplied
+codecs or registration. Direct use of the generic boundary helpers below is
+different: those helpers explicitly take converters and type bindings.
 An extended side includes its base operations with their bound types and
 source naming overrides; a base client can call the extended binding.
 
@@ -243,6 +245,99 @@ than a gap: a reference means nothing outside the scope that minted its
 binding, so a live value has no scope-free encoding. The refusal names the pair
 that does have a scope. TypeScript needs no such refusal — its generated client
 never hands a live value to the peer unconverted — but the same rule holds.
+
+### Generic boundary helpers
+
+A generic data declaration can contain live values when applied in the live
+tier: `Page<Job>` is supported. Its own generated package stays usable for
+ordinary data and imports no live runtime. Instead, its conversion helpers
+take a converter for each type parameter they use (or each associated type
+drawn through a family parameter). The caller supplies the conversion; for
+a live argument, that converter closes over the appropriate connection scope.
+
+For example, the model-only `boxes` family's `Page<T>` emits these signatures
+in [Go](../../cmd/nightseam/testdata/golden-families/api/go/boxes-protocol/types_generated.go)
+and [TypeScript](../../cmd/nightseam/testdata/golden-families/api/ts/boxes-client/src/types.ts):
+
+```go
+func ExportPage[T any](v Page[T], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error)
+func ImportPage[T any](raw json.RawMessage, convertT func(json.RawMessage) (T, error), typeT runtime.TypeBinding) (Page[T], error)
+```
+
+```ts
+export function exportPage<T = unknown>(value: Page<T>, convert_T_: (value: T) => unknown): unknown;
+export function importPage<T = unknown>(raw: unknown, convert_T_: (value: unknown) => T): Page<T>;
+```
+
+The same package emits `ExportBox`/`ImportBox` for a record,
+`ExportChoice`/`ImportChoice` and `ExportResult`/`ImportResult` for unions,
+and `ExportBatch`/`ImportBatch` for a nested generic alias; TypeScript uses
+the corresponding `exportX`/`importX` names. Each forwards the supplied
+converters through the declared container structure. Go pairs each converter
+with a `runtime.TypeBinding`, whose `Schema` and `Type` retain the argument's
+declaration context for validation. TypeScript's conversion helpers take
+no binding argument and do not validate the whole value: the generated
+operation validates before import and after export. A direct TypeScript
+caller must perform that validation with the appropriate `TypeBinding`
+slots too; conversion alone is not a validation API.
+
+These complete functions show importing `Page<Job>` directly, with `boxes`
+and `worker` naming their generated protocol packages/namespaces, `live`
+and `runtime` the Go runtime imports, and `LiveScope` the TypeScript live
+runtime type. Both use the caller's existing scope:
+
+```go
+func importJobs(scope *live.Scope, raw json.RawMessage) (boxes.Page[worker.Job], error) {
+	return boxes.ImportPage(raw, func(item json.RawMessage) (worker.Job, error) {
+		return worker.ImportJob(scope, item)
+	}, runtime.TypeBinding{Schema: worker.WireSchema(), Type: "Job"})
+}
+```
+
+```ts
+function importJobs(scope: LiveScope, raw: unknown): boxes.Page<worker.Job> {
+  boxes.validateWire("Page", raw, "", {
+    T: { type: "Job", validate: worker.validateWire },
+  });
+  return boxes.importPage(raw, (item) => worker.importJob(scope, item));
+}
+```
+
+Export uses the opposite converter: `worker.ExportJob(scope, value)` in Go
+or `worker.exportJob(scope, value)` in TypeScript, followed by whole-value
+validation. These are conversion hooks, not independent ownership or
+disposal handles; binding lifetimes remain those of the
+[live scope](../runtime/live.md). An ordinary generated operation supplies
+the converters and validation itself, so its consumer passes native values.
+
+A generic declaration that directly contains a callable also takes a scope.
+The `combinator` family's `Bundle<T>` has a fixed `Unary` member beside its
+generic metadata and emits:
+
+```go
+func ExportBundle[T any](scope *live.Scope, v Bundle[T], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error)
+func ImportBundle[T any](scope *live.Scope, raw json.RawMessage, convertT func(json.RawMessage) (T, error), typeT runtime.TypeBinding) (Bundle[T], error)
+```
+
+```ts
+export function exportBundle<T = unknown>(scope: LiveScope, value: Bundle<T>, convert_T_: (value: T) => unknown): unknown;
+export function importBundle<T = unknown>(scope: LiveScope, raw: unknown, convert_T_: (value: unknown) => T): Bundle<T>;
+```
+
+The [generic-live scenario](../../conformance/scenarios/generated/live-generic-containers.json)
+executes the generated operation with an imported generic record containing
+a supplied callable and a returned nested alias/union/container holding
+`Bundle<Count>`. The [Go](../../conformance/go/generated/combinator.go.tmpl)
+and [TypeScript](../../conformance/ts/generated/combinator.ts) consumers invoke
+the returned function after the supplying RPC has completed. The
+[family reference](families.md#what-is-live-and-where-it-may-be-written)
+keeps three cases separate:
+
+| Form | Current support |
+| --- | --- |
+| A generic container applied to a live type, such as `Page<Job>` | Supported in the live tier; argument converters carry the scope dependency. |
+| A callable declaration with its own parameters | Temporarily refused as [`callable_parameters`](../../cmd/nightseam/testdata/invalid/callable-parameters/diagnostics.txt); applied callable identities are not defined by the current contract. This does not rule out future generic callables. |
+| A live type drawn through a family parameter, such as `S.Job` | Separately refused as [`live_draw`](../../cmd/nightseam/testdata/invalid/live-draw/diagnostics.txt); the family-binding contract does not supply its live boundary converter. This is a missing conversion surface, not a consequence of nominal identity or a requirement that all generic containers remain data-only. |
 
 ## Errors
 
