@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { pipe } from '@nightseam/duplex';
-import { DuplexError, DuplexPeer, type ObserverEvent } from '@nightseam/runtime';
+import { DuplexError, DuplexPeer, UnpublishedError, type ObserverEvent } from '@nightseam/runtime';
 import { cases, echo, handed, SINK, type Pair, type T } from './conformance.ts';
 import {
   liveOver,
@@ -359,6 +359,57 @@ test('unpublished export rollback emits no release', async () => {
     assert.deepEqual(p.a.counts(), { exports: 0, imports: 0 });
   } finally {
     p.close();
+  }
+});
+
+test('publishValue only unwinds its fresh unsent exports', async () => {
+  const seen: ObserverEvent[] = [];
+  const p = await over({ maxExports: 2 }, { observe: (event) => void seen.push(event) });
+  try {
+    const owner = p.a.owner().child();
+    const prior = owner.export(SINK, echo);
+    const controller = new AbortController();
+    controller.abort();
+    for (let i = 0; i < 12; i++) {
+      await assert.rejects(
+        owner.publishValue(
+          (batch) => batch.export(SINK, echo).toJSON(),
+          (raw) => p.a.peer.call('unsent', raw, { signal: controller.signal }),
+        ),
+        UnpublishedError,
+      );
+      assert.deepEqual(owner.counts(), { exports: 1, imports: 0 });
+    }
+    assert.equal(seen.filter((event) => event.type === 'event.emitted' && event.name === RELEASE_EVENT).length, 0);
+    assert.equal(await owner.import(prior, SINK)(47), 47);
+    owner.release();
+  } finally {
+    p.close();
+  }
+});
+
+test('publishValue retains unknown publisher failures and throws', async () => {
+  for (const throws of [false, true]) {
+    const p = await over();
+    try {
+      const owner = p.a.owner().child();
+      const cause = new Error('publisher outcome unknown');
+      await assert.rejects(
+        owner.publishValue(
+          (batch) => batch.export(SINK, echo).toJSON(),
+          () => {
+            if (throws) throw cause;
+            return Promise.reject(cause);
+          },
+        ),
+        (error) => error === cause,
+      );
+      assert.deepEqual(owner.counts(), { exports: 1, imports: 0 });
+      owner.release();
+      assert.deepEqual(p.a.counts(), { exports: 0, imports: 0 });
+    } finally {
+      p.close();
+    }
   }
 });
 
