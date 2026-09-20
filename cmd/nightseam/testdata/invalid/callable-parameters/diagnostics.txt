@@ -1,2 +1,2 @@
-x/live.json#/types/Handler/parameters/0: Callable Handler declares parameters. A reference to a callable carries the identity of the declaration it implements, and a generic callable has one identity per application rather than one declaration; declare a callable for each filled shape until that is settled. [callable_parameters]
+x/live.json#/types/Handler/parameters/0: Callable Handler declares parameters. Generic callables are not supported yet: the current contract names declarations and does not define identities for applied callable arguments. Use nongeneric callable declarations. [callable_parameters]
 error: 1 problems

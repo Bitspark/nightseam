@@ -158,7 +158,7 @@ func (c *checker) callable(t *model.Type, where site) {
 		c.Addf(t.At.Sub("kind"), "callable_tier", "Callable %s is declared in %s; a callable is the live tier's kind and is declared in %s, which is what keeps a value of a lower tier self-contained data.", t.Name, t.At.File, model.LiveFile)
 	}
 	if len(t.Parameters) > 0 {
-		c.Addf(t.At.Sub("parameters", 0), "callable_parameters", "Callable %s declares parameters. A reference to a callable carries the identity of the declaration it implements, and a generic callable has one identity per application rather than one declaration; declare a callable for each filled shape until that is settled.", t.Name)
+		c.Addf(t.At.Sub("parameters", 0), "callable_parameters", "Callable %s declares parameters. Generic callables are not supported yet: the current contract names declarations and does not define identities for applied callable arguments. Use nongeneric callable declarations.", t.Name)
 	}
 	if t.Request != nil {
 		c.expression(t.Request, t.At.Sub("request"), where)
@@ -605,7 +605,7 @@ func (c *checker) liveDraw(x model.Drawn, at diag.Location) {
 	sort.Strings(names)
 	for _, name := range names {
 		if carriers[name].IsLiveType(x.Name) {
-			c.Addf(at, "live_draw", "%s.%s draws %s from %s, which carries a callable; a live type drawn through a family parameter has no boundary conversion, since what fills the parameter is the consumer's to choose. Declare the callable in this family's %s.", x.Parameter, x.Name, x.Name, name, model.LiveFile)
+			c.Addf(at, "live_draw", "%s.%s draws %s from %s, which carries a callable; the current family-binding contract supplies no live boundary converter for that draw. Use an explicitly named live type in %s instead.", x.Parameter, x.Name, x.Name, name, model.LiveFile)
 			return
 		}
 	}

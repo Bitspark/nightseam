@@ -20,6 +20,9 @@ are one number. Entries are in the words of the commits that landed them.
   Both generators pass parameter converters through records, unions, aliases
   and nested imported applications; the data container needs no live runtime.
   Generic callables remain refused and callable contract identities stay nominal.
+- The generated-surface reference documents generic boundary converters and
+  validation bindings in both languages. Generic-callable and family-draw
+  diagnostics identify the distinct support gaps that still prevent them.
 - Document examples carry visible concrete type and family bindings, or an
   explicit synthesis-limit reason. A derived table accounts for every corpus
   value, union arm and operation frame; both runtime validators check the
