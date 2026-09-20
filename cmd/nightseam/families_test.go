@@ -35,8 +35,7 @@ func TestFamiliesCompile(t *testing.T) {
 	copyFixtureTree(t, filepath.Join(root, "duplex/ts"), filepath.Join(directory, "duplex/ts"))
 	copyFixtureTree(t, filepath.Join(root, "tunnel/ts"), filepath.Join(directory, "tunnel/ts"))
 	copyFixtureTree(t, filepath.Join(root, "live/ts"), filepath.Join(directory, "live/ts"))
-	paths := map[string]any{"@nightseam/runtime": []string{"./runtime/ts/src/index.ts"}, "@nightseam/duplex": []string{"./duplex/ts/src/index.ts"}, "@nightseam/tunnel": []string{"./tunnel/ts/src/index.ts"}, "@nightseam/live": []string{"./live/ts/src/index.ts"}}
-	paths[scope+"/*"] = []string{"./api/ts/*/src/index.ts"}
+	paths := fixtureTypeScriptPaths(t, directory)
 	config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": paths}, "include": []string{"api/ts/**/*.ts", "api/impl/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts", "tunnel/ts/**/*.ts", "live/ts/**/*.ts"}}
 	data, _ := json.Marshal(config)
 	writeFixture(t, directory, "tsconfig.json", data)

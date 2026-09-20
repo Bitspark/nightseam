@@ -283,11 +283,12 @@ func TestDiagramCommutesInTypeScript(t *testing.T) {
 			copyFixtureTree(t, filepath.Join(root, "tunnel/ts"), filepath.Join(directory, "tunnel/ts"))
 			copyFixtureTree(t, filepath.Join(root, "live/ts"), filepath.Join(directory, "live/ts"))
 			writeFixture(t, directory, "gen/ts/diagram.ts", []byte(tsDiagramFixture))
-			config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": map[string]any{"@example/*": []string{"./api/ts/*/src/index.ts"}, "@nightseam/runtime": []string{"./runtime/ts/src/index.ts"}, "@nightseam/duplex": []string{"./duplex/ts/src/index.ts"}, "@nightseam/tunnel": []string{"./tunnel/ts/src/index.ts"}, "@nightseam/live": []string{"./live/ts/src/index.ts"}, "@example/probe-client": []string{"./api/ts/probe-client/src/index.ts"}}}, "include": []string{"api/ts/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts", "tunnel/ts/**/*.ts", "live/ts/**/*.ts", "gen/**/*.ts"}}
+			config := map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": fixtureTypeScriptPaths(t, directory)}, "include": []string{"api/ts/**/*.ts", "runtime/ts/**/*.ts", "duplex/ts/**/*.ts", "tunnel/ts/**/*.ts", "live/ts/**/*.ts", "gen/**/*.ts"}, "exclude": []string{"gen/ts/*-binding"}}
 			data, _ := json.Marshal(config)
 			writeFixture(t, directory, "tsconfig.json", data)
 			writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))
 			runFixture(t, directory, "node", tsc, "--project", "tsconfig.json")
+			checkGenericTypeScriptBindings(t, directory, tsc)
 			writeFixture(t, directory, "loader.mjs", []byte(slotLoader))
 			writeFixture(t, directory, "delegation.mjs", []byte(`import assert from 'node:assert/strict';import {validateWire} from './api/ts/carrier-client/src/types.ts';
 		validateWire('Frame',{sequence:1,message:{version:1,kind:'event',event:'changed',data:{}}});

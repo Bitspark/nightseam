@@ -1,0 +1,1 @@
+{"dependencies":{"@example/pair-client":"file:../pair-client","@example/probe-client":"file:../probe-client","@nightseam/runtime":"0.4.0"},"exports":"./src/index.ts","name":"@example/pair-binding","private":true,"scripts":{"check":"tsc --noEmit"},"type":"module","version":"0.0.0"}

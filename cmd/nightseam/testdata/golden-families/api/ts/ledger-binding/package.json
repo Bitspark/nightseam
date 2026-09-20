@@ -1,0 +1,1 @@
+{"dependencies":{"@example/ledger-client":"file:../ledger-client","@nightseam/runtime":"0.4.0"},"exports":"./src/index.ts","name":"@example/ledger-binding","private":true,"scripts":{"check":"tsc --noEmit"},"type":"module","version":"0.0.0"}

@@ -13,7 +13,7 @@ package main
 // handles that already exist, and exactly where that basis stops short.
 
 import (
-	"fmt"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,7 +43,19 @@ func TestComposedLiveReferences(t *testing.T) {
 	// The compiler's own node types come from the checkout that installed
 	// them; the fixture has no node_modules of its own, and the packages it
 	// checks reach each other through paths.
-	writeFixture(t, directory, "tsconfig.json", fmt.Appendf(nil, compositionsTSConfig, filepath.ToSlash(filepath.Join(root, "node_modules/@types"))))
+	config, err := json.Marshal(map[string]any{
+		"compilerOptions": map[string]any{
+			"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext",
+			"strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true,
+			"types": []string{"node"}, "typeRoots": []string{filepath.ToSlash(filepath.Join(root, "node_modules/@types"))},
+			"paths": fixtureTypeScriptPaths(t, directory),
+		},
+		"include": []string{"api/ts/**/*.ts", "compositions.ts", "data.ts"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFixture(t, directory, "tsconfig.json", config)
 
 	// The programs, copied rather than inlined: they are ordinary source a
 	// reader opens, gofmt holds and an editor understands.
@@ -84,19 +96,3 @@ func copyProgram(t *testing.T, from, to, suffix string) {
 		t.Fatalf("no %s program under %s", suffix, from)
 	}
 }
-
-const compositionsTSConfig = `{
-	"compilerOptions": {
-		"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext",
-		"strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true,
-		"types": ["node"],
-		"typeRoots": ["%s"],
-		"paths": {
-			"@nightseam/runtime": ["./runtime/ts/src/index.ts"],
-			"@nightseam/duplex": ["./duplex/ts/src/index.ts"],
-			"@nightseam/tunnel": ["./tunnel/ts/src/index.ts"],
-			"@example/*": ["./api/ts/*/src/index.ts"]
-		}
-	},
-	"include": ["api/ts/**/*.ts", "compositions.ts", "data.ts"]
-}`
