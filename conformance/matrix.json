@@ -17,12 +17,12 @@
           "failed": 0
         },
         "generator": {
-          "passed": 18,
+          "passed": 20,
           "skipped": 0,
           "failed": 0
         },
         "live": {
-          "passed": 14,
+          "passed": 15,
           "skipped": 0,
           "failed": 0
         },
@@ -48,12 +48,12 @@
           "failed": 0
         },
         "generator": {
-          "passed": 19,
-          "skipped": 17,
+          "passed": 21,
+          "skipped": 19,
           "failed": 0
         },
         "live": {
-          "passed": 28,
+          "passed": 30,
           "skipped": 0,
           "failed": 0
         },
