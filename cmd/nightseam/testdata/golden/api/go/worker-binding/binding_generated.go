@@ -28,9 +28,16 @@ func (c *Remote) Supervise(ctx context.Context, params protocol.Supervise) (prot
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+	owner, ok := live.OwnerOf(ctx)
+	if !ok {
+		owner = scope.Owner()
+	}
+	if owner.Scope() != scope {
+		return result, &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
+	}
+	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 		var zero json.RawMessage
-		converted, err := protocol.ExportSupervise(scope, params)
+		converted, err := protocol.ExportSupervise(owner, params)
 		if err != nil {
 			return zero, err
 		}
@@ -47,15 +54,27 @@ func (c *Remote) Supervise(ctx context.Context, params protocol.Supervise) (prot
 		return result, err
 	}
 	received, err := func() (protocol.Outcome, error) {
-		var zero protocol.Outcome
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), raw); err != nil {
-			return zero, err
-		}
-		converted, err := protocol.ImportOutcome(scope, raw)
+		var value protocol.Outcome
+		err := owner.ImportValue(func(owner *live.Owner) error {
+			converted, err := func() (protocol.Outcome, error) {
+				var zero protocol.Outcome
+				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), raw); err != nil {
+					return zero, err
+				}
+				converted, err := protocol.ImportOutcome(owner, raw)
+				if err != nil {
+					return zero, err
+				}
+				return converted, nil
+			}()
+			value = converted
+			return err
+		})
 		if err != nil {
+			var zero protocol.Outcome
 			return zero, err
 		}
-		return converted, nil
+		return value, nil
 	}()
 	return received, err
 }
@@ -97,16 +116,30 @@ func install(handler Handler, options *runtime.Options) error {
 		if !ok {
 			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 		}
+		owner := scope.Owner().Child()
+		ctx = live.WithOwner(ctx, owner)
 		params, err := func() (protocol.Start, error) {
-			var zero protocol.Start
-			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Start\""), raw); err != nil {
-				return zero, err
-			}
-			converted, err := protocol.ImportStart(scope, raw)
+			var value protocol.Start
+			err := owner.ImportValue(func(owner *live.Owner) error {
+				converted, err := func() (protocol.Start, error) {
+					var zero protocol.Start
+					if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Start\""), raw); err != nil {
+						return zero, err
+					}
+					converted, err := protocol.ImportStart(owner, raw)
+					if err != nil {
+						return zero, err
+					}
+					return converted, nil
+				}()
+				value = converted
+				return err
+			})
 			if err != nil {
+				var zero protocol.Start
 				return zero, err
 			}
-			return converted, nil
+			return value, nil
 		}()
 		if err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
@@ -115,9 +148,9 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 			var zero json.RawMessage
-			converted, err := protocol.ExportJob(scope, result)
+			converted, err := protocol.ExportJob(owner, result)
 			if err != nil {
 				return zero, err
 			}
@@ -140,11 +173,15 @@ func install(handler Handler, options *runtime.Options) error {
 	options.Families = families
 	prepare := options.Prepare
 	options.Prepare = func(peer *runtime.Peer) error {
-		if _, err := live.Over(peer, live.Options{}); err != nil {
-			return err
-		}
 		if prepare != nil {
-			return prepare(peer)
+			if err := prepare(peer); err != nil {
+				return err
+			}
+		}
+		if _, ok := live.ScopeOf(peer); !ok {
+			if _, err := live.Over(peer, live.Options{}); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
@@ -171,9 +208,16 @@ func (c *Remote) EmitSettled(ctx context.Context, data protocol.Outcome) error {
 	if !ok {
 		return &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+	owner, ok := live.OwnerOf(ctx)
+	if !ok {
+		owner = scope.Owner()
+	}
+	if owner.Scope() != scope {
+		return &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
+	}
+	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 		var zero json.RawMessage
-		converted, err := protocol.ExportOutcome(scope, data)
+		converted, err := protocol.ExportOutcome(owner, data)
 		if err != nil {
 			return zero, err
 		}

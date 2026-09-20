@@ -2,7 +2,7 @@
 import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection } from "@nightseam/runtime";
 import type { Tunnel } from "@nightseam/tunnel";
 import { validateWire } from './types.ts';
-import { liveOver, scopeOf, type LiveScope } from "@nightseam/live";
+import { liveOver, scopeOf, type LiveOwner } from "@nightseam/live";
 import * as conversion from './types.ts';
 import * as live_worker from "@example/worker-client";
 import type * as Protocol from './types.ts';
@@ -16,8 +16,8 @@ export interface Handler {
 }
 export interface Caller {
   shift(params: Protocol.Shift, options?: CallOptions): Promise<string>;
-  relieve(params: Protocol.RelieveRequest, options?: CallOptions): Promise<Protocol.Shift>;
-  watch(params: Protocol.Watch, options?: CallOptions): Promise<worker.Job>;
+  relieve(params: Protocol.RelieveRequest, options?: CallOptions & { owner?: LiveOwner }): Promise<Protocol.Shift>;
+  watch(params: Protocol.Watch, options?: CallOptions & { owner?: LiveOwner }): Promise<worker.Job>;
 }
 /** The public errors of the family: what the code of a DuplexError a call rejects with may be. */
 export const errors = { /** The supervisor refuses. */ refused: "refused" } as const;
@@ -28,7 +28,7 @@ export class Client implements Caller {
   constructor(peer: DuplexPeer, handler: Handler | undefined, events: Events) {
     this.peer = peer;
     /** The live layer is made over the peer before it reads, as a tunnel is: a peer already reading would refuse the first live.invoke. */
-    liveOver(peer, {});
+    if (!scopeOf(peer)) liveOver(peer, {});
   }
   /** Connects to a WebSocket endpoint and speaks the family over it. */
   static async dial(url: string, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "shift": "supervisor", "relieve": "supervisor", "watch": "supervisor" } }); const client = new Client(peer, handler, events); await peer.connect(url); return client; }
@@ -40,7 +40,7 @@ export class Client implements Caller {
   /** Ordinary RPC that needs no live runtime. */
   async shift(params: Protocol.Shift, options?: CallOptions): Promise<string> { validateWire("Shift", params); const result = await this.peer.call<string>("shift", params, options); validateWire("string", result); return result; }
   /** A shape written inline that carries a callable: named by where it sits, like any other, and converted at the boundary like any other. */
-  async relieve(params: Protocol.RelieveRequest, options?: CallOptions): Promise<Protocol.Shift> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = scope.exportValue((scope) => { const converted = conversion.exportRelieveRequest(scope, (params) as Protocol.RelieveRequest); validateWire({"kind":"record","fields":[{"name":"shift","type":"Shift","required":true},{"name":"sink","type":"worker.ProgressSink","required":true}]}, converted); return converted; }); const result = await this.peer.call<unknown>("relieve", sent, options); validateWire("Shift", result); return result as Protocol.Shift; }
+  async relieve(params: Protocol.RelieveRequest, options?: CallOptions & { owner?: LiveOwner }): Promise<Protocol.Shift> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = options?.owner ?? scope.owner(); if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection'); const sent = owner.exportValue((owner) => { const converted = conversion.exportRelieveRequest(owner, (params) as Protocol.RelieveRequest); validateWire({"kind":"record","fields":[{"name":"shift","type":"Shift","required":true},{"name":"sink","type":"worker.ProgressSink","required":true}]}, converted); return converted; }); const result = await this.peer.call<unknown>("relieve", sent, options); validateWire("Shift", result); return result as Protocol.Shift; }
   /** Takes an imported callback record. */
-  async watch(params: Protocol.Watch, options?: CallOptions): Promise<worker.Job> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = scope.exportValue((scope) => { const converted = conversion.exportWatch(scope, (params) as Protocol.Watch); validateWire("Watch", converted); return converted; }); const result = await this.peer.call<unknown>("watch", sent, options); validateWire("worker.Job", result); return live_worker.importJob(scope, result); }
+  async watch(params: Protocol.Watch, options?: CallOptions & { owner?: LiveOwner }): Promise<worker.Job> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = options?.owner ?? scope.owner(); if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection'); const sent = owner.exportValue((owner) => { const converted = conversion.exportWatch(owner, (params) as Protocol.Watch); validateWire("Watch", converted); return converted; }); const result = await this.peer.call<unknown>("watch", sent, options); validateWire("worker.Job", result); return owner.importValue((owner) => live_worker.importJob(owner, result)); }
 }
