@@ -17,13 +17,16 @@ the client calls the server with, declared in the same file and typed the
 same way — which is what a browser, an agent and a forwarder need, and
 what a request-and-response contract has no way to state.
 
-Version 0.4.0 releases the consumer improvements described in the
-[changelog](CHANGELOG.md). Its checker and specification renderer support
-the new declaration forms; complete Go/TypeScript generation and value
-validation for those forms continue in
-[0.5.0](https://github.com/Bitspark/nightseam/milestone/6), which also
-removes the governed session layer. Until implemented, the code targets
-report `unrendered_form` for those forms.
+The declaration language separates data, RPC and live levels. Go and
+TypeScript generate and validate unions, nullable and literal expressions,
+inline shapes, type and family parameters, and inherited operations. The live
+tier adds callable values — functions that may take or return functions, and
+generic data containers applied to them — with scoped export, import and
+release. The [changelog](CHANGELOG.md) records the implemented forms and the
+removal of the governed session layer. Generic callables and live types drawn
+through family parameters remain unsupported; the
+[generated surface](docs/declaration/generated.md#generic-boundary-helpers)
+distinguishes those limits.
 
 ### Declare it
 
@@ -80,11 +83,13 @@ the declaration — or the second language's copy of any of it.
 
 ## Status
 
-Pre-1.0. The declaration language, the generated surface and the profile
-move with minor versions; `CHANGELOG.md` says what each version holds. What
-is already held fixed is the agreement between the languages: the
-conformance suite under [conformance/](conformance/) holds every language's
-seam, runtime, tunnel and generated packages to Go's over a real socket,
+Pre-1.0. Published packages, the generator's runtime dependency version and
+Go module tags move in lockstep. The 0.5.0 work replaces the governed session
+layer directly, with no compatibility shim; this is the current release
+policy, not a settled compatibility policy for a mature ecosystem.
+`CHANGELOG.md` says what each version holds. The conformance suite under
+[conformance/](conformance/) holds every language's
+seam, runtime, tunnel, live and generated packages to Go's over a real socket,
 scenario by scenario, so a peer of any language is held to the reference
 before it is released; `conformance/matrix.json` is the last run's standing
 of each language in each profile.
@@ -118,11 +123,11 @@ Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2; `java
 The table is the last conformance run, rendered from
 `conformance/matrix.json` by `node scripts/matrix-table.mjs`; CI fails a pull
 request whose table has drifted from the matrix, as `nightseam check` fails
-one whose generated output is stale. `ok` means the current gate found no
-failures in required profiles; it accepts skips and does not certify that
-every generated role exists. A red cell in a profile the language's
-tier guarantees refuses a release; elsewhere it is what the tier's lag
-allows. What CI runs is the star — every language against the Go reference on
+one whose generated output is stale. `ok` means the gate found neither failures
+nor skips in profiles required by that language's tier. Required-profile
+failures and skips follow the tier's release policy; failures elsewhere follow
+its lag policy, while optional-profile skips remain informational.
+What CI runs is the star — every language against the Go reference on
 both sides, which is the gate a language passes to have joined; the full
 matrix of every language against every other runs nightly, and a scenario two
 non-reference languages disagree about becomes an issue against the scenario,
@@ -131,15 +136,16 @@ since the reference decides.
 ## Install
 
 ```
-npm install @nightseam/runtime @nightseam/tunnel           # what a generated TypeScript client needs
+npm install @nightseam/runtime @nightseam/tunnel           # a generated RPC client
+npm install @nightseam/live                               # when its family has a live tier
 go get github.com/Bitspark/nightseam                       # the Go runtime packages
 go get -tool github.com/Bitspark/nightseam/cmd/nightseam   # the generator, as a Go tool
 ```
 
-Nightseam is developer tooling and never a runtime dependency of its own
-generator: a generated package depends on the protocol types and the runtime
-components it uses, including the tunnel for clients and the live layer for
-live values.
+The generator is development tooling. Generated packages depend on their
+protocol types and the runtime components they use, including the tunnel for
+clients and the live runtime for live values. Generated data-only packages
+need no live runtime.
 
 ## The packages
 
@@ -149,7 +155,7 @@ live values.
 | [`@nightseam/runtime`](runtime/ts) | [`runtime/go`](runtime/go) | the peer of the profile: correlation, cancellation, backpressure, presence, trace context, the wire validator, the observer and its console and slog adapters |
 | [`@nightseam/tunnel`](tunnel/ts) | [`tunnel/go`](tunnel/go) | channels multiplexed over one peer, each one a connection of the seam, with per-channel credit |
 | [`@nightseam/live`](live/ts) | [`live/go`](live/go) | callable values across one connection: a scope over a peer, exported bindings, imported references, release and forwarding |
-| [`@nightseam/otel`](otel/ts) | [`otel/go`](otel/go) | the OpenTelemetry adapter, the one component a consumer opts into: a propagator over the W3C trace context propagator and an observer that opens a span per request, so that the four above pull in no telemetry backend — on npm they depend on nothing at all, and in Go on one third-party module, the WebSocket transport |
+| [`@nightseam/otel`](otel/ts) | [`otel/go`](otel/go) | the OpenTelemetry adapter: a propagator over W3C trace context and an observer that opens a span per request. The four components above pull in no telemetry backend; their external Go dependencies provide WebSocket transport and strict JSON decoding. |
 | — | [`cmd/nightseam`](cmd/nightseam) | the generator |
 
 Every published component exists in both languages and both are held to one

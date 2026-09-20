@@ -51,7 +51,7 @@ const (
 	DefaultRuntime        = "@nightseam/runtime"
 	DefaultTunnel         = "@nightseam/tunnel"
 	DefaultLive           = "@nightseam/live"
-	DefaultRuntimeVersion = "0.4.0"
+	DefaultRuntimeVersion = "0.5.0"
 	DefaultSibling        = "file"
 )
 

@@ -6,16 +6,18 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+## 0.5.0 - 2026-09-21
+
 ### Clarified
 
-- The refusal decision illustrates its rule with `*runtime.PublicError` and
-  `IsError`, which carry a refusal, rather than the `session.Error` and the
-  vocabulary of ten that went with the session layer in 0.5.0. The rule and its
-  reasoning are unchanged.
+- The refusal decision illustrates its rule with `*runtime.PublicError`,
+  reached through `errors.As` and compared by code, and the generated protocol
+  packages' `IsError` helper. It replaces the removed `session.Error` example
+  and its fixed vocabulary count while preserving the rule and its reasoning.
 
-- The tiers page records that the TypeScript target renders both generated
-  roles since #315, that no `generator` cell holds a skip, and that the gate's
-  tolerance of skips — not an absent TypeScript binding — is what #295 closes.
+- The tiers page records both generated TypeScript roles and distinguishes
+  required-profile skips, which follow the tier's release policy, from
+  informational optional-profile skips.
 
 - The tiers page names the live profile beside the four it had, and its
   table is held to `conformance/profiles.json`, so the page a release reads
@@ -122,13 +124,16 @@ are one number. Entries are in the words of the commits that landed them.
   in rendering and stamped into the wire description both runtimes read. Each
   validator refuses a reference carrying another contract where one is
   expected, even of the same shape, and checks nothing else: it resolves no
-  binding, registers nothing and reaches no network.
+  binding, registers nothing and reaches no network. Native function assignment
+  remains structural; the identity contains no signature or revision and does
+  not prove compatibility after a declaration changes.
 - Generated Go and TypeScript render a callable as a **plain function value**,
   so a record of callables is a record whose members are functions and each
-  member is its own binding. `ExportX`/`ImportX` per live type convert at the
-  boundary against `live/go` and `@nightseam/live`, and the generated client
-  and binding install the scope in `Prepare`; a live type's own `MarshalJSON`
-  refuses, because a reference means nothing outside the scope that minted it.
+  member is its own binding. Go's `ExportX`/`ImportX` and TypeScript's
+  `exportX`/`importX` convert at the boundary against `live/go` and
+  `@nightseam/live`. Generated clients and bindings in both languages
+  install the connection's scope. A Go live type's own `MarshalJSON` refuses
+  because converting native functions requires that scope.
 - A consumer operation under a layer's reserved prefix is refused, read off
   the built-in families that speak on the wire rather than written out: it
   covers `channel.` and `live.` by one rule.
@@ -148,15 +153,17 @@ are one number. Entries are in the words of the commits that landed them.
   inside an ordinary payload, imports that share one dispatch per binding,
   release, forwarding and bounds. The layer speaks `live.invoke` and
   `live.release` as ordinary frames of the profile under a reserved `live.`
-  prefix, so it adds nothing to the envelope and needs no tunnel. A reference
-  is minted only by an export or by a scope's decode, carries that scope, and
-  is refused in another — so a token cannot be detached and imported again.
-  Release refuses the next invocation and lets dispatched ones settle; closing
-  a scope settles them all; cancelling an invocation is neither.
-- A `live` conformance profile: ten scenarios run in Go, in TypeScript and in
-  both cross-language directions over real sockets, each ending by counting
-  what its scopes still hold, so a retained binding fails a scenario whose
-  payloads all matched.
+  prefix, so it adds nothing to the envelope and needs no tunnel. Native
+  references belong to a scope; serialized bytes naming a live binding can be
+  decoded and imported again on its original connection. After reconnection,
+  lookup refuses stale binding IDs; fresh scope nonces prevent them from
+  naming an unrelated binding. Release invalidates all aliases locally and
+  sends an unacknowledged event; already dispatched work may finish. Scope
+  closure settles calls without undoing their effects, and invocation
+  cancellation releases no binding.
+- A `live` conformance profile runs Go and TypeScript in both peer roles over
+  real sockets. Registry-count assertions hold resource lifetime alongside
+  invocation results, closure, release, cancellation and reference checks.
 
 ### Changed
 
@@ -223,7 +230,7 @@ are one number. Entries are in the words of the commits that landed them.
 - Wire and declaration strings contain Unicode scalar values. Both runtimes
   reject malformed Unicode before decoding or publishing can replace it,
   including nested JSON, names, descriptors and custom encodings. Generated
-  Go codecs and sessions over raw connections use the same guards. Valid
+  Go codecs and peers over raw connections use the same guards. Valid
   surrogate pairs and ordinary U+FFFD stay unchanged.
 
 ### Removed
@@ -238,14 +245,14 @@ are one number. Entries are in the words of the commits that landed them.
   cursor and control helpers; the session observer events and their OTel
   spans; and the `session` conformance profile with its scenarios, driver
   ops and testee halves. Nightseam has no released consumer, so this is a
-  clean break with no shim and no migration; the live layer that replaces it
-  is designed in #201 and #202. The decision records of the removed layer are
-  kept and marked superseded.
+  clean break with no shim and no migration; the replacement live layer is
+  described in [the live runtime guide](docs/runtime/live.md). The decision
+  records of the removed layer are kept and marked superseded.
 - The `holder` corpus family, which drew a declared type through an unbound
   family parameter. The rule it exercised — every family that may bind a
   parameter declares what is drawn through it — is unchanged and still held by
-  `internal/check`; with `protocol` the only tier role, no checkout of more
-  than one family can satisfy it for a type the built-ins do not carry.
+  `internal/check`. The replacement `relay` family exercises a live-tier
+  family parameter by drawing the carried `Envelope` and `Handle` data types.
 
 - `after`, the session's resume cursor: from `Tunnel.Open` and
   `Channel.After`, from `channel.open` and the `channel.opened` and
@@ -258,9 +265,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
-- Conformance and release gates reject skipped scenarios in a language's
-  required profiles, including absent generated server roles. The matrix
-  keeps the skips visible; optional profiles retain their existing tier policy.
+- Conformance and release gates treat skipped scenarios in required profiles as
+  failures under that language's tier policy, including absent generated server
+  roles. The matrix keeps the skips visible; optional profiles retain their
+  existing tier policy.
 - Generated TypeScript methods with no request and a live callback result
   validate the empty request correctly in both client and server bindings.
 
@@ -285,6 +293,9 @@ are one number. Entries are in the words of the commits that landed them.
   reject incorrect values that merely begin with the expected output.
 - Generated live conformance waits for the server's attachment before reverse
   calls, within the driver's deadline, instead of racing a successful dial.
+- Generated higher-order callables convert their own request and result through
+  the live scope in both languages, so a callable may take or return another
+  callable without losing its binding during JSON encoding.
 - Worktree cleanup removes empty unregistered leftover directories and their
   branches, while preserving nonempty unregistered directories.
 - Carried built-ins used as union payloads remain local to their family in

@@ -7,6 +7,10 @@ client's manifest (`DefaultRuntimeVersion` in
 of every Go module nested in it. They move together, and a test in the fast
 tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
 
+This is the current lockstep release policy. The 0.5.0 removal of the governed
+session layer is a clean break under [COLLABORATION.md](COLLABORATION.md), not
+a permanent compatibility policy for consumers of future releases.
+
 ## What is published
 
 - **npm**: every package under `*/ts`, in the `@nightseam` organization,
@@ -24,8 +28,8 @@ tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
   the repository the tarball was built from, and a consumer can check that
   rather than take it.
 - **Go**: the module `github.com/Bitspark/nightseam` at the tag; nothing is
-  uploaded, a tag is the release. `runtime/go`, `duplex/go` and `tunnel/go`
-  are its importable packages, with their sub-packages — `duplex/go/ws`,
+  uploaded, a tag is the release. `runtime/go`, `duplex/go`, `tunnel/go` and
+  `live/go` are its importable packages, with their sub-packages — `duplex/go/ws`,
   `runtime/go/slogobserver`, and the suite `duplex/go/duplextest`.
   `cmd/nightseam` is what a consumer adds as a Go tool.
 - **Go, nested**: a component that depends on what the core module may not
@@ -62,16 +66,20 @@ that names another commit.
 1. Start a release issue and its own worktree from `origin/main`, following
    [COLLABORATION.md](COLLABORATION.md). Keep the release scope fixed while
    preparing it; unfinished feature lanes may continue in their own
-   worktrees. Hold the candidate to both tiers: `go test -short ./...`,
+   worktrees. Install with `pnpm install --frozen-lockfile` and hold the
+   candidate to root vet and both tiers: `go vet ./...`, `go test -short ./...`,
    `go test ./...`,
-   `pnpm -r check && pnpm -r build && pnpm -r test`,
+   `pnpm format:check && pnpm -r check && pnpm -r build && pnpm -r test`,
    `node scripts/matrix-table.mjs --check`, and `go vet ./... && go test ./...` in
    each nested Go module — `otel/go` — which the root module's `./...` does
-   not enter. The conformance suite runs with the first of those and writes
+   not enter. The conformance suite runs with the full tier and writes
    `conformance/matrix.json`; commit it with whatever moved it, since the
    release is weighed against the matrix the tag carries. *What a release
-   refuses*, below, says what a red cell does.
-2. Set the version everywhere: `node scripts/version.mjs 0.4.0`. It rewrites
+   refuses*, below, says what a red cell does. Also run the script tests
+   (`node --test 'scripts/*.test.mjs'`), `node scripts/links.mjs`,
+   `node scripts/docs.mjs`, and
+   `go run ./cmd/nightseam --root examples/probe check`, as CI does.
+2. Set the version everywhere: `node scripts/version.mjs 0.5.0`. It rewrites
    every manifest, the generator's constant, every nested module's
    requirement on the root module, and what the getting-started example
    depends on in both languages — a consumer checkout, so it names the
@@ -82,7 +90,9 @@ that names another commit.
    and release notes, then the generated goldens separately, following the
    golden discipline. Move the changelog's *Unreleased* entries under the
    version, describing the behavior at the release cutoff and identifying
-   unfinished features. Land this release preparation through its pull
+   unfinished features. Repeat the checks above after versioning and
+   regeneration, and run the packed installation smoke described below, so
+   they hold the candidate that will land. Land this preparation through its pull
    request with auto-squash; never push `main` directly.
 3. Record the merged release commit, verify it is on `origin/main`, and
    rehearse that exact commit through the release workflow before tagging.
@@ -90,12 +100,12 @@ that names another commit.
    reviewer gate. A later change to `main` does not change the release
    commit. Tag and push that commit once for the root module and once for
    each nested one, the root module's first:
-   `git tag v0.4.0 <release-commit>` and `git push origin v0.4.0`, then
-   `git tag otel/go/v0.4.0 <release-commit>` and
-   `git push origin otel/go/v0.4.0`. The order is
+   `git tag v0.5.0 <release-commit>` and `git push origin v0.5.0`, then
+   `git tag otel/go/v0.5.0 <release-commit>` and
+   `git push origin otel/go/v0.5.0`. The order is
    not a formality. A nested module requires the root module at the release's
-   own number, so `go get github.com/Bitspark/nightseam/otel/go@v0.4.0`
-   resolves only once `v0.4.0` is there to be fetched — the `replace` that
+   own number, so `go get github.com/Bitspark/nightseam/otel/go@v0.5.0`
+   resolves only once `v0.5.0` is there to be fetched — the `replace` that
    makes the requirement resolve in this checkout is the repository's own and
    a consumer ignores a dependency's replace, getting what is required. The
    second tag is what that `go get` names, and it publishes nothing of its
@@ -142,21 +152,22 @@ committed on the tag, which CI holds fresh, since a matrix that drifted fails
 the README's table check — and applies the tier table to it before anything
 is published:
 
-- a red cell in a profile the language's tier **guarantees** is what that
+- a failure or skip in a profile the language's tier **guarantees** is what that
   tier's `onFailure` says. For tiers 1 and 2 it is `stop`: the tag is
   refused. For tiers 3 and 4 it is `provisional`: the release ships and the
   language is named in the notes, under *Languages*, so a consumer reading
   the release learns it without opening the matrix.
-- a red cell **elsewhere** is what the tier's `otherwise` says. Only tier 2
+- a failure **elsewhere** is what the tier's `otherwise` says. Only tier 2
   has one, `stop-next`: the release ships, the notes say the lag has begun,
   and the next release is refused if the cell is still red. Whether it was
   red before is read from the previous `v*` tag's own
   `conformance/matrix.json`, which is why the workflow checks out the whole
   history — a shallow checkout carries no tag to read, and every second
-  failure would pass as a first.
-- a matrix with no row for a language `profiles.json` places at a tier is
-  refused outright: it is the artifact of a run filtered by `-run`, and a tag
-  weighed against one is weighed against a language nobody ran.
+  failure would pass as a first. Optional-profile skips remain informational
+  and do not consume this failure-based lag allowance.
+- a matrix with no row for a language `profiles.json` places at a tier, or no
+  cell for a declared profile, is refused outright: a filtered run can omit
+  coverage, and an absent cell is not evidence that the profile passed.
 
 A first release, and a tag cut before the matrix was committed, both count as
 nothing failing before — so the first red cell outside a tier 2 language's
@@ -180,8 +191,10 @@ packs every published package, copies `examples/probe` — the getting-started,
 and the one consumer both smokes use — out of the workspace, and resolves it
 against the packed shape and nothing else: no `workspace:*` link, no
 `replace` to this checkout. It then type-checks it, builds it, runs the
-server and reads the client's two lines back. It is the only gate that asks
-whether what is published can be *installed*; a `files` field that omits
+server and holds the client's exchange line by line: an RPC reply, an
+event, a supplied callback the server invokes, and a function the server
+returned. It is the only gate that asks whether what is published can be
+*installed*; a `files` field that omits
 `dist`, an `exports` entry naming a path the tarball does not hold, a
 dependency a link satisfied and a registry would not, a Go package that only
 ever resolved through a sibling checkout — each passes everything else here
@@ -189,11 +202,10 @@ and is given at a consumer's install, which is after the tag. It runs on
 every pull request too, in `ci.yml`'s full job, so that a packaging change
 fails the change rather than the release that carries it.
 
-Both smokes also *import* what they install. The example imports only some
-of the published packages, so without more than that the rest of the
-release is packed, installed, held to carrying the files it names, and never
-opened. Every package the release finds is therefore imported from the copied
-consumer at every entry point its `publishConfig.exports` declares — type
+Both smokes also *import* what they install. The example imports the
+packages its generated live client needs. Every package the release finds is
+also imported from the copied consumer at every entry point its
+`publishConfig.exports` declares — type
 checked with library checking on, then loaded by Node — which is what asks the
 questions only a real import answers: a `dist` that imports a package the
 workspace link satisfied and a registry would not, an `exports` condition that
@@ -257,7 +269,7 @@ anything about the tarball that only the registry decides: the name it is
 served under, the files it keeps, the version it resolves `^` to.
 
 By hand, and further from what CI does: `node scripts/release-prepare.mjs
-v0.4.0 --dry-run` checks every spelling of the version and the matrix
+v0.5.0 --dry-run` checks every spelling of the version and the matrix
 against the tier table and writes nothing — without `--dry-run` it also
 copies the license files and writes `release-notes.md` — and
 `pnpm -r publish --dry-run --no-git-checks` shows what each tarball
@@ -270,13 +282,13 @@ asserted: both smokes install that example and run it, so the paragraph below
 is the one the release itself walks. [examples/README.md](examples/README.md)
 is the same thing written for the consumer.
 
-- Go: `go get github.com/Bitspark/nightseam@v0.4.0` and
-  `go get -tool github.com/Bitspark/nightseam/cmd/nightseam@v0.4.0`. The
+- Go: `go get github.com/Bitspark/nightseam@v0.5.0` and
+  `go get -tool github.com/Bitspark/nightseam/cmd/nightseam@v0.5.0`. The
   example requires the module and names the tool in its own `go.mod`, with no
   `replace`: a `replace` to a sibling checkout is for development only, and
   an example carrying one would be an example nobody had installed.
 - Go, the OpenTelemetry adapter:
-  `go get github.com/Bitspark/nightseam/otel/go@v0.4.0`, which brings
+  `go get github.com/Bitspark/nightseam/otel/go@v0.5.0`, which brings
   OpenTelemetry with it — and brings none of it to a consumer that does not
   ask for it, which is why it is a module of its own. The round trip `go
   get`s it into a module of its own for the same reason: nothing the example
@@ -284,8 +296,9 @@ is the same thing written for the consumer.
   depends on the first already being fetchable.
 - npm: the generated clients depend on `@nightseam/runtime` and
   `@nightseam/tunnel` at the version the generator that rendered them
-  carries; the example depends on the same two at the same version, with no
-  `workspace:*`. A workspace override to a sibling checkout is for
+  carries, and on `@nightseam/live` when their family has a live tier. The
+  example depends on all three at that version, with no `workspace:*`.
+  A workspace override to a sibling checkout is for
   development only, and comes out when the packages it stands in for exist.
 
 ## A name npm has not served
@@ -313,19 +326,31 @@ A release that adds a package therefore goes:
 
 1. Rehearse. The rehearsal names it — `first publish: @nightseam/…` — and
    publishes nothing.
-2. Create the granular token and store it as the `NPM_TOKEN` secret.
+2. Create the [granular token](https://docs.npmjs.com/creating-and-viewing-access-tokens/)
+   with **Read and write (publish and stage)** permission for the
+   `@nightseam` scope under **Packages and scopes**, **Bypass two-factor
+   authentication** enabled, and one day's expiry. Store it as the
+   `NPM_TOKEN` secret in this repository's `release` environment.
 3. Tag. The new name goes up by the token, the established ones by their
    trusted publishers.
-4. Give the new package this repository's `release.yml` in the `release`
-   environment as its trusted publisher, and delete the secret again. The next
-   release publishes every name by OIDC, and `first-publish.mjs` says so.
+4. In the new package's npm settings, add a
+   [trusted publisher](https://docs.npmjs.com/trusted-publishers/) for
+   organization `Bitspark`, repository `nightseam`, workflow `release.yml`,
+   environment `release`, with direct `npm publish` allowed. This setup
+   requires the maintainer's npm login and
+   [interactive two-factor authentication](https://docs.npmjs.com/cli/v12/commands/npm-trust/#prerequisites);
+   the bootstrap token cannot configure it. Then revoke the
+   bootstrap token and delete the `NPM_TOKEN` secret. The next release
+   publishes every name by OIDC. `first-publish.mjs` verifies that names
+   exist; it does not verify their trusted-publisher configuration.
 
 ## Once, before the first release
 
 - The `@nightseam` organization exists on npm. The first publish of each
   package name is made with a granular access token — read and write on the
-  `@nightseam` scope alone, one day's expiry — stored as the `NPM_TOKEN`
-  secret for that one run, because npm's trusted publishing is configured on
+  `@nightseam` scope alone, one day's expiry and the publishing permissions
+  above — stored as the `NPM_TOKEN` secret for that one run, because npm's
+  trusted publishing is configured on
   a package that already exists. Once they exist, each is given this
   repository's `release.yml` in the `release` environment as its trusted
   publisher, the secret is deleted, and every later publish authenticates
