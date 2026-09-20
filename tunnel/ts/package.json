@@ -1,6 +1,6 @@
 {
   "name": "@nightseam/tunnel",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Channels multiplexed over one peer of the nightseam.duplex/1 profile, each a connection of the seam, with per-channel credit.",
   "license": "Apache-2.0",
   "author": "Bitspark",

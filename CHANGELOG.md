@@ -6,6 +6,8 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+## 0.5.0 - 2026-09-21
+
 ### Clarified
 
 - The refusal decision illustrates its rule with `*runtime.PublicError`,
@@ -13,9 +15,9 @@ are one number. Entries are in the words of the commits that landed them.
   packages' `IsError` helper. It replaces the removed `session.Error` example
   and its fixed vocabulary count while preserving the rule and its reasoning.
 
-- The tiers page records that the TypeScript target renders both generated
-  roles since #315, that no `generator` cell holds a skip, and that the gate's
-  tolerance of skips — not an absent TypeScript binding — is what #295 closes.
+- The tiers page records both generated TypeScript roles and distinguishes
+  required-profile skips, which follow the tier's release policy, from
+  informational optional-profile skips.
 
 - The tiers page names the live profile beside the four it had, and its
   table is held to `conformance/profiles.json`, so the page a release reads

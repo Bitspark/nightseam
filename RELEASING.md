@@ -152,21 +152,22 @@ committed on the tag, which CI holds fresh, since a matrix that drifted fails
 the README's table check — and applies the tier table to it before anything
 is published:
 
-- a red cell in a profile the language's tier **guarantees** is what that
+- a failure or skip in a profile the language's tier **guarantees** is what that
   tier's `onFailure` says. For tiers 1 and 2 it is `stop`: the tag is
   refused. For tiers 3 and 4 it is `provisional`: the release ships and the
   language is named in the notes, under *Languages*, so a consumer reading
   the release learns it without opening the matrix.
-- a red cell **elsewhere** is what the tier's `otherwise` says. Only tier 2
+- a failure **elsewhere** is what the tier's `otherwise` says. Only tier 2
   has one, `stop-next`: the release ships, the notes say the lag has begun,
   and the next release is refused if the cell is still red. Whether it was
   red before is read from the previous `v*` tag's own
   `conformance/matrix.json`, which is why the workflow checks out the whole
   history — a shallow checkout carries no tag to read, and every second
-  failure would pass as a first.
-- a matrix with no row for a language `profiles.json` places at a tier is
-  refused outright: it is the artifact of a run filtered by `-run`, and a tag
-  weighed against one is weighed against a language nobody ran.
+  failure would pass as a first. Optional-profile skips remain informational
+  and do not consume this failure-based lag allowance.
+- a matrix with no row for a language `profiles.json` places at a tier, or no
+  cell for a declared profile, is refused outright: a filtered run can omit
+  coverage, and an absent cell is not evidence that the profile passed.
 
 A first release, and a tag cut before the matrix was committed, both count as
 nothing failing before — so the first red cell outside a tier 2 language's

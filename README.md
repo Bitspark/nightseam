@@ -123,11 +123,11 @@ Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2; `java
 The table is the last conformance run, rendered from
 `conformance/matrix.json` by `node scripts/matrix-table.mjs`; CI fails a pull
 request whose table has drifted from the matrix, as `nightseam check` fails
-one whose generated output is stale. `ok` means the current gate found no
-failures in required profiles; it accepts skips and does not certify that
-every generated role exists. A red cell in a profile the language's
-tier guarantees refuses a release; elsewhere it is what the tier's lag
-allows. What CI runs is the star — every language against the Go reference on
+one whose generated output is stale. `ok` means the gate found neither failures
+nor skips in profiles required by that language's tier. Required-profile
+failures and skips follow the tier's release policy; failures elsewhere follow
+its lag policy, while optional-profile skips remain informational.
+What CI runs is the star — every language against the Go reference on
 both sides, which is the gate a language passes to have joined; the full
 matrix of every language against every other runs nightly, and a scenario two
 non-reference languages disagree about becomes an issue against the scenario,
