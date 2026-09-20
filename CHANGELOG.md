@@ -14,6 +14,11 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- A shared generated forwarding proof carries higher-order functions through
+  Go and TypeScript intermediaries over two socket connections, checks retained
+  results and four registry counts, and distinguishes typed conversion from
+  raw forwarding and independent binding release.
+
 - The declaration proof lists the selected wire and native API commitments,
   their executable evidence and the limits of bounded example synthesis.
 - Generic data containers can carry live values when applied in the live tier.

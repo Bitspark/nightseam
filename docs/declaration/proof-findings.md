@@ -32,24 +32,25 @@ stands in for an output the target does not produce.
 
 ## Generated roles and skips
 
-The checked-in [matrix](../../conformance/matrix.json), after the generic
-live-container lane #254, records 16 Go generator passes and no skips,
-and 17 TypeScript generator passes with 15 skips; neither has failures.
+The checked-in [matrix](../../conformance/matrix.json), including the generic
+live-container and higher-order forwarding scenarios, records 18 Go generator
+passes and no skips, and 19 TypeScript generator passes with 17 skips;
+neither has failures.
 These counts describe that scenario set, not a permanent expected total.
 [`TestGenerated`](../../conformance/go/conformance_test.go) runs Go/Go,
-Go/TypeScript and TypeScript/Go. Each pair attempts the 11 scenario files
-below, five again with driver sides exchanged by `mirror: true`.
+Go/TypeScript and TypeScript/Go. Each pair attempts the 12 scenario files
+below, six again with driver sides exchanged by `mirror: true`.
 
 | Driver pair (`a` / `b`) | Passed / skipped | Generated code exercised |
 |---|---|---|
-| Go / Go | 16 / 0 | Go client and Go server binding, including mirrored roles |
-| Go / TypeScript | 11 / 5 | Go binding and TypeScript client; mirrored server attempts in TypeScript skip |
-| TypeScript / Go | 6 / 10 | Five mirrored Go-binding/TypeScript-client runs and the names/domain case; base server attempts in TypeScript skip |
+| Go / Go | 18 / 0 | Go client and Go server binding, including mirrored roles |
+| Go / TypeScript | 12 / 6 | Go binding and TypeScript client; mirrored server attempts in TypeScript skip |
+| TypeScript / Go | 7 / 11 | Six mirrored Go-binding/TypeScript-client runs and the names/domain case; base server attempts in TypeScript skip |
 
 The TypeScript row combines both cross-language pairs. The names/domain
 case runs generated names and validators on both sides without a binding;
-it passes in every pair. The remaining ten files need a server binding.
-All 15 skipped attempts reach one of these TypeScript operations:
+it passes in every pair. The remaining eleven files need a server binding.
+All 17 skipped attempts reach one of these TypeScript operations:
 
 | Missing generated operation and testee | Scenarios | Skips across both cross-language pairs |
 |---|---|---|
@@ -57,13 +58,19 @@ All 15 skipped attempts reach one of these TypeScript operations:
 | `gen.proof_serve` in [proof.ts](../../conformance/ts/generated/proof.ts) | [proof-generics](../../conformance/scenarios/generated/proof-generics.json), [proof-side-extends](../../conformance/scenarios/generated/proof-side-extends.json), [proof-unions](../../conformance/scenarios/generated/proof-unions.json), all mirrored | 6 |
 | `gen.live_serve` in [live.ts](../../conformance/ts/generated/live.ts) | [live-callback-and-result](../../conformance/scenarios/generated/live-callback-and-result.json), [live-higher-order](../../conformance/scenarios/generated/live-higher-order.json), [live-nested-values](../../conformance/scenarios/generated/live-nested-values.json) | 3 |
 | `gen.combinator_serve` in [combinator.ts](../../conformance/ts/generated/combinator.ts) | [live-higher-order-callables](../../conformance/scenarios/generated/live-higher-order-callables.json), [live-generic-containers](../../conformance/scenarios/generated/live-generic-containers.json) | 2 |
+| `gen.forwarding_serve` in [forwarding.ts](../../conformance/ts/generated/forwarding.ts) | [live-higher-order-forwarding](../../conformance/scenarios/generated/live-higher-order-forwarding.json), mirrored | 2 |
 
 Each operation refuses with `unsupported` because the target renders no
 binding. A mirrored file contributes two skips across the two pairs; an
-unmirrored server-dependent file contributes one. The eleventh file,
+unmirrored server-dependent file contributes one. The twelfth file,
 [proof-names-and-domain](../../conformance/scenarios/generated/proof-names-and-domain.json),
 contributes none. This accounts for the complete skipped count without
 substituting handwritten TypeScript server behavior.
+
+The forwarding scenario uses generated Go endpoint bindings with a
+test-only retain route that calls generated `ImportToolkit`, and generated
+converters at a Go or TypeScript intermediary across two connections. Its
+canned transport route does not claim a new generated server API.
 
 Both runtimes can initiate and handle RPC and export live callables. The
 generated TypeScript client also supplies typed reverse-call handlers and

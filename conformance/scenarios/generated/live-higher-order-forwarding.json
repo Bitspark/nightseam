@@ -1,0 +1,27 @@
+{
+  "name": "generated higher-order values are translated across two connection scopes",
+  "layer": "generated",
+  "needs": ["generated"],
+  "mirror": true,
+  "description": "A and C are separate socket endpoints in one testee; B, in the other, imports A's generated Toolkit and exports its typed functions into C's connection. Callable requests and results are converted recursively. Go endpoints use the generated combinator binding plus a test-only retain handler that calls generated ImportToolkit. This proves generated callable conversion with a Go or TypeScript intermediary, not TypeScript server-binding generation or raw-byte recursive forwarding.",
+  "steps": [
+    {"on":"a","op":"gen.forwarding_serve","bind":{"handle":"origin","url":"origin_url"}},
+    {"on":"a","op":"gen.forwarding_serve","bind":{"handle":"destination","url":"destination_url"}},
+    {"on":"b","op":"gen.forwarding_dial","args":{"origin":"$origin_url","destination":"$destination_url"},"bind":"middle","expect":{"different_nonces":true}},
+    {"on":"b","op":"gen.forwarding_await_counts","args":{"on":"$middle","counts":{"origin":{"exports":0,"imports":3},"destination":{"exports":3,"imports":0}}}},
+    {"on":"a","op":"gen.forwarding_capture","args":{"on":"$destination"},"note":"the RPC that supplied the record is over; call its factory and producer and keep their results, and supply a callback to its sink"},
+    {"on":"a","op":"gen.forwarding_invoke","args":{"on":"$destination","with":5,"identity_with":9},"expect":{"twice":7,"identity":9},"note":"both calls that returned these functions have already ended"},
+    {"on":"a","op":"gen.forwarding_applied","args":{"on":"$origin"},"expect":{"values":[30]}},
+    {"on":"a","op":"gen.forwarding_await_counts","args":{"on":"$origin","counts":{"exports":5,"imports":2}}},
+    {"on":"a","op":"gen.forwarding_await_counts","args":{"on":"$destination","counts":{"exports":2,"imports":5}}},
+    {"on":"b","op":"gen.forwarding_await_counts","args":{"on":"$middle","counts":{"origin":{"exports":2,"imports":5},"destination":{"exports":5,"imports":2}}}},
+    {"on":"b","op":"gen.forwarding_release_destination","args":{"on":"$middle"},"note":"release only the destination's exported factory binding"},
+    {"on":"b","op":"gen.forwarding_origin_alive","args":{"on":"$middle"},"expect":{"value":21},"note":"the original factory still calls the supplied x+10 twice"},
+    {"on":"b","op":"gen.forwarding_release_origin","args":{"on":"$middle"},"note":"release the origin's producer while its destination wrapper remains exported"},
+    {"on":"a","op":"gen.forwarding_origin_refusal","args":{"on":"$destination"},"expect":{"error":{"code":"reference_released"}}},
+    {"on":"a","op":"gen.forwarding_invoke","args":{"on":"$destination","with":8,"identity_with":11},"expect":{"twice":10,"identity":11},"note":"earlier returned functions are independent bindings, still retained on both open connections"},
+    {"on":"a","op":"gen.forwarding_await_counts","args":{"on":"$origin","counts":{"exports":5,"imports":3}}},
+    {"on":"a","op":"gen.forwarding_await_counts","args":{"on":"$destination","counts":{"exports":2,"imports":4}}},
+    {"on":"b","op":"gen.forwarding_await_counts","args":{"on":"$middle","counts":{"origin":{"exports":3,"imports":5},"destination":{"exports":4,"imports":2}}},"note":"counts are observed before any peer closes; retained child bindings are visible, not reclaimed by claiming parent release is recursive"}
+  ]
+}
