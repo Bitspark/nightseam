@@ -237,15 +237,7 @@ func ImportNotice(owner *live.Owner, raw json.RawMessage) (Notice, error) {
 	if err != nil {
 		return nil, err
 	}
-	scope := owner.Scope()
 	return func(ctx context.Context, params Payload) error {
-		owner := scope.Owner()
-		if supplied, ok := live.OwnerOf(ctx); ok {
-			if supplied.Scope() != owner.Scope() {
-				return &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
-			}
-			owner = supplied
-		}
 		request, err := runtime.MarshalJSON(params)
 		if err == nil {
 			err = schema.ValidateExpressionRaw(MustTypeExpression("\"Payload\""), request)
@@ -303,15 +295,7 @@ func ImportStop(owner *live.Owner, raw json.RawMessage) (Stop, error) {
 	if err != nil {
 		return nil, err
 	}
-	scope := owner.Scope()
 	return func(ctx context.Context) error {
-		owner := scope.Owner()
-		if supplied, ok := live.OwnerOf(ctx); ok {
-			if supplied.Scope() != owner.Scope() {
-				return &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
-			}
-			owner = supplied
-		}
 		result, err := invoke(ctx, nil)
 		if err != nil {
 			return err

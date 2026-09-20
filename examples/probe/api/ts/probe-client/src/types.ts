@@ -2,7 +2,6 @@
 import { createValidator, type AnyFamily, type FamilyBinding, type TypeBinding, type Slots, type TypeExpression, type WireFamily } from "@nightseam/runtime";
 export type { AnyFamily, FamilyBinding, TypeBinding, Slots, TypeExpression };
 import type { LiveOwner } from "@nightseam/live";
-import { DuplexError } from "@nightseam/runtime";
 /** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */
 export interface Envelope {
   /** The profile's version, 1. */
@@ -89,8 +88,7 @@ export function importNotice(owner: LiveOwner, raw: unknown): Notice {
   const invoke = owner.import(owner.scope.decode(raw), contractNotice);
   const scope = owner.scope;
   return async (request: Payload, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
-    const owner = options?.owner ?? scope.owner();
-    if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection');
+    const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
     const sent = (() => { const converted = request; validateWire("Payload", converted); return converted; })();
     await invoke(sent, options);
     return;
@@ -116,8 +114,7 @@ export function importStop(owner: LiveOwner, raw: unknown): Stop {
   const invoke = owner.import(owner.scope.decode(raw), contractStop);
   const scope = owner.scope;
   return async (options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
-    const owner = options?.owner ?? scope.owner();
-    if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection');
+    const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
     await invoke(undefined, options);
     return;
   };

@@ -2,7 +2,6 @@
 import { createValidator, type AnyFamily, type FamilyBinding, type TypeBinding, type Slots, type TypeExpression, type WireFamily } from "@nightseam/runtime";
 export type { AnyFamily, FamilyBinding, TypeBinding, Slots, TypeExpression };
 import type { LiveOwner } from "@nightseam/live";
-import { DuplexError } from "@nightseam/runtime";
 /** Asks the job to stop. Releasing a reference to it is not this, and cancelling the call that returned it is neither. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
 export type Cancel = (options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<void>;
@@ -98,8 +97,7 @@ export function importCancel(owner: LiveOwner, raw: unknown): Cancel {
   const invoke = owner.import(owner.scope.decode(raw), contractCancel);
   const scope = owner.scope;
   return async (options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
-    const owner = options?.owner ?? scope.owner();
-    if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection');
+    const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
     await invoke(undefined, options);
     return;
   };
@@ -186,8 +184,7 @@ export function importRename(owner: LiveOwner, raw: unknown): Rename {
   const invoke = owner.import(owner.scope.decode(raw), contractRename);
   const scope = owner.scope;
   return async (request: Ticket, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
-    const owner = options?.owner ?? scope.owner();
-    if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection');
+    const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
     const sent = (() => { const converted = request; validateWire("Ticket", converted); return converted; })();
     const result = await invoke(sent, options);
     validateWire("Ticket", result);
@@ -216,8 +213,7 @@ export function importReport(owner: LiveOwner, raw: unknown): Report {
   const invoke = owner.import(owner.scope.decode(raw), contractReport);
   const scope = owner.scope;
   return async (request: Percent, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
-    const owner = options?.owner ?? scope.owner();
-    if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection');
+    const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
     const sent = (() => { const converted = request; validateWire("Percent", converted); return converted; })();
     await invoke(sent, options);
     return;

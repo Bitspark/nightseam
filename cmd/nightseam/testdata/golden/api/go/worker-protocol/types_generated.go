@@ -293,15 +293,7 @@ func ImportCancel(owner *live.Owner, raw json.RawMessage) (Cancel, error) {
 	if err != nil {
 		return nil, err
 	}
-	scope := owner.Scope()
 	return func(ctx context.Context) error {
-		owner := scope.Owner()
-		if supplied, ok := live.OwnerOf(ctx); ok {
-			if supplied.Scope() != owner.Scope() {
-				return &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
-			}
-			owner = supplied
-		}
 		result, err := invoke(ctx, nil)
 		if err != nil {
 			return err
@@ -613,16 +605,8 @@ func ImportRename(owner *live.Owner, raw json.RawMessage) (Rename, error) {
 	if err != nil {
 		return nil, err
 	}
-	scope := owner.Scope()
 	return func(ctx context.Context, params Ticket) (Ticket, error) {
-		owner := scope.Owner()
 		var zero Ticket
-		if supplied, ok := live.OwnerOf(ctx); ok {
-			if supplied.Scope() != owner.Scope() {
-				return zero, &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
-			}
-			owner = supplied
-		}
 		request, err := runtime.MarshalJSON(params)
 		if err == nil {
 			err = schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), request)
@@ -707,15 +691,7 @@ func ImportReport(owner *live.Owner, raw json.RawMessage) (Report, error) {
 	if err != nil {
 		return nil, err
 	}
-	scope := owner.Scope()
 	return func(ctx context.Context, params Percent) error {
-		owner := scope.Owner()
-		if supplied, ok := live.OwnerOf(ctx); ok {
-			if supplied.Scope() != owner.Scope() {
-				return &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
-			}
-			owner = supplied
-		}
 		request, err := runtime.MarshalJSON(params)
 		if err == nil {
 			err = schema.ValidateExpressionRaw(MustTypeExpression("\"Percent\""), request)

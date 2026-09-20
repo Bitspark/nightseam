@@ -4,7 +4,6 @@ export type { AnyFamily, FamilyBinding, TypeBinding, Slots, TypeExpression };
 import type * as boxes from "@example/boxes-client";
 import { validateWire as validate_boxes } from "@example/boxes-client";
 import type { LiveOwner } from "@nightseam/live";
-import { DuplexError } from "@nightseam/runtime";
 import * as live_boxes from "@example/boxes-client";
 export interface Bundle<T = unknown> {
   "metadata": BundleMetadata<T>;
@@ -124,8 +123,7 @@ export function importFactory(owner: LiveOwner, raw: unknown): Factory {
   const invoke = owner.import(owner.scope.decode(raw), contractFactory);
   const scope = owner.scope;
   return async (request: Unary, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
-    const owner = options?.owner ?? scope.owner();
-    if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection');
+    const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
     const sent = owner.exportValue((owner) => { const converted = exportUnary(owner, (request) as Unary); validateWire("Unary", converted); return converted; });
     const result = await invoke(sent, options);
     validateWire("Unary", result);
@@ -152,8 +150,7 @@ export function importProducer(owner: LiveOwner, raw: unknown): Producer {
   const invoke = owner.import(owner.scope.decode(raw), contractProducer);
   const scope = owner.scope;
   return async (options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
-    const owner = options?.owner ?? scope.owner();
-    if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection');
+    const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
     const result = await invoke(undefined, options);
     validateWire("Unary", result);
     return owner.importValue((owner) => importUnary(owner, result));
@@ -181,8 +178,7 @@ export function importSink(owner: LiveOwner, raw: unknown): Sink {
   const invoke = owner.import(owner.scope.decode(raw), contractSink);
   const scope = owner.scope;
   return async (request: Unary, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
-    const owner = options?.owner ?? scope.owner();
-    if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection');
+    const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
     const sent = owner.exportValue((owner) => { const converted = exportUnary(owner, (request) as Unary); validateWire("Unary", converted); return converted; });
     await invoke(sent, options);
     return;
@@ -231,8 +227,7 @@ export function importUnary(owner: LiveOwner, raw: unknown): Unary {
   const invoke = owner.import(owner.scope.decode(raw), contractUnary);
   const scope = owner.scope;
   return async (request: Count, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
-    const owner = options?.owner ?? scope.owner();
-    if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection');
+    const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
     const sent = (() => { const converted = request; validateWire("Count", converted); return converted; })();
     const result = await invoke(sent, options);
     validateWire("Count", result);

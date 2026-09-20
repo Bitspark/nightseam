@@ -126,11 +126,8 @@ func (c *Client) Relieve(ctx context.Context, params protocol.RelieveRequest) (p
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
 	owner, ok := live.OwnerOf(ctx)
-	if !ok {
+	if !ok || owner.Scope() != scope {
 		owner = scope.Owner()
-	}
-	if owner.Scope() != scope {
-		return result, &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
 	}
 	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 		var zero json.RawMessage
@@ -167,11 +164,8 @@ func (c *Client) Watch(ctx context.Context, params protocol.Watch) (workerprotoc
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
 	owner, ok := live.OwnerOf(ctx)
-	if !ok {
+	if !ok || owner.Scope() != scope {
 		owner = scope.Owner()
-	}
-	if owner.Scope() != scope {
-		return result, &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
 	}
 	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 		var zero json.RawMessage
