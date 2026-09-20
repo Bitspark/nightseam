@@ -46,6 +46,7 @@ both, and says so at the top.
 | [A specification has a document, and renderers of it](a-specification-has-a-document-and-renderers-of-it.md) | [declarative](../goals/declarative.md), [extensibility](../goals/extensibility.md), [configurability](../goals/configurability.md), [agnosticism](../goals/agnosticism.md) | #154, #155, #156, #157 |
 | [One reference form](one-reference-form.md) | [declarative](../goals/declarative.md) | v2 |
 | [A callable is a declared kind, and its identity is its declaration](a-callable-is-a-declared-kind.md) | [declarative](../goals/declarative.md), [agnosticism](../goals/agnosticism.md) | 0.5.0, #201 |
+| [An owner is a lifetime the caller supplies](an-owner-is-a-lifetime-the-caller-supplies.md) | [boundary](../goals/boundary.md), [composability](../goals/composability.md) | 0.5.0, #257 |
 | [A tier is a built-in family](a-tier-is-a-built-in-family.md) | [declarative](../goals/declarative.md), [boundary](../goals/boundary.md) | 0.4.0, #62 |
 | [A side may extend another family's](a-side-may-extend-another-familys.md) | [composability](../goals/composability.md) | 0.4.0, #61 |
 | [One parameter mechanism, of two sorts](one-parameter-mechanism-of-two-sorts.md) | [declarative](../goals/declarative.md), [agnosticism](../goals/agnosticism.md) | 0.4.0, #57 and #59 |

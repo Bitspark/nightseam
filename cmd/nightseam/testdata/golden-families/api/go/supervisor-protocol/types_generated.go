@@ -95,14 +95,14 @@ type RelieveRequest struct {
 	Sink  workerprotocol.ProgressSink `json:"sink"`
 }
 
-// MarshalJSON refuses: RelieveRequest carries a callable, and a live value has no encoding apart from the scope its bindings belong to.
+// MarshalJSON refuses: RelieveRequest carries a callable, and a live value has no encoding apart from the owner its bindings belong to.
 func (v RelieveRequest) MarshalJSON() ([]byte, error) {
-	return nil, fmt.Errorf("RelieveRequest carries a callable; write it with ExportRelieveRequest, which takes the live scope its bindings are made in")
+	return nil, fmt.Errorf("RelieveRequest carries a callable; write it with ExportRelieveRequest, which takes the live owner its bindings are made in")
 }
 
-// UnmarshalJSON refuses for the same reason: a reference resolves in a scope or nowhere.
+// UnmarshalJSON refuses for the same reason: a reference resolves in a owner or nowhere.
 func (v *RelieveRequest) UnmarshalJSON(data []byte) error {
-	return fmt.Errorf("RelieveRequest carries a callable; read it with ImportRelieveRequest, which takes the live scope its references resolve in")
+	return fmt.Errorf("RelieveRequest carries a callable; read it with ImportRelieveRequest, which takes the live owner its references resolve in")
 }
 func (RelieveRequest) Of() Tag { return Tag{} }
 func (RelieveRequest) WireType() runtime.TypeBinding {
@@ -149,26 +149,26 @@ type Watch struct {
 	Spares runtime.Optional[[]workerprotocol.ProgressSink] `json:"spares,omitzero"`
 }
 
-// MarshalJSON refuses: Watch carries a callable, and a live value has no encoding apart from the scope its bindings belong to.
+// MarshalJSON refuses: Watch carries a callable, and a live value has no encoding apart from the owner its bindings belong to.
 func (v Watch) MarshalJSON() ([]byte, error) {
-	return nil, fmt.Errorf("Watch carries a callable; write it with ExportWatch, which takes the live scope its bindings are made in")
+	return nil, fmt.Errorf("Watch carries a callable; write it with ExportWatch, which takes the live owner its bindings are made in")
 }
 
-// UnmarshalJSON refuses for the same reason: a reference resolves in a scope or nowhere.
+// UnmarshalJSON refuses for the same reason: a reference resolves in a owner or nowhere.
 func (v *Watch) UnmarshalJSON(data []byte) error {
-	return fmt.Errorf("Watch carries a callable; read it with ImportWatch, which takes the live scope its references resolve in")
+	return fmt.Errorf("Watch carries a callable; read it with ImportWatch, which takes the live owner its references resolve in")
 }
 func (Watch) Of() Tag { return Tag{} }
 func (Watch) WireType() runtime.TypeBinding {
 	return runtime.TypeBinding{Schema: schema, Type: "Watch"}
 }
 
-// ExportRelieveRequest writes RelieveRequest as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place.
-func ExportRelieveRequest(scope *live.Scope, v RelieveRequest) (json.RawMessage, error) {
-	if scope == nil {
-		return nil, fmt.Errorf("RelieveRequest: a live value is exported into a scope")
+// ExportRelieveRequest writes RelieveRequest as it travels: each callable in it becomes a binding of the owner, and the reference that names it takes its place.
+func ExportRelieveRequest(owner *live.Owner, v RelieveRequest) (json.RawMessage, error) {
+	if owner == nil {
+		return nil, fmt.Errorf("RelieveRequest: a live value is exported into an owner")
 	}
-	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 		wire := map[string]json.RawMessage{}
 		var shiftMember json.RawMessage
 		shiftMemberConverted, err := runtime.MarshalJSON(v.Shift)
@@ -178,7 +178,7 @@ func ExportRelieveRequest(scope *live.Scope, v RelieveRequest) (json.RawMessage,
 		shiftMember = shiftMemberConverted
 		wire["shift"] = shiftMember
 		var sinkMember json.RawMessage
-		sinkMemberConverted, err := workerprotocol.ExportProgressSink(scope, v.Sink)
+		sinkMemberConverted, err := workerprotocol.ExportProgressSink(owner, v.Sink)
 		if err != nil {
 			return nil, err
 		}
@@ -196,45 +196,57 @@ func ExportRelieveRequest(scope *live.Scope, v RelieveRequest) (json.RawMessage,
 }
 
 // ImportRelieveRequest reads RelieveRequest as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
-func ImportRelieveRequest(scope *live.Scope, raw json.RawMessage) (RelieveRequest, error) {
+func ImportRelieveRequest(owner *live.Owner, raw json.RawMessage) (RelieveRequest, error) {
 	var value RelieveRequest
-	if scope == nil {
-		return value, fmt.Errorf("RelieveRequest: a live value is imported into a scope")
+	if owner == nil {
+		return value, fmt.Errorf("RelieveRequest: a live value is imported into an owner")
 	}
-	if err := schema.ValidateExpressionRaw(runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"shift\",\"type\":\"Shift\",\"required\":true},{\"name\":\"sink\",\"type\":\"worker.ProgressSink\",\"required\":true}]}"), raw); err != nil {
-		return value, err
-	}
-	var wire map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &wire); err != nil {
-		return value, err
-	}
-	if member, present := wire["shift"]; present {
-		var held Shift
-		var heldConverted Shift
-		if err := json.Unmarshal(member, &heldConverted); err != nil {
-			return value, err
-		}
-		held = heldConverted
-		value.Shift = held
-	}
-	if member, present := wire["sink"]; present {
-		var held workerprotocol.ProgressSink
-		heldConverted, err := workerprotocol.ImportProgressSink(scope, member)
-		if err != nil {
-			return value, err
-		}
-		held = heldConverted
-		value.Sink = held
+	err := owner.ImportValue(func(owner *live.Owner) error {
+		converted, err := func() (RelieveRequest, error) {
+			var value RelieveRequest
+			if err := schema.ValidateExpressionRaw(runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"shift\",\"type\":\"Shift\",\"required\":true},{\"name\":\"sink\",\"type\":\"worker.ProgressSink\",\"required\":true}]}"), raw); err != nil {
+				return value, err
+			}
+			var wire map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &wire); err != nil {
+				return value, err
+			}
+			if member, present := wire["shift"]; present {
+				var held Shift
+				var heldConverted Shift
+				if err := json.Unmarshal(member, &heldConverted); err != nil {
+					return value, err
+				}
+				held = heldConverted
+				value.Shift = held
+			}
+			if member, present := wire["sink"]; present {
+				var held workerprotocol.ProgressSink
+				heldConverted, err := workerprotocol.ImportProgressSink(owner, member)
+				if err != nil {
+					return value, err
+				}
+				held = heldConverted
+				value.Sink = held
+			}
+			return value, nil
+		}()
+		value = converted
+		return err
+	})
+	if err != nil {
+		var zero RelieveRequest
+		return zero, err
 	}
 	return value, nil
 }
 
-// ExportWatch writes Watch as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place.
-func ExportWatch(scope *live.Scope, v Watch) (json.RawMessage, error) {
-	if scope == nil {
-		return nil, fmt.Errorf("Watch: a live value is exported into a scope")
+// ExportWatch writes Watch as it travels: each callable in it becomes a binding of the owner, and the reference that names it takes its place.
+func ExportWatch(owner *live.Owner, v Watch) (json.RawMessage, error) {
+	if owner == nil {
+		return nil, fmt.Errorf("Watch: a live value is exported into an owner")
 	}
-	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 		wire := map[string]json.RawMessage{}
 		var shiftMember json.RawMessage
 		shiftMemberConverted, err := runtime.MarshalJSON(v.Shift)
@@ -244,7 +256,7 @@ func ExportWatch(scope *live.Scope, v Watch) (json.RawMessage, error) {
 		shiftMember = shiftMemberConverted
 		wire["shift"] = shiftMember
 		var sinkMember json.RawMessage
-		sinkMemberConverted, err := workerprotocol.ExportProgressSink(scope, v.Sink)
+		sinkMemberConverted, err := workerprotocol.ExportProgressSink(owner, v.Sink)
 		if err != nil {
 			return nil, err
 		}
@@ -254,7 +266,7 @@ func ExportWatch(scope *live.Scope, v Watch) (json.RawMessage, error) {
 			var member json.RawMessage
 			memberConvertedItems := make([]json.RawMessage, 0, len(v.Spares.Value))
 			for _, item := range v.Spares.Value {
-				element, err := workerprotocol.ExportProgressSink(scope, item)
+				element, err := workerprotocol.ExportProgressSink(owner, item)
 				if err != nil {
 					return nil, err
 				}
@@ -279,52 +291,64 @@ func ExportWatch(scope *live.Scope, v Watch) (json.RawMessage, error) {
 }
 
 // ImportWatch reads Watch as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
-func ImportWatch(scope *live.Scope, raw json.RawMessage) (Watch, error) {
+func ImportWatch(owner *live.Owner, raw json.RawMessage) (Watch, error) {
 	var value Watch
-	if scope == nil {
-		return value, fmt.Errorf("Watch: a live value is imported into a scope")
+	if owner == nil {
+		return value, fmt.Errorf("Watch: a live value is imported into an owner")
 	}
-	if err := schema.ValidateExpressionRaw("Watch", raw); err != nil {
-		return value, err
-	}
-	var wire map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &wire); err != nil {
-		return value, err
-	}
-	if member, present := wire["shift"]; present {
-		var held Shift
-		var heldConverted Shift
-		if err := json.Unmarshal(member, &heldConverted); err != nil {
-			return value, err
-		}
-		held = heldConverted
-		value.Shift = held
-	}
-	if member, present := wire["sink"]; present {
-		var held workerprotocol.ProgressSink
-		heldConverted, err := workerprotocol.ImportProgressSink(scope, member)
-		if err != nil {
-			return value, err
-		}
-		held = heldConverted
-		value.Sink = held
-	}
-	if member, present := wire["spares"]; present && string(member) != "undefined" {
-		var held []workerprotocol.ProgressSink
-		var heldConvertedRaw []json.RawMessage
-		if err := json.Unmarshal(member, &heldConvertedRaw); err != nil {
-			return value, err
-		}
-		heldConverted := make([]workerprotocol.ProgressSink, 0, len(heldConvertedRaw))
-		for _, item := range heldConvertedRaw {
-			element, err := workerprotocol.ImportProgressSink(scope, item)
-			if err != nil {
+	err := owner.ImportValue(func(owner *live.Owner) error {
+		converted, err := func() (Watch, error) {
+			var value Watch
+			if err := schema.ValidateExpressionRaw("Watch", raw); err != nil {
 				return value, err
 			}
-			heldConverted = append(heldConverted, element)
-		}
-		held = heldConverted
-		value.Spares = runtime.Some(held)
+			var wire map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &wire); err != nil {
+				return value, err
+			}
+			if member, present := wire["shift"]; present {
+				var held Shift
+				var heldConverted Shift
+				if err := json.Unmarshal(member, &heldConverted); err != nil {
+					return value, err
+				}
+				held = heldConverted
+				value.Shift = held
+			}
+			if member, present := wire["sink"]; present {
+				var held workerprotocol.ProgressSink
+				heldConverted, err := workerprotocol.ImportProgressSink(owner, member)
+				if err != nil {
+					return value, err
+				}
+				held = heldConverted
+				value.Sink = held
+			}
+			if member, present := wire["spares"]; present && string(member) != "undefined" {
+				var held []workerprotocol.ProgressSink
+				var heldConvertedRaw []json.RawMessage
+				if err := json.Unmarshal(member, &heldConvertedRaw); err != nil {
+					return value, err
+				}
+				heldConverted := make([]workerprotocol.ProgressSink, 0, len(heldConvertedRaw))
+				for _, item := range heldConvertedRaw {
+					element, err := workerprotocol.ImportProgressSink(owner, item)
+					if err != nil {
+						return value, err
+					}
+					heldConverted = append(heldConverted, element)
+				}
+				held = heldConverted
+				value.Spares = runtime.Some(held)
+			}
+			return value, nil
+		}()
+		value = converted
+		return err
+	})
+	if err != nil {
+		var zero Watch
+		return zero, err
 	}
 	return value, nil
 }

@@ -47,11 +47,15 @@ func install(handler Handler, events Events, options *runtime.Options) error {
 	options.Families = families
 	prepare := options.Prepare
 	options.Prepare = func(peer *runtime.Peer) error {
-		if _, err := live.Over(peer, live.Options{}); err != nil {
-			return err
-		}
 		if prepare != nil {
-			return prepare(peer)
+			if err := prepare(peer); err != nil {
+				return err
+			}
+		}
+		if _, ok := live.ScopeOf(peer); !ok {
+			if _, err := live.Over(peer, live.Options{}); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
@@ -118,10 +122,14 @@ func (c *Client) Pack(ctx context.Context, params boxesprotocol.Box[protocol.Una
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+	owner, ok := live.OwnerOf(ctx)
+	if !ok || owner.Scope() != scope {
+		owner = scope.Owner()
+	}
+	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 		var zero json.RawMessage
 		convertedConvert0 := func(input protocol.Unary) (json.RawMessage, error) {
-			converted, err := protocol.ExportUnary(scope, input)
+			converted, err := protocol.ExportUnary(owner, input)
 			if err != nil {
 				return nil, err
 			}
@@ -144,31 +152,43 @@ func (c *Client) Pack(ctx context.Context, params boxesprotocol.Box[protocol.Una
 		return result, err
 	}
 	received, err := func() (boxesprotocol.Batch[protocol.Bundle[protocol.Count]], error) {
-		var zero boxesprotocol.Batch[protocol.Bundle[protocol.Count]]
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"apply\":\"boxes.Batch\",\"with\":{\"T\":{\"apply\":\"Bundle\",\"with\":{\"T\":\"Count\"}}}}"), raw); err != nil {
-			return zero, err
-		}
-		convertedConvert0 := func(input json.RawMessage) (protocol.Bundle[protocol.Count], error) {
-			var zero protocol.Bundle[protocol.Count]
-			convertedConvert0 := func(input json.RawMessage) (protocol.Count, error) {
-				var zero protocol.Count
-				var converted protocol.Count
-				if err := json.Unmarshal(input, &converted); err != nil {
+		var value boxesprotocol.Batch[protocol.Bundle[protocol.Count]]
+		err := owner.ImportValue(func(owner *live.Owner) error {
+			converted, err := func() (boxesprotocol.Batch[protocol.Bundle[protocol.Count]], error) {
+				var zero boxesprotocol.Batch[protocol.Bundle[protocol.Count]]
+				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"apply\":\"boxes.Batch\",\"with\":{\"T\":{\"apply\":\"Bundle\",\"with\":{\"T\":\"Count\"}}}}"), raw); err != nil {
+					return zero, err
+				}
+				convertedConvert0 := func(input json.RawMessage) (protocol.Bundle[protocol.Count], error) {
+					var zero protocol.Bundle[protocol.Count]
+					convertedConvert0 := func(owner *live.Owner, input json.RawMessage) (protocol.Count, error) {
+						var zero protocol.Count
+						var converted protocol.Count
+						if err := json.Unmarshal(input, &converted); err != nil {
+							return zero, err
+						}
+						return converted, nil
+					}
+					converted, err := protocol.ImportBundle[protocol.Count](owner, input, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")})
+					if err != nil {
+						return zero, err
+					}
+					return converted, nil
+				}
+				converted, err := boxesprotocol.ImportBatch[protocol.Bundle[protocol.Count]](raw, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("{\"apply\":\"Bundle\",\"with\":{\"T\":\"Count\"}}")})
+				if err != nil {
 					return zero, err
 				}
 				return converted, nil
-			}
-			converted, err := protocol.ImportBundle[protocol.Count](scope, input, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")})
-			if err != nil {
-				return zero, err
-			}
-			return converted, nil
-		}
-		converted, err := boxesprotocol.ImportBatch[protocol.Bundle[protocol.Count]](raw, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("{\"apply\":\"Bundle\",\"with\":{\"T\":\"Count\"}}")})
+			}()
+			value = converted
+			return err
+		})
 		if err != nil {
+			var zero boxesprotocol.Batch[protocol.Bundle[protocol.Count]]
 			return zero, err
 		}
-		return converted, nil
+		return value, nil
 	}()
 	return received, err
 }
@@ -180,6 +200,10 @@ func (c *Client) Toolkit(ctx context.Context, params protocol.ToolkitRequest) (p
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
+	owner, ok := live.OwnerOf(ctx)
+	if !ok || owner.Scope() != scope {
+		owner = scope.Owner()
+	}
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"seed\",\"type\":\"Count\",\"required\":true}]}"), params); err != nil {
 		return result, err
 	}
@@ -188,15 +212,27 @@ func (c *Client) Toolkit(ctx context.Context, params protocol.ToolkitRequest) (p
 		return result, err
 	}
 	received, err := func() (protocol.Toolkit, error) {
-		var zero protocol.Toolkit
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Toolkit\""), raw); err != nil {
-			return zero, err
-		}
-		converted, err := protocol.ImportToolkit(scope, raw)
+		var value protocol.Toolkit
+		err := owner.ImportValue(func(owner *live.Owner) error {
+			converted, err := func() (protocol.Toolkit, error) {
+				var zero protocol.Toolkit
+				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Toolkit\""), raw); err != nil {
+					return zero, err
+				}
+				converted, err := protocol.ImportToolkit(owner, raw)
+				if err != nil {
+					return zero, err
+				}
+				return converted, nil
+			}()
+			value = converted
+			return err
+		})
 		if err != nil {
+			var zero protocol.Toolkit
 			return zero, err
 		}
-		return converted, nil
+		return value, nil
 	}()
 	return received, err
 }

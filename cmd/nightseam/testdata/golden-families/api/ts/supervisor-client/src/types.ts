@@ -3,7 +3,7 @@ import { createValidator, type AnyFamily, type FamilyBinding, type TypeBinding, 
 export type { AnyFamily, FamilyBinding, TypeBinding, Slots, TypeExpression };
 import type * as worker from "@example/worker-client";
 import { validateWire as validate_worker } from "@example/worker-client";
-import { LiveScope } from "@nightseam/live";
+import type { LiveOwner } from "@nightseam/live";
 import * as live_worker from "@example/worker-client";
 /** One message of the nightseam.duplex/1 profile: the members the peer acts on, and nothing else. */
 export interface Envelope {
@@ -53,41 +53,45 @@ export interface Watch {
 }
 /** The family: its name and the wire types a slot of it draws on. */
 export interface Family { readonly name: "supervisor"; Envelope: Envelope; Handle: Handle; RelieveRequest: RelieveRequest; Shift: Shift; Watch: Watch }
-/** Writes RelieveRequest as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
-export function exportRelieveRequest(scope: LiveScope, value: RelieveRequest): unknown {
-  return scope.exportValue((scope) => {
+/** Writes RelieveRequest as it travels: each callable in it becomes a binding of the owner, and the reference that names it takes its place. */
+export function exportRelieveRequest(owner: LiveOwner, value: RelieveRequest): unknown {
+  return owner.exportValue((owner) => {
     const out: Record<string, unknown> = {};
     out["shift"] = value["shift"];
-    out["sink"] = live_worker.exportProgressSink(scope, (value["sink"]) as worker.ProgressSink);
+    out["sink"] = live_worker.exportProgressSink(owner, (value["sink"]) as worker.ProgressSink);
     return out;
   });
 }
 /** Reads RelieveRequest as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
-export function importRelieveRequest(scope: LiveScope, raw: unknown): RelieveRequest {
-  const wire = raw as Record<string, unknown>;
-  const out: Record<string, unknown> = {};
-  out["shift"] = wire["shift"];
-  out["sink"] = live_worker.importProgressSink(scope, wire["sink"]);
-  return out as unknown as RelieveRequest;
+export function importRelieveRequest(owner: LiveOwner, raw: unknown): RelieveRequest {
+  return owner.importValue((owner) => {
+    const wire = raw as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    out["shift"] = wire["shift"];
+    out["sink"] = live_worker.importProgressSink(owner, wire["sink"]);
+    return out as unknown as RelieveRequest;
+  });
 }
-/** Writes Watch as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
-export function exportWatch(scope: LiveScope, value: Watch): unknown {
-  return scope.exportValue((scope) => {
+/** Writes Watch as it travels: each callable in it becomes a binding of the owner, and the reference that names it takes its place. */
+export function exportWatch(owner: LiveOwner, value: Watch): unknown {
+  return owner.exportValue((owner) => {
     const out: Record<string, unknown> = {};
     out["shift"] = value["shift"];
-    out["sink"] = live_worker.exportProgressSink(scope, (value["sink"]) as worker.ProgressSink);
-    if (value["spares"] !== undefined) out["spares"] = (value["spares"] as unknown[]).map((item) => live_worker.exportProgressSink(scope, (item) as worker.ProgressSink));
+    out["sink"] = live_worker.exportProgressSink(owner, (value["sink"]) as worker.ProgressSink);
+    if (value["spares"] !== undefined) out["spares"] = (value["spares"] as unknown[]).map((item) => live_worker.exportProgressSink(owner, (item) as worker.ProgressSink));
     return out;
   });
 }
 /** Reads Watch as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
-export function importWatch(scope: LiveScope, raw: unknown): Watch {
-  const wire = raw as Record<string, unknown>;
-  const out: Record<string, unknown> = {};
-  out["shift"] = wire["shift"];
-  out["sink"] = live_worker.importProgressSink(scope, wire["sink"]);
-  if (wire["spares"] !== undefined) out["spares"] = (wire["spares"] as unknown[]).map((item) => live_worker.importProgressSink(scope, item));
-  return out as unknown as Watch;
+export function importWatch(owner: LiveOwner, raw: unknown): Watch {
+  return owner.importValue((owner) => {
+    const wire = raw as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    out["shift"] = wire["shift"];
+    out["sink"] = live_worker.importProgressSink(owner, wire["sink"]);
+    if (wire["spares"] !== undefined) out["spares"] = (wire["spares"] as unknown[]).map((item) => live_worker.importProgressSink(owner, item));
+    return out as unknown as Watch;
+  });
 }
 
 const contractTypes = {"types":{"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Shift":{"kind":"record","fields":[{"name":"name","type":"string","required":true}]},"Watch":{"kind":"record","fields":[{"name":"shift","type":"Shift","required":true},{"name":"sink","type":"worker.ProgressSink","required":true},{"name":"spares","type":{"array":"worker.ProgressSink"},"required":false}]}}} as unknown as WireFamily;
