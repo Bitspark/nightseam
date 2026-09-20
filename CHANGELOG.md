@@ -12,11 +12,16 @@ are one number. Entries are in the words of the commits that landed them.
   and connections; release invalidates aliases without counting owners or
   acknowledging remote receipt, forwarding retains its origin dependency, and
   application resume data supplies no automatic binding revival.
-- Generated-role coverage distinguishes Go server bindings from TypeScript
-  clients, accounts for every TypeScript generator skip, and records the
-  unresolved tier-1 release-policy gap without changing the gate.
+- Generated-role coverage maps the Go and TypeScript client and server
+  binding roles to their shared socket scenarios.
 
 ### Added
+
+- TypeScript generates a server-binding package beside each protocol family's
+  client, sharing its types, validators and live converters. `serve` attaches
+  an accepted connection with typed handlers and initial event listeners;
+  `Remote` supplies reverse calls and events. Both package locations are
+  configurable, and the generated conformance testee exercises both roles.
 
 - A shared generated forwarding proof carries higher-order functions through
   Go and TypeScript intermediaries over two socket connections, checks retained

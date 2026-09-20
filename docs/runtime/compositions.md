@@ -194,12 +194,13 @@ whose functions take and return functions. The endpoint invokes retained
 results after the supplying RPCs have ended. The scenario also checks
 separate scope nonces, all four registries' counts before teardown,
 destination release without origin release, and the origin's refusal
-reaching a still-exported destination wrapper. The Go endpoints use
+reaching a still-exported destination wrapper. Both languages' endpoints use
 generated bindings plus a test-only retain route calling the generated
-import helper; unsupported TypeScript endpoint roles remain visible skips.
-This proves generated conversion at declared callable positions, not
-recursive raw-byte forwarding, generated TypeScript server bindings, or
-automatic disposal of all functions returned by a released parent.
+import helper. The mirrored scenario exercises each language as endpoint
+and intermediary. This proves generated conversion at declared callable
+positions; raw-byte forwarding does not recursively translate embedded
+references, and releasing a parent does not automatically dispose of all
+functions it returned.
 
 ## Data needs none of this
 
@@ -267,15 +268,14 @@ Carried payloads now remain local in both languages, and this checkout uses
 counterpart exercise that form; the golden corpus also includes
 `duplex.Envelope` as a variant and compiles both renderings.
 
-One further asymmetry is worth writing down even though it does not survive
-the callable verdict on
-[#201](https://github.com/Bitspark/nightseam/issues/201): the generator
-renders a Go binding and a Go client, and for TypeScript a client alone. On
-*this* basis that decides direction — a callback a TypeScript peer exports has
-to be declared on a family's client side, which is why `sink`'s operations are
-there. Under the settled callable kind a live value is a function the live
-scope dispatches, not a side a generated `Handler` implements, so either peer
-may export one and the asymmetry does not reach the live layer.
+When this composition was written, the TypeScript target rendered a client
+alone, which is why `sink`'s operations were placed on the family's client
+side. Both targets now render a client and a server binding, so either
+language can implement either declared side. The composition retains its
+original declaration. Under the callable verdict on
+[#201](https://github.com/Bitspark/nightseam/issues/201), a live value is a
+function dispatched by the live scope, independent of which side a
+generated `Handler` implements; either peer may export one.
 
 ## What this proves, and what it does not
 
