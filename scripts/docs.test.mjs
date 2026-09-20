@@ -1,11 +1,12 @@
-// What the documentation check reads as coverage and as the decision form, on
-// pages no tree has — an index that lists all but one of a directory, a page
-// reached only by an absolute URL of this repository, a decision missing its
-// serves — because a check first exercised by the page that slips past it is a
-// check nobody has run.
+// What the documentation check reads as coverage, as the decision form and as
+// driver coverage, on pages and scenarios no tree has — an index that lists all
+// but one of a directory, a page reached only by an absolute URL of this
+// repository, a decision missing its serves, an op a scenario drives that
+// DRIVER.md never spells — because a check first exercised by the thing that
+// slips past it is a check nobody has run.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { covered, duplicated, formless, pagesOf, parts, sets, uncovered } from "./docs.mjs";
+import { DRIVER, covered, driven, duplicated, formless, pagesOf, parts, sets, spelled, uncovered, undocumented } from "./docs.mjs";
 
 /** The five parts, as a page in the form spells them. */
 const whole = [
@@ -101,6 +102,57 @@ test("a page recording two verdicts says which why it is, and still has one", ()
   const tracked = new Set(["docs/decisions/two.md"]);
   const two = whole.replace("**Why.**", "**Why this replaces the first verdict.**");
   assert.deepEqual(formless(new Map([["docs/decisions/two.md", two]]), tracked), []);
+});
+
+/** A scenario file, as the suite writes one: steps naming ops. */
+const scenario = (...ops) =>
+  JSON.stringify({ name: "a scenario", steps: ops.map(op => ({ op, args: {} })) }, null, 2);
+
+test("an op a scenario drives is read off its steps, and an argument spelling one is not", () => {
+  const scenarios = new Map([
+    ["conformance/scenarios/a.json", scenario("gen.combinator_dial", "client.combinator_twice")],
+    // `handler.panic` reaches a testee as an argument, not as a step's op: the
+    // thirteen ops with rows that no scenario drives are all of this shape.
+    ["conformance/scenarios/b.json", JSON.stringify({ steps: [{ op: "peer.call", args: { method: "handler.panic" } }] })],
+  ]);
+  assert.deepEqual([...driven(scenarios)].sort(), ["client.combinator_twice", "gen.combinator_dial", "peer.call"]);
+});
+
+test("an op the driver spells only in a sentence is spelled", () => {
+  const driver = [
+    "| `gen.combinator_dial` | **`url`** | `{\"handle\"}` |",
+    "",
+    "TypeScript also refuses `gen.combinator_serve`, for that reason.",
+    "Not an op: `Tunnel.Open`, and `live.invoke` is the wire's own.",
+  ].join("\n");
+  const said = spelled(driver);
+  assert.ok(said.has("gen.combinator_dial"), "a row spells its op");
+  assert.ok(said.has("gen.combinator_serve"), "a sentence spells one too");
+  assert.ok(said.has("live.invoke"));
+  assert.ok(!said.has("Tunnel.Open"), "an upper-case name is not an op");
+});
+
+test("an op a scenario drives that the driver never spells is named", () => {
+  const driver = "| `gen.combinator_dial` | **`url`** | `{\"handle\"}` |\n";
+  const scenarios = new Map([
+    ["conformance/scenarios/generated/live-higher-order-callables.json", scenario("gen.combinator_dial", "client.combinator_twice", "gen.combinator_seen")],
+  ]);
+  assert.deepEqual(undocumented(driver, scenarios), [
+    { page: DRIVER, reason: "does not spell `client.combinator_twice`, which a scenario drives" },
+    { page: DRIVER, reason: "does not spell `gen.combinator_seen`, which a scenario drives" },
+  ]);
+});
+
+test("a driver that spells every op a scenario drives is quiet", () => {
+  const driver = "Ops: `gen.combinator_dial`, `client.combinator_twice`.\n";
+  const scenarios = new Map([["conformance/scenarios/a.json", scenario("gen.combinator_dial", "client.combinator_twice")]]);
+  assert.deepEqual(undocumented(driver, scenarios), []);
+});
+
+test("a run that found no scenario refuses rather than passing quietly", () => {
+  assert.deepEqual(undocumented("Ops: `gen.combinator_dial`.", new Map()), [
+    { page: DRIVER, reason: "is held against no scenario; conformance/scenarios has moved or is empty" },
+  ]);
 });
 
 test("every set names an index inside the tree it indexes", () => {

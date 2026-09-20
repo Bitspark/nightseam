@@ -64,9 +64,11 @@ are one number. Entries are in the words of the commits that landed them.
   derived interface, stream, cell and topic run in both languages, and the
   four findings that gave the live layer its shape.
 - `scripts/docs.mjs` holds the documentation's claims about its own shape: every
-  page of a documented set is linked from that set's index, and every decision
-  page carries the five parts its index promises. It runs on every pull request
-  beside the link check, which holds the other direction.
+  page of a documented set is linked from that set's index, every decision page
+  carries the five parts its index promises, and every op a conformance scenario
+  drives is spelled in `conformance/DRIVER.md`, which is the whole of what a
+  testee in a new language is written from. It runs on every pull request beside
+  the link check, which holds the other direction.
 
 - A shared generated forwarding proof carries higher-order functions through
   Go and TypeScript intermediaries over two socket connections, checks retained

@@ -9,7 +9,7 @@
 //
 //	node scripts/docs.mjs     # fail, naming each, on a page no index covers
 //
-// What it holds, in two claims:
+// What it holds, in three claims:
 //
 //   - **Coverage.** Every Markdown page of a documented set is linked from
 //     that set's index. The sets are below, each with the page that indexes
@@ -27,6 +27,18 @@
 //     page recording two verdicts says which it is arguing against, and
 //     decisions/README.md allows that page.
 //
+//   - **Driver coverage.** Every op a conformance scenario drives is spelled
+//     somewhere in conformance/DRIVER.md. That page is the whole of what a
+//     testee in a new language is written from — docs/README.md says a runtime
+//     needs the wire pages and the driver protocol "and nothing else" — so an
+//     op only the suite knows about is a scenario that language cannot run,
+//     and it finds out by failing. Six `combinator` ops went in that way with
+//     #246 and #255 and were documented by #307, after an audit went looking.
+//     Only this direction is held. The reverse — an op with a row no scenario
+//     drives — is thirteen ops today, every one implemented and reached
+//     through a scenario's arguments rather than its `op`, so it is thirteen
+//     notes and no signal.
+//
 // What it does not hold is prose: which sets exist, what an index row says
 // about a page and in what order the rows stand stays editorial. A page
 // missing from the directory it is indexed under is links.mjs's to refuse,
@@ -37,6 +49,9 @@ import { join, posix } from "node:path";
 import { pathToFileURL } from "node:url";
 import { root } from "./packages.mjs";
 import { decodeMarkdown, links, ownURL } from "./links.mjs";
+
+/** The page a testee in a new language is written from. */
+export const DRIVER = "conformance/DRIVER.md";
 
 /** A documented set: the directory of pages, and the page that indexes it. */
 export const sets = [
@@ -134,6 +149,40 @@ export function formless(pages, tracked) {
   return problems;
 }
 
+/** Every op a scenario drives, read off the `op` member of each of its steps. */
+export function driven(scenarios) {
+  const names = new Set();
+  for (const text of scenarios.values()) {
+    for (const [, op] of text.matchAll(/"op"\s*:\s*"([^"]+)"/g)) names.add(op);
+  }
+  return names;
+}
+
+/**
+ * Every op DRIVER.md spells, in a table row or in a sentence alike: a testee's
+ * author reads prose as readily as a table, and an op named in passing is not
+ * a hole. Generous on purpose — what this must not do is miss an op that is
+ * written down, since what it feeds is a refusal.
+ */
+export function spelled(driver) {
+  return new Set([...driver.matchAll(/`([a-z]+\.[a-z_]+)`/g)].map(([, op]) => op));
+}
+
+/**
+ * An op a scenario drives that DRIVER.md never spells. A run that found no
+ * scenario at all is a refusal of its own: the suite moving out from under
+ * this would otherwise leave a check that holds nothing and reports nothing,
+ * which reads exactly like one that passed.
+ */
+export function undocumented(driver, scenarios) {
+  if (scenarios.size === 0) return [{ page: DRIVER, reason: "is held against no scenario; conformance/scenarios has moved or is empty" }];
+  const said = spelled(driver);
+  return [...driven(scenarios)]
+    .filter(op => !said.has(op))
+    .sort()
+    .map(op => ({ page: DRIVER, reason: `does not spell \`${op}\`, which a scenario drives` }));
+}
+
 // Run as a script; imported by the tests, which call the functions above.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const tracked = new Set(
@@ -149,12 +198,26 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.exit(1);
     }
   }
-  const problems = [...uncovered(pages, tracked), ...duplicated(pages, tracked), ...formless(pages, tracked)];
+  // The driver page and the scenarios it must account for, read apart from the
+  // documentation pages so that `pages` stays what the sets above are made of.
+  const driver = decodeMarkdown(readFileSync(join(root, DRIVER)), DRIVER);
+  const scenarios = new Map();
+  for (const path of execFileSync("git", ["ls-files", "-z", "conformance/scenarios"], { cwd: root, encoding: "utf8" })
+    .split(" ")
+    .filter(path => path.endsWith(".json"))) {
+    scenarios.set(path, readFileSync(join(root, path), "utf8"));
+  }
+  const problems = [
+    ...uncovered(pages, tracked),
+    ...duplicated(pages, tracked),
+    ...formless(pages, tracked),
+    ...undocumented(driver, scenarios),
+  ];
   for (const { page, reason } of problems) console.error(`${page}: ${reason}`);
   if (problems.length > 0) {
-    console.error(`${problems.length} page${problems.length === 1 ? "" : "s"} the documentation does not account for; an index is a claim that a directory is covered.`);
+    console.error(`${problems.length} thing${problems.length === 1 ? "" : "s"} the documentation does not account for; an index is a claim that a directory is covered, and DRIVER.md a claim that a testee can be written from it.`);
     process.exit(1);
   }
   const counted = sets.reduce((total, { directory }) => total + pagesOf(directory, tracked).length, 0);
-  console.log(`${counted} pages in ${sets.length} sets are indexed, and every decision carries its five parts`);
+  console.log(`${counted} pages in ${sets.length} sets are indexed, every decision carries its five parts, and DRIVER.md spells all ${driven(scenarios).size} ops the scenarios drive`);
 }
