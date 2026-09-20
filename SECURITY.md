@@ -10,21 +10,24 @@ five working days with whether it is confirmed and what the fix will be.
 
 ## Scope
 
-The runtimes — `duplex`, `runtime`, `tunnel` and the `otel` adapter, in both languages —
-carry frames between parties who may not trust each other. What they promise
-on that front is stated in their documentation and held by their suites: a
-frame over the limit is refused before delivery; a malformed frame ends the
-connection; a stalled consumer is disconnected rather than allowed to hold up
-the rest; an observer never decides; a channel carries what it was given and
-reads nothing of it. A way to break one of those is a security report.
+The runtimes — `duplex`, `runtime`, `tunnel`, `live` and the `otel` adapter,
+in both languages — carry frames between parties who may not trust each
+other. What they promise on that front is stated in their documentation and
+held by their suites: a frame over the limit is refused before delivery; a
+malformed frame ends the connection; a stalled consumer is disconnected
+rather than allowed to hold up the rest; an observer never decides; a
+channel carries what it was given and reads nothing of it; a reference
+reaches only the binding of the scope that minted it, and a scope holds no
+more bindings than its bounds allow. A way to break one of those is a
+security report.
 
 The generator is developer tooling that runs on a checkout's own files; a
 flaw in it is a bug unless it lets a declaration reach a place outside the
 directories it owns.
 
-Authentication, authorization and the durability of what is logged are the
-consumer's, by the boundary rule; a flaw in a consumer's use of these
-packages is reported to that consumer.
+Authentication, authorization and what a consumer keeps of what crossed
+the wire are the consumer's, by the boundary rule; a flaw in a consumer's
+use of these packages is reported to that consumer.
 
 ## Supported versions
 
