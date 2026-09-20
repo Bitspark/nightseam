@@ -550,6 +550,40 @@ conversion input; it is separate evidence from the ordinary generated
 operations above. No owner operation extracts a reference from a native
 value to release it, and no connection closes to make a count assertion pass.
 
+#### Uncertain publication — `gen.publication_*`
+
+`generated/live-uncertain-publication.json` renders the test-only
+`publication` family from `conformance/corpora/live-publication`. Its
+generated client and server binding both send native callbacks through
+methods and events. Each connection permits four exports and four imports,
+and a frame is bounded to 1,024 bytes.
+
+| op | arguments | answer |
+|---|---|---|
+| `gen.publication_serve` | | `{"handle", "url"}` — the generated binding with handlers that retain their generated child owners |
+| `gen.publication_dial` | **`url`** | `{"handle"}` — the generated client with the same reverse-call behavior |
+| `gen.publication_exercise` | **`on`** either handle, `within_ms` | `{"completed", "cycles":16, "counts":{"exports":0,"imports":0}}` — all publication cases on the handle's outbound generated API |
+
+The sixteen cases are seven fresh callback supplies refused with `busy`,
+then remote `cancelled` and `frame_too_large` refusals, local timeout,
+cancellation, a suppressed successful reply, a callback event, a returned
+callback whose reply is suppressed, a pre-cancelled request, and an oversized
+event. A received callback invocation is the delivery barrier: cancellation
+occurs only after it, and timeout cases must reach it before they settle.
+For the returned callback, the handler waits for cancellation before
+returning its native function; its saved child owner must then hold the
+export even though the result cannot reach the caller.
+
+Every uncertain case calls the retained callback after the supplying
+operation ends, releases the caller's owner, checks the remote alias refuses
+with `reference_released`, and releases the handler's saved owner. The two
+local refusals must carry `UnpublishedError` and leave no new export; the
+other outcomes must carry no such proof. Each case waits for both scopes to
+reach zero before the next begins. Ordinary generated inspection and drop
+calls prove the connection remains usable throughout. The scenario exercises
+both handles and mirrors the driver sides, holding both languages in every
+generated role without a raw-reference release or reconnection.
+
 #### Higher-order forwarding — `gen.forwarding_*`
 
 `generated/live-higher-order-forwarding.json` uses three logical peers on
