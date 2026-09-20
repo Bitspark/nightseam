@@ -162,6 +162,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Both installation smokes require the complete data/RPC/live example exchange,
+  including the registry smoke's callback and returned-function results, and
+  reject incorrect values that merely begin with the expected output.
 - Generated live conformance waits for the server's attachment before reverse
   calls, within the driver's deadline, instead of racing a successful dial.
 - Worktree cleanup removes empty unregistered leftover directories and their

@@ -24,6 +24,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { copyRegistryConsumer, examples, root } from "./packages.mjs";
 import { waitForRegistries } from "./registry.mjs";
+import { holdProbeExchange } from "./probe-exchange.mjs";
 
 const tag = process.argv[2];
 if (!/^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(tag ?? "")) {
@@ -106,9 +107,7 @@ async function roundTrip() {
   step("pnpm start");
   const out = pnpm(["start"], { cwd: consumer, env: { PROBE_URL: `ws://${address}/probe` } });
   process.stdout.write(out);
-  for (const line of ["echo    -> olleh", "changed -> hello"]) {
-    if (!out.includes(line)) throw new Error(`the example printed no ${JSON.stringify(line)}:\n${out}`);
-  }
+  holdProbeExchange(out);
   console.log(`round trip: ${tag} installed from npm and from the proxy, and ${examples[0]} ran against it`);
 }
 
