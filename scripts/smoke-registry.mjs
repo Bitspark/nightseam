@@ -25,6 +25,7 @@ import { tmpdir } from "node:os";
 import { copyRegistryConsumer, examples, root } from "./packages.mjs";
 import { waitForRegistries } from "./registry.mjs";
 import { holdProbeExchange } from "./probe-exchange.mjs";
+import { addPublishedDependencies, holdOutsiderImports } from "./smoke-imports.mjs";
 
 const tag = process.argv[2];
 if (!/^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(tag ?? "")) {
@@ -70,6 +71,9 @@ async function roundTrip() {
   const consumer = join(scratch, "consumer");
   step(`copying ${examples[0]} to a consumer outside the workspace`);
   copyRegistryConsumer(join(root, examples[0]), consumer);
+  // Include packages the example does not use, pinned to this release, so
+  // registry availability is followed by an actual import of every entry.
+  addPublishedDependencies(consumer, version);
 
   // Nothing is overridden and no proxy is laid: the manifest asks for the
   // version and the registry answers, or this is where the release is
@@ -78,6 +82,7 @@ async function roundTrip() {
   pnpm(["install", "--no-frozen-lockfile"], { cwd: consumer, stdio: ["ignore", "inherit", "inherit"] });
   step("pnpm check");
   pnpm(["check"], { cwd: consumer, stdio: ["ignore", "inherit", "inherit"] });
+  holdOutsiderImports(consumer, { pnpm, run, step });
 
   // The example carries no go.sum — the hash of a version nobody had
   // tagged was not knowable when it was written — so the consumer writes

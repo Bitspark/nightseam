@@ -28,10 +28,11 @@ import { connect, createServer } from "node:net";
 import { setTimeout as after } from "node:timers/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { examples, packages, publishedEntryPoints, root } from "./packages.mjs";
+import { examples, packages, root } from "./packages.mjs";
 import { holdTarball } from "./tarball.mjs";
 import { prepareGoRehearsal } from "./rehearsal.mjs";
 import { holdProbeExchange } from "./probe-exchange.mjs";
+import { holdOutsiderImports } from "./smoke-imports.mjs";
 
 const keep = process.argv.includes("--keep");
 const manifest = directory => JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
@@ -125,7 +126,7 @@ async function smoke() {
   step("pnpm check");
   pnpm(["check"], { cwd: consumer, stdio: ["ignore", "inherit", "inherit"] });
 
-  holdOutsiderImports(consumer);
+  holdOutsiderImports(consumer, { pnpm, run, step });
 
   // Go, from a proxy carrying one module: what is not Nightseam falls
   // through to whatever GOPROXY the machine already has, and Nightseam
@@ -160,83 +161,6 @@ async function smoke() {
   process.stdout.write(out);
   holdProbeExchange(out);
   console.log(`smoke: ${Object.keys(packed).length} packages and ${module}@${rehearsal.version} installed from outside the workspace, and ${examples[0]} ran against them`);
-}
-
-/**
- * Every published package, imported from outside the workspace at every
- * entry point it publishes: first type-checked against the declarations the
- * tarball carries, then actually loaded by Node.
- *
- * The example imports some of the packages the release publishes, so without
- * this the rest are packed, installed, held to having the files they name,
- * and never opened. What that leaves unasked is everything only a real
- * import answers: a `dist` that imports a package the workspace link
- * satisfied and the manifest does not declare, an `exports` condition that
- * resolves to nothing under Node's own resolver, declarations that only ever
- * type-checked against sibling *sources* rather than against a sibling's
- * emitted `.d.ts`, an entry point the build emitted nothing into. Each of
- * those passes every other gate here and is given at a consumer's install.
- *
- * It is generic over what packages.mjs finds and what each manifest
- * publishes, so a package added beside the others — or a subpath one of them
- * begins publishing — is held by it without being named here.
- */
-function holdOutsiderImports(consumer) {
-  const specifiers = packages.flatMap(directory => {
-    const declared = manifest(join(root, directory));
-    return publishedEntryPoints(declared).map(entry => declared.name + entry);
-  });
-  const directory = join(consumer, "nightseam-imports");
-  mkdirSync(directory, { recursive: true });
-  const note = "// Written by scripts/smoke-packed.mjs into the copied consumer, never into the checkout.\n";
-  writeFileSync(
-    join(directory, "imports.ts"),
-    note +
-      specifiers.map((specifier, at) => `import * as module${at} from ${JSON.stringify(specifier)};`).join("\n") +
-      `\n\nexport const imported: readonly unknown[] = [${specifiers.map((_, at) => `module${at}`).join(", ")}];\n`,
-  );
-  // The consumer's own tsconfig checks the example's sources with
-  // skipLibCheck, which is what an application wants. This asks the opposite
-  // question — whether the declarations the release publishes are sound when
-  // a stranger compiles against them — so library checking is on.
-  writeFileSync(
-    join(directory, "tsconfig.json"),
-    JSON.stringify(
-      {
-        compilerOptions: {
-          target: "ES2022",
-          module: "NodeNext",
-          moduleResolution: "NodeNext",
-          lib: ["ES2022", "DOM"],
-          strict: true,
-          skipLibCheck: false,
-          types: ["node"],
-          noEmit: true,
-        },
-        include: ["imports.ts"],
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-  // A namespace with nothing in it is an entry point the build emitted
-  // nothing into, which reads downstream as the package not having the export
-  // somebody wanted rather than as a tarball nobody filled.
-  writeFileSync(
-    join(directory, "load.mjs"),
-    note +
-      `const specifiers = ${JSON.stringify(specifiers, null, 2)};\n` +
-      `for (const specifier of specifiers) {\n` +
-      `  const loaded = await import(specifier);\n` +
-      `  const exported = Object.keys(loaded).filter(name => name !== "default");\n` +
-      `  if (exported.length === 0) throw new Error(specifier + " loaded and exported nothing; its entry point in the tarball is empty");\n` +
-      `  console.log("  loaded " + specifier + ", " + exported.length + " exports");\n` +
-      `}\n`,
-  );
-  step(`tsc over an import of all ${specifiers.length} published entry points, with library checking on`);
-  pnpm(["exec", "tsc", "-p", "nightseam-imports/tsconfig.json"], { cwd: consumer, stdio: ["ignore", "inherit", "inherit"] });
-  step("node, loading each of them from the installed tarballs");
-  run("node", ["nightseam-imports/load.mjs"], { cwd: consumer, stdio: ["ignore", "inherit", "inherit"] });
 }
 
 /**
