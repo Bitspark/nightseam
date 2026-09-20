@@ -125,6 +125,7 @@ export function cases(): Case[] {
     { name: 'release refuses the next invocation and settles the one in flight', run: releaseIsABarrier },
     { name: 'release invalidates every alias', run: releaseInvalidatesAliases },
     { name: 'cancelling an invocation is not releasing the binding', run: cancellationIsNotRelease },
+    { name: 'a pre-cancelled invocation does not dispatch', run: preCancelledInvocationDoesNotDispatch },
     { name: 'a scope that closes settles what it had in flight', run: closeSettles },
     {
       name: 'closing the exporter settles a call without closing the peer',
@@ -274,6 +275,31 @@ async function cancellationIsNotRelease(t: T, p: Pair): Promise<void> {
   // The binding is untouched: cancelling an invocation released nothing.
   if ((await imported('again')) !== 'again') t.fail('the binding did not survive a cancelled invocation');
   holds(t, p.b, 0, 1, 'a cancelled invocation releases no binding');
+}
+
+async function preCancelledInvocationDoesNotDispatch(t: T, p: Pair): Promise<void> {
+  let dispatched = 0;
+  const { imported } = handed(p.a, p.b, SINK, async (request) => {
+    dispatched += 1;
+    return request;
+  });
+  const cancelled = new AbortController();
+  cancelled.abort();
+  // More than the peer's default pending bound: refused calls must leave room.
+  for (let i = 0; i < 256; i += 1) {
+    await refuses(
+      t,
+      () => within(t, imported('cancelled', { signal: cancelled.signal }), 'pre-cancelled invocation'),
+      'cancelled',
+    );
+  }
+  if (dispatched !== 0) t.fail(`pre-cancelled invocations dispatched ${dispatched} times`);
+  holds(t, p.a, 1, 0, 'pre-cancellation retains the exported binding');
+  holds(t, p.b, 0, 1, 'pre-cancellation retains the imported binding');
+
+  const fresh = new AbortController();
+  const answer = await within(t, imported('again', { signal: fresh.signal }), 'the fresh invocation');
+  if (answer !== 'again' || dispatched !== 1) t.fail('the fresh invocation did not dispatch exactly once');
 }
 
 async function closeSettles(t: T, p: Pair): Promise<void> {

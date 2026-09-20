@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Bitspark/nightseam/live/go"
@@ -71,6 +72,7 @@ func Cases() []Case {
 		{"release refuses the next invocation and settles the one in flight", releaseIsABarrier},
 		{"release invalidates every alias", releaseInvalidatesAliases},
 		{"cancelling an invocation is not releasing the binding", cancellationIsNotRelease},
+		{"a pre-cancelled invocation does not dispatch", preCancelledInvocationDoesNotDispatch},
 		{"a scope that closes settles what it had in flight", closeSettles},
 		{"closing the exporter settles a call without closing the peer", closeExporterSettles},
 		{"closing the scope settles a local self-reference call", closeLocalSettles},
@@ -409,6 +411,39 @@ func cancellationIsNotRelease(t T, p Pair) {
 		t.Errorf("the binding did not survive a cancelled invocation: %s", got)
 	}
 	holds(t, p.B, 0, 1, "a cancelled invocation releases no binding")
+}
+
+func preCancelledInvocationDoesNotDispatch(t T, p Pair) {
+	t.Helper()
+	var dispatched atomic.Int32
+	_, invoke := handed(t, p.A, p.B, sink, func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
+		dispatched.Add(1)
+		return r, nil
+	})
+	withdrawn, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// More cancelled attempts than the default pending-request bound must
+	// leave room for the subsequent call on this same open connection.
+	for attempt := 0; attempt < 256; attempt++ {
+		if _, err := invoke(withdrawn, json.RawMessage(`"cancelled"`)); !errors.Is(err, context.Canceled) {
+			t.Fatalf("an already-cancelled invocation returned %v", err)
+		}
+	}
+	if got := dispatched.Load(); got != 0 {
+		t.Errorf("%d already-cancelled invocations reached the binding", got)
+	}
+	holds(t, p.A, 1, 0, "pre-cancellation leaves the exported binding intact")
+	holds(t, p.B, 0, 1, "pre-cancellation leaves the imported binding intact")
+
+	if got := string(call(t, invoke, `"again"`)); got != `"again"` {
+		t.Errorf("the binding did not survive a pre-cancelled invocation: %s", got)
+	}
+	if got := dispatched.Load(); got != 1 {
+		t.Errorf("the fresh invocation should be the only dispatch, got %d", got)
+	}
+	holds(t, p.A, 1, 0, "the fresh invocation retains one export")
+	holds(t, p.B, 0, 1, "the fresh invocation retains one import")
 }
 
 func closeSettles(t T, p Pair) {

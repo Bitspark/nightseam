@@ -324,6 +324,7 @@ export class LiveScope {
       const controller = new AbortController();
       const abort = () => controller.abort();
       options?.signal?.addEventListener('abort', abort, { once: true });
+      if (options?.signal?.aborted) controller.abort();
       this.inflight.add(controller);
       try {
         return await this.peer.call(

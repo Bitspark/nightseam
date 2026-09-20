@@ -75,6 +75,22 @@ test('a reference does not survive its connection', async () => {
   }
 });
 
+test('pre-cancelled invocations retain no scope bookkeeping', async () => {
+  const p = await over();
+  try {
+    const { imported } = handed(p.a, p.b, SINK, echo);
+    const cancelled = new AbortController();
+    cancelled.abort();
+    await assert.rejects(() => imported(null, { signal: cancelled.signal }), { code: 'cancelled' });
+    assert.equal(p.b['inflight'].size, 0);
+    assert.equal(p.a['inflight'].size, 0);
+    assert.equal(await imported('again'), 'again');
+    assert.equal(p.b['inflight'].size, 0);
+  } finally {
+    p.close();
+  }
+});
+
 test('the scope over a peer is found on it', async () => {
   const p = await over();
   try {

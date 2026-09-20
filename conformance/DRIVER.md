@@ -361,7 +361,7 @@ scope is made over a **peer** and needs no tunnel.
 | `live.over` | **`on`** peer, `options` (`max_exports`, `max_imports`) | `{"handle"}` |
 | `live.export` | **`on`** scope, **`contract`**, `behavior` | `{"reference"}` — the reference as it travels in a payload |
 | `live.import` | **`on`** scope, **`reference`**, **`contract`** | `{"handle"}` an attachment |
-| `live.invoke` | **`on`** attachment, `request`, `timeout_ms` | `{"handle"}` a call, in flight |
+| `live.invoke` | **`on`** attachment, `request`, `timeout_ms`, `cancelled` | `{"handle"}` a call, in flight |
 | `live.release` | **`on`** scope, **`reference`** | `{}` |
 | `live.forward` | **`on`** the destination scope, **`contract`**, **`attachment`** | `{"reference"}` |
 | `live.counts` | **`on`** scope | `{"exports", "imports"}` |
@@ -373,6 +373,10 @@ An invocation **is a call**: `live.invoke` answers with a call handle, and
 not a convenience of the driver — it is the layer's contract, and it is how a
 scenario holds that withdrawing an invocation and releasing a binding are two
 different things.
+
+`live.invoke` with `cancelled: true` cancels its context or signal before
+calling the imported function. It holds pre-existing cancellation separately
+from `call.cancel`, which withdraws an invocation after it has started.
 
 A `reference` is the value a `live.export` answered with, passed along by the
 scenario; a testee decodes it through the scope it is importing into, since a

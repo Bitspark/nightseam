@@ -1,0 +1,56 @@
+{
+  "name": "a pre-cancelled invocation does not dispatch",
+  "layer": "live",
+  "description": "Prior cancellation refuses dispatch without releasing the binding or closing either scope; a fresh invocation still succeeds.",
+  "needs": ["live", "peer"],
+  "steps": [
+    { "on": "runner", "op": "pair.peers", "args": { "server": "a" }, "bind": { "server": "pa", "client": "pb" } },
+    { "on": "a", "op": "live.over", "args": { "on": "$pa" }, "bind": "la" },
+    { "on": "b", "op": "live.over", "args": { "on": "$pb" }, "bind": "lb" },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": { "on": "$la", "contract": "probe/Report", "behavior": { "kind": "echo" } },
+      "bind": { "reference": "r" }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": { "on": "$lb", "reference": "$r", "contract": "probe/Report" },
+      "bind": { "handle": "at" }
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": { "on": "$at", "request": "cancelled", "cancelled": true },
+      "bind": { "handle": "cancelled" }
+    },
+    { "on": "b", "op": "call.await", "args": { "on": "$cancelled" }, "expect": { "error": { "code": "cancelled" } } },
+    {
+      "on": "a",
+      "op": "live.await_invocation",
+      "args": { "on": "$la", "within_ms": 30 },
+      "expect_error": { "code": "timeout" },
+      "note": "The pre-cancelled call never reaches the exported implementation."
+    },
+    { "on": "a", "op": "live.counts", "args": { "on": "$la" }, "expect": { "exports": 1, "imports": 0 } },
+    { "on": "b", "op": "live.counts", "args": { "on": "$lb" }, "expect": { "exports": 0, "imports": 1 } },
+    { "on": "b", "op": "live.invoke", "args": { "on": "$at", "request": "again" }, "bind": { "handle": "fresh" } },
+    { "on": "b", "op": "call.await", "args": { "on": "$fresh" }, "expect": { "result": "again" } },
+    {
+      "on": "a",
+      "op": "live.await_invocation",
+      "args": { "on": "$la" },
+      "expect": { "contract": "probe/Report", "outcome": "ok" }
+    },
+    {
+      "on": "a",
+      "op": "live.await_invocation",
+      "args": { "on": "$la", "within_ms": 30 },
+      "expect_error": { "code": "timeout" },
+      "note": "Exactly the fresh call dispatched."
+    },
+    { "on": "a", "op": "live.counts", "args": { "on": "$la" }, "expect": { "exports": 1, "imports": 0 } },
+    { "on": "b", "op": "live.counts", "args": { "on": "$lb" }, "expect": { "exports": 0, "imports": 1 } }
+  ]
+}
