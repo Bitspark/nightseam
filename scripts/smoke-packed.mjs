@@ -31,6 +31,7 @@ import { tmpdir } from "node:os";
 import { examples, packages, publishedEntryPoints, root } from "./packages.mjs";
 import { holdTarball } from "./tarball.mjs";
 import { prepareGoRehearsal } from "./rehearsal.mjs";
+import { holdProbeExchange } from "./probe-exchange.mjs";
 
 const keep = process.argv.includes("--keep");
 const manifest = directory => JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
@@ -157,17 +158,7 @@ async function smoke() {
   step("pnpm start");
   const out = pnpm(["start"], { cwd: consumer, env: { PROBE_URL: `ws://${address}/probe` } });
   process.stdout.write(out);
-  // What the exchange is, one line per level the release publishes: the call
-  // and the reverse call the server makes inside it, the event it emits before
-  // either returns — and then the live pair, a reference handed over inside a
-  // request and a reference handed back out of it. The last line is the one
-  // that could not be produced by data or RPC alone: it is the server calling
-  // the client's `notice` from inside the `stop` the client was given, long
-  // after the call that carried either of them returned. A generated live
-  // surface that is installed and never called is a surface nobody checked.
-  for (const line of ["echo    -> olleh", "changed -> hello", "notice  -> demo", "stopped -> demo done"]) {
-    if (!out.includes(line)) throw new Error(`the example printed no ${JSON.stringify(line)}:\n${out}`);
-  }
+  holdProbeExchange(out);
   console.log(`smoke: ${Object.keys(packed).length} packages and ${module}@${rehearsal.version} installed from outside the workspace, and ${examples[0]} ran against them`);
 }
 
@@ -176,7 +167,7 @@ async function smoke() {
  * entry point it publishes: first type-checked against the declarations the
  * tarball carries, then actually loaded by Node.
  *
- * The example imports two of the packages the release publishes, so without
+ * The example imports some of the packages the release publishes, so without
  * this the rest are packed, installed, held to having the files they name,
  * and never opened. What that leaves unasked is everything only a real
  * import answers: a `dist` that imports a package the workspace link
