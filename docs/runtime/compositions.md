@@ -104,23 +104,58 @@ who ends it, or in what order.
 ## The four compositions
 
 Each states its own behavior, because none of it follows from the shape of the
-exchange. The differences between them are the point.
+exchange. The examples below are application protocols in the channel-based
+construction on this page, not a shipped stream/cell/topic library. Their
+Go cases run under
+[`TestComposedLiveReferences`](../../cmd/nightseam/composition_test.go).
+Its [TypeScript program](../../cmd/nightseam/testdata/compositions/ts/compositions.ts)
+is a client of the Go worker: it supplies a sink, receives a job, and exercises
+reference and cancellation behavior. It does not implement or execute the
+derived cell and topic cases. The evidence should be read at that scope.
 
-| | ordering | completion | cancellation | consistency | backpressure |
-| --- | --- | --- | --- | --- | --- |
-| **interface** (`job`) | none; two independent operations | none | its own `cancel`, which the application defines | each call answers from the state at the moment it ran | the peer's `MaxConcurrentHandlers` |
-| **stream** (`worker` + `sink`) | one report in flight, each awaited, so 1, 2, 3 … | exactly one `end` — `done`, `failed` or `cancelled` — and no report after it | `Job.cancel()` ends it `cancelled` | — | the sink's answer paces the worker; a sink that does not answer holds it |
-| **cell** | watchers told in version order, never a version twice | a watch ends on `unwatch` or with its connection; the cell never ends the observer's sink | — | one writer at a time; `set` takes the lock that mints the version | the cell **awaits** each report, so a slow watcher holds the write that provoked it |
-| **topic** | one sequence for everybody, one delivering goroutine per subscriber | a subscription ends on `unsubscribe` or with its connection | — | — | each subscriber has a bounded queue and a subscriber that fills it is **dropped**; the publisher is never its hostage |
+| Example | Implemented behavior and chosen policy | Evidence and limits |
+| --- | --- | --- |
+| **Interface** (`job`) | `status` reads job state; `cancel` requests the application's ending and reports whether it won. The two methods have no combined transaction or record-wide atomicity. | [TestSuppliedCallbackAndReturnedCallable and TestReleaseCancelAndJobCancelDiffer](../../cmd/nightseam/testdata/compositions/go/behaviors_test.go), plus the TypeScript worker exchange. These check this job's policy, not a general service contract. |
+| **Stream** (`worker` + `sink`) | The worker awaits each report before sending the next, so a blocked sink paces it. Normal completion or accepted job cancellation attempts one `end`, with no later report. There is no coalescing, replay or durable completion acknowledgment. | [TestDerivedInterfaceAndStream](../../cmd/nightseam/testdata/compositions/go/derived_test.go) holds pacing and ordered completion; [TestAReturnedCallableCallsASuppliedOneLater](../../cmd/nightseam/testdata/compositions/go/behaviors_test.go) holds the cancellation/ending agreement. In [the worker implementation](../../cmd/nightseam/testdata/compositions/go/worker_test.go), a lost sink or connection can end work without delivering `end`; even the one ending attempt can fail. The declared `failed` alternative is not proof that this worker delivers it on transport failure. |
+| **Cell** | `set` updates value and version under a lock, snapshots watchers, then awaits their reports outside that lock. `watch` returns the current value and a token; `unwatch` releases the attachment without ending the observer's sink. There is no coalescing or replay. | [TestDerivedCell](../../cmd/nightseam/testdata/compositions/go/derived_test.go) tests sequential writes, their version order, reads and unwatch. [The implementation](../../cmd/nightseam/testdata/compositions/go/sinks_test.go) waits for reports but does not serialize delivery across concurrent `set` calls. The fixture does not prove ordered concurrent notifications or atomic write-and-notify behavior. |
+| **Topic** | Matching subscribers receive reports through queues of capacity eight, one delivery loop per subscriber. A full queue drops that report and records an overflow flag; publishing does not await the sink. `unsubscribe` ends the subscription and releases its attachment without sending a sink ending. | [TestDerivedTopic and TestATopicDropsRatherThanStalls](../../cmd/nightseam/testdata/compositions/go/derived_test.go) hold sequential fan-out, unsubscribe, publisher progress and the overflow flag. Despite the latter test's name, [Publish](../../cmd/nightseam/testdata/compositions/go/sinks_test.go) does not remove a subscriber on overflow. Sequences are allocated before queue insertion, so concurrent publish ordering, concurrent unsubscribe safety and atomic fan-out are not established by these tests. |
 
-The cell and the topic make **opposite** choices about backpressure, on
-purpose, and `TestDerivedCell` and `TestATopicDropsRatherThanStalls` hold both.
-Neither choice is in the wire, and neither would be implied by a callable type.
+The cell awaits a watcher's answer, whereas the topic drops overflowing
+reports. Those are consumer choices, not guarantees of a callable type. A
+reusable composition must explicitly specify ordering, completion,
+overflow/backpressure, coalescing, subscription and unsubscription races,
+cancellation, and the atomicity it offers. A record of functions supplies
+the callable surface but none of those choices by itself.
 
 The completion race that #202 asks to be specified is specified here, in the
 job: a `cancel` arriving while the last report is in flight loses, the job ends
 once, and the answer's `stopped` says whether the cancellation is what ended
 it. A caller that needs to know reads the answer instead of assuming.
+
+## Shared scheduling and authority
+
+A shipped live callable supplies a unary invocation: a request, then a result
+or refusal. A remote invocation uses the peer's ordinary request path, as
+[Go's `remote`/`onInvoke`](../../live/go/live.go) and
+[TypeScript's `remote`/`onInvoke`](../../live/ts/src/index.ts) show. All such
+calls share that peer's [limits](peer.md#options-and-limits): outstanding
+requests, concurrent handlers, frame sizes and queues. Scope export/import
+bounds count bindings and attachments; they do not reserve execution capacity
+for each binding. A reference returned to its own exporter can invoke locally
+without passing through the peer's wire scheduling.
+
+| Mechanism and evidence | What a composition still has to provide |
+| --- | --- |
+| Peer-wide outstanding-call limits are held by [outstanding-call-limit](../../conformance/scenarios/peer/outstanding-call-limit.json); queue pacing and stalled-connection behavior by [inbound-burst-is-paced](../../conformance/scenarios/peer/inbound-burst-is-paced.json), [inbound-backpressure](../../conformance/scenarios/peer/inbound-backpressure.json) and [outgoing queue backpressure](../../conformance/scenarios/peer/an-outgoing-queue-is-paced-then-ends-the-connection.json). | These peer scenarios do not prove per-binding fairness or isolation. A live binding has no automatic channel credit window, priority, reserved handler slot or independent traffic budget. A composition needing those guarantees must arrange and test them. |
+| [Withdrawing an invocation is not releasing](../../conformance/scenarios/live/withdrawing-an-invocation-is-not-releasing.json) holds per-call cancellation separately from binding lifetime. | Cancellation does not prescribe stream completion, unsubscribe, application rollback or the meaning of `Job.cancel()`. Those belong to the composition's contract. |
+| The paired live `onInvoke` implementations check the binding, scope state and expected contract before calling the implementation; [wrong-contract and unknown-binding evidence](../../conformance/scenarios/live/a-wrong-contract-and-a-binding-of-no-scope.json) holds those refusals. | Addressing an implementation is not a principal-authorization decision. Principal permissions, delegation/attenuation, audit policy and authority revocation need explicit policy above or alongside the runtime. Binding release can serve that policy but does not define it. |
+
+These distinctions follow the repository's chosen
+[scope and irreducibility policy](../admission.md). A composition can be useful
+enough to ship without becoming a primitive; the tunnel and live scope are
+already shipped compositions. Classification alone does not settle API
+ergonomics, operational safety or maintenance value, and does not require
+every consumer to reimplement a useful common construction.
 
 ## Forwarding
 
@@ -216,9 +251,11 @@ may export one and the asymmetry does not reach the live layer.
 It proves that the callback-and-returned-interface behavior of
 [#196](https://github.com/Bitspark/nightseam/issues/196) needs no new wire
 primitive: peers, tunnels and handles carry all of it, in both languages,
-across a real socket, in both directions. It proves that interfaces, streams,
-cells and topics are compositions with their own stated contracts rather than
-kinds a language needs.
+across a real socket, in both directions. It demonstrates particular interface,
+stream, cell and topic behaviors as compositions with the contracts and limits
+above. Their classification under the admission policy does not prove that
+every desired behavior follows from a record of functions, or settle whether
+a reusable implementation should ship.
 
 It does not prove that this is the surface v0.5.0 should ship. Every rule in
 the table above is bookkeeping a consumer would otherwise write again for each
