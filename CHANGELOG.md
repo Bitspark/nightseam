@@ -199,6 +199,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Conformance and release gates reject skipped scenarios in a language's
+  required profiles, including absent generated server roles. The matrix
+  keeps the skips visible; optional profiles retain their existing tier policy.
 - Live reference documentation and paired tests distinguish native scope
   association from caller-supplied serialized bytes: valid bytes can be reused
   on their original connection, while stale bindings fail lookup after reconnect.

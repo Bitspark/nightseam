@@ -24,14 +24,6 @@ The promises nest: P2 assumes P1, P3 assumes P2, P4 assumes P3. There is no
 fifth: anything finer than these is progress within a language, which the
 matrix shows and no tier needs to name.
 
-These are the policy promises. The current gate does not prove all of P3:
-it accepts skipped scenarios, including generated server roles absent from
-the TypeScript target. An assigned tier and an `ok` verdict therefore need
-to be read alongside the supported roles below, not as proof that every
-scenario passed. This discrepancy is awaiting an operator verdict in
-[#271](https://github.com/Bitspark/nightseam/issues/271); the assignment and
-release gate remain unchanged pending that decision.
-
 ## Profiles
 
 A profile is a named set of scenarios, and a scenario belongs to exactly
@@ -70,6 +62,11 @@ red cells stop a release.
 | **3** | `core` and `generator` | — | in `core` or `generator`, marks the language *provisional* in the matrix; the release ships; elsewhere, informational |
 | **4** | `core` | — | in `core`, marks the language provisional; elsewhere, informational |
 
+A skipped scenario in a required profile is a red cell, just like a failure
+there. Its skip reason and count stay visible in the matrix. Skips outside
+the tier's required profiles remain informational; only failures there spend
+tier 2's release lag.
+
 Tier 1 defines the profiles: a scenario is born as a pair of tier-1 twins,
 and the Go testee is the reference every other language is held to on both
 sides of the wire. Tiers 3 and 4 differ in one yes-or-no fact — whether the
@@ -101,17 +98,14 @@ Java and Swift follow at tier 4 and rise as they hold.
 | Target | Generated client | Generated server binding |
 |---|---|---|
 | Go | Yes, including reverse-call handlers and live conversion | Yes |
-| TypeScript | Yes, including reverse-call handlers and live conversion | No |
+| TypeScript | Yes, including reverse-call handlers and live conversion | Yes |
 
-The client role can handle calls and export callables; that is not a
-generated implementation of the declaration's server side. The runtime
-`core` and `live` profiles exercise both languages in both peer roles,
-separately from the `generator` profile. Generated scenarios use a Go
-binding whenever they serve successfully. Mirroring exchanges driver
-sides and records an unsupported TypeScript binding as a skip; it cannot
-turn a client target into a server target. The
+The runtime `core` and `live` profiles exercise both languages in both peer
+roles, separately from the `generator` profile. Generated scenarios exercise
+the generated clients and server bindings in both languages. Mirroring
+exchanges driver sides, so each language must serve as well as call. The
 [proof inventory](../declaration/proof-findings.md#generated-roles-and-skips)
-maps each skip to its scenario and missing serve operation.
+records the generated roles and their scenario coverage.
 
 ### What the gate checks
 
@@ -128,14 +122,12 @@ tolerates — is an issue against the scenario, since the reference decides.
 
 The runtime testee's advertised layers and features are checked against its
 tier by `HoldToTier`; the generated layer belongs to a separate testee and
-is excluded from that hello check. `Matrix.Verdict` counts failures in
-required profiles, not skips. The existing
+is excluded from that hello check. `Matrix.Verdict` treats both failures and
+skips in required profiles according to the tier's failure disposition. The
 [`TestVerdictsFollowTheTierTable`](../../conformance/go/profiles_test.go)
-explicitly holds a row of passes and skips to verdict `ok`. Thus the
-matrix preserves missing coverage, but its release verdict does not reject
-these unsupported generated roles. Resolving that difference from the
-complete tier-1 promise is the policy decision above, not an implicit
-exception introduced by this description.
+test holds this rule at every tier, including a missing required generated
+server role. The release script independently applies the same rule to the
+matrix's cells; a stored `ok` verdict cannot hide missing coverage.
 
 The release workflow refuses a tag whose matrix has a cell that the tier
 table says stops the release, and marks the languages that the table says
