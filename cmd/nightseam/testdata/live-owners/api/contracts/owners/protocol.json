@@ -2,7 +2,7 @@
   "profile": "nightseam.duplex/1",
   "server": {
     "methods": {
-      "drop": {},
+      "drop": {"result": "boolean"},
       "references": {
         "result": "json"
       }

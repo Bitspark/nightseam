@@ -65,17 +65,17 @@ func (s *ownersServer) Pack(ctx context.Context, _ *ownerbinding.Remote, params 
 	}}, nil
 }
 
-func (s *ownersServer) Drop(context.Context, *ownerbinding.Remote) error {
+func (s *ownersServer) Drop(context.Context, *ownerbinding.Remote) (bool, error) {
 	s.mu.Lock()
 	held := s.held
 	s.held = nil
 	s.mu.Unlock()
 	for _, o := range held {
 		if err := o.Release(); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return true, nil
 }
 
 // References is controlled malformed-input plumbing. Its three tokens are
@@ -225,7 +225,7 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 		if err := d.owner.Release(); err != nil {
 			return nil, err
 		}
-		if err := d.client.Drop(ctx); err != nil {
+		if _, err := d.client.Drop(ctx); err != nil {
 			return nil, err
 		}
 		if err := ownersZero(d.scope, within(raw)); err != nil {
@@ -233,7 +233,7 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 		}
 		return ownerCounts(d.scope), nil
 	case "client.owners_revoke":
-		if err := d.client.Drop(ctx); err != nil {
+		if _, err := d.client.Drop(ctx); err != nil {
 			return nil, err
 		}
 		if err := ownersZero(d.scope, within(raw)); err != nil {
@@ -301,7 +301,7 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 			if err := held.Release(); err != nil {
 				return nil, err
 			}
-			if err := d.client.Drop(ctx); err != nil {
+			if _, err := d.client.Drop(ctx); err != nil {
 				return nil, err
 			}
 			if err := ownersZero(d.scope, within(raw)); err != nil {

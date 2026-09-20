@@ -1,6 +1,14 @@
 /** The live layer under control: scopes over peers, bindings exported and imported, and what each was asked. */
 import { DuplexError } from '@nightseam/runtime';
-import { forward, liveOver, type Invoke, type LiveOptions, type LiveScope, type LiveOwner, type Reference } from '@nightseam/live';
+import {
+  forward,
+  liveOver,
+  type Invoke,
+  type LiveOptions,
+  type LiveScope,
+  type LiveOwner,
+  type Reference,
+} from '@nightseam/live';
 import { boolOf, fail, invalid, intOf, stringOf, withinOf, type Args, type Op, type Testee } from './testee.ts';
 import { Call, isPeer, type Peer } from './peer.ts';
 
@@ -54,7 +62,10 @@ class ScopeOn {
 const isScope = (object: unknown): object is ScopeOn => object instanceof ScopeOn;
 
 class OwnerOn {
-  constructor(readonly owner: LiveOwner, readonly scope: ScopeOn) {}
+  constructor(
+    readonly owner: LiveOwner,
+    readonly scope: ScopeOn,
+  ) {}
 }
 const isOwner = (object: unknown): object is OwnerOn => object instanceof OwnerOn;
 
@@ -185,7 +196,9 @@ export function liveOps(t: Testee): Record<string, Op> {
           return imports;
         });
         return { handles: imports.map((fn) => t.mint('at', new BindingOn(fn, s))) };
-      } catch (error) { throw liveError(error); }
+      } catch (error) {
+        throw liveError(error);
+      }
     },
     'live.over': (args) => {
       const p = t.lookup(args.on, isPeer, 'a peer');

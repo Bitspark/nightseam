@@ -359,6 +359,10 @@ scope is made over a **peer** and needs no tunnel.
 | op | arguments | answer |
 |---|---|---|
 | `live.over` | **`on`** peer, `options` (`max_exports`, `max_imports`) | `{"handle"}` |
+| `live.owner` | **`on`** scope, `owner` parent handle, `root` | `{"handle"}` — a child of the parent (the root by default), or the root itself when `root: true` |
+| `live.owner_release` | **`on`** owner | `{}` — release this owner and its descendants, idempotently |
+| `live.owner_counts` | **`on`** owner | `{"exports", "imports"}` — bindings owned here, excluding borrows |
+| `live.import_value` | **`on`** scope, `owner`, **`references`**, **`contract`**, `fail` | `{"handles"}` — imports in one batch; `fail: true` refuses after the imports to exercise rollback |
 | `live.export` | **`on`** scope, **`contract`**, `behavior` | `{"reference"}` — the reference as it travels in a payload |
 | `live.import` | **`on`** scope, **`reference`**, **`contract`** | `{"handle"}` an attachment |
 | `live.invoke` | **`on`** attachment, `request`, `timeout_ms`, `cancelled` | `{"handle"}` a call, in flight |
@@ -394,6 +398,12 @@ caller settlement before sending the event, then verify ordinary RPC still works
 naming what each scope still holds, so a retained binding fails a scenario whose
 payloads all matched. A refusal that left something half-registered is visible
 there and nowhere else.
+
+`live.export`, `live.import`, and `live.forward` take an optional `owner`
+handle belonging to their scope. Without one, acquisition uses the root
+owner. `live.release` still releases a reference binding-wide. The owner
+scenario releases only owners and keeps both peers open; an owner that
+borrowed an existing attachment owns no import and cannot revoke it.
 
 The refusals are the layer's own codes, answered under *any other* above:
 `contract_invalid`, `contract_mismatch`, `reference_unknown`,
@@ -513,6 +523,32 @@ An argument is merged into the request envelope, so no op names one `id`;
 `ticket` is the entity key where one is meant. `job` names what
 `client.live_start` answered, which is this testee's own name for the record
 it received — a reference is never a value a scenario writes.
+
+#### Explicit owners — `gen.owners_*`, `client.owners_*`
+
+`generated/live-owners.json` renders the test-only `owners` family alongside
+the corpus. Its ordinary generated `create` takes `worker.Start` and returns
+`boxes.Page<worker.Job>`; `pack` takes `boxes.Box<combinator.Unary>` and returns
+`combinator.Bundle<Count>`. The caller supplies an owner, and the handler
+keeps the child supplied through its context. `drop` is an ordinary generated
+RPC whose implementation later releases those saved handler owners.
+
+| op | arguments | answer |
+|---|---|---|
+| `gen.owners_serve` | | `{"handle", "url"}` — a generated binding configured for four exports and four imports |
+| `gen.owners_dial` | **`url`**, `max_imports` (default 4) | `{"handle"}` — generated client, four exports and the chosen import bound |
+| `client.owners_create` | **`on`** | `{"label", "reports", "counts"}` — sends a native callback, retains a returned `Page<Job>`, then calls its native cancel and rename functions |
+| `client.owners_pack` | **`on`** | `{"value", "seed", "counts"}` — calls the generic returned function, which calls the supplied callback twice |
+| `client.owners_release` | **`on`** | `{"exports":0,"imports":0}` — releases the caller owner twice, asks the handler to release its owners and awaits baseline |
+| `client.owners_revoke` | **`on`** | `{"error", "counts"}` — the handler releases its owner first; the next retained function call is refused |
+| `client.owners_imports` | **`on`** | `{"fresh", "borrowed", "repeated", "counts"}` — a bound-two client attempts partial record and alias-prefixed conversions, keeps a prior attachment callable, and proves repeated references borrow one attachment |
+| `gen.owners_counts` | **`on`**, `within_ms` | `{"exports":0,"imports":0}` once the server reaches baseline |
+
+The import-refusal operation uses a fixture-only `references` method returning
+three otherwise valid generated `Report` exports. This supplies malformed
+conversion input; it is separate evidence from the ordinary generated
+operations above. No owner operation extracts a reference from a native
+value to release it, and no connection closes to make a count assertion pass.
 
 #### Higher-order forwarding — `gen.forwarding_*`
 
