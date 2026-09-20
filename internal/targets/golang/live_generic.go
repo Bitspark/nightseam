@@ -42,6 +42,9 @@ func (f *file) converterParameters(t *render.Type, export bool) string {
 		if !export {
 			from, to = to, from
 		}
+		if export && t.IsLive {
+			from = "*" + f.live() + ".Scope, " + from
+		}
 		fmt.Fprintf(&out, ", convert%s func(%s) (%s, error), type%s %s.TypeBinding", name, from, to, name, f.runtime())
 	}
 	return out.String()
@@ -96,7 +99,11 @@ func (f *file) conversionCall(e model.TypeExpr, src, dst string, export bool) (s
 		if !export {
 			from, to = to, from
 		}
-		f.w.Block(fmt.Sprintf("%s := func(input %s) (%s, error) {", name, from, to), "}", func() {
+		parameters := "input " + from
+		if export && t.IsLive {
+			parameters = "scope *" + f.live() + ".Scope, " + parameters
+		}
+		f.w.Block(fmt.Sprintf("%s := func(%s) (%s, error) {", name, parameters, to), "}", func() {
 			fail := "nil"
 			if !export {
 				f.linef("var zero %s", to)

@@ -61,7 +61,7 @@ func TestGeneratedLiveExportRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	before, remoteBefore := sa.Counts(), sb.Counts()
-	for _, name := range []string{"record", "union", "generic", "serialization", "validation", "request", "reply"} {
+	for _, name := range []string{"record", "union", "generic", "generic-live", "serialization", "validation", "request", "reply"} {
 		t.Run(name, func(t *testing.T) {
 			for i := 0; i < 3; i++ {
 				var err error
@@ -72,6 +72,10 @@ func TestGeneratedLiveExportRollback(t *testing.T) {
 					_, err = protocol.ExportChoice(sa, protocol.Choice{Pair: &protocol.Pair{First: fn, Second: fn}})
 				case "generic":
 					_, err = protocol.ExportGeneric(sa, protocol.Generic{{Item: fn}, {Item: fn}})
+				case "generic-live":
+					_, err = protocol.ExportBound(sa, protocol.Bound[protocol.Call]{First: fn, Last: fn}, func(scope *live.Scope, input protocol.Call) (json.RawMessage, error) {
+						return protocol.ExportCall(scope, input)
+					}, runtime.TypeBinding{})
 				case "serialization":
 					_, err = protocol.ExportFailure(sa, protocol.Failure{First: fn, Last: json.RawMessage(`{`)})
 				case "request":

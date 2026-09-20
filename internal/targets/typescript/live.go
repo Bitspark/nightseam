@@ -92,6 +92,7 @@ func (f *file) emitLive() {
 		}
 		f.scope = t.Scope
 		f.codecs = t.Uses
+		f.scopedCodecs = t.IsLive
 		if t.Kind == model.KindCallable {
 			f.emitCallable(t)
 			continue
@@ -99,6 +100,7 @@ func (f *file) emitLive() {
 		f.emitLiveConversion(t)
 	}
 	f.codecs = nil
+	f.scopedCodecs = false
 }
 
 // emitCallable renders one callable: the function type a consumer writes and
@@ -292,6 +294,9 @@ func (f *file) liveExpr(e model.TypeExpr, src string, export bool) string {
 	if codec := f.parameterConverter(e); codec != "" {
 		if export {
 			src = "(" + src + ") as " + f.spell(e)
+			if f.scopedCodecs {
+				src = "scope, " + src
+			}
 		}
 		return codec + "(" + src + ")"
 	}

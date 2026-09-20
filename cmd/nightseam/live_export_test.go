@@ -19,6 +19,7 @@ func TestGeneratedLiveExportRollback(t *testing.T) {
 		"Make":{"kind":"callable","result":"Pair"},
 		"Check":{"kind":"callable","request":"Checked"},
 		"Checked":{"kind":"record","fields":[{"name":"first","type":"Call"},{"name":"last","type":"Flag"}]},
+		"Bound":{"kind":"record","parameters":[{"name":"T"}],"fields":[{"name":"first","type":"T"},{"name":"last","type":"Call"}]},
 		"Pair":{"kind":"record","fields":[{"name":"first","type":"Call"},{"name":"second","type":"Call"}]},
 		"Failure":{"kind":"record","fields":[{"name":"first","type":"Call"},{"name":"last","type":"json"}]},
 		"Generic":{"kind":"alias","type":{"array":{"apply":"box.Box","with":{"T":"Call"}}}},

@@ -36,7 +36,16 @@ try {
     remoteBefore = sb.counts();
   const cyclic: Record<string, unknown> = {};
   cyclic.self = cyclic;
-  for (const name of ['record', 'union', 'generic', 'serialization', 'validation', 'request', 'reply']) {
+  for (const name of [
+    'record',
+    'union',
+    'generic',
+    'generic-live',
+    'serialization',
+    'validation',
+    'request',
+    'reply',
+  ]) {
     for (let i = 0; i < 3; i++) {
       await assert.rejects(
         async () => {
@@ -47,6 +56,10 @@ try {
               return protocol.exportChoice(sa, { kind: 'pair', value: { first: fn, second: fn } });
             case 'generic':
               return protocol.exportGeneric(sa, [{ item: fn }, { item: fn }]);
+            case 'generic-live':
+              return protocol.exportBound(sa, { first: fn, last: fn }, (scope, input) =>
+                protocol.exportCall(scope, input),
+              );
             case 'request':
               return use([fn, fn]);
             case 'reply':

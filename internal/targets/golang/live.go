@@ -60,6 +60,7 @@ func (f *file) emitLive() {
 		}
 		f.uses = t.Uses
 		f.codecs = t.Uses
+		f.scopedCodecs = t.IsLive
 		switch t.Kind {
 		case model.KindCallable:
 			f.emitCallable(t)
@@ -68,6 +69,7 @@ func (f *file) emitLive() {
 		}
 	}
 	f.codecs = nil
+	f.scopedCodecs = false
 	f.uses = f.family.Uses
 }
 
@@ -367,6 +369,9 @@ func (f *file) liveExpr(e model.TypeExpr, src, dst string, export bool, fail str
 		return fail + ", err"
 	}
 	if codec := f.parameterConverter(e); codec != "" {
+		if export && f.scopedCodecs {
+			src = "scope, " + src
+		}
 		f.linef("%s, err := %s(%s)", dst, codec, src)
 		f.linef("if err != nil { return %s }", failure())
 		return

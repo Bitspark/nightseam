@@ -28,7 +28,11 @@ func (f *file) converterParameters(t *render.Type, export bool) string {
 		if !export {
 			from, to = to, from
 		}
-		fmt.Fprintf(&out, ", %s: (value: %s) => %s", converterName(use), from, to)
+		parameters := "value: " + from
+		if export && t.IsLive {
+			parameters = "scope: LiveScope, " + parameters
+		}
+		fmt.Fprintf(&out, ", %s: (%s) => %s", converterName(use), parameters, to)
 	}
 	return out.String()
 }
@@ -87,7 +91,11 @@ func (f *file) conversionCall(e model.TypeExpr, src string, export bool) string 
 		if !export {
 			converted = "(" + converted + ") as " + to
 		}
-		passed = append(passed, "(input: "+from+"): "+to+" => "+converted)
+		parameters := "input: " + from
+		if export && t.IsLive {
+			parameters = "scope: LiveScope, " + parameters
+		}
+		passed = append(passed, "("+parameters+"): "+to+" => "+converted)
 	}
 	return f.liveCall(e, export) + f.renderArguments(arguments) + "(" + strings.Join(passed, ", ") + ")"
 }

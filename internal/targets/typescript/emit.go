@@ -14,13 +14,14 @@ import (
 // file is one TypeScript file being emitted, and the prefix a type of the
 // family is spelled with: none in types.ts, Protocol. in index.ts.
 type file struct {
-	plan   *plan
-	family *render.Family
-	config Config
-	w      *emit.Writer
-	prefix string
-	scope  []model.Parameter
-	codecs []render.Use
+	plan         *plan
+	family       *render.Family
+	config       Config
+	w            *emit.Writer
+	prefix       string
+	scope        []model.Parameter
+	codecs       []render.Use
+	scopedCodecs bool
 	// conversion is the namespace a live type's generated export/import is
 	// called through: none in types.ts, which declares them, and the
 	// re-exported module in index.ts, which only calls them.
@@ -224,7 +225,7 @@ func emitClient(f *file) {
 	f.linef("import type { Tunnel } from %s;", quote(f.config.Tunnel))
 	f.linef("import { %s } from './types.ts';", identValidateWire)
 	if fam.Live {
-		f.linef("import { liveOver, scopeOf } from %s;", quote(f.config.Live))
+		f.linef("import { liveOver, scopeOf, type LiveScope } from %s;", quote(f.config.Live))
 		f.line("import * as conversion from './types.ts';")
 		f.liveSiblings()
 	}
