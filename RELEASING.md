@@ -113,6 +113,10 @@ that names another commit.
    example again, this time from npm and from the module proxy with nothing
    laid for it and nothing overridden, `go get`s the root module at the tag
    and the adapter at its own, and runs the exchange.
+   The copied consumer also installs every discovered npm package at the
+   exact release version, preserving the example's existing requirements.
+   Both installation smokes type-check and load every published entry point,
+   including packages and subpaths the example does not use.
    Before installing, it polls npm and the Go proxy with backoff for up to
    thirty minutes for every published package and Go module to propagate,
    with retry backoff capped at thirty seconds.
@@ -185,8 +189,8 @@ and is given at a consumer's install, which is after the tag. It runs on
 every pull request too, in `ci.yml`'s full job, so that a packaging change
 fails the change rather than the release that carries it.
 
-The smoke also *imports* what it would publish. The example imports the two
-packages a generated client needs, so without more than that the rest of the
+Both smokes also *import* what they install. The example imports only some
+of the published packages, so without more than that the rest of the
 release is packed, installed, held to carrying the files it names, and never
 opened. Every package the release finds is therefore imported from the copied
 consumer at every entry point its `publishConfig.exports` declares — type
