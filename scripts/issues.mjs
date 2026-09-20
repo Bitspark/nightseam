@@ -38,11 +38,21 @@ export function field(body, wanted) {
     }
     return fence ? "" : line;
   }).join("\n");
+  // Mask inline code for recognition while retaining the original field value
+  // (Touches legitimately contains backticks). Keep offsets and newlines.
+  const scan = text.replace(/(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g, code => code.replace(/[^\n]/g, "_"));
   const boundaries = [];
   const pattern = /^#{1,6}[ \t]+([^\n]+)|\*\*([^*\n]+)\*\*:?[ \t]*/gm;
-  for (const match of text.matchAll(pattern)) {
+  for (const match of scan.matchAll(pattern)) {
     const label = (match[1] ?? match[2]).trim().replace(/[:.]$/, "").toLowerCase();
-    if (match[1] || fields.includes(label)) boundaries.push({ label, start: match.index, end: match.index + match[0].length });
+    const lineStart = scan.lastIndexOf("\n", match.index - 1) + 1;
+    const prefix = scan.slice(lineStart, match.index);
+    const prior = boundaries.at(-1);
+    // A bold label starts a field line, or follows a completed field on that
+    // line. An emphasized word buried in prose cannot manufacture metadata.
+    const fieldPosition = /^\s*(?:[-*+]\s+)?$/.test(prefix) ||
+      prior?.start >= lineStart && /[.;!?]\s+$/.test(prefix);
+    if (match[1] || fields.includes(label) && fieldPosition) boundaries.push({ label, start: match.index, end: match.index + match[0].length });
   }
   const at = boundaries.findIndex(entry => entry.label === wanted.toLowerCase());
   return at < 0 ? null : text.slice(boundaries[at].end, boundaries[at + 1]?.start).trim();
@@ -51,7 +61,7 @@ export function field(body, wanted) {
 export function prerequisites(body) {
   const text = field(body, "waits on");
   if (text == null) return { present: false, numbers: [], ambiguous: false };
-  if (/^(?:nothing|none)\b/i.test(text)) return { present: true, numbers: [], ambiguous: false };
+  if (/^(?:nothing|none)(?:[.!](?:\s|$)|\s*$)/i.test(text)) return { present: true, numbers: [], ambiguous: false };
   const found = [];
   for (const line of text.split("\n")) {
     let rest = line.replace(/^\s*(?:[-*+]\s+|\d+\.\s+)?/, "");
@@ -130,7 +140,7 @@ export function audit(snapshot) {
     if (!active.includes(issue) && !active.some(candidate => candidate.blockedBy.includes(issue.number))) continue;
     const sources = [{ body: issue.body, url: url(issue.number) }, ...issue.comments];
     const recorded = sources.filter(source => meaningful(field(source.body, "verdict"))).at(-1);
-    report.designs.push({ number: issue.number, verdict: recorded ? "recorded" : "not-recorded", ...(recorded ? { source: recorded.url } : {}), downstream });
+    report.designs.push({ number: issue.number, state: issue.state, verdict: recorded ? "recorded" : "not-recorded", ...(recorded ? { source: recorded.url } : {}), downstream });
   }
   // Follow only graphs reachable from today's active plan; old unrelated cycles
   // and already-satisfied closed prerequisites are not current blockers.
@@ -219,7 +229,7 @@ function markdown(report) {
   else lines.push("No structural inconsistencies found.");
   if (report.designs.length) {
     lines.push("", "## Design status", "", "Only explicit Verdict sections in the issue or comments are recognized. Recorded text needs human review; recommendations elsewhere are not classified as verdicts.", "");
-    for (const design of report.designs) lines.push(`- ${link(design.number)}: ${design.verdict === "recorded" ? `[verdict text recorded](${design.source})` : "no recorded Verdict section; decision remains unverified"}. Downstream implementation: ${design.downstream.length ? design.downstream.map(i => `${link(i.number)} (${i.state})`).join(", ") : "none linked in this snapshot"}.`);
+    for (const design of report.designs) lines.push(`- ${link(design.number)} (${design.state}): ${design.verdict === "recorded" ? `[verdict text recorded](${design.source})` : "no structured Verdict section; inspect the discussion without inferring a decision"}. Downstream work: ${design.downstream.length ? design.downstream.map(i => `${link(i.number)} (${i.state})`).join(", ") : "none linked in this snapshot"}.`);
   }
   if (report.dependencies.length) {
     lines.push("", "## Prerequisites", "");

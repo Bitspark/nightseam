@@ -72,6 +72,8 @@ test("only explicit Waits on lists create dependencies; explanations and context
   assert.deepEqual(prerequisites("## Waits on\nNothing. Coordinate with #8.").numbers, []);
   assert.deepEqual(prerequisites("## Waits on / Unblocks\n#9 unblocks #10").numbers, []);
   assert.equal(prerequisites("## Waits on\nAfter the decision in #9.").ambiguous, true);
+  assert.equal(prerequisites("## Waits on\nNothing has landed yet; #3 must land first.").ambiguous, true);
+  assert.equal(prerequisites("## Waits on\nNone of #3 is optional.").ambiguous, true);
 });
 
 test("a concrete prerequisite needs its native edge, including a satisfied closed prerequisite", () => {
@@ -103,12 +105,25 @@ test("a recorded design verdict does not hide its unfinished downstream implemen
   const lane = issue(3, { body: laneBody.replace("Nothing.", "#2."), blockedBy: [2] });
   const report = audit(snapshot(design, lane));
   assert.deepEqual(report.findings, []);
-  assert.deepEqual(report.designs[0], { number: 2, verdict: "recorded", source: "https://example.test/verdict", downstream: [{ number: 3, state: "open" }] });
+  assert.deepEqual(report.designs[0], { number: 2, state: "open", verdict: "recorded", source: "https://example.test/verdict", downstream: [{ number: 3, state: "open" }] });
   assert.equal(audit(snapshot({ ...design, comments: design.comments.slice(0, 1) })).designs[0].verdict, "not-recorded");
   const closed = audit(snapshot({ ...design, state: "closed", body: "Historical decision" }, lane));
   assert.deepEqual(closed.findings, []);
   assert.equal(closed.designs[0].verdict, "recorded");
+  assert.equal(closed.designs[0].state, "closed");
   assert.deepEqual(closed.designs[0].downstream, [{ number: 3, state: "open" }]);
+});
+
+test("emphasis and inline-code examples in recommendations are not Verdict fields", () => {
+  for (const body of [
+    "## Recommendation\nNo **verdict** has been given; this is only an option.",
+    "The string `**Verdict:** A` is only a formatting example.",
+    "The string ``**Verdict:** `A` `` is also an example.",
+    "## Recommendation\nA is my choice. **Verdict:** still only prose on this line.",
+  ]) {
+    assert.equal(field(body, "verdict"), null);
+    assert.equal(audit(snapshot(issue(2, { labels: ["design"], body }))).designs[0].verdict, "not-recorded");
+  }
 });
 
 test("closed historical issues, closed milestones and pull requests do not become active failures", () => {
