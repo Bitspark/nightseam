@@ -44,7 +44,7 @@ const (
 // imported are the names the generated module imports from the runtime
 // and the tunnel; globals are the ones of the language it uses. A type of
 // either name would shadow them.
-var imported = []string{"DuplexPeer", "DuplexError", "PeerOptions", "CallOptions", "EmitOptions", "RequestContext", "EventContext", "FrameConnection", "WebSocketLike", "Tunnel", "LiveScope", "LiveOwner", "liveOver", "scopeOf", "conversion", "createValidator", "TypeExpression", "WireFamily"}
+var imported = []string{"DuplexPeer", "DuplexError", "PeerOptions", "CallOptions", "EmitOptions", "RequestContext", "EventContext", "FrameConnection", "WebSocketLike", "Tunnel", "LiveOwner", "liveOver", "scopeOf", "conversion", "createValidator", "TypeExpression", "WireFamily"}
 var globals = []string{"Array", "Record", "Promise", "Set", "Error", "String"}
 
 // An omitted Events field must be absent on an ordinary {}. Inherited

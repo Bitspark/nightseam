@@ -58,6 +58,7 @@ languages; none substitutes a handwritten server protocol adapter.
 | `gen.live_serve` in [live.ts](../../conformance/ts/generated/live.ts) | [live-callback-and-result](../../conformance/scenarios/generated/live-callback-and-result.json), [live-higher-order](../../conformance/scenarios/generated/live-higher-order.json), [live-nested-values](../../conformance/scenarios/generated/live-nested-values.json) |
 | `gen.combinator_serve` in [combinator.ts](../../conformance/ts/generated/combinator.ts) | [live-higher-order-callables](../../conformance/scenarios/generated/live-higher-order-callables.json), [live-generic-containers](../../conformance/scenarios/generated/live-generic-containers.json) |
 | `gen.forwarding_serve` in [forwarding.ts](../../conformance/ts/generated/forwarding.ts) | [live-higher-order-forwarding](../../conformance/scenarios/generated/live-higher-order-forwarding.json), mirrored |
+| `gen.owners_serve` in [owners.ts](../../conformance/ts/generated/owners.ts) | [live-owners](../../conformance/scenarios/generated/live-owners.json), mirrored, with four exports and imports per connection |
 
 The forwarding scenario uses generated endpoint bindings in either
 language, with a test-only retain route calling generated
