@@ -2,8 +2,8 @@
 
 A reference to something a peer can call is a thing a consumer *can* build, out
 of three that Nightseam has anyway: a peer that invokes in both directions, a
-tunnel that multiplexes channels over it, and `duplex.Handle` — the one
-reference form the language has, carried by every `protocol.json` tier,
+tunnel that multiplexes channels over it, and `duplex.Handle` — the channel
+reference form carried by every `protocol.json` tier,
 `{"channel": N}` on the wire.
 
 Nightseam now also has [the live layer](live.md), which is the thing itself
@@ -11,8 +11,8 @@ rather than the materials: a scope over a peer, bindings exported from it, and
 references that name them. **This page is not how to use that** — it is the
 composition attempt [admitting a concept](../admission.md#3-the-composition-attempt)
 requires, kept because what it found is why the layer has the shape it has.
-Three of its four findings below are answered by the layer, and the fourth is
-somebody else's bug. A consumer writing new code reaches for
+Three of its four findings below are answered by the layer, and the fourth
+was fixed in the generator. A consumer writing new code reaches for
 [`live/go` and `@nightseam/live`](live.md); a reader asking *why* that exists,
 and what it costs to do without it, reads on.
 
@@ -238,6 +238,10 @@ reference reaches an unrelated implementation" is an omission in generated
 code rather than an absent guarantee — a distinction
 [#199](https://github.com/Bitspark/nightseam/issues/199) §3 asks for
 explicitly.
+**Answered:** a live scope checks a reference's contract at import, and the
+exporting scope checks it again at invocation. The shared scenario
+[`a-wrong-contract-and-a-binding-of-no-scope`](../../conformance/scenarios/live/a-wrong-contract-and-a-binding-of-no-scope.json)
+holds the refusal in both languages and across the wire.
 
 **3. A reference carries no evidence of its scope.** `{"channel": N}` says
 nothing about the connection it was minted on. Two callers of one server mint
@@ -288,10 +292,10 @@ above. Their classification under the admission policy does not prove that
 every desired behavior follows from a record of functions, or settle whether
 a reusable implementation should ship.
 
-It does not prove that this is the surface v0.5.0 should ship. Every rule in
-the table above is bookkeeping a consumer would otherwise write again for each
-application, and two of the four findings are repairs the generated import
-owes. That is the case for the live tier, not against it — and it is the
-evidence [#201](https://github.com/Bitspark/nightseam/issues/201) and
+Every rule in the table above is bookkeeping a consumer would otherwise write
+again for each application, and the generated channel import leaves attachment
+sharing and contract checks to that consumer. The live layer supplies those
+guarantees. This construction is the evidence
+[#201](https://github.com/Bitspark/nightseam/issues/201) and
 [#202](https://github.com/Bitspark/nightseam/issues/202) asked for before
 settling what replaces it.
