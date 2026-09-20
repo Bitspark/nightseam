@@ -1,6 +1,6 @@
 /** The live layer under control: scopes over peers, bindings exported and imported, and what each was asked. */
 import { DuplexError } from '@nightseam/runtime';
-import { forward, liveOver, type Invoke, type LiveOptions, type LiveScope, type Reference } from '@nightseam/live';
+import { forward, liveOver, type Invoke, type LiveOptions, type LiveScope, type LiveOwner, type Reference } from '@nightseam/live';
 import { boolOf, fail, invalid, intOf, stringOf, withinOf, type Args, type Op, type Testee } from './testee.ts';
 import { Call, isPeer, type Peer } from './peer.ts';
 
@@ -52,6 +52,11 @@ class ScopeOn {
 }
 
 const isScope = (object: unknown): object is ScopeOn => object instanceof ScopeOn;
+
+class OwnerOn {
+  constructor(readonly owner: LiveOwner, readonly scope: ScopeOn) {}
+}
+const isOwner = (object: unknown): object is OwnerOn => object instanceof OwnerOn;
 
 /** One imported binding: the function to call it with, and the scope it belongs to. */
 class BindingOn {
@@ -137,6 +142,12 @@ function cannedInvoke(t: Testee, s: ScopeOn, contract: string, behavior: Args): 
 export function liveOps(t: Testee): Record<string, Op> {
   const scopeOf = (args: Args, name = 'on') => t.lookup(args[name], isScope, 'a live scope');
   const bindingOf = (args: Args, name = 'on') => t.lookup(args[name], isBinding, 'a live attachment');
+  const ownerOf = (args: Args, scope: ScopeOn): LiveOwner => {
+    if (args.owner === undefined) return scope.scope.owner();
+    const held = t.lookup(args.owner, isOwner, 'a live owner');
+    if (held.scope !== scope) throw invalid('owner belongs to another scope');
+    return held.owner;
+  };
 
   /**
    * The reference a step carries, which is the value the other side's export
@@ -153,6 +164,29 @@ export function liveOps(t: Testee): Record<string, Op> {
   };
 
   return {
+    'live.owner': (args) => {
+      const s = scopeOf(args);
+      const parent = ownerOf(args, s);
+      return { handle: t.mint('owner', new OwnerOn(boolOf(args, 'root') ? parent : parent.child(), s)) };
+    },
+    'live.owner_release': (args) => {
+      t.lookup(args.on, isOwner, 'a live owner').owner.release();
+      return {};
+    },
+    'live.owner_counts': (args) => t.lookup(args.on, isOwner, 'a live owner').owner.counts(),
+    'live.import_value': (args) => {
+      const s = scopeOf(args);
+      if (!Array.isArray(args.references)) throw invalid('references must be an array');
+      const references = args.references;
+      try {
+        const imports = ownerOf(args, s).importValue((batch) => {
+          const imports = references.map((raw) => batch.import(s.scope.decode(raw), stringOf(args, 'contract')));
+          if (boolOf(args, 'fail')) throw new DuplexError('fixture_failed', 'failed after imports');
+          return imports;
+        });
+        return { handles: imports.map((fn) => t.mint('at', new BindingOn(fn, s))) };
+      } catch (error) { throw liveError(error); }
+    },
     'live.over': (args) => {
       const p = t.lookup(args.on, isPeer, 'a peer');
       const given = (args.options ?? {}) as Args;
@@ -170,7 +204,7 @@ export function liveOps(t: Testee): Record<string, Op> {
       const contract = stringOf(args, 'contract');
       const behavior = (args.behavior ?? {}) as Args;
       try {
-        const reference = s.scope.export(contract, cannedInvoke(t, s, contract, behavior));
+        const reference = ownerOf(args, s).export(contract, cannedInvoke(t, s, contract, behavior));
         return { reference: JSON.parse(JSON.stringify(reference)) };
       } catch (error) {
         throw liveError(error);
@@ -181,7 +215,7 @@ export function liveOps(t: Testee): Record<string, Op> {
       const contract = stringOf(args, 'contract');
       const reference = referenceOf(args, s);
       try {
-        return { handle: t.mint('at', new BindingOn(s.scope.import(reference, contract), s)) };
+        return { handle: t.mint('at', new BindingOn(ownerOf(args, s).import(reference, contract), s)) };
       } catch (error) {
         throw liveError(error);
       }
@@ -212,7 +246,7 @@ export function liveOps(t: Testee): Record<string, Op> {
       const contract = stringOf(args, 'contract');
       const a = bindingOf(args, 'attachment');
       try {
-        return { reference: JSON.parse(JSON.stringify(forward(s.scope, contract, a.invoke))) };
+        return { reference: JSON.parse(JSON.stringify(forward(ownerOf(args, s), contract, a.invoke))) };
       } catch (error) {
         throw liveError(error);
       }

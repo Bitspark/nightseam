@@ -1,0 +1,447 @@
+{
+  "name": "exclusive owners release created bindings, preserve borrowed aliases and unwind failed imports",
+  "layer": "live",
+  "description": "Nested owners and idempotent root release return scope counts to zero without ending either peer. A failed walk attaches a fresh binding then borrows an existing attachment; only its own attachment is unwound.",
+  "needs": [
+    "live",
+    "peer"
+  ],
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peers",
+      "args": {
+        "server": "a"
+      },
+      "bind": {
+        "server": "pa",
+        "client": "pb"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.over",
+      "args": {
+        "on": "$pa",
+        "options": {
+          "max_exports": 4,
+          "max_imports": 4
+        }
+      },
+      "bind": "la"
+    },
+    {
+      "on": "b",
+      "op": "live.over",
+      "args": {
+        "on": "$pb",
+        "options": {
+          "max_exports": 4,
+          "max_imports": 4
+        }
+      },
+      "bind": "lb"
+    },
+    {
+      "on": "a",
+      "op": "live.owner",
+      "args": {
+        "on": "$la"
+      },
+      "bind": "exporter"
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "owner": "$exporter",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "reference": "retained"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.owner",
+      "args": {
+        "on": "$lb"
+      },
+      "bind": "a"
+    },
+    {
+      "on": "b",
+      "op": "live.owner",
+      "args": {
+        "on": "$lb"
+      },
+      "bind": "b"
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "owner": "$a",
+        "reference": "$retained",
+        "contract": "probe/Report"
+      },
+      "bind": "first"
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "owner": "$b",
+        "reference": "$retained",
+        "contract": "probe/Report"
+      },
+      "bind": "alias"
+    },
+    {
+      "on": "b",
+      "op": "live.owner_counts",
+      "args": {
+        "on": "$a"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 1
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.owner_counts",
+      "args": {
+        "on": "$b"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.owner_release",
+      "args": {
+        "on": "$b"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$alias",
+        "request": 7
+      },
+      "bind": "call"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$call"
+      },
+      "expect": {
+        "result": 7
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.owner",
+      "args": {
+        "on": "$lb",
+        "owner": "$a"
+      },
+      "bind": "child"
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "owner": "$exporter",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "reference": "fresh"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.import_value",
+      "args": {
+        "on": "$lb",
+        "owner": "$child",
+        "references": [
+          "$fresh",
+          "$retained"
+        ],
+        "contract": "probe/Report",
+        "fail": true
+      },
+      "expect_error": {
+        "code": "fixture_failed"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 1
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.owner_counts",
+      "args": {
+        "on": "$child"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$first",
+        "request": 8
+      },
+      "bind": "call"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$call"
+      },
+      "expect": {
+        "result": 8
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": "$fresh",
+        "contract": "probe/Report"
+      },
+      "expect_error": {
+        "code": "reference_released"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "owner": "$exporter",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "reference": "nested"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "owner": "$child",
+        "reference": "$nested",
+        "contract": "probe/Report"
+      },
+      "bind": "nestedCall"
+    },
+    {
+      "on": "b",
+      "op": "live.owner_release",
+      "args": {
+        "on": "$a"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.owner_release",
+      "args": {
+        "on": "$a"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$alias"
+      },
+      "bind": "call"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$call"
+      },
+      "expect": {
+        "error": {
+          "code": "reference_released"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": {
+        "on": "$nestedCall"
+      },
+      "bind": "call"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$call"
+      },
+      "expect": {
+        "error": {
+          "code": "reference_released"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.counts",
+      "args": {
+        "on": "$la"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      },
+      "repeat": {
+        "max": 100,
+        "until": "match"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.owner",
+      "args": {
+        "on": "$la",
+        "root": true
+      },
+      "bind": "root"
+    },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": "probe/Report"
+      },
+      "bind": {
+        "reference": "rootRef"
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": "$rootRef",
+        "contract": "probe/Report"
+      },
+      "bind": "rootCall"
+    },
+    {
+      "on": "a",
+      "op": "live.owner_release",
+      "args": {
+        "on": "$root"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.owner_release",
+      "args": {
+        "on": "$root"
+      }
+    },
+    {
+      "on": "a",
+      "op": "live.counts",
+      "args": {
+        "on": "$la"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "live.counts",
+      "args": {
+        "on": "$lb"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      },
+      "repeat": {
+        "max": 100,
+        "until": "match"
+      }
+    },
+    {
+      "on": "a",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pa",
+        "method": "still.open",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": {
+        "on": "$pb",
+        "method": "still.open",
+        "params": 9
+      },
+      "bind": "rpc"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": {
+        "on": "$rpc"
+      },
+      "expect": {
+        "result": 9
+      }
+    }
+  ]
+}

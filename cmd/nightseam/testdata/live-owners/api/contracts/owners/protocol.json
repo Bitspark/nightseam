@@ -1,0 +1,11 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "drop": {},
+      "references": {
+        "result": "json"
+      }
+    }
+  }
+}

@@ -133,7 +133,7 @@ func (t *testee) forwardingDispatch(op string, raw map[string]json.RawMessage) (
 					if err := combinator.ValidateRaw("Toolkit", wire); err != nil {
 						return nil, err
 					}
-					value, err := combinator.ImportToolkit(scope, wire)
+					value, err := combinator.ImportToolkit(scope.Owner(), wire)
 					if err != nil {
 						return nil, err
 					}
@@ -183,7 +183,7 @@ func (t *testee) forwardingDispatch(op string, raw map[string]json.RawMessage) (
 		if err = combinator.ValidateRaw("Toolkit", wire); err != nil {
 			return nil, err
 		}
-		if m.toolkit, err = combinator.ImportToolkit(m.upstream, wire); err != nil {
+		if m.toolkit, err = combinator.ImportToolkit(m.upstream.Owner(), wire); err != nil {
 			return nil, err
 		}
 		if err = json.Unmarshal(wire, &m.from); err != nil {
@@ -191,7 +191,7 @@ func (t *testee) forwardingDispatch(op string, raw map[string]json.RawMessage) (
 		}
 		// A typed proxy is exported into a different scope. Its generated
 		// wrapper converts embedded arguments/results at both boundaries.
-		wire, err = combinator.ExportToolkit(m.downstream, m.toolkit)
+		wire, err = combinator.ExportToolkit(m.downstream.Owner(), m.toolkit)
 		if err != nil {
 			return nil, err
 		}
