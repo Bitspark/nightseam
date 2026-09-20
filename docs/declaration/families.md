@@ -292,9 +292,10 @@ connection that the other side may invoke.
 A **`callable`** is a kind beside `record`, `entity`, `enum`, `alias` and
 `union`. It declares a `request`, a `result` and the `errors` it may return,
 each optional: `Cancel` above takes nothing and answers nothing. It is referred
-to by name, like any other type, and **may not be written inline** — a
-reference to a callable carries the identity of the declaration it implements,
-and a callable written where a type is named has no declaration to carry. It
+to by name, like any other type, and **may not be written inline**. This
+grammar and the choice to identify wire contracts by declaration path are
+the two selected design dimensions, as the
+[decision](../decisions/a-callable-is-a-declared-kind.md) explains. It
 declares no `parameters`: generic callable identities would require a shared
 canonical spelling of their applied arguments, which is not part of the
 current contract. This restriction does not apply to generic containers.
@@ -360,9 +361,15 @@ projection of the callable kind, the way a JSON array is the projection of
 {"binding": "9f2c4ab11e07d3a5.3", "contract": "worker/Report"}
 ```
 
-`contract` is the declaration the callable was declared at, and it is
-**nominal**: a reference declared as one callable is refused where another is
-expected, even when the two have the same shape. `binding` is opaque to the
+`contract` is the callable's `family/Type` path, and wire checking is
+**nominal**: a descriptor carrying one path is refused where another is
+expected, even when the two have the same signature. Generated native
+function aliases can still be assigned by signature; export stamps the
+contract expected at that position. Moving or renaming a declaration changes
+its contract. Keeping its path across an incompatible signature change
+does not establish compatibility: no signature fingerprint or version is
+carried ([the exact guarantee](../decisions/a-callable-is-a-declared-kind.md#native-assignment-and-contract-evolution)).
+`binding` is opaque to the
 declaration layer — the scope that minted it reads it, and nobody else. Each
 language's validator checks the form and that identity and nothing more: it
 resolves no binding, registers nothing and reaches no network, since whether a

@@ -2,8 +2,9 @@
 
 The live tier needed a way to say "a value here is something the other side
 can call". Two shapes were on the table, both with prior art in the sibling
-projects this model is drawn from, and they disagree about the same thing
-twice — once in the grammar and once on the wire.
+projects this model is drawn from. The choice involved two dimensions:
+where a callable is written in the grammar, and how its wire contract is
+identified.
 
 **A constructor.** Glyph's arrow: a callable is a type *expression*,
 `Callable<Percent, Unit>`, written wherever a type is named, and a service is
@@ -12,28 +13,44 @@ a product of arrows. Nothing is declared; the shape is the type.
 **A kind.** TISL's thing types: a callable is a *declaration*, named among the
 family's types, and a value type refers to it. There is no anonymous callable.
 
-The operator chose the kind, on 2026-09-19, and with it the nominal identity
-that follows from it — [#201's
+The operator chose named callable declarations and nominal wire identity,
+on 2026-09-19 — [#201's
 verdict](https://github.com/Bitspark/nightseam/issues/201#issuecomment-5745189544).
 
-## Why they are one decision and not two
+## Two selected design dimensions
 
-A reference on the wire has to say what it is a reference *to*, or a callback
-for one thing reaches an implementation of another. What it can say depends
-entirely on which shape was chosen:
+A reference on the wire names the contract its binding implements. This
+design chooses **nominal identity**, the declaration's `family/Type` path:
+`worker/Report` and `worker/SetVolume` are different contracts even if both
+take an integer and answer nothing. A descriptor carrying one is refused
+where the other is expected.
 
-- With a constructor there is no declaration to name, so the identity has to
-  be **structural** — a digest of the normalized signature. Then `report` and
-  `setVolume`, both taking an integer and answering nothing, are the same
-  contract, and a reference to one is accepted where the other is expected.
-  Nothing in the model can tell them apart, because in that model there is
-  nothing to tell apart.
-- With a kind every callable has a declaration site, so the identity is
-  simply **the declaration**: `worker/Report`. Two callables of the same shape
-  are two contracts, and the refusal is exact.
+It separately chooses **named declarations** over inline callable
+expressions. Naming and nominality are not logically inseparable: a
+language could name callables yet compare normalized signatures, or give
+inline callables explicit identities. Nightseam chooses neither of those
+combinations. Its named declaration supplies a direct, shared spelling for
+the nominal wire contract without specifying a structural signature digest.
 
-Choosing the kind is therefore choosing the safety; the grammar and the wire
-form are the same choice seen twice.
+This check distinguishes wire contract names. It does not prove which
+implementation a native function value originally represented.
+
+## Native assignment and contract evolution
+
+Generated Go callables are aliases of function types; TypeScript callables
+are function type aliases. Two with the same native signature can be
+assigned to each other without a cast. When that value is exported, the
+generated boundary helper stamps the contract expected at that position.
+It does not recover a semantic identity from the function. The guarantee
+is nominal wire checking, not end-to-end nominal typing of native values.
+
+The contract path contains no signature fingerprint or version. Moving or
+renaming a callable changes its wire identity; retaining the path while
+changing its signature leaves the identity string unchanged. Equality of
+that string therefore establishes no compatibility between incompatible
+signature revisions. Argument and result validation still applies, but a
+future contract-evolution strategy needs its own deliberate decision.
+This design introduces neither host-type branding nor versioned identities.
 
 ## What it costs, and what it does not
 
@@ -78,3 +95,15 @@ map and a nullable — and `supervisor` names worker's callables across a family
 boundary. `conformance/tables/validator.json` holds the refusal both runtimes
 must spell the same, including the one that matters: a reference carrying
 `wide/Cancel` where `wide/Report` is expected, refused by name.
+
+[`TestGeneratedCallableNominality`](../../cmd/nightseam/callable_nominality_test.go)
+generates two different callable declarations with identical signatures.
+Its Go and TypeScript programs compile the assignment from `Report` to
+`SetVolume`, export the value as `nominal/SetVolume`, and invoke that
+implementation through the destination import. Both generated validators
+refuse the resulting descriptor as `Report`, and both generated imports
+refuse it with `contract_mismatch`. Together with the shared runtime case
+*a contract the binding does not carry is refused* in
+[Go](../../live/go/livetest/conformance.go) and
+[TypeScript](../../live/ts/src/conformance.ts), this holds both the accepted
+native assignment and the rejected mismatched descriptor.
