@@ -50,7 +50,7 @@ both, and says so at the top.
 | [A tier is a built-in family](a-tier-is-a-built-in-family.md) | [declarative](../goals/declarative.md), [boundary](../goals/boundary.md) | 0.4.0, #62 |
 | [A side may extend another family's](a-side-may-extend-another-familys.md) | [composability](../goals/composability.md) | 0.4.0, #61 |
 | [One parameter mechanism, of two sorts](one-parameter-mechanism-of-two-sorts.md) | [declarative](../goals/declarative.md), [agnosticism](../goals/agnosticism.md) | 0.4.0, #57 and #59 |
-| [A union is internally tagged](a-union-is-internally-tagged.md) | [agnosticism](../goals/agnosticism.md) | 0.4.0, #56 |
+| [A union is adjacently tagged](a-union-is-adjacently-tagged.md) | [agnosticism](../goals/agnosticism.md) | 0.4.0, #56, amended by #146 |
 | [Nullness is a fact of a value](nullness-is-a-fact-of-a-value.md) | [declarative](../goals/declarative.md) | 0.4.0, #58 |
 | [A shape without a name is named by where it sits](a-shape-is-named-by-where-it-sits.md) | [declarative](../goals/declarative.md) | 0.4.0, #60 |
 | [A pattern has one dialect](a-pattern-has-one-dialect.md) | [agnosticism](../goals/agnosticism.md) | 0.4.0, #71 |
