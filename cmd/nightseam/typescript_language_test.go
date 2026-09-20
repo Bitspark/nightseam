@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/Bitspark/nightseam/internal/analysis"
@@ -22,13 +21,8 @@ func typescriptLanguageFixture(t *testing.T, world analysis.World, source, scrip
 	root := repositoryRoot(t)
 	tsc := fixture(t, root, "node", "tsc")
 	directory := t.TempDir()
-	paths := map[string][]string{}
-	modules := map[string]string{}
 	for _, component := range []string{"runtime", "duplex", "tunnel"} {
 		copyFixtureTree(t, filepath.Join(root, component, "ts"), filepath.Join(directory, component, "ts"))
-		entry := "./" + component + "/ts/src/index.ts"
-		paths["@nightseam/"+component] = []string{entry}
-		modules["@nightseam/"+component] = entry
 	}
 	k := kernel.New(typescript.New(typescript.Config{Scope: "@example"}))
 	for name := range world {
@@ -38,16 +32,6 @@ func typescriptLanguageFixture(t *testing.T, world analysis.World, source, scrip
 		}
 		for path, data := range result.Files {
 			writeFixture(t, directory, path, data)
-			if rest, ok := strings.CutPrefix(path, "api/ts/"); ok && strings.HasSuffix(rest, "/src/types.ts") {
-				name := "@example/" + strings.TrimSuffix(rest, "/src/types.ts") + "/types"
-				paths[name] = []string{"./" + path}
-				modules[name] = "./" + path
-			}
-			if rest, ok := strings.CutPrefix(path, "api/ts/"); ok && strings.HasSuffix(rest, "/src/index.ts") {
-				name := "@example/" + strings.TrimSuffix(rest, "/src/index.ts")
-				paths[name] = []string{"./" + path}
-				modules[name] = "./" + path
-			}
 		}
 		stubs, err := k.Scaffold(&kernel.World{Families: world}, name, "handlers/"+name)
 		if err != nil {
@@ -57,6 +41,7 @@ func typescriptLanguageFixture(t *testing.T, world analysis.World, source, scrip
 			writeFixture(t, directory, file.Path, file.Data)
 		}
 	}
+	paths := fixtureTypeScriptPaths(t, directory)
 	config, _ := json.Marshal(map[string]any{
 		"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": paths},
 		"include":         []string{"api/ts/**/*.ts", "handlers/**/*.ts", "consumer.ts"},
@@ -65,6 +50,10 @@ func typescriptLanguageFixture(t *testing.T, world analysis.World, source, scrip
 	writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))
 	writeFixture(t, directory, "consumer.ts", []byte(source))
 	writeFixture(t, directory, "consumer.mjs", []byte(script))
+	modules := map[string]string{}
+	for name, sources := range paths {
+		modules[name] = sources[0]
+	}
 	encoded, _ := json.Marshal(modules)
 	writeFixture(t, directory, "loader.mjs", []byte("const modules = "+string(encoded)+"; export async function resolve(name, context, next) { if (modules[name]) return { url: new URL(modules[name], import.meta.url).href, shortCircuit: true }; return next(name, context); }"))
 	runFixture(t, directory, "node", tsc, "--project", "tsconfig.json")
