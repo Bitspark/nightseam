@@ -280,8 +280,9 @@ is the same thing written for the consumer.
   depends on the first already being fetchable.
 - npm: the generated clients depend on `@nightseam/runtime` and
   `@nightseam/tunnel` at the version the generator that rendered them
-  carries; the example depends on the same two at the same version, with no
-  `workspace:*`. A workspace override to a sibling checkout is for
+  carries, and on `@nightseam/live` when their family has a live tier. The
+  example depends on all three at that version, with no `workspace:*`.
+  A workspace override to a sibling checkout is for
   development only, and comes out when the packages it stands in for exist.
 
 ## A name npm has not served
