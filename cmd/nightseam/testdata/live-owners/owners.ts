@@ -74,6 +74,7 @@ for (const side of ['exporter', 'caller', 'both']) {
     if (side === 'caller' || side === 'both') caller.release();
     resume();
     assert.equal(await settled, 9, side + ': release changed an already dispatched scalar result');
+    await zero(sa, sb); // Observe delivery of the asynchronous release event.
     await assert.rejects(() => invoke(9), isCode('reference_released'));
     caller.release();
     exporter.release();

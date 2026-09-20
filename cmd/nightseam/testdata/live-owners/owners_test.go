@@ -215,6 +215,9 @@ func TestGeneratedCallableOwnerReleaseIsABarrier(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal("released callback did not settle")
 			}
+			// Release reaches the other attachment through an asynchronous event.
+			// Observe that barrier before asserting its local refusal code.
+			zero(t, sa, sb)
 			_, err = invoke(ctx, 9)
 			refusal(t, err, live.ErrorReferenceReleased)
 			release(t, caller)
