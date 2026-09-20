@@ -301,6 +301,9 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 			if err := held.Release(); err != nil {
 				return nil, err
 			}
+			if err := aliases[0](ctx, 3); err == nil || callError(err)["code"] != live.ErrorReferenceReleased {
+				return nil, fail("invalid", "releasing original owner did not revoke borrowed generated alias: %v", err)
+			}
 			if _, err := d.client.Drop(ctx); err != nil {
 				return nil, err
 			}

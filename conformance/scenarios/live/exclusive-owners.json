@@ -260,7 +260,7 @@
         "reference": "$nested",
         "contract": "probe/Report"
       },
-      "bind": "nestedCall"
+      "bind": "nested_call"
     },
     {
       "on": "b",
@@ -300,7 +300,7 @@
       "on": "b",
       "op": "live.invoke",
       "args": {
-        "on": "$nestedCall"
+        "on": "$nested_call"
       },
       "bind": "call"
     },
@@ -359,7 +359,7 @@
         "contract": "probe/Report"
       },
       "bind": {
-        "reference": "rootRef"
+        "reference": "root_ref"
       }
     },
     {
@@ -367,10 +367,10 @@
       "op": "live.import",
       "args": {
         "on": "$lb",
-        "reference": "$rootRef",
+        "reference": "$root_ref",
         "contract": "probe/Report"
       },
-      "bind": "rootCall"
+      "bind": "root_call"
     },
     {
       "on": "a",

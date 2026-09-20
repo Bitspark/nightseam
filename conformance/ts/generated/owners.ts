@@ -98,6 +98,8 @@ export const ownersOps: Record<string, (args: Args) => unknown | Promise<unknown
       batch.release();
       for (const alias of aliases) await alias(2);
       held.release();
+      try { await aliases[0]!(3); throw new OwnerFailure('invalid', 'releasing original owner left borrowed alias callable'); }
+      catch (error) { if (code(error) !== 'reference_released') throw error; }
       await d.client.drop();
       await zero(d.scope, within(args));
     }
