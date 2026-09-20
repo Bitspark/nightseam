@@ -47,11 +47,15 @@ func install(handler Handler, events Events, options *runtime.Options) error {
 	options.Families = families
 	prepare := options.Prepare
 	options.Prepare = func(peer *runtime.Peer) error {
-		if _, err := live.Over(peer, live.Options{}); err != nil {
-			return err
-		}
 		if prepare != nil {
-			return prepare(peer)
+			if err := prepare(peer); err != nil {
+				return err
+			}
+		}
+		if _, ok := live.ScopeOf(peer); !ok {
+			if _, err := live.Over(peer, live.Options{}); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
@@ -121,9 +125,13 @@ func (c *Client) Relieve(ctx context.Context, params protocol.RelieveRequest) (p
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+	owner, ok := live.OwnerOf(ctx)
+	if !ok || owner.Scope() != scope {
+		owner = scope.Owner()
+	}
+	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 		var zero json.RawMessage
-		converted, err := protocol.ExportRelieveRequest(scope, params)
+		converted, err := protocol.ExportRelieveRequest(owner, params)
 		if err != nil {
 			return zero, err
 		}
@@ -155,9 +163,13 @@ func (c *Client) Watch(ctx context.Context, params protocol.Watch) (workerprotoc
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+	owner, ok := live.OwnerOf(ctx)
+	if !ok || owner.Scope() != scope {
+		owner = scope.Owner()
+	}
+	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 		var zero json.RawMessage
-		converted, err := protocol.ExportWatch(scope, params)
+		converted, err := protocol.ExportWatch(owner, params)
 		if err != nil {
 			return zero, err
 		}
@@ -174,15 +186,27 @@ func (c *Client) Watch(ctx context.Context, params protocol.Watch) (workerprotoc
 		return result, err
 	}
 	received, err := func() (workerprotocol.Job, error) {
-		var zero workerprotocol.Job
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"worker.Job\""), raw); err != nil {
-			return zero, err
-		}
-		converted, err := workerprotocol.ImportJob(scope, raw)
+		var value workerprotocol.Job
+		err := owner.ImportValue(func(owner *live.Owner) error {
+			converted, err := func() (workerprotocol.Job, error) {
+				var zero workerprotocol.Job
+				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"worker.Job\""), raw); err != nil {
+					return zero, err
+				}
+				converted, err := workerprotocol.ImportJob(owner, raw)
+				if err != nil {
+					return zero, err
+				}
+				return converted, nil
+			}()
+			value = converted
+			return err
+		})
 		if err != nil {
+			var zero workerprotocol.Job
 			return zero, err
 		}
-		return converted, nil
+		return value, nil
 	}()
 	return received, err
 }

@@ -251,6 +251,9 @@ func decoded(v any) any {
 }
 
 func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	if strings.Contains(op, ".owners_") {
+		return t.ownersDispatch(op, raw)
+	}
 	if strings.Contains(op, ".forwarding_") {
 		return t.forwardingDispatch(op, raw)
 	}

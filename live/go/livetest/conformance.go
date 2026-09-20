@@ -79,6 +79,13 @@ func Cases() []Case {
 		{"a reference handed back to its exporter needs no wire", selfReference},
 		{"forwarding gives the destination its own lifetime", forwarding},
 		{"a refused export leaves no binding behind", boundsLeaveNothing},
+		{"ownerReleasesWhatItCreated", ownerReleasesWhatItCreated},
+		{"ownerBorrowsAnAlias", ownerBorrowsAnAlias},
+		{"ownersNest", ownersNest},
+		{"releaseIsIdempotent", releaseIsIdempotent},
+		{"importValueUnwindsOnlyItsOwn", importValueUnwindsOnlyItsOwn},
+		{"exportValueUnderAnOwner", exportValueUnderAnOwner},
+		{"rootOwnerLeavesTheScopeOpen", rootOwnerLeavesTheScopeOpen},
 	}
 }
 
@@ -129,7 +136,7 @@ func refused(t T, err error, code string) {
 	}
 }
 
-func holds(t T, s *live.Scope, exports, imports int, where string) {
+func holds(t T, s interface{ Counts() live.Counts }, exports, imports int, where string) {
 	t.Helper()
 	got := s.Counts()
 	if got.Exports != exports || got.Imports != imports {
@@ -143,7 +150,7 @@ func holds(t T, s *live.Scope, exports, imports int, where string) {
 // is decoded by the scope that received it.
 func handed(t T, from, to *live.Scope, contract string, invoke live.Invoke) (live.Reference, live.Invoke) {
 	t.Helper()
-	exported, err := from.Export(contract, invoke)
+	exported, err := from.Owner().Export(contract, invoke)
 	if err != nil {
 		t.Fatalf("exporting: %v", err)
 	}
@@ -155,7 +162,7 @@ func handed(t T, from, to *live.Scope, contract string, invoke live.Invoke) (liv
 	if err != nil {
 		t.Fatalf("decoding a reference: %v", err)
 	}
-	imported, err := to.Import(arrived, contract)
+	imported, err := to.Owner().Import(arrived, contract)
 	if err != nil {
 		t.Fatalf("importing: %v", err)
 	}
@@ -235,7 +242,7 @@ func independentSuppliers(t T, p Pair) {
 func aliases(t T, p Pair) {
 	t.Helper()
 	arrived, once := handed(t, p.A, p.B, sink, echo)
-	again, err := p.B.Import(arrived, sink)
+	again, err := p.B.Owner().Import(arrived, sink)
 	if err != nil {
 		t.Fatalf("importing a binding twice: %v", err)
 	}
@@ -252,7 +259,7 @@ func aliases(t T, p Pair) {
 
 func serializedReferenceSameConnection(t T, p Pair) {
 	t.Helper()
-	exported, err := p.A.Export(sink, echo)
+	exported, err := p.A.Owner().Export(sink, echo)
 	if err != nil {
 		t.Fatalf("exporting: %v", err)
 	}
@@ -267,7 +274,7 @@ func serializedReferenceSameConnection(t T, p Pair) {
 		t.Fatalf("decoding serialized bytes: %v", err)
 	}
 	holds(t, p.B, 0, 0, "decoding creates no attachment")
-	invoke, err := p.B.Import(arrived, sink)
+	invoke, err := p.B.Owner().Import(arrived, sink)
 	if err != nil {
 		t.Fatalf("importing decoded bytes: %v", err)
 	}
@@ -281,12 +288,12 @@ func serializedReferenceSameConnection(t T, p Pair) {
 
 func foreignNativeReference(t T, p Pair) {
 	t.Helper()
-	exported, err := p.A.Export(sink, echo)
+	exported, err := p.A.Owner().Export(sink, echo)
 	if err != nil {
 		t.Fatalf("exporting: %v", err)
 	}
 	// The reference was minted in A's scope; B never decoded it.
-	_, err = p.B.Import(exported, sink)
+	_, err = p.B.Owner().Import(exported, sink)
 	refused(t, err, live.ErrorReferenceForeign)
 	ordinaryRPCAfterReference(t, p)
 	holds(t, p.A, 1, 0, "refusing a native reference leaves its export intact")
@@ -308,7 +315,7 @@ func ordinaryRPCAfterReference(t T, p Pair) {
 
 func contractMismatch(t T, p Pair) {
 	t.Helper()
-	exported, err := p.A.Export(sink, echo)
+	exported, err := p.A.Owner().Export(sink, echo)
 	if err != nil {
 		t.Fatalf("exporting: %v", err)
 	}
@@ -317,7 +324,7 @@ func contractMismatch(t T, p Pair) {
 	if err != nil {
 		t.Fatalf("decoding: %v", err)
 	}
-	_, err = p.B.Import(arrived, other)
+	_, err = p.B.Owner().Import(arrived, other)
 	refused(t, err, live.ErrorContractMismatch)
 	holds(t, p.B, 0, 0, "a mismatched contract attaches nothing")
 }
@@ -330,7 +337,7 @@ func unknownReference(t T, p Pair) {
 	if err != nil {
 		t.Fatalf("decoding: %v", err)
 	}
-	invoke, err := p.B.Import(arrived, sink)
+	invoke, err := p.B.Owner().Import(arrived, sink)
 	if err != nil {
 		t.Fatalf("importing: %v", err)
 	}
@@ -390,7 +397,7 @@ func releaseIsABarrier(t T, p Pair) {
 func releaseInvalidatesAliases(t T, p Pair) {
 	t.Helper()
 	arrived, once := handed(t, p.A, p.B, sink, echo)
-	again, err := p.B.Import(arrived, sink)
+	again, err := p.B.Owner().Import(arrived, sink)
 	if err != nil {
 		t.Fatalf("importing twice: %v", err)
 	}
@@ -404,7 +411,7 @@ func releaseInvalidatesAliases(t T, p Pair) {
 	_, err = again(c, nil)
 	refused(t, err, live.ErrorReferenceReleased)
 	// And importing it again is refused for the reason it was refused for.
-	_, err = p.B.Import(arrived, sink)
+	_, err = p.B.Owner().Import(arrived, sink)
 	refused(t, err, live.ErrorReferenceReleased)
 }
 
@@ -532,7 +539,7 @@ func closeSettles(t T, p Pair) {
 func selfReference(t T, p Pair) {
 	t.Helper()
 	asked := make(chan struct{}, 2)
-	exported, err := p.A.Export(sink, func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
+	exported, err := p.A.Owner().Export(sink, func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
 		asked <- struct{}{}
 		return r, nil
 	})
@@ -544,7 +551,7 @@ func selfReference(t T, p Pair) {
 	if err != nil {
 		t.Fatalf("decoding our own reference: %v", err)
 	}
-	invoke, err := p.A.Import(back, sink)
+	invoke, err := p.A.Owner().Import(back, sink)
 	if err != nil {
 		t.Fatalf("importing our own reference: %v", err)
 	}
@@ -560,7 +567,7 @@ func forwarding(t T, p Pair) {
 	// A exports, B imports, and B forwards it back to A as a binding of its
 	// own. Releasing the forwarded binding must not release the origin.
 	origin, imported := handed(t, p.A, p.B, sink, echo)
-	forwarded, err := live.Forward(p.B, sink, imported)
+	forwarded, err := live.Forward(p.B.Owner(), sink, imported)
 	if err != nil {
 		t.Fatalf("forwarding: %v", err)
 	}
@@ -569,7 +576,7 @@ func forwarding(t T, p Pair) {
 	if err != nil {
 		t.Fatalf("decoding the forwarded reference: %v", err)
 	}
-	through, err := p.A.Import(arrived, sink)
+	through, err := p.A.Owner().Import(arrived, sink)
 	if err != nil {
 		t.Fatalf("importing the forwarded reference: %v", err)
 	}
@@ -592,9 +599,9 @@ func forwarding(t T, p Pair) {
 func boundsLeaveNothing(t T, p Pair) {
 	t.Helper()
 	before := p.A.Counts()
-	_, err := p.A.Export("", echo)
+	_, err := p.A.Owner().Export("", echo)
 	refused(t, err, live.ErrorContractInvalid)
-	_, err = p.A.Export(sink, nil)
+	_, err = p.A.Owner().Export(sink, nil)
 	refused(t, err, live.ErrorContractInvalid)
 	if got := p.A.Counts(); got != before {
 		t.Errorf("a refused export left %v behind, expected %v", got, before)
@@ -603,3 +610,257 @@ func boundsLeaveNothing(t T, p Pair) {
 
 // Describe names the suite for a report.
 func Describe() string { return fmt.Sprintf("the live layer, %d cases", len(Cases())) }
+
+// ownership cases use native values and owner release; connection closure is
+// cleanup after the assertions, never the action which hides an allocation.
+func ownedHanded(t T, from, to *live.Owner) (live.Reference, live.Invoke) {
+	t.Helper()
+	ref, err := from.Export(sink, echo)
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	raw, err := json.Marshal(ref)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	arrived, err := to.Scope().Decode(raw)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	invoke, err := to.Import(arrived, sink)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	return arrived, invoke
+}
+
+func ownershipBaseline(t T, p Pair) {
+	t.Helper()
+	if err := p.A.Owner().Release(); err != nil {
+		t.Fatalf("release: %v", err)
+	}
+	if err := p.B.Owner().Release(); err != nil {
+		t.Fatalf("release: %v", err)
+	}
+	holds(t, p.A, 0, 0, "A baseline")
+	holds(t, p.B, 0, 0, "B baseline")
+}
+
+func ownerReleasesWhatItCreated(t T, p Pair) {
+	owner := p.A.Owner().Child()
+	_, imported := ownedHanded(t, p.B.Owner(), owner)
+	ref, err := owner.Export(sink, echo)
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	local, err := p.A.Owner().Import(ref, sink)
+	if err != nil {
+		t.Fatalf("local import: %v", err)
+	}
+	_, retained := ownedHanded(t, p.B.Owner(), p.A.Owner())
+	holds(t, owner, 1, 1, "owned bindings")
+	if err := owner.Release(); err != nil {
+		t.Fatalf("release: %v", err)
+	}
+	c, cancel := ctx()
+	defer cancel()
+	_, err = imported(c, nil)
+	refused(t, err, live.ErrorReferenceReleased)
+	_, err = local(c, nil)
+	refused(t, err, live.ErrorReferenceReleased)
+	if got := string(call(t, retained, "7")); got != "7" {
+		t.Errorf("retained: %s", got)
+	}
+	holds(t, owner, 0, 0, "released owner")
+	holds(t, p.A, 0, 1, "unrelated owner remains")
+	ownershipBaseline(t, p)
+}
+
+func ownerBorrowsAnAlias(t T, p Pair) {
+	a, b := p.B.Owner().Child(), p.B.Owner().Child()
+	ref, first := ownedHanded(t, p.A.Owner(), a)
+	alias, err := b.Import(ref, sink)
+	if err != nil {
+		t.Fatalf("borrow: %v", err)
+	}
+	holds(t, a, 0, 1, "attachment owner")
+	holds(t, b, 0, 0, "alias borrower")
+	if err := b.Release(); err != nil {
+		t.Fatalf("release borrower: %v", err)
+	}
+	if got := string(call(t, first, "1")); got != "1" {
+		t.Errorf("owner result: %s", got)
+	}
+	if got := string(call(t, alias, "2")); got != "2" {
+		t.Errorf("alias result: %s", got)
+	}
+	if err := a.Release(); err != nil {
+		t.Fatalf("release owner: %v", err)
+	}
+	c, cancel := ctx()
+	defer cancel()
+	_, err = alias(c, nil)
+	refused(t, err, live.ErrorReferenceReleased)
+	holds(t, a, 0, 0, "released attachment owner")
+	ownershipBaseline(t, p)
+}
+
+func ownersNest(t T, p Pair) {
+	parent := p.A.Owner().Child()
+	child, empty := parent.Child(), parent.Child()
+	grandchild := child.Child()
+	_, invoke := ownedHanded(t, p.B.Owner(), grandchild)
+	holds(t, parent, 0, 0, "parent owns no direct binding")
+	if err := parent.Release(); err != nil {
+		t.Fatalf("parent release: %v", err)
+	}
+	c, cancel := ctx()
+	defer cancel()
+	_, err := invoke(c, nil)
+	refused(t, err, live.ErrorReferenceReleased)
+	for _, owner := range []*live.Owner{parent, child, grandchild, empty, empty.Child()} {
+		holds(t, owner, 0, 0, "released descendant")
+		_, err := owner.Export(sink, echo)
+		refused(t, err, live.ErrorReferenceReleased)
+	}
+	ownershipBaseline(t, p)
+}
+
+func releaseIsIdempotent(t T, p Pair) {
+	owner := p.A.Owner().Child()
+	ref, err := owner.Export(sink, echo)
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if err := p.A.Release(ref); err != nil {
+		t.Fatalf("raw release: %v", err)
+	}
+	holds(t, owner, 0, 0, "raw release forgets owner allocation")
+	for range 3 {
+		if err := owner.Release(); err != nil {
+			t.Fatalf("repeat release: %v", err)
+		}
+	}
+	ownershipBaseline(t, p)
+}
+
+func importValueUnwindsOnlyItsOwn(t T, p Pair) {
+	retainedOwner, batchOwner := p.B.Owner().Child(), p.B.Owner().Child()
+	retainedRef, retained := ownedHanded(t, p.A.Owner(), retainedOwner)
+	freshRef, err := p.A.Owner().Export(sink, echo)
+	if err != nil {
+		t.Fatalf("fresh export: %v", err)
+	}
+	raw, _ := json.Marshal(freshRef)
+	arrived, err := p.B.Decode(raw)
+	if err != nil {
+		t.Fatalf("fresh decode: %v", err)
+	}
+	var fresh live.Invoke
+	expected := errors.New("later import failed")
+	err = batchOwner.ImportValue(func(batch *live.Owner) error {
+		if err := batch.ImportValue(func(nested *live.Owner) error {
+			var err error
+			fresh, err = nested.Import(arrived, sink)
+			if err != nil {
+				return err
+			}
+			if _, err := nested.Import(arrived, sink); err != nil {
+				return err
+			}
+			holds(t, nested, 0, 1, "repeated reference owns one attachment")
+			return nil
+		}); err != nil {
+			return err
+		}
+		if _, err := batch.Import(retainedRef, sink); err != nil {
+			return err
+		}
+		return expected
+	})
+	if !errors.Is(err, expected) {
+		t.Fatalf("failure changed: %v", err)
+	}
+	c, cancel := ctx()
+	defer cancel()
+	_, err = fresh(c, nil)
+	refused(t, err, live.ErrorReferenceReleased)
+	if got := string(call(t, retained, "3")); got != "3" {
+		t.Errorf("retained alias: %s", got)
+	}
+	holds(t, batchOwner, 0, 0, "failed import owns nothing")
+	holds(t, retainedOwner, 0, 1, "retained attachment")
+	ownershipBaseline(t, p)
+}
+
+func exportValueUnderAnOwner(t T, p Pair) {
+	owner := p.A.Owner().Child()
+	var captured *live.Owner
+	expected := errors.New("later export failed")
+	_, err := owner.ExportValue(func(batch *live.Owner) (json.RawMessage, error) {
+		captured = batch
+		_, err := batch.ExportValue(func(nested *live.Owner) (json.RawMessage, error) {
+			ref, err := nested.Export(sink, echo)
+			if err != nil {
+				return nil, err
+			}
+			return json.Marshal(ref)
+		})
+		if err != nil {
+			return nil, err
+		}
+		return nil, expected
+	})
+	if !errors.Is(err, expected) {
+		t.Fatalf("failure changed: %v", err)
+	}
+	holds(t, owner, 0, 0, "export rollback")
+	raw, err := captured.ExportValue(func(batch *live.Owner) (json.RawMessage, error) {
+		ref, err := batch.Export(sink, echo)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(ref)
+	})
+	if err != nil {
+		t.Fatalf("captured view conversion: %v", err)
+	}
+	ref, err := p.A.Decode(raw)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	invoke, err := owner.Import(ref, sink)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if got := string(call(t, invoke, "4")); got != "4" {
+		t.Errorf("captured view: %s", got)
+	}
+	holds(t, owner, 1, 0, "completed batch belongs to caller")
+	if err := owner.Release(); err != nil {
+		t.Fatalf("owner release: %v", err)
+	}
+	ownershipBaseline(t, p)
+}
+
+func rootOwnerLeavesTheScopeOpen(t T, p Pair) {
+	for range 5 {
+		root := p.A.Owner()
+		_, invoke := ownedHanded(t, p.B.Owner(), root.Child())
+		if err := root.Release(); err != nil {
+			t.Fatalf("root release: %v", err)
+		}
+		c, cancel := ctx()
+		_, err := invoke(c, nil)
+		cancel()
+		refused(t, err, live.ErrorReferenceReleased)
+		holds(t, p.A, 0, 0, "root release clears descendants")
+		_, err = root.Export(sink, echo)
+		refused(t, err, live.ErrorReferenceReleased)
+		if p.A.Owner() == root {
+			t.Errorf("released root was reused")
+		}
+	}
+	ordinaryRPCAfterReference(t, p)
+	ownershipBaseline(t, p)
+}

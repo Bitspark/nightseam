@@ -3,7 +3,7 @@ import { createValidator, type AnyFamily, type FamilyBinding, type TypeBinding, 
 export type { AnyFamily, FamilyBinding, TypeBinding, Slots, TypeExpression };
 import type * as boxes from "@example/boxes-client";
 import { validateWire as validate_boxes } from "@example/boxes-client";
-import { LiveScope } from "@nightseam/live";
+import type { LiveOwner } from "@nightseam/live";
 import * as live_boxes from "@example/boxes-client";
 export interface Bundle<T = unknown> {
   "metadata": BundleMetadata<T>;
@@ -43,7 +43,7 @@ export interface Envelope {
 }
 /** Higher order both ways: it takes a callable and answers one. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Factory = (request: Unary, options?: { signal?: AbortSignal }) => Promise<Unary>;
+export type Factory = (request: Unary, options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<Unary>;
 /** A reference to a channel on the connection that carries the message holding it. */
 export interface Handle {
   /** The channel's id on that connection. */
@@ -51,10 +51,10 @@ export interface Handle {
 }
 /** Higher order in the result alone. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Producer = (options?: { signal?: AbortSignal }) => Promise<Unary>;
+export type Producer = (options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<Unary>;
 /** Higher order in the argument alone. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Sink = (request: Unary, options?: { signal?: AbortSignal }) => Promise<void>;
+export type Sink = (request: Unary, options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<void>;
 /** The three carried together, so one call hands over a whole higher-order surface. */
 export interface Toolkit {
   "twice": Factory;
@@ -66,25 +66,27 @@ export interface ToolkitRequest {
 }
 /** A function of one number. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Unary = (request: Count, options?: { signal?: AbortSignal }) => Promise<Count>;
+export type Unary = (request: Count, options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<Count>;
 /** The family: its name and the wire types a slot of it draws on. */
 export interface Family { readonly name: "combinator"; Count: Count; Envelope: Envelope; Factory: Factory; Handle: Handle; Producer: Producer; Sink: Sink; Toolkit: Toolkit; ToolkitRequest: ToolkitRequest; Unary: Unary }
 /** Writes Bundle using the supplied conversion for each type argument. */
-export function exportBundle<T = unknown>(scope: LiveScope, value: Bundle<T>, convert_T_: (scope: LiveScope, value: T) => unknown): unknown {
-  return scope.exportValue((scope) => {
+export function exportBundle<T = unknown>(owner: LiveOwner, value: Bundle<T>, convert_T_: (owner: LiveOwner, value: T) => unknown): unknown {
+  return owner.exportValue((owner) => {
     const out: Record<string, unknown> = {};
-    out["metadata"] = exportBundleMetadata<T>((value["metadata"]) as BundleMetadata<T>, (input: T): unknown => convert_T_(scope, (input) as T));
-    out["run"] = exportUnary(scope, (value["run"]) as Unary);
+    out["metadata"] = exportBundleMetadata<T>((value["metadata"]) as BundleMetadata<T>, (input: T): unknown => convert_T_(owner, (input) as T));
+    out["run"] = exportUnary(owner, (value["run"]) as Unary);
     return out;
   });
 }
 /** Reads Bundle using the supplied conversion for each type argument. */
-export function importBundle<T = unknown>(scope: LiveScope, raw: unknown, convert_T_: (value: unknown) => T): Bundle<T> {
-  const wire = raw as Record<string, unknown>;
-  const out: Record<string, unknown> = {};
-  out["metadata"] = importBundleMetadata<T>(wire["metadata"], (input: unknown): T => (convert_T_(input)) as T);
-  out["run"] = importUnary(scope, wire["run"]);
-  return out as unknown as Bundle<T>;
+export function importBundle<T = unknown>(owner: LiveOwner, raw: unknown, convert_T_: (owner: LiveOwner, value: unknown) => T): Bundle<T> {
+  return owner.importValue((owner) => {
+    const wire = raw as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    out["metadata"] = importBundleMetadata<T>(wire["metadata"], (input: unknown): T => (convert_T_(owner, input)) as T);
+    out["run"] = importUnary(owner, wire["run"]);
+    return out as unknown as Bundle<T>;
+  });
 }
 /** Writes BundleMetadata using the supplied conversion for each type argument. */
 export function exportBundleMetadata<T = unknown>(value: BundleMetadata<T>, convert_T_: (value: T) => unknown): unknown {
@@ -102,109 +104,131 @@ export function importBundleMetadata<T = unknown>(raw: unknown, convert_T_: (val
 /** The declaration a reference to Factory carries. It is nominal: a reference is usable exactly where this callable is expected. */
 export const contractFactory = "combinator/Factory";
 /** Makes a binding of a local Factory and answers the reference that names it. */
-export function exportFactory(scope: LiveScope, value: Factory): unknown {
-  return scope.exportValue((scope) => {
-    const reference = scope.export(contractFactory, async (request, options) => {
+export function exportFactory(owner: LiveOwner, value: Factory): unknown {
+  return owner.exportValue((owner) => {
+    const parent = owner;
+    const reference = owner.export(contractFactory, async (request, options) => {
+      const owner = parent.child();
+      const context = { ...options, owner };
       validateWire("Unary", request);
-      const argument = importUnary(scope, request);
-      const result = await value(argument, options);
-      return scope.exportValue((scope) => { const converted = exportUnary(scope, (result) as Unary); validateWire("Unary", converted); return converted; });
+      const argument = owner.importValue((owner) => importUnary(owner, request));
+      const result = await value(argument, context);
+      return owner.exportValue((owner) => { const converted = exportUnary(owner, (result) as Unary); validateWire("Unary", converted); return converted; });
     });
     return reference.toJSON();
   });
 }
 /** A Factory that calls the binding a reference names. */
-export function importFactory(scope: LiveScope, raw: unknown): Factory {
-  const invoke = scope.import(scope.decode(raw), contractFactory);
-  return async (request: Unary, options?: { signal?: AbortSignal }) => {
-    const sent = scope.exportValue((scope) => { const converted = exportUnary(scope, (request) as Unary); validateWire("Unary", converted); return converted; });
+export function importFactory(owner: LiveOwner, raw: unknown): Factory {
+  const invoke = owner.import(owner.scope.decode(raw), contractFactory);
+  const scope = owner.scope;
+  return async (request: Unary, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
+    const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
+    const sent = owner.exportValue((owner) => { const converted = exportUnary(owner, (request) as Unary); validateWire("Unary", converted); return converted; });
     const result = await invoke(sent, options);
     validateWire("Unary", result);
-    return importUnary(scope, result);
+    return owner.importValue((owner) => importUnary(owner, result));
   };
 }
 /** The declaration a reference to Producer carries. It is nominal: a reference is usable exactly where this callable is expected. */
 export const contractProducer = "combinator/Producer";
 /** Makes a binding of a local Producer and answers the reference that names it. */
-export function exportProducer(scope: LiveScope, value: Producer): unknown {
-  return scope.exportValue((scope) => {
-    const reference = scope.export(contractProducer, async (request, options) => {
-      const result = await value(options);
-      return scope.exportValue((scope) => { const converted = exportUnary(scope, (result) as Unary); validateWire("Unary", converted); return converted; });
+export function exportProducer(owner: LiveOwner, value: Producer): unknown {
+  return owner.exportValue((owner) => {
+    const parent = owner;
+    const reference = owner.export(contractProducer, async (request, options) => {
+      const owner = parent.child();
+      const context = { ...options, owner };
+      const result = await value(context);
+      return owner.exportValue((owner) => { const converted = exportUnary(owner, (result) as Unary); validateWire("Unary", converted); return converted; });
     });
     return reference.toJSON();
   });
 }
 /** A Producer that calls the binding a reference names. */
-export function importProducer(scope: LiveScope, raw: unknown): Producer {
-  const invoke = scope.import(scope.decode(raw), contractProducer);
-  return async (options?: { signal?: AbortSignal }) => {
+export function importProducer(owner: LiveOwner, raw: unknown): Producer {
+  const invoke = owner.import(owner.scope.decode(raw), contractProducer);
+  const scope = owner.scope;
+  return async (options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
+    const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
     const result = await invoke(undefined, options);
     validateWire("Unary", result);
-    return importUnary(scope, result);
+    return owner.importValue((owner) => importUnary(owner, result));
   };
 }
 /** The declaration a reference to Sink carries. It is nominal: a reference is usable exactly where this callable is expected. */
 export const contractSink = "combinator/Sink";
 /** Makes a binding of a local Sink and answers the reference that names it. */
-export function exportSink(scope: LiveScope, value: Sink): unknown {
-  return scope.exportValue((scope) => {
-    const reference = scope.export(contractSink, async (request, options) => {
+export function exportSink(owner: LiveOwner, value: Sink): unknown {
+  return owner.exportValue((owner) => {
+    const parent = owner;
+    const reference = owner.export(contractSink, async (request, options) => {
+      const owner = parent.child();
+      const context = { ...options, owner };
       validateWire("Unary", request);
-      const argument = importUnary(scope, request);
-      await value(argument, options);
+      const argument = owner.importValue((owner) => importUnary(owner, request));
+      await value(argument, context);
       return undefined;
     });
     return reference.toJSON();
   });
 }
 /** A Sink that calls the binding a reference names. */
-export function importSink(scope: LiveScope, raw: unknown): Sink {
-  const invoke = scope.import(scope.decode(raw), contractSink);
-  return async (request: Unary, options?: { signal?: AbortSignal }) => {
-    const sent = scope.exportValue((scope) => { const converted = exportUnary(scope, (request) as Unary); validateWire("Unary", converted); return converted; });
+export function importSink(owner: LiveOwner, raw: unknown): Sink {
+  const invoke = owner.import(owner.scope.decode(raw), contractSink);
+  const scope = owner.scope;
+  return async (request: Unary, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
+    const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
+    const sent = owner.exportValue((owner) => { const converted = exportUnary(owner, (request) as Unary); validateWire("Unary", converted); return converted; });
     await invoke(sent, options);
     return;
   };
 }
-/** Writes Toolkit as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */
-export function exportToolkit(scope: LiveScope, value: Toolkit): unknown {
-  return scope.exportValue((scope) => {
+/** Writes Toolkit as it travels: each callable in it becomes a binding of the owner, and the reference that names it takes its place. */
+export function exportToolkit(owner: LiveOwner, value: Toolkit): unknown {
+  return owner.exportValue((owner) => {
     const out: Record<string, unknown> = {};
-    out["twice"] = exportFactory(scope, (value["twice"]) as Factory);
-    out["identity"] = exportProducer(scope, (value["identity"]) as Producer);
-    out["apply"] = exportSink(scope, (value["apply"]) as Sink);
+    out["twice"] = exportFactory(owner, (value["twice"]) as Factory);
+    out["identity"] = exportProducer(owner, (value["identity"]) as Producer);
+    out["apply"] = exportSink(owner, (value["apply"]) as Sink);
     return out;
   });
 }
 /** Reads Toolkit as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */
-export function importToolkit(scope: LiveScope, raw: unknown): Toolkit {
-  const wire = raw as Record<string, unknown>;
-  const out: Record<string, unknown> = {};
-  out["twice"] = importFactory(scope, wire["twice"]);
-  out["identity"] = importProducer(scope, wire["identity"]);
-  out["apply"] = importSink(scope, wire["apply"]);
-  return out as unknown as Toolkit;
+export function importToolkit(owner: LiveOwner, raw: unknown): Toolkit {
+  return owner.importValue((owner) => {
+    const wire = raw as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    out["twice"] = importFactory(owner, wire["twice"]);
+    out["identity"] = importProducer(owner, wire["identity"]);
+    out["apply"] = importSink(owner, wire["apply"]);
+    return out as unknown as Toolkit;
+  });
 }
 /** The declaration a reference to Unary carries. It is nominal: a reference is usable exactly where this callable is expected. */
 export const contractUnary = "combinator/Unary";
 /** Makes a binding of a local Unary and answers the reference that names it. */
-export function exportUnary(scope: LiveScope, value: Unary): unknown {
-  return scope.exportValue((scope) => {
-    const reference = scope.export(contractUnary, async (request, options) => {
+export function exportUnary(owner: LiveOwner, value: Unary): unknown {
+  return owner.exportValue((owner) => {
+    const parent = owner;
+    const reference = owner.export(contractUnary, async (request, options) => {
+      const owner = parent.child();
+      const context = { ...options, owner };
       validateWire("Count", request);
       const argument = request as Count;
-      const result = await value(argument, options);
-      return scope.exportValue((scope) => { const converted = result; validateWire("Count", converted); return converted; });
+      const result = await value(argument, context);
+      return (() => { const converted = result; validateWire("Count", converted); return converted; })();
     });
     return reference.toJSON();
   });
 }
 /** A Unary that calls the binding a reference names. */
-export function importUnary(scope: LiveScope, raw: unknown): Unary {
-  const invoke = scope.import(scope.decode(raw), contractUnary);
-  return async (request: Count, options?: { signal?: AbortSignal }) => {
-    const sent = scope.exportValue((scope) => { const converted = request; validateWire("Count", converted); return converted; });
+export function importUnary(owner: LiveOwner, raw: unknown): Unary {
+  const invoke = owner.import(owner.scope.decode(raw), contractUnary);
+  const scope = owner.scope;
+  return async (request: Count, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
+    const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
+    const sent = (() => { const converted = request; validateWire("Count", converted); return converted; })();
     const result = await invoke(sent, options);
     validateWire("Count", result);
     return result as Count;

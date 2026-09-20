@@ -21,11 +21,17 @@ import (
 // over is two scopes over a pipe: the pair every shared case runs on.
 func over(t *testing.T, options live.Options) livetest.Pair {
 	t.Helper()
+	return overObserved(t, options, nil)
+}
+
+func overObserved(t *testing.T, options live.Options, observer runtime.Observer) livetest.Pair {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	a, b := duplex.Pipe(8 << 20)
 	var sa, sb *live.Scope
 	pa, err := runtime.NewPeer(ctx, a, runtime.ClientRole, runtime.Options{
-		Prepare: func(p *runtime.Peer) (err error) { sa, err = live.Over(p, options); return err },
+		Observer: observer,
+		Prepare:  func(p *runtime.Peer) (err error) { sa, err = live.Over(p, options); return err },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +93,7 @@ func TestOverASocket(t *testing.T) {
 	<-ready
 
 	reported := make(chan string, 1)
-	exported, err := dialled.Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
+	exported, err := dialled.Owner().Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
 		reported <- string(r)
 		return json.RawMessage("null"), nil
 	})
@@ -102,7 +108,7 @@ func TestOverASocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	invoke, err := served.Import(arrived, "probe/Report")
+	invoke, err := served.Owner().Import(arrived, "probe/Report")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +135,7 @@ func serializedReferenceNewConnection(t *testing.T) {
 	t.Helper()
 	first := over(t, live.Options{})
 	defer first.Close()
-	exported, err := first.A.Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
+	exported, err := first.A.Owner().Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
 		return r, nil
 	})
 	if err != nil {
@@ -143,7 +149,7 @@ func serializedReferenceNewConnection(t *testing.T) {
 
 	second := over(t, live.Options{})
 	defer second.Close()
-	fresh, err := second.A.Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
+	fresh, err := second.A.Owner().Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
 		return r, nil
 	})
 	if err != nil {
@@ -158,7 +164,7 @@ func serializedReferenceNewConnection(t *testing.T) {
 	if got := second.B.Counts(); got != (live.Counts{}) {
 		t.Fatalf("decoding old bytes created an attachment: %+v", got)
 	}
-	invoke, err := second.B.Import(arrived, "probe/Report")
+	invoke, err := second.B.Owner().Import(arrived, "probe/Report")
 	if err != nil {
 		t.Fatalf("old serialized bytes were refused at import: %v", err)
 	}
@@ -183,7 +189,7 @@ func serializedReferenceNewConnection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	freshInvoke, err := second.B.Import(freshArrived, "probe/Report")
+	freshInvoke, err := second.B.Owner().Import(freshArrived, "probe/Report")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,13 +226,13 @@ func TestScopeOfThePeer(t *testing.T) {
 func TestTheBoundsRefuseAndLeaveNothing(t *testing.T) {
 	p := over(t, live.Options{MaxExports: 1, MaxImports: 1})
 	defer p.Close()
-	first, err := p.A.Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
+	first, err := p.A.Owner().Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
 		return r, nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.A.Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
+	if _, err := p.A.Owner().Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
 		return r, nil
 	}); err == nil {
 		t.Fatal("a second export past the bound was admitted")
@@ -242,11 +248,11 @@ func TestTheBoundsRefuseAndLeaveNothing(t *testing.T) {
 
 	raw, _ := json.Marshal(first)
 	arrived, _ := p.B.Decode(raw)
-	if _, err := p.B.Import(arrived, "probe/Report"); err != nil {
+	if _, err := p.B.Owner().Import(arrived, "probe/Report"); err != nil {
 		t.Fatal(err)
 	}
 	second, _ := p.B.Decode(json.RawMessage(`{"binding":"deadbeefdeadbeef.9","contract":"probe/Report"}`))
-	if _, err := p.B.Import(second, "probe/Report"); err == nil {
+	if _, err := p.B.Owner().Import(second, "probe/Report"); err == nil {
 		t.Fatal("a second import past the bound was admitted")
 	} else {
 		var public *runtime.PublicError
@@ -285,7 +291,7 @@ func TestAReferenceIsNotAConstructibleValue(t *testing.T) {
 	if _, err := json.Marshal(forged); err == nil {
 		t.Errorf("a reference nobody minted marshalled")
 	}
-	if _, err := p.B.Import(forged, "probe/Report"); err == nil {
+	if _, err := p.B.Owner().Import(forged, "probe/Report"); err == nil {
 		t.Errorf("a reference nobody minted imported")
 	}
 	if _, err := p.B.Decode(json.RawMessage(`{"binding":"","contract":"probe/Report"}`)); err == nil {
@@ -321,18 +327,18 @@ func TestTheObserverIsToldAndSeesNoPayload(t *testing.T) {
 	}
 	defer pb.Close()
 
-	exported, err := sa.Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
+	exported, err := sa.Owner().Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
 		return r, nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sa.Export("", nil); err == nil {
+	if _, err := sa.Owner().Export("", nil); err == nil {
 		t.Fatal("an export of no contract was admitted")
 	}
 	raw, _ := json.Marshal(exported)
 	arrived, _ := sb.Decode(raw)
-	if _, err := sb.Import(arrived, "probe/Report"); err != nil {
+	if _, err := sb.Owner().Import(arrived, "probe/Report"); err != nil {
 		t.Fatal(err)
 	}
 	if err := sa.Release(exported); err != nil {

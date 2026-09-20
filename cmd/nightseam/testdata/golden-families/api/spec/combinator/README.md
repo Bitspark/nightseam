@@ -135,7 +135,7 @@ In `typescript`:
 ```typescript
 /** Higher order both ways: it takes a callable and answers one. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Factory = (request: Unary, options?: { signal?: AbortSignal }) => Promise<Unary>;
+export type Factory = (request: Unary, options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<Unary>;
 ```
 
 For example:
@@ -164,7 +164,7 @@ In `typescript`:
 ```typescript
 /** Higher order in the result alone. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Producer = (options?: { signal?: AbortSignal }) => Promise<Unary>;
+export type Producer = (options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<Unary>;
 ```
 
 For example:
@@ -193,7 +193,7 @@ In `typescript`:
 ```typescript
 /** Higher order in the argument alone. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Sink = (request: Unary, options?: { signal?: AbortSignal }) => Promise<void>;
+export type Sink = (request: Unary, options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<void>;
 ```
 
 For example:
@@ -308,7 +308,7 @@ In `typescript`:
 ```typescript
 /** A function of one number. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Unary = (request: Count, options?: { signal?: AbortSignal }) => Promise<Count>;
+export type Unary = (request: Count, options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<Count>;
 ```
 
 For example:
