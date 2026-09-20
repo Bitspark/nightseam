@@ -1,7 +1,7 @@
 /** Ordinary generated callbacks survive uncertain publication and have explicit owners. */
 import * as publication from './api/ts/publication-client/src/index.ts';
 import * as binding from './api/ts/publication-binding/src/index.ts';
-import { DuplexPeer, DuplexError, type CallOptions, type EmitOptions, type RequestContext, type EventContext } from '@nightseam/runtime';
+import { DuplexPeer, DuplexError, UnpublishedError, type CallOptions, type EmitOptions, type RequestContext, type EventContext } from '@nightseam/runtime';
 import { liveOver, type LiveScope, type LiveOwner } from '@nightseam/live';
 import { Served } from './server.ts';
 
@@ -123,7 +123,9 @@ async function exercise(endpoint: Endpoint, timeout: number): Promise<unknown> {
       outcome = await finished;
     }
     const want = mode === 'cancel' || mode === 'unpublished' || mode === 'returned_reply_lost' ? 'cancelled' : mode === 'timeout' || mode === 'lost_reply' ? 'request_timeout' : mode === 'event' ? 'success' : mode === 'event_unpublished' ? 'frame_too_large' : mode;
-    check(code(outcome) === want, `${mode}: got ${code(outcome)}, want ${want}`);
+    const unpublished = mode === 'unpublished' || mode === 'event_unpublished';
+    check((outcome instanceof UnpublishedError) === unpublished, mode + ': non-publication proof did not belong to this send attempt');
+    if (mode !== 'event_unpublished') check(code(outcome) === want, `${mode}: got ${code(outcome)}, want ${want}`);
     if (mode === 'unpublished' || mode === 'event_unpublished') {
       const counts = owner.counts();
       check(counts.exports === 0 && counts.imports === 0, mode + ' retained unsent export');

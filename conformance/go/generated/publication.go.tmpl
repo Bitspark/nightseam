@@ -260,6 +260,11 @@ func (e *publicationEndpoint) exercise(ctx context.Context) (any, error) {
 			callErr = <-finished
 		}
 		cancel()
+		var proof *runtime.UnpublishedError
+		unpublished := mode == "unpublished" || mode == "event_unpublished"
+		if errors.As(callErr, &proof) != unpublished {
+			return nil, fmt.Errorf("%s: non-publication proof did not belong to this send attempt: %v", mode, callErr)
+		}
 		want := mode
 		switch mode {
 		case "cancel", "unpublished", "returned_reply_lost":
@@ -271,7 +276,7 @@ func (e *publicationEndpoint) exercise(ctx context.Context) (any, error) {
 		case "event_unpublished":
 			want = "frame_too_large"
 		}
-		if code := publicationCode(callErr); code != want {
+		if code := publicationCode(callErr); mode != "event_unpublished" && code != want {
 			return nil, fmt.Errorf("%s: got %s, want %s (%v)", mode, code, want, callErr)
 		}
 		if mode == "unpublished" || mode == "event_unpublished" {
