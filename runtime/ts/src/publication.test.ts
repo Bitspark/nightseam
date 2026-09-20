@@ -106,3 +106,28 @@ test('a queued write failure has no unpublished proof', async () => {
     b.close();
   }
 });
+
+test('a refused reverse reply cannot lend its proof to an already delivered call', async () => {
+  const [a, b] = pipe();
+  const client = new DuplexPeer({ maxFrameBytes: 160 });
+  const server = new DuplexPeer({ role: 'server' });
+  let delivered = false;
+  client.handle('b', async () => 'x'.repeat(2000));
+  server.handle('a', async () => {
+    delivered = true;
+    return server.call('b');
+  });
+  await Promise.all([client.attach(a), server.attach(b)]);
+  try {
+    await assert.rejects(client.call('a'), (error: unknown) => {
+      assert.equal(delivered, true);
+      assert.ok(error instanceof DuplexError);
+      assert.equal(error.code, 'frame_too_large');
+      assert.ok(!(error instanceof UnpublishedError), 'another reply lent proof to this delivered request');
+      return true;
+    });
+  } finally {
+    client.close();
+    server.close();
+  }
+});

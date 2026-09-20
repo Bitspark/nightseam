@@ -888,6 +888,13 @@ export class DuplexPeer {
   }
 
   private fail(error: DuplexError, closeConnection = true, code = 4011, reason = CLOSE_REASON): void {
+    // Ending a connection settles unrelated, possibly delivered requests too.
+    // A failed reply's local proof must not be broadcast as their send outcome.
+    if (error instanceof UnpublishedError) {
+      const cause = error;
+      error = new DuplexError(cause.code, cause.message, cause.data);
+      Object.defineProperty(error, 'cause', { value: cause });
+    }
     const connection = this.connection;
     if (!connection) return;
     this.connection = undefined;

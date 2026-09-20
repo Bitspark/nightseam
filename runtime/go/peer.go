@@ -342,6 +342,9 @@ func (p *Peer) end(err error, code duplex.Code, reason string) {
 		if err == nil {
 			err = ErrClosed
 		}
+		// This outcome settles every pending request, including ones already
+		// delivered. Another send's proof cannot be broadcast as their proof.
+		err = WithoutUnpublishedProof(err)
 		p.mu.Lock()
 		p.err = err
 		p.mu.Unlock()
@@ -592,7 +595,7 @@ func (p *Peer) writeLoop() {
 			err := p.conn.Send(ctx, duplex.Frame{Kind: duplex.Text, Data: queued.data})
 			cancel()
 			if err != nil {
-				p.fail(WithoutUnpublishedProof(err))
+				p.fail(err)
 				return
 			}
 		}
@@ -603,7 +606,7 @@ func (p *Peer) readLoop() {
 	for {
 		received, err := p.conn.Receive(p.ctx)
 		if err != nil {
-			p.fail(WithoutUnpublishedProof(err))
+			p.fail(err)
 			return
 		}
 		if received.Kind != duplex.Text {

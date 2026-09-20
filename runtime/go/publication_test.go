@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Bitspark/nightseam/duplex/go"
@@ -163,4 +164,24 @@ func TestReadFailureHasNoNestedUnpublishedProof(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("nested cause lost: %v", err)
 	}
+}
+
+func TestRefusedReverseReplyCannotProveDeliveredCallUnpublished(t *testing.T) {
+	var delivered atomic.Bool
+	client, _ := newPair(t, ws.Options{Handlers: map[string]ws.Handler{
+		"a": func(ctx context.Context, peer *ws.Peer, _ json.RawMessage) (any, error) {
+			delivered.Store(true)
+			return nil, peer.Call(ctx, "b", nil, nil)
+		},
+	}}, ws.Options{MaxFrameBytes: 180, Handlers: map[string]ws.Handler{
+		"b": func(context.Context, *ws.Peer, json.RawMessage) (any, error) { return strings.Repeat("x", 2000), nil },
+	}})
+	err := client.Call(context.Background(), "a", nil, nil)
+	if !delivered.Load() {
+		t.Fatal("outer request was not delivered")
+	}
+	if client.Err() == nil {
+		t.Fatal("oversized reply fallback did not reach the failure broadcast")
+	}
+	wantUnpublished(t, err, false)
 }
