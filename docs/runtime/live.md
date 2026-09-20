@@ -53,6 +53,7 @@ const scope = scopeOf(context.peer);
 | its connection scope | `owner.Scope()` → `*Scope` | `owner.scope` |
 | export a function, and name it | `owner.Export(contract, invoke)` → `Reference` | `owner.export(contract, invoke)` |
 | construct an unpublished payload | `owner.ExportValue(build)` → `(json.RawMessage, error)` | `owner.exportValue(build)` → `unknown` |
+| construct and attempt publication | `owner.PublishValue(build, publish)` → `(json.RawMessage, error)` | `owner.publishValue(build, publish)` → the publisher's result |
 | import a value as one batch | `owner.ImportValue(build)` → `error` | `owner.importValue(build)` → the callback's result |
 | read a reference out of a payload | `scope.Decode(raw)` → `Reference` | `scope.decode(raw)` |
 | attach to one | `owner.Import(reference, contract)` → `Invoke` | `owner.import(reference, contract)` |
@@ -137,6 +138,30 @@ source is linked.
 | owner | A caller-chosen lifetime owns new exports and attachments, borrows reused attachments, and releases its children before its own bindings. Releasing a borrowing owner leaves the borrowed binding usable; releasing its allocating owner invalidates every alias. | `ownerReleasesWhatItCreated`, `ownerBorrowsAnAlias`, `ownersNest`, `releaseIsIdempotent`, `rootOwnerLeavesTheScopeOpen`; [generated owner case](../../conformance/scenarios/generated/live-owners.json) |
 | record | Its callable members carry individual references. The record has no runtime identity, remote-object equality, shared lease or atomic record-wide revocation. | The per-reference `Export`, `Import` and `Release` APIs in [Go](../../live/go/live.go) and [TypeScript](../../live/ts/src/index.ts); no record-wide lifecycle API |
 | connection | Closing its scopes invalidates their bindings and settles their calls. A new connection revives no binding and replays no invocation. | `closeSettles`, the [Go closure cases](../../live/go/livetest/close.go) and TypeScript's `closeImplementation`; `serializedReferenceNewConnection` and its [socket case](../../conformance/scenarios/live/serialized-reference-scope.json) |
+
+Publication does not transfer ownership. Bindings stay under the owner used for
+conversion until it releases them or its scope closes, except when the complete
+payload could not have been published:
+
+| publication outcome | bindings | paired evidence |
+| --- | --- | --- |
+| conversion fails before the payload is complete | Only fresh allocations from that construction unwind; earlier bindings and borrowed aliases survive. | `provenUnpublishedIsUnwound`, `importValueUnwindsOnlyItsOwn` |
+| local send refusal proves the frame never entered the outbound queue | Only that completed publication batch unwinds; no release event is sent for its unpublished exports. | `provenUnpublishedIsUnwound`, `publicationBatchEndsBeforeSend` |
+| remote retains a supplied callback, then errors | Retained under the supplier's owner; the remote can still invoke it. | `retainedAfterRemoteError`, `remoteInvokesAfterFailedSupply` |
+| timeout, cancellation after dispatch, or a lost reply, while the connection remains open | Retained; failure to receive a reply does not establish non-delivery. | `retainedAfterTimeout`, `retainedAfterCancellation`, `retainedAfterLostReply` |
+| a handler returns a function but its reply is lost or suppressed | Retained under the handler's reachable per-invocation owner, even when the caller received no native value. | `handlerOwnerAfterLostReply` |
+| an event carries a callback | Retained under the emitter's owner after the send completes. | `eventPublicationRetainsItsOwner` |
+| owner releases while a remote alias exists | Revoked binding-wide; the remote alias reports `reference_released`. | `ownerReleaseWhileRemoteAliasExists` |
+| scope closes | Every owner and binding in that scope ends. | `scopeClosureEndsRetainedOwners` |
+
+These publication cases live in the paired
+[Go](../../live/go/livetest/publication.go) and
+[TypeScript](../../live/ts/src/publication.ts) suites. The
+[generated socket scenario](../../conformance/scenarios/generated/live-uncertain-publication.json)
+uses native callbacks through methods, events and returned values in both
+directions and languages. Repeated failures and explicit owner release return
+counts to baseline on the same connection, with bounds smaller than the number
+of cycles.
 
 **A binding is a function, not a remote object.** Each call to `Export` /
 `export` allocates a new binding id, even for the same native function. Those
@@ -242,10 +267,9 @@ from the RPC does not release it. The generated
 holds repeated use and release over one bounded, still-open connection,
 including a handler's later revocation of a returned callable.
 
-Who retains bindings after an uncertain publication is the separate decision
-in [#259](https://github.com/Bitspark/nightseam/issues/259), whose implementation is
-[#297](https://github.com/Bitspark/nightseam/issues/297). The conversion
-boundary below by itself does not infer delivery from an RPC outcome.
+The [publication outcomes above](#the-rules-a-consumer-can-rely-on) also apply
+when an invocation fails. A reply's absence does not end its handler owner or
+the caller's supplying owner.
 
 ## Forwarding callable-bearing values
 
@@ -314,11 +338,35 @@ validation in `ExportValue`/`exportValue`, and close every converter over the
 callback's owner view. Effects through some other owner handle are outside
 that build.
 
-Success commits the exports before the caller publishes the payload. This
-construction boundary does not reclaim bindings on a subsequent RPC timeout,
-cancellation or error, which cannot prove that the value was never delivered.
-Successful allocations stay under their owner until explicitly released or the
-scope closes; publication does not transfer their ownership.
+Success commits the exports to the owner. `ExportValue` alone has no later send
+feedback. `PublishValue` / `publishValue` additionally takes a publisher callback
+and keeps the completed batch's exact allocations until that callback settles.
+Go's publisher takes and returns `json.RawMessage` plus an error; TypeScript's
+takes the JSON snapshot and returns a promise. The conversion view is already
+inactive when publication starts, so a later conversion through a captured view
+does not become part of the earlier send attempt.
+
+The runtime's local `UnpublishedError` is positive proof for one send attempt:
+argument or serialization rejection, an already-cancelled request, a local
+pending-request bound, or refusal before acceptance into the outbound queue.
+Go preserves the underlying `errors.Is` / `errors.As` identity; TypeScript
+preserves the `DuplexError` code, message and data with its original cause.
+Generated outgoing live methods, events and callable requests use
+`PublishValue` automatically and unwind their batch only on this proof.
+
+Error codes alone are never proof. A remote `busy`, `cancelled` or
+`frame_too_large`, a timeout after queuing, or an uncertain write failure retains
+the allocations while the scope remains open. A transport failure that ends
+the connection also ends its scope. Proof from a nested send cannot cross a
+transport or local implementation dispatch boundary as proof about the outer
+publication. Arbitrary publisher failures, throws and panics retain their
+allocations. The runtime adds no acknowledgment message.
+
+Generated reply conversion has no feedback from the peer's response write, so
+it retains returned exports under the handler's child owner even when a reply
+is suppressed or cannot be delivered. The handler can retain and release that
+owner. Successful allocations otherwise stay under their owner until explicit
+release or scope end; publication does not transfer their ownership.
 
 ## Importing a value as one batch
 

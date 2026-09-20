@@ -17,6 +17,13 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Live publication batches in Go and TypeScript unwind fresh bindings only
+  when a local `UnpublishedError` proves rejection before the outbound queue.
+  Generated methods, events and callable requests retain callbacks after
+  ambiguous outcomes; returned callbacks remain under reachable handler owners.
+  Paired runtime and generated socket cases hold retention, explicit cleanup
+  and repeated bounded use in both directions.
+
 - Live owners give generated plain functions a caller-selected lifetime in Go
   and TypeScript. Owners nest, own fresh exports and import attachments, borrow
   existing aliases, and release idempotently without closing the connection.
