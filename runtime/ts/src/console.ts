@@ -25,7 +25,7 @@ type Level = 'debug' | 'info' | 'warn' | 'error';
  * The fields each event of the runtime is written with, in the one order a
  * line writes them — the order the event declares, with `trace` standing for
  * the two W3C members it holds. A type absent from this table is one a layer
- * over the peer added, the tunnel's or the session's or a later profile's, and
+ * over the peer added, the tunnel's or the live layer's or a later profile's, and
  * is written from its own keys rather than dropped.
  */
 const FIELDS: Readonly<Record<string, readonly string[]>> = {
