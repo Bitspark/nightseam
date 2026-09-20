@@ -2,7 +2,7 @@
 import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection, type WebSocketLike } from "@nightseam/runtime";
 import { validateWire } from "@example/combinator-client/types";
 import type * as Protocol from "@example/combinator-client/types";
-import { liveOver, scopeOf, type LiveScope } from "@nightseam/live";
+import { liveOver, scopeOf, type LiveOwner } from "@nightseam/live";
 import * as conversion from "@example/combinator-client/types";
 import * as live_boxes from "@example/boxes-client";
 import type * as boxes from "@example/boxes-client";
@@ -11,8 +11,8 @@ export { DuplexError };
 /** Typed handlers for the declaration's server side. */
 export interface Handler {
   name(params: Record<string, never>, remote: Remote, context: RequestContext): string | Promise<string>;
-  pack(params: boxes.Box<Protocol.Unary>, remote: Remote, context: RequestContext): boxes.Batch<Protocol.Bundle<Protocol.Count>> | Promise<boxes.Batch<Protocol.Bundle<Protocol.Count>>>;
-  toolkit(params: Protocol.ToolkitRequest, remote: Remote, context: RequestContext): Protocol.Toolkit | Promise<Protocol.Toolkit>;
+  pack(params: boxes.Box<Protocol.Unary>, remote: Remote, context: RequestContext & { owner: LiveOwner }): boxes.Batch<Protocol.Bundle<Protocol.Count>> | Promise<boxes.Batch<Protocol.Bundle<Protocol.Count>>>;
+  toolkit(params: Protocol.ToolkitRequest, remote: Remote, context: RequestContext & { owner: LiveOwner }): Protocol.Toolkit | Promise<Protocol.Toolkit>;
 }
 /** Client-originated event listeners installed before the connection reads its first frame. */
 export interface Events {
@@ -34,8 +34,8 @@ export function install(peer: DuplexPeer, handler: Handler, events: Events = {})
   const remote = new Remote(peer);
   if (!scopeOf(peer)) liveOver(peer, {});
   peer.handle("name", async (params, context) => { try { validateWire({ empty: true }, params); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.name(params as Record<string, never>, remote, context); validateWire("string", result); return result; });
-  peer.handle("pack", async (raw, context) => { const scope = scopeOf(remote.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); try { validateWire({"apply":"boxes.Box","with":{"T":"Unary"}}, raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = live_boxes.importBox<Protocol.Unary>(raw, (input: unknown): Protocol.Unary => (conversion.importUnary(scope, input)) as Protocol.Unary); const result = await handler.pack(params as boxes.Box<Protocol.Unary>, remote, context); return scope.exportValue((scope) => { const converted = live_boxes.exportBatch<Protocol.Bundle<Protocol.Count>>((result) as boxes.Batch<Protocol.Bundle<Protocol.Count>>, (input: Protocol.Bundle<Protocol.Count>): unknown => conversion.exportBundle<Protocol.Count>(scope, (input) as Protocol.Bundle<Protocol.Count>, (scope: LiveScope, input: Protocol.Count): unknown => input)); validateWire({"apply":"boxes.Batch","with":{"T":{"apply":"Bundle","with":{"T":"Count"}}}}, converted); return converted; }); });
-  peer.handle("toolkit", async (raw, context) => { const scope = scopeOf(remote.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); try { validateWire({"kind":"record","fields":[{"name":"seed","type":"Count","required":true}]}, raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = raw as Protocol.ToolkitRequest; const result = await handler.toolkit(params as Protocol.ToolkitRequest, remote, context); return scope.exportValue((scope) => { const converted = conversion.exportToolkit(scope, (result) as Protocol.Toolkit); validateWire("Toolkit", converted); return converted; }); });
+  peer.handle("pack", async (raw, context) => { const scope = scopeOf(remote.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = scope.owner().child(); const ownedContext = { ...context, owner }; try { validateWire({"apply":"boxes.Box","with":{"T":"Unary"}}, raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = owner.importValue((owner) => live_boxes.importBox<Protocol.Unary>(raw, (input: unknown): Protocol.Unary => (conversion.importUnary(owner, input)) as Protocol.Unary)); const result = await handler.pack(params as boxes.Box<Protocol.Unary>, remote, ownedContext); return owner.exportValue((owner) => { const converted = live_boxes.exportBatch<Protocol.Bundle<Protocol.Count>>((result) as boxes.Batch<Protocol.Bundle<Protocol.Count>>, (input: Protocol.Bundle<Protocol.Count>): unknown => conversion.exportBundle<Protocol.Count>(owner, (input) as Protocol.Bundle<Protocol.Count>, (owner: LiveOwner, input: Protocol.Count): unknown => input)); validateWire({"apply":"boxes.Batch","with":{"T":{"apply":"Bundle","with":{"T":"Count"}}}}, converted); return converted; }); });
+  peer.handle("toolkit", async (raw, context) => { const scope = scopeOf(remote.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = scope.owner().child(); const ownedContext = { ...context, owner }; try { validateWire({"kind":"record","fields":[{"name":"seed","type":"Count","required":true}]}, raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = raw as Protocol.ToolkitRequest; const result = await handler.toolkit(params as Protocol.ToolkitRequest, remote, ownedContext); return owner.exportValue((owner) => { const converted = conversion.exportToolkit(owner, (result) as Protocol.Toolkit); validateWire("Toolkit", converted); return converted; }); });
   return remote;
 }
 /** Serves an externally authenticated accepted connection. The returned peer is the caller's to close. */

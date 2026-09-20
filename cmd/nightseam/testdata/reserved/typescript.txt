@@ -25,7 +25,6 @@ EventContext
 FrameConnection
 WebSocketLike
 Tunnel
-LiveScope
 LiveOwner
 liveOver
 scopeOf

@@ -2,14 +2,14 @@
 import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection, type WebSocketLike } from "@nightseam/runtime";
 import { validateWire } from "@example/worker-client/types";
 import type * as Protocol from "@example/worker-client/types";
-import { liveOver, scopeOf, type LiveScope } from "@nightseam/live";
+import { liveOver, scopeOf, type LiveOwner } from "@nightseam/live";
 import * as conversion from "@example/worker-client/types";
 export * from "@example/worker-client/types";
 export { DuplexError };
 /** Typed handlers for the declaration's server side. */
 export interface Handler {
   describe(params: Protocol.Ticket, remote: Remote, context: RequestContext): string | Promise<string>;
-  start(params: Protocol.Start, remote: Remote, context: RequestContext): Protocol.Job | Promise<Protocol.Job>;
+  start(params: Protocol.Start, remote: Remote, context: RequestContext & { owner: LiveOwner }): Protocol.Job | Promise<Protocol.Job>;
 }
 /** Client-originated event listeners installed before the connection reads its first frame. */
 export interface Events {
@@ -21,8 +21,8 @@ export class Remote {
     this.peer = peer;
   }
   close(): void { this.peer.close(); }
-  async supervise(params: Protocol.Supervise, options?: CallOptions): Promise<Protocol.Outcome> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = scope.exportValue((scope) => { const converted = conversion.exportSupervise(scope, (params) as Protocol.Supervise); validateWire("Supervise", converted); return converted; }); const result = await this.peer.call<unknown>("supervise", sent, options); validateWire("Outcome", result); return conversion.importOutcome(scope, result); }
-  async emitSettled(data: Protocol.Outcome, options?: EmitOptions): Promise<void> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = scope.exportValue((scope) => { const converted = conversion.exportOutcome(scope, (data) as Protocol.Outcome); validateWire("Outcome", converted); return converted; }); await this.peer.emit("settled", sent, options); }
+  async supervise(params: Protocol.Supervise, options?: CallOptions & { owner?: LiveOwner }): Promise<Protocol.Outcome> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = options?.owner?.scope === scope ? options.owner : scope.owner(); const sent = owner.exportValue((owner) => { const converted = conversion.exportSupervise(owner, (params) as Protocol.Supervise); validateWire("Supervise", converted); return converted; }); const result = await this.peer.call<unknown>("supervise", sent, options); validateWire("Outcome", result); return owner.importValue((owner) => conversion.importOutcome(owner, result)); }
+  async emitSettled(data: Protocol.Outcome, options?: EmitOptions & { owner?: LiveOwner }): Promise<void> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = options?.owner?.scope === scope ? options.owner : scope.owner(); const sent = owner.exportValue((owner) => { const converted = conversion.exportOutcome(owner, (data) as Protocol.Outcome); validateWire("Outcome", converted); return converted; }); await this.peer.emit("settled", sent, options); }
 }
 /** Installs the typed binding before a host-configured peer starts reading. An existing live scope is preserved. */
 export function install(peer: DuplexPeer, handler: Handler, events: Events = {}): Remote {
@@ -32,7 +32,7 @@ export function install(peer: DuplexPeer, handler: Handler, events: Events = {})
   const remote = new Remote(peer);
   if (!scopeOf(peer)) liveOver(peer, {});
   peer.handle("describe", async (params, context) => { try { validateWire("Ticket", params); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.describe(params as Protocol.Ticket, remote, context); validateWire("string", result); return result; });
-  peer.handle("start", async (raw, context) => { const scope = scopeOf(remote.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); try { validateWire("Start", raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = conversion.importStart(scope, raw); const result = await handler.start(params as Protocol.Start, remote, context); return scope.exportValue((scope) => { const converted = conversion.exportJob(scope, (result) as Protocol.Job); validateWire("Job", converted); return converted; }); });
+  peer.handle("start", async (raw, context) => { const scope = scopeOf(remote.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const owner = scope.owner().child(); const ownedContext = { ...context, owner }; try { validateWire("Start", raw); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = owner.importValue((owner) => conversion.importStart(owner, raw)); const result = await handler.start(params as Protocol.Start, remote, ownedContext); return owner.exportValue((owner) => { const converted = conversion.exportJob(owner, (result) as Protocol.Job); validateWire("Job", converted); return converted; }); });
   return remote;
 }
 /** Serves an externally authenticated accepted connection. The returned peer is the caller's to close. */
