@@ -8,8 +8,19 @@ import (
 )
 
 type allocation struct {
-	id       string
-	imported bool
+	id         string
+	imported   bool
+	binding    *binding
+	attachment *attachment
+}
+
+// current compares the allocation itself, not merely its reusable binding ID.
+// Callers hold the scope mutex while checking and revoking an allocation.
+func (a allocation) current(s *Scope) bool {
+	if a.imported {
+		return a.attachment != nil && s.imports[a.id] == a.attachment
+	}
+	return a.binding != nil && s.exports[a.id] == a.binding
 }
 
 // Completed views retain owner identity, but no batch allocation history.
@@ -127,7 +138,7 @@ func (o *Owner) discard(allocations []allocation) {
 	for _, allocation := range allocations {
 		// Explicit release or a remote notification may already have
 		// removed this allocation. A bounded tombstone is not its lifetime.
-		if s.exports[allocation.id] == nil && s.imports[allocation.id] == nil {
+		if !allocation.current(s) {
 			continue
 		}
 		notices = append(notices, s.takeRelease(allocation.id, allocation.imported))

@@ -19,6 +19,31 @@ async function zero(...scopes: LiveScope[]) {
 }
 const isCode=(code:string)=>(error:unknown)=>error instanceof DuplexError&&error.code===code;
 
+for (const side of ['exporter', 'caller', 'both']) {
+  const { sa, sb, close } = await pair(4);
+  try {
+    const exporter = sa.owner().child(), caller = sb.owner().child();
+    let entered!: () => void, resume!: () => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const unblocked = new Promise<void>(resolve => { resume = resolve; });
+    const invoke = combinator.importUnary(caller, combinator.exportUnary(exporter, async value => {
+      entered();
+      await unblocked;
+      return value + 1;
+    }));
+    const settled = invoke(8, { owner: caller, signal: AbortSignal.timeout(5000) });
+    await Promise.race([started, settled.then(() => { throw new Error('callback settled before the barrier'); })]);
+    if (side === 'exporter' || side === 'both') exporter.release();
+    if (side === 'caller' || side === 'both') caller.release();
+    resume();
+    assert.equal(await settled, 9, side + ': release changed an already dispatched scalar result');
+    await assert.rejects(() => invoke(9), isCode('reference_released'));
+    caller.release();
+    exporter.release();
+    await zero(sa, sb);
+  } finally { close(); }
+}
+
 {
   const {sa,sb,close}=await pair(4);
   try {

@@ -18,14 +18,14 @@ type Bundle[T any] struct {
 	Run      Unary             `json:"run"`
 }
 
-// MarshalJSON refuses: Bundle carries a callable, and a live value has no encoding apart from the scope its bindings belong to.
+// MarshalJSON refuses: Bundle carries a callable, and a live value has no encoding apart from the owner its bindings belong to.
 func (v Bundle[T]) MarshalJSON() ([]byte, error) {
-	return nil, fmt.Errorf("Bundle carries a callable; write it with ExportBundle, which takes the live scope its bindings are made in")
+	return nil, fmt.Errorf("Bundle carries a callable; write it with ExportBundle, which takes the live owner its bindings are made in")
 }
 
-// UnmarshalJSON refuses for the same reason: a reference resolves in a scope or nowhere.
+// UnmarshalJSON refuses for the same reason: a reference resolves in a owner or nowhere.
 func (v *Bundle[T]) UnmarshalJSON(data []byte) error {
-	return fmt.Errorf("Bundle carries a callable; read it with ImportBundle, which takes the live scope its references resolve in")
+	return fmt.Errorf("Bundle carries a callable; read it with ImportBundle, which takes the live owner its references resolve in")
 }
 func (Bundle[T]) Of() Tag { return Tag{} }
 func (Bundle[T]) WireType() runtime.TypeBinding {
@@ -153,14 +153,14 @@ type Toolkit struct {
 	Apply    Sink     `json:"apply"`
 }
 
-// MarshalJSON refuses: Toolkit carries a callable, and a live value has no encoding apart from the scope its bindings belong to.
+// MarshalJSON refuses: Toolkit carries a callable, and a live value has no encoding apart from the owner its bindings belong to.
 func (v Toolkit) MarshalJSON() ([]byte, error) {
-	return nil, fmt.Errorf("Toolkit carries a callable; write it with ExportToolkit, which takes the live scope its bindings are made in")
+	return nil, fmt.Errorf("Toolkit carries a callable; write it with ExportToolkit, which takes the live owner its bindings are made in")
 }
 
-// UnmarshalJSON refuses for the same reason: a reference resolves in a scope or nowhere.
+// UnmarshalJSON refuses for the same reason: a reference resolves in a owner or nowhere.
 func (v *Toolkit) UnmarshalJSON(data []byte) error {
-	return fmt.Errorf("Toolkit carries a callable; read it with ImportToolkit, which takes the live scope its references resolve in")
+	return fmt.Errorf("Toolkit carries a callable; read it with ImportToolkit, which takes the live owner its references resolve in")
 }
 func (Toolkit) Of() Tag { return Tag{} }
 func (Toolkit) WireType() runtime.TypeBinding {
@@ -200,15 +200,15 @@ func (ToolkitRequest) WireType() runtime.TypeBinding {
 }
 
 // ExportBundle writes Bundle using the supplied conversion for each type argument.
-func ExportBundle[T any](scope *live.Scope, v Bundle[T], convertT func(*live.Scope, T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error) {
-	if scope == nil {
-		return nil, fmt.Errorf("Bundle: a live value is exported into a scope")
+func ExportBundle[T any](owner *live.Owner, v Bundle[T], convertT func(*live.Owner, T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error) {
+	if owner == nil {
+		return nil, fmt.Errorf("Bundle: a live value is exported into an owner")
 	}
-	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 		wire := map[string]json.RawMessage{}
 		var metadataMember json.RawMessage
 		metadataMemberConvertedConvert0 := func(input T) (json.RawMessage, error) {
-			converted, err := convertT(scope, input)
+			converted, err := convertT(owner, input)
 			if err != nil {
 				return nil, err
 			}
@@ -221,7 +221,7 @@ func ExportBundle[T any](scope *live.Scope, v Bundle[T], convertT func(*live.Sco
 		metadataMember = metadataMemberConverted
 		wire["metadata"] = metadataMember
 		var runMember json.RawMessage
-		runMemberConverted, err := ExportUnary(scope, v.Run)
+		runMemberConverted, err := ExportUnary(owner, v.Run)
 		if err != nil {
 			return nil, err
 		}
@@ -239,43 +239,55 @@ func ExportBundle[T any](scope *live.Scope, v Bundle[T], convertT func(*live.Sco
 }
 
 // ImportBundle reads Bundle using the supplied conversion for each type argument.
-func ImportBundle[T any](scope *live.Scope, raw json.RawMessage, convertT func(json.RawMessage) (T, error), typeT runtime.TypeBinding) (Bundle[T], error) {
+func ImportBundle[T any](owner *live.Owner, raw json.RawMessage, convertT func(*live.Owner, json.RawMessage) (T, error), typeT runtime.TypeBinding) (Bundle[T], error) {
 	var value Bundle[T]
-	if scope == nil {
-		return value, fmt.Errorf("Bundle: a live value is imported into a scope")
+	if owner == nil {
+		return value, fmt.Errorf("Bundle: a live value is imported into an owner")
 	}
-	if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw("Bundle", raw); err != nil {
-		return value, err
-	}
-	var wire map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &wire); err != nil {
-		return value, err
-	}
-	if member, present := wire["metadata"]; present {
-		var held BundleMetadata[T]
-		heldConvertedConvert0 := func(input json.RawMessage) (T, error) {
-			var zero T
-			converted, err := convertT(input)
-			if err != nil {
-				return zero, err
+	err := owner.ImportValue(func(owner *live.Owner) error {
+		converted, err := func() (Bundle[T], error) {
+			var value Bundle[T]
+			if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw("Bundle", raw); err != nil {
+				return value, err
 			}
-			return converted, nil
-		}
-		heldConverted, err := ImportBundleMetadata[T](member, heldConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: runtime.MustTypeExpression("\"T\"")})
-		if err != nil {
-			return value, err
-		}
-		held = heldConverted
-		value.Metadata = held
-	}
-	if member, present := wire["run"]; present {
-		var held Unary
-		heldConverted, err := ImportUnary(scope, member)
-		if err != nil {
-			return value, err
-		}
-		held = heldConverted
-		value.Run = held
+			var wire map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &wire); err != nil {
+				return value, err
+			}
+			if member, present := wire["metadata"]; present {
+				var held BundleMetadata[T]
+				heldConvertedConvert0 := func(input json.RawMessage) (T, error) {
+					var zero T
+					converted, err := convertT(owner, input)
+					if err != nil {
+						return zero, err
+					}
+					return converted, nil
+				}
+				heldConverted, err := ImportBundleMetadata[T](member, heldConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: runtime.MustTypeExpression("\"T\"")})
+				if err != nil {
+					return value, err
+				}
+				held = heldConverted
+				value.Metadata = held
+			}
+			if member, present := wire["run"]; present {
+				var held Unary
+				heldConverted, err := ImportUnary(owner, member)
+				if err != nil {
+					return value, err
+				}
+				held = heldConverted
+				value.Run = held
+			}
+			return value, nil
+		}()
+		value = converted
+		return err
+	})
+	if err != nil {
+		var zero Bundle[T]
+		return zero, err
 	}
 	return value, nil
 }
@@ -330,19 +342,43 @@ type Factory = func(ctx context.Context, params Unary) (Unary, error)
 const ContractFactory = "combinator/Factory"
 
 // ExportFactory makes a binding of a local Factory and writes the reference that names it.
-func ExportFactory(scope *live.Scope, v Factory) (json.RawMessage, error) {
-	if scope == nil {
-		return nil, fmt.Errorf("Factory: a live value is exported into a scope")
+func ExportFactory(owner *live.Owner, v Factory) (json.RawMessage, error) {
+	if owner == nil {
+		return nil, fmt.Errorf("Factory: a live value is exported into an owner")
 	}
 	if v == nil {
 		return nil, fmt.Errorf("Factory: no implementation to export")
 	}
-	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
-		reference, err := scope.Export(ContractFactory, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
+		reference, err := owner.Export(ContractFactory, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+			owner := owner.Child()
+			ctx = live.WithOwner(ctx, owner)
 			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), request); err != nil {
 				return nil, err
 			}
-			argument, err := ImportUnary(scope, request)
+			argument, err := func() (Unary, error) {
+				var value Unary
+				err := owner.ImportValue(func(owner *live.Owner) error {
+					converted, err := func() (Unary, error) {
+						var zero Unary
+						if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), request); err != nil {
+							return zero, err
+						}
+						converted, err := ImportUnary(owner, request)
+						if err != nil {
+							return zero, err
+						}
+						return converted, nil
+					}()
+					value = converted
+					return err
+				})
+				if err != nil {
+					var zero Unary
+					return zero, err
+				}
+				return value, nil
+			}()
 			if err != nil {
 				return nil, err
 			}
@@ -350,9 +386,9 @@ func ExportFactory(scope *live.Scope, v Factory) (json.RawMessage, error) {
 			if err != nil {
 				return nil, err
 			}
-			data, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+			data, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 				var zero json.RawMessage
-				converted, err := ExportUnary(scope, result)
+				converted, err := ExportUnary(owner, result)
 				if err != nil {
 					return zero, err
 				}
@@ -374,23 +410,31 @@ func ExportFactory(scope *live.Scope, v Factory) (json.RawMessage, error) {
 }
 
 // ImportFactory is a Factory that calls the binding a reference names.
-func ImportFactory(scope *live.Scope, raw json.RawMessage) (Factory, error) {
-	if scope == nil {
-		return nil, fmt.Errorf("Factory: a live value is imported into a scope")
+func ImportFactory(owner *live.Owner, raw json.RawMessage) (Factory, error) {
+	if owner == nil {
+		return nil, fmt.Errorf("Factory: a live value is imported into an owner")
 	}
-	reference, err := scope.Decode(raw)
+	reference, err := owner.Scope().Decode(raw)
 	if err != nil {
 		return nil, err
 	}
-	invoke, err := scope.Import(reference, ContractFactory)
+	invoke, err := owner.Import(reference, ContractFactory)
 	if err != nil {
 		return nil, err
 	}
+	scope := owner.Scope()
 	return func(ctx context.Context, params Unary) (Unary, error) {
+		owner := scope.Owner()
 		var zero Unary
-		request, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		if supplied, ok := live.OwnerOf(ctx); ok {
+			if supplied.Scope() != owner.Scope() {
+				return zero, &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
+			}
+			owner = supplied
+		}
+		request, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 			var zero json.RawMessage
-			converted, err := ExportUnary(scope, params)
+			converted, err := ExportUnary(owner, params)
 			if err != nil {
 				return zero, err
 			}
@@ -409,7 +453,29 @@ func ImportFactory(scope *live.Scope, raw json.RawMessage) (Factory, error) {
 		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), result); err != nil {
 			return zero, err
 		}
-		answer, err := ImportUnary(scope, result)
+		answer, err := func() (Unary, error) {
+			var value Unary
+			err := owner.ImportValue(func(owner *live.Owner) error {
+				converted, err := func() (Unary, error) {
+					var zero Unary
+					if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), result); err != nil {
+						return zero, err
+					}
+					converted, err := ImportUnary(owner, result)
+					if err != nil {
+						return zero, err
+					}
+					return converted, nil
+				}()
+				value = converted
+				return err
+			})
+			if err != nil {
+				var zero Unary
+				return zero, err
+			}
+			return value, nil
+		}()
 		if err != nil {
 			return zero, err
 		}
@@ -425,22 +491,24 @@ type Producer = func(ctx context.Context) (Unary, error)
 const ContractProducer = "combinator/Producer"
 
 // ExportProducer makes a binding of a local Producer and writes the reference that names it.
-func ExportProducer(scope *live.Scope, v Producer) (json.RawMessage, error) {
-	if scope == nil {
-		return nil, fmt.Errorf("Producer: a live value is exported into a scope")
+func ExportProducer(owner *live.Owner, v Producer) (json.RawMessage, error) {
+	if owner == nil {
+		return nil, fmt.Errorf("Producer: a live value is exported into an owner")
 	}
 	if v == nil {
 		return nil, fmt.Errorf("Producer: no implementation to export")
 	}
-	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
-		reference, err := scope.Export(ContractProducer, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
+		reference, err := owner.Export(ContractProducer, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+			owner := owner.Child()
+			ctx = live.WithOwner(ctx, owner)
 			result, err := v(ctx)
 			if err != nil {
 				return nil, err
 			}
-			data, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+			data, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 				var zero json.RawMessage
-				converted, err := ExportUnary(scope, result)
+				converted, err := ExportUnary(owner, result)
 				if err != nil {
 					return zero, err
 				}
@@ -462,20 +530,28 @@ func ExportProducer(scope *live.Scope, v Producer) (json.RawMessage, error) {
 }
 
 // ImportProducer is a Producer that calls the binding a reference names.
-func ImportProducer(scope *live.Scope, raw json.RawMessage) (Producer, error) {
-	if scope == nil {
-		return nil, fmt.Errorf("Producer: a live value is imported into a scope")
+func ImportProducer(owner *live.Owner, raw json.RawMessage) (Producer, error) {
+	if owner == nil {
+		return nil, fmt.Errorf("Producer: a live value is imported into an owner")
 	}
-	reference, err := scope.Decode(raw)
+	reference, err := owner.Scope().Decode(raw)
 	if err != nil {
 		return nil, err
 	}
-	invoke, err := scope.Import(reference, ContractProducer)
+	invoke, err := owner.Import(reference, ContractProducer)
 	if err != nil {
 		return nil, err
 	}
+	scope := owner.Scope()
 	return func(ctx context.Context) (Unary, error) {
+		owner := scope.Owner()
 		var zero Unary
+		if supplied, ok := live.OwnerOf(ctx); ok {
+			if supplied.Scope() != owner.Scope() {
+				return zero, &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
+			}
+			owner = supplied
+		}
 		result, err := invoke(ctx, nil)
 		if err != nil {
 			return zero, err
@@ -483,7 +559,29 @@ func ImportProducer(scope *live.Scope, raw json.RawMessage) (Producer, error) {
 		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), result); err != nil {
 			return zero, err
 		}
-		answer, err := ImportUnary(scope, result)
+		answer, err := func() (Unary, error) {
+			var value Unary
+			err := owner.ImportValue(func(owner *live.Owner) error {
+				converted, err := func() (Unary, error) {
+					var zero Unary
+					if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), result); err != nil {
+						return zero, err
+					}
+					converted, err := ImportUnary(owner, result)
+					if err != nil {
+						return zero, err
+					}
+					return converted, nil
+				}()
+				value = converted
+				return err
+			})
+			if err != nil {
+				var zero Unary
+				return zero, err
+			}
+			return value, nil
+		}()
 		if err != nil {
 			return zero, err
 		}
@@ -499,19 +597,43 @@ type Sink = func(ctx context.Context, params Unary) error
 const ContractSink = "combinator/Sink"
 
 // ExportSink makes a binding of a local Sink and writes the reference that names it.
-func ExportSink(scope *live.Scope, v Sink) (json.RawMessage, error) {
-	if scope == nil {
-		return nil, fmt.Errorf("Sink: a live value is exported into a scope")
+func ExportSink(owner *live.Owner, v Sink) (json.RawMessage, error) {
+	if owner == nil {
+		return nil, fmt.Errorf("Sink: a live value is exported into an owner")
 	}
 	if v == nil {
 		return nil, fmt.Errorf("Sink: no implementation to export")
 	}
-	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
-		reference, err := scope.Export(ContractSink, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
+		reference, err := owner.Export(ContractSink, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+			owner := owner.Child()
+			ctx = live.WithOwner(ctx, owner)
 			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), request); err != nil {
 				return nil, err
 			}
-			argument, err := ImportUnary(scope, request)
+			argument, err := func() (Unary, error) {
+				var value Unary
+				err := owner.ImportValue(func(owner *live.Owner) error {
+					converted, err := func() (Unary, error) {
+						var zero Unary
+						if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), request); err != nil {
+							return zero, err
+						}
+						converted, err := ImportUnary(owner, request)
+						if err != nil {
+							return zero, err
+						}
+						return converted, nil
+					}()
+					value = converted
+					return err
+				})
+				if err != nil {
+					var zero Unary
+					return zero, err
+				}
+				return value, nil
+			}()
 			if err != nil {
 				return nil, err
 			}
@@ -525,22 +647,30 @@ func ExportSink(scope *live.Scope, v Sink) (json.RawMessage, error) {
 }
 
 // ImportSink is a Sink that calls the binding a reference names.
-func ImportSink(scope *live.Scope, raw json.RawMessage) (Sink, error) {
-	if scope == nil {
-		return nil, fmt.Errorf("Sink: a live value is imported into a scope")
+func ImportSink(owner *live.Owner, raw json.RawMessage) (Sink, error) {
+	if owner == nil {
+		return nil, fmt.Errorf("Sink: a live value is imported into an owner")
 	}
-	reference, err := scope.Decode(raw)
+	reference, err := owner.Scope().Decode(raw)
 	if err != nil {
 		return nil, err
 	}
-	invoke, err := scope.Import(reference, ContractSink)
+	invoke, err := owner.Import(reference, ContractSink)
 	if err != nil {
 		return nil, err
 	}
+	scope := owner.Scope()
 	return func(ctx context.Context, params Unary) error {
-		request, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		owner := scope.Owner()
+		if supplied, ok := live.OwnerOf(ctx); ok {
+			if supplied.Scope() != owner.Scope() {
+				return &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
+			}
+			owner = supplied
+		}
+		request, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 			var zero json.RawMessage
-			converted, err := ExportUnary(scope, params)
+			converted, err := ExportUnary(owner, params)
 			if err != nil {
 				return zero, err
 			}
@@ -561,29 +691,29 @@ func ImportSink(scope *live.Scope, raw json.RawMessage) (Sink, error) {
 	}, nil
 }
 
-// ExportToolkit writes Toolkit as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place.
-func ExportToolkit(scope *live.Scope, v Toolkit) (json.RawMessage, error) {
-	if scope == nil {
-		return nil, fmt.Errorf("Toolkit: a live value is exported into a scope")
+// ExportToolkit writes Toolkit as it travels: each callable in it becomes a binding of the owner, and the reference that names it takes its place.
+func ExportToolkit(owner *live.Owner, v Toolkit) (json.RawMessage, error) {
+	if owner == nil {
+		return nil, fmt.Errorf("Toolkit: a live value is exported into an owner")
 	}
-	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 		wire := map[string]json.RawMessage{}
 		var twiceMember json.RawMessage
-		twiceMemberConverted, err := ExportFactory(scope, v.Twice)
+		twiceMemberConverted, err := ExportFactory(owner, v.Twice)
 		if err != nil {
 			return nil, err
 		}
 		twiceMember = twiceMemberConverted
 		wire["twice"] = twiceMember
 		var identityMember json.RawMessage
-		identityMemberConverted, err := ExportProducer(scope, v.Identity)
+		identityMemberConverted, err := ExportProducer(owner, v.Identity)
 		if err != nil {
 			return nil, err
 		}
 		identityMember = identityMemberConverted
 		wire["identity"] = identityMember
 		var applyMember json.RawMessage
-		applyMemberConverted, err := ExportSink(scope, v.Apply)
+		applyMemberConverted, err := ExportSink(owner, v.Apply)
 		if err != nil {
 			return nil, err
 		}
@@ -601,44 +731,56 @@ func ExportToolkit(scope *live.Scope, v Toolkit) (json.RawMessage, error) {
 }
 
 // ImportToolkit reads Toolkit as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
-func ImportToolkit(scope *live.Scope, raw json.RawMessage) (Toolkit, error) {
+func ImportToolkit(owner *live.Owner, raw json.RawMessage) (Toolkit, error) {
 	var value Toolkit
-	if scope == nil {
-		return value, fmt.Errorf("Toolkit: a live value is imported into a scope")
+	if owner == nil {
+		return value, fmt.Errorf("Toolkit: a live value is imported into an owner")
 	}
-	if err := schema.ValidateExpressionRaw("Toolkit", raw); err != nil {
-		return value, err
-	}
-	var wire map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &wire); err != nil {
-		return value, err
-	}
-	if member, present := wire["twice"]; present {
-		var held Factory
-		heldConverted, err := ImportFactory(scope, member)
-		if err != nil {
-			return value, err
-		}
-		held = heldConverted
-		value.Twice = held
-	}
-	if member, present := wire["identity"]; present {
-		var held Producer
-		heldConverted, err := ImportProducer(scope, member)
-		if err != nil {
-			return value, err
-		}
-		held = heldConverted
-		value.Identity = held
-	}
-	if member, present := wire["apply"]; present {
-		var held Sink
-		heldConverted, err := ImportSink(scope, member)
-		if err != nil {
-			return value, err
-		}
-		held = heldConverted
-		value.Apply = held
+	err := owner.ImportValue(func(owner *live.Owner) error {
+		converted, err := func() (Toolkit, error) {
+			var value Toolkit
+			if err := schema.ValidateExpressionRaw("Toolkit", raw); err != nil {
+				return value, err
+			}
+			var wire map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &wire); err != nil {
+				return value, err
+			}
+			if member, present := wire["twice"]; present {
+				var held Factory
+				heldConverted, err := ImportFactory(owner, member)
+				if err != nil {
+					return value, err
+				}
+				held = heldConverted
+				value.Twice = held
+			}
+			if member, present := wire["identity"]; present {
+				var held Producer
+				heldConverted, err := ImportProducer(owner, member)
+				if err != nil {
+					return value, err
+				}
+				held = heldConverted
+				value.Identity = held
+			}
+			if member, present := wire["apply"]; present {
+				var held Sink
+				heldConverted, err := ImportSink(owner, member)
+				if err != nil {
+					return value, err
+				}
+				held = heldConverted
+				value.Apply = held
+			}
+			return value, nil
+		}()
+		value = converted
+		return err
+	})
+	if err != nil {
+		var zero Toolkit
+		return zero, err
 	}
 	return value, nil
 }
@@ -651,37 +793,39 @@ type Unary = func(ctx context.Context, params Count) (Count, error)
 const ContractUnary = "combinator/Unary"
 
 // ExportUnary makes a binding of a local Unary and writes the reference that names it.
-func ExportUnary(scope *live.Scope, v Unary) (json.RawMessage, error) {
-	if scope == nil {
-		return nil, fmt.Errorf("Unary: a live value is exported into a scope")
+func ExportUnary(owner *live.Owner, v Unary) (json.RawMessage, error) {
+	if owner == nil {
+		return nil, fmt.Errorf("Unary: a live value is exported into an owner")
 	}
 	if v == nil {
 		return nil, fmt.Errorf("Unary: no implementation to export")
 	}
-	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
-		reference, err := scope.Export(ContractUnary, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
+		reference, err := owner.Export(ContractUnary, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+			owner := owner.Child()
+			ctx = live.WithOwner(ctx, owner)
 			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), request); err != nil {
 				return nil, err
 			}
-			var argument Count
-			if err := json.Unmarshal(request, &argument); err != nil {
+			argument, err := func() (Count, error) {
+				var value Count
+				if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), request); err != nil {
+					return value, err
+				}
+				err := json.Unmarshal(request, &value)
+				return value, err
+			}()
+			if err != nil {
 				return nil, err
 			}
 			result, err := v(ctx, argument)
 			if err != nil {
 				return nil, err
 			}
-			data, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
-				var zero json.RawMessage
-				converted, err := runtime.MarshalJSON(result)
-				if err != nil {
-					return zero, err
-				}
-				if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), converted); err != nil {
-					return zero, err
-				}
-				return converted, nil
-			})
+			data, err := runtime.MarshalJSON(result)
+			if err == nil {
+				err = schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), data)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -695,31 +839,32 @@ func ExportUnary(scope *live.Scope, v Unary) (json.RawMessage, error) {
 }
 
 // ImportUnary is a Unary that calls the binding a reference names.
-func ImportUnary(scope *live.Scope, raw json.RawMessage) (Unary, error) {
-	if scope == nil {
-		return nil, fmt.Errorf("Unary: a live value is imported into a scope")
+func ImportUnary(owner *live.Owner, raw json.RawMessage) (Unary, error) {
+	if owner == nil {
+		return nil, fmt.Errorf("Unary: a live value is imported into an owner")
 	}
-	reference, err := scope.Decode(raw)
+	reference, err := owner.Scope().Decode(raw)
 	if err != nil {
 		return nil, err
 	}
-	invoke, err := scope.Import(reference, ContractUnary)
+	invoke, err := owner.Import(reference, ContractUnary)
 	if err != nil {
 		return nil, err
 	}
+	scope := owner.Scope()
 	return func(ctx context.Context, params Count) (Count, error) {
+		owner := scope.Owner()
 		var zero Count
-		request, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
-			var zero json.RawMessage
-			converted, err := runtime.MarshalJSON(params)
-			if err != nil {
-				return zero, err
+		if supplied, ok := live.OwnerOf(ctx); ok {
+			if supplied.Scope() != owner.Scope() {
+				return zero, &runtime.PublicError{Code: live.ErrorReferenceForeign, Message: "the owner belongs to another connection"}
 			}
-			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), converted); err != nil {
-				return zero, err
-			}
-			return converted, nil
-		})
+			owner = supplied
+		}
+		request, err := runtime.MarshalJSON(params)
+		if err == nil {
+			err = schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), request)
+		}
 		if err != nil {
 			return zero, err
 		}
@@ -730,8 +875,15 @@ func ImportUnary(scope *live.Scope, raw json.RawMessage) (Unary, error) {
 		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), result); err != nil {
 			return zero, err
 		}
-		var answer Count
-		if err := json.Unmarshal(result, &answer); err != nil {
+		answer, err := func() (Count, error) {
+			var value Count
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), result); err != nil {
+				return value, err
+			}
+			err := json.Unmarshal(result, &value)
+			return value, err
+		}()
+		if err != nil {
 			return zero, err
 		}
 		return answer, nil

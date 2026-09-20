@@ -122,9 +122,9 @@ func (t *testee) forwardingDispatch(op string, raw map[string]json.RawMessage) (
 		s := &forwardingEndpoint{server: &combinatorServer{}}
 		handler, err := combinatorbinding.NewHandler(s.server, runtime.ServerOptions{
 			Options: runtime.Options{Prepare: func(peer *runtime.Peer) error {
-				scope, ok := live.ScopeOf(peer)
-				if !ok {
-					return fmt.Errorf("generated binding installed no scope")
+				scope, err := live.Over(peer, live.Options{})
+				if err != nil {
+					return err
 				}
 				s.mu.Lock()
 				s.peer, s.scope = peer, scope

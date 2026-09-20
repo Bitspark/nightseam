@@ -25,6 +25,23 @@ func (f *file) publishBoundary(e model.TypeExpr, src, dst string, publish func()
 // anonymous containers and applications) use the same recursive conversion.
 func (f *file) liveBoundary(e model.TypeExpr, src, dst string, export bool) {
 	result := f.spell(e)
+	// Ordinary data needs no lifetime. In particular, releasing an owner is
+	// a barrier to new acquisitions, not a cancellation of a dispatched call
+	// that is returning a scalar or record without live positions.
+	if !f.needsConversion(e) {
+		if export {
+			f.linef("%s, err := %s.MarshalJSON(%s)", dst, f.runtime(), src)
+			f.linef("if err == nil { err = %s }", f.validateExpression(e, dst))
+		} else {
+			f.w.Block(fmt.Sprintf("%s, err := func() (%s, error) {", dst, result), "}()", func() {
+				f.linef("var value %s", result)
+				f.linef("if err := %s; err != nil { return value, err }", f.validateExpression(e, src))
+				f.linef("err := %s.Unmarshal(%s, &value)", f.std("json"), src)
+				f.line("return value, err")
+			})
+		}
+		return
+	}
 	if !export {
 		f.w.Block(fmt.Sprintf("%s, err := func() (%s, error) {", dst, result), "}()", func() {
 			f.linef("var value %s", result)

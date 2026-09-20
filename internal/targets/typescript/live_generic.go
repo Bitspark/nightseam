@@ -10,6 +10,9 @@ import (
 
 // Conversion and validation both finish before the value can be published.
 func (f *file) liveExport(e model.TypeExpr, src, slots string) string {
+	if !f.needsConversion(e) {
+		return fmt.Sprintf("(() => { const converted = %s; %s(%s, converted%s); return converted; })()", f.liveConversion(e, src, true), identValidateWire, expression(e), slots)
+	}
 	return fmt.Sprintf("owner.exportValue((owner) => { const converted = %s; %s(%s, converted%s); return converted; })", f.liveConversion(e, src, true), identValidateWire, expression(e), slots)
 }
 

@@ -22,7 +22,7 @@ In `typescript`:
 ```typescript
 /** Told about a payload the server saw. The client implements it and hands it over; the server calls it back across the seam. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Notice = (request: Payload, options?: { signal?: AbortSignal }) => Promise<void>;
+export type Notice = (request: Payload, options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<void>;
 ```
 
 For example:
@@ -92,7 +92,7 @@ In `typescript`:
 ```typescript
 /** Asks the server to stop sending notices. Releasing the reference to it is not this, and cancelling the call that returned it is neither. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Stop = (options?: { signal?: AbortSignal }) => Promise<void>;
+export type Stop = (options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<void>;
 ```
 
 For example:

@@ -111,7 +111,10 @@ func (o *Owner) record(id string, imported bool) {
 		child.parent.children[child] = struct{}{}
 	}
 	if o.batch != nil && o.batch.active {
-		o.batch.allocations = append(o.batch.allocations, allocation{id: id, imported: imported})
+		s := o.Scope()
+		o.batch.allocations = append(o.batch.allocations, allocation{
+			id: id, imported: imported, binding: s.exports[id], attachment: s.imports[id],
+		})
 	}
 }
 

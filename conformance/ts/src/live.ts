@@ -62,10 +62,12 @@ class ScopeOn {
 const isScope = (object: unknown): object is ScopeOn => object instanceof ScopeOn;
 
 class OwnerOn {
-  constructor(
-    readonly owner: LiveOwner,
-    readonly scope: ScopeOn,
-  ) {}
+  readonly owner: LiveOwner;
+  readonly scope: ScopeOn;
+  constructor(owner: LiveOwner, scope: ScopeOn) {
+    this.owner = owner;
+    this.scope = scope;
+  }
 }
 const isOwner = (object: unknown): object is OwnerOn => object instanceof OwnerOn;
 

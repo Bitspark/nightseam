@@ -77,16 +77,30 @@ func install(handler Handler, options *runtime.Options) error {
 		if !ok {
 			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 		}
+		owner := scope.Owner().Child()
+		ctx = live.WithOwner(ctx, owner)
 		params, err := func() (protocol.Watch, error) {
-			var zero protocol.Watch
-			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Watch\""), raw); err != nil {
-				return zero, err
-			}
-			converted, err := protocol.ImportWatch(scope, raw)
+			var value protocol.Watch
+			err := owner.ImportValue(func(owner *live.Owner) error {
+				converted, err := func() (protocol.Watch, error) {
+					var zero protocol.Watch
+					if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Watch\""), raw); err != nil {
+						return zero, err
+					}
+					converted, err := protocol.ImportWatch(owner, raw)
+					if err != nil {
+						return zero, err
+					}
+					return converted, nil
+				}()
+				value = converted
+				return err
+			})
 			if err != nil {
+				var zero protocol.Watch
 				return zero, err
 			}
-			return converted, nil
+			return value, nil
 		}()
 		if err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
@@ -95,9 +109,9 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 			var zero json.RawMessage
-			converted, err := protocol.ExportSubscription(scope, result)
+			converted, err := protocol.ExportSubscription(owner, result)
 			if err != nil {
 				return zero, err
 			}
@@ -120,11 +134,15 @@ func install(handler Handler, options *runtime.Options) error {
 	options.Families = families
 	prepare := options.Prepare
 	options.Prepare = func(peer *runtime.Peer) error {
-		if _, err := live.Over(peer, live.Options{}); err != nil {
-			return err
-		}
 		if prepare != nil {
-			return prepare(peer)
+			if err := prepare(peer); err != nil {
+				return err
+			}
+		}
+		if _, ok := live.ScopeOf(peer); !ok {
+			if _, err := live.Over(peer, live.Options{}); err != nil {
+				return err
+			}
 		}
 		return nil
 	}

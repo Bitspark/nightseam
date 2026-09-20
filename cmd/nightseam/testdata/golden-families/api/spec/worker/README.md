@@ -22,7 +22,7 @@ In `typescript`:
 ```typescript
 /** Asks the job to stop. Releasing a reference to it is not this, and cancelling the call that returned it is neither. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Cancel = (options?: { signal?: AbortSignal }) => Promise<void>;
+export type Cancel = (options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<void>;
 ```
 
 For example:
@@ -200,7 +200,7 @@ In `typescript`:
 ```typescript
 /** Renames the job and answers what it is now called. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Rename = (request: Ticket, options?: { signal?: AbortSignal }) => Promise<Ticket>;
+export type Rename = (request: Ticket, options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<Ticket>;
 ```
 
 For example:
@@ -229,7 +229,7 @@ In `typescript`:
 ```typescript
 /** Told how far along the job is. */
 /** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */
-export type Report = (request: Percent, options?: { signal?: AbortSignal }) => Promise<void>;
+export type Report = (request: Percent, options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<void>;
 ```
 
 For example:

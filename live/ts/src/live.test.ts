@@ -404,14 +404,19 @@ test('import rollback does not repeat an already released allocation', async () 
   const p = await over({ maxImports: 1, maxExports: 1 }, { observe: (event) => void seen.push(event) });
   try {
     const owner = p.a.owner().child();
+    const sibling = p.a.owner().child();
+    let first!: Reference;
+    let replacement!: Invoke;
     assert.throws(
       () =>
         owner.importValue((batch) => {
           for (let i = 0; i < 8; i++) {
             const ref = p.a.decode({ binding: `remote.${i}`, contract: SINK });
+            if (i === 0) first = ref;
             batch.import(ref, SINK);
             p.a.release(ref);
           }
+          replacement = sibling.import(first, SINK);
           throw new Error('later failure');
         }),
       /later failure/,
@@ -420,6 +425,10 @@ test('import rollback does not repeat an already released allocation', async () 
     await Promise.resolve();
     assert.equal(seen.filter((event) => event.type === 'event.emitted' && event.name === RELEASE_EVENT).length, 8);
     assert.deepEqual(owner.counts(), { exports: 0, imports: 0 });
+    assert.deepEqual(sibling.counts(), { exports: 0, imports: 1 });
+    assert.deepEqual(p.a.counts(), { exports: 0, imports: 1 });
+    await assert.rejects(() => replacement(null), { code: REFERENCE_UNKNOWN });
+    sibling.release();
     assert.deepEqual(p.a.counts(), { exports: 0, imports: 0 });
   } finally {
     p.close();

@@ -128,6 +128,7 @@ interface Attachment {
 interface Allocation {
   id: string;
   imported: boolean;
+  entry: Binding | Attachment;
 }
 
 interface ValueBatch {
@@ -294,7 +295,7 @@ export class LiveOwner {
     // Explicit or remote release may already have ended an allocation.
     scope.releaseBindings(
       allocations
-        .filter(({ id }) => scope.exports.has(id) || scope.imports.has(id))
+        .filter(({ id, imported, entry }) => (imported ? scope.imports.get(id) : scope.exports.get(id)) === entry)
         .map(({ id, imported }) => ({ id, tell: imported })),
     );
   }
@@ -318,7 +319,10 @@ function record(owner: OwnerState, batch: ValueBatch | undefined, id: string, im
   for (let child = owner; child.parent; child = child.parent) {
     (child.parent.children ??= new Set()).add(child);
   }
-  if (batch?.active) batch.allocations.push({ id, imported });
+  if (batch?.active) {
+    const entry = (imported ? owner.scope.imports.get(id) : owner.scope.exports.get(id))!;
+    batch.allocations.push({ id, imported, entry });
+  }
 }
 
 function forget(owner: OwnerState, id: string): void {
