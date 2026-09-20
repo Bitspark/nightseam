@@ -19,7 +19,7 @@ class OwnersServer implements binding.Handler {
   create: binding.Handler['create'] = async (params, _remote, context) => {
     if (!context.owner || context.owner.scope !== this.scope || context.owner === this.scope.owner()) throw new OwnerFailure('invalid', 'handler received no per-invocation child owner');
     this.held.push(context.owner);
-    await params.progress.report(50, { context });
+    await params.progress.report(50, { signal: context.signal, owner: context.owner });
     return { items: [{ ticket: params.ticket.id, cancel: async () => {}, rename: async ticket => ticket }] };
   };
   pack: binding.Handler['pack'] = (params, _remote, context) => {
