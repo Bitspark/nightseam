@@ -739,7 +739,7 @@ func TestAPanickingObserverInterruptsNoRouting(t *testing.T) {
 	}
 	receive(t, delivered)
 
-	// What a layer emits takes the same path a tunnel and a session take.
+	// What a layer emits takes the same path a tunnel and a live scope take.
 	client.Observe(ws.Backpressure{At: time.Now(), Queued: 1})
 	remote.Observe(ws.Backpressure{At: time.Now(), Queued: 1})
 

@@ -12,7 +12,7 @@ import type { Trace } from './trace.ts';
  * ```
  *
  * — and a consumer's `switch (event.type)` stays exhaustive over every layer it
- * imports, the runtime's ten events and whatever the tunnel and the session add
+ * imports, the runtime's ten events and whatever the tunnel and the live layer add
  * to them. The runtime declares these ten and no more.
  */
 export interface ObserverEvents {

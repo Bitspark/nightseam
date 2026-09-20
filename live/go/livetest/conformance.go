@@ -1,7 +1,6 @@
 // Package livetest is the live layer's shared suite: the behavior a scope
 // promises, written once and run by both languages against their own runtime.
-// It is the twin of duplextest for the seam and sessiontest for the session,
-// and its TypeScript counterpart is live/ts/src/conformance.ts — the same
+// It is the twin of duplextest for the seam, and its TypeScript counterpart is live/ts/src/conformance.ts — the same
 // cases, in the same order, under the same names.
 //
 // Every case ends by counting what each scope still holds. A binding nobody
