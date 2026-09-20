@@ -57,24 +57,38 @@ func install(handler Handler, options *runtime.Options) error {
 		if !ok {
 			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 		}
+		owner := scope.Owner().Child()
+		ctx = live.WithOwner(ctx, owner)
 		params, err := func() (boxesprotocol.Box[protocol.Unary], error) {
-			var zero boxesprotocol.Box[protocol.Unary]
-			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"apply\":\"boxes.Box\",\"with\":{\"T\":\"Unary\"}}"), raw); err != nil {
-				return zero, err
-			}
-			convertedConvert0 := func(input json.RawMessage) (protocol.Unary, error) {
-				var zero protocol.Unary
-				converted, err := protocol.ImportUnary(scope, input)
-				if err != nil {
-					return zero, err
-				}
-				return converted, nil
-			}
-			converted, err := boxesprotocol.ImportBox[protocol.Unary](raw, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Unary\"")})
+			var value boxesprotocol.Box[protocol.Unary]
+			err := owner.ImportValue(func(owner *live.Owner) error {
+				converted, err := func() (boxesprotocol.Box[protocol.Unary], error) {
+					var zero boxesprotocol.Box[protocol.Unary]
+					if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"apply\":\"boxes.Box\",\"with\":{\"T\":\"Unary\"}}"), raw); err != nil {
+						return zero, err
+					}
+					convertedConvert0 := func(input json.RawMessage) (protocol.Unary, error) {
+						var zero protocol.Unary
+						converted, err := protocol.ImportUnary(owner, input)
+						if err != nil {
+							return zero, err
+						}
+						return converted, nil
+					}
+					converted, err := boxesprotocol.ImportBox[protocol.Unary](raw, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Unary\"")})
+					if err != nil {
+						return zero, err
+					}
+					return converted, nil
+				}()
+				value = converted
+				return err
+			})
 			if err != nil {
+				var zero boxesprotocol.Box[protocol.Unary]
 				return zero, err
 			}
-			return converted, nil
+			return value, nil
 		}()
 		if err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
@@ -83,17 +97,17 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 			var zero json.RawMessage
 			convertedConvert0 := func(input protocol.Bundle[protocol.Count]) (json.RawMessage, error) {
-				convertedConvert0 := func(scope *live.Scope, input protocol.Count) (json.RawMessage, error) {
+				convertedConvert0 := func(owner *live.Owner, input protocol.Count) (json.RawMessage, error) {
 					converted, err := runtime.MarshalJSON(input)
 					if err != nil {
 						return nil, err
 					}
 					return converted, nil
 				}
-				converted, err := protocol.ExportBundle[protocol.Count](scope, input, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")})
+				converted, err := protocol.ExportBundle[protocol.Count](owner, input, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")})
 				if err != nil {
 					return nil, err
 				}
@@ -114,6 +128,12 @@ func install(handler Handler, options *runtime.Options) error {
 		return fmt.Errorf("duplicate handler %s", "toolkit")
 	}
 	handlers["toolkit"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
+		scope, ok := live.ScopeOf(peer)
+		if !ok {
+			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
+		}
+		owner := scope.Owner().Child()
+		ctx = live.WithOwner(ctx, owner)
 		var params protocol.ToolkitRequest
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"seed\",\"type\":\"Count\",\"required\":true}]}"), raw); err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
@@ -125,13 +145,9 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		scope, ok := live.ScopeOf(peer)
-		if !ok {
-			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
-		}
-		sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 			var zero json.RawMessage
-			converted, err := protocol.ExportToolkit(scope, result)
+			converted, err := protocol.ExportToolkit(owner, result)
 			if err != nil {
 				return zero, err
 			}
@@ -153,11 +169,15 @@ func install(handler Handler, options *runtime.Options) error {
 	options.Families = families
 	prepare := options.Prepare
 	options.Prepare = func(peer *runtime.Peer) error {
-		if _, err := live.Over(peer, live.Options{}); err != nil {
-			return err
-		}
 		if prepare != nil {
-			return prepare(peer)
+			if err := prepare(peer); err != nil {
+				return err
+			}
+		}
+		if _, ok := live.ScopeOf(peer); !ok {
+			if _, err := live.Over(peer, live.Options{}); err != nil {
+				return err
+			}
 		}
 		return nil
 	}

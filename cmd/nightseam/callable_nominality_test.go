@@ -75,7 +75,7 @@ func TestSameSignatureAssignmentUsesDestinationContract(t *testing.T) {
 	}
 	var report protocol.Report = func(_ context.Context, value int64) (int64, error) { return value + 1, nil }
 	var volume protocol.SetVolume = report // No conversion or cast: the aliases have the same signature.
-	raw, err := protocol.ExportSetVolume(scopes[0], volume)
+	raw, err := protocol.ExportSetVolume(scopes[0].Owner(), volume)
 	if err != nil { t.Fatal(err) }
 	var descriptor struct { Binding, Contract string }
 	if err := json.Unmarshal(raw, &descriptor); err != nil { t.Fatal(err) }
@@ -86,13 +86,13 @@ func TestSameSignatureAssignmentUsesDestinationContract(t *testing.T) {
 	if err := protocol.ValidateRaw("Report", raw); err == nil {
 		t.Fatal("validator accepted the destination descriptor as the source contract")
 	}
-	if _, err := protocol.ImportReport(scopes[1], raw); err == nil {
+	if _, err := protocol.ImportReport(scopes[1].Owner(), raw); err == nil {
 		t.Fatal("import accepted the wrong contract")
 	} else {
 		var public *runtime.PublicError
 		if !errors.As(err, &public) || public.Code != live.ErrorContractMismatch { t.Fatal(err) }
 	}
-	imported, err := protocol.ImportSetVolume(scopes[1], raw)
+	imported, err := protocol.ImportSetVolume(scopes[1].Owner(), raw)
 	if err != nil { t.Fatal(err) }
 	if got, err := imported(ctx, 41); err != nil || got != 42 {
 		t.Fatalf("assigned implementation answered %d, %v", got, err)
@@ -114,7 +114,7 @@ try {
   await Promise.all([pa.attach(a), pb.attach(b)]);
   const report: nominal.Report = async value => value + 1;
   const volume: nominal.SetVolume = report; // No assertion or cast: the aliases have the same signature.
-  const raw = nominal.exportSetVolume(from, volume);
+  const raw = nominal.exportSetVolume(from.owner(), volume);
   const descriptor = raw as { binding: string; contract: string };
   if (!descriptor.binding || descriptor.contract !== 'nominal/SetVolume') {
     throw new Error('destination exporter wrote ' + JSON.stringify(raw));
@@ -124,13 +124,13 @@ try {
   try { nominal.validateWire('Report', raw); } catch { refused = true; }
   if (!refused) throw new Error('validator accepted the destination descriptor as the source contract');
   refused = false;
-  try { nominal.importReport(to, raw); }
+  try { nominal.importReport(to.owner(), raw); }
   catch (error) {
     if (!(error instanceof DuplexError) || error.code !== CONTRACT_MISMATCH) throw error;
     refused = true;
   }
   if (!refused) throw new Error('import accepted the wrong contract');
-  const imported = nominal.importSetVolume(to, raw);
+  const imported = nominal.importSetVolume(to.owner(), raw);
   if (await imported(41, { signal: AbortSignal.timeout(5000) }) !== 42) {
     throw new Error('assigned implementation answered wrongly');
   }

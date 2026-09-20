@@ -178,7 +178,7 @@ func TestNoPayloadReachesALine(t *testing.T) {
 }
 
 // channelOpened stands for an event of a layer running over the peer — a
-// tunnel's, a session's, a later profile's — which reaches this adapter
+// tunnel's, a live scope's, a later profile's — which reaches this adapter
 // through the peer's observer before this package has a case for it.
 type channelOpened struct {
 	At     time.Time

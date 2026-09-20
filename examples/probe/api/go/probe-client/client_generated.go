@@ -72,17 +72,21 @@ func install(handler Handler, events Events, options *runtime.Options) error {
 	options.Families = families
 	prepare := options.Prepare
 	options.Prepare = func(peer *runtime.Peer) error {
-		if _, err := live.Over(peer, live.Options{}); err != nil {
-			return err
+		if prepare != nil {
+			if err := prepare(peer); err != nil {
+				return err
+			}
+		}
+		if _, ok := live.ScopeOf(peer); !ok {
+			if _, err := live.Over(peer, live.Options{}); err != nil {
+				return err
+			}
 		}
 		client := &Client{Peer: peer}
 		if events.Changed != nil {
 			if err := client.OnChanged(events.Changed); err != nil {
 				return err
 			}
-		}
-		if prepare != nil {
-			return prepare(peer)
 		}
 		return nil
 	}
@@ -152,9 +156,13 @@ func (c *Client) Watch(ctx context.Context, params protocol.Watch) (protocol.Sub
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+	owner, ok := live.OwnerOf(ctx)
+	if !ok || owner.Scope() != scope {
+		owner = scope.Owner()
+	}
+	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
 		var zero json.RawMessage
-		converted, err := protocol.ExportWatch(scope, params)
+		converted, err := protocol.ExportWatch(owner, params)
 		if err != nil {
 			return zero, err
 		}
@@ -171,15 +179,27 @@ func (c *Client) Watch(ctx context.Context, params protocol.Watch) (protocol.Sub
 		return result, err
 	}
 	received, err := func() (protocol.Subscription, error) {
-		var zero protocol.Subscription
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Subscription\""), raw); err != nil {
-			return zero, err
-		}
-		converted, err := protocol.ImportSubscription(scope, raw)
+		var value protocol.Subscription
+		err := owner.ImportValue(func(owner *live.Owner) error {
+			converted, err := func() (protocol.Subscription, error) {
+				var zero protocol.Subscription
+				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Subscription\""), raw); err != nil {
+					return zero, err
+				}
+				converted, err := protocol.ImportSubscription(owner, raw)
+				if err != nil {
+					return zero, err
+				}
+				return converted, nil
+			}()
+			value = converted
+			return err
+		})
 		if err != nil {
+			var zero protocol.Subscription
 			return zero, err
 		}
-		return converted, nil
+		return value, nil
 	}()
 	return received, err
 }

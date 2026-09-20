@@ -12,23 +12,23 @@ const sa = liveOver(pa, { maxExports: 2 }),
 await Promise.all([pa.attach(a), pb.attach(b)]);
 try {
   const fn: protocol.Call = async () => 7;
-  const baseline = protocol.exportCall(sa, fn);
-  const retained = protocol.importCall(sb, baseline);
+  const baseline = protocol.exportCall(sa.owner(), fn);
+  const retained = protocol.importCall(sb.owner(), baseline);
   let used = false;
   const use = protocol.importUse(
-    sa,
-    protocol.exportUse(sb, async () => {
+    sa.owner(),
+    protocol.exportUse(sb.owner(), async () => {
       used = true;
       return 0;
     }),
   );
   const makePair = protocol.importMake(
-    sa,
-    protocol.exportMake(sb, async () => ({ first: fn, second: fn })),
+    sa.owner(),
+    protocol.exportMake(sb.owner(), async () => ({ first: fn, second: fn })),
   );
   const check = protocol.importCheck(
-    sa,
-    protocol.exportCheck(sb, async () => {
+    sa.owner(),
+    protocol.exportCheck(sb.owner(), async () => {
       used = true;
     }),
   );
@@ -51,14 +51,14 @@ try {
         async () => {
           switch (name) {
             case 'record':
-              return protocol.exportPair(sa, { first: fn, second: fn });
+              return protocol.exportPair(sa.owner(), { first: fn, second: fn });
             case 'union':
-              return protocol.exportChoice(sa, { kind: 'pair', value: { first: fn, second: fn } });
+              return protocol.exportChoice(sa.owner(), { kind: 'pair', value: { first: fn, second: fn } });
             case 'generic':
-              return protocol.exportGeneric(sa, [{ item: fn }, { item: fn }]);
+              return protocol.exportGeneric(sa.owner(), [{ item: fn }, { item: fn }]);
             case 'generic-live':
-              return protocol.exportBound(sa, { first: fn, last: fn }, (scope, input) =>
-                protocol.exportCall(scope, input),
+              return protocol.exportBound(sa.owner(), { first: fn, last: fn }, (owner, input) =>
+                protocol.exportCall(owner, input),
               );
             case 'request':
               return use([fn, fn]);
@@ -67,7 +67,7 @@ try {
             case 'validation':
               return check({ first: fn, last: 'bad' as protocol.Flag });
             default:
-              return protocol.exportFailure(sa, { first: fn, last: cyclic });
+              return protocol.exportFailure(sa.owner(), { first: fn, last: cyclic });
           }
         },
         (error: unknown) =>
@@ -79,7 +79,7 @@ try {
       assert.deepEqual(sb.counts(), remoteBefore, `${name}: reply export retained bindings`);
       assert.equal(used, false, 'failed request reached handler');
       assert.equal(await retained(), 7, 'prior binding invalidated');
-      const raw = protocol.exportCall(sa, fn);
+      const raw = protocol.exportCall(sa.owner(), fn);
       sa.release(sa.decode(raw));
     }
   }

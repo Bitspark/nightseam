@@ -479,9 +479,9 @@ export class Channel implements FrameConnection {
 
   /**
    * What a layer over a channel observes through: the observer of the peer
-   * the channel's tunnel runs over, or none. A session of a family speaks
-   * over a channel and is given nothing else of the tunnel, so this is how
-   * it emits its events without an observer option of its own — the same way
+   * the channel's tunnel runs over, or none. A layer running over a channel
+   * is given nothing else of the tunnel, so this is how it emits its events
+   * without an observer option of its own — the same way
    * the tunnel emits its own, one step further down.
    */
   observe(event: ObserverEvent): void {

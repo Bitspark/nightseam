@@ -20,6 +20,7 @@ import {
   forward,
   type Invoke,
   type LiveScope,
+  type LiveOwner,
   type Reference,
 } from './index.ts';
 
@@ -87,7 +88,7 @@ async function refuses(t: T, run: () => unknown | Promise<unknown>, code: string
   t.fail(`expected ${code}, got no refusal at all`);
 }
 
-function holds(t: T, scope: LiveScope, exports: number, imports: number, where: string): void {
+function holds(t: T, scope: Pick<LiveScope, 'counts'>, exports: number, imports: number, where: string): void {
   const got = scope.counts();
   if (got.exports !== exports || got.imports !== imports) {
     t.fail(
@@ -107,9 +108,9 @@ export function handed(
   contract: string,
   invoke: Invoke,
 ): { reference: Reference; imported: Invoke } {
-  const exported = from.export(contract, invoke);
+  const exported = from.owner().export(contract, invoke);
   const arrived = to.decode(JSON.parse(JSON.stringify(exported)));
-  return { reference: arrived, imported: to.import(arrived, contract) };
+  return { reference: arrived, imported: to.owner().import(arrived, contract) };
 }
 
 /** The suite, in the order `live/go/livetest` runs it. */
@@ -136,6 +137,13 @@ export function cases(): Case[] {
     { name: 'a reference handed back to its exporter needs no wire', run: selfReference },
     { name: 'forwarding gives the destination its own lifetime', run: forwarding },
     { name: 'a refused export leaves no binding behind', run: boundsLeaveNothing },
+    { name: 'ownerReleasesWhatItCreated', run: ownerReleasesWhatItCreated },
+    { name: 'ownerBorrowsAnAlias', run: ownerBorrowsAnAlias },
+    { name: 'ownersNest', run: ownersNest },
+    { name: 'releaseIsIdempotent', run: releaseIsIdempotent },
+    { name: 'importValueUnwindsOnlyItsOwn', run: importValueUnwindsOnlyItsOwn },
+    { name: 'exportValueUnderAnOwner', run: exportValueUnderAnOwner },
+    { name: 'rootOwnerLeavesTheScopeOpen', run: rootOwnerLeavesTheScopeOpen },
   ];
 }
 
@@ -186,7 +194,7 @@ async function independentSuppliers(t: T, p: Pair): Promise<void> {
 
 async function aliases(t: T, p: Pair): Promise<void> {
   const { reference, imported: once } = handed(p.a, p.b, SINK, echo);
-  const again = p.b.import(reference, SINK);
+  const again = p.b.owner().import(reference, SINK);
   holds(t, p.b, 0, 1, 'one binding imported twice');
   // Both aliases work, and neither takes the other's reply.
   if ((await once(1)) !== 1) t.fail('the first alias got the wrong answer');
@@ -200,12 +208,12 @@ async function ordinaryStillWorks(t: T, p: Pair): Promise<void> {
 }
 
 async function serializedReferenceSameConnection(t: T, p: Pair): Promise<void> {
-  const exported = p.a.export(SINK, echo);
+  const exported = p.a.owner().export(SINK, echo);
   // Caller-supplied bytes reach decode without an inbound-message provenance check.
   const carried = JSON.parse(JSON.stringify(exported));
   const arrived = p.b.decode(carried);
   holds(t, p.b, 0, 0, 'decode does not attach a binding');
-  const invoke = p.b.import(arrived, SINK);
+  const invoke = p.b.owner().import(arrived, SINK);
   if ((await within(t, invoke(7), 'the decoded reference invocation')) !== 7)
     t.fail('serialized reference answered wrongly');
   holds(t, p.a, 1, 0, 'the original export remains live');
@@ -214,25 +222,25 @@ async function serializedReferenceSameConnection(t: T, p: Pair): Promise<void> {
 }
 
 async function foreignNativeReference(t: T, p: Pair): Promise<void> {
-  const exported = p.a.export(SINK, echo);
+  const exported = p.a.owner().export(SINK, echo);
   // The reference was minted in a's scope; b never decoded it.
-  await refuses(t, () => p.b.import(exported, SINK), REFERENCE_FOREIGN);
+  await refuses(t, () => p.b.owner().import(exported, SINK), REFERENCE_FOREIGN);
   holds(t, p.b, 0, 0, 'a foreign reference attaches nothing');
   holds(t, p.a, 1, 0, 'the foreign-native refusal retains the original export');
   await ordinaryStillWorks(t, p);
 }
 
 async function contractMismatch(t: T, p: Pair): Promise<void> {
-  const exported = p.a.export(SINK, echo);
+  const exported = p.a.owner().export(SINK, echo);
   const arrived = p.b.decode(JSON.parse(JSON.stringify(exported)));
-  await refuses(t, () => p.b.import(arrived, OTHER), CONTRACT_MISMATCH);
+  await refuses(t, () => p.b.owner().import(arrived, OTHER), CONTRACT_MISMATCH);
   holds(t, p.b, 0, 0, 'a mismatched contract attaches nothing');
 }
 
 /** Unknown bytes may decode and import; invocation looks up the binding and refuses it. */
 async function unknownReference(t: T, p: Pair): Promise<void> {
   const arrived = p.b.decode({ binding: '0000000000000000.1', contract: SINK });
-  const invoke = p.b.import(arrived, SINK);
+  const invoke = p.b.owner().import(arrived, SINK);
   await refuses(t, () => invoke(null), REFERENCE_UNKNOWN);
 }
 
@@ -262,12 +270,12 @@ async function releaseIsABarrier(t: T, p: Pair): Promise<void> {
 
 async function releaseInvalidatesAliases(t: T, p: Pair): Promise<void> {
   const { reference, imported: once } = handed(p.a, p.b, SINK, echo);
-  const again = p.b.import(reference, SINK);
+  const again = p.b.owner().import(reference, SINK);
   p.b.release(reference);
   await refuses(t, () => once(null), REFERENCE_RELEASED);
   await refuses(t, () => again(null), REFERENCE_RELEASED);
   // And importing it again is refused for the reason it was refused for.
-  await refuses(t, () => p.b.import(reference, SINK), REFERENCE_RELEASED);
+  await refuses(t, () => p.b.owner().import(reference, SINK), REFERENCE_RELEASED);
 }
 
 /** The three meanings held apart: withdrawing an invocation withdraws that invocation and nothing else. */
@@ -384,12 +392,12 @@ async function closeImplementation(t: T, p: Pair, local: boolean): Promise<void>
 /** A reference of this side's own making, handed back: it reaches the function, not a second dispatch. */
 async function selfReference(t: T, p: Pair): Promise<void> {
   let asked = 0;
-  const exported = p.a.export(SINK, async (r) => {
+  const exported = p.a.owner().export(SINK, async (r) => {
     asked += 1;
     return r;
   });
   const back = p.a.decode(JSON.parse(JSON.stringify(exported)));
-  const invoke = p.a.import(back, SINK);
+  const invoke = p.a.owner().import(back, SINK);
   if ((await invoke(7)) !== 7) t.fail('our own binding answered wrongly');
   if (asked !== 1) t.fail(`our own binding was asked ${asked} times`);
   holds(t, p.a, 1, 0, 'our own reference is no import');
@@ -398,9 +406,9 @@ async function selfReference(t: T, p: Pair): Promise<void> {
 async function forwarding(t: T, p: Pair): Promise<void> {
   // a exports, b imports, and b forwards it back to a as a binding of its own.
   const { imported } = handed(p.a, p.b, SINK, echo);
-  const forwarded = forward(p.b, SINK, imported);
+  const forwarded = forward(p.b.owner(), SINK, imported);
   const arrived = p.a.decode(JSON.parse(JSON.stringify(forwarded)));
-  const through = p.a.import(arrived, SINK);
+  const through = p.a.owner().import(arrived, SINK);
   if ((await through(3)) !== 3) t.fail('the forwarded binding answered wrongly');
 
   p.b.release(forwarded);
@@ -411,8 +419,8 @@ async function forwarding(t: T, p: Pair): Promise<void> {
 /** The leak assertion: a refused export registers no binding. */
 async function boundsLeaveNothing(t: T, p: Pair): Promise<void> {
   const before = p.a.counts();
-  await refuses(t, () => p.a.export('', echo), CONTRACT_INVALID);
-  await refuses(t, () => p.a.export(SINK, undefined as unknown as Invoke), CONTRACT_INVALID);
+  await refuses(t, () => p.a.owner().export('', echo), CONTRACT_INVALID);
+  await refuses(t, () => p.a.owner().export(SINK, undefined as unknown as Invoke), CONTRACT_INVALID);
   const after = p.a.counts();
   if (after.exports !== before.exports || after.imports !== before.imports) {
     t.fail(`a refused export left ${JSON.stringify(after)} behind, expected ${JSON.stringify(before)}`);
@@ -421,3 +429,137 @@ async function boundsLeaveNothing(t: T, p: Pair): Promise<void> {
 
 /** The bounds, which each language's own tests reach through the suite's names. */
 export const BOUNDS = { TOO_MANY_EXPORTS, TOO_MANY_IMPORTS };
+
+function ownedHanded(from: LiveOwner, to: LiveOwner): { reference: Reference; imported: Invoke } {
+  const reference = to.scope.decode(JSON.parse(JSON.stringify(from.export(SINK, echo))));
+  return { reference, imported: to.import(reference, SINK) };
+}
+
+function ownershipBaseline(t: T, p: Pair): void {
+  p.a.owner().release();
+  p.b.owner().release();
+  holds(t, p.a, 0, 0, 'A baseline');
+  holds(t, p.b, 0, 0, 'B baseline');
+}
+
+async function ownerReleasesWhatItCreated(t: T, p: Pair): Promise<void> {
+  const owner = p.a.owner().child();
+  const { imported } = ownedHanded(p.b.owner(), owner);
+  const local = p.a.owner().import(owner.export(SINK, echo), SINK);
+  const { imported: retained } = ownedHanded(p.b.owner(), p.a.owner());
+  holds(t, owner, 1, 1, 'owned bindings');
+  owner.release();
+  await refuses(t, () => imported(null), REFERENCE_RELEASED);
+  await refuses(t, () => local(null), REFERENCE_RELEASED);
+  if ((await retained(7)) !== 7) t.fail('release touched an unrelated owner');
+  holds(t, owner, 0, 0, 'released owner');
+  holds(t, p.a, 0, 1, 'unrelated owner remains');
+  ownershipBaseline(t, p);
+}
+
+async function ownerBorrowsAnAlias(t: T, p: Pair): Promise<void> {
+  const a = p.b.owner().child();
+  const b = p.b.owner().child();
+  const { reference, imported: first } = ownedHanded(p.a.owner(), a);
+  const alias = b.import(reference, SINK);
+  holds(t, a, 0, 1, 'attachment owner');
+  holds(t, b, 0, 0, 'alias borrower');
+  b.release();
+  if ((await first(1)) !== 1 || (await alias(2)) !== 2) t.fail('borrower release revoked the binding');
+  a.release();
+  await refuses(t, () => alias(null), REFERENCE_RELEASED);
+  holds(t, a, 0, 0, 'released attachment owner');
+  ownershipBaseline(t, p);
+}
+
+async function ownersNest(t: T, p: Pair): Promise<void> {
+  const parent = p.a.owner().child();
+  const child = parent.child();
+  const empty = parent.child();
+  const grandchild = child.child();
+  const { imported } = ownedHanded(p.b.owner(), grandchild);
+  holds(t, parent, 0, 0, 'parent owns no direct binding');
+  parent.release();
+  await refuses(t, () => imported(null), REFERENCE_RELEASED);
+  for (const owner of [parent, child, grandchild, empty, empty.child()]) {
+    holds(t, owner, 0, 0, 'released descendant');
+    await refuses(t, () => owner.export(SINK, echo), REFERENCE_RELEASED);
+  }
+  ownershipBaseline(t, p);
+}
+
+async function releaseIsIdempotent(t: T, p: Pair): Promise<void> {
+  const owner = p.a.owner().child();
+  const ref = owner.export(SINK, echo);
+  p.a.release(ref);
+  holds(t, owner, 0, 0, 'raw release forgets owner allocation');
+  owner.release();
+  owner.release();
+  owner.release();
+  ownershipBaseline(t, p);
+}
+
+async function importValueUnwindsOnlyItsOwn(t: T, p: Pair): Promise<void> {
+  const retainedOwner = p.b.owner().child();
+  const batchOwner = p.b.owner().child();
+  const { reference, imported: retained } = ownedHanded(p.a.owner(), retainedOwner);
+  const arrived = p.b.decode(JSON.parse(JSON.stringify(p.a.owner().export(SINK, echo))));
+  let fresh!: Invoke;
+  const expected = new Error('later import failed');
+  try {
+    batchOwner.importValue((batch) => {
+      batch.importValue((nested) => {
+        fresh = nested.import(arrived, SINK);
+        nested.import(arrived, SINK);
+        holds(t, nested, 0, 1, 'repeated reference owns one attachment');
+      });
+      batch.import(reference, SINK);
+      throw expected;
+    });
+    t.fail('failed import succeeded');
+  } catch (error) {
+    if (error !== expected) throw error;
+  }
+  await refuses(t, () => fresh(null), REFERENCE_RELEASED);
+  if ((await retained(3)) !== 3) t.fail('rollback released a retained alias');
+  holds(t, batchOwner, 0, 0, 'failed import owns nothing');
+  holds(t, retainedOwner, 0, 1, 'retained attachment');
+  ownershipBaseline(t, p);
+}
+
+async function exportValueUnderAnOwner(t: T, p: Pair): Promise<void> {
+  const owner = p.a.owner().child();
+  let captured!: LiveOwner;
+  const expected = new Error('later export failed');
+  try {
+    owner.exportValue((batch) => {
+      captured = batch;
+      batch.exportValue((nested) => nested.export(SINK, echo));
+      throw expected;
+    });
+    t.fail('failed export succeeded');
+  } catch (error) {
+    if (error !== expected) throw error;
+  }
+  holds(t, owner, 0, 0, 'export rollback');
+  const raw = captured.exportValue((batch) => batch.export(SINK, echo));
+  const invoke = owner.import(p.a.decode(raw), SINK);
+  if ((await invoke(4)) !== 4) t.fail('captured view failed');
+  holds(t, owner, 1, 0, 'completed batch belongs to caller');
+  owner.release();
+  ownershipBaseline(t, p);
+}
+
+async function rootOwnerLeavesTheScopeOpen(t: T, p: Pair): Promise<void> {
+  for (let cycle = 0; cycle < 5; cycle++) {
+    const root = p.a.owner();
+    const { imported } = ownedHanded(p.b.owner(), root.child());
+    root.release();
+    await refuses(t, () => imported(null), REFERENCE_RELEASED);
+    holds(t, p.a, 0, 0, 'root release clears descendants');
+    await refuses(t, () => root.export(SINK, echo), REFERENCE_RELEASED);
+    if (p.a.owner() === root) t.fail('released root was reused');
+  }
+  await ordinaryStillWorks(t, p);
+  ownershipBaseline(t, p);
+}
