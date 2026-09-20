@@ -63,8 +63,9 @@ red cells stop a release.
 | **4** | `core` | — | in `core`, marks the language provisional; elsewhere, informational |
 
 A skipped scenario in a required profile is a red cell, just like a failure
-there. Its skip reason and count stay visible in the matrix. Skips outside
-the tier's required profiles remain informational; only failures there spend
+there. The runner keeps its skip reason visible, and the matrix keeps its
+count. Skips outside the tier's required profiles remain informational;
+only failures there spend
 tier 2's release lag.
 
 Tier 1 defines the profiles: a scenario is born as a pair of tier-1 twins,
