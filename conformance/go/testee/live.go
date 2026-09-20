@@ -285,9 +285,16 @@ func (t *testee) liveOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
+			cancelled, err := r.bool("cancelled")
+			if err != nil {
+				return nil, err
+			}
 			ctx, cancel := context.WithCancel(context.Background())
 			if timeout > 0 {
 				ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Millisecond)
+			}
+			if cancelled {
+				cancel()
 			}
 			request := r.raw("request")
 			// An invocation is a call like any other: it answers with a call

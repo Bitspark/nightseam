@@ -1,7 +1,7 @@
 /** The live layer under control: scopes over peers, bindings exported and imported, and what each was asked. */
 import { DuplexError } from '@nightseam/runtime';
 import { forward, liveOver, type Invoke, type LiveOptions, type LiveScope, type Reference } from '@nightseam/live';
-import { fail, invalid, intOf, stringOf, withinOf, type Args, type Op, type Testee } from './testee.ts';
+import { boolOf, fail, invalid, intOf, stringOf, withinOf, type Args, type Op, type Testee } from './testee.ts';
 import { Call, isPeer, type Peer } from './peer.ts';
 
 /** What one invocation of an exported binding was: its contract and how it went, never what it carried. */
@@ -191,6 +191,7 @@ export function liveOps(t: Testee): Record<string, Op> {
       const timeout = intOf(args, 'timeout_ms', 0);
       const controller = new AbortController();
       if (timeout > 0) setTimeout(() => controller.abort(), timeout);
+      if (boolOf(args, 'cancelled')) controller.abort();
       // An invocation is a call like any other: it answers with a call handle,
       // and call.await and call.cancel act on it.
       const promise = a.invoke(args.request ?? null, { signal: controller.signal });

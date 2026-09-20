@@ -175,6 +175,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- TypeScript live invocations preserve already-aborted caller signals before
+  dispatch, returning cancellation without invoking the exported function or
+  releasing its binding; a subsequent fresh invocation remains usable.
 - Closing a live scope settles incoming and local self-reference calls as well
   as outgoing calls, even when their implementations ignore cancellation.
   The underlying peer remains usable; late results cannot replace closure.
