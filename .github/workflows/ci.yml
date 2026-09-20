@@ -125,6 +125,12 @@ jobs:
       # A page moved without its inbound links fails the pull request that
       # moved it, rather than a reader some weeks later.
       - run: node scripts/links.mjs
+      # Every page of a documented set is linked from that set's index, and
+      # every decision carries the five parts decisions/README.md promises.
+      # links.mjs holds that a row points at a page that exists; this holds
+      # that a page has a row, which is the direction a page added without one
+      # slips through — as the Unicode decision did from #182 until #303.
+      - run: node scripts/docs.mjs
       # The getting-started example's checked-in generated output, held the
       # way a consumer's is. The example is a Go module and a pnpm project
       # of its own, so neither `go test ./...` above nor `pnpm -r` enters it.
