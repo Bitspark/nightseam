@@ -1,13 +1,9 @@
 /**
  * The TypeScript generated testee: what the generator renders for the
- * probe family — its client — under the runner's control over the generated
+ * probe family — its client and binding — under the runner's control over the generated
  * ops of conformance/DRIVER.md. Laid beside the rendering by the runner,
  * under the checkout, so that @nightseam/runtime resolves through the
  * workspace and the runtime beneath the rendering is the real one.
- *
- * TypeScript renders a client and no binding, so gen.serve is unsupported
- * here and the runner skips what needs it; a scenario that dials a Go
- * binding, or that asks the rendering what it says, runs.
  */
 import { proofOps, resetProof, ProofFailure } from './proof.ts';
 import { liveOps, resetLive, LiveFailure } from './live.ts';
@@ -15,6 +11,8 @@ import { combinatorOps, resetCombinator, CombinatorFailure } from './combinator.
 import { forwardingOps, resetForwarding, ForwardingFailure } from './forwarding.ts';
 import { createInterface } from 'node:readline';
 import { Client, DuplexError, errors, validateWire, type Payload, type Seen } from './api/ts/probe-client/src/index.ts';
+import * as binding from './api/ts/probe-binding/src/index.ts';
+import { Inbox, Served } from './server.ts';
 
 class Failure extends Error {
   readonly code: string;
@@ -55,6 +53,7 @@ class Dialled {
 }
 
 const handles = new Map<string, Dialled>();
+const servers = new Map<string, { served: Served<binding.Remote>; noticed: Inbox<Seen> }>();
 let next = 0;
 let bye = false;
 
@@ -65,6 +64,8 @@ const reset = () => {
   resetForwarding();
   for (const d of handles.values()) d.shutdown();
   handles.clear();
+  for (const s of servers.values()) s.served.shutdown();
+  servers.clear();
 };
 
 const withinOf = (args: Args) => typeof args.within_ms === 'number' ? args.within_ms : 5000;
@@ -73,6 +74,18 @@ const dialledOf = (args: Args): Dialled => {
   const d = typeof args.on === 'string' ? handles.get(args.on) : undefined;
   if (!d) throw fail('unknown_handle', String(args.on));
   return d;
+};
+
+const servedOf = (args: Args) => {
+  const s = servers.get(String(args.on));
+  if (!s) throw fail('unknown_handle', String(args.on));
+  return s;
+};
+
+const remoteOf = async (args: Args) => {
+  const remote = await servedOf(args).served.remote(withinOf(args));
+  if (!remote) throw fail('timeout', 'nobody connected');
+  return remote;
 };
 
 /** How a typed call ended: the public error's code and data. */
@@ -98,10 +111,20 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
   ...liveOps,
   ...combinatorOps,
   ...forwardingOps,
-  hello: () => ({ driver: 1, language: 'typescript', layers: ['generated'], features: [] }),
+  hello: () => ({ driver: 1, language: 'typescript', layers: ['generated'], features: ['listen'] }),
   reset: () => { reset(); return {}; },
   bye: () => { bye = true; reset(); return {}; },
-  'gen.serve': () => { throw fail('unsupported', 'TypeScript renders a client and no binding'); },
+  'gen.serve': async () => {
+    const noticed = new Inbox<Seen>();
+    const served = await new Served(socket => binding.serve(socket, {}, {
+      echo: params => ({ ...params, text: [...params.text].reverse().join('') }),
+      noArgs: () => 'none',
+      seen: () => [],
+    }, { noticed: data => noticed.put(data) }).then(peer => new binding.Remote(peer))).listen();
+    const handle = `srv${++next}`;
+    servers.set(handle, { served, noticed });
+    return { handle, url: served.url };
+  },
   'gen.dial': async args => {
     const dialled = new Dialled();
     const client = await Client.dial(String(args.url), {}, {
@@ -129,6 +152,23 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
     const notification=await dialledOf(args).awaitNotification(withinOf(args));
     if(notification===undefined) throw fail('timeout','no typed notification');
     return notification;
+  },
+  'server.reverse': async args => {
+    const signal = AbortSignal.timeout(withinOf(args));
+    const remote = await remoteOf(args);
+    return typed(() => remote.reverse(args.params as Payload, { signal }));
+  },
+  'server.emit_changed': async args => {
+    const remote = await remoteOf(args);
+    await remote.emitChanged(args.data as Payload).catch(error => { throw fail('disconnected', String(error)); });
+    return {};
+  },
+  'server.await_noticed': async args => {
+    const deadline = Date.now() + withinOf(args);
+    await remoteOf(args);
+    const data = await servedOf(args).noticed.take(Math.max(0, deadline - Date.now()));
+    if (data === undefined) throw fail('timeout', 'no noticed event');
+    return { data };
   },
   'gen.validate': args => {
     try {
