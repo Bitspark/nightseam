@@ -96,6 +96,10 @@ are one number. Entries are in the words of the commits that landed them.
   generated cross-wire scenarios, a mixed family/type binding diagram, and
   measured inline-name churn in Go and TypeScript.
 
+- Composition guidance ties its stream, cell and topic claims to the behavior
+  the examples actually exercise, and separates that behavior from shared peer
+  scheduling, authority policy and guarantees a reusable composition must add.
+
 - Language targets supply their own names, declarations and invocation
   snippets to the document through `spi.Speller`. Markdown shows the
   enabled languages beside types and operations; declarations and handler
