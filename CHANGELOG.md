@@ -241,6 +241,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- The Go tunnel WebSocket fixture installs both tunnels before either peer
+  reads frames, preventing its first channel open from racing registration.
+
 - Live reference documentation and paired tests distinguish native scope
   association from caller-supplied serialized bytes: valid bytes can be reused
   on their original connection, while stale bindings fail lookup after reconnect.
