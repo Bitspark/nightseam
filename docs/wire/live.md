@@ -30,6 +30,16 @@ tiers](../declaration/families.md#livejson)) and which is not this layer's. Both
 compared before an invocation is dispatched, and neither is an authorization:
 the layer proves *which binding of which contract*, never *who may call it*.
 
+Contract equality is equality of that declaration path, not a signature
+comparison. Different paths are refused even for identical signatures;
+renaming or moving a declaration changes the contract. The descriptor has
+no signature fingerprint or version, so an unchanged path does not prove
+compatibility after a signature change. Generated native function aliases
+remain assignable by signature, and the exporter supplies the destination
+contract; it does not infer semantic identity from the function. The
+[callable decision](../decisions/a-callable-is-a-declared-kind.md#native-assignment-and-contract-evolution)
+states this boundary and the evidence in both languages.
+
 A binding id carries the scope's own nonce, minted at random when the scope is
 made. That is what makes a reference of one connection meaningless on another:
 the nonce of a scope that has ended is not the nonce of the one that follows, so

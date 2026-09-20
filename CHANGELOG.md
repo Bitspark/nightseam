@@ -77,6 +77,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- Callable documentation separates named declarations from nominal wire
+  identity and states the limits of native function assignment and contract
+  evolution, held by compiled Go and TypeScript boundary examples.
+
 - The full type-language proof joins the shared family corpus, with compiled
   generated cross-wire scenarios, a mixed family/type binding diagram, and
   measured inline-name churn in Go and TypeScript.

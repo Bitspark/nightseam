@@ -224,6 +224,16 @@ export interface ProgressSink { "report": Report }
 export const contractReport = "worker/Report";
 ```
 
+These aliases follow their host language's function assignability: two
+declared callables with the same native signature can be assigned to each
+other. Exporting that value uses the destination helper's contract, not an
+identity attached to the original function. The compiled Go and TypeScript
+[`TestGeneratedCallableNominality`](../../cmd/nightseam/callable_nominality_test.go)
+holds this assignment and stamping, then verifies that the resulting wire
+descriptor is refused under the other contract. This is
+[nominal wire checking](../decisions/a-callable-is-a-declared-kind.md#native-assignment-and-contract-evolution),
+not nominal host typing or a proof of compatible signature revisions.
+
 The conversion is at the boundary, so a handler is handed native values. Each
 live type renders a pair that takes the scope its bindings belong to:
 
