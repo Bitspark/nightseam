@@ -68,6 +68,46 @@ type bindingOn struct {
 	scope  *scopeOn
 }
 
+type ownerOn struct {
+	owner *live.Owner
+	scope *scopeOn
+}
+
+func (t *testee) ownerOf(r request, s *scopeOn) (*live.Owner, error) {
+	name, err := r.string("owner")
+	if err != nil {
+		return nil, err
+	}
+	if name == "" {
+		return s.Owner(), nil
+	}
+	object, ok := t.lookup(name)
+	if !ok {
+		return nil, fail("unknown_handle", "%s", name)
+	}
+	o, ok := object.(*ownerOn)
+	if !ok || o.scope != s {
+		return nil, invalid("%s is not an owner of this scope", name)
+	}
+	return o.owner, nil
+}
+
+func (t *testee) ownerHandle(r request) (*ownerOn, error) {
+	name, err := r.mustString("on")
+	if err != nil {
+		return nil, err
+	}
+	object, ok := t.lookup(name)
+	if !ok {
+		return nil, fail("unknown_handle", "%s", name)
+	}
+	o, ok := object.(*ownerOn)
+	if !ok {
+		return nil, invalid("%s is not a live owner", name)
+	}
+	return o, nil
+}
+
 func (t *testee) scopeOf(r request, name string) (*scopeOn, error) {
 	handle, err := r.mustString(name)
 	if err != nil {
@@ -200,6 +240,90 @@ func liveError(err error) *failure {
 
 func (t *testee) liveOps() map[string]func(request) (any, error) {
 	return map[string]func(request) (any, error){
+		"live.owner": func(r request) (any, error) {
+			s, err := t.scopeOf(r, "on")
+			if err != nil {
+				return nil, err
+			}
+			o, err := t.ownerOf(r, s)
+			if err != nil {
+				return nil, err
+			}
+			root, err := r.bool("root")
+			if err != nil {
+				return nil, err
+			}
+			if !root {
+				o = o.Child()
+			}
+			return map[string]any{"handle": t.mint("owner", &ownerOn{owner: o, scope: s})}, nil
+		},
+		"live.owner_release": func(r request) (any, error) {
+			o, err := t.ownerHandle(r)
+			if err != nil {
+				return nil, err
+			}
+			if err := o.owner.Release(); err != nil {
+				return nil, liveError(err)
+			}
+			return nil, nil
+		},
+		"live.owner_counts": func(r request) (any, error) {
+			o, err := t.ownerHandle(r)
+			if err != nil {
+				return nil, err
+			}
+			c := o.owner.Counts()
+			return map[string]any{"exports": c.Exports, "imports": c.Imports}, nil
+		},
+		"live.import_value": func(r request) (any, error) {
+			s, err := t.scopeOf(r, "on")
+			if err != nil {
+				return nil, err
+			}
+			o, err := t.ownerOf(r, s)
+			if err != nil {
+				return nil, err
+			}
+			contract, err := r.string("contract")
+			if err != nil {
+				return nil, err
+			}
+			var references []json.RawMessage
+			if err := json.Unmarshal(r.raw("references"), &references); err != nil {
+				return nil, invalid("references: %v", err)
+			}
+			abort, err := r.bool("fail")
+			if err != nil {
+				return nil, err
+			}
+			var imports []live.Invoke
+			err = o.ImportValue(func(batch *live.Owner) error {
+				for _, raw := range references {
+					ref, err := s.Decode(raw)
+					if err != nil {
+						return err
+					}
+					fn, err := batch.Import(ref, contract)
+					if err != nil {
+						return err
+					}
+					imports = append(imports, fn)
+				}
+				if abort {
+					return &runtime.PublicError{Code: "fixture_failed", Message: "failed after imports"}
+				}
+				return nil
+			})
+			if err != nil {
+				return nil, liveError(err)
+			}
+			handles := make([]string, len(imports))
+			for i, fn := range imports {
+				handles[i] = t.mint("at", &bindingOn{invoke: fn, scope: s})
+			}
+			return map[string]any{"handles": handles}, nil
+		},
 		"live.over": func(r request) (any, error) {
 			p, err := t.peerOf(r, "on")
 			if err != nil {
@@ -243,7 +367,11 @@ func (t *testee) liveOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			ref, err := s.Export(contract, cannedInvoke(t, s, contract, b))
+			o, err := t.ownerOf(r, s)
+			if err != nil {
+				return nil, err
+			}
+			ref, err := o.Export(contract, cannedInvoke(t, s, contract, b))
 			if err != nil {
 				return nil, liveError(err)
 			}
@@ -270,7 +398,11 @@ func (t *testee) liveOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			invoke, err := s.Import(ref, contract)
+			o, err := t.ownerOf(r, s)
+			if err != nil {
+				return nil, err
+			}
+			invoke, err := o.Import(ref, contract)
 			if err != nil {
 				return nil, liveError(err)
 			}
@@ -333,7 +465,11 @@ func (t *testee) liveOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			ref, err := live.Forward(s.Scope, contract, a.invoke)
+			o, err := t.ownerOf(r, s)
+			if err != nil {
+				return nil, err
+			}
+			ref, err := live.Forward(o, contract, a.invoke)
 			if err != nil {
 				return nil, liveError(err)
 			}

@@ -13,11 +13,11 @@ import (
 // A callable is a **function value** — the operator's verdict on #201 — so
 // `ProgressSink` is an ordinary interface whose `report` member is a
 // function, and each member is its own binding. The conversion is a pair of
-// generated functions per live type, taking the scope the bindings belong
+// generated functions per live type, taking the owner the bindings belong
 // to, because a live value has no meaning apart from it:
 //
-//	export function exportJob(scope: LiveScope, value: Job): unknown
-//	export function importJob(scope: LiveScope, raw: unknown): Job
+//	export function exportJob(owner: LiveOwner, value: Job): unknown
+//	export function importJob(owner: LiveOwner, raw: unknown): Job
 //
 // Unlike Go, nothing here has to refuse an ordinary encoding: a TypeScript
 // function in a value would simply be dropped by `JSON.stringify`, silently,
@@ -47,14 +47,14 @@ func (p *plan) planLive() {
 	}
 }
 
-// liveImports is what types.ts needs for the live layer: the scope itself,
+// liveImports is what types.ts needs for the live layer: the owner itself,
 // and a **value** import of every referenced family that declares live types,
 // since its conversion functions are called rather than only named. The
 // ordinary import of a sibling family is type-only, which is right for a type
 // and not enough for a function.
 func (f *file) liveImports() {
 	if f.family.Live {
-		f.linef("import { LiveScope } from %s;", quote(f.config.Live))
+		f.linef("import type { LiveOwner } from %s;", quote(f.config.Live))
 	}
 	f.liveSiblings()
 }
@@ -124,17 +124,20 @@ func (f *file) emitCallable(t *render.Type) {
 	f.linef("/** The declaration a reference to %s carries. It is nominal: a reference is usable exactly where this callable is expected. */", name)
 	f.linef("export const %s = %s;", p.contracts[t.Name], quote(t.Contract))
 	f.linef("/** Makes a binding of a local %s and answers the reference that names it. */", name)
-	f.w.Block(fmt.Sprintf("export function %s(scope: LiveScope, value: %s): unknown {", p.exports[t.Name], name), "}", func() {
-		f.w.Block("return scope.exportValue((scope) => {", "});", func() {
-			f.w.Block(fmt.Sprintf("const reference = scope.export(%s, async (request, options) => {", p.contracts[t.Name]), "});", func() {
-				call := "options"
+	f.w.Block(fmt.Sprintf("export function %s(owner: LiveOwner, value: %s): unknown {", p.exports[t.Name], name), "}", func() {
+		f.w.Block("return owner.exportValue((owner) => {", "});", func() {
+			f.line("const parent = owner;")
+			f.w.Block(fmt.Sprintf("const reference = owner.export(%s, async (request, options) => {", p.contracts[t.Name]), "});", func() {
+				f.line("const owner = parent.child();")
+				f.line("const context = { ...options, owner };")
+				call := "context"
 				if t.Request != nil {
 					f.linef("%s(%s, request);", identValidateWire, expression(t.Request))
 					// A callable's own request is converted like any other
 					// position: a callable that takes a callable is handed a
 					// native function, not a reference.
 					f.linef("const argument = %s;", f.liveConversion(t.Request, "request", false))
-					call = "argument, options"
+					call = "argument, context"
 				}
 				if t.Result == nil {
 					f.linef("await value(%s);", call)
@@ -151,13 +154,15 @@ func (f *file) emitCallable(t *render.Type) {
 		})
 	})
 	f.linef("/** A %s that calls the binding a reference names. */", name)
-	f.w.Block(fmt.Sprintf("export function %s(scope: LiveScope, raw: unknown): %s {", p.imports_[t.Name], name), "}", func() {
-		f.linef("const invoke = scope.import(scope.decode(raw), %s);", p.contracts[t.Name])
+	f.w.Block(fmt.Sprintf("export function %s(owner: LiveOwner, raw: unknown): %s {", p.imports_[t.Name], name), "}", func() {
+		f.linef("const invoke = owner.import(owner.scope.decode(raw), %s);", p.contracts[t.Name])
+		f.line("const scope = owner.scope;")
 		f.w.Block(fmt.Sprintf("return async (%s) => {", f.callableParams(t)), "};", func() {
+			f.line("const owner = options?.owner?.scope === scope ? options.owner : scope.owner();")
 			call := "undefined, options"
 			if t.Request != nil {
 				// And what a caller sends: a callable it passes becomes a
-				// binding of this scope, as it would in any other position.
+				// binding of this owner, as it would in any other position.
 				f.linef("const sent = %s;", f.liveExport(t.Request, "request", ""))
 				call = "sent, options"
 			}
@@ -177,7 +182,7 @@ func (f *file) emitCallable(t *render.Type) {
 // has one, and the options a caller may pass and an implementation may read
 // for the signal that says the invocation was cancelled.
 func (f *file) callableParams(t *render.Type) string {
-	options := "options?: { signal?: AbortSignal }"
+	options := "options?: { signal?: AbortSignal; owner?: LiveOwner }"
 	if t.Request == nil {
 		return options
 	}
@@ -197,18 +202,18 @@ func (f *file) emitLiveConversion(t *render.Type) {
 	p := f.plan
 	name := p.types[t.Name]
 	self := name + apply(t.Uses)
-	scope := ""
+	owner := ""
 	if t.IsLive {
-		scope = "scope: LiveScope, "
+		owner = "owner: LiveOwner, "
 	}
 	if len(t.Uses) > 0 {
 		f.linef("/** Writes %s using the supplied conversion for each type argument. */", name)
 	} else {
-		f.linef("/** Writes %s as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */", name)
+		f.linef("/** Writes %s as it travels: each callable in it becomes a binding of the owner, and the reference that names it takes its place. */", name)
 	}
-	f.w.Block(fmt.Sprintf("export function %s%s(%svalue: %s%s): unknown {", p.exports[t.Name], f.declare(t.Uses), scope, self, f.converterParameters(t, true)), "}", func() {
+	f.w.Block(fmt.Sprintf("export function %s%s(%svalue: %s%s): unknown {", p.exports[t.Name], f.declare(t.Uses), owner, self, f.converterParameters(t, true)), "}", func() {
 		if t.IsLive {
-			f.w.Block("return scope.exportValue((scope) => {", "});", func() {
+			f.w.Block("return owner.exportValue((owner) => {", "});", func() {
 				f.liveBody(t, true)
 			})
 			return
@@ -220,7 +225,13 @@ func (f *file) emitLiveConversion(t *render.Type) {
 	} else {
 		f.linef("/** Reads %s as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */", name)
 	}
-	f.w.Block(fmt.Sprintf("export function %s%s(%sraw: unknown%s): %s {", p.imports_[t.Name], f.declare(t.Uses), scope, f.converterParameters(t, false), self), "}", func() {
+	f.w.Block(fmt.Sprintf("export function %s%s(%sraw: unknown%s): %s {", p.imports_[t.Name], f.declare(t.Uses), owner, f.converterParameters(t, false), self), "}", func() {
+		if t.IsLive {
+			f.w.Block("return owner.importValue((owner) => {", "});", func() {
+				f.liveBody(t, false)
+			})
+			return
+		}
 		f.liveBody(t, false)
 	})
 }
@@ -294,9 +305,9 @@ func (f *file) liveExpr(e model.TypeExpr, src string, export bool) string {
 	if codec := f.parameterConverter(e); codec != "" {
 		if export {
 			src = "(" + src + ") as " + f.spell(e)
-			if f.scopedCodecs {
-				src = "scope, " + src
-			}
+		}
+		if f.scopedCodecs {
+			src = "owner, " + src
 		}
 		return codec + "(" + src + ")"
 	}
@@ -391,14 +402,24 @@ func (f *file) liveConversion(e model.TypeExpr, src string, export bool) string 
 		}
 		return src + " as " + f.spell(e)
 	}
+	if !export {
+		return "owner.importValue((owner) => " + f.liveExpr(e, src, false) + ")"
+	}
 	return f.liveExpr(e, src, export)
 }
 
-// liveScope is the statement a client method runs before converting: the
-// scope is the peer's, and an operation that carries callables cannot be
-// spoken over a connection that has none.
+// liveScope locates the connection carrying the live values.
 func (f *file) liveScope() string {
 	return "const scope = scopeOf(this." + identPeer + "); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope');"
+}
+
+// liveOwner selects the caller's lifetime or gives an incoming handler a
+// child it can retain and release after the operation returns.
+func (f *file) liveOwner(incoming bool) string {
+	if incoming {
+		return f.liveScope() + " const owner = scope.owner().child(); const ownedContext = { ...context, owner };"
+	}
+	return f.liveScope() + " const owner = options?.owner?.scope === scope ? options.owner : scope.owner();"
 }
 
 // liveNeeded reports whether an operation carries callables in either

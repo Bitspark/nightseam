@@ -12,12 +12,47 @@ import (
 // anonymous containers and applications) use the same recursive conversion.
 func (f *file) liveBoundary(e model.TypeExpr, src, dst string, export bool) {
 	result := f.spell(e)
+	// Ordinary data needs no lifetime. In particular, releasing an owner is
+	// a barrier to new acquisitions, not a cancellation of a dispatched call
+	// that is returning a scalar or record without live positions.
+	if !f.needsConversion(e) {
+		if export {
+			f.linef("%s, err := %s.MarshalJSON(%s)", dst, f.runtime(), src)
+			f.linef("if err == nil { err = %s }", f.validateExpression(e, dst))
+		} else {
+			f.w.Block(fmt.Sprintf("%s, err := func() (%s, error) {", dst, result), "}()", func() {
+				f.linef("var value %s", result)
+				f.linef("if err := %s; err != nil { return value, err }", f.validateExpression(e, src))
+				f.linef("err := %s.Unmarshal(%s, &value)", f.std("json"), src)
+				f.line("return value, err")
+			})
+		}
+		return
+	}
+	if !export {
+		f.w.Block(fmt.Sprintf("%s, err := func() (%s, error) {", dst, result), "}()", func() {
+			f.linef("var value %s", result)
+			f.w.Block(fmt.Sprintf("err := owner.ImportValue(func(owner *%s.Owner) error {", f.live()), "})", func() {
+				f.w.Block(fmt.Sprintf("converted, err := func() (%s, error) {", result), "}()", func() {
+					f.linef("var zero %s", result)
+					f.linef("if err := %s; err != nil { return zero, err }", f.validateExpression(e, src))
+					f.liveExpr(e, src, "converted", false, "zero")
+					f.line("return converted, nil")
+				})
+				f.line("value = converted")
+				f.line("return err")
+			})
+			f.linef("if err != nil { var zero %s; return zero, err }", result)
+			f.line("return value, nil")
+		})
+		return
+	}
 	if export {
 		result = f.std("json") + ".RawMessage"
 	}
 	open, close := fmt.Sprintf("%s, err := func() (%s, error) {", dst, result), "}()"
 	if export {
-		open, close = fmt.Sprintf("%s, err := scope.ExportValue(func(scope *%s.Scope) (%s, error) {", dst, f.live(), result), "})"
+		open, close = fmt.Sprintf("%s, err := owner.ExportValue(func(owner *%s.Owner) (%s, error) {", dst, f.live(), result), "})"
 	}
 	f.w.Block(open, close, func() {
 		f.linef("var zero %s", result)
@@ -33,7 +68,7 @@ func (f *file) liveBoundary(e model.TypeExpr, src, dst string, export bool) {
 }
 
 // A generic data declaration has no live dependency. Its conversion helpers
-// take per-argument codecs; a live caller closes those codecs over its scope.
+// take per-argument codecs; a live caller closes those codecs over its owner.
 func (f *file) converterParameters(t *render.Type, export bool) string {
 	var out strings.Builder
 	for _, use := range t.Uses {
@@ -42,8 +77,8 @@ func (f *file) converterParameters(t *render.Type, export bool) string {
 		if !export {
 			from, to = to, from
 		}
-		if export && t.IsLive {
-			from = "*" + f.live() + ".Scope, " + from
+		if t.IsLive {
+			from = "*" + f.live() + ".Owner, " + from
 		}
 		fmt.Fprintf(&out, ", convert%s func(%s) (%s, error), type%s %s.TypeBinding", name, from, to, name, f.runtime())
 	}
@@ -89,7 +124,7 @@ func (f *file) conversionCall(e model.TypeExpr, src, dst string, export bool) (s
 	call := f.liveCall(e, export) + f.arguments(arguments)
 	passed := []string{}
 	if t.IsLive {
-		passed = append(passed, "scope")
+		passed = append(passed, "owner")
 	}
 	passed = append(passed, src)
 	for i, argument := range arguments {
@@ -100,8 +135,8 @@ func (f *file) conversionCall(e model.TypeExpr, src, dst string, export bool) (s
 			from, to = to, from
 		}
 		parameters := "input " + from
-		if export && t.IsLive {
-			parameters = "scope *" + f.live() + ".Scope, " + parameters
+		if t.IsLive {
+			parameters = "owner *" + f.live() + ".Owner, " + parameters
 		}
 		f.w.Block(fmt.Sprintf("%s := func(%s) (%s, error) {", name, parameters, to), "}", func() {
 			fail := "nil"

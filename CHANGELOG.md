@@ -24,6 +24,14 @@ are one number. Entries are in the words of the commits that landed them.
   bounds. `Remote` supplies reverse calls and events. Both package locations
   are configurable, and the generated conformance testee exercises both roles.
 
+- Live owners give generated plain functions a caller-selected lifetime in Go
+  and TypeScript. Owners nest, own fresh exports and import attachments, borrow
+  existing aliases, and release idempotently without closing the connection.
+  Generated operations accept an owner and handlers receive a child they may
+  retain; import and export batches unwind only their own fresh allocations.
+  Acquisition moves from scopes to owners, and intrinsically live generic
+  converters take the active owner on both imports and exports.
+
 - A shared generated forwarding proof carries higher-order functions through
   Go and TypeScript intermediaries over two socket connections, checks retained
   results and four registry counts, and distinguishes typed conversion from

@@ -132,10 +132,10 @@ export const forwardingOps: Record<string, (args: Args) => unknown | Promise<unk
       const options = { signal: AbortSignal.timeout(within(args)) };
       const source = await origin.peer.call('toolkit', { seed: 3 }, options);
       combinator.validateWire('Toolkit', source);
-      const toolkit = combinator.importToolkit(upstream, source);
+      const toolkit = combinator.importToolkit(upstream.owner(), source);
       // Exporting the typed proxies installs wrappers that translate callable
       // requests and results between these scopes, unlike raw forward().
-      const target = combinator.exportToolkit(downstream, toolkit);
+      const target = combinator.exportToolkit(downstream.owner(), toolkit);
       await destination.peer.call('fixture.forwarding.retain', target, options);
       const from = source as Record<string, unknown>;
       const to = target as Record<string, unknown>;

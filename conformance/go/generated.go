@@ -52,7 +52,11 @@ func renderTestees(checkout, dir string) error {
 	if world.Families["worker"] == nil {
 		return fmt.Errorf("render the testees: the corpus has no worker family")
 	}
-	for _, name := range []string{"probe", "proof", "worker", "boxes", "combinator"} {
+	owners := k.Load(os.DirFS(filepath.Join(checkout, "cmd", "nightseam", "testdata", "live-owners")), "api/contracts")
+	world.Families["owners"] = owners.Families["owners"]
+	world.Problems["owners"] = owners.Problems["owners"]
+	world.Names = append(world.Names, "owners")
+	for _, name := range []string{"probe", "proof", "worker", "boxes", "combinator", "owners"} {
 		result, err := k.Render(world, name)
 		if err != nil {
 			return fmt.Errorf("render the testees: %w", err)

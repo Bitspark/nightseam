@@ -23,7 +23,7 @@ test("a map of conditions describes the root and nothing else", () => {
 });
 
 test("publishConfig wins, so a workspace-only helper is not an entry point a consumer has", () => {
-  // The shape duplex/ts and session/ts carry: `./conformance` is this
+  // The shape duplex/ts carries: `./conformance` is this
   // repository's fixture seam inside the workspace, and the published map
   // does not have it. A smoke that imported the workspace map would ask the
   // tarball for a path it was never meant to hold.

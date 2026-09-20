@@ -122,8 +122,11 @@ events and listens for the server's; `Handler` is what the server calls on
 this client, required because a client serves what the server calls; and
 `Caller` is the interface a consumer mocks. `Dial` over a socket, `Attach`
 over any connection of the seam, `Open` over a handle resolved on a tunnel.
-All three take `Events`, installed through `Prepare` before the first frame,
-then run any caller-supplied `Prepare`. An empty `Events{}` handles none.
+All three take `Events`, installed through `Prepare` before the first frame.
+For a live family, the caller-supplied `Prepare` runs first, allowing it to
+configure a live scope before the generated defaults are installed. Other
+families install events before running the caller's `Prepare`. An empty
+`Events{}` handles none.
 `OnX` is for later registration; it cannot recover already delivered events.
 
 ## TypeScript: client and binding packages
@@ -308,8 +311,8 @@ const ContractReport = "worker/Report"
 ```
 
 ```ts
-export type Report = (request: Percent, options?: { signal?: AbortSignal }) => Promise<void>;
-export type Cancel = (options?: { signal?: AbortSignal }) => Promise<void>;
+export type Report = (request: Percent, options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<void>;
+export type Cancel = (options?: { signal?: AbortSignal; owner?: LiveOwner }) => Promise<void>;
 export interface ProgressSink { "report": Report }
 export const contractReport = "worker/Report";
 ```
@@ -325,11 +328,16 @@ descriptor is refused under the other contract. This is
 not nominal host typing or a proof of compatible signature revisions.
 
 The conversion is at the boundary, so a handler is handed native values. Each
-live type renders a pair that takes the scope its bindings belong to:
+live type renders a pair that takes the owner its new bindings belong to:
 
 ```go
-func ExportJob(scope *live.Scope, v Job) (json.RawMessage, error)
-func ImportJob(scope *live.Scope, raw json.RawMessage) (Job, error)
+func ExportJob(owner *live.Owner, v Job) (json.RawMessage, error)
+func ImportJob(owner *live.Owner, raw json.RawMessage) (Job, error)
+```
+
+```ts
+export function exportJob(owner: LiveOwner, value: Job): unknown;
+export function importJob(owner: LiveOwner, raw: unknown): Job;
 ```
 
 Export walks the value, makes a binding of each local function and writes the
@@ -337,6 +345,28 @@ reference that names it in its place; import validates, attaches, and replaces
 each reference with a typed proxy. The generated client and binding call these
 for an operation that carries callables, and install the scope over the peer in
 `Prepare`, before it reads — as a tunnel is made.
+
+Choose a lifetime with `scope.Owner().Child()` or `scope.owner().child()`.
+For a generated operation or callable invocation, Go selects it through
+`live.WithOwner(ctx, owner)`; TypeScript adds `owner?: LiveOwner` to its call
+options (or event emit options). A supplied owner applies to its own connection.
+When it belongs to another connection, or none is supplied, conversion uses
+the current connection's root owner. Thus a native proxy forwarded through
+another connection still works; narrower ownership on the origin connection
+requires an owner for that connection. A released owner of the same connection
+is still the selected owner. This does not change the attachment through which
+an already imported function is called, or the low-level refusal of foreign
+native references.
+
+Generated handlers that receive or return live values get a per-invocation
+child owner: `live.OwnerOf(ctx)` in Go, `context.owner` in TypeScript. Live
+event handlers receive it too, and callable implementations find it in their
+context/options. Returned functions are exported under that child. A handler
+can retain the owner and release it later; RPC completion does not dispose of
+it. Releasing an owner revokes its own new bindings and its descendants,
+including every alias of those bindings, while borrowed attachments remain
+under the owner that first acquired them. See
+[choosing a lifetime](../runtime/live.md#choosing-a-lifetime).
 
 A live type's own `MarshalJSON` **refuses**, and that is the semantics rather
 than a gap: a reference means nothing outside the scope that minted its
@@ -351,7 +381,7 @@ tier: `Page<Job>` is supported. Its own generated package stays usable for
 ordinary data and imports no live runtime. Instead, its conversion helpers
 take a converter for each type parameter they use (or each associated type
 drawn through a family parameter). The caller supplies the conversion; for
-a live argument, that converter closes over the appropriate connection scope.
+a live argument, that converter closes over the active owner batch view.
 
 For example, the model-only `boxes` family's `Page<T>` emits these signatures
 in [Go](../../cmd/nightseam/testdata/golden-families/api/go/boxes-protocol/types_generated.go)
@@ -381,54 +411,68 @@ slots too; conversion alone is not a validation API.
 
 These complete functions show importing `Page<Job>` directly, with `boxes`
 and `worker` naming their generated protocol packages/namespaces, `live`
-and `runtime` the Go runtime imports, and `LiveScope` the TypeScript live
-runtime type. Both use the caller's existing scope:
+and `runtime` the Go runtime imports, and `LiveOwner` the TypeScript live
+runtime type. Both put the whole walk under the caller's owner so a later
+failure releases earlier fresh attachments without invalidating borrowed aliases:
 
 ```go
-func importJobs(scope *live.Scope, raw json.RawMessage) (boxes.Page[worker.Job], error) {
-	return boxes.ImportPage(raw, func(item json.RawMessage) (worker.Job, error) {
-		return worker.ImportJob(scope, item)
-	}, runtime.TypeBinding{Schema: worker.WireSchema(), Type: "Job"})
+func importJobs(owner *live.Owner, raw json.RawMessage) (boxes.Page[worker.Job], error) {
+	var result boxes.Page[worker.Job]
+	err := owner.ImportValue(func(batch *live.Owner) error {
+		var err error
+		result, err = boxes.ImportPage(raw, func(item json.RawMessage) (worker.Job, error) {
+			return worker.ImportJob(batch, item)
+		}, runtime.TypeBinding{Schema: worker.WireSchema(), Type: "Job"})
+		return err
+	})
+	if err != nil {
+		return boxes.Page[worker.Job]{}, err
+	}
+	return result, nil
 }
 ```
 
 ```ts
-function importJobs(scope: LiveScope, raw: unknown): boxes.Page<worker.Job> {
-  boxes.validateWire("Page", raw, "", {
-    T: { type: "Job", validate: worker.validateWire },
+function importJobs(owner: LiveOwner, raw: unknown): boxes.Page<worker.Job> {
+  return owner.importValue((batch) => {
+    boxes.validateWire("Page", raw, "", {
+      T: { type: "Job", validate: worker.validateWire },
+    });
+    return boxes.importPage(raw, (item) => worker.importJob(batch, item));
   });
-  return boxes.importPage(raw, (item) => worker.importJob(scope, item));
 }
 ```
 
-Export uses the opposite converter: `worker.ExportJob(scope, value)` in Go
-or `worker.exportJob(scope, value)` in TypeScript, followed by whole-value
+Export uses the opposite converter: `worker.ExportJob(batch, value)` in Go
+or `worker.exportJob(batch, value)` in TypeScript, followed by whole-value
 validation. For direct data-helper exports, enclose the whole conversion and
 validation in [an export build](../runtime/live.md#constructing-a-payload-before-publication)
-and close the converters over its scope view, so an unpublished failure can
-reclaim every newly allocated binding. These are conversion hooks, not independent ownership or
-disposal handles; binding lifetimes remain those of the
-[live scope](../runtime/live.md). An ordinary generated operation supplies
-the converters and validation itself, so its consumer passes native values.
+and close the converters over its owner view, so an unpublished failure can
+reclaim every newly allocated binding. The data helpers remain conversion
+hooks; their caller supplies the owner and its disposal. An ordinary generated
+operation supplies the converters and validation itself, so its consumer passes
+native values.
 
-A generic declaration that directly contains a callable also takes a scope.
+A generic declaration that directly contains a callable also takes an owner.
 The `combinator` family's `Bundle<T>` has a fixed `Unary` member beside its
 generic metadata and emits:
 
 ```go
-func ExportBundle[T any](scope *live.Scope, v Bundle[T], convertT func(*live.Scope, T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error)
-func ImportBundle[T any](scope *live.Scope, raw json.RawMessage, convertT func(json.RawMessage) (T, error), typeT runtime.TypeBinding) (Bundle[T], error)
+func ExportBundle[T any](owner *live.Owner, v Bundle[T], convertT func(*live.Owner, T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error)
+func ImportBundle[T any](owner *live.Owner, raw json.RawMessage, convertT func(*live.Owner, json.RawMessage) (T, error), typeT runtime.TypeBinding) (Bundle[T], error)
 ```
 
 ```ts
-export function exportBundle<T = unknown>(scope: LiveScope, value: Bundle<T>, convert_T_: (scope: LiveScope, value: T) => unknown): unknown;
-export function importBundle<T = unknown>(scope: LiveScope, raw: unknown, convert_T_: (value: unknown) => T): Bundle<T>;
+export function exportBundle<T = unknown>(owner: LiveOwner, value: Bundle<T>, convert_T_: (owner: LiveOwner, value: T) => unknown): unknown;
+export function importBundle<T = unknown>(owner: LiveOwner, raw: unknown, convert_T_: (owner: LiveOwner, value: unknown) => T): Bundle<T>;
 ```
 
-The live helper passes its active export scope view to each export converter.
-Use that argument for nested exports, rather than closing over the original
-scope: conversion of the generic member and the fixed callable then belongs to
-one unpublished build. Import converters keep their value-only signatures.
+The live helper passes its active owner view to each import and export
+converter. Use that argument for nested acquisitions, rather than closing over
+the original owner: conversion of the generic member and the fixed callable
+then belongs to one batch. A failure unwinds its fresh allocations and leaves
+borrowed aliases intact. Pure-data generic helpers retain the value-only
+converter signatures shown for `Page<T>` above.
 
 The [generic-live scenario](../../conformance/scenarios/generated/live-generic-containers.json)
 executes the generated operation with an imported generic record containing
@@ -441,7 +485,7 @@ keeps three cases separate:
 
 | Form | Current support |
 | --- | --- |
-| A generic container applied to a live type, such as `Page<Job>` | Supported in the live tier; argument converters carry the scope dependency. |
+| A generic container applied to a live type, such as `Page<Job>` | Supported in the live tier; argument converters carry the owner dependency. |
 | A callable declaration with its own parameters | Temporarily refused as [`callable_parameters`](../../cmd/nightseam/testdata/invalid/callable-parameters/diagnostics.txt); applied callable identities are not defined by the current contract. This does not rule out future generic callables. |
 | A live type drawn through a family parameter, such as `S.Job` | Separately refused as [`live_draw`](../../cmd/nightseam/testdata/invalid/live-draw/diagnostics.txt); the family-binding contract does not supply its live boundary converter. This is a missing conversion surface, not a consequence of nominal identity or a requirement that all generic containers remain data-only. |
 
