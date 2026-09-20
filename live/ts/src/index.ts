@@ -268,7 +268,14 @@ export class LiveOwner {
       batch.allocations = [];
       delete batch.parent;
       if (!committed) {
-        this.state.scope.releaseBindings(allocations.map(({ id, imported }) => ({ id, tell: imported })));
+        const scope = this.state.scope;
+        // A prior explicit or remote release already ended its allocation;
+        // bounded tombstone eviction must never make rollback release it twice.
+        scope.releaseBindings(
+          allocations
+            .filter(({ id }) => scope.exports.has(id) || scope.imports.has(id))
+            .map(({ id, imported }) => ({ id, tell: imported })),
+        );
       }
     }
   }

@@ -398,3 +398,30 @@ test('Symbol.dispose releases an owner and leaves the scope usable', async () =>
     p.close();
   }
 });
+
+test('import rollback does not repeat an already released allocation', async () => {
+  const seen: ObserverEvent[] = [];
+  const p = await over({ maxImports: 1, maxExports: 1 }, { observe: (event) => void seen.push(event) });
+  try {
+    const owner = p.a.owner().child();
+    assert.throws(
+      () =>
+        owner.importValue((batch) => {
+          for (let i = 0; i < 8; i++) {
+            const ref = p.a.decode({ binding: `remote.${i}`, contract: SINK });
+            batch.import(ref, SINK);
+            p.a.release(ref);
+          }
+          throw new Error('later failure');
+        }),
+      /later failure/,
+    );
+    owner.release();
+    await Promise.resolve();
+    assert.equal(seen.filter((event) => event.type === 'event.emitted' && event.name === RELEASE_EVENT).length, 8);
+    assert.deepEqual(owner.counts(), { exports: 0, imports: 0 });
+    assert.deepEqual(p.a.counts(), { exports: 0, imports: 0 });
+  } finally {
+    p.close();
+  }
+});
