@@ -1,1 +1,1 @@
-{"dependencies":{"@example/workbench-client":"file:../workbench-client","@nightseam/runtime":"0.4.0"},"exports":"./src/index.ts","name":"@example/workbench-binding","private":true,"scripts":{"check":"tsc --noEmit"},"type":"module","version":"0.0.0"}
+{"dependencies":{"@example/workbench-client":"file:../workbench-client","@nightseam/runtime":"0.5.0"},"exports":"./src/index.ts","name":"@example/workbench-binding","private":true,"scripts":{"check":"tsc --noEmit"},"type":"module","version":"0.0.0"}
