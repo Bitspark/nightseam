@@ -30,6 +30,50 @@ both ordered pairings with Go serving, and report the unsupported reverse
 binding role as a skip in the matrix. No hand-written TypeScript binding
 stands in for an output the target does not produce.
 
+## Generated roles and skips
+
+The checked-in [matrix](../../conformance/matrix.json), after the generic
+live-container lane #254, records 16 Go generator passes and no skips,
+and 17 TypeScript generator passes with 15 skips; neither has failures.
+These counts describe that scenario set, not a permanent expected total.
+[`TestGenerated`](../../conformance/go/conformance_test.go) runs Go/Go,
+Go/TypeScript and TypeScript/Go. Each pair attempts the 11 scenario files
+below, five again with driver sides exchanged by `mirror: true`.
+
+| Driver pair (`a` / `b`) | Passed / skipped | Generated code exercised |
+|---|---|---|
+| Go / Go | 16 / 0 | Go client and Go server binding, including mirrored roles |
+| Go / TypeScript | 11 / 5 | Go binding and TypeScript client; mirrored server attempts in TypeScript skip |
+| TypeScript / Go | 6 / 10 | Five mirrored Go-binding/TypeScript-client runs and the names/domain case; base server attempts in TypeScript skip |
+
+The TypeScript row combines both cross-language pairs. The names/domain
+case runs generated names and validators on both sides without a binding;
+it passes in every pair. The remaining ten files need a server binding.
+All 15 skipped attempts reach one of these TypeScript operations:
+
+| Missing generated operation and testee | Scenarios | Skips across both cross-language pairs |
+|---|---|---|
+| `gen.serve` in [testee.ts](../../conformance/ts/generated/testee.ts) | [round-trip](../../conformance/scenarios/generated/round-trip.json), [validation-refuses](../../conformance/scenarios/generated/validation-refuses.json), both mirrored | 4 |
+| `gen.proof_serve` in [proof.ts](../../conformance/ts/generated/proof.ts) | [proof-generics](../../conformance/scenarios/generated/proof-generics.json), [proof-side-extends](../../conformance/scenarios/generated/proof-side-extends.json), [proof-unions](../../conformance/scenarios/generated/proof-unions.json), all mirrored | 6 |
+| `gen.live_serve` in [live.ts](../../conformance/ts/generated/live.ts) | [live-callback-and-result](../../conformance/scenarios/generated/live-callback-and-result.json), [live-higher-order](../../conformance/scenarios/generated/live-higher-order.json), [live-nested-values](../../conformance/scenarios/generated/live-nested-values.json) | 3 |
+| `gen.combinator_serve` in [combinator.ts](../../conformance/ts/generated/combinator.ts) | [live-higher-order-callables](../../conformance/scenarios/generated/live-higher-order-callables.json), [live-generic-containers](../../conformance/scenarios/generated/live-generic-containers.json) | 2 |
+
+Each operation refuses with `unsupported` because the target renders no
+binding. A mirrored file contributes two skips across the two pairs; an
+unmirrored server-dependent file contributes one. The eleventh file,
+[proof-names-and-domain](../../conformance/scenarios/generated/proof-names-and-domain.json),
+contributes none. This accounts for the complete skipped count without
+substituting handwritten TypeScript server behavior.
+
+Both runtimes can initiate and handle RPC and export live callables. The
+generated TypeScript client also supplies typed reverse-call handlers and
+live functions, but these do not establish a generated server role. The
+[tier policy](../languages/tiers.md) still assigns both languages tier 1;
+the current gate accepts passes plus skips as `ok`. Whether v0.5.0 must
+fill the missing generated role or explicitly qualify its release promise
+is [an operator decision](https://github.com/Bitspark/nightseam/issues/271).
+No tier or gate change is implied by these findings.
+
 ## A family parameter and a type parameter stay distinct
 
 `Carried<S, Item>` contains `S.Envelope`, nullable `S.Handle`, and
