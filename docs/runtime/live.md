@@ -109,6 +109,32 @@ native function.
   origin fails with the origin's refusal, which is what the destination's caller
   is told.
 
+## Forwarding callable-bearing values
+
+`Forward`/`forward` exports the raw `Invoke` it receives. It forwards the
+request and result bytes/values unchanged; it does not recursively translate
+references embedded in them between connection scopes. The scalar forwarding
+case establishes a lifetime relationship, not arbitrary higher-order
+conversion.
+
+For a declared higher-order callable, import with its generated helper in
+the origin scope and export the resulting typed function with its generated
+helper in the destination scope. Those wrappers convert the declared
+callable positions in arguments and results at each boundary. The same
+construction applies to a declared record containing callables, using that
+record's generated conversion helpers. Opaque JSON is not a declaration of
+the references it might contain.
+
+The shared [higher-order forwarding scenario](../../conformance/scenarios/generated/live-higher-order-forwarding.json)
+holds this construction over A-B and B-C sockets with either a Go or
+TypeScript intermediary. It passes a function into another function,
+retains returned functions after the supplying calls finish, and forwards
+a record of callables. It checks counts in all four scopes before closing
+the connections. Releasing B's destination factory leaves its origin usable;
+releasing the origin producer makes the remaining destination wrapper fail
+with `reference_released`. Earlier returned functions are separate bindings,
+so parent release does not recursively dispose of them.
+
 ## Options and bounds
 
 | Go | TypeScript | default | what it bounds |

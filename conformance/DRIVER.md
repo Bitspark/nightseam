@@ -514,6 +514,42 @@ An argument is merged into the request envelope, so no op names one `id`;
 `client.live_start` answered, which is this testee's own name for the record
 it received — a reference is never a value a scenario writes.
 
+#### Higher-order forwarding — `gen.forwarding_*`
+
+`generated/live-higher-order-forwarding.json` uses three logical peers on
+two real WebSockets. One testee owns endpoints A and C at different URLs;
+the other owns B's two clients/scopes. Mirroring exchanges which testee
+owns the endpoints. Go provides the generated endpoint bindings;
+TypeScript answers endpoint operations with `unsupported`, but performs
+every intermediary operation with its generated callable converters.
+
+A's generated `combinator` binding answers a `Toolkit`. At B, generated
+`ImportToolkit`/`importToolkit` reads it in A-B's scope, and
+`ExportToolkit`/`exportToolkit` wraps the native functions for B-C. C's
+test-only `fixture.forwarding.retain` route validates the descriptor and
+calls the generated import helper. This route is driver plumbing, not a
+generated server API or evidence of TypeScript server-binding generation.
+
+| op | arguments | answer |
+|---|---|---|
+| `gen.forwarding_serve` | | `{"handle", "url"}` — a Go generated endpoint binding with a test-only retain route |
+| `gen.forwarding_dial` | **`origin`**, **`destination`**, `within_ms` | `{"handle", "different_nonces"}` — B imports from A and exports into C, checking distinct binding nonces |
+| `gen.forwarding_capture` | **`on`**, `within_ms` | `{}` — C calls the retained factory, producer and sink, keeping the returned functions |
+| `gen.forwarding_invoke` | **`on`**, **`with`**, **`identity_with`**, `within_ms` | `{"twice", "identity"}` — C invokes those retained results after their supplying calls ended |
+| `gen.forwarding_applied` | **`on`** | `{"values"}` — what A's sink received from C's callback |
+| `gen.forwarding_release_destination` | **`on`** | `{}` — B releases its destination factory binding, leaving the origin untouched |
+| `gen.forwarding_origin_alive` | **`on`**, `within_ms` | `{"value"}` — B invokes the original factory with `x + 10`, then its result with `1` |
+| `gen.forwarding_release_origin` | **`on`** | `{}` — B releases its imported origin producer, whose destination wrapper remains exported |
+| `gen.forwarding_origin_refusal` | **`on`**, `within_ms` | `{"error"}` — C invokes that producer and observes the origin's refusal |
+| `gen.forwarding_await_counts` | **`on`**, **`counts`**, `within_ms` | the actual counts once they match, or `timeout` — an endpoint has `{"exports", "imports"}`; B has `{"origin": {…}, "destination": {…}}` |
+
+All counts are checked while the peers remain open. Previously returned
+functions have separate bindings and remain callable after parent release;
+their retained exports/imports stay visible in the counts. `reset` closes
+both sockets and every scope. This scenario exercises recursive generated
+conversion at declared callable positions; raw `Forward`/`forward` only
+re-exports an `Invoke` and does not translate embedded references.
+
 ## `testee.json`
 
 A language joins the suite with `conformance/<lang>/testee.json`:

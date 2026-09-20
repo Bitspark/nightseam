@@ -135,6 +135,26 @@ have their own lifetimes, which is the whole contract:
   and the far worker's job settles rather than reporting into nothing
   (`TestForwardingFailsWhenTheOriginGoes`).
 
+Those cases forward scalar calls. The live runtime's `Forward`/`forward`
+likewise re-exports a raw `Invoke`; it does not translate references inside
+its request or result. Higher-order forwarding requires generated boundary
+conversion: import the declared function in the origin scope and export
+its typed wrapper in the destination scope.
+
+The shared [generated forwarding scenario](../../conformance/scenarios/generated/live-higher-order-forwarding.json)
+proves that construction over two real connections and three logical peers.
+A Go or TypeScript intermediary imports and re-exports a `Toolkit` record
+whose functions take and return functions. The endpoint invokes retained
+results after the supplying RPCs have ended. The scenario also checks
+separate scope nonces, all four registries' counts before teardown,
+destination release without origin release, and the origin's refusal
+reaching a still-exported destination wrapper. The Go endpoints use
+generated bindings plus a test-only retain route calling the generated
+import helper; unsupported TypeScript endpoint roles remain visible skips.
+This proves generated conversion at declared callable positions, not
+recursive raw-byte forwarding, generated TypeScript server bindings, or
+automatic disposal of all functions returned by a released parent.
+
 ## Data needs none of this
 
 `notes` is a `model.json` and nothing else. It renders a protocol package with

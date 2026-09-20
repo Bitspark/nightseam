@@ -1,0 +1,318 @@
+package main
+
+// Three logical peers on two sockets. The endpoints use the generated Go
+// binding; the intermediary uses generated conversion helpers in either
+// language. The extra retain route is test transport, not a generated API.
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"reflect"
+	"strings"
+	"sync"
+	"time"
+
+	combinatorbinding "example.test/generated/api/go/combinator-binding"
+	combinatorclient "example.test/generated/api/go/combinator-client"
+	combinator "example.test/generated/api/go/combinator-protocol"
+	"github.com/Bitspark/nightseam/live/go"
+	"github.com/Bitspark/nightseam/runtime/go"
+)
+
+const forwardingRetain = "fixture.forwarding.retain"
+
+type forwardingEndpoint struct {
+	mu              sync.Mutex
+	http            *http.Server
+	peer            *runtime.Peer
+	scope           *live.Scope
+	server          *combinatorServer
+	retained        combinator.Toolkit
+	twice, identity combinator.Unary
+}
+
+func (s *forwardingEndpoint) shutdown() {
+	_ = s.http.Close()
+	s.mu.Lock()
+	peer := s.peer
+	s.mu.Unlock()
+	if peer != nil {
+		_ = peer.Close()
+	}
+}
+
+func (s *forwardingEndpoint) counts() any {
+	s.mu.Lock()
+	scope := s.scope
+	s.mu.Unlock()
+	if scope == nil {
+		return nil
+	}
+	return forwardingCount(scope)
+}
+
+type forwardingMiddle struct {
+	origin, destination  *combinatorclient.Client
+	upstream, downstream *live.Scope
+	toolkit              combinator.Toolkit
+	from, to             map[string]json.RawMessage
+	cancel               context.CancelFunc
+}
+
+func (m *forwardingMiddle) shutdown() {
+	if m.origin != nil {
+		_ = m.origin.Close()
+	}
+	if m.destination != nil {
+		_ = m.destination.Close()
+	}
+	m.cancel()
+}
+
+func forwardingCount(scope *live.Scope) map[string]int {
+	c := scope.Counts()
+	return map[string]int{"exports": c.Exports, "imports": c.Imports}
+}
+
+func (m *forwardingMiddle) counts() any {
+	return map[string]any{"origin": forwardingCount(m.upstream), "destination": forwardingCount(m.downstream)}
+}
+
+func forwardingNonce(raw json.RawMessage) (string, error) {
+	var wire struct{ Binding string }
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return "", err
+	}
+	nonce, _, ok := strings.Cut(wire.Binding, ".")
+	if !ok || nonce == "" {
+		return "", fmt.Errorf("binding has no scope nonce: %s", raw)
+	}
+	return nonce, nil
+}
+
+// Await delivery of release events without making the scenario depend on a
+// scheduling delay; return the actual counts while both peers remain open.
+func forwardingAwaitCounts(ctx context.Context, raw json.RawMessage, read func() any) (any, error) {
+	var expected any
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		return nil, fail("invalid", "counts: %v", err)
+	}
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		got := read()
+		if reflect.DeepEqual(decoded(got), expected) {
+			return got, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, fail("timeout", "counts: got %v, want %v", got, expected)
+		case <-ticker.C:
+		}
+	}
+}
+
+func (t *testee) forwardingDispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), within(raw))
+	defer cancel()
+	switch op {
+	case "gen.forwarding_serve":
+		s := &forwardingEndpoint{server: &combinatorServer{}}
+		handler, err := combinatorbinding.NewHandler(s.server, runtime.ServerOptions{
+			Options: runtime.Options{Prepare: func(peer *runtime.Peer) error {
+				scope, ok := live.ScopeOf(peer)
+				if !ok {
+					return fmt.Errorf("generated binding installed no scope")
+				}
+				s.mu.Lock()
+				s.peer, s.scope = peer, scope
+				s.mu.Unlock()
+				return peer.Handle(forwardingRetain, func(_ context.Context, _ *runtime.Peer, wire json.RawMessage) (any, error) {
+					if err := combinator.ValidateRaw("Toolkit", wire); err != nil {
+						return nil, err
+					}
+					value, err := combinator.ImportToolkit(scope, wire)
+					if err != nil {
+						return nil, err
+					}
+					s.mu.Lock()
+					s.retained = value
+					s.mu.Unlock()
+					return nil, nil
+				})
+			}},
+			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
+			CheckOrigin:  func(*http.Request) bool { return true },
+		})
+		if err != nil {
+			return nil, err
+		}
+		socket, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		s.http = &http.Server{Handler: handler}
+		go func() { _ = s.http.Serve(socket) }()
+		return map[string]any{"handle": t.mint("forwardendpoint", s), "url": "ws://" + socket.Addr().String()}, nil
+	case "gen.forwarding_dial":
+		lifetime, stop := context.WithCancel(context.Background())
+		m := &forwardingMiddle{cancel: stop}
+		ready := false
+		defer func() {
+			if !ready {
+				m.shutdown()
+			}
+		}()
+		var err error
+		m.origin, err = combinatorclient.Dial(lifetime, str(raw, "origin"), runtime.DialOptions{}, combinatorHandler{}, combinatorclient.Events{})
+		if err != nil {
+			return nil, err
+		}
+		m.destination, err = combinatorclient.Dial(lifetime, str(raw, "destination"), runtime.DialOptions{}, combinatorHandler{}, combinatorclient.Events{})
+		if err != nil {
+			return nil, err
+		}
+		m.upstream, _ = live.ScopeOf(m.origin.Peer)
+		m.downstream, _ = live.ScopeOf(m.destination.Peer)
+		var wire json.RawMessage
+		if err = m.origin.Peer.Call(ctx, "toolkit", combinator.ToolkitRequest{Seed: 3}, &wire); err != nil {
+			return nil, err
+		}
+		if err = combinator.ValidateRaw("Toolkit", wire); err != nil {
+			return nil, err
+		}
+		if m.toolkit, err = combinator.ImportToolkit(m.upstream, wire); err != nil {
+			return nil, err
+		}
+		if err = json.Unmarshal(wire, &m.from); err != nil {
+			return nil, err
+		}
+		// A typed proxy is exported into a different scope. Its generated
+		// wrapper converts embedded arguments/results at both boundaries.
+		wire, err = combinator.ExportToolkit(m.downstream, m.toolkit)
+		if err != nil {
+			return nil, err
+		}
+		if err = json.Unmarshal(wire, &m.to); err != nil {
+			return nil, err
+		}
+		if err = m.destination.Peer.Call(ctx, forwardingRetain, wire, nil); err != nil {
+			return nil, err
+		}
+		first, err := forwardingNonce(m.from["twice"])
+		if err != nil {
+			return nil, err
+		}
+		second, err := forwardingNonce(m.to["twice"])
+		if err != nil {
+			return nil, err
+		}
+		ready = true
+		return map[string]any{"handle": t.mint("forwardmiddle", m), "different_nonces": first != second}, nil
+	case "gen.forwarding_await_counts":
+		object, ok := t.lookup(str(raw, "on"))
+		if !ok {
+			return nil, fail("unknown_handle", "%s", str(raw, "on"))
+		}
+		counted, ok := object.(interface{ counts() any })
+		if !ok {
+			return nil, fail("invalid", "not a forwarding handle")
+		}
+		return forwardingAwaitCounts(ctx, raw["counts"], counted.counts)
+	case "gen.forwarding_capture":
+		s, err := liveOf[*forwardingEndpoint](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		s.mu.Lock()
+		toolkit := s.retained
+		s.mu.Unlock()
+		if toolkit.Twice == nil || toolkit.Identity == nil || toolkit.Apply == nil {
+			return nil, fail("invalid", "no retained toolkit")
+		}
+		twice, err := toolkit.Twice(ctx, func(_ context.Context, value combinator.Count) (combinator.Count, error) { return value + 1, nil })
+		if err != nil {
+			return nil, err
+		}
+		identity, err := toolkit.Identity(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if err = toolkit.Apply(ctx, func(_ context.Context, value combinator.Count) (combinator.Count, error) { return value * 10, nil }); err != nil {
+			return nil, err
+		}
+		s.mu.Lock()
+		s.twice, s.identity = twice, identity
+		s.mu.Unlock()
+		return map[string]any{}, nil
+	case "gen.forwarding_invoke":
+		s, err := liveOf[*forwardingEndpoint](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		s.mu.Lock()
+		twice, identity := s.twice, s.identity
+		s.mu.Unlock()
+		if twice == nil || identity == nil {
+			return nil, fail("invalid", "no retained results")
+		}
+		x, err := twice(ctx, number(raw, "with"))
+		if err != nil {
+			return nil, err
+		}
+		y, err := identity(ctx, number(raw, "identity_with"))
+		return map[string]any{"twice": x, "identity": y}, err
+	case "gen.forwarding_applied":
+		s, err := liveOf[*forwardingEndpoint](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		s.server.mu.Lock()
+		defer s.server.mu.Unlock()
+		return map[string]any{"values": append([]int64{}, s.server.applied...)}, nil
+	case "gen.forwarding_release_destination", "gen.forwarding_release_origin":
+		m, err := liveOf[*forwardingMiddle](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		scope, wire := m.downstream, m.to["twice"]
+		if op == "gen.forwarding_release_origin" {
+			scope, wire = m.upstream, m.from["identity"]
+		}
+		reference, err := scope.Decode(wire)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{}, scope.Release(reference)
+	case "gen.forwarding_origin_alive":
+		m, err := liveOf[*forwardingMiddle](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		twice, err := m.toolkit.Twice(ctx, func(_ context.Context, value combinator.Count) (combinator.Count, error) { return value + 10, nil })
+		if err != nil {
+			return nil, err
+		}
+		value, err := twice(ctx, 1)
+		return map[string]any{"value": value}, err
+	case "gen.forwarding_origin_refusal":
+		s, err := liveOf[*forwardingEndpoint](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		s.mu.Lock()
+		identity := s.retained.Identity
+		s.mu.Unlock()
+		if identity == nil {
+			return nil, fail("invalid", "no retained producer")
+		}
+		_, err = identity(ctx)
+		if err != nil {
+			return map[string]any{"error": callError(err)}, nil
+		}
+		return map[string]any{"unexpected_success": true}, nil
+	}
+	return nil, fail("unsupported", "no such forwarding op: %s", op)
+}
