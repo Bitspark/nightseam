@@ -119,10 +119,16 @@ func TestOverASocket(t *testing.T) {
 	}
 }
 
-// TestAReferenceDoesNotSurviveItsConnection is the disconnect rule: a new
-// connection is a new scope, and nothing of the old one resolves in it.
-func TestAReferenceDoesNotSurviveItsConnection(t *testing.T) {
+func TestSerializedReferenceNewConnection(t *testing.T) {
+	serializedReferenceNewConnection(t)
+}
+
+// Old serialized bytes can be decoded and imported on a new connection, but
+// invocation cannot resolve them to a fresh binding in the new export table.
+func serializedReferenceNewConnection(t *testing.T) {
+	t.Helper()
 	first := over(t, live.Options{})
+	defer first.Close()
 	exported, err := first.A.Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
 		return r, nil
 	})
@@ -137,15 +143,27 @@ func TestAReferenceDoesNotSurviveItsConnection(t *testing.T) {
 
 	second := over(t, live.Options{})
 	defer second.Close()
-	// The token is carried across by hand, which is the only way it can be
-	// carried at all — and the new scope's nonce is not the old one's.
-	arrived, err := second.B.Decode(carried)
+	fresh, err := second.A.Export("probe/Report", func(_ context.Context, r json.RawMessage) (json.RawMessage, error) {
+		return r, nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Both connections have allocated their first binding. The fresh scope's
+	// namespace keeps the old id from naming that new export.
+	arrived, err := second.B.Decode(carried)
+	if err != nil {
+		t.Fatalf("old serialized bytes were refused at decode: %v", err)
+	}
+	if got := second.B.Counts(); got != (live.Counts{}) {
+		t.Fatalf("decoding old bytes created an attachment: %+v", got)
+	}
 	invoke, err := second.B.Import(arrived, "probe/Report")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("old serialized bytes were refused at import: %v", err)
+	}
+	if got := second.B.Counts(); got != (live.Counts{Imports: 1}) {
+		t.Fatalf("importing old bytes did not retain an attachment: %+v", got)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -153,6 +171,37 @@ func TestAReferenceDoesNotSurviveItsConnection(t *testing.T) {
 	var public *runtime.PublicError
 	if !errors.As(err, &public) || public.Code != live.ErrorReferenceUnknown {
 		t.Fatalf("a reference of an ended connection resolved in a new one: %v", err)
+	}
+	if got := second.B.Counts(); got != (live.Counts{Imports: 1}) {
+		t.Fatalf("the unknown-binding refusal changed its attachment: %+v", got)
+	}
+	freshRaw, err := json.Marshal(fresh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	freshArrived, err := second.B.Decode(freshRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	freshInvoke, err := second.B.Import(freshArrived, "probe/Report")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if answer, err := freshInvoke(ctx, json.RawMessage(`"fresh"`)); err != nil || string(answer) != `"fresh"` {
+		t.Fatalf("the fresh binding did not remain usable: %s, %v", answer, err)
+	}
+	if err := second.A.Peer().Handle("ordinary", func(_ context.Context, _ *runtime.Peer, raw json.RawMessage) (any, error) { return raw, nil }); err != nil {
+		t.Fatal(err)
+	}
+	var answer string
+	if err := second.B.Peer().Call(ctx, "ordinary", "alive", &answer); err != nil || answer != "alive" {
+		t.Fatalf("ordinary RPC after stale invocation: %q, %v", answer, err)
+	}
+	if got := second.A.Counts(); got != (live.Counts{Exports: 1}) {
+		t.Errorf("the fresh export count changed: %+v", got)
+	}
+	if got := second.B.Counts(); got != (live.Counts{Imports: 2}) {
+		t.Errorf("the old and fresh references should retain two attachments: %+v", got)
 	}
 }
 

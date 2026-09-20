@@ -175,6 +175,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Live reference documentation and paired tests distinguish native scope
+  association from caller-supplied serialized bytes: valid bytes can be reused
+  on their original connection, while stale bindings fail lookup after reconnect.
 - TypeScript live invocations preserve already-aborted caller signals before
   dispatch, returning cancellation without invoking the exported function or
   releasing its binding; a subsequent fresh invocation remains usable.

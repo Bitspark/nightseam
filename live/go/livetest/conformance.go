@@ -66,7 +66,8 @@ func Cases() []Case {
 		{"a returned callable outlives the call that returned it", higherOrder},
 		{"two suppliers are told apart", independentSuppliers},
 		{"one binding imported twice is one attachment", aliases},
-		{"a reference of another scope is refused", foreignReference},
+		{"serialized reference bytes resolve on their original connection", serializedReferenceSameConnection},
+		{"a foreign native reference is refused", foreignNativeReference},
 		{"a contract the binding does not carry is refused", contractMismatch},
 		{"a binding nobody exported is refused", unknownReference},
 		{"release refuses the next invocation and settles the one in flight", releaseIsABarrier},
@@ -250,7 +251,36 @@ func aliases(t T, p Pair) {
 	}
 }
 
-func foreignReference(t T, p Pair) {
+func serializedReferenceSameConnection(t T, p Pair) {
+	t.Helper()
+	exported, err := p.A.Export(sink, echo)
+	if err != nil {
+		t.Fatalf("exporting: %v", err)
+	}
+	raw, err := json.Marshal(exported)
+	if err != nil {
+		t.Fatalf("serializing: %v", err)
+	}
+	// These bytes are supplied directly, without an inbound payload. Decode
+	// associates them with B; it does not establish how they arrived there.
+	arrived, err := p.B.Decode(raw)
+	if err != nil {
+		t.Fatalf("decoding serialized bytes: %v", err)
+	}
+	holds(t, p.B, 0, 0, "decoding creates no attachment")
+	invoke, err := p.B.Import(arrived, sink)
+	if err != nil {
+		t.Fatalf("importing decoded bytes: %v", err)
+	}
+	if got := string(call(t, invoke, `"still valid"`)); got != `"still valid"` {
+		t.Errorf("the serialized reference answered %s", got)
+	}
+	ordinaryRPCAfterReference(t, p)
+	holds(t, p.A, 1, 0, "serialized bytes retain the original export")
+	holds(t, p.B, 0, 1, "serialized bytes attach to one binding")
+}
+
+func foreignNativeReference(t T, p Pair) {
 	t.Helper()
 	exported, err := p.A.Export(sink, echo)
 	if err != nil {
@@ -259,7 +289,22 @@ func foreignReference(t T, p Pair) {
 	// The reference was minted in A's scope; B never decoded it.
 	_, err = p.B.Import(exported, sink)
 	refused(t, err, live.ErrorReferenceForeign)
+	ordinaryRPCAfterReference(t, p)
+	holds(t, p.A, 1, 0, "refusing a native reference leaves its export intact")
 	holds(t, p.B, 0, 0, "a foreign reference attaches nothing")
+}
+
+func ordinaryRPCAfterReference(t T, p Pair) {
+	t.Helper()
+	if err := p.A.Peer().Handle("ordinary", func(_ context.Context, _ *runtime.Peer, raw json.RawMessage) (any, error) { return raw, nil }); err != nil {
+		t.Fatalf("ordinary handler: %v", err)
+	}
+	c, cancel := ctx()
+	defer cancel()
+	var answer string
+	if err := p.B.Peer().Call(c, "ordinary", "alive", &answer); err != nil || answer != "alive" {
+		t.Fatalf("ordinary RPC after reference use: %q, %v", answer, err)
+	}
 }
 
 func contractMismatch(t T, p Pair) {
@@ -278,8 +323,8 @@ func contractMismatch(t T, p Pair) {
 	holds(t, p.B, 0, 0, "a mismatched contract attaches nothing")
 }
 
-// unknownReference is the stale token: a binding id of no scope, which is what
-// a reference carried out of its connection and back in becomes.
+// unknownReference decodes and imports caller-supplied bytes successfully;
+// invocation refuses the id because the receiving scope has no such export.
 func unknownReference(t T, p Pair) {
 	t.Helper()
 	arrived, err := p.B.Decode(json.RawMessage(`{"binding":"0000000000000000.1","contract":"` + sink + `"}`))

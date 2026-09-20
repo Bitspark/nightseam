@@ -30,12 +30,21 @@ tiers](../declaration/families.md#livejson)) and which is not this layer's. Both
 compared before an invocation is dispatched, and neither is an authorization:
 the layer proves *which binding of which contract*, never *who may call it*.
 
-A binding id carries the scope's own nonce, minted at random when the scope is
-made. That is what makes a reference of one connection meaningless on another:
-the nonce of a scope that has ended is not the nonce of the one that follows, so
-a token carried across resolves nowhere rather than resolving to whatever binding
-happens to hold that position now. Reconnection makes a new scope; nothing is
-revived and nothing is replayed.
+A binding id carries the exporting scope's nonce, minted at random when that
+scope is made. Invocation resolves the complete id in that scope's export
+table; fresh nonces keep counter reuse on another connection from identifying
+an unrelated binding. Reconnection makes a new scope; nothing is revived and
+nothing is replayed.
+
+The descriptor is serializable, and public `Decode` / `decode` accepts
+caller-supplied bytes without proving inbound-message provenance. Bytes from a
+live binding can be decoded, imported and invoked on its original connection.
+Bytes from an ended connection can also decode and import on a new one, but the
+new exporting scope refuses their invocation as `reference_unknown`, including
+when it already holds fresh bindings. A native reference object associated with
+another scope is instead refused locally at import as `reference_foreign`.
+The [surface and paired evidence](../runtime/live.md#native-references-and-serialized-bytes)
+distinguish those checks; none establishes caller authorization.
 
 ## The two operations
 
@@ -76,8 +85,8 @@ stands before a frame is sent. The same eight codes in every language:
 | --- | --- |
 | `contract_invalid` | an export or an import of no contract, or an invocation naming neither a binding nor a contract |
 | `contract_mismatch` | the reference carries one contract where another is expected, or names a binding exported for another |
-| `reference_unknown` | no binding of that id in this scope — a token of an ended connection among them |
-| `reference_foreign` | a reference minted in another scope, refused here before it reaches the wire |
+| `reference_unknown` | invocation found no export of that id in the receiving scope — a token of an ended connection among them |
+| `reference_foreign` | a native reference object associated with another scope, refused locally before a frame is sent; serialized bytes are decoded separately |
 | `reference_released` | an invocation of a binding that was released |
 | `scope_closed` | anything at all after the scope ended |
 | `too_many_exports`, `too_many_imports` | the scope's bounds |

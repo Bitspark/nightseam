@@ -119,7 +119,8 @@ export function cases(): Case[] {
     { name: 'a returned callable outlives the call that returned it', run: higherOrder },
     { name: 'two suppliers are told apart', run: independentSuppliers },
     { name: 'one binding imported twice is one attachment', run: aliases },
-    { name: 'a reference of another scope is refused', run: foreignReference },
+    { name: 'serialized reference bytes resolve on their original connection', run: serializedReferenceSameConnection },
+    { name: 'a foreign native reference is refused', run: foreignNativeReference },
     { name: 'a contract the binding does not carry is refused', run: contractMismatch },
     { name: 'a binding nobody exported is refused', run: unknownReference },
     { name: 'release refuses the next invocation and settles the one in flight', run: releaseIsABarrier },
@@ -192,11 +193,33 @@ async function aliases(t: T, p: Pair): Promise<void> {
   if ((await again(2)) !== 2) t.fail('the second alias got the wrong answer');
 }
 
-async function foreignReference(t: T, p: Pair): Promise<void> {
+async function ordinaryStillWorks(t: T, p: Pair): Promise<void> {
+  p.a.peer.handle('ordinary', async (request) => request);
+  const answer = await within(t, p.b.peer.call('ordinary', 'alive'), 'ordinary RPC');
+  if (answer !== 'alive') t.fail('ordinary RPC did not survive reference handling');
+}
+
+async function serializedReferenceSameConnection(t: T, p: Pair): Promise<void> {
+  const exported = p.a.export(SINK, echo);
+  // Caller-supplied bytes reach decode without an inbound-message provenance check.
+  const carried = JSON.parse(JSON.stringify(exported));
+  const arrived = p.b.decode(carried);
+  holds(t, p.b, 0, 0, 'decode does not attach a binding');
+  const invoke = p.b.import(arrived, SINK);
+  if ((await within(t, invoke(7), 'the decoded reference invocation')) !== 7)
+    t.fail('serialized reference answered wrongly');
+  holds(t, p.a, 1, 0, 'the original export remains live');
+  holds(t, p.b, 0, 1, 'the decoded reference attaches once');
+  await ordinaryStillWorks(t, p);
+}
+
+async function foreignNativeReference(t: T, p: Pair): Promise<void> {
   const exported = p.a.export(SINK, echo);
   // The reference was minted in a's scope; b never decoded it.
   await refuses(t, () => p.b.import(exported, SINK), REFERENCE_FOREIGN);
   holds(t, p.b, 0, 0, 'a foreign reference attaches nothing');
+  holds(t, p.a, 1, 0, 'the foreign-native refusal retains the original export');
+  await ordinaryStillWorks(t, p);
 }
 
 async function contractMismatch(t: T, p: Pair): Promise<void> {
@@ -206,7 +229,7 @@ async function contractMismatch(t: T, p: Pair): Promise<void> {
   holds(t, p.b, 0, 0, 'a mismatched contract attaches nothing');
 }
 
-/** The stale token: a binding id of no scope, which is what a reference carried out of its connection becomes. */
+/** Unknown bytes may decode and import; invocation looks up the binding and refuses it. */
 async function unknownReference(t: T, p: Pair): Promise<void> {
   const arrived = p.b.decode({ binding: '0000000000000000.1', contract: SINK });
   const invoke = p.b.import(arrived, SINK);
