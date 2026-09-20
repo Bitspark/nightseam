@@ -62,6 +62,7 @@ type Parameter struct {
 
 // Type is one type, with its wire fields flattened.
 type Type struct {
+	ExampleInfo
 	Languages               map[string]Language // target names, declarations and invocation code
 	Name, Kind, Description string
 	Key                     string           // entity: the field that identifies it
@@ -109,6 +110,7 @@ type Field struct {
 // Variant is one arm of a union: a payload under the union's value member,
 // or, where Empty, the tag alone.
 type Variant struct {
+	ExampleInfo
 	Tag      string
 	Type     model.TypeExpr // the payload as resolved; nil where Empty
 	Declared model.TypeExpr // the payload as declared
@@ -127,6 +129,7 @@ type Side struct {
 
 // Method is one operation of a side, its own or inherited.
 type Method struct {
+	ExampleInfo
 	Languages         map[string]Language
 	Name, Description string
 	Request           model.TypeExpr // resolved; nil: takes nothing
@@ -142,6 +145,7 @@ type Method struct {
 
 // Event is one notification of a side, its own or inherited.
 type Event struct {
+	ExampleInfo
 	Languages         map[string]Language
 	Name, Description string
 	Type              model.TypeExpr // resolved
@@ -191,11 +195,10 @@ func Build(f *render.Family, spellers map[string]spi.Speller) *Family {
 	for _, p := range f.Parameters {
 		d.Parameters = append(d.Parameters, Parameter{Name: p.Name, Of: p.Of, Description: p.Description, Drawn: drawn(p.Uses, p.Name)})
 	}
-	x := newExampler(f)
 	used := references(f)
 	named := namer(f)
 	for _, t := range f.Types {
-		dt := &Type{Name: t.Name, Kind: t.Kind, Description: t.Description, Key: t.Key, Open: t.Open, Carried: t.Carried, From: t.From, Inline: t.Inline, Origin: origin(t.Origin), Scope: names(t.Scope), Values: t.Values, Alias: named(t.Alias), Tag: t.Tag, Value: t.Value, Example: x.example(t).raw(), UsedBy: used[t.Name]}
+		dt := &Type{Name: t.Name, Kind: t.Kind, Description: t.Description, Key: t.Key, Open: t.Open, Carried: t.Carried, From: t.From, Inline: t.Inline, Origin: origin(t.Origin), Scope: names(t.Scope), Values: t.Values, Alias: named(t.Alias), Tag: t.Tag, Value: t.Value, UsedBy: used[t.Name]}
 		for _, edge := range t.Extends {
 			dt.Extends = append(dt.Extends, named(edge.Expression()))
 		}
@@ -209,7 +212,7 @@ func Build(f *render.Family, spellers map[string]spi.Speller) *Family {
 			dt.Fields = append(dt.Fields, Field{Name: field.Name, Description: field.Description, Type: field.Type, Declared: named(declaredOr(field.DeclaredType, field.Type)), Required: field.Required, Nullable: field.Nullable, Unique: field.Unique, Min: field.Min, Max: field.Max, Length: field.Length, Pattern: field.Pattern, Owner: field.Owner, Origin: origin(field.Origin)})
 		}
 		for _, variant := range t.Variants {
-			dt.Variants = append(dt.Variants, Variant{Tag: variant.Tag, Type: variant.Type, Declared: named(declaredOr(variant.DeclaredType, variant.Type)), Empty: variant.Form == render.VariantEmpty, Origin: origin(variant.Origin), Scope: names(variant.Scope), Example: x.variantExample(t, variant).raw()})
+			dt.Variants = append(dt.Variants, Variant{Tag: variant.Tag, Type: variant.Type, Declared: named(declaredOr(variant.DeclaredType, variant.Type)), Empty: variant.Form == render.VariantEmpty, Origin: origin(variant.Origin), Scope: names(variant.Scope)})
 		}
 		if t.Carried {
 			d.Carried = append(d.Carried, dt)
@@ -218,43 +221,32 @@ func Build(f *render.Family, spellers map[string]spi.Speller) *Family {
 		}
 	}
 	if f.HasProtocol() {
-		d.Server = side(x, named, "server", f.Server, f.Errors)
-		d.Client = side(x, named, "client", f.Client, f.Errors)
+		d.Server = side(named, f.Server)
+		d.Client = side(named, f.Client)
 		for _, e := range f.Errors {
 			d.Errors = append(d.Errors, Error{Code: e.Code, Description: e.Description})
 		}
 	}
+	addExamples(d, f)
 	addLanguages(d, f, spellers)
 	return d
 }
 
-func side(x *exampler, named func(model.TypeExpr) model.TypeExpr, name string, s render.Side, errors []render.Error) Side {
+func side(named func(model.TypeExpr) model.TypeExpr, s render.Side) Side {
 	out := Side{Extends: s.Extends}
 	for _, m := range s.Methods {
-		frames := x.frames(name, m, errors)
-		w := Weight{}
-		if m.Request != nil {
-			w.Request = x.value(m.Request, "params", constraints{}).weight()
-		}
-		if m.Result != nil {
-			w.Result = x.value(m.Result, "result", constraints{}).weight()
-		}
 		request, result := m.Request, m.Result
 		if m.BoundDeclaration != nil {
 			request, result = m.BoundDeclaration.Request, m.BoundDeclaration.Result
 		}
-		out.Methods = append(out.Methods, Method{Name: m.Name, Description: m.Description, Request: m.Request, Result: m.Result, DeclaredRequest: named(request), DeclaredResult: named(result), Errors: m.Errors, Origin: origin(m.Origin), Scope: names(m.Scope), Frames: frames, Weight: w})
+		out.Methods = append(out.Methods, Method{Name: m.Name, Description: m.Description, Request: m.Request, Result: m.Result, DeclaredRequest: named(request), DeclaredResult: named(result), Errors: m.Errors, Origin: origin(m.Origin), Scope: names(m.Scope)})
 	}
 	for _, e := range s.Events {
-		w := 0
-		if e.Type != nil {
-			w = x.value(e.Type, "data", constraints{}).weight()
-		}
 		declared := e.Type
 		if e.BoundDeclaration != nil {
 			declared = e.BoundDeclaration.Type
 		}
-		out.Events = append(out.Events, Event{Name: e.Name, Description: e.Description, Type: e.Type, Declared: named(declared), Origin: origin(e.Origin), Scope: names(e.Scope), Frame: x.event(e), Weight: w})
+		out.Events = append(out.Events, Event{Name: e.Name, Description: e.Description, Type: e.Type, Declared: named(declared), Origin: origin(e.Origin), Scope: names(e.Scope)})
 	}
 	return out
 }

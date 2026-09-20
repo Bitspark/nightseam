@@ -49,13 +49,32 @@ export interface Carried<S extends AnyFamily = AnyFamily, Item = unknown> {
 
 For example:
 
+Example bindings: `Item = string`, `S = family probe`.
+
 ```json
 {
-  "message": "‹S.Envelope›",
-  "back": "‹S.Handle›",
+  "message": {
+    "version": 0,
+    "kind": "‹kind›",
+    "id": "‹id›",
+    "method": "‹method›",
+    "params": {},
+    "result": {},
+    "error": {},
+    "event": "‹event›",
+    "data": {},
+    "traceparent": "‹traceparent›",
+    "tracestate": "‹tracestate›",
+    "meta": {
+      "‹key›": "‹meta›"
+    }
+  },
+  "back": {
+    "channel": 0
+  },
   "page": {
     "items": [
-      "‹Item›"
+      "‹items›"
     ],
     "next": "‹next›"
   }
@@ -96,6 +115,8 @@ export type Option<T = unknown> = { "kind": "none"; "value": OptionNone } | { "k
 ```
 
 For example:
+
+Example bindings: `T = string`.
 
 ```json
 {
@@ -165,10 +186,12 @@ export interface Page<T = unknown> {
 
 For example:
 
+Example bindings: `T = string`.
+
 ```json
 {
   "items": [
-    "‹T›"
+    "‹items›"
   ],
   "next": "‹next›"
 }
@@ -357,10 +380,12 @@ export type Result<T = unknown, E = unknown> = { "kind": "err"; "value": E } | {
 
 For example:
 
+Example bindings: `E = string`, `T = string`.
+
 ```json
 {
   "kind": "err",
-  "value": "‹E›"
+  "value": "‹err›"
 }
 ```
 
@@ -823,6 +848,8 @@ await client.parts(params)
 
 ### `relay` on the wire
 
+Example bindings: `Item = string`, `S = family probe`.
+
 The client sends:
 
 ```json
@@ -832,11 +859,28 @@ The client sends:
   "id": "c:1",
   "method": "relay",
   "params": {
-    "message": "‹S.Envelope›",
-    "back": "‹S.Handle›",
+    "message": {
+      "version": 0,
+      "kind": "‹kind›",
+      "id": "‹id›",
+      "method": "‹method›",
+      "params": {},
+      "result": {},
+      "error": {},
+      "event": "‹event›",
+      "data": {},
+      "traceparent": "‹traceparent›",
+      "tracestate": "‹tracestate›",
+      "meta": {
+        "‹key›": "‹meta›"
+      }
+    },
+    "back": {
+      "channel": 0
+    },
     "page": {
       "items": [
-        "‹Item›"
+        "‹items›"
       ],
       "next": "‹next›"
     }

@@ -1,5 +1,27 @@
 # The driver protocol
 
+## Shared tables
+
+The runtime unit suites and the conformance driver hold the same wire facts:
+
+| table | holds |
+|---|---|
+| `tables/validator.json` | type expressions, values and their expected validation verdicts |
+| `tables/frames.json` | envelopes a peer accepts or refuses |
+| `tables/naming.json` | generated naming conventions |
+| `tables/examples.json` | every example value, union arm and operation frame of the corpus documents, with its concrete parameter bindings or an explicit unavailable reason |
+
+`examples.json` is derived by `go generate ./cmd/nightseam`. The generator's
+test holds it byte for byte to the documents. Both runtime validator suites
+read every concrete row with exactly its displayed type and family bindings;
+frame rows also pass the profile's envelope decoder. Failures name the corpus,
+family and document path. Unavailable rows carry no value, retain a reason,
+and distinguish a bounded synthesis search (`limit`) from proven impossibility
+(`impossible`); the current synthesizer claims only a search limit. The proof
+family's examples are required coverage, not optional rows.
+
+## Driving a language
+
 A language proves it carries Nightseam by passing the conformance suite: the
 scenarios under `scenarios/`, run by the Go runner under `go/` against a
 **testee** the language provides — one small program that is a peer under

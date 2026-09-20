@@ -6,7 +6,6 @@ import (
 
 	"github.com/Bitspark/nightseam/internal/analysis"
 	"github.com/Bitspark/nightseam/internal/doc"
-	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/model/builtin"
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
 	"github.com/Bitspark/nightseam/internal/render"
@@ -131,17 +130,9 @@ func TestRenderBuiltinReferences(t *testing.T) {
 
 func TestRenderUnionDistinguishesAbsentPayload(t *testing.T) {
 	world := analysis.World(modeltest.World(map[string]map[string]string{
-		"x": {"model.json": `{"nightseam":2,"types":{"EmptyRecord":{"kind":"record","fields":[]}}}`},
+		"x": {"model.json": `{"nightseam":2,"types":{"EmptyRecord":{"kind":"record","fields":[]},"Choice":{"kind":"union","tag":"kind","value":"payload","variants":{"none":{"empty":true},"maybe":{"nullable":"string"},"record":"EmptyRecord"}}}}`},
 	}))
 	family := render.Build(analysis.Resolve(world, "x"))
-	family.Types = append(family.Types, &render.Type{
-		Name: "Choice", Kind: "union", Tag: "kind", Value: "payload",
-		Variants: []render.Variant{
-			{Variant: model.Variant{Tag: "none"}},
-			{Variant: model.Variant{Tag: "maybe"}, DeclaredType: model.Nullable{Elem: model.Primitive("string")}},
-			{Variant: model.Variant{Tag: "record"}, DeclaredType: model.Named{Name: "EmptyRecord"}},
-		},
-	})
 	files, err := doc.Target(New(Config{}), nil).Render(family)
 	if err != nil {
 		t.Fatal(err)

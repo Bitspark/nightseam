@@ -42,11 +42,28 @@ export interface Borrowed<B extends AnyFamily = AnyFamily> {
 
 For example:
 
+Example bindings: `B = family probe`.
+
 ```json
 {
   "frame": {
     "sequence": 0,
-    "message": "‹B.Envelope›"
+    "message": {
+      "version": 0,
+      "kind": "‹kind›",
+      "id": "‹id›",
+      "method": "‹method›",
+      "params": {},
+      "result": {},
+      "error": {},
+      "event": "‹event›",
+      "data": {},
+      "traceparent": "‹traceparent›",
+      "tracestate": "‹tracestate›",
+      "meta": {
+        "‹key›": "‹meta›"
+      }
+    }
   }
 }
 ```
@@ -88,15 +105,47 @@ export interface Both<A extends AnyFamily = AnyFamily, B extends AnyFamily = Any
 
 For example:
 
+Example bindings: `A = family probe`, `B = family probe`.
+
 ```json
 {
   "mine": {
-    "held": "‹A.Envelope›"
+    "held": {
+      "version": 0,
+      "kind": "‹kind›",
+      "id": "‹id›",
+      "method": "‹method›",
+      "params": {},
+      "result": {},
+      "error": {},
+      "event": "‹event›",
+      "data": {},
+      "traceparent": "‹traceparent›",
+      "tracestate": "‹tracestate›",
+      "meta": {
+        "‹key›": "‹meta›"
+      }
+    }
   },
   "borrowed": {
     "frame": {
       "sequence": 0,
-      "message": "‹B.Envelope›"
+      "message": {
+        "version": 0,
+        "kind": "‹kind›",
+        "id": "‹id›",
+        "method": "‹method›",
+        "params": {},
+        "result": {},
+        "error": {},
+        "event": "‹event›",
+        "data": {},
+        "traceparent": "‹traceparent›",
+        "tracestate": "‹tracestate›",
+        "meta": {
+          "‹key›": "‹meta›"
+        }
+      }
     }
   },
   "fixed": {
@@ -208,9 +257,26 @@ export interface Mine<A extends AnyFamily = AnyFamily> {
 
 For example:
 
+Example bindings: `A = family probe`.
+
 ```json
 {
-  "held": "‹A.Envelope›"
+  "held": {
+    "version": 0,
+    "kind": "‹kind›",
+    "id": "‹id›",
+    "method": "‹method›",
+    "params": {},
+    "result": {},
+    "error": {},
+    "event": "‹event›",
+    "data": {},
+    "traceparent": "‹traceparent›",
+    "tracestate": "‹tracestate›",
+    "meta": {
+      "‹key›": "‹meta›"
+    }
+  }
 }
 ```
 
@@ -326,6 +392,8 @@ The server implements these methods and emits these events.
 
 ### `look` on the wire
 
+Example bindings: `A = family probe`, `B = family probe`.
+
 The client sends:
 
 ```json
@@ -335,7 +403,22 @@ The client sends:
   "id": "c:1",
   "method": "look",
   "params": {
-    "held": "‹A.Envelope›"
+    "held": {
+      "version": 0,
+      "kind": "‹kind›",
+      "id": "‹id›",
+      "method": "‹method›",
+      "params": {},
+      "result": {},
+      "error": {},
+      "event": "‹event›",
+      "data": {},
+      "traceparent": "‹traceparent›",
+      "tracestate": "‹tracestate›",
+      "meta": {
+        "‹key›": "‹meta›"
+      }
+    }
   }
 }
 ```
@@ -349,12 +432,42 @@ The server answers:
   "id": "c:1",
   "result": {
     "mine": {
-      "held": "‹A.Envelope›"
+      "held": {
+        "version": 0,
+        "kind": "‹kind›",
+        "id": "‹id›",
+        "method": "‹method›",
+        "params": {},
+        "result": {},
+        "error": {},
+        "event": "‹event›",
+        "data": {},
+        "traceparent": "‹traceparent›",
+        "tracestate": "‹tracestate›",
+        "meta": {
+          "‹key›": "‹meta›"
+        }
+      }
     },
     "borrowed": {
       "frame": {
         "sequence": 0,
-        "message": "‹B.Envelope›"
+        "message": {
+          "version": 0,
+          "kind": "‹kind›",
+          "id": "‹id›",
+          "method": "‹method›",
+          "params": {},
+          "result": {},
+          "error": {},
+          "event": "‹event›",
+          "data": {},
+          "traceparent": "‹traceparent›",
+          "tracestate": "‹tracestate›",
+          "meta": {
+            "‹key›": "‹meta›"
+          }
+        }
       }
     },
     "fixed": {

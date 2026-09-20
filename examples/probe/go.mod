@@ -12,6 +12,7 @@ require github.com/Bitspark/nightseam v0.4.0
 
 require (
 	github.com/coder/websocket v1.8.15 // indirect
+	github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
