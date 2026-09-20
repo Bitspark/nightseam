@@ -15,7 +15,11 @@ func (f *file) liveBoundary(e model.TypeExpr, src, dst string, export bool) {
 	if export {
 		result = f.std("json") + ".RawMessage"
 	}
-	f.w.Block(fmt.Sprintf("%s, err := func() (%s, error) {", dst, result), "}()", func() {
+	open, close := fmt.Sprintf("%s, err := func() (%s, error) {", dst, result), "}()"
+	if export {
+		open, close = fmt.Sprintf("%s, err := scope.ExportValue(func(scope *%s.Scope) (%s, error) {", dst, f.live(), result), "})"
+	}
+	f.w.Block(open, close, func() {
 		f.linef("var zero %s", result)
 		if !export {
 			f.linef("if err := %s; err != nil { return zero, err }", f.validateExpression(e, src))
@@ -37,6 +41,9 @@ func (f *file) converterParameters(t *render.Type, export bool) string {
 		from, to := name, f.std("json")+".RawMessage"
 		if !export {
 			from, to = to, from
+		}
+		if export && t.IsLive {
+			from = "*" + f.live() + ".Scope, " + from
 		}
 		fmt.Fprintf(&out, ", convert%s func(%s) (%s, error), type%s %s.TypeBinding", name, from, to, name, f.runtime())
 	}
@@ -92,7 +99,11 @@ func (f *file) conversionCall(e model.TypeExpr, src, dst string, export bool) (s
 		if !export {
 			from, to = to, from
 		}
-		f.w.Block(fmt.Sprintf("%s := func(input %s) (%s, error) {", name, from, to), "}", func() {
+		parameters := "input " + from
+		if export && t.IsLive {
+			parameters = "scope *" + f.live() + ".Scope, " + parameters
+		}
+		f.w.Block(fmt.Sprintf("%s := func(%s) (%s, error) {", name, parameters, to), "}", func() {
 			fail := "nil"
 			if !export {
 				f.linef("var zero %s", to)

@@ -83,10 +83,10 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		sent, err := func() (json.RawMessage, error) {
+		sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
 			var zero json.RawMessage
 			convertedConvert0 := func(input protocol.Bundle[protocol.Count]) (json.RawMessage, error) {
-				convertedConvert0 := func(input protocol.Count) (json.RawMessage, error) {
+				convertedConvert0 := func(scope *live.Scope, input protocol.Count) (json.RawMessage, error) {
 					converted, err := runtime.MarshalJSON(input)
 					if err != nil {
 						return nil, err
@@ -107,7 +107,7 @@ func install(handler Handler, options *runtime.Options) error {
 				return zero, err
 			}
 			return converted, nil
-		}()
+		})
 		return sent, err
 	}
 	if _, exists := handlers["toolkit"]; exists {
@@ -129,7 +129,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if !ok {
 			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 		}
-		sent, err := func() (json.RawMessage, error) {
+		sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
 			var zero json.RawMessage
 			converted, err := protocol.ExportToolkit(scope, result)
 			if err != nil {
@@ -139,7 +139,7 @@ func install(handler Handler, options *runtime.Options) error {
 				return zero, err
 			}
 			return converted, nil
-		}()
+		})
 		return sent, err
 	}
 	options.Handlers = handlers

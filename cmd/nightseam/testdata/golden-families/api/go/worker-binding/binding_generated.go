@@ -28,7 +28,7 @@ func (c *Remote) Supervise(ctx context.Context, params protocol.Supervise) (prot
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := func() (json.RawMessage, error) {
+	sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
 		var zero json.RawMessage
 		converted, err := protocol.ExportSupervise(scope, params)
 		if err != nil {
@@ -38,7 +38,7 @@ func (c *Remote) Supervise(ctx context.Context, params protocol.Supervise) (prot
 			return zero, err
 		}
 		return converted, nil
-	}()
+	})
 	if err != nil {
 		return result, err
 	}
@@ -115,7 +115,7 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		sent, err := func() (json.RawMessage, error) {
+		sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
 			var zero json.RawMessage
 			converted, err := protocol.ExportJob(scope, result)
 			if err != nil {
@@ -125,7 +125,7 @@ func install(handler Handler, options *runtime.Options) error {
 				return zero, err
 			}
 			return converted, nil
-		}()
+		})
 		return sent, err
 	}
 	options.Handlers = handlers
@@ -171,7 +171,7 @@ func (c *Remote) EmitSettled(ctx context.Context, data protocol.Outcome) error {
 	if !ok {
 		return &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := func() (json.RawMessage, error) {
+	sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
 		var zero json.RawMessage
 		converted, err := protocol.ExportOutcome(scope, data)
 		if err != nil {
@@ -181,7 +181,7 @@ func (c *Remote) EmitSettled(ctx context.Context, data protocol.Outcome) error {
 			return zero, err
 		}
 		return converted, nil
-	}()
+	})
 	if err != nil {
 		return err
 	}

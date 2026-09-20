@@ -267,13 +267,15 @@ func ExportCancel(scope *live.Scope, v Cancel) (json.RawMessage, error) {
 	if v == nil {
 		return nil, fmt.Errorf("Cancel: no implementation to export")
 	}
-	reference, err := scope.Export(ContractCancel, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-		return nil, v(ctx)
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		reference, err := scope.Export(ContractCancel, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+			return nil, v(ctx)
+		})
+		if err != nil {
+			return nil, err
+		}
+		return runtime.MarshalJSON(reference)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return runtime.MarshalJSON(reference)
 }
 
 // ImportCancel is a Cancel that calls the binding a reference names.
@@ -304,38 +306,40 @@ func ExportJob(scope *live.Scope, v Job) (json.RawMessage, error) {
 	if scope == nil {
 		return nil, fmt.Errorf("Job: a live value is exported into a scope")
 	}
-	wire := map[string]json.RawMessage{}
-	var ticketMember json.RawMessage
-	ticketMemberConverted, err := runtime.MarshalJSON(v.Ticket)
-	if err != nil {
-		return nil, err
-	}
-	ticketMember = ticketMemberConverted
-	wire["ticket"] = ticketMember
-	var cancelMember json.RawMessage
-	cancelMemberConverted, err := ExportCancel(scope, v.Cancel)
-	if err != nil {
-		return nil, err
-	}
-	cancelMember = cancelMemberConverted
-	wire["cancel"] = cancelMember
-	if v.Rename.Present {
-		var member json.RawMessage
-		memberConverted, err := ExportRename(scope, v.Rename.Value)
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		wire := map[string]json.RawMessage{}
+		var ticketMember json.RawMessage
+		ticketMemberConverted, err := runtime.MarshalJSON(v.Ticket)
 		if err != nil {
 			return nil, err
 		}
-		member = memberConverted
-		wire["rename"] = member
-	}
-	data, err := runtime.MarshalObject([]string{"ticket", "cancel", "rename"}, wire)
-	if err != nil {
-		return nil, err
-	}
-	if err := schema.ValidateExpressionRaw("Job", data); err != nil {
-		return nil, err
-	}
-	return data, nil
+		ticketMember = ticketMemberConverted
+		wire["ticket"] = ticketMember
+		var cancelMember json.RawMessage
+		cancelMemberConverted, err := ExportCancel(scope, v.Cancel)
+		if err != nil {
+			return nil, err
+		}
+		cancelMember = cancelMemberConverted
+		wire["cancel"] = cancelMember
+		if v.Rename.Present {
+			var member json.RawMessage
+			memberConverted, err := ExportRename(scope, v.Rename.Value)
+			if err != nil {
+				return nil, err
+			}
+			member = memberConverted
+			wire["rename"] = member
+		}
+		data, err := runtime.MarshalObject([]string{"ticket", "cancel", "rename"}, wire)
+		if err != nil {
+			return nil, err
+		}
+		if err := schema.ValidateExpressionRaw("Job", data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	})
 }
 
 // ImportJob reads Job as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
@@ -386,31 +390,33 @@ func ExportOutcome(scope *live.Scope, v Outcome) (json.RawMessage, error) {
 	if scope == nil {
 		return nil, fmt.Errorf("Outcome: a live value is exported into a scope")
 	}
-	wire := map[string]json.RawMessage{}
-	tag, err := runtime.MarshalJSON(string(v.Kind()))
-	if err != nil {
-		return nil, err
-	}
-	wire["state"] = tag
-	switch v.Kind() {
-	case OutcomeKindFinished:
-	case OutcomeKindRunning:
-		payload, err := ExportJob(scope, *v.Running)
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		wire := map[string]json.RawMessage{}
+		tag, err := runtime.MarshalJSON(string(v.Kind()))
 		if err != nil {
 			return nil, err
 		}
-		wire["value"] = payload
-	default:
-		return nil, fmt.Errorf("Outcome: no variant is selected")
-	}
-	data, err := runtime.MarshalObject([]string{"state", "value"}, wire)
-	if err != nil {
-		return nil, err
-	}
-	if err := schema.ValidateExpressionRaw("Outcome", data); err != nil {
-		return nil, err
-	}
-	return data, nil
+		wire["state"] = tag
+		switch v.Kind() {
+		case OutcomeKindFinished:
+		case OutcomeKindRunning:
+			payload, err := ExportJob(scope, *v.Running)
+			if err != nil {
+				return nil, err
+			}
+			wire["value"] = payload
+		default:
+			return nil, fmt.Errorf("Outcome: no variant is selected")
+		}
+		data, err := runtime.MarshalObject([]string{"state", "value"}, wire)
+		if err != nil {
+			return nil, err
+		}
+		if err := schema.ValidateExpressionRaw("Outcome", data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	})
 }
 
 // ImportOutcome reads Outcome as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
@@ -450,22 +456,24 @@ func ExportProgressSink(scope *live.Scope, v ProgressSink) (json.RawMessage, err
 	if scope == nil {
 		return nil, fmt.Errorf("ProgressSink: a live value is exported into a scope")
 	}
-	wire := map[string]json.RawMessage{}
-	var reportMember json.RawMessage
-	reportMemberConverted, err := ExportReport(scope, v.Report)
-	if err != nil {
-		return nil, err
-	}
-	reportMember = reportMemberConverted
-	wire["report"] = reportMember
-	data, err := runtime.MarshalObject([]string{"report"}, wire)
-	if err != nil {
-		return nil, err
-	}
-	if err := schema.ValidateExpressionRaw("ProgressSink", data); err != nil {
-		return nil, err
-	}
-	return data, nil
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		wire := map[string]json.RawMessage{}
+		var reportMember json.RawMessage
+		reportMemberConverted, err := ExportReport(scope, v.Report)
+		if err != nil {
+			return nil, err
+		}
+		reportMember = reportMemberConverted
+		wire["report"] = reportMember
+		data, err := runtime.MarshalObject([]string{"report"}, wire)
+		if err != nil {
+			return nil, err
+		}
+		if err := schema.ValidateExpressionRaw("ProgressSink", data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	})
 }
 
 // ImportProgressSink reads ProgressSink as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
@@ -508,31 +516,40 @@ func ExportRename(scope *live.Scope, v Rename) (json.RawMessage, error) {
 	if v == nil {
 		return nil, fmt.Errorf("Rename: no implementation to export")
 	}
-	reference, err := scope.Export(ContractRename, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), request); err != nil {
-			return nil, err
-		}
-		var argument Ticket
-		if err := json.Unmarshal(request, &argument); err != nil {
-			return nil, err
-		}
-		result, err := v(ctx, argument)
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		reference, err := scope.Export(ContractRename, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), request); err != nil {
+				return nil, err
+			}
+			var argument Ticket
+			if err := json.Unmarshal(request, &argument); err != nil {
+				return nil, err
+			}
+			result, err := v(ctx, argument)
+			if err != nil {
+				return nil, err
+			}
+			data, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+				var zero json.RawMessage
+				converted, err := runtime.MarshalJSON(result)
+				if err != nil {
+					return zero, err
+				}
+				if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), converted); err != nil {
+					return zero, err
+				}
+				return converted, nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			return data, nil
+		})
 		if err != nil {
 			return nil, err
 		}
-		data, err := runtime.MarshalJSON(result)
-		if err != nil {
-			return nil, err
-		}
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), data); err != nil {
-			return nil, err
-		}
-		return data, nil
+		return runtime.MarshalJSON(reference)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return runtime.MarshalJSON(reference)
 }
 
 // ImportRename is a Rename that calls the binding a reference names.
@@ -550,11 +567,18 @@ func ImportRename(scope *live.Scope, raw json.RawMessage) (Rename, error) {
 	}
 	return func(ctx context.Context, params Ticket) (Ticket, error) {
 		var zero Ticket
-		request, err := runtime.MarshalJSON(params)
+		request, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+			var zero json.RawMessage
+			converted, err := runtime.MarshalJSON(params)
+			if err != nil {
+				return zero, err
+			}
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), converted); err != nil {
+				return zero, err
+			}
+			return converted, nil
+		})
 		if err != nil {
-			return zero, err
-		}
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), request); err != nil {
 			return zero, err
 		}
 		result, err := invoke(ctx, request)
@@ -587,20 +611,22 @@ func ExportReport(scope *live.Scope, v Report) (json.RawMessage, error) {
 	if v == nil {
 		return nil, fmt.Errorf("Report: no implementation to export")
 	}
-	reference, err := scope.Export(ContractReport, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Percent\""), request); err != nil {
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		reference, err := scope.Export(ContractReport, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Percent\""), request); err != nil {
+				return nil, err
+			}
+			var argument Percent
+			if err := json.Unmarshal(request, &argument); err != nil {
+				return nil, err
+			}
+			return nil, v(ctx, argument)
+		})
+		if err != nil {
 			return nil, err
 		}
-		var argument Percent
-		if err := json.Unmarshal(request, &argument); err != nil {
-			return nil, err
-		}
-		return nil, v(ctx, argument)
+		return runtime.MarshalJSON(reference)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return runtime.MarshalJSON(reference)
 }
 
 // ImportReport is a Report that calls the binding a reference names.
@@ -617,11 +643,18 @@ func ImportReport(scope *live.Scope, raw json.RawMessage) (Report, error) {
 		return nil, err
 	}
 	return func(ctx context.Context, params Percent) error {
-		request, err := runtime.MarshalJSON(params)
+		request, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+			var zero json.RawMessage
+			converted, err := runtime.MarshalJSON(params)
+			if err != nil {
+				return zero, err
+			}
+			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Percent\""), converted); err != nil {
+				return zero, err
+			}
+			return converted, nil
+		})
 		if err != nil {
-			return err
-		}
-		if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Percent\""), request); err != nil {
 			return err
 		}
 		result, err := invoke(ctx, request)
@@ -638,19 +671,21 @@ func ExportSinks(scope *live.Scope, v Sinks) (json.RawMessage, error) {
 	if scope == nil {
 		return nil, fmt.Errorf("Sinks: a live value is exported into a scope")
 	}
-	convertedMembers := make(map[string]json.RawMessage, len(v))
-	for key, item := range v {
-		element, err := ExportProgressSink(scope, item)
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		convertedMembers := make(map[string]json.RawMessage, len(v))
+		for key, item := range v {
+			element, err := ExportProgressSink(scope, item)
+			if err != nil {
+				return nil, err
+			}
+			convertedMembers[key] = element
+		}
+		converted, err := runtime.MarshalJSON(convertedMembers)
 		if err != nil {
 			return nil, err
 		}
-		convertedMembers[key] = element
-	}
-	converted, err := runtime.MarshalJSON(convertedMembers)
-	if err != nil {
-		return nil, err
-	}
-	return converted, nil
+		return converted, nil
+	})
 }
 
 // ImportSinks reads Sinks as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
@@ -680,38 +715,40 @@ func ExportStart(scope *live.Scope, v Start) (json.RawMessage, error) {
 	if scope == nil {
 		return nil, fmt.Errorf("Start: a live value is exported into a scope")
 	}
-	wire := map[string]json.RawMessage{}
-	var ticketMember json.RawMessage
-	ticketMemberConverted, err := runtime.MarshalJSON(v.Ticket)
-	if err != nil {
-		return nil, err
-	}
-	ticketMember = ticketMemberConverted
-	wire["ticket"] = ticketMember
-	var progressMember json.RawMessage
-	progressMemberConverted, err := ExportProgressSink(scope, v.Progress)
-	if err != nil {
-		return nil, err
-	}
-	progressMember = progressMemberConverted
-	wire["progress"] = progressMember
-	if v.Watchers.Present {
-		var member json.RawMessage
-		memberConverted, err := ExportWatchers(scope, v.Watchers.Value)
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		wire := map[string]json.RawMessage{}
+		var ticketMember json.RawMessage
+		ticketMemberConverted, err := runtime.MarshalJSON(v.Ticket)
 		if err != nil {
 			return nil, err
 		}
-		member = memberConverted
-		wire["watchers"] = member
-	}
-	data, err := runtime.MarshalObject([]string{"ticket", "progress", "watchers"}, wire)
-	if err != nil {
-		return nil, err
-	}
-	if err := schema.ValidateExpressionRaw("Start", data); err != nil {
-		return nil, err
-	}
-	return data, nil
+		ticketMember = ticketMemberConverted
+		wire["ticket"] = ticketMember
+		var progressMember json.RawMessage
+		progressMemberConverted, err := ExportProgressSink(scope, v.Progress)
+		if err != nil {
+			return nil, err
+		}
+		progressMember = progressMemberConverted
+		wire["progress"] = progressMember
+		if v.Watchers.Present {
+			var member json.RawMessage
+			memberConverted, err := ExportWatchers(scope, v.Watchers.Value)
+			if err != nil {
+				return nil, err
+			}
+			member = memberConverted
+			wire["watchers"] = member
+		}
+		data, err := runtime.MarshalObject([]string{"ticket", "progress", "watchers"}, wire)
+		if err != nil {
+			return nil, err
+		}
+		if err := schema.ValidateExpressionRaw("Start", data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	})
 }
 
 // ImportStart reads Start as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
@@ -762,22 +799,24 @@ func ExportSupervise(scope *live.Scope, v Supervise) (json.RawMessage, error) {
 	if scope == nil {
 		return nil, fmt.Errorf("Supervise: a live value is exported into a scope")
 	}
-	wire := map[string]json.RawMessage{}
-	var sinksMember json.RawMessage
-	sinksMemberConverted, err := ExportSinks(scope, v.Sinks)
-	if err != nil {
-		return nil, err
-	}
-	sinksMember = sinksMemberConverted
-	wire["sinks"] = sinksMember
-	data, err := runtime.MarshalObject([]string{"sinks"}, wire)
-	if err != nil {
-		return nil, err
-	}
-	if err := schema.ValidateExpressionRaw("Supervise", data); err != nil {
-		return nil, err
-	}
-	return data, nil
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		wire := map[string]json.RawMessage{}
+		var sinksMember json.RawMessage
+		sinksMemberConverted, err := ExportSinks(scope, v.Sinks)
+		if err != nil {
+			return nil, err
+		}
+		sinksMember = sinksMemberConverted
+		wire["sinks"] = sinksMember
+		data, err := runtime.MarshalObject([]string{"sinks"}, wire)
+		if err != nil {
+			return nil, err
+		}
+		if err := schema.ValidateExpressionRaw("Supervise", data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	})
 }
 
 // ImportSupervise reads Supervise as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.
@@ -810,25 +849,27 @@ func ExportWatchers(scope *live.Scope, v Watchers) (json.RawMessage, error) {
 	if scope == nil {
 		return nil, fmt.Errorf("Watchers: a live value is exported into a scope")
 	}
-	convertedItems := make([]json.RawMessage, 0, len(v))
-	for _, item := range v {
-		var element json.RawMessage
-		if item.Null {
-			element = json.RawMessage("null")
-		} else {
-			elementHeld, err := ExportReport(scope, item.Value)
-			if err != nil {
-				return nil, err
+	return scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
+		convertedItems := make([]json.RawMessage, 0, len(v))
+		for _, item := range v {
+			var element json.RawMessage
+			if item.Null {
+				element = json.RawMessage("null")
+			} else {
+				elementHeld, err := ExportReport(scope, item.Value)
+				if err != nil {
+					return nil, err
+				}
+				element = elementHeld
 			}
-			element = elementHeld
+			convertedItems = append(convertedItems, element)
 		}
-		convertedItems = append(convertedItems, element)
-	}
-	converted, err := runtime.MarshalJSON(convertedItems)
-	if err != nil {
-		return nil, err
-	}
-	return converted, nil
+		converted, err := runtime.MarshalJSON(convertedItems)
+		if err != nil {
+			return nil, err
+		}
+		return converted, nil
+	})
 }
 
 // ImportWatchers reads Watchers as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values.

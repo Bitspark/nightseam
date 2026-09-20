@@ -323,7 +323,10 @@ function importJobs(scope: LiveScope, raw: unknown): boxes.Page<worker.Job> {
 
 Export uses the opposite converter: `worker.ExportJob(scope, value)` in Go
 or `worker.exportJob(scope, value)` in TypeScript, followed by whole-value
-validation. These are conversion hooks, not independent ownership or
+validation. For direct data-helper exports, enclose the whole conversion and
+validation in [an export build](../runtime/live.md#constructing-a-payload-before-publication)
+and close the converters over its scope view, so an unpublished failure can
+reclaim every newly allocated binding. These are conversion hooks, not independent ownership or
 disposal handles; binding lifetimes remain those of the
 [live scope](../runtime/live.md). An ordinary generated operation supplies
 the converters and validation itself, so its consumer passes native values.
@@ -333,14 +336,19 @@ The `combinator` family's `Bundle<T>` has a fixed `Unary` member beside its
 generic metadata and emits:
 
 ```go
-func ExportBundle[T any](scope *live.Scope, v Bundle[T], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error)
+func ExportBundle[T any](scope *live.Scope, v Bundle[T], convertT func(*live.Scope, T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error)
 func ImportBundle[T any](scope *live.Scope, raw json.RawMessage, convertT func(json.RawMessage) (T, error), typeT runtime.TypeBinding) (Bundle[T], error)
 ```
 
 ```ts
-export function exportBundle<T = unknown>(scope: LiveScope, value: Bundle<T>, convert_T_: (value: T) => unknown): unknown;
+export function exportBundle<T = unknown>(scope: LiveScope, value: Bundle<T>, convert_T_: (scope: LiveScope, value: T) => unknown): unknown;
 export function importBundle<T = unknown>(scope: LiveScope, raw: unknown, convert_T_: (value: unknown) => T): Bundle<T>;
 ```
+
+The live helper passes its active export scope view to each export converter.
+Use that argument for nested exports, rather than closing over the original
+scope: conversion of the generic member and the fixed callable then belongs to
+one unpublished build. Import converters keep their value-only signatures.
 
 The [generic-live scenario](../../conformance/scenarios/generated/live-generic-containers.json)
 executes the generated operation with an imported generic record containing

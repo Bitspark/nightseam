@@ -92,6 +92,7 @@ func (f *file) emitLive() {
 		}
 		f.scope = t.Scope
 		f.codecs = t.Uses
+		f.scopedCodecs = t.IsLive
 		if t.Kind == model.KindCallable {
 			f.emitCallable(t)
 			continue
@@ -99,6 +100,7 @@ func (f *file) emitLive() {
 		f.emitLiveConversion(t)
 	}
 	f.codecs = nil
+	f.scopedCodecs = false
 }
 
 // emitCallable renders one callable: the function type a consumer writes and
@@ -123,30 +125,30 @@ func (f *file) emitCallable(t *render.Type) {
 	f.linef("export const %s = %s;", p.contracts[t.Name], quote(t.Contract))
 	f.linef("/** Makes a binding of a local %s and answers the reference that names it. */", name)
 	f.w.Block(fmt.Sprintf("export function %s(scope: LiveScope, value: %s): unknown {", p.exports[t.Name], name), "}", func() {
-		f.w.Block(fmt.Sprintf("const reference = scope.export(%s, async (request, options) => {", p.contracts[t.Name]), "});", func() {
-			call := "options"
-			if t.Request != nil {
-				f.linef("%s(%s, request);", identValidateWire, expression(t.Request))
-				// A callable's own request is converted like any other
-				// position: a callable that takes a callable is handed a
-				// native function, not a reference.
-				f.linef("const argument = %s;", f.liveConversion(t.Request, "request", false))
-				call = "argument, options"
-			}
-			if t.Result == nil {
-				f.linef("await value(%s);", call)
-				f.line("return undefined;")
-				return
-			}
-			f.linef("const result = await value(%s);", call)
-			f.linef("const sent = %s;", f.liveConversion(t.Result, "result", true))
-			f.linef("%s(%s, sent);", identValidateWire, expression(t.Result))
-			f.line("return sent;")
+		f.w.Block("return scope.exportValue((scope) => {", "});", func() {
+			f.w.Block(fmt.Sprintf("const reference = scope.export(%s, async (request, options) => {", p.contracts[t.Name]), "});", func() {
+				call := "options"
+				if t.Request != nil {
+					f.linef("%s(%s, request);", identValidateWire, expression(t.Request))
+					// A callable's own request is converted like any other
+					// position: a callable that takes a callable is handed a
+					// native function, not a reference.
+					f.linef("const argument = %s;", f.liveConversion(t.Request, "request", false))
+					call = "argument, options"
+				}
+				if t.Result == nil {
+					f.linef("await value(%s);", call)
+					f.line("return undefined;")
+					return
+				}
+				f.linef("const result = await value(%s);", call)
+				f.linef("return %s;", f.liveExport(t.Result, "result", ""))
+			})
+			// The reference's wire form, not the Reference itself: what travels is
+			// the two members, and the validator that meets the converted value
+			// then reads an ordinary object rather than an instance of a class.
+			f.line("return reference.toJSON();")
 		})
-		// The reference's wire form, not the Reference itself: what travels is
-		// the two members, and the validator that meets the converted value
-		// then reads an ordinary object rather than an instance of a class.
-		f.line("return reference.toJSON();")
 	})
 	f.linef("/** A %s that calls the binding a reference names. */", name)
 	f.w.Block(fmt.Sprintf("export function %s(scope: LiveScope, raw: unknown): %s {", p.imports_[t.Name], name), "}", func() {
@@ -156,8 +158,7 @@ func (f *file) emitCallable(t *render.Type) {
 			if t.Request != nil {
 				// And what a caller sends: a callable it passes becomes a
 				// binding of this scope, as it would in any other position.
-				f.linef("const sent = %s;", f.liveConversion(t.Request, "request", true))
-				f.linef("%s(%s, sent);", identValidateWire, expression(t.Request))
+				f.linef("const sent = %s;", f.liveExport(t.Request, "request", ""))
 				call = "sent, options"
 			}
 			if t.Result == nil {
@@ -206,6 +207,12 @@ func (f *file) emitLiveConversion(t *render.Type) {
 		f.linef("/** Writes %s as it travels: each callable in it becomes a binding of the scope, and the reference that names it takes its place. */", name)
 	}
 	f.w.Block(fmt.Sprintf("export function %s%s(%svalue: %s%s): unknown {", p.exports[t.Name], f.declare(t.Uses), scope, self, f.converterParameters(t, true)), "}", func() {
+		if t.IsLive {
+			f.w.Block("return scope.exportValue((scope) => {", "});", func() {
+				f.liveBody(t, true)
+			})
+			return
+		}
 		f.liveBody(t, true)
 	})
 	if len(t.Uses) > 0 {
@@ -287,6 +294,9 @@ func (f *file) liveExpr(e model.TypeExpr, src string, export bool) string {
 	if codec := f.parameterConverter(e); codec != "" {
 		if export {
 			src = "(" + src + ") as " + f.spell(e)
+			if f.scopedCodecs {
+				src = "scope, " + src
+			}
 		}
 		return codec + "(" + src + ")"
 	}

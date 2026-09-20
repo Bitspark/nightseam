@@ -118,7 +118,7 @@ func (c *Client) Pack(ctx context.Context, params boxesprotocol.Box[protocol.Una
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := func() (json.RawMessage, error) {
+	sent, err := scope.ExportValue(func(scope *live.Scope) (json.RawMessage, error) {
 		var zero json.RawMessage
 		convertedConvert0 := func(input protocol.Unary) (json.RawMessage, error) {
 			converted, err := protocol.ExportUnary(scope, input)
@@ -135,7 +135,7 @@ func (c *Client) Pack(ctx context.Context, params boxesprotocol.Box[protocol.Una
 			return zero, err
 		}
 		return converted, nil
-	}()
+	})
 	if err != nil {
 		return result, err
 	}

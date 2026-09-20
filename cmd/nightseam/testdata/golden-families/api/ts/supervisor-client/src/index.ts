@@ -2,7 +2,7 @@
 import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection } from "@nightseam/runtime";
 import type { Tunnel } from "@nightseam/tunnel";
 import { validateWire } from './types.ts';
-import { liveOver, scopeOf } from "@nightseam/live";
+import { liveOver, scopeOf, type LiveScope } from "@nightseam/live";
 import * as conversion from './types.ts';
 import * as live_worker from "@example/worker-client";
 import type * as Protocol from './types.ts';
@@ -40,7 +40,7 @@ export class Client implements Caller {
   /** Ordinary RPC that needs no live runtime. */
   async shift(params: Protocol.Shift, options?: CallOptions): Promise<string> { validateWire("Shift", params); const result = await this.peer.call<string>("shift", params, options); validateWire("string", result); return result; }
   /** A shape written inline that carries a callable: named by where it sits, like any other, and converted at the boundary like any other. */
-  async relieve(params: Protocol.RelieveRequest, options?: CallOptions): Promise<Protocol.Shift> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = conversion.exportRelieveRequest(scope, (params) as Protocol.RelieveRequest); validateWire({"kind":"record","fields":[{"name":"shift","type":"Shift","required":true},{"name":"sink","type":"worker.ProgressSink","required":true}]}, sent); const result = await this.peer.call<unknown>("relieve", sent, options); validateWire("Shift", result); return result as Protocol.Shift; }
+  async relieve(params: Protocol.RelieveRequest, options?: CallOptions): Promise<Protocol.Shift> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = scope.exportValue((scope) => { const converted = conversion.exportRelieveRequest(scope, (params) as Protocol.RelieveRequest); validateWire({"kind":"record","fields":[{"name":"shift","type":"Shift","required":true},{"name":"sink","type":"worker.ProgressSink","required":true}]}, converted); return converted; }); const result = await this.peer.call<unknown>("relieve", sent, options); validateWire("Shift", result); return result as Protocol.Shift; }
   /** Takes an imported callback record. */
-  async watch(params: Protocol.Watch, options?: CallOptions): Promise<worker.Job> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = conversion.exportWatch(scope, (params) as Protocol.Watch); validateWire("Watch", sent); const result = await this.peer.call<unknown>("watch", sent, options); validateWire("worker.Job", result); return live_worker.importJob(scope, result); }
+  async watch(params: Protocol.Watch, options?: CallOptions): Promise<worker.Job> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = scope.exportValue((scope) => { const converted = conversion.exportWatch(scope, (params) as Protocol.Watch); validateWire("Watch", converted); return converted; }); const result = await this.peer.call<unknown>("watch", sent, options); validateWire("worker.Job", result); return live_worker.importJob(scope, result); }
 }

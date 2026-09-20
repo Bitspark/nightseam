@@ -8,6 +8,11 @@ import (
 	"github.com/Bitspark/nightseam/internal/render"
 )
 
+// Conversion and validation both finish before the value can be published.
+func (f *file) liveExport(e model.TypeExpr, src, slots string) string {
+	return fmt.Sprintf("scope.exportValue((scope) => { const converted = %s; %s(%s, converted%s); return converted; })", f.liveConversion(e, src, true), identValidateWire, expression(e), slots)
+}
+
 func converterName(use render.Use) string { return "convert_" + use.Parameter + "_" + use.Type }
 func useExpression(use render.Use) model.TypeExpr {
 	if use.Type == "" {
@@ -23,7 +28,11 @@ func (f *file) converterParameters(t *render.Type, export bool) string {
 		if !export {
 			from, to = to, from
 		}
-		fmt.Fprintf(&out, ", %s: (value: %s) => %s", converterName(use), from, to)
+		parameters := "value: " + from
+		if export && t.IsLive {
+			parameters = "scope: LiveScope, " + parameters
+		}
+		fmt.Fprintf(&out, ", %s: (%s) => %s", converterName(use), parameters, to)
 	}
 	return out.String()
 }
@@ -82,7 +91,11 @@ func (f *file) conversionCall(e model.TypeExpr, src string, export bool) string 
 		if !export {
 			converted = "(" + converted + ") as " + to
 		}
-		passed = append(passed, "(input: "+from+"): "+to+" => "+converted)
+		parameters := "input: " + from
+		if export && t.IsLive {
+			parameters = "scope: LiveScope, " + parameters
+		}
+		passed = append(passed, "("+parameters+"): "+to+" => "+converted)
 	}
 	return f.liveCall(e, export) + f.renderArguments(arguments) + "(" + strings.Join(passed, ", ") + ")"
 }

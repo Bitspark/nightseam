@@ -15,14 +15,15 @@ import (
 // type of the family's protocol package is spelled with — none in that
 // package, protocol. in the others.
 type file struct {
-	plan    *plan
-	family  *render.Family
-	config  Config
-	w       *emit.Writer
-	imports *emit.Imports
-	prefix  string
-	uses    []render.Use // lexical type parameters of the declaration being emitted
-	codecs  []render.Use // parameters supplied with boundary converters
+	plan         *plan
+	family       *render.Family
+	config       Config
+	w            *emit.Writer
+	imports      *emit.Imports
+	prefix       string
+	uses         []render.Use // lexical type parameters of the declaration being emitted
+	codecs       []render.Use // parameters supplied with boundary converters
+	scopedCodecs bool         // export converters receive the enclosing live helper's view
 }
 
 func (f *file) line(text string)                 { f.w.Line(text) }
