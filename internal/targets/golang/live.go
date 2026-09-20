@@ -136,8 +136,7 @@ func (f *file) emitCallable(t *render.Type) {
 				f.linef("var zero %s", f.spell(t.Result))
 				zero = "zero, "
 			}
-			f.linef("if supplied, ok := %s.OwnerOf(ctx); ok {", f.live())
-			f.linef("if supplied.Scope() != owner.Scope() { return %s&%s.PublicError{Code: %s.ErrorReferenceForeign, Message: \"the owner belongs to another connection\"} }", zero, f.runtime(), f.live())
+			f.linef("if supplied, ok := %s.OwnerOf(ctx); ok && supplied.Scope() == scope {", f.live())
 			f.line("owner = supplied")
 			f.line("}")
 			f.emitCallableInvoke(t, zero)

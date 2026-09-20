@@ -55,7 +55,6 @@ func (p *plan) planLive() {
 func (f *file) liveImports() {
 	if f.family.Live {
 		f.linef("import type { LiveOwner } from %s;", quote(f.config.Live))
-		f.linef("import { DuplexError } from %s;", quote(f.config.Runtime))
 	}
 	f.liveSiblings()
 }
@@ -159,8 +158,7 @@ func (f *file) emitCallable(t *render.Type) {
 		f.linef("const invoke = owner.import(owner.scope.decode(raw), %s);", p.contracts[t.Name])
 		f.line("const scope = owner.scope;")
 		f.w.Block(fmt.Sprintf("return async (%s) => {", f.callableParams(t)), "};", func() {
-			f.line("const owner = options?.owner ?? scope.owner();")
-			f.line("if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection');")
+			f.line("const owner = options?.owner?.scope === scope ? options.owner : scope.owner();")
 			call := "undefined, options"
 			if t.Request != nil {
 				// And what a caller sends: a callable it passes becomes a
@@ -421,7 +419,7 @@ func (f *file) liveOwner(incoming bool) string {
 	if incoming {
 		return f.liveScope() + " const owner = scope.owner().child(); const ownedContext = { ...context, owner };"
 	}
-	return f.liveScope() + " const owner = options?.owner ?? scope.owner(); if (owner.scope !== scope) throw new DuplexError('reference_foreign', 'the owner belongs to another connection');"
+	return f.liveScope() + " const owner = options?.owner?.scope === scope ? options.owner : scope.owner();"
 }
 
 // liveNeeded reports whether an operation carries callables in either

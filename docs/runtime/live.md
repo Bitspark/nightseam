@@ -224,8 +224,13 @@ still releases one binding regardless of which owner allocated it. Scope
 closure ends every owner with the connection's bindings.
 
 A generated ordinary call or event that carries live values uses the owner in
-`live.WithOwner(ctx, owner)` or `options.owner`, falling back to the scope's
-root. An owner from another connection is refused as `reference_foreign`.
+`live.WithOwner(ctx, owner)` or `options.owner` when it belongs to that
+connection, falling back to the scope's root otherwise. This keeps native
+proxy forwarding across connections composable: an owner from the forwarding
+connection does not select a lifetime on the origin connection. To choose a
+narrower lifetime there, supply an owner for the origin connection. A released
+owner belonging to the current connection remains selected; it is not replaced
+by the root. Foreign native references are still refused by the low-level API.
 An imported callable likewise defaults to the connection's current root and
 accepts the same explicit override for values exchanged by that invocation.
 This choice does not transfer ownership of the callable's attachment; a

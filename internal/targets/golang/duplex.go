@@ -242,8 +242,7 @@ func (f *file) caller(m render.Method, receiver string) {
 			f.linef("scope, ok := %s.ScopeOf(c.%s)", f.live(), identPeer)
 			f.linef("if !ok { return result, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", f.runtime(), f.live())
 			f.linef("owner, ok := %s.OwnerOf(ctx)", f.live())
-			f.line("if !ok { owner = scope.Owner() }")
-			f.linef("if owner.Scope() != scope { return result, &%s.PublicError{Code: %s.ErrorReferenceForeign, Message: \"the owner belongs to another connection\"} }", f.runtime(), f.live())
+			f.line("if !ok || owner.Scope() != scope { owner = scope.Owner() }")
 		}
 		switch {
 		case m.Request != nil && f.family.IsLive(m.Request):
@@ -277,8 +276,7 @@ func (f *file) events(receiver string, received, sent []render.Event) {
 				f.linef("scope, ok := %s.ScopeOf(c.%s)", f.live(), identPeer)
 				f.linef("if !ok { return &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", f.runtime(), f.live())
 				f.linef("owner, ok := %s.OwnerOf(ctx)", f.live())
-				f.line("if !ok { owner = scope.Owner() }")
-				f.linef("if owner.Scope() != scope { return &%s.PublicError{Code: %s.ErrorReferenceForeign, Message: \"the owner belongs to another connection\"} }", f.runtime(), f.live())
+				f.line("if !ok || owner.Scope() != scope { owner = scope.Owner() }")
 				f.liveBoundary(e.Type, "data", "sent", true)
 				f.line("if err != nil { return err }")
 				f.linef("return c.%s.Emit(ctx, %q, sent)", identPeer, e.Name)
