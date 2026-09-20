@@ -10,10 +10,16 @@ import (
 
 // Conversion and validation both finish before the value can be published.
 func (f *file) liveExport(e model.TypeExpr, src, slots string) string {
-	if !f.needsConversion(e) {
-		return fmt.Sprintf("(() => { const converted = %s; %s(%s, converted%s); return converted; })()", f.liveConversion(e, src, true), identValidateWire, expression(e), slots)
+	validation := expression(e)
+	if e == nil {
+		// Only an ordinary method's omitted request reaches this boundary:
+		// it sends an empty record even when the result carries live values.
+		validation = "{ empty: true }"
 	}
-	return fmt.Sprintf("owner.exportValue((owner) => { const converted = %s; %s(%s, converted%s); return converted; })", f.liveConversion(e, src, true), identValidateWire, expression(e), slots)
+	if !f.needsConversion(e) {
+		return fmt.Sprintf("(() => { const converted = %s; %s(%s, converted%s); return converted; })()", f.liveConversion(e, src, true), identValidateWire, validation, slots)
+	}
+	return fmt.Sprintf("owner.exportValue((owner) => { const converted = %s; %s(%s, converted%s); return converted; })", f.liveConversion(e, src, true), identValidateWire, validation, slots)
 }
 
 func (f *file) livePublish(e model.TypeExpr, src, slots, send string) string {
