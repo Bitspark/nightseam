@@ -76,7 +76,8 @@ that names another commit.
    `conformance/matrix.json`; commit it with whatever moved it, since the
    release is weighed against the matrix the tag carries. *What a release
    refuses*, below, says what a red cell does. Also run the script tests
-   (`node --test 'scripts/*.test.mjs'`), `node scripts/links.mjs`, and
+   (`node --test 'scripts/*.test.mjs'`), `node scripts/links.mjs`,
+   `node scripts/docs.mjs`, and
    `go run ./cmd/nightseam --root examples/probe check`, as CI does.
 2. Set the version everywhere: `node scripts/version.mjs 0.5.0`. It rewrites
    every manifest, the generator's constant, every nested module's
