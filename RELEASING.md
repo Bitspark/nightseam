@@ -176,8 +176,9 @@ packs every published package, copies `examples/probe` — the getting-started,
 and the one consumer both smokes use — out of the workspace, and resolves it
 against the packed shape and nothing else: no `workspace:*` link, no
 `replace` to this checkout. It then type-checks it, builds it, runs the
-server and checks the client's data, RPC, events and live cancellation
-exchange. It is the only gate that asks whether what is published can be
+server and holds the client's exchange line by line: an RPC reply, an
+event, a supplied callback the server invokes, and a function the server
+returned. It is the only gate that asks whether what is published can be
 *installed*; a `files` field that omits
 `dist`, an `exports` entry naming a path the tarball does not hold, a
 dependency a link satisfied and a registry would not, a Go package that only

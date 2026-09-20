@@ -20,9 +20,10 @@ what a request-and-response contract has no way to state.
 The declaration language has independent data, RPC and live levels. Go and
 TypeScript generate and validate unions, nullable and literal expressions,
 inline shapes, type and family parameters, and inherited operations. The live
-tier adds callable values, including functions that take or return functions,
-with scoped export, import and release. The [changelog](CHANGELOG.md) records
-the implemented forms and the removal of the governed session layer.
+tier adds callable values — functions that may take or return functions, and
+generic data containers applied to them — with scoped export, import and
+release. The [changelog](CHANGELOG.md) records the implemented forms and the
+removal of the governed session layer.
 
 ### Declare it
 
