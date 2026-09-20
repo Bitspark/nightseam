@@ -24,11 +24,18 @@ are one number. Entries are in the words of the commits that landed them.
 ### Added
 
 - Live publication batches in Go and TypeScript unwind fresh bindings only
-  when a local `UnpublishedError` proves rejection before the outbound queue.
+  when a local `UnpublishedError` proves rejection before queuing or dispatch.
   Generated methods, events and callable requests retain callbacks after
   ambiguous outcomes; returned callbacks remain under reachable handler owners.
   Paired runtime and generated socket cases hold retention, explicit cleanup
   and repeated bounded use in both directions.
+
+- TypeScript generates a server-binding package beside each protocol family's
+  client, sharing its types, validators and live converters. `serve` attaches
+  an accepted connection with typed handlers and initial event listeners;
+  `install` composes with a host-configured peer and preserves existing live
+  bounds. `Remote` supplies reverse calls and events. Both package locations
+  are configurable, and the generated conformance testee exercises both roles.
 
 - Live owners give generated plain functions a caller-selected lifetime in Go
   and TypeScript. Owners nest, own fresh exports and import attachments, borrow
@@ -37,12 +44,6 @@ are one number. Entries are in the words of the commits that landed them.
   retain; import and export batches unwind only their own fresh allocations.
   Acquisition moves from scopes to owners, and intrinsically live generic
   converters take the active owner on both imports and exports.
-- TypeScript generates a server-binding package beside each protocol family's
-  client, sharing its types, validators and live converters. `serve` attaches
-  an accepted connection with typed handlers and initial event listeners;
-  `install` composes with a host-configured peer and preserves existing live
-  bounds. `Remote` supplies reverse calls and events. Both package locations
-  are configurable, and the generated conformance testee exercises both roles.
 
 - The OpenTelemetry adapter holds the live layer's four events as it holds
   the tunnel's, in both languages: `otel/ts`'s compile-time check of the
