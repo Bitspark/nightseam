@@ -19,6 +19,14 @@
 //     it has to be one of them, and exactly once: a page listed twice is what a
 //     merge of two lanes each supplying a missing row leaves behind.
 //
+//   - **Built-in references.** Every built-in family's reference is listed by
+//     the index beside it. These are not a set: a set's pages are the Markdown
+//     directly under it, and a reference is a directory holding the page the
+//     spec target renders, so `pagesOf` sees none of them. The generator's
+//     golden test writes a page per `builtin.Names()`, which leaves the row the
+//     only part a lane owes — and `live` went without one from the tier that
+//     added it until this claim.
+//
 //   - **Form.** Every decision page carries the five parts its index promises
 //     — the question, decided, why, serves, since — since that index states
 //     them as what a page *has*, and a review that reads the record before
@@ -51,6 +59,13 @@ export const sets = [
   { directory: "docs/declaration", index: "docs/README.md" },
   { directory: "docs/languages", index: "docs/README.md" },
 ];
+
+/**
+ * The built-in family references, which are not a set: a set's pages are the
+ * Markdown directly under it, and these are a directory per family, each
+ * holding the `README.md` the spec target renders for it.
+ */
+export const builtins = { directory: "docs/declaration/builtins", index: "docs/declaration/builtins/README.md" };
 
 /** The five parts decisions/README.md says every decision page has. */
 export const parts = ["The question", "Decided", "Why", "Serves", "Since"];
@@ -89,6 +104,20 @@ export function pagesOf(directory, tracked) {
     .sort();
 }
 
+/**
+ * The references under a directory that holds one per family: the `README.md`
+ * exactly one level below it. `pagesOf` cannot see them — it keeps a set's
+ * direct Markdown children and drops every `README.md` — which is why the
+ * built-in references needed a claim of their own rather than a row in `sets`.
+ */
+export function referencesOf(directory, tracked) {
+  const prefix = directory + "/";
+  return [...tracked]
+    .filter(path => path.startsWith(prefix) && path.endsWith("/README.md"))
+    .filter(path => path.slice(prefix.length).split("/").length === 2)
+    .sort();
+}
+
 /** A page of a set its index does not link to. */
 export function uncovered(pages, tracked) {
   const problems = [];
@@ -124,6 +153,24 @@ export function duplicated(pages, tracked) {
     }
   }
   return problems;
+}
+
+/**
+ * A built-in family reference its index does not list. `TestBuiltinSpecificationsGolden`
+ * renders one page per `builtin.Names()`, so a built-in added to the generator
+ * arrives with a page already written and a row nobody owes — which is how
+ * `live` stood in the tree, generated and held, beside an index naming `duplex`
+ * and `tunnel` alone.
+ */
+export function unlisted(pages, tracked) {
+  const markdown = pages.get(builtins.index);
+  if (markdown === undefined) {
+    return [{ page: builtins.index, reason: `indexes ${builtins.directory} and is not in the tree` }];
+  }
+  const linked = covered(markdown, builtins.index);
+  return referencesOf(builtins.directory, tracked)
+    .filter(path => !linked.has(path))
+    .map(path => ({ page: path, reason: `is a built-in family reference and ${builtins.index} does not link to it` }));
 }
 
 /** A decision page missing one of the five parts its index promises. */
@@ -235,7 +282,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     }
   }
   const inventory = driverInventory(pages.get(driverPath) ?? "", scenarios);
-  const problems = [...uncovered(pages, tracked), ...duplicated(pages, tracked), ...formless(pages, tracked), ...inventory.problems];
+  const problems = [
+    ...uncovered(pages, tracked),
+    ...duplicated(pages, tracked),
+    ...unlisted(pages, tracked),
+    ...formless(pages, tracked),
+    ...inventory.problems,
+  ];
   for (const { page, reason } of problems) console.error(`${page}: ${reason}`);
   for (const { page, reason } of inventory.notes) console.log(`note: ${page}: ${reason}`);
   if (problems.length > 0) {
@@ -243,5 +296,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exit(1);
   }
   const counted = sets.reduce((total, { directory }) => total + pagesOf(directory, tracked).length, 0);
-  console.log(`${counted} pages in ${sets.length} sets are indexed, every decision carries its five parts, and every scenario op has a driver row`);
+  const references = referencesOf(builtins.directory, tracked).length;
+  console.log(
+    `${counted} pages in ${sets.length} sets and ${references} built-in references are indexed, every decision carries its five parts, and every scenario op has a driver row`,
+  );
 }

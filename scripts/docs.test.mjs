@@ -1,11 +1,12 @@
 // What the documentation check reads as coverage and as the decision form, on
 // pages no tree has — an index that lists all but one of a directory, a page
 // reached only by an absolute URL of this repository, a decision missing its
-// serves — because a check first exercised by the page that slips past it is a
+// serves, a built-in family whose reference the index beside it never grew a
+// row for — because a check first exercised by the page that slips past it is a
 // check nobody has run.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { covered, driverInventory, driverOps, duplicated, formless, pagesOf, parts, sets, uncovered } from "./docs.mjs";
+import { covered, driverInventory, driverOps, duplicated, formless, pagesOf, parts, referencesOf, sets, uncovered, unlisted } from "./docs.mjs";
 
 /** The five parts, as a page in the form spells them. */
 const whole = [
@@ -109,6 +110,53 @@ test("every set names an index inside the tree it indexes", () => {
     assert.ok(index.endsWith("/README.md"), `${index} is not a README`);
     assert.ok(directory.startsWith(index.slice(0, index.lastIndexOf("/"))), `${index} is not above ${directory}`);
   }
+});
+
+/** The built-in references as the tree holds them: a directory per family. */
+const references = new Set([
+  "docs/declaration/builtins/README.md",
+  "docs/declaration/builtins/duplex/README.md",
+  "docs/declaration/builtins/live/README.md",
+  "docs/declaration/builtins/tunnel/README.md",
+  "docs/declaration/builtins/duplex/diagram.svg",
+  "docs/declaration/families.md",
+]);
+
+test("a built-in reference is a directory's README, which a set's pages never are", () => {
+  assert.deepEqual(referencesOf("docs/declaration/builtins", references), [
+    "docs/declaration/builtins/duplex/README.md",
+    "docs/declaration/builtins/live/README.md",
+    "docs/declaration/builtins/tunnel/README.md",
+  ]);
+  assert.deepEqual(pagesOf("docs/declaration/builtins", references), []);
+});
+
+test("a built-in its index does not list is named, and the ones it lists are not", () => {
+  const pages = new Map([
+    [
+      "docs/declaration/builtins/README.md",
+      [
+        "- [duplex](duplex/README.md): the profile's envelope and channel handle.",
+        "- [tunnel](tunnel/README.md): opening channels, credit, and their wire types.",
+      ].join("\n"),
+    ],
+  ]);
+  assert.deepEqual(unlisted(pages, references), [
+    {
+      page: "docs/declaration/builtins/live/README.md",
+      reason: "is a built-in family reference and docs/declaration/builtins/README.md does not link to it",
+    },
+  ]);
+});
+
+test("an index listing every built-in satisfies the claim", () => {
+  const pages = new Map([
+    [
+      "docs/declaration/builtins/README.md",
+      ["- [duplex](duplex/README.md)", "- [live](live/README.md)", "- [tunnel](tunnel/README.md)"].join("\n"),
+    ],
+  ]);
+  assert.deepEqual(unlisted(pages, references), []);
 });
 
 /** The driver documents operations in the first column of its op tables. */

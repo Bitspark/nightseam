@@ -30,7 +30,8 @@ a permanent compatibility policy for consumers of future releases.
 - **Go**: the module `github.com/Bitspark/nightseam` at the tag; nothing is
   uploaded, a tag is the release. `runtime/go`, `duplex/go`, `tunnel/go` and
   `live/go` are its importable packages, with their sub-packages — `duplex/go/ws`,
-  `runtime/go/slogobserver`, and the suite `duplex/go/duplextest`.
+  `runtime/go/slogobserver`, and the suites `duplex/go/duplextest` and
+  `live/go/livetest`.
   `cmd/nightseam` is what a consumer adds as a Go tool.
 - **Go, nested**: a component that depends on what the core module may not
   is a module of its own, released by a second tag `<dir>/vX.Y.Z` cut beside

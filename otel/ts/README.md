@@ -6,9 +6,10 @@ npm install @nightseam/otel
 
 The OpenTelemetry adapter for Nightseam: the propagator that puts a trace on
 the wire and the observer that turns what a peer sees into spans. It is a
-package of its own so that `@nightseam/duplex`, `@nightseam/runtime` and
-`@nightseam/tunnel` stay free of every dependency — a backend is the
-consumer's choice, and a consumer that makes none installs nothing for it.
+package of its own so that `@nightseam/duplex`, `@nightseam/runtime`,
+`@nightseam/tunnel` and `@nightseam/live` stay free of every dependency — a
+backend is the consumer's choice, and a consumer that makes none installs
+nothing for it.
 
 ```ts
 import { DuplexPeer } from '@nightseam/runtime';
