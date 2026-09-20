@@ -91,9 +91,9 @@ var (
 
 // Peer is what a layer carried on a channel observes through: the outer peer
 // the channel's tunnel runs over, whose observer is the only one there is. A
-// session of a family speaks over a channel and is given nothing else of the
-// tunnel, so this is how it emits its events without an observer option of its
-// own — the same way the tunnel emits its own, one step further down. It is
+// layer running over a channel is given nothing else of the tunnel, so this is
+// how it emits its events without an observer option of its own — the same way
+// the tunnel emits its own, one step further down. It is
 // Tunnel.Peer of the tunnel this channel belongs to, and the twin of
 // Channel.observe in tunnel/ts.
 func (c *Channel) Peer() *runtime.Peer { return c.t.Peer() }

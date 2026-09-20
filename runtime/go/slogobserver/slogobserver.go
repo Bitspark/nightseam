@@ -93,7 +93,7 @@ func (o observer) Observe(event runtime.ObserverEvent) {
 	default:
 		// An event this package has no case for is logged as what it is rather
 		// than dropped: its Go type name and whatever fields it has, so that a
-		// tunnel's events, a session's, a later profile's appear here before
+		// tunnel's events, a live scope's, a later profile's appear here before
 		// this package knows anything about them. Its time is this adapter's,
 		// the At such an event carries being no field this switch can read.
 		o.log(time.Now(), slog.LevelDebug, fmt.Sprintf("%T", event), slog.Any("event", event))

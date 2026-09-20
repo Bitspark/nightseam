@@ -93,9 +93,8 @@ func emitTypes(f *file) {
 	for _, t := range fam.Types {
 		f.emitType(t)
 	}
-	// The family as a slot of another family sees it: its descriptor and,
-	// for a generic family, the session families' union, which a parameter
-	// defaults to.
+	// The family as a slot of another family sees it: its name and the wire
+	// types a slot of it draws on.
 	var drawn []string
 	for _, t := range fam.Types {
 		if len(t.Uses) == 0 {
@@ -200,8 +199,8 @@ func requestExpression(m render.Method) string {
 }
 
 // emitClient renders src/index.ts: the handler of what the server sends,
-// the caller side as an interface, the session's governance and the public
-// errors as data, and the client class with dial, attach and open.
+// the caller side as an interface, the public errors as data, and the client
+// class with dial, attach and open.
 func emitClient(f *file) {
 	p, fam := f.plan, f.family
 	f.scope = familyScope(fam)
