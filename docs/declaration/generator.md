@@ -39,7 +39,9 @@ handler of what the server sends — as stubs under `api/impl/<family>`, or
 Generated packages refer to other generated families with relative `file:`
 dependencies by default. The generator knows where it placed both packages;
 the reference follows those locations, including custom target layouts and
-per-family placements, without requiring a registry publication.
+per-family placements, without requiring a registry publication. A family's
+server-binding package uses the same mechanism to depend on its client
+package, which exports their shared types and converters at `./types`.
 
 `--ts-sibling` selects the resolution mechanism for `generate` and `check`:
 
@@ -60,9 +62,10 @@ Include all generated packages in the consumer workspace so that the package
 manager installs each package's own runtime dependencies too. pnpm installs
 `file:` dependencies as local package copies; rerun installation after
 regenerating them, or choose `workspace` for live workspace links. The flag changes
-only references between generated families; published Nightseam runtime and
-tunnel dependencies retain their release versions. A program composing the
-TypeScript target sets the same value through `typescript.Config.Sibling`.
+only references between generated packages; published Nightseam runtime,
+tunnel and live dependencies retain their release versions. A program
+composing the TypeScript target sets the same value through
+`typescript.Config.Sibling`.
 
 ## Which version rendered this
 
@@ -88,8 +91,8 @@ why.
 ## What the packages own
 
 The generated packages own their directories wholesale —
-`api/go/<f>-protocol`, `-binding`, `-client` and `api/ts/<f>-client` — and
-a human writes nothing there: behavior is written against the `Handler`
+`api/go/<f>-protocol`, `-binding`, `-client` and `api/ts/<f>-client`,
+`-binding` — and a human writes nothing there: behavior is written against the `Handler`
 interfaces they declare, in files of the consumer's own. What a target
 owns and nothing renders any more — a file of a family that was removed,
 or one a target no longer writes — `check` reports and `generate` removes,
@@ -99,8 +102,11 @@ beside a client, `node_modules`, is nobody's and stays.
 The wire validator lives in each runtime, once, and reads the family's
 wire description the protocol package embeds; both are held to
 `conformance/tables/validator.json`. A generated package depends on the
-protocol types, the runtime and the tunnel, and on nothing else — Nightseam
-is developer tooling and never a runtime dependency of its own generator.
+protocol types and the runtime components it uses: the tunnel for clients
+and the live layer for live values. The TypeScript binding accepts an
+existing connection and adds no Node or WebSocket-server dependency.
+Nightseam is developer tooling and never a runtime dependency of its own
+generator.
 
 ## The specification
 
@@ -207,3 +213,34 @@ checkout's own, and which refuses `generate`, `check` and `init` before any
 family. What the tool's flags set — `--module`, `--scope`, `--ts-sibling` —
 a section may not set, since those are the tool's to know of the checkout
 it runs in.
+
+TypeScript places its client and server-binding packages independently.
+`layout` is an object with `client` and `binding` path patterns; `place`
+overrides those patterns for a named family:
+
+```json
+{
+  "targets": {
+    "typescript": {
+      "layout": {
+        "client": "api/ts/{family}-client",
+        "binding": "api/ts/{family}-binding"
+      },
+      "place": {
+        "probe": {
+          "client": "packages/{family}-client",
+          "binding": "services/{family}-binding"
+        }
+      }
+    }
+  }
+}
+```
+
+The `layout` values shown are the defaults. An omitted member of `layout`
+uses its default, and an omitted member of a family's `place` entry uses
+the corresponding layout pattern. Every pattern contains `{family}`;
+client and binding directories must be distinct. A model-only family
+produces only the client directory's types package. A program composing the
+target uses `typescript.Layout{Client: ..., Binding: ...}` for
+`typescript.Config.Layout` and each `Place` entry.

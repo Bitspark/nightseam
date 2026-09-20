@@ -32,7 +32,7 @@ func TestGeneratedLiveOwners(t *testing.T) {
 		"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true,
 		"skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "types": []string{"node"},
 		"typeRoots": []string{filepath.ToSlash(filepath.Join(root, "node_modules/@types"))},
-		"paths":     map[string]any{"@example/*": []string{"./api/ts/*/src/index.ts"}, "@nightseam/runtime": []string{"./runtime/ts/src/index.ts"}, "@nightseam/duplex": []string{"./duplex/ts/src/index.ts"}, "@nightseam/tunnel": []string{"./tunnel/ts/src/index.ts"}, "@nightseam/live": []string{"./live/ts/src/index.ts"}},
+		"paths":     fixtureTypeScriptPaths(t, directory),
 	}, "include": []string{"owners.ts", "api/ts/**/*.ts"}}
 	data, err := json.Marshal(config)
 	if err != nil {

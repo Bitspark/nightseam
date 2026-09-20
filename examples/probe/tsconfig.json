@@ -8,7 +8,10 @@
     "skipLibCheck": true,
     "types": ["node"],
     "noEmit": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@probe/probe-client/types": ["./api/ts/probe-client/src/types.ts"]
+    }
   },
   "include": ["client/src/**/*.ts", "api/ts/**/*.ts"]
 }

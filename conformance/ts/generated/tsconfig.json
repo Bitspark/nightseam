@@ -8,6 +8,8 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "paths": {
+      "ws": ["{checkout}/conformance/ts/node_modules/@types/ws/index.d.ts"],
+      "@example/*/types": ["./api/ts/*/src/types.ts"],
       "@example/*": [
         "./api/ts/*/src/index.ts"
       ]

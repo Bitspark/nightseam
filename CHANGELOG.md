@@ -15,14 +15,20 @@ are one number. Entries are in the words of the commits that landed them.
   and connections; release invalidates aliases without counting owners or
   acknowledging remote receipt, forwarding retains its origin dependency, and
   application resume data supplies no automatic binding revival.
-- Generated-role coverage distinguishes Go server bindings from TypeScript
-  clients, accounts for every TypeScript generator skip, and records the
-  unresolved tier-1 release-policy gap without changing the gate.
+- Generated-role coverage maps the Go and TypeScript client and server
+  binding roles to their shared socket scenarios.
 - The union decision is named for the adjacent carrier #146 settled on, rather
   than the internal tagging #56 chose and #146 withdrew, so that the decisions
   index states the verdict that holds.
 
 ### Added
+
+- TypeScript generates a server-binding package beside each protocol family's
+  client, sharing its types, validators and live converters. `serve` attaches
+  an accepted connection with typed handlers and initial event listeners;
+  `install` composes with a host-configured peer and preserves existing live
+  bounds. `Remote` supplies reverse calls and events. Both package locations
+  are configurable, and the generated conformance testee exercises both roles.
 
 - Live owners give generated plain functions a caller-selected lifetime in Go
   and TypeScript. Owners nest, own fresh exports and import attachments, borrow
@@ -231,6 +237,9 @@ are one number. Entries are in the words of the commits that landed them.
 - Conformance and release gates reject skipped scenarios in a language's
   required profiles, including absent generated server roles. The matrix
   keeps the skips visible; optional profiles retain their existing tier policy.
+- The Go tunnel WebSocket fixture installs both tunnels before either peer
+  reads frames, preventing its first channel open from racing registration.
+
 - Live reference documentation and paired tests distinguish native scope
   association from caller-supplied serialized bytes: valid bytes can be reused
   on their original connection, while stale bindings fail lookup after reconnect.
