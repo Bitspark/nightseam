@@ -543,6 +543,11 @@ export class DuplexPeer {
       this.flush();
     } catch (error) {
       if (!queued) throw new UnpublishedError(error);
+      if (error instanceof UnpublishedError) {
+        const dispatched = new DuplexError(error.code, error.message, error.data);
+        Object.defineProperty(dispatched, 'cause', { value: error });
+        throw dispatched;
+      }
       throw error;
     }
   }

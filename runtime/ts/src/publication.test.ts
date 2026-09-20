@@ -131,3 +131,61 @@ test('a refused reverse reply cannot lend its proof to an already delivered call
     server.close();
   }
 });
+
+test('an adapter getter failure after writing cannot prove its queued request unpublished', async () => {
+  const [a, b] = pipe();
+  const client = new DuplexPeer();
+  const server = new DuplexPeer({ role: 'server' });
+  const delivered = deferred<void>();
+  let writes = 0;
+  let failAfterWrite = false;
+  let nested!: UnpublishedError;
+  const connection: FrameConnection = {
+    get state() {
+      return a.state;
+    },
+    get buffered() {
+      if (failAfterWrite) {
+        failAfterWrite = false;
+        throw nested;
+      }
+      return a.buffered;
+    },
+    send(frame) {
+      a.send(frame);
+      writes++;
+      if (writes === 1) failAfterWrite = true;
+    },
+    close: (code, reason) => a.close(code, reason),
+    listen: (handlers) => a.listen(handlers),
+  };
+  server.handle('supply', async () => {
+    delivered.resolve();
+    return null;
+  });
+  server.handle('ordinary', async () => 42);
+  await Promise.all([client.attach(connection), server.attach(b)]);
+  try {
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(client.call('nested', undefined, { signal: controller.signal }), (error: unknown) => {
+      assert.ok(error instanceof UnpublishedError);
+      nested = error;
+      return true;
+    });
+    await assert.rejects(client.call('supply'), (error: unknown) => {
+      assert.equal(writes, 1);
+      assert.ok(error instanceof DuplexError);
+      assert.ok(!(error instanceof UnpublishedError), 'a post-write adapter error carried nested proof');
+      assert.equal(error.code, nested.code);
+      assert.equal(error.cause, nested);
+      return true;
+    });
+    await delivered.promise;
+    assert.equal(await client.call('ordinary'), 42);
+    assert.equal(writes, 2);
+  } finally {
+    client.close();
+    server.close();
+  }
+});
