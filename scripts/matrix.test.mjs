@@ -163,3 +163,41 @@ test("a language of no tier is in the matrix and gates nothing", () => {
 test("a green matrix gates nothing", () => {
   assert.deepEqual(gate(matrix, profiles, matrix), { problems: [], provisional: [], lagging: [] });
 });
+
+test("a required generated role cannot skip even beside passing scenarios", () => {
+  for (const passed of [0, 3]) {
+    const incomplete = { profiles: matrix.profiles, languages: { typescript: row(1, { ...all(green), generator: { passed, skipped: 1, failed: 0 } }) } };
+    const result = gate(incomplete, profiles, undefined);
+    assert.equal(result.problems.length, 1);
+    assert.match(result.problems[0], /`typescript` \(tier 1\) skips generator, which tier 1 stops a release for/);
+    assert.deepEqual(result.provisional, []);
+    assert.deepEqual(result.lagging, []);
+  }
+});
+
+test("required skips follow the tier's existing failure disposition", () => {
+  for (const tier of [2, 3, 4]) {
+    const incomplete = { profiles: matrix.profiles, languages: { pilot: row(tier, { ...all(green), core: { passed: 2, skipped: 1, failed: 0 } }) } };
+    const result = gate(incomplete, profiles, undefined);
+    assert.equal(result.problems.length, tier === 2 ? 1 : 0);
+    assert.equal(result.provisional.length, tier === 2 ? 0 : 1);
+    assert.match((tier === 2 ? result.problems : result.provisional)[0], /skips core/);
+    assert.deepEqual(result.lagging, []);
+  }
+});
+
+test("optional skips do not block or consume the tier 2 failure lag", () => {
+  for (const tier of [2, 3, 4]) {
+    const optional = { profiles: matrix.profiles, languages: { pilot: row(tier, { ...all(green), tunnel: { passed: 0, skipped: 2, failed: 0 } }) } };
+    assert.deepEqual(gate(optional, profiles, optional), { problems: [], provisional: [], lagging: [] });
+  }
+});
+
+test("required failures and skips are both reported without hiding optional failure lag", () => {
+  const mixed = { profiles: matrix.profiles, languages: { python: row(2, { ...all(green), core: red, generator: { passed: 1, skipped: 1, failed: 0 }, tunnel: red }) } };
+  const result = gate(mixed, profiles, undefined);
+  assert.equal(result.problems.length, 1);
+  assert.match(result.problems[0], /fails core and skips generator/);
+  assert.equal(result.lagging.length, 1);
+  assert.match(result.lagging[0], /fails tunnel/);
+});

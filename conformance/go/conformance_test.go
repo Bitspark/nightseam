@@ -52,7 +52,12 @@ func TestDialOnly(t *testing.T) {
 	if _, ok := s.Recipes["typescript"]; !ok {
 		t.Skip("no TypeScript testee")
 	}
+	// This deliberately incomplete testee does not describe the released
+	// runtime. Keep its evidence separate and restore the release matrix
+	// before Open's cleanup checks the real languages' coverage.
+	releaseMatrix := s.Matrix
 	s.Matrix = NewMatrix(s.Profiles)
+	t.Cleanup(func() { s.Matrix = releaseMatrix })
 	// The one skip allowed is a scenario that is about listening — one whose
 	// file declares listen, a WebSocket handshake say — with the dial-only
 	// testee on the side that listens; every other skip is the runner
@@ -72,6 +77,9 @@ func TestDialOnly(t *testing.T) {
 		if cell.Passed == 0 {
 			t.Errorf("%s: nothing passed", profile)
 		}
+	}
+	if got := s.Matrix.Verdict(s.Profiles, "typescript"); got != "blocking" {
+		t.Errorf("the artificial testee's required listening skip: verdict %s, want blocking", got)
 	}
 }
 

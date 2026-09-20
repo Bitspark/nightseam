@@ -105,7 +105,7 @@ export function planned(profiles) {
 
 /**
  * What the tier table says of a matrix at release time, per docs/languages/tiers.md:
- * a failure in a profile the tier *requires* is what its `onFailure` says —
+ * a failure or skip in a profile the tier *requires* is what its `onFailure` says —
  * `stop` refuses the tag, `provisional` ships and marks the language in the
  * notes — and a failure elsewhere is what its `otherwise` says, `stop-next`
  * meaning this release ships and the next one refuses if it is still
@@ -133,9 +133,16 @@ export function gate(matrix, profiles, previous) {
       .map(([name]) => name)
       .sort();
     const inRequired = failed.filter(name => required.includes(name));
+    const skippedRequired = Object.entries(row.cells ?? {})
+      .filter(([name, value]) => required.includes(name) && (value?.skipped ?? 0) > 0)
+      .map(([name]) => name)
+      .sort();
     const elsewhere = failed.filter(name => !required.includes(name));
-    if (inRequired.length > 0) {
-      const what = `\`${language}\` (tier ${row.tier}) fails ${inRequired.join(", ")}`;
+    const incomplete = [];
+    if (inRequired.length > 0) incomplete.push(`fails ${inRequired.join(", ")}`);
+    if (skippedRequired.length > 0) incomplete.push(`skips ${skippedRequired.join(", ")}`);
+    if (incomplete.length > 0) {
+      const what = `\`${language}\` (tier ${row.tier}) ${incomplete.join(" and ")}`;
       if (tier.onFailure === "stop") problems.push(`${what}, which tier ${row.tier} stops a release for`);
       else if (tier.onFailure === "provisional") provisional.push(`${what}; tier ${row.tier} ships provisional`);
     }

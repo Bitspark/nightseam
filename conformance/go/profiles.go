@@ -267,7 +267,7 @@ func (m *Matrix) Record(language, profile string, o Outcome) {
 }
 
 // Verdict is what the tier table says of a language's row: ok when every
-// cell of a required profile passed or was skipped; else what the tier's
+// cell of a required profile passed without skips or failures; else what the tier's
 // onFailure says — blocking, which stops a release; provisional, which
 // marks the language in the notes; blocking-next, a tier 2 language's
 // second failing release. A language of no tier is never blocking.
@@ -282,7 +282,7 @@ func (m *Matrix) Verdict(p *Profiles, language string) string {
 	}
 	row := m.rows[language]
 	for _, profile := range tier.Requires {
-		if cell := row[profile]; cell != nil && cell.Failed > 0 {
+		if cell := row[profile]; cell != nil && (cell.Failed > 0 || cell.Skipped > 0) {
 			switch tier.OnFailure {
 			case "stop":
 				return "blocking"
