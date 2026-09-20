@@ -243,6 +243,8 @@ test('exportValue tracks only its own allocations and completed views start fres
     assert.equal(p.a.counts().exports, 2);
     captured.release(p.a.decode(raw));
     assert.equal(p.a.counts().exports, 1);
+    captured.close();
+    assert.equal(scopeOf(p.a.peer), undefined, 'closing a view must unregister the scope');
   } finally {
     p.close();
   }

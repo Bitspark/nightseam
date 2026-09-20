@@ -71,6 +71,12 @@ func TestExportValueTracksOnlyItsOwnAllocations(t *testing.T) {
 	if p.A.Counts().Exports != 1 {
 		t.Fatal(p.A.Counts())
 	}
+	if err := captured.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, found := live.ScopeOf(p.A.Peer()); found {
+		t.Fatal("closing a conversion view left the closed scope registered")
+	}
 }
 
 func TestExportValueUnwindsInvalidJSONAndPanic(t *testing.T) {

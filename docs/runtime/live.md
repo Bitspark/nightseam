@@ -174,9 +174,10 @@ value into a JSON snapshot. The view retains the original scope identity, and
 later conversions through a captured view start fresh builds.
 
 Generated live helpers and operation/callable boundaries use this mechanism.
-Generic data helpers take arbitrary converters and have no live runtime
-dependency: when composing them directly with live converters, enclose the
-whole conversion and validation in `ExportValue`/`exportValue`, and close every
+Generic helpers take arbitrary converters; generic data helpers have no live
+runtime dependency. When calling generic helpers directly with live converters,
+including helpers for intrinsically live generic types, enclose the whole
+conversion and validation in `ExportValue`/`exportValue`, and close every
 converter over the callback's scope view. Effects through some other scope
 handle are outside that build.
 
