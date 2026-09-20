@@ -8,6 +8,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Clarified
 
+- The tiers page records that the TypeScript target renders both generated
+  roles since #315, that no `generator` cell holds a skip, and that the gate's
+  tolerance of skips — not an absent TypeScript binding — is what #295 closes.
+
 - The tiers page names the live profile beside the four it had, and its
   table is held to `conformance/profiles.json`, so the page a release reads
   for what a tier guarantees cannot omit a profile the gate requires.
@@ -252,6 +256,9 @@ are one number. Entries are in the words of the commits that landed them.
 - Conformance and release gates reject skipped scenarios in a language's
   required profiles, including absent generated server roles. The matrix
   keeps the skips visible; optional profiles retain their existing tier policy.
+- Generated TypeScript methods with no request and a live callback result
+  validate the empty request correctly in both client and server bindings.
+
 - The Go tunnel WebSocket fixture installs both tunnels before either peer
   reads frames, preventing its first channel open from racing registration.
 

@@ -98,14 +98,19 @@ Java and Swift follow at tier 4 and rise as they hold.
 | Target | Generated client | Generated server binding |
 |---|---|---|
 | Go | Yes, including reverse-call handlers and live conversion | Yes |
-| TypeScript | Yes, including reverse-call handlers and live conversion | Yes |
+| TypeScript | Yes, including reverse-call handlers and live conversion | Yes, since #315 |
 
-The runtime `core` and `live` profiles exercise both languages in both peer
-roles, separately from the `generator` profile. Generated scenarios exercise
-the generated clients and server bindings in both languages. Mirroring
-exchanges driver sides, so each language must serve as well as call. The
+The client role can handle calls and export callables; that is not a
+generated implementation of the declaration's server side, which is why
+the two columns are separate and why a target answering `gen.serve` with
+`unsupported` is a target with one of them. The runtime `core` and `live`
+profiles exercise both languages in both peer roles, separately from the
+`generator` profile. Mirroring exchanges driver sides, so a generated
+scenario run across the two languages serves from each in turn. The
+`generator` cells of [the matrix](../../conformance/matrix.json) record no
+skip for either language, and the
 [proof inventory](../declaration/proof-findings.md#generated-roles-and-skips)
-records the generated roles and their scenario coverage.
+names which generated operation each pairing exercises.
 
 ### What the gate checks
 
