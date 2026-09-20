@@ -77,7 +77,17 @@ func install(handler Handler, options *runtime.Options) error {
 		if !ok {
 			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 		}
-		params, err := protocol.ImportWatch(scope, raw)
+		params, err := func() (protocol.Watch, error) {
+			var zero protocol.Watch
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Watch\""), raw); err != nil {
+				return zero, err
+			}
+			converted, err := protocol.ImportWatch(scope, raw)
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}()
 		if err != nil {
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
@@ -85,7 +95,18 @@ func install(handler Handler, options *runtime.Options) error {
 		if err != nil {
 			return nil, err
 		}
-		return protocol.ExportSubscription(scope, result)
+		sent, err := func() (json.RawMessage, error) {
+			var zero json.RawMessage
+			converted, err := protocol.ExportSubscription(scope, result)
+			if err != nil {
+				return zero, err
+			}
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Subscription\""), converted); err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}()
+		return sent, err
 	}
 	options.Handlers = handlers
 	families := map[string]string{}

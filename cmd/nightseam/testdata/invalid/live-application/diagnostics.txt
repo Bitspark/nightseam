@@ -1,2 +1,2 @@
-x/live.json#/types/Held/fields/0/type: The application of Page here carries a callable, which it has only from what fills it; a generic declaration of a lower tier has no boundary conversion of its own. Declare the filled shape in live.json and name it. [live_application]
+x/protocol.json#/types/Held/fields/0/type/with/T: A protocol declaration refers to Job, declared in live.json; a declaration refers to its own tier or a lower one. [tier_violation]
 error: 1 problems

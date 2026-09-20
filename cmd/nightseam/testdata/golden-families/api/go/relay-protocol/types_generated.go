@@ -123,3 +123,73 @@ func (Handle) Of() Tag { return Tag{} }
 func (Handle) WireType() runtime.TypeBinding {
 	return runtime.TypeBinding{Schema: schema, Type: "Handle"}
 }
+
+// ExportCarried writes Carried using the supplied conversion for each type argument.
+func ExportCarried[SEnvelope, SHandle any](v Carried[SEnvelope, SHandle], convertSEnvelope func(SEnvelope) (json.RawMessage, error), typeSEnvelope runtime.TypeBinding, convertSHandle func(SHandle) (json.RawMessage, error), typeSHandle runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	var messageMember json.RawMessage
+	messageMemberConverted, err := convertSEnvelope(v.Message)
+	if err != nil {
+		return nil, err
+	}
+	messageMember = messageMemberConverted
+	wire["message"] = messageMember
+	var backMember json.RawMessage
+	var backMemberConverted json.RawMessage
+	if v.Back.Null {
+		backMemberConverted = json.RawMessage("null")
+	} else {
+		backMemberConvertedHeld, err := convertSHandle(v.Back.Value)
+		if err != nil {
+			return nil, err
+		}
+		backMemberConverted = backMemberConvertedHeld
+	}
+	backMember = backMemberConverted
+	wire["back"] = backMember
+	data, err := runtime.MarshalObject([]string{"message", "back"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle}, nil).ValidateExpressionRaw("Carried", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportCarried reads Carried using the supplied conversion for each type argument.
+func ImportCarried[SEnvelope, SHandle any](raw json.RawMessage, convertSEnvelope func(json.RawMessage) (SEnvelope, error), typeSEnvelope runtime.TypeBinding, convertSHandle func(json.RawMessage) (SHandle, error), typeSHandle runtime.TypeBinding) (Carried[SEnvelope, SHandle], error) {
+	var value Carried[SEnvelope, SHandle]
+	if err := schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle}, nil).ValidateExpressionRaw("Carried", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["message"]; present {
+		var held SEnvelope
+		heldConverted, err := convertSEnvelope(member)
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Message = held
+	}
+	if member, present := wire["back"]; present {
+		var held runtime.Nullable[SHandle]
+		var heldConverted runtime.Nullable[SHandle]
+		if string(member) == "null" {
+			heldConverted = runtime.Null[SHandle]()
+		} else {
+			heldConvertedHeld, err := convertSHandle(member)
+			if err != nil {
+				return value, err
+			}
+			heldConverted = runtime.NonNull(heldConvertedHeld)
+		}
+		held = heldConverted
+		value.Back = held
+	}
+	return value, nil
+}

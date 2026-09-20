@@ -4,7 +4,9 @@ import type { Tunnel } from "@nightseam/tunnel";
 import { validateWire } from './types.ts';
 import { liveOver, scopeOf } from "@nightseam/live";
 import * as conversion from './types.ts';
+import * as live_boxes from "@example/boxes-client";
 import type * as Protocol from './types.ts';
+import type * as boxes from "@example/boxes-client";
 export * from './types.ts';
 export { DuplexError };
 /** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */
@@ -14,6 +16,7 @@ export interface Handler {
 }
 export interface Caller {
   name(options?: CallOptions): Promise<string>;
+  pack(params: boxes.Box<Protocol.Unary>, options?: CallOptions): Promise<boxes.Batch<Protocol.Bundle<Protocol.Count>>>;
   toolkit(params: Protocol.ToolkitRequest, options?: CallOptions): Promise<Protocol.Toolkit>;
 }
 /** The public errors of the family: what the code of a DuplexError a call rejects with may be. */
@@ -28,14 +31,16 @@ export class Client implements Caller {
     liveOver(peer, {});
   }
   /** Connects to a WebSocket endpoint and speaks the family over it. */
-  static async dial(url: string, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "name": "combinator", "toolkit": "combinator" } }); const client = new Client(peer, handler, events); await peer.connect(url); return client; }
+  static async dial(url: string, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "name": "combinator", "pack": "combinator", "toolkit": "combinator" } }); const client = new Client(peer, handler, events); await peer.connect(url); return client; }
   /** Speaks the family over a connection of the seam — a tunnel channel, a pipe, an open socket — as the client side of it. */
-  static async attach(connection: FrameConnection, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "name": "combinator", "toolkit": "combinator" } }); const client = new Client(peer, handler, events); await peer.attach(connection); return client; }
+  static async attach(connection: FrameConnection, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const peer = new DuplexPeer({ ...options, families: { ...options.families, "name": "combinator", "pack": "combinator", "toolkit": "combinator" } }); const client = new Client(peer, handler, events); await peer.attach(connection); return client; }
   /** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */
   static async open(tunnel: Tunnel, handle: Protocol.Handle, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return Client.attach(channel, options, handler, events); }
   close(): void { this.peer.close(); }
   /** Ordinary RPC, so the family has a data surface too. */
   async name(options?: CallOptions): Promise<string> { const params = {}; validateWire({ empty: true }, params); const result = await this.peer.call<string>("name", params, options); validateWire("string", result); return result; }
+  /** Supplies a callable in an imported generic record and returns it through nested generic containers and a live generic record. */
+  async pack(params: boxes.Box<Protocol.Unary>, options?: CallOptions): Promise<boxes.Batch<Protocol.Bundle<Protocol.Count>>> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = live_boxes.exportBox<Protocol.Unary>((params) as boxes.Box<Protocol.Unary>, (input: Protocol.Unary): unknown => conversion.exportUnary(scope, (input) as Protocol.Unary)); validateWire({"apply":"boxes.Box","with":{"T":"Unary"}}, sent); const result = await this.peer.call<unknown>("pack", sent, options); validateWire({"apply":"boxes.Batch","with":{"T":{"apply":"Bundle","with":{"T":"Count"}}}}, result); return live_boxes.importBatch<Protocol.Bundle<Protocol.Count>>(result, (input: unknown): Protocol.Bundle<Protocol.Count> => (conversion.importBundle<Protocol.Count>(scope, input, (input: unknown): Protocol.Count => (input) as Protocol.Count)) as Protocol.Bundle<Protocol.Count>); }
   /** Answers callables that take and answer callables. */
   async toolkit(params: Protocol.ToolkitRequest, options?: CallOptions): Promise<Protocol.Toolkit> { const scope = scopeOf(this.peer); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope'); const sent = params; validateWire({"kind":"record","fields":[{"name":"seed","type":"Count","required":true}]}, sent); const result = await this.peer.call<unknown>("toolkit", sent, options); validateWire("Toolkit", result); return conversion.importToolkit(scope, result); }
 }

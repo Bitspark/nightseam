@@ -5,6 +5,7 @@ import type * as carrier from "@example/carrier-client";
 import { validateWire as validate_carrier } from "@example/carrier-client";
 import type * as probe from "@example/probe-client";
 import { validateWire as validate_probe } from "@example/probe-client";
+import * as live_carrier from "@example/carrier-client";
 export interface Borrowed<B extends AnyFamily = AnyFamily> {
   "frame": carrier.Frame<B>;
 }
@@ -53,6 +54,49 @@ export interface Mine<A extends AnyFamily = AnyFamily> {
 }
 /** The family: its name and the wire types a slot of it draws on. */
 export interface Family { readonly name: "album"; Envelope: Envelope; Fixed: Fixed; Handle: Handle }
+/** Writes Borrowed using the supplied conversion for each type argument. */
+export function exportBorrowed<B extends AnyFamily = AnyFamily>(value: Borrowed<B>, convert_B_Envelope: (value: B["Envelope"]) => unknown): unknown {
+  const out: Record<string, unknown> = {};
+  out["frame"] = live_carrier.exportFrame<B>((value["frame"]) as carrier.Frame<B>, (input: B["Envelope"]): unknown => convert_B_Envelope((input) as B["Envelope"]));
+  return out;
+}
+/** Reads Borrowed using the supplied conversion for each type argument. */
+export function importBorrowed<B extends AnyFamily = AnyFamily>(raw: unknown, convert_B_Envelope: (value: unknown) => B["Envelope"]): Borrowed<B> {
+  const wire = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  out["frame"] = live_carrier.importFrame<B>(wire["frame"], (input: unknown): B["Envelope"] => (convert_B_Envelope(input)) as B["Envelope"]);
+  return out as unknown as Borrowed<B>;
+}
+/** Writes Both using the supplied conversion for each type argument. */
+export function exportBoth<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(value: Both<A, B>, convert_A_Envelope: (value: A["Envelope"]) => unknown, convert_B_Envelope: (value: B["Envelope"]) => unknown): unknown {
+  const out: Record<string, unknown> = {};
+  out["mine"] = exportMine<A>((value["mine"]) as Mine<A>, (input: A["Envelope"]): unknown => convert_A_Envelope((input) as A["Envelope"]));
+  out["borrowed"] = exportBorrowed<B>((value["borrowed"]) as Borrowed<B>, (input: B["Envelope"]): unknown => convert_B_Envelope((input) as B["Envelope"]));
+  out["fixed"] = value["fixed"];
+  return out;
+}
+/** Reads Both using the supplied conversion for each type argument. */
+export function importBoth<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(raw: unknown, convert_A_Envelope: (value: unknown) => A["Envelope"], convert_B_Envelope: (value: unknown) => B["Envelope"]): Both<A, B> {
+  const wire = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  out["mine"] = importMine<A>(wire["mine"], (input: unknown): A["Envelope"] => (convert_A_Envelope(input)) as A["Envelope"]);
+  out["borrowed"] = importBorrowed<B>(wire["borrowed"], (input: unknown): B["Envelope"] => (convert_B_Envelope(input)) as B["Envelope"]);
+  out["fixed"] = wire["fixed"];
+  return out as unknown as Both<A, B>;
+}
+/** Writes Mine using the supplied conversion for each type argument. */
+export function exportMine<A extends AnyFamily = AnyFamily>(value: Mine<A>, convert_A_Envelope: (value: A["Envelope"]) => unknown): unknown {
+  const out: Record<string, unknown> = {};
+  out["held"] = convert_A_Envelope((value["held"]) as A["Envelope"]);
+  return out;
+}
+/** Reads Mine using the supplied conversion for each type argument. */
+export function importMine<A extends AnyFamily = AnyFamily>(raw: unknown, convert_A_Envelope: (value: unknown) => A["Envelope"]): Mine<A> {
+  const wire = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  out["held"] = convert_A_Envelope(wire["held"]);
+  return out as unknown as Mine<A>;
+}
 
 const contractTypes = {"types":{"Borrowed":{"kind":"record","fields":[{"name":"frame","type":{"apply":"carrier.Frame","with":{"S":"B"}},"required":true}]},"Both":{"kind":"record","fields":[{"name":"mine","type":"Mine","required":true},{"name":"borrowed","type":"Borrowed","required":true},{"name":"fixed","type":"Fixed","required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Fixed":{"kind":"record","fields":[{"name":"frame","type":{"apply":"carrier.Frame","with":{"S":"probe"}},"required":true}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Mine":{"kind":"record","fields":[{"name":"held","type":"A.Envelope","required":true}]}},"parameters":[{"name":"A","of":"protocol"},{"name":"B","of":"protocol"}]} as unknown as WireFamily;
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */

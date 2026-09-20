@@ -18,6 +18,12 @@ func (Frame[SEnvelope]) WireType() runtime.TypeBinding
 func (Handle) MarshalJSON() ([]byte, error)
 func (Handle) Of() Tag
 func (Handle) WireType() runtime.TypeBinding
+func ExportAttachment[SHandle any](v Attachment[SHandle], convertSHandle func(SHandle) (json.RawMessage, error), typeSHandle runtime.TypeBinding) (json.RawMessage, error)
+func ExportFrame[SEnvelope any](v Frame[SEnvelope], convertSEnvelope func(SEnvelope) (json.RawMessage, error), typeSEnvelope runtime.TypeBinding) (json.RawMessage, error)
+func ExportFrames[SEnvelope any](v Frames[SEnvelope], convertSEnvelope func(SEnvelope) (json.RawMessage, error), typeSEnvelope runtime.TypeBinding) (json.RawMessage, error)
+func ImportAttachment[SHandle any](raw json.RawMessage, convertSHandle func(json.RawMessage) (SHandle, error), typeSHandle runtime.TypeBinding) (Attachment[SHandle], error)
+func ImportFrame[SEnvelope any](raw json.RawMessage, convertSEnvelope func(json.RawMessage) (SEnvelope, error), typeSEnvelope runtime.TypeBinding) (Frame[SEnvelope], error)
+func ImportFrames[SEnvelope any](raw json.RawMessage, convertSEnvelope func(json.RawMessage) (SEnvelope, error), typeSEnvelope runtime.TypeBinding) (Frames[SEnvelope], error)
 type AttachParams struct{ID string `json:"id"`}
 type Attachment[SHandle any] struct{Connection SHandle `json:"connection"`; Last int64 `json:"last"`}
 type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`; Traceparent runtime.Optional[string] `json:"traceparent,omitzero"`; Tracestate runtime.Optional[string] `json:"tracestate,omitzero"`; Meta runtime.Optional[map[string]string] `json:"meta,omitzero"`}

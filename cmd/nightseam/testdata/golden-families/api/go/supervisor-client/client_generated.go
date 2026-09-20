@@ -121,7 +121,17 @@ func (c *Client) Relieve(ctx context.Context, params protocol.RelieveRequest) (p
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := protocol.ExportRelieveRequest(scope, params)
+	sent, err := func() (json.RawMessage, error) {
+		var zero json.RawMessage
+		converted, err := protocol.ExportRelieveRequest(scope, params)
+		if err != nil {
+			return zero, err
+		}
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"shift\",\"type\":\"Shift\",\"required\":true},{\"name\":\"sink\",\"type\":\"worker.ProgressSink\",\"required\":true}]}"), converted); err != nil {
+			return zero, err
+		}
+		return converted, nil
+	}()
 	if err != nil {
 		return result, err
 	}
@@ -145,7 +155,17 @@ func (c *Client) Watch(ctx context.Context, params protocol.Watch) (workerprotoc
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := protocol.ExportWatch(scope, params)
+	sent, err := func() (json.RawMessage, error) {
+		var zero json.RawMessage
+		converted, err := protocol.ExportWatch(scope, params)
+		if err != nil {
+			return zero, err
+		}
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Watch\""), converted); err != nil {
+			return zero, err
+		}
+		return converted, nil
+	}()
 	if err != nil {
 		return result, err
 	}
@@ -153,5 +173,16 @@ func (c *Client) Watch(ctx context.Context, params protocol.Watch) (workerprotoc
 	if err := c.Peer.Call(ctx, "watch", sent, &raw); err != nil {
 		return result, err
 	}
-	return workerprotocol.ImportJob(scope, raw)
+	received, err := func() (workerprotocol.Job, error) {
+		var zero workerprotocol.Job
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"worker.Job\""), raw); err != nil {
+			return zero, err
+		}
+		converted, err := workerprotocol.ImportJob(scope, raw)
+		if err != nil {
+			return zero, err
+		}
+		return converted, nil
+	}()
+	return received, err
 }

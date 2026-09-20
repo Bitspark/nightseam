@@ -152,7 +152,17 @@ func (c *Client) Watch(ctx context.Context, params protocol.Watch) (protocol.Sub
 	if !ok {
 		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
 	}
-	sent, err := protocol.ExportWatch(scope, params)
+	sent, err := func() (json.RawMessage, error) {
+		var zero json.RawMessage
+		converted, err := protocol.ExportWatch(scope, params)
+		if err != nil {
+			return zero, err
+		}
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Watch\""), converted); err != nil {
+			return zero, err
+		}
+		return converted, nil
+	}()
 	if err != nil {
 		return result, err
 	}
@@ -160,7 +170,18 @@ func (c *Client) Watch(ctx context.Context, params protocol.Watch) (protocol.Sub
 	if err := c.Peer.Call(ctx, "watch", sent, &raw); err != nil {
 		return result, err
 	}
-	return protocol.ImportSubscription(scope, raw)
+	received, err := func() (protocol.Subscription, error) {
+		var zero protocol.Subscription
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Subscription\""), raw); err != nil {
+			return zero, err
+		}
+		converted, err := protocol.ImportSubscription(scope, raw)
+		if err != nil {
+			return zero, err
+		}
+		return converted, nil
+	}()
+	return received, err
 }
 func (c *Client) OnChanged(handler func(context.Context, protocol.Payload)) error {
 	return c.Peer.HandleEvent("changed", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {

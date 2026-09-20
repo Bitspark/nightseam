@@ -13,6 +13,59 @@ import (
 // Tag is this family, as a type: what every record and enum of the package returns from Of, and what an entry point of a package generic in a family holds its type arguments to.
 type Tag struct{}
 
+type Bundle[T any] struct {
+	Metadata BundleMetadata[T] `json:"metadata"`
+	Run      Unary             `json:"run"`
+}
+
+// MarshalJSON refuses: Bundle carries a callable, and a live value has no encoding apart from the scope its bindings belong to.
+func (v Bundle[T]) MarshalJSON() ([]byte, error) {
+	return nil, fmt.Errorf("Bundle carries a callable; write it with ExportBundle, which takes the live scope its bindings are made in")
+}
+
+// UnmarshalJSON refuses for the same reason: a reference resolves in a scope or nowhere.
+func (v *Bundle[T]) UnmarshalJSON(data []byte) error {
+	return fmt.Errorf("Bundle carries a callable; read it with ImportBundle, which takes the live scope its references resolve in")
+}
+func (Bundle[T]) Of() Tag { return Tag{} }
+func (Bundle[T]) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": runtime.TypeArgument[T]()}, nil), Type: "Bundle"}
+}
+
+type BundleMetadata[T any] struct {
+	Seed T `json:"seed"`
+}
+
+func (v BundleMetadata[T]) MarshalJSON() ([]byte, error) {
+	data, err := runtime.MarshalJSON((struct {
+		Seed T `json:"seed"`
+	})(v))
+	if err != nil {
+		return nil, err
+	}
+	if err = schema.Bind(map[string]any{"T": runtime.TypeArgument[T]()}, nil).ValidateExpressionRaw(runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"seed\",\"type\":\"T\",\"required\":true}]}"), data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+func (v *BundleMetadata[T]) UnmarshalJSON(data []byte) error {
+	if err := schema.Bind(map[string]any{"T": runtime.TypeArgument[T]()}, nil).ValidateExpressionRaw(runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"seed\",\"type\":\"T\",\"required\":true}]}"), data); err != nil {
+		return err
+	}
+	var decoded (struct {
+		Seed T `json:"seed"`
+	})
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*v = BundleMetadata[T](decoded)
+	return nil
+}
+func (BundleMetadata[T]) Of() Tag { return Tag{} }
+func (BundleMetadata[T]) WireType() runtime.TypeBinding {
+	return runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": runtime.TypeArgument[T]()}, nil), Type: runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"seed\",\"type\":\"T\",\"required\":true}]}")}
+}
+
 // Count: What a unary callable takes and answers.
 type Count = int64
 
@@ -144,6 +197,127 @@ func (v *ToolkitRequest) UnmarshalJSON(data []byte) error {
 func (ToolkitRequest) Of() Tag { return Tag{} }
 func (ToolkitRequest) WireType() runtime.TypeBinding {
 	return runtime.TypeBinding{Schema: schema, Type: runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"seed\",\"type\":\"Count\",\"required\":true}]}")}
+}
+
+// ExportBundle writes Bundle using the supplied conversion for each type argument.
+func ExportBundle[T any](scope *live.Scope, v Bundle[T], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error) {
+	if scope == nil {
+		return nil, fmt.Errorf("Bundle: a live value is exported into a scope")
+	}
+	wire := map[string]json.RawMessage{}
+	var metadataMember json.RawMessage
+	metadataMemberConvertedConvert0 := func(input T) (json.RawMessage, error) {
+		converted, err := convertT(input)
+		if err != nil {
+			return nil, err
+		}
+		return converted, nil
+	}
+	metadataMemberConverted, err := ExportBundleMetadata[T](v.Metadata, metadataMemberConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: runtime.MustTypeExpression("\"T\"")})
+	if err != nil {
+		return nil, err
+	}
+	metadataMember = metadataMemberConverted
+	wire["metadata"] = metadataMember
+	var runMember json.RawMessage
+	runMemberConverted, err := ExportUnary(scope, v.Run)
+	if err != nil {
+		return nil, err
+	}
+	runMember = runMemberConverted
+	wire["run"] = runMember
+	data, err := runtime.MarshalObject([]string{"metadata", "run"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw("Bundle", data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportBundle reads Bundle using the supplied conversion for each type argument.
+func ImportBundle[T any](scope *live.Scope, raw json.RawMessage, convertT func(json.RawMessage) (T, error), typeT runtime.TypeBinding) (Bundle[T], error) {
+	var value Bundle[T]
+	if scope == nil {
+		return value, fmt.Errorf("Bundle: a live value is imported into a scope")
+	}
+	if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw("Bundle", raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["metadata"]; present {
+		var held BundleMetadata[T]
+		heldConvertedConvert0 := func(input json.RawMessage) (T, error) {
+			var zero T
+			converted, err := convertT(input)
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}
+		heldConverted, err := ImportBundleMetadata[T](member, heldConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: runtime.MustTypeExpression("\"T\"")})
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Metadata = held
+	}
+	if member, present := wire["run"]; present {
+		var held Unary
+		heldConverted, err := ImportUnary(scope, member)
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Run = held
+	}
+	return value, nil
+}
+
+// ExportBundleMetadata writes BundleMetadata using the supplied conversion for each type argument.
+func ExportBundleMetadata[T any](v BundleMetadata[T], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error) {
+	wire := map[string]json.RawMessage{}
+	var seedMember json.RawMessage
+	seedMemberConverted, err := convertT(v.Seed)
+	if err != nil {
+		return nil, err
+	}
+	seedMember = seedMemberConverted
+	wire["seed"] = seedMember
+	data, err := runtime.MarshalObject([]string{"seed"}, wire)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw(runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"seed\",\"type\":\"T\",\"required\":true}]}"), data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// ImportBundleMetadata reads BundleMetadata using the supplied conversion for each type argument.
+func ImportBundleMetadata[T any](raw json.RawMessage, convertT func(json.RawMessage) (T, error), typeT runtime.TypeBinding) (BundleMetadata[T], error) {
+	var value BundleMetadata[T]
+	if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw(runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"seed\",\"type\":\"T\",\"required\":true}]}"), raw); err != nil {
+		return value, err
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return value, err
+	}
+	if member, present := wire["seed"]; present {
+		var held T
+		heldConverted, err := convertT(member)
+		if err != nil {
+			return value, err
+		}
+		held = heldConverted
+		value.Seed = held
+	}
+	return value, nil
 }
 
 // Factory: Higher order both ways: it takes a callable and answers one.

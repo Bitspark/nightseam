@@ -4,6 +4,7 @@ package combinatorclient
 import (
 	context "context"
 	json "encoding/json"
+	boxesprotocol "example.test/generated/api/go/boxes-protocol"
 	protocol "example.test/generated/api/go/combinator-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
@@ -23,6 +24,7 @@ type Handler interface {
 // Caller is the protocol's caller side: every operation a client sends. Client implements it.
 type Caller interface {
 	Name(ctx context.Context) (string, error)
+	Pack(ctx context.Context, params boxesprotocol.Box[protocol.Unary]) (boxesprotocol.Batch[protocol.Bundle[protocol.Count]], error)
 	Toolkit(ctx context.Context, params protocol.ToolkitRequest) (protocol.Toolkit, error)
 }
 
@@ -40,6 +42,7 @@ func install(handler Handler, events Events, options *runtime.Options) error {
 		families[name] = existing
 	}
 	families["name"] = "combinator"
+	families["pack"] = "combinator"
 	families["toolkit"] = "combinator"
 	options.Families = families
 	prepare := options.Prepare
@@ -108,6 +111,68 @@ func (c *Client) Name(ctx context.Context) (string, error) {
 	return result, nil
 }
 
+// Pack: Supplies a callable in an imported generic record and returns it through nested generic containers and a live generic record.
+func (c *Client) Pack(ctx context.Context, params boxesprotocol.Box[protocol.Unary]) (boxesprotocol.Batch[protocol.Bundle[protocol.Count]], error) {
+	var result boxesprotocol.Batch[protocol.Bundle[protocol.Count]]
+	scope, ok := live.ScopeOf(c.Peer)
+	if !ok {
+		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
+	}
+	sent, err := func() (json.RawMessage, error) {
+		var zero json.RawMessage
+		convertedConvert0 := func(input protocol.Unary) (json.RawMessage, error) {
+			converted, err := protocol.ExportUnary(scope, input)
+			if err != nil {
+				return nil, err
+			}
+			return converted, nil
+		}
+		converted, err := boxesprotocol.ExportBox[protocol.Unary](params, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Unary\"")})
+		if err != nil {
+			return zero, err
+		}
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"apply\":\"boxes.Box\",\"with\":{\"T\":\"Unary\"}}"), converted); err != nil {
+			return zero, err
+		}
+		return converted, nil
+	}()
+	if err != nil {
+		return result, err
+	}
+	var raw json.RawMessage
+	if err := c.Peer.Call(ctx, "pack", sent, &raw); err != nil {
+		return result, err
+	}
+	received, err := func() (boxesprotocol.Batch[protocol.Bundle[protocol.Count]], error) {
+		var zero boxesprotocol.Batch[protocol.Bundle[protocol.Count]]
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"apply\":\"boxes.Batch\",\"with\":{\"T\":{\"apply\":\"Bundle\",\"with\":{\"T\":\"Count\"}}}}"), raw); err != nil {
+			return zero, err
+		}
+		convertedConvert0 := func(input json.RawMessage) (protocol.Bundle[protocol.Count], error) {
+			var zero protocol.Bundle[protocol.Count]
+			convertedConvert0 := func(input json.RawMessage) (protocol.Count, error) {
+				var zero protocol.Count
+				var converted protocol.Count
+				if err := json.Unmarshal(input, &converted); err != nil {
+					return zero, err
+				}
+				return converted, nil
+			}
+			converted, err := protocol.ImportBundle[protocol.Count](scope, input, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")})
+			if err != nil {
+				return zero, err
+			}
+			return converted, nil
+		}
+		converted, err := boxesprotocol.ImportBatch[protocol.Bundle[protocol.Count]](raw, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("{\"apply\":\"Bundle\",\"with\":{\"T\":\"Count\"}}")})
+		if err != nil {
+			return zero, err
+		}
+		return converted, nil
+	}()
+	return received, err
+}
+
 // Toolkit: Answers callables that take and answer callables.
 func (c *Client) Toolkit(ctx context.Context, params protocol.ToolkitRequest) (protocol.Toolkit, error) {
 	var result protocol.Toolkit
@@ -122,5 +187,16 @@ func (c *Client) Toolkit(ctx context.Context, params protocol.ToolkitRequest) (p
 	if err := c.Peer.Call(ctx, "toolkit", params, &raw); err != nil {
 		return result, err
 	}
-	return protocol.ImportToolkit(scope, raw)
+	received, err := func() (protocol.Toolkit, error) {
+		var zero protocol.Toolkit
+		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Toolkit\""), raw); err != nil {
+			return zero, err
+		}
+		converted, err := protocol.ImportToolkit(scope, raw)
+		if err != nil {
+			return zero, err
+		}
+		return converted, nil
+	}()
+	return received, err
 }

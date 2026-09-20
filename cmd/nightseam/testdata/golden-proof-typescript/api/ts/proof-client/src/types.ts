@@ -77,6 +77,74 @@ export interface TextPart {
 }
 /** The family: its name and the wire types a slot of it draws on. */
 export interface Family { readonly name: "proof"; Envelope: Envelope; Handle: Handle; OptionNone: OptionNone; Part: Part; PartImage: PartImage; Parts: Parts; PartsRequest: PartsRequest; RichPart: RichPart; RichPartTable: RichPartTable; TextPart: TextPart }
+/** Writes Carried using the supplied conversion for each type argument. */
+export function exportCarried<S extends AnyFamily = AnyFamily, Item = unknown>(value: Carried<S, Item>, convert_S_Envelope: (value: S["Envelope"]) => unknown, convert_S_Handle: (value: S["Handle"]) => unknown, convert_Item_: (value: Item) => unknown): unknown {
+  const out: Record<string, unknown> = {};
+  out["message"] = convert_S_Envelope((value["message"]) as S["Envelope"]);
+  out["back"] = (value["back"] === null ? null : convert_S_Handle((value["back"]) as S["Handle"]));
+  out["page"] = exportPage<Item>((value["page"]) as Page<Item>, (input: Item): unknown => convert_Item_((input) as Item));
+  return out;
+}
+/** Reads Carried using the supplied conversion for each type argument. */
+export function importCarried<S extends AnyFamily = AnyFamily, Item = unknown>(raw: unknown, convert_S_Envelope: (value: unknown) => S["Envelope"], convert_S_Handle: (value: unknown) => S["Handle"], convert_Item_: (value: unknown) => Item): Carried<S, Item> {
+  const wire = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  out["message"] = convert_S_Envelope(wire["message"]);
+  out["back"] = (wire["back"] === null ? null : convert_S_Handle(wire["back"]));
+  out["page"] = importPage<Item>(wire["page"], (input: unknown): Item => (convert_Item_(input)) as Item);
+  return out as unknown as Carried<S, Item>;
+}
+/** Writes Option using the supplied conversion for each type argument. */
+export function exportOption<T = unknown>(value: Option<T>, convert_T_: (value: T) => unknown): unknown {
+  const held = value as Record<string, unknown>;
+  switch (held["kind"]) {
+    case "none": return { "kind": "none", "value": held["value"] };
+    case "some": return { "kind": "some", "value": convert_T_((held["value"]) as T) };
+  }
+  throw new Error("Option: unknown variant " + String(held["kind"]));
+}
+/** Reads Option using the supplied conversion for each type argument. */
+export function importOption<T = unknown>(raw: unknown, convert_T_: (value: unknown) => T): Option<T> {
+  const held = raw as Record<string, unknown>;
+  switch (held["kind"]) {
+    case "none": return { "kind": "none", "value": held["value"] } as unknown as Option<T>;
+    case "some": return { "kind": "some", "value": convert_T_(held["value"]) } as unknown as Option<T>;
+  }
+  throw new Error("Option: unknown variant " + String(held["kind"]));
+}
+/** Writes Page using the supplied conversion for each type argument. */
+export function exportPage<T = unknown>(value: Page<T>, convert_T_: (value: T) => unknown): unknown {
+  const out: Record<string, unknown> = {};
+  out["items"] = (value["items"] as unknown[]).map((item) => convert_T_((item) as T));
+  if (value["next"] !== undefined) out["next"] = value["next"];
+  return out;
+}
+/** Reads Page using the supplied conversion for each type argument. */
+export function importPage<T = unknown>(raw: unknown, convert_T_: (value: unknown) => T): Page<T> {
+  const wire = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  out["items"] = (wire["items"] as unknown[]).map((item) => convert_T_(item));
+  if (wire["next"] !== undefined) out["next"] = wire["next"];
+  return out as unknown as Page<T>;
+}
+/** Writes Result using the supplied conversion for each type argument. */
+export function exportResult<T = unknown, E = unknown>(value: Result<T, E>, convert_T_: (value: T) => unknown, convert_E_: (value: E) => unknown): unknown {
+  const held = value as Record<string, unknown>;
+  switch (held["kind"]) {
+    case "err": return { "kind": "err", "value": convert_E_((held["value"]) as E) };
+    case "ok": return { "kind": "ok", "value": convert_T_((held["value"]) as T) };
+  }
+  throw new Error("Result: unknown variant " + String(held["kind"]));
+}
+/** Reads Result using the supplied conversion for each type argument. */
+export function importResult<T = unknown, E = unknown>(raw: unknown, convert_T_: (value: unknown) => T, convert_E_: (value: unknown) => E): Result<T, E> {
+  const held = raw as Record<string, unknown>;
+  switch (held["kind"]) {
+    case "err": return { "kind": "err", "value": convert_E_(held["value"]) } as unknown as Result<T, E>;
+    case "ok": return { "kind": "ok", "value": convert_T_(held["value"]) } as unknown as Result<T, E>;
+  }
+  throw new Error("Result: unknown variant " + String(held["kind"]));
+}
 
 const contractTypes = {"types":{"Carried":{"kind":"record","fields":[{"name":"message","type":"S.Envelope","required":true},{"name":"back","type":{"nullable":"S.Handle"},"required":true},{"name":"page","type":{"apply":"Page","with":{"T":"Item"}},"required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Option":{"kind":"union","parameters":[{"name":"T"}],"tag":"kind","variants":{"none":{"kind":"record"},"some":"T"}},"Page":{"kind":"record","fields":[{"name":"items","type":{"array":"T"},"required":true},{"name":"next","type":{"nullable":"string"},"required":false}],"parameters":[{"name":"T"}]},"Part":{"kind":"union","tag":"type","variants":{"count":"integer","image":{"kind":"record","fields":[{"name":"url","type":"string","required":true,"pattern":"^https://[A-Za-z0-9.-]+/[^ ]*$"},{"name":"alt","type":{"nullable":"string"},"required":false}]},"text":"TextPart"}},"Parts":{"kind":"alias","type":{"apply":"Page","with":{"T":"Part"}}},"Result":{"kind":"union","parameters":[{"name":"T"},{"name":"E"}],"tag":"kind","variants":{"err":"E","ok":"T"}},"RichPart":{"kind":"union","extends":["Part"],"tag":"type","variants":{"table":{"kind":"record","fields":[{"name":"rows","type":{"array":{"nullable":"string"}},"required":true}]}}},"TextPart":{"kind":"record","fields":[{"name":"type","type":{"literal":"text"},"required":true},{"name":"body","type":"string","required":true,"length":{"min":1}}]}},"parameters":[{"name":"S","of":"protocol"},{"name":"Item"}]} as unknown as WireFamily;
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
