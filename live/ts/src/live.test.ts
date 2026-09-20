@@ -54,7 +54,7 @@ for (const one of cases()) {
   });
 }
 
-test('a reference does not survive its connection', async () => {
+async function serializedReferenceNewConnection(): Promise<void> {
   const first = await over();
   const exported = first.a.export(SINK, echo);
   const carried = JSON.parse(JSON.stringify(exported));
@@ -62,18 +62,28 @@ test('a reference does not survive its connection', async () => {
 
   const second = await over();
   try {
-    // The token is carried across by hand, which is the only way it can be
-    // carried at all — and the new scope's nonce is not the old one's.
+    const { imported: fresh } = handed(second.a, second.b, SINK, echo);
+    // Decode accepts these bytes and import attaches; only invocation proves
+    // that the new exporting scope has no binding with the old nonce.
     const arrived = second.b.decode(carried);
     const invoke = second.b.import(arrived, SINK);
+    assert.deepEqual(second.a.counts(), { exports: 1, imports: 0 });
+    assert.deepEqual(second.b.counts(), { exports: 0, imports: 2 });
     await assert.rejects(
       () => invoke(1),
       (error: DuplexError) => error.code === REFERENCE_UNKNOWN,
     );
+    assert.equal(await fresh('fresh'), 'fresh');
+    second.a.peer.handle('ordinary', async (request) => request);
+    assert.equal(await second.b.peer.call('ordinary', 'alive'), 'alive');
+    assert.deepEqual(second.a.counts(), { exports: 1, imports: 0 });
+    assert.deepEqual(second.b.counts(), { exports: 0, imports: 2 });
   } finally {
     second.close();
   }
-});
+}
+
+test('serializedReferenceNewConnection', serializedReferenceNewConnection);
 
 test('pre-cancelled invocations retain no scope bookkeeping', async () => {
   const p = await over();
@@ -135,8 +145,8 @@ test('a negative bound is refused', async () => {
   );
 });
 
-// The operator's verdict: the only ways into a reference are an export and a
-// decode of this scope's, so a detached token cannot be imported again.
+// Valid native references come from export or decode. Their associated scope
+// is distinct from serialized bytes, which decode accepts from the caller.
 test('a reference is not a constructible value', async () => {
   const p = await over();
   try {

@@ -11,11 +11,13 @@
 // kind is added, and the peer acts on nothing it did not act on before.
 //
 // What a reference names is a binding of one scope, and a scope is one
-// connection. A scope mints a random nonce when it is made and every binding id
-// it mints carries that nonce, so a binding id of one scope is not a binding id
-// of any other and a token detached from its connection resolves nowhere.
-// A Reference has no public constructor and carries the scope it was minted in:
-// it comes from an Export or from Scope.Decode, and nothing else mints one.
+// connection. A scope mints a random nonce to give its bindings a fresh
+// namespace. Invocation looks up the binding in the exporting scope's current
+// table; reconnection does not restore the previous scope's exports. A native
+// Reference carries the scope that minted it through Export or Scope.Decode.
+// Its serialized bytes can be decoded and imported again; decoding associates
+// them with the receiving scope without proving their provenance or that the
+// named binding exists.
 //
 // The layer proves which binding of which contract, and never who may call it.
 // Application authorization is the application's, above this.
@@ -49,11 +51,11 @@ const (
 	// ErrorContractMismatch is a reference whose contract is not the one
 	// expected where it arrived, or whose invocation names another.
 	ErrorContractMismatch = "contract_mismatch"
-	// ErrorReferenceUnknown is a binding this scope never exported — a stale
-	// token from an earlier connection among them, whose nonce is nobody's.
+	// ErrorReferenceUnknown is an invocation naming no current export in this
+	// scope, including a binding id carried from an earlier connection.
 	ErrorReferenceUnknown = "reference_unknown"
-	// ErrorReferenceForeign is a reference of another scope, refused here
-	// before it reaches the wire.
+	// ErrorReferenceForeign is a native reference associated with another
+	// scope, refused here before it reaches the wire.
 	ErrorReferenceForeign = "reference_foreign"
 	// ErrorReferenceReleased is an invocation of a binding that was released.
 	ErrorReferenceReleased = "reference_released"
@@ -103,8 +105,9 @@ type Counts struct {
 
 // Reference names one binding of one scope. It has no exported field and no
 // public constructor: it is minted by Export or by Scope.Decode, carries the
-// scope it was minted in, and is refused reference_foreign anywhere else —
-// which is how a token detached from its connection cannot be imported again.
+// scope it was minted in, and is refused reference_foreign in another scope.
+// MarshalJSON exposes its binding and contract without that native association;
+// decoding those bytes creates a reference associated with the decoding scope.
 type Reference struct {
 	binding  string
 	contract string
@@ -114,8 +117,8 @@ type Reference struct {
 // Contract is the declared contract the reference carries.
 func (r Reference) Contract() string { return r.contract }
 
-// MarshalJSON writes the reference as it travels inside a payload: an ordinary
-// value of the message carrying it, as a channel handle is.
+// MarshalJSON writes the binding and contract as an ordinary payload value.
+// It does not serialize the native reference's scope association.
 func (r Reference) MarshalJSON() ([]byte, error) {
 	if r.binding == "" {
 		return nil, errors.New("a live reference names no binding")
@@ -289,10 +292,10 @@ func (s *Scope) Export(contract string, invoke Invoke) (Reference, error) {
 	return Reference{binding: id, contract: contract, scope: s}, nil
 }
 
-// Decode reads a reference out of a payload of this scope. It is the only way
-// a reference enters a language besides an export, and it is why a detached
-// token cannot be imported again: what it mints is bound to this scope, and
-// this scope's bindings are the ones its nonce names.
+// Decode validates serialized binding and contract strings and associates the
+// resulting reference with this scope. It accepts caller-supplied bytes without
+// proving they arrived in a message, name an existing binding, or authorize its
+// use. Import checks the native association; invocation checks the export table.
 func (s *Scope) Decode(raw json.RawMessage) (Reference, error) {
 	var wire referenceWire
 	if err := json.Unmarshal(raw, &wire); err != nil {
@@ -308,7 +311,8 @@ func (s *Scope) Decode(raw json.RawMessage) (Reference, error) {
 // same binding imported again gives the same attachment: one binding is one
 // dispatch, and two imports never become two readers competing for one reply.
 // A reference this side exported resolves to the function behind it, with
-// nothing crossing the wire.
+// nothing crossing the wire. Attaching to a remote binding does not establish
+// that it exists: that lookup occurs when the imported function is invoked.
 func (s *Scope) Import(r Reference, contract string) (Invoke, error) {
 	if contract == "" {
 		return nil, s.refuse(contract, ErrorContractInvalid, "a binding is imported for a contract")
