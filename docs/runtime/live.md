@@ -156,7 +156,7 @@ payload could not have been published:
 
 These publication cases live in the paired
 [Go](../../live/go/livetest/publication.go) and
-[TypeScript](../../live/ts/src/publication.ts) suites. The
+[TypeScript](../../live/ts/src/publication.conformance.ts) suites. The
 [generated socket scenario](../../conformance/scenarios/generated/live-uncertain-publication.json)
 uses native callbacks through methods, events and returned values in both
 directions and languages. Repeated failures and explicit owner release return

@@ -8,7 +8,7 @@
  * released is a leak, and a suite that only compares payloads never sees one.
  */
 import { DuplexError } from '@nightseam/runtime';
-import { publicationCases } from './publication.ts';
+import { publicationCases } from './publication.conformance.ts';
 import {
   CONTRACT_INVALID,
   CONTRACT_MISMATCH,
