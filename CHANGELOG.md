@@ -11,6 +11,9 @@ are one number. Entries are in the words of the commits that landed them.
 - The tiers page names the live profile beside the four it had, and its
   table is held to `conformance/profiles.json`, so the page a release reads
   for what a tier guarantees cannot omit a profile the gate requires.
+- The decision pages for the Unicode scalar rule and for the callable kind now
+  carry the five parts a decision has, and the documentation map names the live
+  layer and the compositions among the runtime surfaces.
 - Live lifetime documentation distinguishes calls, bindings, aliases, records
   and connections; release invalidates aliases without counting owners or
   acknowledging remote receipt, forwarding retains its origin dependency, and
@@ -53,6 +56,11 @@ are one number. Entries are in the words of the commits that landed them.
   checkout of six families under `cmd/nightseam/testdata/compositions`, its
   derived interface, stream, cell and topic run in both languages, and the
   four findings that gave the live layer its shape.
+- `scripts/docs.mjs` holds the documentation's claims about its own shape: every
+  page of a documented set is linked from that set's index, and every decision
+  page carries the five parts its index promises. It runs on every pull request
+  beside the link check, which holds the other direction.
+
 - A shared generated forwarding proof carries higher-order functions through
   Go and TypeScript intermediaries over two socket connections, checks retained
   results and four registry counts, and distinguishes typed conversion from
