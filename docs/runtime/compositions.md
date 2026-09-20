@@ -202,6 +202,19 @@ positions; raw-byte forwarding does not recursively translate embedded
 references, and releasing a parent does not automatically dispose of all
 functions it returned.
 
+## Ending one unit of work
+
+A consumer that wants every binding of one unit of work to end together can
+give that work its own peer, or its own tunnel channel carrying a peer, and
+close that peer when the work ends. Its live scope and bindings then end with
+the connection. This is an application lifetime choice: it also settles calls
+in flight and forfeits later use of callbacks retained after uncertain
+publication. On a shared connection, an explicit child owner can instead group
+the work's fresh bindings for release while ordinary RPC continues. Nightseam
+does not infer either policy from a timeout or install a scope-per-work API;
+the [publication outcome table](live.md#the-rules-a-consumer-can-rely-on)
+states what remains until the consumer makes that choice.
+
 ## Data needs none of this
 
 `notes` is a `model.json` and nothing else. It renders a protocol package with

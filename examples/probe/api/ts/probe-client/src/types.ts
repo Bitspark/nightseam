@@ -89,8 +89,7 @@ export function importNotice(owner: LiveOwner, raw: unknown): Notice {
   const scope = owner.scope;
   return async (request: Payload, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
-    const sent = (() => { const converted = request; validateWire("Payload", converted); return converted; })();
-    await invoke(sent, options);
+    await invoke((() => { const converted = request; validateWire("Payload", converted); return converted; })(), options);
     return;
   };
 }

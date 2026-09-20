@@ -140,7 +140,7 @@ func copyFixtureTree(t *testing.T, source, destination string) {
 		// which the fixture installs no types — the fixture has no
 		// node_modules at all, the packages reaching it through paths.
 		if strings.HasSuffix(p, "_test.go") || strings.HasSuffix(p, ".test.ts") ||
-			strings.HasSuffix(p, ".check.ts") || filepath.Base(p) == "conformance.ts" {
+			strings.HasSuffix(p, ".check.ts") || strings.HasSuffix(p, ".conformance.ts") || filepath.Base(p) == "conformance.ts" {
 			return nil
 		}
 		relative, err := filepath.Rel(source, p)

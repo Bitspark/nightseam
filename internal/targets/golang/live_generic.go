@@ -8,6 +8,19 @@ import (
 	"github.com/Bitspark/nightseam/internal/render"
 )
 
+// publishBoundary keeps one completed conversion batch until the send outcome
+// establishes whether the payload could have reached the other side.
+func (f *file) publishBoundary(e model.TypeExpr, src, dst string, publish func()) {
+	json := f.std("json")
+	f.w.Block(fmt.Sprintf("%s, err := owner.PublishValue(", dst), ")", func() {
+		f.w.Block(fmt.Sprintf("func(owner *%s.Owner) (%s.RawMessage, error) {", f.live(), json), "},", func() {
+			f.liveBoundary(e, src, "sent", true)
+			f.line("return sent, err")
+		})
+		f.w.Block(fmt.Sprintf("func(sent %s.RawMessage) (%s.RawMessage, error) {", json, json), "},", publish)
+	})
+}
+
 // liveBoundary keeps the caller's error mapping while expressions (including
 // anonymous containers and applications) use the same recursive conversion.
 func (f *file) liveBoundary(e model.TypeExpr, src, dst string, export bool) {

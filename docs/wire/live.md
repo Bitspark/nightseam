@@ -100,6 +100,8 @@ acknowledgment, so the sender's return is not evidence that the remote side has
 processed the event, nor a synchronized global revocation point. Both runtimes
 keep the local release even if sending the event fails.
 
+A timeout, cancellation or error response does not prove that a carried reference was never delivered; local proof of an unqueued send is not a wire field or acknowledgment, and uncertain publication retains bindings under their existing owner until release or scope end.
+
 ## What is refused, and with what
 
 Every refusal is a public error of `live.invoke`, or is raised where the caller

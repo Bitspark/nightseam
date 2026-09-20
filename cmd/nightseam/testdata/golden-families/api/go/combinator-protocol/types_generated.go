@@ -429,21 +429,25 @@ func ImportFactory(owner *live.Owner, raw json.RawMessage) (Factory, error) {
 		if supplied, ok := live.OwnerOf(ctx); ok && supplied.Scope() == scope {
 			owner = supplied
 		}
-		request, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-			var zero json.RawMessage
-			converted, err := ExportUnary(owner, params)
-			if err != nil {
-				return zero, err
-			}
-			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), converted); err != nil {
-				return zero, err
-			}
-			return converted, nil
-		})
-		if err != nil {
-			return zero, err
-		}
-		result, err := invoke(ctx, request)
+		result, err := owner.PublishValue(
+			func(owner *live.Owner) (json.RawMessage, error) {
+				sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
+					var zero json.RawMessage
+					converted, err := ExportUnary(owner, params)
+					if err != nil {
+						return zero, err
+					}
+					if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), converted); err != nil {
+						return zero, err
+					}
+					return converted, nil
+				})
+				return sent, err
+			},
+			func(sent json.RawMessage) (json.RawMessage, error) {
+				return invoke(ctx, sent)
+			},
+		)
 		if err != nil {
 			return zero, err
 		}
@@ -659,21 +663,25 @@ func ImportSink(owner *live.Owner, raw json.RawMessage) (Sink, error) {
 		if supplied, ok := live.OwnerOf(ctx); ok && supplied.Scope() == scope {
 			owner = supplied
 		}
-		request, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-			var zero json.RawMessage
-			converted, err := ExportUnary(owner, params)
-			if err != nil {
-				return zero, err
-			}
-			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), converted); err != nil {
-				return zero, err
-			}
-			return converted, nil
-		})
-		if err != nil {
-			return err
-		}
-		result, err := invoke(ctx, request)
+		result, err := owner.PublishValue(
+			func(owner *live.Owner) (json.RawMessage, error) {
+				sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
+					var zero json.RawMessage
+					converted, err := ExportUnary(owner, params)
+					if err != nil {
+						return zero, err
+					}
+					if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), converted); err != nil {
+						return zero, err
+					}
+					return converted, nil
+				})
+				return sent, err
+			},
+			func(sent json.RawMessage) (json.RawMessage, error) {
+				return invoke(ctx, sent)
+			},
+		)
 		if err != nil {
 			return err
 		}

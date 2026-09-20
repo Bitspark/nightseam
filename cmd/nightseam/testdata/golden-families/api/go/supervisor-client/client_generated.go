@@ -129,22 +129,28 @@ func (c *Client) Relieve(ctx context.Context, params protocol.RelieveRequest) (p
 	if !ok || owner.Scope() != scope {
 		owner = scope.Owner()
 	}
-	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		var zero json.RawMessage
-		converted, err := protocol.ExportRelieveRequest(owner, params)
-		if err != nil {
-			return zero, err
-		}
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"shift\",\"type\":\"Shift\",\"required\":true},{\"name\":\"sink\",\"type\":\"worker.ProgressSink\",\"required\":true}]}"), converted); err != nil {
-			return zero, err
-		}
-		return converted, nil
-	})
+	raw, err := owner.PublishValue(
+		func(owner *live.Owner) (json.RawMessage, error) {
+			sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
+				var zero json.RawMessage
+				converted, err := protocol.ExportRelieveRequest(owner, params)
+				if err != nil {
+					return zero, err
+				}
+				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"shift\",\"type\":\"Shift\",\"required\":true},{\"name\":\"sink\",\"type\":\"worker.ProgressSink\",\"required\":true}]}"), converted); err != nil {
+					return zero, err
+				}
+				return converted, nil
+			})
+			return sent, err
+		},
+		func(sent json.RawMessage) (json.RawMessage, error) {
+			var raw json.RawMessage
+			err := c.Peer.Call(ctx, "relieve", sent, &raw)
+			return raw, err
+		},
+	)
 	if err != nil {
-		return result, err
-	}
-	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "relieve", sent, &raw); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Shift\""), raw); err != nil {
@@ -167,22 +173,28 @@ func (c *Client) Watch(ctx context.Context, params protocol.Watch) (workerprotoc
 	if !ok || owner.Scope() != scope {
 		owner = scope.Owner()
 	}
-	sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		var zero json.RawMessage
-		converted, err := protocol.ExportWatch(owner, params)
-		if err != nil {
-			return zero, err
-		}
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Watch\""), converted); err != nil {
-			return zero, err
-		}
-		return converted, nil
-	})
+	raw, err := owner.PublishValue(
+		func(owner *live.Owner) (json.RawMessage, error) {
+			sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
+				var zero json.RawMessage
+				converted, err := protocol.ExportWatch(owner, params)
+				if err != nil {
+					return zero, err
+				}
+				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Watch\""), converted); err != nil {
+					return zero, err
+				}
+				return converted, nil
+			})
+			return sent, err
+		},
+		func(sent json.RawMessage) (json.RawMessage, error) {
+			var raw json.RawMessage
+			err := c.Peer.Call(ctx, "watch", sent, &raw)
+			return raw, err
+		},
+	)
 	if err != nil {
-		return result, err
-	}
-	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "watch", sent, &raw); err != nil {
 		return result, err
 	}
 	received, err := func() (workerprotocol.Job, error) {
