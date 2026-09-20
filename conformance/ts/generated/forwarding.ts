@@ -80,7 +80,7 @@ export const forwardingOps: Record<string, (args: Args) => unknown | Promise<unk
         const scope = scopeOf(context.peer);
         if (!scope) throw new ForwardingFailure('invalid', 'generated binding installed no scope');
         combinator.validateWire('Toolkit', wire);
-        endpoint.retained = combinator.importToolkit(scope, wire);
+        endpoint.retained = combinator.importToolkit(scope.owner(), wire);
       },
     }, endpoint.server, {}).then(peer => {
       endpoint.scope = scopeOf(peer);

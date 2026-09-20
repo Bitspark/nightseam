@@ -34,7 +34,7 @@ func emitBinding(f *file) {
 		f.linef("import type { AnyFamily, FamilyBinding, TypeBinding, Slots } from %s;", protocol)
 	}
 	if fam.Live {
-		f.linef("import { liveOver, scopeOf, type LiveScope } from %s;", quote(f.config.Live))
+		f.linef("import { liveOver, scopeOf, type LiveOwner } from %s;", quote(f.config.Live))
 		f.linef("import * as conversion from %s;", protocol)
 		f.liveSiblings()
 	}
@@ -44,13 +44,21 @@ func emitBinding(f *file) {
 	f.line("/** Typed handlers for the declaration's server side. */")
 	f.w.Block(fmt.Sprintf("export interface Handler%s {", decl), "}", func() {
 		for _, m := range fam.Server.Methods {
-			f.linef("%s(params: %s, remote: Remote%s, context: RequestContext): %s | Promise<%s>;", p.operations[m.Name], f.request(m), args, f.spell(m.Result), f.spell(m.Result))
+			context := "RequestContext"
+			if f.liveNeeded(m.Request, m.Result) {
+				context += " & { owner: LiveOwner }"
+			}
+			f.linef("%s(params: %s, remote: Remote%s, context: %s): %s | Promise<%s>;", p.operations[m.Name], f.request(m), args, context, f.spell(m.Result), f.spell(m.Result))
 		}
 	})
 	f.line("/** Client-originated event listeners installed before the connection reads its first frame. */")
 	f.w.Block(fmt.Sprintf("export interface Events%s {", decl), "}", func() {
 		for _, e := range fam.Client.Events {
-			f.linef("%s?: (data: %s, context: EventContext) => void | Promise<void>;", p.operations[e.Name], f.spell(e.Type))
+			context := "EventContext"
+			if f.liveNeeded(e.Type) {
+				context += " & { owner: LiveOwner }"
+			}
+			f.linef("%s?: (data: %s, context: %s) => void | Promise<void>;", p.operations[e.Name], f.spell(e.Type), context)
 		}
 	})
 	f.line("/** Typed reverse calls and events for one connected client. */")
@@ -82,21 +90,21 @@ func emitBinding(f *file) {
 				initial = "const params = {}; "
 			}
 			if f.liveNeeded(m.Request, m.Result) {
-				f.linef("async %s(%s): Promise<%s> { %s%s const sent = %s; const result = await this.peer.call<unknown>(%s, sent, options); validateWire(%s, result%s); return %s; }", p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, f.liveScope(), f.liveExport(m.Request, "params", slots), quote(m.Name), expression(m.Result), slots, f.liveConversion(m.Result, "result", false))
+				f.linef("async %s(%s): Promise<%s> { %s%s const sent = %s; const result = await this.peer.call<unknown>(%s, sent, options); validateWire(%s, result%s); return %s; }", p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, f.liveOwner(false), f.liveExport(m.Request, "params", slots), quote(m.Name), expression(m.Result), slots, f.liveConversion(m.Result, "result", false))
 			} else {
 				f.linef("async %s(%s): Promise<%s> { %svalidateWire(%s, params%s); const result = await this.peer.call<%s>(%s, params, options); validateWire(%s, result%s); return result; }", p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, requestExpression(m), slots, f.spell(m.Result), quote(m.Name), expression(m.Result), slots)
 			}
 		}
 		for _, e := range fam.Server.Events {
 			if f.liveNeeded(e.Type) {
-				f.linef("async emit%s(data: %s, options?: EmitOptions): Promise<void> { %s const sent = %s; await this.peer.emit(%s, sent, options); }", upperFirst(p.operations[e.Name]), f.spell(e.Type), f.liveScope(), f.liveExport(e.Type, "data", slots), quote(e.Name))
+				f.linef("async emit%s(data: %s, options?: EmitOptions & { owner?: LiveOwner }): Promise<void> { %s const sent = %s; await this.peer.emit(%s, sent, options); }", upperFirst(p.operations[e.Name]), f.spell(e.Type), f.liveOwner(false), f.liveExport(e.Type, "data", slots), quote(e.Name))
 			} else {
 				f.linef("async emit%s(data: %s, options?: EmitOptions): Promise<void> { validateWire(%s, data%s); await this.peer.emit(%s, data, options); }", upperFirst(p.operations[e.Name]), f.spell(e.Type), expression(e.Type), slots, quote(e.Name))
 			}
 		}
 		for _, e := range fam.Client.Events {
 			if f.liveNeeded(e.Type) {
-				f.linef("on%s(handler: (data: %s, context: EventContext) => void | Promise<void>): () => void { return this.peer.onEvent(%s, (raw, context) => { %s try { validateWire(%s, raw%s); } catch(error) { this.peer.close(); throw error; } return handler(%s, context); }); }", upperFirst(p.operations[e.Name]), f.spell(e.Type), quote(e.Name), f.liveScope(), expression(e.Type), slots, f.liveConversion(e.Type, "raw", false))
+				f.linef("on%s(handler: (data: %s, context: EventContext & { owner: LiveOwner }) => void | Promise<void>): () => void { return this.peer.onEvent(%s, (raw, context) => { %s try { validateWire(%s, raw%s); } catch(error) { this.peer.close(); throw error; } return handler(%s, ownedContext); }); }", upperFirst(p.operations[e.Name]), f.spell(e.Type), quote(e.Name), f.liveOwner(true), expression(e.Type), slots, f.liveConversion(e.Type, "raw", false))
 			} else {
 				f.linef("on%s(handler: (data: %s, context: EventContext) => void | Promise<void>): () => void { return this.peer.onEvent(%s, (data, context) => { try { validateWire(%s, data%s); } catch(error) { this.peer.close(); throw error; } return handler(data as %s, context); }); }", upperFirst(p.operations[e.Name]), f.spell(e.Type), quote(e.Name), expression(e.Type), slots, f.spell(e.Type))
 			}
@@ -117,10 +125,10 @@ func emitBinding(f *file) {
 			f.line("if (!scopeOf(peer)) liveOver(peer, {});")
 		}
 		serveSlots := strings.ReplaceAll(slots, "this.", "remote.")
-		serveScope := strings.ReplaceAll(f.liveScope(), "this.", "remote.")
+		serveOwner := strings.ReplaceAll(f.liveOwner(true), "this.", "remote.")
 		for _, m := range fam.Server.Methods {
 			if f.liveNeeded(m.Request, m.Result) {
-				f.linef("peer.handle(%s, async (raw, context) => { %s try { validateWire(%s, raw%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = %s; const result = await handler.%s(params as %s, remote, context); return %s; });", quote(m.Name), serveScope, requestExpression(m), serveSlots, f.liveConversion(m.Request, "raw", false), p.operations[m.Name], f.request(m), f.liveExport(m.Result, "result", serveSlots))
+				f.linef("peer.handle(%s, async (raw, context) => { %s try { validateWire(%s, raw%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = %s; const result = await handler.%s(params as %s, remote, ownedContext); return %s; });", quote(m.Name), serveOwner, requestExpression(m), serveSlots, f.liveConversion(m.Request, "raw", false), p.operations[m.Name], f.request(m), f.liveExport(m.Result, "result", serveSlots))
 			} else {
 				f.linef("peer.handle(%s, async (params, context) => { try { validateWire(%s, params%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, remote, context); validateWire(%s, result%s); return result; });", quote(m.Name), requestExpression(m), serveSlots, p.operations[m.Name], f.request(m), expression(m.Result), serveSlots)
 			}
