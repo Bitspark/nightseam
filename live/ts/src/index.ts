@@ -1,3 +1,4 @@
+/// <reference lib="esnext.disposable" preserve="true" />
 /**
  * Callable values across one connection: a scope over a peer, bindings
  * exported from it, and references that name them inside an ordinary payload.
@@ -111,24 +112,52 @@ export class Reference {
 }
 
 interface Binding {
+  owner: OwnerState;
   contract: string;
   invoke: Invoke;
   released: boolean;
 }
 
 interface Attachment {
+  owner: OwnerState;
   contract: string;
   invoke: Invoke;
   released: boolean;
 }
 
-interface ExportBatch {
-  parent?: ExportBatch;
+interface Allocation {
+  id: string;
+  imported: boolean;
+}
+
+interface ValueBatch {
+  parent?: ValueBatch;
   active: boolean;
-  ids: string[];
+  allocations: Allocation[];
+}
+
+interface OwnerState {
+  scope: ScopeState;
+  parent?: OwnerState;
+  children?: Set<OwnerState>;
+  owned?: Map<string, boolean>;
+  released: boolean;
+  view?: LiveOwner;
+}
+
+interface ReleaseNotice {
+  id: string;
+  contract: string;
+  found: boolean;
+  tell: boolean;
 }
 
 interface ScopeState {
+  rootOwner?: OwnerState;
+  exportBinding(owner: OwnerState, batch: ValueBatch | undefined, contract: string, invoke: Invoke): Reference;
+  importBinding(owner: OwnerState, batch: ValueBatch | undefined, reference: Reference, contract: string): Invoke;
+  releaseBindings(bindings: { id: string; tell: boolean }[]): void;
+  refuse(contract: string, code: string, reason: string): DuplexError;
   root: LiveScope;
   peer: DuplexPeer;
   nonce: string;
@@ -144,6 +173,144 @@ interface ScopeState {
 }
 
 const OVER = new WeakMap<DuplexPeer, LiveScope>();
+
+let ownerView: (state: OwnerState, batch?: ValueBatch) => LiveOwner;
+
+/** A caller-chosen lifetime: owns new bindings and borrows existing aliases. */
+export class LiveOwner {
+  private state: OwnerState;
+  private batch?: ValueBatch;
+
+  private constructor(state: OwnerState, batch?: ValueBatch) {
+    this.state = state;
+    this.batch = batch;
+  }
+
+  static {
+    ownerView = (state, batch) => new LiveOwner(state, batch);
+  }
+
+  /** The connection scope this lifetime belongs to. */
+  get scope(): LiveScope {
+    return this.state.scope.root;
+  }
+
+  /** A nested lifetime; releasing this owner also releases its descendants. */
+  child(): LiveOwner {
+    return ownerView({ scope: this.state.scope, parent: this.state, released: false }, this.batch);
+  }
+
+  /** Direct allocations only, excluding children and borrowed attachments. */
+  counts(): Counts {
+    const counts = { exports: 0, imports: 0 };
+    for (const imported of this.state.owned?.values() ?? []) {
+      if (imported) counts.imports++;
+      else counts.exports++;
+    }
+    return counts;
+  }
+
+  /** Revokes owned bindings, children first, once, leaving the scope open. */
+  release(): void {
+    this.state.scope.releaseBindings(endOwner(this.state).map((id) => ({ id, tell: true })));
+  }
+
+  [Symbol.dispose](): void {
+    this.release();
+  }
+
+  /** Creates a binding owned by this lifetime, independent of native identity. */
+  export(contract: string, invoke: Invoke): Reference {
+    return this.state.scope.exportBinding(this.state, this.batch, contract, invoke);
+  }
+
+  /** Owns a fresh attachment, or borrows the existing attachment for this binding. */
+  import(reference: Reference, contract: string): Invoke {
+    return this.state.scope.importBinding(this.state, this.batch, reference, contract);
+  }
+
+  /**
+   * Builds an unpublished JSON snapshot synchronously using the supplied owner
+   * view. Failure discards only newly allocated bindings, without publishing a
+   * release for unpublished exports. Nested successful builds join their parent;
+   * successful outer builds commit to the owner, irrespective of later RPC errors.
+   */
+  exportValue(build: (owner: LiveOwner) => unknown): unknown {
+    return this.build((owner) => {
+      const value = build(owner);
+      if (value instanceof Promise) throw new TypeError('A live export must finish synchronously.');
+      const encoded = JSON.stringify(value);
+      return encoded === undefined ? undefined : JSON.parse(encoded);
+    });
+  }
+
+  /** A failed synchronous import walk releases new attachments, never its borrowed aliases. */
+  importValue<T>(build: (owner: LiveOwner) => T): T {
+    return this.build(build);
+  }
+
+  private build<T>(build: (owner: LiveOwner) => T): T {
+    if (this.state.scope.closed) throw this.state.scope.refuse('', SCOPE_CLOSED, 'The scope ended.');
+    if (ownerEnded(this.state)) throw this.state.scope.refuse('', REFERENCE_RELEASED, 'The owner was released.');
+    const batch: ValueBatch = { active: true, allocations: [] };
+    if (this.batch?.active) batch.parent = this.batch;
+    const view = ownerView(this.state, batch);
+    let committed = false;
+    try {
+      const value = build(view);
+      if (value instanceof Promise) throw new TypeError('A live conversion must finish synchronously.');
+      committed = true;
+      return value;
+    } finally {
+      const allocations = batch.allocations;
+      if (committed && batch.parent?.active) batch.parent.allocations.push(...allocations);
+      batch.active = false;
+      batch.allocations = [];
+      delete batch.parent;
+      if (!committed) {
+        this.state.scope.releaseBindings(allocations.map(({ id, imported }) => ({ id, tell: imported })));
+      }
+    }
+  }
+}
+
+function ownerEnded(owner: OwnerState): boolean {
+  for (let current: OwnerState | undefined = owner; current; current = current.parent) {
+    if (current.released) return true;
+  }
+  return false;
+}
+
+function record(owner: OwnerState, batch: ValueBatch | undefined, id: string, imported: boolean): void {
+  (owner.owned ??= new Map()).set(id, imported);
+  for (let child = owner; child.parent; child = child.parent) {
+    (child.parent.children ??= new Set()).add(child);
+  }
+  if (batch?.active) batch.allocations.push({ id, imported });
+}
+
+function forget(owner: OwnerState, id: string): void {
+  owner.owned?.delete(id);
+  prune(owner);
+}
+
+function prune(owner: OwnerState): void {
+  for (let child = owner; child.parent && !child.owned?.size && !child.children?.size; child = child.parent) {
+    child.parent.children?.delete(child);
+  }
+}
+
+function endOwner(owner: OwnerState): string[] {
+  if (owner.released) return [];
+  owner.released = true;
+  const ids: string[] = [];
+  for (const child of owner.children ?? []) ids.push(...endOwner(child));
+  ids.push(...(owner.owned?.keys() ?? []));
+  delete owner.owned;
+  delete owner.children;
+  prune(owner);
+  return ids;
+}
 
 /**
  * Makes the live layer over a peer, registering its operations on it; a peer
@@ -171,7 +338,7 @@ export function scopeOf(peer: DuplexPeer): LiveScope | undefined {
  * released or ended origin fails with the origin's refusal, which is what the
  * destination's caller is told.
  */
-export function forward(destination: LiveScope, contract: string, origin: Invoke): Reference {
+export function forward(destination: LiveOwner, contract: string, origin: Invoke): Reference {
   if (!origin) throw new DuplexError(CONTRACT_INVALID, "Forwarding needs the origin's function.");
   return destination.export(contract, origin);
 }
@@ -179,7 +346,6 @@ export function forward(destination: LiveScope, contract: string, origin: Invoke
 /** The live layer over one peer: what this side exported over that connection, what it imported, and nothing that outlives it. */
 export class LiveScope {
   private state: ScopeState;
-  private batch?: ExportBatch;
   private get nonce() {
     return this.state.nonce;
   }
@@ -225,6 +391,10 @@ export class LiveScope {
     if (!peer) throw new DuplexError(CONTRACT_INVALID, 'A live scope needs a peer.');
     this.state = {
       root: this,
+      exportBinding: (owner, batch, contract, invoke) => this.exportBinding(owner, batch, contract, invoke),
+      importBinding: (owner, batch, reference, contract) => this.importBinding(owner, batch, reference, contract),
+      releaseBindings: (bindings) => this.releaseBindings(bindings),
+      refuse: (contract, code, reason) => this.refuse(contract, code, reason),
       peer,
       nonce: nonce(),
       maxExports: bound(options.maxExports, 'maxExports'),
@@ -250,35 +420,12 @@ export class LiveScope {
     return { exports: this.exports.size, imports: this.imports.size };
   }
 
-  /**
-   * Constructs an unpublished JSON payload. build must finish synchronously
-   * using its supplied view and must not publish partial values. A throw or
-   * serialization failure discards only this build's exports; nested successful
-   * builds join their parent. Completed views retain this scope's identity and
-   * can start fresh conversions during later invocations. A successful build
-   * commits its allocations; an RPC error afterward does not roll them back.
-   */
-  exportValue(build: (scope: LiveScope) => unknown): unknown {
-    const batch: ExportBatch = { active: true, ids: [] };
-    if (this.batch?.active) batch.parent = this.batch;
-    const view: LiveScope = Object.create(LiveScope.prototype);
-    view.state = this.state;
-    view.batch = batch;
-    let committed = false;
-    try {
-      const value = build(view);
-      if (value instanceof Promise) throw new TypeError('A live export must finish synchronously.');
-      const encoded = JSON.stringify(value);
-      committed = true;
-      return encoded === undefined ? undefined : JSON.parse(encoded);
-    } finally {
-      const ids = batch.ids;
-      if (committed && batch.parent?.active) batch.parent.ids.push(...ids);
-      batch.active = false;
-      batch.ids = [];
-      delete batch.parent;
-      if (!committed) for (const id of ids) this.releaseBinding(id, false);
+  /** The current root lifetime; release ends it and the next call creates a fresh one. */
+  owner(): LiveOwner {
+    if (!this.state.rootOwner || this.state.rootOwner.released) {
+      this.state.rootOwner = { scope: this.state, released: false };
     }
+    return (this.state.rootOwner.view ??= ownerView(this.state.rootOwner));
   }
 
   /**
@@ -287,15 +434,16 @@ export class LiveScope {
    * is nobody's guarantee across a wire, and two bindings are two lifetimes,
    * which is what separate release needs.
    */
-  export(contract: string, invoke: Invoke): Reference {
+  private exportBinding(owner: OwnerState, batch: ValueBatch | undefined, contract: string, invoke: Invoke): Reference {
     if (!contract) throw this.refuse(contract, CONTRACT_INVALID, 'A binding is exported for a contract.');
     if (typeof invoke !== 'function') throw this.refuse(contract, CONTRACT_INVALID, 'A binding is a function.');
     if (this.closed) throw this.refuse(contract, SCOPE_CLOSED, 'The scope ended.');
+    if (ownerEnded(owner)) throw this.refuse(contract, REFERENCE_RELEASED, 'The owner was released.');
     if (this.exports.size >= this.maxExports)
       throw this.refuse(contract, TOO_MANY_EXPORTS, 'No room for another exported binding.');
     const id = `${this.nonce}.${this.next++}`;
-    this.exports.set(id, { contract, invoke, released: false });
-    if (this.batch?.active) this.batch.ids.push(id);
+    this.exports.set(id, { contract, invoke, released: false, owner });
+    record(owner, batch, id, false);
     this.observe({ type: 'live.exported', at: new Date(), contract, binding: id });
     return new Reference(id, contract, this.state.root, MINTED);
   }
@@ -325,7 +473,12 @@ export class LiveScope {
    * nothing crossing the wire. Attaching to a remote binding does not prove
    * that it exists; invocation performs that lookup in the exporting scope.
    */
-  import(reference: Reference, contract: string): Invoke {
+  private importBinding(
+    owner: OwnerState,
+    batch: ValueBatch | undefined,
+    reference: Reference,
+    contract: string,
+  ): Invoke {
     if (!contract) throw this.refuse(contract, CONTRACT_INVALID, 'A binding is imported for a contract.');
     if (!(reference instanceof Reference) || reference.scope !== this.state.root)
       throw this.refuse(contract, REFERENCE_FOREIGN, 'The reference was minted in another scope.');
@@ -336,6 +489,7 @@ export class LiveScope {
         `The reference carries ${reference.contract} where ${contract} is expected.`,
       );
     if (this.closed) throw this.refuse(contract, SCOPE_CLOSED, 'The scope ended.');
+    if (ownerEnded(owner)) throw this.refuse(contract, REFERENCE_RELEASED, 'The owner was released.');
     if (this.gone.has(reference.binding)) throw this.refuse(contract, REFERENCE_RELEASED, 'The binding was released.');
 
     const own = this.exports.get(reference.binding);
@@ -352,9 +506,10 @@ export class LiveScope {
     }
     if (this.imports.size >= this.maxImports)
       throw this.refuse(contract, TOO_MANY_IMPORTS, 'No room for another imported binding.');
-    const fresh: Attachment = { contract, invoke: async () => undefined, released: false };
+    const fresh: Attachment = { contract, invoke: async () => undefined, released: false, owner };
     fresh.invoke = this.remote(reference.binding, fresh);
     this.imports.set(reference.binding, fresh);
+    record(owner, batch, reference.binding, true);
     this.observe({ type: 'live.imported', at: new Date(), contract, binding: reference.binding });
     return fresh.invoke;
   }
@@ -389,6 +544,7 @@ export class LiveScope {
     if (OVER.get(this.peer) === this.state.root) OVER.delete(this.peer);
     const pending = [...this.inflight];
     this.inflight.clear();
+    if (this.state.rootOwner) endOwner(this.state.rootOwner);
     this.exports.clear();
     this.imports.clear();
     for (const controller of pending) controller.abort();
@@ -507,6 +663,21 @@ export class LiveScope {
   }
 
   private releaseBinding(id: string, tell: boolean): void {
+    this.releaseBindings([{ id, tell }]);
+  }
+
+  private releaseBindings(bindings: { id: string; tell: boolean }[]): void {
+    // Revoke the whole batch before observers can reenter and invoke an alias.
+    const notices = bindings.map(({ id, tell }) => this.takeRelease(id, tell));
+    for (const notice of notices) {
+      if (!notice) continue;
+      const { id, contract, found, tell } = notice;
+      if (found) this.observe({ type: 'live.released', at: new Date(), contract, binding: id });
+      if (tell) void this.peer.emit(RELEASE_EVENT, { binding: id }).catch(() => {});
+    }
+  }
+
+  private takeRelease(id: string, tell: boolean): ReleaseNotice | undefined {
     if (this.closed) return;
     let contract = '';
     let found = false;
@@ -516,6 +687,7 @@ export class LiveScope {
       contract = own.contract;
       found = true;
       this.exports.delete(id);
+      forget(own.owner, id);
     }
     const held = this.imports.get(id);
     if (held) {
@@ -523,6 +695,7 @@ export class LiveScope {
       contract = held.contract;
       found = true;
       this.imports.delete(id);
+      forget(held.owner, id);
     }
     const tombstoned = this.gone.has(id);
     if (tombstoned && !found) return;
@@ -538,8 +711,7 @@ export class LiveScope {
         this.gone.delete(this.order.shift()!);
       }
     }
-    if (found) this.observe({ type: 'live.released', at: new Date(), contract, binding: id });
-    if (tell) void this.peer.emit(RELEASE_EVENT, { binding: id }).catch(() => {});
+    return { id, contract, found, tell };
   }
 
   private refuse(contract: string, code: string, reason: string): DuplexError {

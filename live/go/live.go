@@ -132,12 +132,14 @@ type referenceWire struct {
 }
 
 type binding struct {
+	owner    *ownerState
 	contract string
 	invoke   Invoke
 	released bool
 }
 
 type attachment struct {
+	owner    *ownerState
 	contract string
 	invoke   Invoke
 	released bool
@@ -147,11 +149,11 @@ type attachment struct {
 // connection, what it has imported over it, and nothing that outlives it.
 type Scope struct {
 	*scopeState
-	batch *exportBatch
 }
 
-// Every conversion view shares the connection's state and canonical identity.
+// The scope keeps one canonical connection identity.
 type scopeState struct {
+	owner   *Owner
 	root    *Scope
 	peer    *runtime.Peer
 	options Options
@@ -257,6 +259,9 @@ func (s *Scope) end() {
 		cancels = append(cancels, cancel)
 	}
 	s.inflight = map[int64]context.CancelFunc{}
+	if s.owner != nil {
+		s.owner.state.end()
+	}
 	s.exports = map[string]*binding{}
 	s.imports = map[string]*attachment{}
 	s.mu.Unlock()
@@ -276,7 +281,8 @@ func (s *Scope) Counts() Counts {
 // names it. Exporting the same function twice makes two bindings: native
 // identity is nobody's guarantee across a wire, and two bindings are two
 // lifetimes, which is what separate release needs.
-func (s *Scope) Export(contract string, invoke Invoke) (Reference, error) {
+func (o *Owner) Export(contract string, invoke Invoke) (Reference, error) {
+	s := o.Scope()
 	if contract == "" {
 		return Reference{}, s.refuse(contract, ErrorContractInvalid, "a binding is exported for a contract")
 	}
@@ -288,16 +294,18 @@ func (s *Scope) Export(contract string, invoke Invoke) (Reference, error) {
 		s.mu.Unlock()
 		return Reference{}, s.refuse(contract, ErrorScopeClosed, "the scope ended")
 	}
+	if o.state.ended() {
+		s.mu.Unlock()
+		return Reference{}, s.refuse(contract, ErrorReferenceReleased, "the owner was released")
+	}
 	if len(s.exports) >= s.options.MaxExports {
 		s.mu.Unlock()
 		return Reference{}, s.refuse(contract, ErrorTooManyExports, "no room for another exported binding")
 	}
 	id := s.nonce + "." + strconv.FormatInt(s.next, 10)
 	s.next++
-	s.exports[id] = &binding{contract: contract, invoke: invoke}
-	if s.batch != nil && s.batch.active {
-		s.batch.ids = append(s.batch.ids, id)
-	}
+	s.exports[id] = &binding{contract: contract, invoke: invoke, owner: o.state}
+	o.record(id, false)
 	s.mu.Unlock()
 	s.observeExported(contract, id)
 	return Reference{binding: id, contract: contract, scope: s.root}, nil
@@ -324,7 +332,8 @@ func (s *Scope) Decode(raw json.RawMessage) (Reference, error) {
 // A reference this side exported resolves to the function behind it, with
 // nothing crossing the wire. Attaching to a remote binding does not establish
 // that it exists: that lookup occurs when the imported function is invoked.
-func (s *Scope) Import(r Reference, contract string) (Invoke, error) {
+func (o *Owner) Import(r Reference, contract string) (Invoke, error) {
+	s := o.Scope()
 	if contract == "" {
 		return nil, s.refuse(contract, ErrorContractInvalid, "a binding is imported for a contract")
 	}
@@ -337,7 +346,7 @@ func (s *Scope) Import(r Reference, contract string) (Invoke, error) {
 	// The table is the scope's own and nobody is told while it is held: an
 	// observer runs where the event happened, and this one would otherwise run
 	// under the lock every invocation of the scope waits on.
-	invoke, fresh, code, message := s.attach(r, contract)
+	invoke, fresh, code, message := o.attach(r, contract)
 	switch {
 	case code != "":
 		return nil, s.refuse(contract, code, message)
@@ -347,11 +356,15 @@ func (s *Scope) Import(r Reference, contract string) (Invoke, error) {
 	return invoke, nil
 }
 
-func (s *Scope) attach(r Reference, contract string) (invoke Invoke, fresh bool, code, message string) {
+func (o *Owner) attach(r Reference, contract string) (invoke Invoke, fresh bool, code, message string) {
+	s := o.Scope()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return nil, false, ErrorScopeClosed, "the scope ended"
+	}
+	if o.state.ended() {
+		return nil, false, ErrorReferenceReleased, "the owner was released"
 	}
 	if _, tombstoned := s.gone[r.binding]; tombstoned {
 		return nil, false, ErrorReferenceReleased, "the binding was released"
@@ -371,9 +384,10 @@ func (s *Scope) attach(r Reference, contract string) (invoke Invoke, fresh bool,
 	if len(s.imports) >= s.options.MaxImports {
 		return nil, false, ErrorTooManyImports, "no room for another imported binding"
 	}
-	held := &attachment{contract: contract}
+	held := &attachment{contract: contract, owner: o.state}
 	held.invoke = s.remote(r.binding, held)
 	s.imports[r.binding] = held
+	o.record(r.binding, true)
 	return held.invoke, true, "", ""
 }
 
@@ -515,11 +529,23 @@ func (s *Scope) Release(r Reference) error {
 	return nil
 }
 
+type releaseNotice struct {
+	id, contract string
+	found, tell  bool
+}
+
 func (s *Scope) release(id string, tell bool) {
 	s.mu.Lock()
+	notice := s.takeRelease(id, tell)
+	s.mu.Unlock()
+	s.notifyRelease(notice)
+}
+
+// takeRelease updates all allocation bookkeeping without invoking user code.
+// The caller holds the scope mutex and sends notifications after unlocking.
+func (s *Scope) takeRelease(id string, tell bool) releaseNotice {
 	if s.closed {
-		s.mu.Unlock()
-		return
+		return releaseNotice{}
 	}
 	contract := ""
 	found := false
@@ -527,16 +553,17 @@ func (s *Scope) release(id string, tell bool) {
 		own.released = true
 		contract, found = own.contract, true
 		delete(s.exports, id)
+		own.owner.forget(id)
 	}
 	if held, ok := s.imports[id]; ok {
 		held.released = true
 		contract, found = held.contract, true
 		delete(s.imports, id)
+		held.owner.forget(id)
 	}
 	_, tombstoned := s.gone[id]
 	if tombstoned && !found {
-		s.mu.Unlock()
-		return
+		return releaseNotice{}
 	}
 	// What a released binding leaves behind is one id, so that an alias
 	// imported again is refused for the reason it was actually refused for.
@@ -551,12 +578,15 @@ func (s *Scope) release(id string, tell bool) {
 			s.order = s.order[1:]
 		}
 	}
-	s.mu.Unlock()
-	if found {
-		s.observeReleased(contract, id)
+	return releaseNotice{id: id, contract: contract, found: found, tell: tell}
+}
+
+func (s *Scope) notifyRelease(notice releaseNotice) {
+	if notice.found {
+		s.observeReleased(notice.contract, notice.id)
 	}
-	if tell {
-		_ = s.peer.Emit(s.peer.Context(), ReleaseEvent, releaseData{Binding: id})
+	if notice.tell {
+		_ = s.peer.Emit(s.peer.Context(), ReleaseEvent, releaseData{Binding: notice.id})
 	}
 }
 
@@ -566,9 +596,9 @@ func (s *Scope) release(id string, tell bool) {
 // Releasing the forwarded binding does not release the origin; an invocation
 // through a released or ended origin fails with the origin's refusal, which is
 // what the destination's caller is told.
-func Forward(destination *Scope, contract string, origin Invoke) (Reference, error) {
+func Forward(destination *Owner, contract string, origin Invoke) (Reference, error) {
 	if destination == nil {
-		return Reference{}, errors.New("forwarding needs a destination scope")
+		return Reference{}, errors.New("forwarding needs a destination owner")
 	}
 	if origin == nil {
 		return Reference{}, &runtime.PublicError{Code: ErrorContractInvalid, Message: "forwarding needs the origin's function"}

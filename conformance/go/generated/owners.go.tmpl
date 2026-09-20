@@ -1,0 +1,316 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"sync"
+	"time"
+
+	boxes "example.test/generated/api/go/boxes-protocol"
+	combinator "example.test/generated/api/go/combinator-protocol"
+	ownerbinding "example.test/generated/api/go/owners-binding"
+	ownerclient "example.test/generated/api/go/owners-client"
+	owners "example.test/generated/api/go/owners-protocol"
+	worker "example.test/generated/api/go/worker-protocol"
+	"github.com/Bitspark/nightseam/live/go"
+	"github.com/Bitspark/nightseam/runtime/go"
+)
+
+// All values used by create/pack remain native functions. The only lifetime
+// action is releasing the caller's or handler's chosen owner; no reference is
+// extracted from one of those values and no connection is closed between cycles.
+type ownersServer struct {
+	mu    sync.Mutex
+	scope *live.Scope
+	held  []*live.Owner
+}
+
+func (s *ownersServer) retain(ctx context.Context) error {
+	o, ok := live.OwnerOf(ctx)
+	if !ok || o.Scope() != s.scope || o == s.scope.Owner() {
+		return fmt.Errorf("handler received no per-invocation child owner")
+	}
+	s.mu.Lock()
+	s.held = append(s.held, o)
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *ownersServer) Create(ctx context.Context, _ *ownerbinding.Remote, params worker.Start) (owners.Jobs, error) {
+	if err := s.retain(ctx); err != nil {
+		return owners.Jobs{}, err
+	}
+	if err := params.Progress.Report(ctx, 50); err != nil {
+		return owners.Jobs{}, err
+	}
+	return owners.Jobs{Items: []worker.Job{{Ticket: params.Ticket.ID,
+		Cancel: func(context.Context) error { return nil },
+		Rename: runtime.Some[worker.Rename](func(_ context.Context, ticket worker.Ticket) (worker.Ticket, error) { return ticket, nil }),
+	}}}, nil
+}
+
+func (s *ownersServer) Pack(ctx context.Context, _ *ownerbinding.Remote, params boxes.Box[combinator.Unary]) (combinator.Bundle[combinator.Count], error) {
+	if err := s.retain(ctx); err != nil {
+		return combinator.Bundle[combinator.Count]{}, err
+	}
+	return combinator.Bundle[combinator.Count]{Metadata: combinator.BundleMetadata[combinator.Count]{Seed: 7}, Run: func(ctx context.Context, value combinator.Count) (combinator.Count, error) {
+		first, err := params.Item(ctx, value)
+		if err != nil {
+			return 0, err
+		}
+		return params.Item(ctx, first)
+	}}, nil
+}
+
+func (s *ownersServer) Drop(context.Context, *ownerbinding.Remote) (bool, error) {
+	s.mu.Lock()
+	held := s.held
+	s.held = nil
+	s.mu.Unlock()
+	for _, o := range held {
+		if err := o.Release(); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+// References is controlled malformed-input plumbing. Its three tokens are
+// otherwise valid generated Report exports, so only the receiver's bound can
+// stop their conversion. It is not evidence for ordinary generated operations.
+func (s *ownersServer) References(context.Context, *ownerbinding.Remote) (json.RawMessage, error) {
+	o := s.scope.Owner().Child()
+	s.mu.Lock()
+	s.held = append(s.held, o)
+	s.mu.Unlock()
+	refs := make([]json.RawMessage, 3)
+	for i := range refs {
+		var err error
+		refs[i], err = worker.ExportReport(o, func(context.Context, worker.Percent) error { return nil })
+		if err != nil {
+			_ = o.Release()
+			return nil, err
+		}
+	}
+	return json.Marshal(refs)
+}
+
+type ownersServed struct {
+	http   *http.Server
+	server *ownersServer
+}
+
+func (s *ownersServed) shutdown() { _ = s.http.Close() }
+
+type ownersDialled struct {
+	client  *ownerclient.Client
+	scope   *live.Scope
+	owner   *live.Owner
+	job     worker.Job
+	reports int
+}
+
+func (d *ownersDialled) shutdown() { _ = d.client.Close() }
+
+func ownerCounts(scope *live.Scope) map[string]int {
+	c := scope.Counts()
+	return map[string]int{"exports": c.Exports, "imports": c.Imports}
+}
+func ownersZero(scope *live.Scope, timeout time.Duration) error {
+	end := time.Now().Add(timeout)
+	for scope.Counts() != (live.Counts{}) {
+		if time.Now().After(end) {
+			return fail("timeout", "counts did not return to baseline: %+v", scope.Counts())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	return nil
+}
+
+func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), within(raw))
+	defer cancel()
+	switch op {
+	case "gen.owners_serve":
+		s := &ownersServed{server: &ownersServer{}}
+		handler, err := ownerbinding.NewHandler(s.server, runtime.ServerOptions{
+			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil }, CheckOrigin: func(*http.Request) bool { return true },
+			Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
+				s.server.scope, err = live.Over(peer, live.Options{MaxExports: 4, MaxImports: 4})
+				return
+			}},
+		})
+		if err != nil {
+			return nil, err
+		}
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		s.http = &http.Server{Handler: handler}
+		go func() { _ = s.http.Serve(listener) }()
+		return map[string]any{"handle": t.mint("ownerssrv", s), "url": "ws://" + listener.Addr().String()}, nil
+	case "gen.owners_dial":
+		d := &ownersDialled{}
+		imports := int(number(raw, "max_imports"))
+		if imports == 0 {
+			imports = 4
+		}
+		client, err := ownerclient.Dial(context.Background(), str(raw, "url"), runtime.DialOptions{Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
+			d.scope, err = live.Over(peer, live.Options{MaxExports: 4, MaxImports: imports})
+			return
+		}}}, nil, ownerclient.Events{})
+		if err != nil {
+			return nil, err
+		}
+		d.client = client
+		return map[string]any{"handle": t.mint("ownerscl", d)}, nil
+	case "gen.owners_counts":
+		s, err := liveOf[*ownersServed](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		if s.server.scope == nil {
+			return nil, fail("invalid", "no attached owner client")
+		}
+		if err := ownersZero(s.server.scope, within(raw)); err != nil {
+			return nil, err
+		}
+		return ownerCounts(s.server.scope), nil
+	}
+	d, err := liveOf[*ownersDialled](t, raw)
+	if err != nil {
+		return nil, err
+	}
+	switch op {
+	case "client.owners_create":
+		d.owner = d.scope.Owner().Child()
+		page, err := d.client.Create(live.WithOwner(ctx, d.owner), worker.Start{Ticket: worker.Ticket{ID: "owned", Label: "owned"}, Progress: worker.ProgressSink{Report: func(context.Context, worker.Percent) error { d.reports++; return nil }}})
+		if err != nil {
+			return nil, err
+		}
+		if len(page.Items) != 1 {
+			return nil, fail("invalid", "page lost its job")
+		}
+		d.job = page.Items[0]
+		if err := d.job.Cancel(ctx); err != nil {
+			return nil, err
+		}
+		renamed, err := d.job.Rename.Value(ctx, worker.Ticket{ID: "owned", Label: "renamed"})
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"label": renamed.Label, "reports": d.reports, "counts": ownerCounts(d.scope)}, nil
+	case "client.owners_pack":
+		d.owner = d.scope.Owner().Child()
+		bundle, err := d.client.Pack(live.WithOwner(ctx, d.owner), boxes.Box[combinator.Unary]{Item: func(_ context.Context, n combinator.Count) (combinator.Count, error) { return n + 3, nil }})
+		if err != nil {
+			return nil, err
+		}
+		value, err := bundle.Run(ctx, 5)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"value": value, "seed": bundle.Metadata.Seed, "counts": ownerCounts(d.scope)}, nil
+	case "client.owners_release":
+		if d.owner == nil {
+			return nil, fail("invalid", "no owner")
+		}
+		if err := d.owner.Release(); err != nil {
+			return nil, err
+		}
+		if err := d.owner.Release(); err != nil {
+			return nil, err
+		}
+		if _, err := d.client.Drop(ctx); err != nil {
+			return nil, err
+		}
+		if err := ownersZero(d.scope, within(raw)); err != nil {
+			return nil, err
+		}
+		return ownerCounts(d.scope), nil
+	case "client.owners_revoke":
+		if _, err := d.client.Drop(ctx); err != nil {
+			return nil, err
+		}
+		if err := ownersZero(d.scope, within(raw)); err != nil {
+			return nil, err
+		}
+		callErr := d.job.Cancel(ctx)
+		if callErr == nil {
+			return nil, fail("invalid", "handler owner release left returned function callable")
+		}
+		return map[string]any{"error": callError(callErr), "counts": ownerCounts(d.scope)}, nil
+	case "client.owners_imports":
+		codes := map[string]any{}
+		for _, kind := range []string{"fresh", "borrowed"} {
+			wire, err := d.client.References(ctx)
+			if err != nil {
+				return nil, err
+			}
+			var refs []json.RawMessage
+			if err = json.Unmarshal(wire, &refs); err != nil {
+				return nil, err
+			}
+			held := d.scope.Owner().Child()
+			retained, err := worker.ImportReport(held, refs[0])
+			if err != nil {
+				return nil, err
+			}
+			batch := d.scope.Owner().Child()
+			if kind == "fresh" {
+				value, _ := json.Marshal(map[string]json.RawMessage{"first": refs[1], "last": refs[2]})
+				_, err = owners.ImportReports(batch, value)
+			} else {
+				value, _ := json.Marshal(refs)
+				_, err = owners.ImportRepeated(batch, value)
+			}
+			if err == nil {
+				return nil, fail("invalid", "partial import unexpectedly succeeded")
+			}
+			code := callError(err)["code"]
+			if code != live.ErrorTooManyImports {
+				return nil, err
+			}
+			codes[kind] = code
+			if batch.Counts() != (live.Counts{}) || d.scope.Counts() != (live.Counts{Imports: 1}) {
+				return nil, fail("invalid", "failed batch retained attachments: %+v", d.scope.Counts())
+			}
+			if err := retained(ctx, 1); err != nil {
+				return nil, err
+			}
+			duplicate, _ := json.Marshal([]json.RawMessage{refs[0], refs[0]})
+			aliases, err := owners.ImportRepeated(batch, duplicate)
+			if err != nil {
+				return nil, err
+			}
+			if batch.Counts() != (live.Counts{}) || d.scope.Counts().Imports != 1 {
+				return nil, fail("invalid", "repeated alias created an attachment")
+			}
+			if err := batch.Release(); err != nil {
+				return nil, err
+			}
+			for _, alias := range aliases {
+				if err := alias(ctx, 2); err != nil {
+					return nil, err
+				}
+			}
+			if err := held.Release(); err != nil {
+				return nil, err
+			}
+			if _, err := d.client.Drop(ctx); err != nil {
+				return nil, err
+			}
+			if err := ownersZero(d.scope, within(raw)); err != nil {
+				return nil, err
+			}
+		}
+		codes["repeated"] = true
+		codes["counts"] = ownerCounts(d.scope)
+		return codes, nil
+	}
+	return nil, fail("unsupported", "no owner operation %s", op)
+}

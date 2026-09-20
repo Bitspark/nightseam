@@ -5,46 +5,35 @@ import (
 	"errors"
 )
 
-// exportBatch is protected by its scope's mutex. Completed views may be
-// captured by callable implementations, but retain no allocation history.
-type exportBatch struct {
-	parent *exportBatch
-	active bool
-	ids    []string
+type allocation struct {
+	id       string
+	imported bool
 }
 
-// ExportValue constructs an unpublished JSON payload. build must finish all
-// conversion synchronously using the supplied view of this scope, and must not
-// publish partial values. An error, invalid JSON or panic discards only exports
-// allocated through that view. Nested successful builds join the enclosing
-// build; success at the outer boundary commits the allocations.
+// Completed views retain owner identity, but no batch allocation history.
+// The enclosing scope mutex protects active batches as well as owner state.
+type valueBatch struct {
+	parent      *valueBatch
+	active      bool
+	allocations []allocation
+}
+
+// ExportValue constructs an unpublished JSON payload. The synchronous build
+// must use its supplied owner view and must not publish partial values. Errors,
+// invalid JSON and panics revoke only bindings newly allocated by this build.
+// Nested successful builds join their parent. Completed views can be captured
+// by callable implementations and start fresh conversions later.
 //
-// The view has this scope's identity. A later conversion through a captured view
-// starts a fresh build. This is not rollback for a failed RPC: once build has
-// succeeded, publication and ownership are the caller's responsibility.
-func (s *Scope) ExportValue(build func(*Scope) (json.RawMessage, error)) (value json.RawMessage, err error) {
-	batch := &exportBatch{active: true}
-	s.mu.Lock()
-	if s.batch != nil && s.batch.active {
-		batch.parent = s.batch
+// A successful build commits its allocations to the owner. A later RPC failure
+// does not roll them back. Unpublished exports are discarded without a release
+// event; new import attachments are released with the ordinary notification.
+func (o *Owner) ExportValue(build func(*Owner) (json.RawMessage, error)) (value json.RawMessage, err error) {
+	view, err := o.begin()
+	if err != nil {
+		return nil, err
 	}
-	s.mu.Unlock()
-	view := &Scope{scopeState: s.scopeState, batch: batch}
 	committed := false
-	defer func() {
-		s.mu.Lock()
-		ids := batch.ids
-		if committed && batch.parent != nil && batch.parent.active {
-			batch.parent.ids = append(batch.parent.ids, ids...)
-		}
-		batch.active, batch.ids, batch.parent = false, nil, nil
-		s.mu.Unlock()
-		if !committed {
-			for _, id := range ids {
-				s.release(id, false)
-			}
-		}
-	}()
+	defer func() { view.finish(committed) }()
 	value, err = build(view)
 	if err != nil {
 		return nil, err
@@ -54,4 +43,59 @@ func (s *Scope) ExportValue(build func(*Scope) (json.RawMessage, error)) (value 
 	}
 	committed = true
 	return value, nil
+}
+
+// ImportValue walks a received value synchronously under a batch owner view.
+// An error or panic releases only newly attached bindings and new exports;
+// existing aliases are borrows and survive a failed walk.
+func (o *Owner) ImportValue(build func(*Owner) error) (err error) {
+	view, err := o.begin()
+	if err != nil {
+		return err
+	}
+	committed := false
+	defer func() { view.finish(committed) }()
+	err = build(view)
+	committed = err == nil
+	return err
+}
+
+func (o *Owner) begin() (*Owner, error) {
+	s := o.Scope()
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return nil, s.refuse("", ErrorScopeClosed, "the scope ended")
+	}
+	if o.state.ended() {
+		s.mu.Unlock()
+		return nil, s.refuse("", ErrorReferenceReleased, "the owner was released")
+	}
+	batch := &valueBatch{active: true}
+	if o.batch != nil && o.batch.active {
+		batch.parent = o.batch
+	}
+	s.mu.Unlock()
+	return &Owner{state: o.state, batch: batch}, nil
+}
+
+func (o *Owner) finish(committed bool) {
+	s := o.Scope()
+	s.mu.Lock()
+	batch := o.batch
+	allocations := batch.allocations
+	if committed && batch.parent != nil && batch.parent.active {
+		batch.parent.allocations = append(batch.parent.allocations, allocations...)
+	}
+	batch.active, batch.allocations, batch.parent = false, nil, nil
+	var notices []releaseNotice
+	if !committed {
+		for _, allocation := range allocations {
+			notices = append(notices, s.takeRelease(allocation.id, allocation.imported))
+		}
+	}
+	s.mu.Unlock()
+	for _, notice := range notices {
+		s.notifyRelease(notice)
+	}
 }
