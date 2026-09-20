@@ -249,6 +249,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Generated TypeScript methods with no request and a live callback result
+  validate the empty request correctly in both client and server bindings.
+
 - The Go tunnel WebSocket fixture installs both tunnels before either peer
   reads frames, preventing its first channel open from racing registration.
 
