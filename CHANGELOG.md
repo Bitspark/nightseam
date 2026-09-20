@@ -15,6 +15,9 @@ are one number. Entries are in the words of the commits that landed them.
 - Generated-role coverage distinguishes Go server bindings from TypeScript
   clients, accounts for every TypeScript generator skip, and records the
   unresolved tier-1 release-policy gap without changing the gate.
+- The union decision is named for the adjacent carrier #146 settled on, rather
+  than the internal tagging #56 chose and #146 withdrew, so that the decisions
+  index states the verdict that holds.
 
 ### Added
 
