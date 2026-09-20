@@ -12,19 +12,19 @@ func TestSiblingDependencies(t *testing.T) {
 		"protocol.json": modeltest.Protocol(`"imports": ["probe"], "server": {"events": {"changed": {"type": "probe.Payload"}}}`)})
 	for _, tc := range []struct {
 		name, mode, layout, want string
-		place                    map[string]string
+		place                    map[string]Layout
 	}{
 		{name: "default", want: "file:../probe-client"},
 		{name: "file", mode: "file", want: "file:../probe-client"},
 		{name: "workspace", mode: "workspace", want: "workspace:*"},
 		{name: "version", mode: "version", want: "0.0.0"},
 		{name: "layout", layout: "packages/{family}/client", want: "file:../../probe/client"},
-		{name: "placed importer", place: map[string]string{"x": "frontend/{family}"}, want: "file:../../api/ts/probe-client"},
-		{name: "placed dependency", place: map[string]string{"probe": "lib/{family}"}, want: "file:../../../lib/probe"},
-		{name: "nested dependency", place: map[string]string{"probe": "api/ts/x-client/{family}"}, want: "file:probe"},
+		{name: "placed importer", place: map[string]Layout{"x": {Client: "frontend/{family}"}}, want: "file:../../api/ts/probe-client"},
+		{name: "placed dependency", place: map[string]Layout{"probe": {Client: "lib/{family}"}}, want: "file:../../../lib/probe"},
+		{name: "nested dependency", place: map[string]Layout{"probe": {Client: "api/ts/x-client/{family}"}}, want: "file:probe"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			files, err := New(Config{Scope: "@example", Sibling: tc.mode, Layout: tc.layout, Place: tc.place}).Render(f)
+			files, err := New(Config{Scope: "@example", Sibling: tc.mode, Layout: Layout{Client: tc.layout}, Place: tc.place}).Render(f)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -22,7 +22,7 @@ func TestGeneratedCallableNominality(t *testing.T) {
 		t.Fatalf("generate: %v\n%s", err, errs)
 	}
 	fixtureModule(t, directory, root)
-	paths := map[string][]string{}
+	paths := map[string][]string{"@example/*": {"./api/ts/*/src/index.ts"}, "@example/*/types": {"./api/ts/*/src/types.ts"}}
 	for _, component := range []string{"runtime", "duplex", "tunnel", "live"} {
 		copyFixtureTree(t, filepath.Join(root, component, "ts"), filepath.Join(directory, component, "ts"))
 		paths["@nightseam/"+component] = []string{"./" + component + "/ts/src/index.ts"}

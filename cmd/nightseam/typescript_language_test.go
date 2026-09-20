@@ -38,6 +38,11 @@ func typescriptLanguageFixture(t *testing.T, world analysis.World, source, scrip
 		}
 		for path, data := range result.Files {
 			writeFixture(t, directory, path, data)
+			if rest, ok := strings.CutPrefix(path, "api/ts/"); ok && strings.HasSuffix(rest, "/src/types.ts") {
+				name := "@example/" + strings.TrimSuffix(rest, "/src/types.ts") + "/types"
+				paths[name] = []string{"./" + path}
+				modules[name] = "./" + path
+			}
 			if rest, ok := strings.CutPrefix(path, "api/ts/"); ok && strings.HasSuffix(rest, "/src/index.ts") {
 				name := "@example/" + strings.TrimSuffix(rest, "/src/index.ts")
 				paths[name] = []string{"./" + path}
