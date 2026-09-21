@@ -161,6 +161,8 @@ export class DuplexPeer {
   private readonly closedListeners = new Set<(error: DuplexError) => void>();
   private readonly outgoing: Outgoing[] = [];
   private writeTimer?: Timer;
+  /** Public senders paced by a full output queue; wire handoffs never join it. */
+  private readonly waitingForRoom = new Set<(room: boolean) => void>();
   private readonly events: QueuedEvent[] = [];
   private eventActive = false;
   private eventTimer?: Timer;
@@ -225,8 +227,8 @@ export class DuplexPeer {
       maxPendingRequests: this.limits.maxPendingRequests,
       maxFrameBytes: this.limits.maxFrameBytes,
       requestTimeoutMs: this.limits.requestTimeoutMs,
-      call: (method, params, options, trace) => this.callWithTrace(method, params, options, () => trace),
-      emit: (name, data, options, trace) => this.emitWithTrace(name, data, options, trace),
+      call: (method, params, options, trace) => this.callWithTrace(method, params, options, () => trace, true),
+      emit: (name, data, options, trace) => this.emitWithTrace(name, data, options, trace, true),
       dispatch: (request, event) => {
         this.wireRequest = request;
         this.wireEvent = event;
@@ -413,6 +415,7 @@ export class DuplexPeer {
     params: unknown,
     options: CallOptions,
     traceSource: () => Trace | undefined,
+    immediate = false,
   ): Promise<T> {
     try {
       requireName(method, 'method');
@@ -444,10 +447,15 @@ export class DuplexPeer {
       return Promise.reject(new UnpublishedError(error));
     }
     const completion = requestCompletion<T>();
+    const admission = new AbortController();
+    let accepted = false;
     const pending: Pending = {
       resolve: (value) => completion.resolve(value as T),
       reject: completion.reject,
-      cleanup: completion.cleanup,
+      cleanup: () => {
+        completion.cleanup();
+        admission.abort();
+      },
       method,
       started: Date.now(),
       trace,
@@ -456,11 +464,11 @@ export class DuplexPeer {
     const cancel = (error: DuplexError, outcome: Outcome) => {
       if (!this.takePending(id)) return;
       this.ended(id, pending, outcome, error.code);
-      completion.reject(error);
+      completion.reject(accepted ? error : new UnpublishedError(error));
       // Cancellation is best effort, as in Go. It never waits for room and
       // an already cancelled caller cannot end a healthy carrier merely
       // because its cancellation frame has no room in the output queue.
-      if (this.outgoing.length < this.limits.queueCapacity)
+      if (accepted && this.outgoing.length < this.limits.queueCapacity)
         void this.send(traced({ version: 1, kind: 'cancel', id }, trace), method).catch(() => {});
     };
     if (this.observer)
@@ -481,7 +489,10 @@ export class DuplexPeer {
       this.ended(id, unsent, 'error', error.code);
       unsent.reject(error);
     };
-    if (!completion.settled) void this.send(request, method, refused).catch(refused);
+    if (!completion.settled)
+      void this.send(request, method, refused, undefined, immediate, admission.signal, () => {
+        accepted = true;
+      }).catch(refused);
     return completion.promise;
   }
 
@@ -498,7 +509,13 @@ export class DuplexPeer {
     }
   }
 
-  private emitWithTrace(event: string, data: unknown, options: EmitOptions, trace?: Trace): Promise<void> {
+  private emitWithTrace(
+    event: string,
+    data: unknown,
+    options: EmitOptions,
+    trace?: Trace,
+    immediate = false,
+  ): Promise<void> {
     try {
       requireName(event, 'event');
       return this.send(
@@ -506,6 +523,7 @@ export class DuplexPeer {
         event,
         undefined,
         trace,
+        immediate,
       );
     } catch (error) {
       return Promise.reject(new UnpublishedError(error));
@@ -529,6 +547,9 @@ export class DuplexPeer {
     name = '',
     refused?: (error: UnpublishedError) => void,
     carriedTrace?: Trace,
+    immediate = false,
+    abandoned?: AbortSignal,
+    accepted?: () => void,
   ): Promise<void> {
     let queued = false;
     let endOnRefusal = false;
@@ -554,14 +575,47 @@ export class DuplexPeer {
       if (bytes > this.limits.maxFrameBytes) {
         throw new DuplexError('frame_too_large', 'Outgoing frame exceeds the size limit.');
       }
-      // One bounded handoff decides acceptance. A destination that cannot
-      // accept ends itself; it cannot make a composed sender await its drain.
-      // The writer's deadline still bounds transport of accepted frames.
-      if (this.outgoing.length >= this.limits.queueCapacity) {
-        const error = new DuplexError('busy', 'Output consumer is stalled; queue limit reached.');
-        if (this.observer) this.pressure(this.outgoing.length, true);
-        endOnRefusal = true;
-        throw error;
+      // A wire handoff must decide bounded admission immediately. Public peer
+      // sends instead pace transient bursts for at most one write deadline.
+      const connection = this.connection;
+      const deadline = Date.now() + this.limits.writeTimeoutMs;
+      let paced = false;
+      for (;;) {
+        if (abandoned?.aborted) return;
+        if (!this.isOpen() || this.connection !== connection)
+          throw new DuplexError('not_connected', 'Peer is not connected.');
+        if (this.outgoing.length < this.limits.queueCapacity) break;
+        if (immediate || Date.now() >= deadline) {
+          if (this.observer) this.pressure(this.outgoing.length, true);
+          endOnRefusal = true;
+          throw new DuplexError('busy', 'Output consumer is stalled; queue limit reached.');
+        }
+        if (!paced) {
+          paced = true;
+          if (this.observer) this.pressure(this.outgoing.length, false);
+        }
+        // An observer may synchronously withdraw the call or close the peer.
+        if (abandoned?.aborted || !this.isOpen() || this.connection !== connection) continue;
+        const room = await new Promise<boolean>((resolve) => {
+          const wake = (available: boolean) => {
+            clearTimeout(timer);
+            this.waitingForRoom.delete(wake);
+            abandoned?.removeEventListener('abort', cancel);
+            resolve(available);
+          };
+          const cancel = () => wake(true);
+          const timer = setTimeout(() => wake(false), Math.max(0, deadline - Date.now()));
+          this.waitingForRoom.add(wake);
+          abandoned?.addEventListener('abort', cancel, { once: true });
+        });
+        if (!room) {
+          if (abandoned?.aborted) return;
+          if (!this.isOpen() || this.connection !== connection)
+            throw new DuplexError('not_connected', 'Peer is not connected.');
+          if (this.observer) this.pressure(this.outgoing.length, true);
+          endOnRefusal = true;
+          throw new DuplexError('busy', 'Output consumer is stalled; queue limit reached.');
+        }
       }
       const kind = envelope.kind as string;
       const trace = carriedTrace ?? traceOf(envelope);
@@ -592,6 +646,7 @@ export class DuplexPeer {
       // that waited on the drain would hold a composition to this consumer.
       this.outgoing.push({ text, started: Date.now(), sent: false, waited: false, observeSent });
       queued = true;
+      accepted?.();
       this.flush();
     } catch (error) {
       if (!queued) {
@@ -633,6 +688,7 @@ export class DuplexPeer {
       }
       if (item.sent && connection.buffered === 0) {
         this.outgoing.shift();
+        for (const wake of [...this.waitingForRoom]) wake(true);
       } else {
         item.waited = true;
         this.writeTimer = setTimeout(() => {
@@ -973,6 +1029,7 @@ export class DuplexPeer {
     this.stallTimer = undefined;
     this.eventActive = false;
     this.events.length = 0;
+    for (const wake of [...this.waitingForRoom]) wake(true);
     if (this.opening) {
       clearTimeout(this.opening.timer);
       this.opening.reject(error);

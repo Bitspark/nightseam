@@ -260,7 +260,7 @@ test('mounted async event receivers keep serial order and peer backpressure acco
   assert.deepEqual(seen, [1]);
 });
 
-test('a full peer queue preserves unpublished proof only for the refused attempt', async (t) => {
+test('a full wire queue preserves unpublished proof only for the refused attempt', async (t) => {
   const [a, b] = pipe();
   let writes = 0,
     buffered = 0;
@@ -285,11 +285,14 @@ test('a full peer queue preserves unpublished proof only for the refused attempt
     peer.close();
     b.close();
   });
-  const accepted = peer.call('accepted').catch((error: unknown) => error);
-  const rejected = await peer.call('rejected').catch((error: unknown) => error);
+  const accepted = callWire(peer.wire(), ['accepted']).catch((error: unknown) => error);
+  await Promise.resolve();
+  const queued = callWire(peer.wire(), ['queued']).catch((error: unknown) => error);
+  const rejected = await callWire(peer.wire(), ['rejected']).catch((error: unknown) => error);
   const earlier = await accepted;
   assert.equal(writes, 1);
   assert.ok(!(earlier instanceof UnpublishedError), 'an accepted call inherited another attempt’s proof');
+  assert.ok(!((await queued) instanceof UnpublishedError), 'a queued call inherited another attempt’s proof');
   assert.ok(rejected instanceof UnpublishedError, 'a rejected call lost its own pre-queue proof');
 });
 

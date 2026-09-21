@@ -8,6 +8,7 @@ import type { Observer, ObserverEvent } from './observer.ts';
 import { webSocketConnection } from '@nightseam/duplex';
 import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from '@nightseam/duplex';
 import { positiveInteger } from './index.ts';
+import { emitWire } from './wire.ts';
 
 test('component limits share validation while the peer keeps its safe-integer bound', () => {
   for (const safe of [false, true]) {
@@ -357,18 +358,25 @@ test('incoming saturation responds busy without blocking responses', async (t) =
   assert.equal(await first, null);
 });
 
-test('output overflow ends the carrier without waiting for the socket to drain', async (t) => {
+test('wire output overflow ends the carrier without waiting for the socket to drain', async (t) => {
   const socket = new Socket();
   socket.bufferedAmount = 1;
   const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 5_000 });
   t.after(() => peer.close());
   await peer.attach(socket);
   // The first is accepted for sending, which is queued and no more.
-  await peer.emit('first');
+  emitWire(peer.wire(), ['first']);
+  await Promise.resolve();
   // The consumer remains blocked. Admission must settle before another turn,
   // independently of the much longer transport write deadline.
+  const ended = deferred<DuplexError>();
+  peer.onClose(ended.resolve);
+  emitWire(peer.wire(), ['second']);
   const outcome = await Promise.race([
-    assert.rejects(peer.emit('second'), { code: 'busy' }).then(() => 'refused'),
+    ended.promise.then((error) => {
+      assert.equal(error.code, 'busy');
+      return 'refused';
+    }),
     nextTurn().then(() => 'waited'),
   ]);
   assert.equal(outcome, 'refused');
@@ -1444,7 +1452,7 @@ test('a handler deadline is observed locally as a timeout and remotely as a refu
   ]);
 });
 
-test('output overflow is observed once and accepted writes retain their transport deadline', async () => {
+test('wire output overflow is observed once and accepted writes retain their transport deadline', async () => {
   // A socket whose buffer never drains: the first frame waits, the second meets a full queue.
   // A frame that merely waits on the socket is not backpressure; a queue full or a deadline passed is, as the Go peer tells it.
   const socket = new Socket();
@@ -1452,10 +1460,14 @@ test('output overflow is observed once and accepted writes retain their transpor
   const full = recorder();
   const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 40, observer: full });
   await peer.attach(socket);
-  await peer.emit('first');
+  emitWire(peer.wire(), ['first']);
+  await Promise.resolve();
   // The queue limit ends admission immediately and reports one terminal
   // pressure event; a transport timeout is a separate case below.
-  await assert.rejects(peer.emit('second'), { code: 'busy' });
+  const ended = deferred<DuplexError>();
+  peer.onClose(ended.resolve);
+  emitWire(peer.wire(), ['second']);
+  assert.equal((await ended.promise).code, 'busy');
   assert.equal(peer.status, 'disconnected');
   assert.deepEqual(backpressure(full.events), [{ type: 'backpressure', queued: 1, stalled: true, deadlineMs: 40 }]);
 
