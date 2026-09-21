@@ -30,7 +30,7 @@ func (c *serverMethods[SEnvelope, SHandle]) Attach(ctx context.Context, params p
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"attach"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "carrier"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"attach"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "carrier", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Attachment\""), raw); err != nil {
@@ -47,7 +47,7 @@ func (c *serverMethods[SEnvelope, SHandle]) Relay(ctx context.Context, params pr
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"relay"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "carrier"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"relay"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "carrier", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"probe.Envelope\""), raw); err != nil {
@@ -145,7 +145,7 @@ func (c *clientEvents[SEnvelope, SHandle]) FrameRelayed(ctx context.Context, dat
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Frame\""), data); err != nil {
 		return err
 	}
-	return runtime.EmitWire(ctx, c.wire, []string{"frame.relayed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "carrier"})
+	return runtime.EmitWire(ctx, c.wire, []string{"frame.relayed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "carrier", Propagator: c.environment.Options.Propagator})
 }
 func bindClient[SEnvelope, SHandle any](wire duplex.Wire, implementation protocol.Client[SEnvelope, SHandle], environment runtime.AdapterContext) error {
 	var detach []func()

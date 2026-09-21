@@ -12,6 +12,8 @@ export { DuplexError };
 export type { AdapterContext };
 function makeAdapter<S extends AnyFamily = AnyFamily, Item = unknown>(context: AdapterContext, s: FamilyBinding<S>, item: ValueAdapter<Item>) {
   const observer = context.options?.observer;
+  const propagator = context.options?.propagator;
+  const requestTimeoutMs = context.options?.requestTimeoutMs;
   const bindings = { s, item };
   const slots: Slots = { "S": s, "Item": item.binding };
   const environment = context.valueEnvironment;
@@ -26,42 +28,42 @@ function makeAdapter<S extends AnyFamily = AnyFamily, Item = unknown>(context: A
     return {
       methods: {
         async echo(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "proof" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "proof" };
           validateWire("probe.Payload", params, '$', slots);
           const result = await callWire<probe.Payload>(wire, ["echo"], params, options);
           validateWire("probe.Payload", result, '$', slots);
           return result;
         },
         async noArgs(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "proof" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "proof" };
           validateWire({ empty: true }, params, '$', slots);
           const result = await callWire<string>(wire, ["no_args"], params, options);
           validateWire("string", result, '$', slots);
           return result;
         },
         async classify(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "proof" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "proof" };
           validateWire("Part", params, '$', slots);
           const result = await callWire<string>(wire, ["classify"], params, options);
           validateWire("string", result, '$', slots);
           return result;
         },
         async classifyRich(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "proof" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "proof" };
           validateWire("RichPart", params, '$', slots);
           const result = await callWire<string>(wire, ["classify_rich"], params, options);
           validateWire("string", result, '$', slots);
           return result;
         },
         async parts(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "proof" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "proof" };
           validateWire({"kind":"record","fields":[{"name":"after","type":{"nullable":"string"},"required":false}]}, params, '$', slots);
           const result = await callWire<Protocol.Result<Protocol.Parts, string>>(wire, ["parts"], params, options);
           validateWire({"apply":"Result","with":{"E":"string","T":"Parts"}}, result, '$', slots);
           return result;
         },
         async relay(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "proof" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "proof" };
           const owner = ((bindings.item.needsContext)) ? environment!.select((context as {valueContext?: unknown} | undefined)?.valueContext) : undefined;
           const result = await ((bindings.item.needsContext) ? environment!.publish(owner, owner => ((bindings.item.needsContext) ? environment!.export(owner, (owner) => { const converted = conversion.exportCarried<S, Item>((params) as Protocol.Carried<S, Item>, (input: S["Envelope"]): unknown => input, (input: S["Handle"]): unknown => input, (input: Item): unknown => bindings.item.export(owner, (input) as Item)); validateWire("Carried", converted, '$', slots); return converted; }) : (() => { const converted = conversion.exportCarried<S, Item>((params) as Protocol.Carried<S, Item>, (input: S["Envelope"]): unknown => input, (input: S["Handle"]): unknown => input, (input: Item): unknown => bindings.item.export(owner, (input) as Item)); validateWire("Carried", converted, '$', slots); return converted; })()), sent => callWire(wire, ["relay"], sent, options)) : callWire(wire, ["relay"], ((bindings.item.needsContext) ? environment!.export(owner, (owner) => { const converted = conversion.exportCarried<S, Item>((params) as Protocol.Carried<S, Item>, (input: S["Envelope"]): unknown => input, (input: S["Handle"]): unknown => input, (input: Item): unknown => bindings.item.export(owner, (input) as Item)); validateWire("Carried", converted, '$', slots); return converted; }) : (() => { const converted = conversion.exportCarried<S, Item>((params) as Protocol.Carried<S, Item>, (input: S["Envelope"]): unknown => input, (input: S["Handle"]): unknown => input, (input: Item): unknown => bindings.item.export(owner, (input) as Item)); validateWire("Carried", converted, '$', slots); return converted; })()), options));
           validateWire({"apply":"Option","with":{"T":"Envelope"}}, result, '$', slots);
@@ -145,12 +147,12 @@ function makeAdapter<S extends AnyFamily = AnyFamily, Item = unknown>(context: A
       },
       events: {
         async changed(data, context) {
-          const options = { context, meta: context?.outgoingMeta, observer, family: "proof" };
+          const options = { context, meta: context?.outgoingMeta, observer, propagator, family: "proof" };
           validateWire("probe.Payload", data, '$', slots);
           emitWire(wire, ["changed"], data, options);
         },
         async partAdded(data, context) {
-          const options = { context, meta: context?.outgoingMeta, observer, family: "proof" };
+          const options = { context, meta: context?.outgoingMeta, observer, propagator, family: "proof" };
           validateWire("RichPart", data, '$', slots);
           emitWire(wire, ["part.added"], data, options);
         },

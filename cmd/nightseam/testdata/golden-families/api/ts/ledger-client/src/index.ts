@@ -11,6 +11,8 @@ export { DuplexError };
 export type { AdapterContext };
 function makeAdapter(context: AdapterContext) {
   const observer = context.options?.observer;
+  const propagator = context.options?.propagator;
+  const requestTimeoutMs = context.options?.requestTimeoutMs;
   const bindings = {  };
   const slots: Slots = {  };
   function hasModelHandler(facet: object, name: string): boolean {

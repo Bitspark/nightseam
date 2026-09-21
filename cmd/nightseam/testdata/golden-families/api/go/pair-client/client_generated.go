@@ -29,7 +29,7 @@ func (c *serverMethods[SEnvelope, SHandle, TEnvelope]) Named(ctx context.Context
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"named"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "pair"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"named"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "pair", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Named\""), raw); err != nil {
@@ -46,7 +46,7 @@ func (c *serverMethods[SEnvelope, SHandle, TEnvelope]) Relay(ctx context.Context
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"relay"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "pair"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"relay"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "pair", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Both\""), raw); err != nil {
@@ -144,7 +144,7 @@ func (c *clientEvents[SEnvelope, SHandle, TEnvelope]) Echoed(ctx context.Context
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Echo\""), data); err != nil {
 		return err
 	}
-	return runtime.EmitWire(ctx, c.wire, []string{"echoed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "pair"})
+	return runtime.EmitWire(ctx, c.wire, []string{"echoed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "pair", Propagator: c.environment.Options.Propagator})
 }
 func bindClient[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, implementation protocol.Client[SEnvelope, SHandle, TEnvelope], environment runtime.AdapterContext) error {
 	var detach []func()

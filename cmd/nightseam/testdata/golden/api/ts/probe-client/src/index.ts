@@ -11,6 +11,8 @@ export { DuplexError };
 export type { AdapterContext };
 function makeAdapter(context: AdapterContext) {
   const observer = context.options?.observer;
+  const propagator = context.options?.propagator;
+  const requestTimeoutMs = context.options?.requestTimeoutMs;
   const bindings = {  };
   const slots: Slots = {  };
   function hasModelHandler(facet: object, name: string): boolean {
@@ -23,21 +25,21 @@ function makeAdapter(context: AdapterContext) {
     return {
       methods: {
         async echo(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "probe" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "probe" };
           validateWire("Payload", params);
           const result = await callWire<Protocol.Payload>(wire, ["echo"], params, options);
           validateWire("Payload", result);
           return result;
         },
         async noArgs(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "probe" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "probe" };
           validateWire({ empty: true }, params);
           const result = await callWire<string>(wire, ["no_args"], params, options);
           validateWire("string", result);
           return result;
         },
         async seen(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "probe" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "probe" };
           validateWire("Seen", params);
           const result = await callWire<Protocol.Payloads>(wire, ["seen"], params, options);
           validateWire("Payloads", result);
@@ -46,7 +48,7 @@ function makeAdapter(context: AdapterContext) {
       },
       events: {
         async noticed(data, context) {
-          const options = { context, meta: context?.outgoingMeta, observer, family: "probe" };
+          const options = { context, meta: context?.outgoingMeta, observer, propagator, family: "probe" };
           validateWire("Seen", data);
           emitWire(wire, ["noticed"], data, options);
         },
@@ -101,7 +103,7 @@ function makeAdapter(context: AdapterContext) {
     return {
       methods: {
         async reverse(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "probe" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "probe" };
           validateWire("Payload", params);
           const result = await callWire<Protocol.Payload>(wire, ["reverse"], params, options);
           validateWire("Payload", result);
@@ -110,7 +112,7 @@ function makeAdapter(context: AdapterContext) {
       },
       events: {
         async changed(data, context) {
-          const options = { context, meta: context?.outgoingMeta, observer, family: "probe" };
+          const options = { context, meta: context?.outgoingMeta, observer, propagator, family: "probe" };
           validateWire("Payload", data);
           emitWire(wire, ["changed"], data, options);
         },

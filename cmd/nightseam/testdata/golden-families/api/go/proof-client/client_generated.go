@@ -32,7 +32,7 @@ func (c *serverMethods[SEnvelope, SHandle, Item]) Echo(ctx context.Context, para
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"echo"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "proof"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"echo"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "proof", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "Item": c.adapterItem.Binding}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"probe.Payload\""), raw); err != nil {
@@ -46,7 +46,7 @@ func (c *serverMethods[SEnvelope, SHandle, Item]) Echo(ctx context.Context, para
 func (c *serverMethods[SEnvelope, SHandle, Item]) NoArgs(ctx context.Context) (string, error) {
 	var result string
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"no_args"}, struct{}{}, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "proof"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"no_args"}, struct{}{}, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "proof", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "Item": c.adapterItem.Binding}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"string\""), raw); err != nil {
@@ -63,7 +63,7 @@ func (c *serverMethods[SEnvelope, SHandle, Item]) Classify(ctx context.Context, 
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"classify"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "proof"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"classify"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "proof", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "Item": c.adapterItem.Binding}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"string\""), raw); err != nil {
@@ -80,7 +80,7 @@ func (c *serverMethods[SEnvelope, SHandle, Item]) ClassifyRich(ctx context.Conte
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"classify_rich"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "proof"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"classify_rich"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "proof", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "Item": c.adapterItem.Binding}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"string\""), raw); err != nil {
@@ -104,7 +104,7 @@ func (c *serverMethods[SEnvelope, SHandle, Item]) Parts(ctx context.Context, par
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"parts"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "proof"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"parts"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "proof", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	received, err := func() (protocol.Result[protocol.Parts, string], error) {
@@ -206,7 +206,7 @@ func (c *serverMethods[SEnvelope, SHandle, Item]) Relay(ctx context.Context, par
 		}
 		publish := func(sent json.RawMessage) (json.RawMessage, error) {
 			var raw json.RawMessage
-			err := runtime.CallWire(ctx, c.wire, []string{"relay"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "proof"})
+			err := runtime.CallWire(ctx, c.wire, []string{"relay"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "proof", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout})
 			return raw, err
 		}
 		if c.adapterItem.NeedsContext {
@@ -563,13 +563,13 @@ func (c *clientEvents[SEnvelope, SHandle, Item]) Changed(ctx context.Context, da
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "Item": c.adapterItem.Binding}, nil).ValidateValue(protocol.MustTypeExpression("\"probe.Payload\""), data); err != nil {
 		return err
 	}
-	return runtime.EmitWire(ctx, c.wire, []string{"changed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "proof"})
+	return runtime.EmitWire(ctx, c.wire, []string{"changed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "proof", Propagator: c.environment.Options.Propagator})
 }
 func (c *clientEvents[SEnvelope, SHandle, Item]) PartAdded(ctx context.Context, data protocol.RichPart) error {
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "Item": c.adapterItem.Binding}, nil).ValidateValue(protocol.MustTypeExpression("\"RichPart\""), data); err != nil {
 		return err
 	}
-	return runtime.EmitWire(ctx, c.wire, []string{"part.added"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "proof"})
+	return runtime.EmitWire(ctx, c.wire, []string{"part.added"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "proof", Propagator: c.environment.Options.Propagator})
 }
 func bindClient[SEnvelope, SHandle, Item any](wire duplex.Wire, implementation protocol.Client[SEnvelope, SHandle, Item], environment runtime.AdapterContext, adapterItem runtime.ValueAdapter[Item]) error {
 	var detach []func()

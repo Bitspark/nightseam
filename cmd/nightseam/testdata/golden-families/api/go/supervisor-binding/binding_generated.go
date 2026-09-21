@@ -31,7 +31,7 @@ func (c *serverMethods) Shift(ctx context.Context, params protocol.Shift) (strin
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"shift"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "supervisor"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"shift"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "supervisor", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"string\""), raw); err != nil {
@@ -81,7 +81,7 @@ func (c *serverMethods) Relieve(ctx context.Context, params protocol.RelieveRequ
 		}
 		publish := func(sent json.RawMessage) (json.RawMessage, error) {
 			var raw json.RawMessage
-			err := runtime.CallWire(ctx, c.wire, []string{"relieve"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "supervisor"})
+			err := runtime.CallWire(ctx, c.wire, []string{"relieve"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "supervisor", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout})
 			return raw, err
 		}
 		if true {
@@ -143,7 +143,7 @@ func (c *serverMethods) Watch(ctx context.Context, params protocol.Watch) (worke
 		}
 		publish := func(sent json.RawMessage) (json.RawMessage, error) {
 			var raw json.RawMessage
-			err := runtime.CallWire(ctx, c.wire, []string{"watch"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "supervisor"})
+			err := runtime.CallWire(ctx, c.wire, []string{"watch"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "supervisor", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout})
 			return raw, err
 		}
 		if true {

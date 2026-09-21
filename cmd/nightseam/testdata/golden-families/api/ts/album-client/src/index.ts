@@ -14,6 +14,8 @@ export { DuplexError };
 export type { AdapterContext };
 function makeAdapter<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(context: AdapterContext, a: FamilyBinding<A>, b: FamilyBinding<B>) {
   const observer = context.options?.observer;
+  const propagator = context.options?.propagator;
+  const requestTimeoutMs = context.options?.requestTimeoutMs;
   const bindings = { a, b };
   const slots: Slots = { "A": a, "B": b };
   function hasModelHandler(facet: object, name: string): boolean {
@@ -26,7 +28,7 @@ function makeAdapter<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyF
     return {
       methods: {
         async look(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "album" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "album" };
           validateWire("Mine", params, '$', slots);
           const result = await callWire<Protocol.Both<A, B>>(wire, ["look"], params, options);
           validateWire("Both", result, '$', slots);
