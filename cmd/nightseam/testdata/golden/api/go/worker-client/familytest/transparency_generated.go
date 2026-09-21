@@ -277,6 +277,9 @@ func Smoke(ctx context.Context, model protocol.ClientModel, opposite protocol.Se
 				return fmt.Errorf("input supervise unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (true || true) {
+			return fmt.Errorf("supervise: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["supervise"] = input
 		before := seen["supervise"]

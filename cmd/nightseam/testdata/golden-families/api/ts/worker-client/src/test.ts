@@ -98,6 +98,7 @@ export async function smoke(model: Protocol.ClientModel, opposite: Protocol.Serv
   if (true) throw new Error("input supervise needs a caller-supplied native value");
   input = JSON.parse("{\"sinks\":{\"‹key›\":{\"report\":{\"binding\":\"‹binding›\",\"contract\":\"worker/Report\"}}}}");
   }
+  if (!options.equal && (true || true)) throw new Error("supervise: requires an equal observer for live values");
   inputs.set("supervise",input);
   const before=seen.get("supervise")??0;
   const actual = await outcome(() => remote.methods.supervise(input as Parameters<typeof remote.methods.supervise>[0], options.callContext as Parameters<typeof remote.methods.supervise>[1]));

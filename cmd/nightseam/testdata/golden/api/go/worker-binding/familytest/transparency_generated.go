@@ -284,6 +284,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input describe unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("describe: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["describe"] = input
 		before := seen["describe"]
@@ -319,6 +322,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 			if err := json.Unmarshal([]byte("{\"ticket\":{\"id\":\"‹id›\",\"label\":\"‹label›\"},\"progress\":{\"report\":{\"binding\":\"‹binding›\",\"contract\":\"worker/Report\"}},\"watchers\":[{\"binding\":\"‹binding›\",\"contract\":\"worker/Report\"}]}"), &input); err != nil {
 				return fmt.Errorf("input start unavailable for this instantiation: %w", err)
 			}
+		}
+		if options.Equal == nil && (true || true) {
+			return fmt.Errorf("start: requires an Equal observer for live values")
 		}
 		mutex.Lock()
 		inputs["start"] = input

@@ -283,6 +283,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input shift unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("shift: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["shift"] = input
 		before := seen["shift"]
@@ -319,6 +322,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input relieve unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (false || true) {
+			return fmt.Errorf("relieve: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["relieve"] = input
 		before := seen["relieve"]
@@ -354,6 +360,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 			if err := json.Unmarshal([]byte("{\"shift\":{\"name\":\"‹name›\"},\"sink\":{\"report\":{\"binding\":\"‹binding›\",\"contract\":\"worker/Report\"}},\"spares\":[{\"report\":{\"binding\":\"‹binding›\",\"contract\":\"worker/Report\"}}]}"), &input); err != nil {
 				return fmt.Errorf("input watch unavailable for this instantiation: %w", err)
 			}
+		}
+		if options.Equal == nil && (true || true) {
+			return fmt.Errorf("watch: requires an Equal observer for live values")
 		}
 		mutex.Lock()
 		inputs["watch"] = input

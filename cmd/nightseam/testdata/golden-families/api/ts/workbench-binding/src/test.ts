@@ -137,6 +137,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input events.list needs a caller-supplied native value");
   input = JSON.parse("{\"after\":0,\"project\":\"‹project›\",\"limit\":0}");
   }
+  if (!options.equal && (false || false)) throw new Error("events.list: requires an equal observer for live values");
   inputs.set("events.list",input);
   const before=seen.get("events.list")??0;
   const actual = await outcome(() => remote.methods.listEvents(input as Parameters<typeof remote.methods.listEvents>[0], options.callContext as Parameters<typeof remote.methods.listEvents>[1]));
@@ -150,6 +151,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (options.inputs && Object.prototype.hasOwnProperty.call(options.inputs,"me")) { input=options.inputs["me"]; } else {
   input = JSON.parse("{}");
   }
+  if (!options.equal && (false || false)) throw new Error("me: requires an equal observer for live values");
   inputs.set("me",input);
   const before=seen.get("me")??0;
   const actual = await outcome(() => remote.methods.me(input as Parameters<typeof remote.methods.me>[0], options.callContext as Parameters<typeof remote.methods.me>[1]));
@@ -164,6 +166,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input projects.create needs a caller-supplied native value");
   input = JSON.parse("{\"key\":\"‹key›\",\"name\":\"‹name›\",\"description\":\"‹description›\"}");
   }
+  if (!options.equal && (false || false)) throw new Error("projects.create: requires an equal observer for live values");
   inputs.set("projects.create",input);
   const before=seen.get("projects.create")??0;
   const actual = await outcome(() => remote.methods.createProject(input as Parameters<typeof remote.methods.createProject>[0], options.callContext as Parameters<typeof remote.methods.createProject>[1]));
@@ -178,6 +181,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input projects.list needs a caller-supplied native value");
   input = JSON.parse("{}");
   }
+  if (!options.equal && (false || false)) throw new Error("projects.list: requires an equal observer for live values");
   inputs.set("projects.list",input);
   const before=seen.get("projects.list")??0;
   const actual = await outcome(() => remote.methods.listProjects(input as Parameters<typeof remote.methods.listProjects>[0], options.callContext as Parameters<typeof remote.methods.listProjects>[1]));
@@ -192,6 +196,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input projects.update needs a caller-supplied native value");
   input = JSON.parse("{\"id\":\"‹id›\",\"expected_version\":0,\"key\":\"‹key›\",\"name\":\"‹name›\",\"description\":\"‹description›\"}");
   }
+  if (!options.equal && (false || false)) throw new Error("projects.update: requires an equal observer for live values");
   inputs.set("projects.update",input);
   const before=seen.get("projects.update")??0;
   const actual = await outcome(() => remote.methods.updateProject(input as Parameters<typeof remote.methods.updateProject>[0], options.callContext as Parameters<typeof remote.methods.updateProject>[1]));
@@ -206,6 +211,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input subscribe needs a caller-supplied native value");
   input = JSON.parse("{\"after\":0,\"project\":\"‹project›\"}");
   }
+  if (!options.equal && (false || false)) throw new Error("subscribe: requires an equal observer for live values");
   inputs.set("subscribe",input);
   const before=seen.get("subscribe")??0;
   const actual = await outcome(() => remote.methods.subscribe(input as Parameters<typeof remote.methods.subscribe>[0], options.callContext as Parameters<typeof remote.methods.subscribe>[1]));
@@ -220,6 +226,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input work.cancel needs a caller-supplied native value");
   input = JSON.parse("{\"id\":\"‹id›\",\"expected_version\":0,\"reason\":\"‹reason›\"}");
   }
+  if (!options.equal && (false || false)) throw new Error("work.cancel: requires an equal observer for live values");
   inputs.set("work.cancel",input);
   const before=seen.get("work.cancel")??0;
   const actual = await outcome(() => remote.methods.cancelWorkItem(input as Parameters<typeof remote.methods.cancelWorkItem>[0], options.callContext as Parameters<typeof remote.methods.cancelWorkItem>[1]));
@@ -234,6 +241,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input work.create needs a caller-supplied native value");
   input = JSON.parse("{\"project\":\"‹project›\",\"title\":\"‹title›\",\"draft\":{\"objective\":\"‹objective›\",\"criteria\":[{\"id\":\"‹id›\",\"description\":\"‹description›\"}],\"constraints\":[\"‹constraints›\"],\"dependencies\":[\"‹dependencies›\"]}}");
   }
+  if (!options.equal && (false || false)) throw new Error("work.create: requires an equal observer for live values");
   inputs.set("work.create",input);
   const before=seen.get("work.create")??0;
   const actual = await outcome(() => remote.methods.createWorkItem(input as Parameters<typeof remote.methods.createWorkItem>[0], options.callContext as Parameters<typeof remote.methods.createWorkItem>[1]));
@@ -248,6 +256,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input work.dependencies needs a caller-supplied native value");
   input = JSON.parse("{\"id\":\"‹id›\",\"expected_version\":0,\"dependencies\":[\"‹dependencies›\"]}");
   }
+  if (!options.equal && (false || false)) throw new Error("work.dependencies: requires an equal observer for live values");
   inputs.set("work.dependencies",input);
   const before=seen.get("work.dependencies")??0;
   const actual = await outcome(() => remote.methods.setDependencies(input as Parameters<typeof remote.methods.setDependencies>[0], options.callContext as Parameters<typeof remote.methods.setDependencies>[1]));
@@ -262,6 +271,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input work.get needs a caller-supplied native value");
   input = JSON.parse("{\"id\":\"‹id›\"}");
   }
+  if (!options.equal && (false || false)) throw new Error("work.get: requires an equal observer for live values");
   inputs.set("work.get",input);
   const before=seen.get("work.get")??0;
   const actual = await outcome(() => remote.methods.getWorkItem(input as Parameters<typeof remote.methods.getWorkItem>[0], options.callContext as Parameters<typeof remote.methods.getWorkItem>[1]));
@@ -276,6 +286,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input work.list needs a caller-supplied native value");
   input = JSON.parse("{\"project\":\"‹project›\",\"state\":\"‹state›\"}");
   }
+  if (!options.equal && (false || false)) throw new Error("work.list: requires an equal observer for live values");
   inputs.set("work.list",input);
   const before=seen.get("work.list")??0;
   const actual = await outcome(() => remote.methods.listWorkItems(input as Parameters<typeof remote.methods.listWorkItems>[0], options.callContext as Parameters<typeof remote.methods.listWorkItems>[1]));
@@ -290,6 +301,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input work.publish needs a caller-supplied native value");
   input = JSON.parse("{\"id\":\"‹id›\",\"expected_version\":0}");
   }
+  if (!options.equal && (false || false)) throw new Error("work.publish: requires an equal observer for live values");
   inputs.set("work.publish",input);
   const before=seen.get("work.publish")??0;
   const actual = await outcome(() => remote.methods.publishSpecification(input as Parameters<typeof remote.methods.publishSpecification>[0], options.callContext as Parameters<typeof remote.methods.publishSpecification>[1]));
@@ -304,6 +316,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input work.reopen needs a caller-supplied native value");
   input = JSON.parse("{\"id\":\"‹id›\",\"expected_version\":0,\"reason\":\"‹reason›\"}");
   }
+  if (!options.equal && (false || false)) throw new Error("work.reopen: requires an equal observer for live values");
   inputs.set("work.reopen",input);
   const before=seen.get("work.reopen")??0;
   const actual = await outcome(() => remote.methods.reopenWorkItem(input as Parameters<typeof remote.methods.reopenWorkItem>[0], options.callContext as Parameters<typeof remote.methods.reopenWorkItem>[1]));
@@ -318,6 +331,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input work.steps needs a caller-supplied native value");
   input = JSON.parse("{\"id\":\"‹id›\",\"expected_version\":0,\"steps\":[{\"id\":\"‹id›\",\"objective\":\"‹objective›\",\"state\":\"‹state›\",\"result_note\":\"‹result_note›\",\"change_reason\":\"‹change_reason›\"}],\"reason\":\"‹reason›\"}");
   }
+  if (!options.equal && (false || false)) throw new Error("work.steps: requires an equal observer for live values");
   inputs.set("work.steps",input);
   const before=seen.get("work.steps")??0;
   const actual = await outcome(() => remote.methods.setSteps(input as Parameters<typeof remote.methods.setSteps>[0], options.callContext as Parameters<typeof remote.methods.setSteps>[1]));
@@ -332,6 +346,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input work.update needs a caller-supplied native value");
   input = JSON.parse("{\"id\":\"‹id›\",\"expected_version\":0,\"title\":\"‹title›\",\"draft\":{\"objective\":\"‹objective›\",\"criteria\":[{\"id\":\"‹id›\",\"description\":\"‹description›\"}],\"constraints\":[\"‹constraints›\"],\"dependencies\":[\"‹dependencies›\"]}}");
   }
+  if (!options.equal && (false || false)) throw new Error("work.update: requires an equal observer for live values");
   inputs.set("work.update",input);
   const before=seen.get("work.update")??0;
   const actual = await outcome(() => remote.methods.updateWorkItem(input as Parameters<typeof remote.methods.updateWorkItem>[0], options.callContext as Parameters<typeof remote.methods.updateWorkItem>[1]));

@@ -386,6 +386,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input events.list unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("events.list: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["events.list"] = input
 		before := seen["events.list"]
@@ -407,6 +410,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 		}
 	}
 	{
+		if options.Equal == nil && (false) {
+			return fmt.Errorf("me: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["me"] = nil
 		before := seen["me"]
@@ -442,6 +448,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 			if err := json.Unmarshal([]byte("{\"key\":\"‹key›\",\"name\":\"‹name›\",\"description\":\"‹description›\"}"), &input); err != nil {
 				return fmt.Errorf("input projects.create unavailable for this instantiation: %w", err)
 			}
+		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("projects.create: requires an Equal observer for live values")
 		}
 		mutex.Lock()
 		inputs["projects.create"] = input
@@ -479,6 +488,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input projects.list unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("projects.list: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["projects.list"] = input
 		before := seen["projects.list"]
@@ -514,6 +526,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 			if err := json.Unmarshal([]byte("{\"id\":\"‹id›\",\"expected_version\":0,\"key\":\"‹key›\",\"name\":\"‹name›\",\"description\":\"‹description›\"}"), &input); err != nil {
 				return fmt.Errorf("input projects.update unavailable for this instantiation: %w", err)
 			}
+		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("projects.update: requires an Equal observer for live values")
 		}
 		mutex.Lock()
 		inputs["projects.update"] = input
@@ -551,6 +566,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input subscribe unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("subscribe: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["subscribe"] = input
 		before := seen["subscribe"]
@@ -586,6 +604,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 			if err := json.Unmarshal([]byte("{\"id\":\"‹id›\",\"expected_version\":0,\"reason\":\"‹reason›\"}"), &input); err != nil {
 				return fmt.Errorf("input work.cancel unavailable for this instantiation: %w", err)
 			}
+		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("work.cancel: requires an Equal observer for live values")
 		}
 		mutex.Lock()
 		inputs["work.cancel"] = input
@@ -623,6 +644,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input work.create unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("work.create: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["work.create"] = input
 		before := seen["work.create"]
@@ -658,6 +682,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 			if err := json.Unmarshal([]byte("{\"id\":\"‹id›\",\"expected_version\":0,\"dependencies\":[\"‹dependencies›\"]}"), &input); err != nil {
 				return fmt.Errorf("input work.dependencies unavailable for this instantiation: %w", err)
 			}
+		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("work.dependencies: requires an Equal observer for live values")
 		}
 		mutex.Lock()
 		inputs["work.dependencies"] = input
@@ -695,6 +722,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input work.get unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("work.get: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["work.get"] = input
 		before := seen["work.get"]
@@ -730,6 +760,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 			if err := json.Unmarshal([]byte("{\"project\":\"‹project›\",\"state\":\"‹state›\"}"), &input); err != nil {
 				return fmt.Errorf("input work.list unavailable for this instantiation: %w", err)
 			}
+		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("work.list: requires an Equal observer for live values")
 		}
 		mutex.Lock()
 		inputs["work.list"] = input
@@ -767,6 +800,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input work.publish unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("work.publish: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["work.publish"] = input
 		before := seen["work.publish"]
@@ -802,6 +838,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 			if err := json.Unmarshal([]byte("{\"id\":\"‹id›\",\"expected_version\":0,\"reason\":\"‹reason›\"}"), &input); err != nil {
 				return fmt.Errorf("input work.reopen unavailable for this instantiation: %w", err)
 			}
+		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("work.reopen: requires an Equal observer for live values")
 		}
 		mutex.Lock()
 		inputs["work.reopen"] = input
@@ -839,6 +878,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input work.steps unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("work.steps: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["work.steps"] = input
 		before := seen["work.steps"]
@@ -874,6 +916,9 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 			if err := json.Unmarshal([]byte("{\"id\":\"‹id›\",\"expected_version\":0,\"title\":\"‹title›\",\"draft\":{\"objective\":\"‹objective›\",\"criteria\":[{\"id\":\"‹id›\",\"description\":\"‹description›\"}],\"constraints\":[\"‹constraints›\"],\"dependencies\":[\"‹dependencies›\"]}}"), &input); err != nil {
 				return fmt.Errorf("input work.update unavailable for this instantiation: %w", err)
 			}
+		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("work.update: requires an Equal observer for live values")
 		}
 		mutex.Lock()
 		inputs["work.update"] = input

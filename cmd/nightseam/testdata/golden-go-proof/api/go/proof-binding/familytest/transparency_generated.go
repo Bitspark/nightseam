@@ -313,6 +313,9 @@ func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag 
 				return fmt.Errorf("input echo unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("echo: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["echo"] = input
 		before := seen["echo"]
@@ -334,6 +337,9 @@ func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag 
 		}
 	}
 	{
+		if options.Equal == nil && (false) {
+			return fmt.Errorf("no_args: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["no_args"] = nil
 		before := seen["no_args"]
@@ -369,6 +375,9 @@ func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag 
 			if err := json.Unmarshal([]byte("{\"type\":\"count\",\"value\":0}"), &input); err != nil {
 				return fmt.Errorf("input classify unavailable for this instantiation: %w", err)
 			}
+		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("classify: requires an Equal observer for live values")
 		}
 		mutex.Lock()
 		inputs["classify"] = input
@@ -406,6 +415,9 @@ func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag 
 				return fmt.Errorf("input classify_rich unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("classify_rich: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["classify_rich"] = input
 		before := seen["classify_rich"]
@@ -442,6 +454,9 @@ func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag 
 				return fmt.Errorf("input parts unavailable for this instantiation: %w", err)
 			}
 		}
+		if options.Equal == nil && (false || false) {
+			return fmt.Errorf("parts: requires an Equal observer for live values")
+		}
 		mutex.Lock()
 		inputs["parts"] = input
 		before := seen["parts"]
@@ -477,6 +492,9 @@ func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag 
 			if err := json.Unmarshal([]byte("{\"message\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}},\"back\":{\"channel\":0},\"page\":{\"items\":[\"‹items›\"],\"next\":\"‹next›\"}}"), &input); err != nil {
 				return fmt.Errorf("input relay unavailable for this instantiation: %w", err)
 			}
+		}
+		if options.Equal == nil && (false || adapterItem.NeedsContext) {
+			return fmt.Errorf("relay: requires an Equal observer for live values")
 		}
 		mutex.Lock()
 		inputs["relay"] = input

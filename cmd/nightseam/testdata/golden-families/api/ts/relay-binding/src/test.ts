@@ -87,6 +87,7 @@ export async function smoke<S extends AnyFamily = AnyFamily>(model: Protocol.Ser
   if (false) throw new Error("input relay needs a caller-supplied native value");
   throw new Error("input relay unavailable: no compatible concrete family is available for S");
   }
+  if (!options.equal && (false || false)) throw new Error("relay: requires an equal observer for live values");
   inputs.set("relay",input);
   const before=seen.get("relay")??0;
   const actual = await outcome(() => remote.methods.relay(input as Parameters<typeof remote.methods.relay>[0], options.callContext as Parameters<typeof remote.methods.relay>[1]));

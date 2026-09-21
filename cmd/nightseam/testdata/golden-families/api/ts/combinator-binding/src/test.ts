@@ -99,6 +99,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (options.inputs && Object.prototype.hasOwnProperty.call(options.inputs,"name")) { input=options.inputs["name"]; } else {
   input = JSON.parse("{}");
   }
+  if (!options.equal && (false || false)) throw new Error("name: requires an equal observer for live values");
   inputs.set("name",input);
   const before=seen.get("name")??0;
   const actual = await outcome(() => remote.methods.name(input as Parameters<typeof remote.methods.name>[0], options.callContext as Parameters<typeof remote.methods.name>[1]));
@@ -113,6 +114,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (true) throw new Error("input pack needs a caller-supplied native value");
   input = JSON.parse("{\"item\":{\"binding\":\"‹binding›\",\"contract\":\"combinator/Unary\"}}");
   }
+  if (!options.equal && (true || true)) throw new Error("pack: requires an equal observer for live values");
   inputs.set("pack",input);
   const before=seen.get("pack")??0;
   const actual = await outcome(() => remote.methods.pack(input as Parameters<typeof remote.methods.pack>[0], options.callContext as Parameters<typeof remote.methods.pack>[1]));
@@ -127,6 +129,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input toolkit needs a caller-supplied native value");
   input = JSON.parse("{\"seed\":0}");
   }
+  if (!options.equal && (false || true)) throw new Error("toolkit: requires an equal observer for live values");
   inputs.set("toolkit",input);
   const before=seen.get("toolkit")??0;
   const actual = await outcome(() => remote.methods.toolkit(input as Parameters<typeof remote.methods.toolkit>[0], options.callContext as Parameters<typeof remote.methods.toolkit>[1]));

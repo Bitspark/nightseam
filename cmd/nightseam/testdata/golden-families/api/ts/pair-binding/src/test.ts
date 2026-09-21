@@ -93,6 +93,7 @@ export async function smoke<S extends AnyFamily = AnyFamily, T extends AnyFamily
   if (false) throw new Error("input named needs a caller-supplied native value");
   input = JSON.parse("{\"held\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}}}");
   }
+  if (!options.equal && (false || false)) throw new Error("named: requires an equal observer for live values");
   inputs.set("named",input);
   const before=seen.get("named")??0;
   const actual = await outcome(() => remote.methods.named(input as Parameters<typeof remote.methods.named>[0], options.callContext as Parameters<typeof remote.methods.named>[1]));
@@ -107,6 +108,7 @@ export async function smoke<S extends AnyFamily = AnyFamily, T extends AnyFamily
   if (false) throw new Error("input relay needs a caller-supplied native value");
   input = JSON.parse("{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}}");
   }
+  if (!options.equal && (false || false)) throw new Error("relay: requires an equal observer for live values");
   inputs.set("relay",input);
   const before=seen.get("relay")??0;
   const actual = await outcome(() => remote.methods.relay(input as Parameters<typeof remote.methods.relay>[0], options.callContext as Parameters<typeof remote.methods.relay>[1]));
