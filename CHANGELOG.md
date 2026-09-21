@@ -53,6 +53,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Go and TypeScript access surfaces adopt public Bitwire v0.1.0 through exact
+  shared types, held to its independent composition cases locally and over
+  WebSockets while Nightseam retains runtime and scoped-reference behavior.
 - Haskell enters at tier 4 with bounded pipes and WebSockets, the native peer,
   relative-path Wires and strict shared-table validation, held against Go in
   both roles and by an outside source-distribution consumer.

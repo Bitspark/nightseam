@@ -31,15 +31,17 @@ async function physicalPair(): Promise<[Wire, Wire]> {
   // Both awaits can fail independently; retain a rejection handler while the
   // outgoing socket's handshake is pending, then await this same promise.
   accepted.catch(() => {});
+  listener.on('connection', (socket) => {
+    cleanups.push(() => {
+      socket.terminate();
+    });
+  });
   const client = new WebSocket(`ws://127.0.0.1:${address.port}`);
   cleanups.push(() => {
     client.terminate();
   });
   await once(client, 'open', { signal: AbortSignal.timeout(5_000) });
   const [remote] = (await accepted) as [WebSocket];
-  cleanups.push(() => {
-    remote.terminate();
-  });
   const a = new DuplexPeer({ role: 'client' });
   const b = new DuplexPeer({ role: 'server' });
   cleanups.push(() => {
@@ -279,6 +281,7 @@ async function lifetime(test: LifetimeCase) {
       const timer = setTimeout(() => reject(new Error('The remote endpoint did not close.')), deadlineMs);
       try {
         server.receive(test.path, {
+          message: receiver.message,
           closed() {
             clearTimeout(timer);
             resolve();

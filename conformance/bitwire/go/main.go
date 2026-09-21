@@ -61,16 +61,21 @@ func pair() (bitwire.Wire, bitwire.Wire) {
 	})
 	check(err)
 	server := httptest.NewServer(handler)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	client, _, err := ns.Dial(ctx, server.URL, ns.DialOptions{})
+	cleanups = append(cleanups, server.Close)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	cleanups = append(cleanups, cancel)
+	client, _, err := ns.Dial(ctx, server.URL, ns.DialOptions{ConnectTimeout: 5 * time.Second})
 	check(err)
+	cleanups = append(cleanups, func() { _ = client.Close() })
 	var remote *ns.Peer
 	select {
 	case remote = <-connected:
+	case <-time.After(5 * time.Second):
+		panic("the server did not publish its accepted peer")
 	case <-ctx.Done():
 		panic(ctx.Err())
 	}
-	cleanups = append(cleanups, func() { _ = client.Close(); _ = remote.Close(); server.Close(); cancel() })
+	cleanups = append(cleanups, func() { _ = remote.Close() })
 	if os.Getenv("NIGHTSEAM_BITWIRE_REVERSE") == "1" {
 		return remote.Wire(), client.Wire()
 	}
