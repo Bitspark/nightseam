@@ -114,7 +114,9 @@ func (f *file) emitGenericCallable(t *render.Type) {
 			f.line("const parent = owner;")
 			f.w.Block("const reference = owner.export(identity.path, identity.digest ?? '', async (request, options) => {", "});", func() {
 				f.line("const owner = parent.child();")
-				f.line("const context = { ...options, owner };")
+				// The invoking context is inherited, never copied: what the
+				// connection placed on it reaches the function, as in Go.
+				f.line("const context = Object.assign(Object.create(options ?? null), { owner });")
 				call := "context"
 				if t.Request != nil {
 					f.linef("validateWire(%s, request, '$', slots);", expression(t.Request))

@@ -21,7 +21,7 @@
  *
  * The layer proves which binding of which contract, and never who may call it.
  */
-import { DuplexError, UnpublishedError, type DuplexPeer } from '@nightseam/runtime';
+import { DuplexError, UnpublishedError, type DuplexPeer, type WireModelContext } from '@nightseam/runtime';
 export { valueEnvironment } from './value_adapter.ts';
 
 /**
@@ -60,9 +60,13 @@ export const TOO_MANY_IMPORTS = 'too_many_imports';
 
 /**
  * What a binding is: a request in, a result out. A thrown DuplexError crosses
- * the wire with its code, as it does from any handler.
+ * the wire with its code, as it does from any handler. The options are the
+ * invoking side's context — for a remote invocation the handler context of
+ * the connection that carried it in, for a local one the caller's — with the
+ * invocation's own signal; what a peer or its propagator placed on that
+ * context reaches the function, as it reaches any handler.
  */
-export type Invoke = (request: unknown, options?: { signal?: AbortSignal }) => Promise<unknown>;
+export type Invoke = (request: unknown, options?: WireModelContext) => Promise<unknown>;
 
 /** Bounds on the bindings a scope holds. */
 export interface LiveOptions {
@@ -473,7 +477,7 @@ export class LiveScope {
       next: 1,
       closed: false,
     };
-    peer.handle(INVOKE_METHOD, (params, context) => this.onInvoke(params, context.signal));
+    peer.handle(INVOKE_METHOD, (params, context) => this.onInvoke(params, context));
     peer.onEvent(RELEASE_EVENT, (data) => this.onRelease(data));
     // A reference does not survive its connection and reconnection revives
     // nothing: the next connection is another scope, whose nonce is another.
@@ -664,7 +668,7 @@ export class LiveScope {
     return async (request, options) => {
       if (this.closed) throw new UnpublishedError(new DuplexError(SCOPE_CLOSED, 'The scope ended.'));
       if (own.released) throw new UnpublishedError(new DuplexError(REFERENCE_RELEASED, 'The binding was released.'));
-      return this.invokeScoped(own.invoke, request, options?.signal);
+      return this.invokeScoped(own.invoke, request, options);
     };
   }
 
@@ -705,7 +709,7 @@ export class LiveScope {
    * binding is one this scope exported and that the contract named is the one
    * it was exported for, and then it is the function's business.
    */
-  private async onInvoke(params: unknown, signal: AbortSignal): Promise<unknown> {
+  private async onInvoke(params: unknown, context: WireModelContext): Promise<unknown> {
     const named = params as Partial<{ binding: string; contract: string; request: unknown }> | null;
     if (
       !named ||
@@ -721,12 +725,18 @@ export class LiveScope {
     if (own.contract !== named.contract)
       throw this.refuse(named.contract, CONTRACT_MISMATCH, `The binding carries ${own.contract}.`);
     if (own.released) throw this.refuse(own.contract, REFERENCE_RELEASED, 'The binding was released.');
-    const result = await this.invokeScoped(own.invoke, named.request, signal);
+    const result = await this.invokeScoped(own.invoke, named.request, context);
     return result === undefined ? null : result;
   }
 
-  /** Settle callers on closure even when their implementation ignores its signal. */
-  private async invokeScoped(invoke: Invoke, request: unknown, signal?: AbortSignal): Promise<unknown> {
+  /**
+   * Settle callers on closure even when their implementation ignores its
+   * signal. The function runs under the invoking context — derived, so what
+   * was placed on it is inherited and nothing is copied — with this
+   * invocation's own signal.
+   */
+  private async invokeScoped(invoke: Invoke, request: unknown, context?: WireModelContext): Promise<unknown> {
+    const signal = context?.signal;
     if (this.closed) throw new UnpublishedError(new DuplexError(SCOPE_CLOSED, 'The scope ended.'));
     if (signal?.aborted) throw new UnpublishedError(new DuplexError('cancelled', 'The invocation was cancelled.'));
     const controller = new AbortController();
@@ -747,7 +757,9 @@ export class LiveScope {
     try {
       const result = Promise.resolve().then(() => {
         if (controller.signal.aborted) return ended;
-        return invoke(request, { signal: controller.signal });
+        const derived = Object.create(context ?? null) as WireModelContext;
+        derived.signal = controller.signal;
+        return invoke(request, derived);
       });
       return await Promise.race([result, ended]);
     } catch (error) {
