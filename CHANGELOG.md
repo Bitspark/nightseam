@@ -10,6 +10,8 @@ are one number. Entries are in the words of the commits that landed them.
 
 - The Java WebSocket transport finishes its bounded close handshake before
   publishing closure, and the peer's terminal winner owns the transport action.
+- The Java peer preserves a transport's explicit close when its read or write
+  waiter resumes before the separate closure notification is published.
 - Give each language testee build its own bounded deadline.
 - The generated composition fixture waits for worker completion before
   asserting finished cancellation, preserving the final callback race.
