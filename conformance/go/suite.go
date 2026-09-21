@@ -173,6 +173,15 @@ func (s *Suite) runGenerated(t *testing.T, a, b string) {
 
 func (s *Suite) run(t *testing.T, a, b string, generated bool, keep func(Scenario) bool) {
 	t.Helper()
+	unavailable := ""
+	if generated {
+		for _, language := range []string{a, b} {
+			if s.Recipes[language].Generated == nil {
+				unavailable = fmt.Sprintf("the %s testee has no generated target", language)
+				break
+			}
+		}
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	testees := map[string]*Testee{}
@@ -228,18 +237,21 @@ func (s *Suite) run(t *testing.T, a, b string, generated bool, keep func(Scenari
 			runs = append(runs, sc.Mirrored())
 		}
 		for _, sc := range runs {
-			s.one(t, ctx, sc, a, b, start)
+			s.one(t, ctx, sc, a, b, start, unavailable)
 		}
 	}
 }
 
 // one runs a scenario as one subtest, its outcome into the matrix.
-func (s *Suite) one(t *testing.T, ctx context.Context, sc Scenario, a, b string, start func(string) *Testee) {
+func (s *Suite) one(t *testing.T, ctx context.Context, sc Scenario, a, b string, start func(string) *Testee, unavailable string) {
 	t.Helper()
 	{
 		t.Run(sc.Layer+"/"+sc.Name, func(t *testing.T) {
-			ta, tb := start(a), start(b)
-			outcome := Run(ctx, ta, tb, sc)
+			outcome := Outcome{Skipped: unavailable}
+			if unavailable == "" {
+				ta, tb := start(a), start(b)
+				outcome = Run(ctx, ta, tb, sc)
+			}
 			// The cell is the non-reference language's, on whichever side it
 			// stands; go with go is the reference's own row.
 			held := a
