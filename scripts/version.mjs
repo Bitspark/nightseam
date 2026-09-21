@@ -9,6 +9,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { dependency, examples, manifestsUnder, modules, packages, requirement, root } from "./packages.mjs";
+import { updateRustVersions } from "./rust-packages.mjs";
 const version = process.argv[2];
 if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version ?? "")) {
   console.error("usage: node scripts/version.mjs <major.minor.patch>");
@@ -61,4 +62,5 @@ for (const example of examples) {
     if (moved !== manifest) writeFileSync(path, moved);
   }
 }
-console.log(`version ${version}: ${packages.join(", ")}, DefaultRuntimeVersion, ${modules.join(", ")}${examples.length ? ", " + examples.join(", ") : ""}`);
+updateRustVersions(root, version);
+console.log(`version ${version}: ${packages.join(", ")}, Cargo workspace, DefaultRuntimeVersion, ${modules.join(", ")}${examples.length ? ", " + examples.join(", ") : ""}`);

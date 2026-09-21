@@ -92,6 +92,7 @@ The input side: the tier files, the tool, and what comes out.
 | --- | --- |
 | [tiers.md](languages/tiers.md) | languages, profiles and tiers: the four promises, the profiles the conformance suite holds them to, which tier guarantees what and when, how the suite enforces it |
 | [onboarding.md](languages/onboarding.md) | how a language joins: the lanes in order, the testee, what a language promises before it is in the table |
+| [rust.md](languages/rust.md) | Rust core crates, checkout use, Cargo packaging and the outside WebSocket consumer smoke |
 
 ## Why it is this way — `decisions/`
 

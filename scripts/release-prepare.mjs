@@ -16,6 +16,7 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { gate, matrixFile, missing, profilesFile, readJSON, unrun } from "./matrix.mjs";
 import { copyNotices, dependency, examples, manifestsUnder, modules, packages, requirement, root } from "./packages.mjs";
+import { rustVersionProblems } from "./rust-packages.mjs";
 
 const flag = name => {
   const at = process.argv.indexOf(name);
@@ -29,6 +30,7 @@ if (!/^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(tag ?? "")) {
 }
 const version = tag.slice(1);
 const problems = [];
+problems.push(...rustVersionProblems(root, version));
 for (const directory of packages) {
   const manifest = JSON.parse(readFileSync(join(root, directory, "package.json"), "utf8"));
   if (manifest.version !== version) problems.push(`${directory}/package.json is ${manifest.version}, the tag is ${version}`);

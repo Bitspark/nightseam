@@ -84,6 +84,12 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -146,6 +152,7 @@ jobs:
       # refuses any tarball missing them, including during a local run.
       - run: node --input-type=module -e "import { copyNotices } from './scripts/packages.mjs'; copyNotices();"
       - run: node scripts/smoke-packed.mjs
+      - run: node scripts/smoke-rust-packed.mjs
       - run: go vet ./...
         working-directory: otel/go
       - run: go test ./...
