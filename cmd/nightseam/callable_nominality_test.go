@@ -71,6 +71,7 @@ import (
 	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
+	"github.com/Bitspark/nightseam/tunnel/go"
 )
 
 func TestSameSignatureAssignmentUsesDestinationContract(t *testing.T) {
@@ -131,6 +132,13 @@ func TestGeneratedRevisionsAcrossARealSocket(t *testing.T) {
 				Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 				CheckOrigin: func(*http.Request) bool { return true },
 				Options: runtime.Options{Prepare: func(peer *runtime.Peer) error {
+					carrier, err := tunnel.New(peer, tunnel.Options{Contracts: map[string]string{"nominal": previous.WireDigest()}})
+					if err != nil { return err }
+					if err := peer.Handle("check_channel", func(ctx context.Context, _ *runtime.Peer, _ json.RawMessage) (any, error) {
+						channel, err := carrier.Open(ctx, "nominal", previous.WireDigest())
+						if err != nil { return nil, err }
+						return nil, channel.Close(ctx, duplex.CodeNormal, "")
+					}); err != nil { return err }
 					scope, err := live.Over(peer, live.Options{})
 					if err != nil { return err }
 					if err := peer.Handle("offer", func(context.Context, *runtime.Peer, json.RawMessage) (any, error) {
@@ -163,14 +171,25 @@ import * as current from './api/ts/nominal-client/src/types.ts';
 import * as previous from './api-v1/ts/nominal-client/src/types.ts';
 import { DuplexPeer, DuplexError } from '@nightseam/runtime';
 import { liveOver } from '@nightseam/live';
+import { Tunnel } from '@nightseam/tunnel';
 
 const mode = process.argv[3];
 const protocol = mode === 'same' ? previous : current;
 const peer = new DuplexPeer();
 const scope = liveOver(peer);
+const carrier = new Tunnel(peer, { contracts: { nominal: protocol.wireDigest } });
 let invoked = 0;
 try {
   await peer.connect(process.argv[2]!);
+  if (mode === 'different') {
+    await assert.rejects(carrier.open('nominal', protocol.wireDigest), { code: 'contract_mismatch', message: 'the declaration digest for nominal differs' });
+    await assert.rejects(peer.call('check_channel', {}), { code: 'contract_mismatch', message: 'the declaration digest for nominal differs' });
+  } else {
+    const channel = await carrier.open('nominal', protocol.wireDigest);
+    assert.equal(channel.digest, protocol.wireDigest);
+    channel.close();
+    assert.equal(await peer.call('check_channel', {}), null);
+  }
   const offered = await peer.call('offer', {});
   if (mode === 'different') {
     assert.throws(() => protocol.importSetVolume(scope.owner(), offered), (error: unknown) =>
