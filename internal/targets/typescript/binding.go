@@ -128,9 +128,9 @@ func emitBinding(f *file) {
 		serveOwner := strings.ReplaceAll(f.liveOwner(true), "this.", "remote.")
 		for _, m := range fam.Server.Methods {
 			if f.liveNeeded(m.Request, m.Result) {
-				f.linef("peer.handle(%s, async (raw, context) => { %s try { validateWire(%s, raw%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = %s; const result = await handler.%s(params as %s, remote, ownedContext); return %s; });", quote(m.Name), serveOwner, requestExpression(m), serveSlots, f.liveConversion(m.Request, "raw", false), p.operations[m.Name], f.request(m), f.liveExport(m.Result, "result", serveSlots))
+				f.linef("peer.handle(%s, async (raw, context) => { %s try { validateWire(%s, raw%s); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const params = %s; const result = await handler.%s(params as %s, remote, ownedContext); return %s; });", quote(m.Name), serveOwner, requestExpression(m), serveSlots, f.liveConversion(m.Request, "raw", false), p.operations[m.Name], f.request(m), f.liveExport(m.Result, "result", serveSlots))
 			} else {
-				f.linef("peer.handle(%s, async (params, context) => { try { validateWire(%s, params%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, remote, context); validateWire(%s, result%s); return result; });", quote(m.Name), requestExpression(m), serveSlots, p.operations[m.Name], f.request(m), expression(m.Result), serveSlots)
+				f.linef("peer.handle(%s, async (params, context) => { try { validateWire(%s, params%s); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, remote, context); validateWire(%s, result%s); return result; });", quote(m.Name), requestExpression(m), serveSlots, p.operations[m.Name], f.request(m), expression(m.Result), serveSlots)
 			}
 		}
 		for _, e := range fam.Client.Events {

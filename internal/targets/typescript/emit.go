@@ -309,13 +309,13 @@ func emitClient(f *file) {
 			for _, m := range fam.Client.Methods {
 				f.line("if (!handler) throw new Error('reverse-call handler is required');")
 				if f.liveNeeded(m.Request, m.Result) {
-					f.linef("peer.handle(%s, async (raw, context) => { %s try { %s(%s, raw%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = %s; const result = await handler.%s(params as %s, ownedContext); return %s; });",
+					f.linef("peer.handle(%s, async (raw, context) => { %s try { %s(%s, raw%s); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const params = %s; const result = await handler.%s(params as %s, ownedContext); return %s; });",
 						quote(m.Name), f.liveOwner(true), identValidateWire, requestExpression(m), slots,
 						f.liveConversion(m.Request, "raw", false), p.operations[m.Name], f.request(m),
 						f.liveExport(m.Result, "result", slots))
 					continue
 				}
-				f.linef("peer.handle(%s, async (params, context) => { try { %s(%s, params%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, context); %s(%s, result%s); return result; });", quote(m.Name), identValidateWire, requestExpression(m), slots, p.operations[m.Name], f.request(m), identValidateWire, expression(m.Result), slots)
+				f.linef("peer.handle(%s, async (params, context) => { try { %s(%s, params%s); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, context); %s(%s, result%s); return result; });", quote(m.Name), identValidateWire, requestExpression(m), slots, p.operations[m.Name], f.request(m), identValidateWire, expression(m.Result), slots)
 			}
 			for _, e := range fam.Server.Events {
 				f.linef("if (events.%s) this.%s%s(events.%s);", p.operations[e.Name], identOn, upperFirst(p.operations[e.Name]), p.operations[e.Name])

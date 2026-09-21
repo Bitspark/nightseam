@@ -127,7 +127,7 @@ func (f *file) emitCallable(t *render.Type) {
 	f.w.Block(fmt.Sprintf("export function %s(owner: LiveOwner, value: %s): unknown {", p.exports[t.Name], name), "}", func() {
 		f.w.Block("return owner.exportValue((owner) => {", "});", func() {
 			f.line("const parent = owner;")
-			f.w.Block(fmt.Sprintf("const reference = owner.export(%s, async (request, options) => {", p.contracts[t.Name]), "});", func() {
+			f.w.Block(fmt.Sprintf("const reference = owner.export(%s, %s, async (request, options) => {", p.contracts[t.Name], identWireDigest), "});", func() {
 				f.line("const owner = parent.child();")
 				f.line("const context = { ...options, owner };")
 				call := "context"
@@ -148,14 +148,14 @@ func (f *file) emitCallable(t *render.Type) {
 				f.linef("return %s;", f.liveExport(t.Result, "result", ""))
 			})
 			// The reference's wire form, not the Reference itself: what travels is
-			// the two members, and the validator that meets the converted value
+			// the identity members, and the validator that meets the converted value
 			// then reads an ordinary object rather than an instance of a class.
 			f.line("return reference.toJSON();")
 		})
 	})
 	f.linef("/** A %s that calls the binding a reference names. */", name)
 	f.w.Block(fmt.Sprintf("export function %s(owner: LiveOwner, raw: unknown): %s {", p.imports_[t.Name], name), "}", func() {
-		f.linef("const invoke = owner.import(owner.scope.decode(raw), %s);", p.contracts[t.Name])
+		f.linef("const invoke = owner.import(owner.scope.decode(raw), %s, %s);", p.contracts[t.Name], identWireDigest)
 		f.line("const scope = owner.scope;")
 		f.w.Block(fmt.Sprintf("return async (%s) => {", f.callableParams(t)), "};", func() {
 			f.line("const owner = options?.owner?.scope === scope ? options.owner : scope.owner();")

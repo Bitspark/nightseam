@@ -69,7 +69,7 @@ func publicationWaitCounts(t T, scope *live.Scope, exports, imports int) {
 func publicationPayload(t T, owner *live.Owner) json.RawMessage {
 	t.Helper()
 	raw, err := owner.ExportValue(func(build *live.Owner) (json.RawMessage, error) {
-		reference, err := build.Export(sink, echo)
+		reference, err := build.Export(sink, "", echo)
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +86,7 @@ func publicationImport(owner *live.Owner, raw json.RawMessage) (live.Invoke, err
 	if err != nil {
 		return nil, err
 	}
-	return owner.Import(reference, sink)
+	return owner.Import(reference, sink, "")
 }
 
 func publicationAlive(t T, p Pair) {
@@ -229,7 +229,7 @@ func handlerOwnerAfterLostReply(t T, p Pair) {
 			return nil, fmt.Errorf("handler owner is inaccessible")
 		}
 		raw, err := selected.ExportValue(func(build *live.Owner) (json.RawMessage, error) {
-			reference, err := build.Export(sink, echo)
+			reference, err := build.Export(sink, "", echo)
 			if err != nil {
 				return nil, err
 			}
@@ -327,7 +327,7 @@ func provenUnpublishedIsUnwound(t T, p Pair) {
 	defer owner.Release()
 	for i := 0; i < 12; i++ {
 		_, err := owner.ExportValue(func(build *live.Owner) (json.RawMessage, error) {
-			if _, err := build.Export(sink, echo); err != nil {
+			if _, err := build.Export(sink, "", echo); err != nil {
 				return nil, err
 			}
 			return json.RawMessage(`{`), nil
@@ -387,7 +387,7 @@ func localInvocationRetainsNestedRefusal(t T, p Pair) {
 	defer implementation.Release()
 	defer outgoing.Release()
 	var alias live.Invoke
-	reference, err := implementation.Export(other, func(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
+	reference, err := implementation.Export(other, "", func(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
 		var err error
 		alias, err = publicationImport(implementation, raw)
 		if err != nil {
@@ -400,7 +400,7 @@ func localInvocationRetainsNestedRefusal(t T, p Pair) {
 	if err != nil {
 		t.Fatalf("local export: %v", err)
 	}
-	invoke, err := implementation.Import(reference, other)
+	invoke, err := implementation.Import(reference, other, "")
 	if err != nil {
 		t.Fatalf("local import: %v", err)
 	}

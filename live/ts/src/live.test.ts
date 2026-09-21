@@ -60,7 +60,7 @@ for (const one of cases()) {
 
 async function serializedReferenceNewConnection(): Promise<void> {
   const first = await over();
-  const exported = first.a.owner().export(SINK, echo);
+  const exported = first.a.owner().export(SINK, '', echo);
   const carried = JSON.parse(JSON.stringify(exported));
   first.close();
 
@@ -70,7 +70,7 @@ async function serializedReferenceNewConnection(): Promise<void> {
     // Decode accepts these bytes and import attaches; only invocation proves
     // that the new exporting scope has no binding with the old nonce.
     const arrived = second.b.decode(carried);
-    const invoke = second.b.owner().import(arrived, SINK);
+    const invoke = second.b.owner().import(arrived, SINK, '');
     assert.deepEqual(second.a.counts(), { exports: 1, imports: 0 });
     assert.deepEqual(second.b.counts(), { exports: 0, imports: 2 });
     await assert.rejects(
@@ -118,17 +118,17 @@ test('the scope over a peer is found on it', async () => {
 test('the bounds refuse and leave nothing', async () => {
   const p = await over({ maxExports: 1, maxImports: 1 });
   try {
-    const first = p.a.owner().export(SINK, echo);
+    const first = p.a.owner().export(SINK, '', echo);
     assert.throws(
-      () => p.a.owner().export(SINK, echo),
+      () => p.a.owner().export(SINK, '', echo),
       (error: DuplexError) => error.code === TOO_MANY_EXPORTS,
     );
     assert.equal(p.a.counts().exports, 1, 'a refused export left a binding behind');
 
-    p.b.owner().import(p.b.decode(JSON.parse(JSON.stringify(first))), SINK);
+    p.b.owner().import(p.b.decode(JSON.parse(JSON.stringify(first))), SINK, '');
     const second = p.b.decode({ binding: 'deadbeefdeadbeef.9', contract: SINK });
     assert.throws(
-      () => p.b.owner().import(second, SINK),
+      () => p.b.owner().import(second, SINK, ''),
       (error: DuplexError) => error.code === TOO_MANY_IMPORTS,
     );
     assert.equal(p.b.counts().imports, 1, 'a refused import left an attachment behind');
@@ -155,7 +155,7 @@ test('a reference is not a constructible value', async () => {
   const p = await over();
   try {
     assert.throws(
-      () => new Reference('a.1', SINK, p.b, Symbol('not the one') as never),
+      () => new Reference('a.1', SINK, '', p.b, Symbol('not the one') as never),
       (error: DuplexError) => error.code === CONTRACT_INVALID,
     );
     assert.throws(
@@ -171,7 +171,7 @@ test('a reference is not a constructible value', async () => {
       (e: DuplexError) => e.code === CONTRACT_INVALID,
     );
     assert.throws(
-      () => p.b.owner().import({ binding: 'a.1', contract: SINK } as unknown as Reference, SINK),
+      () => p.b.owner().import({ binding: 'a.1', contract: SINK } as unknown as Reference, SINK, ''),
       (error: DuplexError) => error.code === REFERENCE_FOREIGN,
     );
   } finally {
@@ -183,8 +183,8 @@ test('the observer is told and sees no payload', async () => {
   const seen: ObserverEvent[] = [];
   const p = await over({}, { observe: (event) => void seen.push(event) });
   try {
-    const exported = p.a.owner().export(SINK, echo);
-    assert.throws(() => p.a.owner().export('', echo));
+    const exported = p.a.owner().export(SINK, '', echo);
+    assert.throws(() => p.a.owner().export('', '', echo));
     handed(p.a, p.b, SINK, echo);
     p.a.release(exported);
 
@@ -203,7 +203,7 @@ test('the observer is told and sees no payload', async () => {
 test('a reference marshals as a binding and a contract, and nothing else', async () => {
   const p = await over();
   try {
-    const exported = p.a.owner().export(SINK, echo);
+    const exported = p.a.owner().export(SINK, '', echo);
     const wire = JSON.parse(JSON.stringify(exported)) as Record<string, unknown>;
     assert.deepEqual(Object.keys(wire).sort(), ['binding', 'contract']);
     assert.equal(wire.contract, SINK);
@@ -232,9 +232,9 @@ test('exportValue tracks only its own allocations and completed views start fres
       () =>
         p.a.owner().exportValue((scope) => {
           captured = scope;
-          scope.export(SINK, echo);
-          retained = p.a.owner().export(SINK, echo);
-          scope.exportValue((nested) => nested.export(SINK, echo).toJSON());
+          scope.export(SINK, '', echo);
+          retained = p.a.owner().export(SINK, '', echo);
+          scope.exportValue((nested) => nested.export(SINK, '', echo).toJSON());
           throw new Error('later conversion failed');
         }),
       /later conversion failed/,
@@ -242,8 +242,8 @@ test('exportValue tracks only its own allocations and completed views start fres
     assert.equal(p.a.counts().exports, 1);
     assert.ok(captured);
     assert.ok(retained);
-    assert.equal(await captured.import(retained, SINK)(7), 7);
-    const raw = captured.exportValue((next) => next.export(SINK, echo).toJSON());
+    assert.equal(await captured.import(retained, SINK, '')(7), 7);
+    const raw = captured.exportValue((next) => next.export(SINK, '', echo).toJSON());
     assert.equal(p.a.counts().exports, 2);
     captured.scope.release(p.a.decode(raw));
     assert.equal(p.a.counts().exports, 1);
@@ -263,7 +263,7 @@ test('exportValue unwinds serialization failures and throws before publication',
       for (let i = 0; i < 3; i++) {
         assert.throws(() =>
           p.a.owner().exportValue((scope) => {
-            scope.export(SINK, echo);
+            scope.export(SINK, '', echo);
             if (value === 'throw') throw new Error('conversion failed');
             return value;
           }),
@@ -284,17 +284,17 @@ test('importValue bound failure preserves prior attachments', async () => {
   const p = await over({ maxImports: 2 });
   try {
     const refs = Array.from({ length: 3 }, () =>
-      p.b.decode(JSON.parse(JSON.stringify(p.a.owner().export(SINK, echo)))),
+      p.b.decode(JSON.parse(JSON.stringify(p.a.owner().export(SINK, '', echo)))),
     );
-    const retained = p.b.owner().import(refs[0]!, SINK);
+    const retained = p.b.owner().import(refs[0]!, SINK, '');
     const owner = p.b.owner().child();
     let fresh!: Invoke;
     assert.throws(
       () =>
         owner.importValue((batch) => {
-          fresh = batch.import(refs[1]!, SINK);
-          batch.import(refs[0]!, SINK);
-          batch.import(refs[2]!, SINK);
+          fresh = batch.import(refs[1]!, SINK, '');
+          batch.import(refs[0]!, SINK, '');
+          batch.import(refs[2]!, SINK, '');
         }),
       { code: TOO_MANY_IMPORTS },
     );
@@ -329,7 +329,7 @@ test('owner release revokes all aliases before observer reentry', async () => {
   );
   try {
     owner = p.a.owner().child();
-    for (let i = 0; i < 3; i++) aliases.push(p.a.owner().import(owner.child().export(SINK, echo), SINK));
+    for (let i = 0; i < 3; i++) aliases.push(p.a.owner().import(owner.child().export(SINK, '', echo), SINK, ''));
     owner.release();
     assert.equal(reentries, 3);
     await Promise.all(pending);
@@ -348,7 +348,7 @@ test('unpublished export rollback emits no release', async () => {
     assert.throws(
       () =>
         owner.exportValue((batch) => {
-          batch.export(SINK, echo);
+          batch.export(SINK, '', echo);
           throw new Error('unpublished');
         }),
       /unpublished/,
@@ -367,13 +367,13 @@ test('publishValue only unwinds its fresh unsent exports', async () => {
   const p = await over({ maxExports: 2 }, { observe: (event) => void seen.push(event) });
   try {
     const owner = p.a.owner().child();
-    const prior = owner.export(SINK, echo);
+    const prior = owner.export(SINK, '', echo);
     const controller = new AbortController();
     controller.abort();
     for (let i = 0; i < 12; i++) {
       await assert.rejects(
         owner.publishValue(
-          (batch) => batch.export(SINK, echo).toJSON(),
+          (batch) => batch.export(SINK, '', echo).toJSON(),
           (raw) => p.a.peer.call('unsent', raw, { signal: controller.signal }),
         ),
         UnpublishedError,
@@ -381,7 +381,7 @@ test('publishValue only unwinds its fresh unsent exports', async () => {
       assert.deepEqual(owner.counts(), { exports: 1, imports: 0 });
     }
     assert.equal(seen.filter((event) => event.type === 'event.emitted' && event.name === RELEASE_EVENT).length, 0);
-    assert.equal(await owner.import(prior, SINK)(47), 47);
+    assert.equal(await owner.import(prior, SINK, '')(47), 47);
     owner.release();
   } finally {
     p.close();
@@ -396,7 +396,7 @@ test('publishValue retains unknown publisher failures and throws', async () => {
       const cause = new Error('publisher outcome unknown');
       await assert.rejects(
         owner.publishValue(
-          (batch) => batch.export(SINK, echo).toJSON(),
+          (batch) => batch.export(SINK, '', echo).toJSON(),
           () => {
             if (throws) throw cause;
             return Promise.reject(cause);
@@ -422,20 +422,20 @@ test('refused invocations unwind unpublished arguments without dispatch', async 
       const holder = p.a.owner().child();
       const target = mode === 'remote-released' ? p.b.owner().child() : holder;
       let dispatched = 0;
-      let ref = target.export('test/Target', async () => {
+      let ref = target.export('test/Target', '', async () => {
         dispatched++;
         return null;
       });
       if (mode === 'remote-released') ref = p.a.decode(ref.toJSON());
-      const invoke = holder.import(ref, 'test/Target');
+      const invoke = holder.import(ref, 'test/Target', '');
       const controller = new AbortController();
       if (mode === 'local-cancelled') controller.abort();
       else holder.release();
-      const prior = outgoing.export(SINK, echo);
+      const prior = outgoing.export(SINK, '', echo);
       for (let i = 0; i < 12; i++) {
         await assert.rejects(
           outgoing.publishValue(
-            (batch) => batch.export(SINK, echo).toJSON(),
+            (batch) => batch.export(SINK, '', echo).toJSON(),
             (raw) => invoke(raw, { signal: controller.signal }),
           ),
           UnpublishedError,
@@ -444,7 +444,7 @@ test('refused invocations unwind unpublished arguments without dispatch', async 
       }
       assert.equal(dispatched, 0);
       assert.equal(seen.filter((event) => event.type === 'frame.sent' && event.kind === 'request').length, 0);
-      assert.equal(await outgoing.import(prior, SINK)(49), 49);
+      assert.equal(await outgoing.import(prior, SINK, '')(49), 49);
       outgoing.release();
       holder.release();
       target.release();
@@ -462,15 +462,15 @@ test('dispatched release refusals retain arguments', async () => {
       const holder = p.a.owner().child();
       const target = remote ? p.b.owner().child() : holder;
       let alias!: Invoke;
-      let ref = target.export('test/Target', async (raw) => {
-        alias = target.import(target.scope.decode(raw), SINK);
+      let ref = target.export('test/Target', '', async (raw) => {
+        alias = target.import(target.scope.decode(raw), SINK, '');
         throw new DuplexError(REFERENCE_RELEASED, 'implementation refused after retention');
       });
       if (remote) ref = p.a.decode(ref.toJSON());
-      const invoke = holder.import(ref, 'test/Target');
+      const invoke = holder.import(ref, 'test/Target', '');
       await assert.rejects(
         outgoing.publishValue(
-          (batch) => batch.export(SINK, echo).toJSON(),
+          (batch) => batch.export(SINK, '', echo).toJSON(),
           (raw) => invoke(raw),
         ),
         (error) =>
@@ -492,12 +492,12 @@ test('empty owners and released allocations retain no parent bookkeeping', async
   try {
     const root = p.a.owner();
     const parent = root.child();
-    const borrowed = root.export(SINK, echo);
+    const borrowed = root.export(SINK, '', echo);
     for (let i = 0; i < 40; i++) {
       const empty = parent.child();
-      empty.import(borrowed, SINK);
+      empty.import(borrowed, SINK, '');
       assert.equal(root['state'].children?.size ?? 0, 0);
-      const owned = empty.export(SINK, echo);
+      const owned = empty.export(SINK, '', echo);
       assert.equal(root['state'].children?.size, 1);
       p.a.release(owned);
       assert.equal(root['state'].children?.size ?? 0, 0);
@@ -513,10 +513,10 @@ test('Symbol.dispose releases an owner and leaves the scope usable', async () =>
   const p = await over();
   try {
     const owner = p.a.owner().child();
-    owner.export(SINK, echo);
+    owner.export(SINK, '', echo);
     owner[Symbol.dispose]();
     assert.deepEqual(p.a.counts(), { exports: 0, imports: 0 });
-    p.a.owner().export(SINK, echo);
+    p.a.owner().export(SINK, '', echo);
     assert.deepEqual(p.a.counts(), { exports: 1, imports: 0 });
     p.a.owner().release();
   } finally {
@@ -538,10 +538,10 @@ test('import rollback does not repeat an already released allocation', async () 
           for (let i = 0; i < 8; i++) {
             const ref = p.a.decode({ binding: `remote.${i}`, contract: SINK });
             if (i === 0) first = ref;
-            batch.import(ref, SINK);
+            batch.import(ref, SINK, '');
             p.a.release(ref);
           }
-          replacement = sibling.import(first, SINK);
+          replacement = sibling.import(first, SINK, '');
           throw new Error('later failure');
         }),
       /later failure/,

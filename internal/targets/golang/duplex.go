@@ -169,15 +169,15 @@ func (f *file) registration(m render.Method, handler, remote string) {
 			// A live request is imported rather than unmarshalled: the
 			// handler is given native functions, and never a reference.
 			f.liveBoundary(m.Request, "raw", "params", false)
-			f.linef("if err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", runtime)
+			f.linef("if err != nil { %s }", f.invalidParams())
 			params = ", params"
 		} else if m.Request != nil {
 			f.linef("var params %s", f.spell(m.Request))
-			f.linef("if err := %s.%s(%s%s(%s), raw); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", f.boundSchema(f.uses), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(m.Request), runtime)
-			f.linef("if err := %s.Unmarshal(raw, &params); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", json, runtime)
+			f.linef("if err := %s.%s(%s%s(%s), raw); err != nil { %s }", f.boundSchema(f.uses), identValidateExpressionRaw, f.proto(), identMustTypeExpression, expression(m.Request), f.invalidParams())
+			f.linef("if err := %s.Unmarshal(raw, &params); err != nil { %s }", json, f.invalidParams())
 			params = ", params"
 		} else {
-			f.linef("if err := %s.%s(map[string]any{\"empty\": true}, raw); err != nil { return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()} }", f.boundSchema(f.uses), identValidateExpressionRaw, runtime)
+			f.linef("if err := %s.%s(map[string]any{\"empty\": true}, raw); err != nil { %s }", f.boundSchema(f.uses), identValidateExpressionRaw, f.invalidParams())
 		}
 		// := stays even when err is already declared: result is new, which
 		// is what a short declaration needs.
@@ -191,6 +191,12 @@ func (f *file) registration(m render.Method, handler, remote string) {
 		f.linef("if err = %s.%s(%s%s(%s), result); err != nil { return nil, err }", f.boundSchema(f.uses), identValidateValue, f.proto(), identMustTypeExpression, expression(m.Result))
 		f.line("return result, nil")
 	})
+}
+
+// A declaration mismatch is a profile refusal, while other incoming validation
+// errors remain invalid_params. Both generated handler directions use this.
+func (f *file) invalidParams() string {
+	return fmt.Sprintf("var public *%s.PublicError; if %s.As(err, &public) && public.Code == \"contract_mismatch\" { return nil, err }; return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()}", f.runtime(), f.std("errors"), f.runtime())
 }
 
 // labels renders, into install, the family label of every method and event

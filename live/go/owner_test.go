@@ -34,7 +34,7 @@ func TestImportValueBoundFailurePreservesPriorAttachments(t *testing.T) {
 	echo := func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) { return raw, nil }
 	var refs []live.Reference
 	for range 3 {
-		ref, err := p.A.Owner().Export("test/Call", echo)
+		ref, err := p.A.Owner().Export("test/Call", "", echo)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -45,21 +45,21 @@ func TestImportValueBoundFailurePreservesPriorAttachments(t *testing.T) {
 		}
 		refs = append(refs, arrived)
 	}
-	retained, err := p.B.Owner().Import(refs[0], "test/Call")
+	retained, err := p.B.Owner().Import(refs[0], "test/Call", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	owner := p.B.Owner().Child()
 	var fresh live.Invoke
 	err = owner.ImportValue(func(batch *live.Owner) error {
-		fresh, err = batch.Import(refs[1], "test/Call")
+		fresh, err = batch.Import(refs[1], "test/Call", "")
 		if err != nil {
 			return err
 		}
-		if _, err := batch.Import(refs[0], "test/Call"); err != nil {
+		if _, err := batch.Import(refs[0], "test/Call", ""); err != nil {
 			return err
 		}
-		_, err := batch.Import(refs[2], "test/Call")
+		_, err := batch.Import(refs[2], "test/Call", "")
 		return err
 	})
 	var public *runtime.PublicError
@@ -108,11 +108,11 @@ func TestOwnerReleaseRevokesAllAliasesBeforeObserverReentry(t *testing.T) {
 	defer p.Close()
 	owner = p.A.Owner().Child()
 	for range 3 {
-		ref, err := owner.Child().Export("test/Call", func(context.Context, json.RawMessage) (json.RawMessage, error) { return nil, nil })
+		ref, err := owner.Child().Export("test/Call", "", func(context.Context, json.RawMessage) (json.RawMessage, error) { return nil, nil })
 		if err != nil {
 			t.Fatal(err)
 		}
-		alias, err := p.A.Owner().Import(ref, "test/Call")
+		alias, err := p.A.Owner().Import(ref, "test/Call", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -144,7 +144,7 @@ func TestUnpublishedExportRollbackEmitsNoRelease(t *testing.T) {
 	defer p.Close()
 	owner := p.A.Owner().Child()
 	_, err := owner.ExportValue(func(batch *live.Owner) (json.RawMessage, error) {
-		if _, err := batch.Export("test/Call", func(context.Context, json.RawMessage) (json.RawMessage, error) { return nil, nil }); err != nil {
+		if _, err := batch.Export("test/Call", "", func(context.Context, json.RawMessage) (json.RawMessage, error) { return nil, nil }); err != nil {
 			return nil, err
 		}
 		return nil, errors.New("unpublished")
@@ -174,9 +174,9 @@ func TestConcurrentOwnerReleaseAndAcquisition(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				child := owner.Child()
-				ref, err := child.Export("test/Call", func(context.Context, json.RawMessage) (json.RawMessage, error) { return nil, nil })
+				ref, err := child.Export("test/Call", "", func(context.Context, json.RawMessage) (json.RawMessage, error) { return nil, nil })
 				if err == nil {
-					_, _ = p.A.Owner().Import(ref, "test/Call")
+					_, _ = p.A.Owner().Import(ref, "test/Call", "")
 				}
 				_ = owner.Release()
 			}()
@@ -208,7 +208,7 @@ func TestImportRollbackDoesNotRepeatAnAlreadyReleasedAllocation(t *testing.T) {
 			if i == 0 {
 				first = ref
 			}
-			if _, err := batch.Import(ref, "test/Call"); err != nil {
+			if _, err := batch.Import(ref, "test/Call", ""); err != nil {
 				return err
 			}
 			if err := p.A.Release(ref); err != nil {
@@ -218,7 +218,7 @@ func TestImportRollbackDoesNotRepeatAnAlreadyReleasedAllocation(t *testing.T) {
 		// Its tombstone is gone, so the same binding ID now has a distinct
 		// attachment owned outside this batch. Rollback must not revoke it.
 		var err error
-		replacement, err = sibling.Import(first, "test/Call")
+		replacement, err = sibling.Import(first, "test/Call", "")
 		if err != nil {
 			return err
 		}

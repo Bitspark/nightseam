@@ -17,7 +17,7 @@ func TestExportValueTracksOnlyItsOwnAllocations(t *testing.T) {
 	var captured *live.Owner
 	_, err := p.A.Owner().ExportValue(func(scope *live.Owner) (json.RawMessage, error) {
 		captured = scope
-		if _, err := scope.Export("test/Call", echo); err != nil {
+		if _, err := scope.Export("test/Call", "", echo); err != nil {
 			t.Fatal(err)
 		}
 		// An overlapping conversion through the root is independent, even if
@@ -25,11 +25,11 @@ func TestExportValueTracksOnlyItsOwnAllocations(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			retained, _ = p.A.Owner().Export("test/Call", echo)
+			retained, _ = p.A.Owner().Export("test/Call", "", echo)
 		}()
 		<-done
 		_, err := scope.ExportValue(func(nested *live.Owner) (json.RawMessage, error) {
-			ref, err := nested.Export("test/Call", echo)
+			ref, err := nested.Export("test/Call", "", echo)
 			if err != nil {
 				return nil, err
 			}
@@ -43,7 +43,7 @@ func TestExportValueTracksOnlyItsOwnAllocations(t *testing.T) {
 	if err == nil || p.A.Counts().Exports != 1 {
 		t.Fatalf("rollback: %v, %+v", err, p.A.Counts())
 	}
-	invoke, err := captured.Import(retained, "test/Call")
+	invoke, err := captured.Import(retained, "test/Call", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestExportValueTracksOnlyItsOwnAllocations(t *testing.T) {
 	}
 	// Captured views cannot retain a completed batch or roll back later work.
 	raw, err := captured.ExportValue(func(next *live.Owner) (json.RawMessage, error) {
-		ref, err := next.Export("test/Call", echo)
+		ref, err := next.Export("test/Call", "", echo)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +91,7 @@ func TestExportValueUnwindsInvalidJSONAndPanic(t *testing.T) {
 					}
 				}()
 				_, err := p.A.Owner().ExportValue(func(scope *live.Owner) (json.RawMessage, error) {
-					_, err := scope.Export("test/Call", func(context.Context, json.RawMessage) (json.RawMessage, error) { return nil, nil })
+					_, err := scope.Export("test/Call", "", func(context.Context, json.RawMessage) (json.RawMessage, error) { return nil, nil })
 					if err != nil {
 						t.Fatal(err)
 					}
