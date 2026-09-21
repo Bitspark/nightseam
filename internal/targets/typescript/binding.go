@@ -89,6 +89,12 @@ func emitWireAdapter(f *file, side, protocol string) {
 			f.line("const environment = context.valueEnvironment;")
 			f.linef("if ((%s) && !environment) throw new DuplexError('scope_closed', 'model adaptation requires an explicit value environment');", f.familyLiveCondition())
 		}
+		f.w.Block("function hasModelHandler(facet: object, name: string): boolean {", "}", func() {
+			f.w.Block("for (let current = facet; current !== null && current !== Object.prototype; current = Object.getPrototypeOf(current)) {", "}", func() {
+				f.line("if (Object.prototype.hasOwnProperty.call(current, name)) return typeof (facet as Record<string, unknown>)[name] === 'function';")
+			})
+			f.line("return false;")
+		})
 		for _, name := range []string{"Server", "Client"} {
 			f.emitWireProxy(name, args)
 			f.emitWireRegistration(name, args)
@@ -192,10 +198,10 @@ func (f *file) emitWireRegistration(side, args string) {
 	f.w.Block(fmt.Sprintf("function bind%s(wire: Wire, implementation: Protocol.%s%s): void {", side, side, args), "}", func() {
 		f.line("if (!implementation?.methods || !implementation.events) throw new Error('model methods and events are required');")
 		for _, m := range methods {
-			f.linef("if (typeof implementation.methods.%s !== 'function') throw new Error(%s);", f.plan.operations[m.Name], quote("handler for "+m.Name+" is required"))
+			f.linef("if (!hasModelHandler(implementation.methods, %s)) throw new Error(%s);", quote(f.plan.operations[m.Name]), quote("handler for "+m.Name+" is required"))
 		}
 		for _, e := range events {
-			f.linef("if (typeof implementation.events.%s !== 'function') throw new Error(%s);", f.plan.operations[e.Name], quote("event handler for "+e.Name+" is required"))
+			f.linef("if (!hasModelHandler(implementation.events, %s)) throw new Error(%s);", quote(f.plan.operations[e.Name]), quote("event handler for "+e.Name+" is required"))
 		}
 		f.line("const detach: Array<() => void> = [];")
 		f.w.Block("try {", "} catch (error) { for (const remove of detach.reverse()) remove(); throw error; }", func() {

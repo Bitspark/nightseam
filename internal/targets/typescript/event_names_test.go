@@ -52,7 +52,7 @@ func TestEventFacetsKeepRequiredNamesAndReceiveDirections(t *testing.T) {
 		for _, want := range []string{
 			`registerWire(wire, ["to_string"], {`, `registerWire(wire, ["has_own_property"], {`,
 			"await implementation.events.textChanged(raw as Protocol.Result, context)", "await implementation.events.propertyChanged(raw as Protocol.Input, context)",
-			"if (typeof implementation.events.textChanged !== 'function')", "if (typeof implementation.events.propertyChanged !== 'function')",
+			`if (!hasModelHandler(implementation.events, "textChanged"))`, `if (!hasModelHandler(implementation.events, "propertyChanged"))`,
 		} {
 			if !strings.Contains(string(file.Data), want) {
 				t.Errorf("%s lacks %q", file.Path, want)
