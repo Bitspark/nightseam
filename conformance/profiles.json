@@ -20,7 +20,7 @@
     "python": {"tier": 4}
   },
   "planned": {
-    "rust": 2, "cpp": 2, "haskell": 2,
+    "python": 2, "rust": 2, "cpp": 2, "haskell": 2,
     "swift": 4
   }
 }
