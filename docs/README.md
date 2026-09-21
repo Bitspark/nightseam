@@ -66,6 +66,7 @@ fact once, with both spellings.
 | page | what |
 | --- | --- |
 | [wire.md](runtime/wire.md) | relative-path frame access: local pairs, peer and channel origins, selection, mounting, forwarding, bounds, context and ownership |
+| [record.md](runtime/record.md) | opaque Wire recording, consumer storage, atomic replay-to-live handoff, bounded subscriber isolation and preserved reference scope |
 | [peer.md](runtime/peer.md) | the peer: the seam beneath, making one, the order it starts in, options and limits, the subprotocol surface, the server's hooks, errors, request metadata, the propagator, the validator |
 | [tunnel.md](runtime/tunnel.md) | the tunnel: making one and when, the surface, options, credit in each language |
 | [live.md](runtime/live.md) | the live layer: making a scope and when, the surface, a reference that is minted and never constructed, the rules a consumer relies on, bounds |
@@ -93,6 +94,7 @@ The input side: the tier files, the tool, and what comes out.
 | [tiers.md](languages/tiers.md) | languages, profiles and tiers: the four promises, the profiles the conformance suite holds them to, which tier guarantees what and when, how the suite enforces it |
 | [onboarding.md](languages/onboarding.md) | how a language joins: the lanes in order, the testee, what a language promises before it is in the table |
 | [rust.md](languages/rust.md) | Rust core crates, checkout use, Cargo packaging and the outside WebSocket consumer smoke |
+| [python.md](languages/python.md) | Python 3.11+, installing the source or wheel, using an asyncio peer and checking the installed distribution |
 
 ## Why it is this way — `decisions/`
 

@@ -31,6 +31,9 @@ if (!/^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(tag ?? "")) {
 const version = tag.slice(1);
 const problems = [];
 problems.push(...rustVersionProblems(root, version));
+const pythonProject = readFileSync(join(root, "pyproject.toml"), "utf8").split(/^\[/m).find(section => section.startsWith("project]"));
+const pythonVersion = pythonProject?.match(/^version = "([^"]+)"$/m)?.[1];
+if (pythonVersion !== version) problems.push(`pyproject.toml is ${pythonVersion ?? "missing its project version"}, the tag is ${version}`);
 for (const directory of packages) {
   const manifest = JSON.parse(readFileSync(join(root, directory, "package.json"), "utf8"));
   if (manifest.version !== version) problems.push(`${directory}/package.json is ${manifest.version}, the tag is ${version}`);
@@ -108,7 +111,7 @@ if (dryRun) {
 }
 const against = previous ? `the matrix of ${previous.tag}` : "no previous release";
 console.log(
-  `ready: ${tag} — ${packages.join(", ")}, DefaultRuntimeVersion, ${modules.join(", ")}, ${examples.join(", ")}, CHANGELOG section` +
+  `ready: ${tag} — ${packages.join(", ")}, pyproject.toml, DefaultRuntimeVersion, ${modules.join(", ")}, ${examples.join(", ")}, CHANGELOG section` +
     `; the matrix holds against ${against}${marked.length ? `, ${marked.join("; ")}` : ""}` +
     (dryRun ? "" : "; release-notes.md written"),
 );
