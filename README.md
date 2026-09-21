@@ -131,6 +131,7 @@ pairing.
 <!-- matrix:start -->
 | language | tier | core | generator | tunnel | live | observability | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| `cpp` | 4 | ✓ | — 64 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
 | `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
 | `java` | 4 | ✓ | — 64 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
 | `python` | 4 | ✓ | — 64 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
