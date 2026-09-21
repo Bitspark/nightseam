@@ -2,7 +2,7 @@
 import * as owners from './api/ts/owners-client/src/index.ts';
 import * as worker from './api/ts/worker-client/src/index.ts';
 import * as binding from './api/ts/owners-binding/src/index.ts';
-import { Served, Session } from './server.ts';
+import { Served, Session, adapterContext } from './server.ts';
 import { DuplexError } from '@nightseam/runtime';
 import { liveOver, type LiveScope, type LiveOwner } from '@nightseam/live';
 
@@ -65,7 +65,7 @@ export const ownersOps: Record<string, (args: Args) => unknown | Promise<unknown
       connection.expose(binding.toWire(remote => {
         connection.model = remote;
         return { methods: server, events: {} };
-      }, { scope: server.scope }));
+      }, adapterContext(server.scope)));
       return connection.attach(socket);
     }).listen();
     const handle = 'ownerssrv' + String(++next);
@@ -85,7 +85,7 @@ export const ownersOps: Record<string, (args: Args) => unknown | Promise<unknown
     connection.expose(owners.toWire(remote => {
       connection.model = remote;
       return { methods: {}, events: {} };
-    }, { scope }));
+    }, adapterContext(scope)));
     await connection.connect(String(args.url));
     const handle = 'ownerscl' + String(++next);
     handles.set(handle, { connection, scope, reports: 0 });

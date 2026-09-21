@@ -7,7 +7,7 @@ import * as binding from './api/ts/combinator-binding/src/index.ts';
 import { liveOver, type LiveScope } from '@nightseam/live';
 import { callWire, handleWire } from '@nightseam/runtime';
 import { CombinatorServer } from './combinator.ts';
-import { Served, Session } from './server.ts';
+import { Served, Session, adapterContext } from './server.ts';
 
 type Args = Record<string, unknown>;
 
@@ -86,7 +86,7 @@ export const forwardingOps: Record<string, (args: Args) => unknown | Promise<unk
       connection.expose(binding.toWire(remote => {
         connection.model = remote;
         return { methods: endpoint.server, events: {} };
-      }, { scope }));
+      }, adapterContext(scope)));
       return connection.attach(socket);
     }).listen();
     const handle = 'forwardendpoint' + String(++next);
@@ -134,7 +134,7 @@ export const forwardingOps: Record<string, (args: Args) => unknown | Promise<unk
         connection.expose(combinator.toWire(remote => {
           connection.model = remote;
           return { methods: {}, events: {} };
-        }, { scope }));
+        }, adapterContext(scope)));
       }
       await origin.connect(String(args.origin));
       await destination.connect(String(args.destination));

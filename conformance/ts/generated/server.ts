@@ -4,6 +4,12 @@ import { createServer, type Server } from 'node:http';
 import { WebSocketServer } from 'ws';
 import { DuplexPeer, forwardWire, type PeerOptions, type WebSocketLike } from '@nightseam/runtime';
 import type { Wire } from '@nightseam/duplex';
+import type { AdapterContext, LiveScope } from '@nightseam/live';
+
+/** One fixture attachment point for adapter options and an explicit live scope. */
+export function adapterContext(scope?: LiveScope, options?: PeerOptions): AdapterContext {
+  return { scope, options };
+}
 
 /** Test transport assembly is separate from every generated model. The model
  * factory captures its opposite side while toWire installs the local model,

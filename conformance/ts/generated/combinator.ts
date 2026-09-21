@@ -14,7 +14,7 @@
  */
 import * as combinator from './api/ts/combinator-client/src/index.ts';
 import * as binding from './api/ts/combinator-binding/src/index.ts';
-import { Served, Session } from './server.ts';
+import { Served, Session, adapterContext } from './server.ts';
 import { liveOver } from '@nightseam/live';
 
 type Args = Record<string, unknown>;
@@ -111,7 +111,7 @@ export const combinatorOps: Record<string, (args: Args) => unknown | Promise<unk
       connection.expose(binding.toWire(remote => {
         connection.model = remote;
         return { methods: server, events: {} };
-      }, { scope }));
+      }, adapterContext(scope)));
       return connection.attach(socket);
     }).listen();
     const handle = 'combsrv' + String(++next);
@@ -130,7 +130,7 @@ export const combinatorOps: Record<string, (args: Args) => unknown | Promise<unk
     d.connection.expose(combinator.toWire(remote => {
       d.connection.model = remote;
       return { methods: {}, events: {} };
-    }, { scope }));
+    }, adapterContext(scope)));
     await d.connection.connect(String(args.url));
     next += 1;
     const handle = 'combcl' + String(next);

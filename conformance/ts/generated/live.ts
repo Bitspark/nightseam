@@ -12,7 +12,7 @@
  */
 import * as worker from './api/ts/worker-client/src/index.ts';
 import * as binding from './api/ts/worker-binding/src/index.ts';
-import { Served, Session } from './server.ts';
+import { Served, Session, adapterContext } from './server.ts';
 import { liveOver, scopeOf } from '@nightseam/live';
 
 type Args = Record<string, unknown>;
@@ -125,7 +125,7 @@ export const liveOps: Record<string, (args: Args) => unknown | Promise<unknown>>
       connection.expose(binding.toWire(remote => {
         connection.model = remote;
         return { methods: server, events: {} };
-      }, { scope }));
+      }, adapterContext(scope)));
       return connection.attach(socket);
     }).listen();
     const handle = 'livesrv' + String(++next);
@@ -163,7 +163,7 @@ export const liveOps: Record<string, (args: Args) => unknown | Promise<unknown>>
     d.connection.expose(worker.toWire(remote => {
       d.connection.model = remote;
       return { methods: handler, events: { settled: () => {} } };
-    }, { scope }));
+    }, adapterContext(scope)));
     await d.connection.connect(String(args.url));
     next += 1;
     const handle = 'livecl' + String(next);

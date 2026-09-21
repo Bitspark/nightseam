@@ -3,7 +3,7 @@ import * as publication from './api/ts/publication-client/src/index.ts';
 import * as binding from './api/ts/publication-binding/src/index.ts';
 import { DuplexError, UnpublishedError, type CallOptions, type EmitOptions, type WireModelContext } from '@nightseam/runtime';
 import { liveOver, type LiveScope, type LiveOwner } from '@nightseam/live';
-import { Served, Session } from './server.ts';
+import { Served, Session, adapterContext } from './server.ts';
 
 type Args = Record<string, unknown>;
 type OwnedCall = CallOptions & { owner: LiveOwner };
@@ -175,7 +175,7 @@ export const publicationOps: Record<string, (args: Args) => unknown | Promise<un
           invoke: () => receiver.invoke(),
           drop: () => receiver.drop(),
         }, events: { offeredBack: (value, context) => receiver.event(value, context) } };
-      }, { scope, options: { maxFrameBytes: 1024 } }));
+      }, adapterContext(scope, { maxFrameBytes: 1024 })));
       await connection.attach(socket);
       const remote = connection.model;
       handle.endpoint = { scope, supply: async (v, o) => remote.methods.supplyBack(v, o), produce: async (v, o) => remote.methods.produceBack(v, o), emit: async (v, o) => remote.events.offered(v, o), inspect: async () => remote.methods.inspectBack({}), invoke: async () => remote.methods.invokeBack({}), drop: async () => remote.methods.dropBack({}), close: () => connection.close() };
@@ -198,7 +198,7 @@ export const publicationOps: Record<string, (args: Args) => unknown | Promise<un
         invokeBack: () => receiver.invoke(),
         dropBack: () => receiver.drop(),
       }, events: { offered: (value, context) => receiver.event(value, context) } };
-    }, { scope, options: { maxFrameBytes: 1024 } }));
+    }, adapterContext(scope, { maxFrameBytes: 1024 })));
     await connection.connect(String(args.url));
     const client = connection.model;
     return { handle: mint({ endpoint: { scope, supply: async (v, o) => client.methods.supply(v, o), produce: async (v, o) => client.methods.produce(v, o), emit: async (v, o) => client.events.offeredBack(v, o), inspect: async () => client.methods.inspect({}), invoke: async () => client.methods.invoke({}), drop: async () => client.methods.drop({}), close: () => connection.close() } }) };
