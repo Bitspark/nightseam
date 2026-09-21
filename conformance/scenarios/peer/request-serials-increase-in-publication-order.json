@@ -70,6 +70,14 @@
     },
     {
       "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "note": "its answer, so that the mark is set and the peer is idle before the serial that does not increase arrives: what is judged is the order, not a race with a write"
+    },
+    {
+      "on": "a",
       "op": "conn.send",
       "args": {
         "on": "$ca",
