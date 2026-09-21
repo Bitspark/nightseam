@@ -93,6 +93,10 @@ jobs:
         with:
           path: ~/.stack
           key: haskell-${{ runner.os }}-9.6.7-${{ hashFiles('conformance/haskell/stack.yaml.lock') }}
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:

@@ -6,6 +6,12 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Fixed
+
+- The TypeScript OpenTelemetry adapter retains connection and event-only
+  telemetry with the Go reference's connection lifecycle, producer/consumer
+  spans and fallback routing, without copying connection events onto requests.
+
 ### Clarified
 
 - The profile documentation names 4011 for a binary frame rejected by the
@@ -33,6 +39,10 @@ are one number. Entries are in the words of the commits that landed them.
 ### Added
 
 - runtime/hs: add the native Haskell core runtime held against Go in both roles.
+- Java 21 joins at tier 4 with native framed connections, bounded pipes and
+  WebSockets, a symmetric peer, exact JSON/schema validation, relative-path
+  Wires and declaration identity. The shared core suite holds both Java/Go
+  roles; native tests and an isolated jar consumer hold the artifacts.
 - Python enters at tier 4 with bounded asyncio frame connections, peers,
   descriptor validation, Wire path views and declaration identity exchange,
   held against Go in both socket roles and by an installed-wheel smoke.
