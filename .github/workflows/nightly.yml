@@ -37,6 +37,21 @@ jobs:
         with:
           node-version-file: package.json
           cache: pnpm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: python -m pip install --disable-pip-version-check -e ".[test]"
+      - name: Python unit suites
+        run: |
+          python -m ruff check duplex/py runtime/py conformance/python scripts/smoke-python.py
+          python -m ruff format --check duplex/py runtime/py conformance/python scripts/smoke-python.py
+          python -m unittest discover -s duplex/py/tests
+          python -m unittest discover -s runtime/py/tests
+          python -m unittest discover -s conformance/python -p 'test_*.py'
+      - name: Python installed wheel
+        run: python scripts/smoke-python.py
       - run: pnpm install --frozen-lockfile
       - name: Install the C++ core toolchain
         run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++

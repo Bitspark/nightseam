@@ -36,6 +36,9 @@ are one number. Entries are in the words of the commits that landed them.
   peer runtime and descriptor validator, held to the shared core scenarios
   against Go in both roles. Its CMake targets are `Nightseam::duplex` and
   `Nightseam::runtime`; the language enters the conformance matrix at tier 4.
+- Python enters at tier 4 with bounded asyncio frame connections, peers,
+  descriptor validation, Wire path views and declaration identity exchange,
+  held against Go in both socket roles and by an installed-wheel smoke.
 - Go and TypeScript ship a bounded Wire record/follow composition with
   consumer-owned storage, an atomic replay-to-live handoff and independent
   subscriber failure. Opaque messages retain their existing reference scope.
