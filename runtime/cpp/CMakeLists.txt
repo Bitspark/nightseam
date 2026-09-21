@@ -1,0 +1,12 @@
+add_library(nightseam_runtime src/value.cpp)
+add_library(Nightseam::runtime ALIAS nightseam_runtime)
+target_include_directories(nightseam_runtime PUBLIC include)
+target_link_libraries(nightseam_runtime PUBLIC Nightseam::duplex jsoncons)
+target_compile_features(nightseam_runtime PUBLIC cxx_std_20)
+
+if(BUILD_TESTING)
+  add_executable(nightseam_value_tests tests/value.cpp)
+  target_link_libraries(nightseam_value_tests PRIVATE Nightseam::runtime)
+  add_test(NAME cpp.value COMMAND nightseam_value_tests "${PROJECT_SOURCE_DIR}/conformance/tables")
+  set_tests_properties(cpp.value PROPERTIES TIMEOUT 20)
+endif()
