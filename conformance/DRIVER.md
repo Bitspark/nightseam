@@ -9,6 +9,8 @@ The runtime unit suites and the conformance driver hold the same wire facts:
 | `tables/validator.json` | type expressions, values and their expected validation verdicts |
 | `tables/frames.json` | envelopes a peer accepts or refuses |
 | `tables/naming.json` | generated naming conventions |
+| `tables/digests.json` | paired revision descriptors and their full canonical declaration identities |
+| `tables/declaration-digests.json` | declaration coverage, normalized applications, exact canonical bytes and digest equality controls |
 | `tables/examples.json` | every example value, union arm and operation frame of the corpus documents, with its concrete parameter bindings or an explicit unavailable reason |
 
 `examples.json` is derived by `go generate ./cmd/nightseam`. The generator's

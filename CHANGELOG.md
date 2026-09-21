@@ -8,13 +8,14 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
-- Generated Go and TypeScript families expose one SHA-256 declaration digest.
-  Channels and live references carry it beside their nominal contract; differing
-  specified digests are refused as `contract_mismatch` before admission or
-  import. Imported and bound callable types retain their declaring family's
-  identity. Shared digest vectors and generated socket cases hold both languages
-  to the same strict comparison, including revisions differing by an optional
-  member.
+- Generated Go and TypeScript families expose the canonical declaration and its
+  SHA-256 digest, covering operations, events, errors and reachable imported
+  declarations. Bound arguments retain their own declaration content and scope.
+  Channels and live references carry the digest beside their nominal contract;
+  differing specified digests are refused as `contract_mismatch` before admission
+  or import. Generated wire interpretation checks identity through the ordinary
+  `identity.check` request. Shared byte fixtures, socket cases and a native-browser
+  proof hold the two languages to the same refusal without changing subprotocols.
 
 ### Clarified
 
