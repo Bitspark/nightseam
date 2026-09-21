@@ -2,6 +2,7 @@
 package boxesprotocol
 
 import (
+	context "context"
 	json "encoding/json"
 	fmt "fmt"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
@@ -668,4 +669,124 @@ func ImportResult[T any](raw json.RawMessage, convertT func(json.RawMessage) (T,
 		return value, fmt.Errorf("Result: unknown variant %q", tag)
 	}
 	return value, nil
+}
+
+// AdapterBatch composes declaration validation and conversion within the supplied invocation context.
+func AdapterBatch[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[Batch[T]] {
+	typeT := adapterT.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: "Batch"}
+	return runtime.ValueAdapter[Batch[T]]{
+		Binding:      binding,
+		NeedsContext: adapterT.NeedsContext,
+		Export: func(ctx context.Context, value Batch[T]) (json.RawMessage, error) {
+			raw, err := ExportBatch[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Batch[T], error) {
+			var zero Batch[T]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportBatch[T](raw, func(value json.RawMessage) (T, error) { return adapterT.Import(ctx, value) }, typeT)
+		},
+	}
+}
+
+// AdapterBox composes declaration validation and conversion within the supplied invocation context.
+func AdapterBox[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[Box[T]] {
+	typeT := adapterT.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: "Box"}
+	return runtime.ValueAdapter[Box[T]]{
+		Binding:      binding,
+		NeedsContext: adapterT.NeedsContext,
+		Export: func(ctx context.Context, value Box[T]) (json.RawMessage, error) {
+			raw, err := ExportBox[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Box[T], error) {
+			var zero Box[T]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportBox[T](raw, func(value json.RawMessage) (T, error) { return adapterT.Import(ctx, value) }, typeT)
+		},
+	}
+}
+
+// AdapterChoice composes declaration validation and conversion within the supplied invocation context.
+func AdapterChoice[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[Choice[T]] {
+	typeT := adapterT.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: "Choice"}
+	return runtime.ValueAdapter[Choice[T]]{
+		Binding:      binding,
+		NeedsContext: adapterT.NeedsContext,
+		Export: func(ctx context.Context, value Choice[T]) (json.RawMessage, error) {
+			raw, err := ExportChoice[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Choice[T], error) {
+			var zero Choice[T]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportChoice[T](raw, func(value json.RawMessage) (T, error) { return adapterT.Import(ctx, value) }, typeT)
+		},
+	}
+}
+
+// AdapterPage composes declaration validation and conversion within the supplied invocation context.
+func AdapterPage[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[Page[T]] {
+	typeT := adapterT.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: "Page"}
+	return runtime.ValueAdapter[Page[T]]{
+		Binding:      binding,
+		NeedsContext: adapterT.NeedsContext,
+		Export: func(ctx context.Context, value Page[T]) (json.RawMessage, error) {
+			raw, err := ExportPage[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Page[T], error) {
+			var zero Page[T]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportPage[T](raw, func(value json.RawMessage) (T, error) { return adapterT.Import(ctx, value) }, typeT)
+		},
+	}
+}
+
+// AdapterResult composes declaration validation and conversion within the supplied invocation context.
+func AdapterResult[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[Result[T]] {
+	typeT := adapterT.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: "Result"}
+	return runtime.ValueAdapter[Result[T]]{
+		Binding:      binding,
+		NeedsContext: adapterT.NeedsContext,
+		Export: func(ctx context.Context, value Result[T]) (json.RawMessage, error) {
+			raw, err := ExportResult[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Result[T], error) {
+			var zero Result[T]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportResult[T](raw, func(value json.RawMessage) (T, error) { return adapterT.Import(ctx, value) }, typeT)
+		},
+	}
 }

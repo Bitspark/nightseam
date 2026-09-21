@@ -1,0 +1,359 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	cellbinding "example.test/generated/api/go/cell-binding"
+	cellclient "example.test/generated/api/go/cell-client"
+	cell "example.test/generated/api/go/cell-protocol"
+	"fmt"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/live/go"
+	"github.com/Bitspark/nightseam/runtime/go"
+	"github.com/Bitspark/nightseam/tunnel/go"
+	"net"
+	"net/http"
+	"sync"
+	"time"
+)
+
+type wireCarrierSide struct {
+	exercise func(context.Context) (map[string]any, error)
+	inspect  func(context.Context) (map[string]any, error)
+	counts   func() map[string]int
+	release  func() error
+	views    wireAllocations
+}
+type wireCarrierHandle struct {
+	mu       sync.Mutex
+	http     *http.Server
+	peer     *runtime.Peer
+	ready    chan struct{}
+	failure  error
+	side     *wireCarrierSide
+	observer *wireAllocationObserver
+	baseline wireAllocations
+}
+
+func (h *wireCarrierHandle) shutdown() {
+	if h.http != nil {
+		_ = h.http.Close()
+	}
+	h.mu.Lock()
+	peer := h.peer
+	h.mu.Unlock()
+	if peer != nil {
+		_ = peer.Close()
+	}
+}
+func (h *wireCarrierHandle) prepared(err error) {
+	h.failure = err
+	h.baseline = h.observer.snapshot()
+	close(h.ready)
+}
+func (h *wireCarrierHandle) await(ctx context.Context) error {
+	select {
+	case <-h.ready:
+		return h.failure
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+func wireEmptyCounts() map[string]int { return map[string]int{"exports": 0, "imports": 0} }
+func wireCarrierEnvironment(peer *runtime.Peer, h *wireCarrierHandle, needsContext bool) (runtime.AdapterContext, *wireCarrierSide, error) {
+	options := runtime.Options{Observer: h.observer}
+	side := &wireCarrierSide{counts: wireEmptyCounts, release: func() error { return nil }}
+	if !needsContext {
+		return runtime.AdapterContext{Options: options}, side, nil
+	}
+	environment, err := fixtureLiveContext(peer, options)
+	if err != nil {
+		return runtime.AdapterContext{}, nil, err
+	}
+	scope, _ := live.ScopeOf(peer)
+	side.counts = func() map[string]int { return ownerCounts(scope) }
+	side.release = func() error { return scope.Owner().Release() }
+	return environment, side, nil
+}
+func wireCarrierServer(peer *runtime.Peer, h *wireCarrierHandle, presentation, slot string) (duplex.Wire, error) {
+	switch slot {
+	case "string":
+		return wireSlotServer(peer, h, wireStrings())
+	case "unary":
+		return wireSlotServer(peer, h, wireUnaries())
+	case "factory":
+		return wireSlotServer(peer, h, wireFactories())
+	case "nested":
+		return wireSlotServer(peer, h, wireNested())
+	}
+	return nil, fmt.Errorf("unknown wire slot %s", slot)
+}
+func wireSlotServer[T any](peer *runtime.Peer, h *wireCarrierHandle, values wireValues[T]) (duplex.Wire, error) {
+	environment, side, err := wireCarrierEnvironment(peer, h, values.adapter.NeedsContext)
+	if err != nil {
+		return nil, err
+	}
+	state := &wireCell[T]{noted: make(chan T, 4)}
+	side.inspect = func(ctx context.Context) (map[string]any, error) {
+		var noted T
+		select {
+		case noted = <-state.noted:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		state.mu.Lock()
+		value, revision := state.value, state.puts
+		state.mu.Unlock()
+		observed, err := values.observe(ctx, value)
+		if err != nil {
+			return nil, err
+		}
+		note, err := values.observe(ctx, noted)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"revision": revision, "value": observed, "noted": note}, nil
+	}
+	wire, err := cellbinding.ToWire(func(remote cell.Client[T]) (cell.Server[T], error) {
+		state.remote = remote
+		return cell.Server[T]{Methods: state, Events: wireNoted[T]{state.noted}}, nil
+	}, environment, values.adapter)
+	if err != nil {
+		return nil, err
+	}
+	h.side = side
+	return wire, nil
+}
+func wireCarrierClient(peer *runtime.Peer, h *wireCarrierHandle, presentation, slot string) (duplex.Wire, error) {
+	switch slot {
+	case "string":
+		return wireSlotClient(peer, h, wireStrings())
+	case "unary":
+		return wireSlotClient(peer, h, wireUnaries())
+	case "factory":
+		return wireSlotClient(peer, h, wireFactories())
+	case "nested":
+		return wireSlotClient(peer, h, wireNested())
+	}
+	return nil, fmt.Errorf("unknown wire slot %s", slot)
+}
+func wireSlotClient[T any](peer *runtime.Peer, h *wireCarrierHandle, values wireValues[T]) (duplex.Wire, error) {
+	environment, side, err := wireCarrierEnvironment(peer, h, values.adapter.NeedsContext)
+	if err != nil {
+		return nil, err
+	}
+	changed := make(chan T, 4)
+	wire, err := cellclient.ToWire(func(remote cell.Server[T]) (cell.Client[T], error) {
+		side.exercise = func(ctx context.Context) (map[string]any, error) {
+			first, err := remote.Methods.Put(ctx, cell.PutParams[T]{Value: values.make(1)})
+			if err != nil {
+				return nil, err
+			}
+			second, err := remote.Methods.Put(ctx, cell.PutParams[T]{Value: values.make(2)})
+			if err != nil {
+				return nil, err
+			}
+			value, err := remote.Methods.Get(ctx)
+			if err != nil {
+				return nil, err
+			}
+			reverse, err := remote.Methods.RoundTrip(ctx, cell.PutParams[T]{Value: value})
+			if err != nil {
+				return nil, err
+			}
+			if err = remote.Events.Noted(ctx, cell.PutParams[T]{Value: values.make(1)}); err != nil {
+				return nil, err
+			}
+			var change T
+			select {
+			case change = <-changed:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			observed, err := values.observe(ctx, value)
+			if err != nil {
+				return nil, err
+			}
+			reversed, err := values.observe(ctx, reverse)
+			if err != nil {
+				return nil, err
+			}
+			changed, err := values.observe(ctx, change)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"revisions": []int64{first, second}, "value": observed, "reverse": reversed, "changed": changed}, nil
+		}
+		return cell.Client[T]{Methods: wireMirror[T]{}, Events: wireChanged[T]{changed}}, nil
+	}, environment, values.adapter)
+	if err != nil {
+		return nil, err
+	}
+	h.side = side
+	return wire, nil
+}
+func (t *testee) wireCarrierDispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), within(raw))
+	defer cancel()
+	carrier, presentation, slot := str(raw, "carrier"), str(raw, "presentation"), str(raw, "slot")
+	switch op {
+	case "gen.wire_serve":
+		h := &wireCarrierHandle{ready: make(chan struct{}), observer: &wireAllocationObserver{}}
+		build := func(peer *runtime.Peer) (duplex.Wire, error) { return wireCarrierServer(peer, h, presentation, slot) }
+		options := runtime.ServerOptions{Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil }, CheckOrigin: func(*http.Request) bool { return true }}
+		var handler http.Handler
+		var err error
+		if carrier == "socket" {
+			options.Options = runtime.Options{Observer: h.observer}
+			options.OnConnect = func(peer *runtime.Peer) { h.mu.Lock(); h.peer = peer; h.mu.Unlock(); h.prepared(nil) }
+			options.Options = wireCarrierPrepare(options.Options, h, presentation, build)
+			handler, err = runtime.NewHandler(options)
+		} else if carrier == "channel" {
+			var multiplex *tunnel.Tunnel
+			options.Options = runtime.Options{Observer: h.observer, Prepare: func(peer *runtime.Peer) (err error) { multiplex, err = tunnel.New(peer, tunnel.Options{}); return }}
+			options.OnConnect = func(peer *runtime.Peer) {
+				h.mu.Lock()
+				h.peer = peer
+				h.mu.Unlock()
+				go func() {
+					_, err := multiplex.Accept(peer.Context(), wireCarrierPrepare(runtime.Options{Observer: h.observer}, h, presentation, build))
+					h.prepared(err)
+				}()
+			}
+			handler, err = runtime.NewHandler(options)
+		} else {
+			return nil, fmt.Errorf("unknown wire carrier %s", carrier)
+		}
+		if err != nil {
+			return nil, err
+		}
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		h.http = &http.Server{Handler: handler}
+		go func() { _ = h.http.Serve(listener) }()
+		return map[string]any{"handle": t.mint("wire", h), "url": "ws://" + listener.Addr().String()}, nil
+	case "gen.wire_dial":
+		h := &wireCarrierHandle{ready: make(chan struct{}), observer: &wireAllocationObserver{}}
+		build := func(peer *runtime.Peer) (duplex.Wire, error) { return wireCarrierClient(peer, h, presentation, slot) }
+		var err error
+		if carrier == "socket" {
+			h.peer, _, err = runtime.Dial(context.Background(), str(raw, "url"), runtime.DialOptions{Options: wireCarrierPrepare(runtime.Options{Observer: h.observer}, h, presentation, build)})
+		} else if carrier == "channel" {
+			var multiplex *tunnel.Tunnel
+			h.peer, _, err = runtime.Dial(context.Background(), str(raw, "url"), runtime.DialOptions{Options: runtime.Options{Observer: h.observer, Prepare: func(peer *runtime.Peer) (err error) { multiplex, err = tunnel.New(peer, tunnel.Options{}); return }}})
+			if err == nil {
+				_, err = multiplex.Open(ctx, "wire-cell", wireCarrierPrepare(runtime.Options{Observer: h.observer}, h, presentation, build))
+			}
+		} else {
+			return nil, fmt.Errorf("unknown wire carrier %s", carrier)
+		}
+		if err != nil {
+			h.shutdown()
+			return nil, err
+		}
+		h.prepared(nil)
+		return map[string]any{"handle": t.mint("wire", h)}, nil
+	}
+	h, err := liveOf[*wireCarrierHandle](t, raw)
+	if err != nil {
+		return nil, err
+	}
+	if err = h.await(ctx); err != nil {
+		return nil, err
+	}
+	switch op {
+	case "gen.wire_exercise", "gen.wire_inspect":
+		run := h.side.exercise
+		if op == "gen.wire_inspect" {
+			run = h.side.inspect
+		}
+		if run == nil {
+			return nil, fmt.Errorf("wire operation has wrong side")
+		}
+		result, err := run(ctx)
+		if err != nil {
+			return nil, err
+		}
+		result["view_allocations"] = h.side.views
+		result["use_allocations"] = h.observer.snapshot().since(h.baseline)
+		result["counts"] = h.side.counts()
+		result["setup_allocations"] = h.baseline
+		return result, nil
+	case "gen.wire_release":
+		return nil, h.side.release()
+	case "gen.wire_counts":
+		return wireAwaitZero(ctx, h.side.counts)
+	}
+	return nil, fail("unsupported", "no wire carrier operation %s", op)
+}
+
+// Physical presentation prefixes remain on the carried frame in both directions.
+func wireCarrierPrepare(options runtime.Options, h *wireCarrierHandle, presentation string, build fixtureWireFactory) runtime.Options {
+	options.Prepare = func(peer *runtime.Peer) error {
+		model, err := build(peer)
+		if err != nil {
+			return err
+		}
+		baseline := h.observer.snapshot()
+		selected, closeView, err := wirePhysicalView(peer, presentation, h.observer)
+		if err != nil {
+			return err
+		}
+		cleanup := []func(){closeView}
+		detach, err := runtime.ForwardWire(selected, model)
+		if err != nil {
+			return err
+		}
+		cleanup = append(cleanup, detach, func() { _ = model.Close(1000, "") })
+		h.side.views = h.observer.snapshot().since(baseline)
+		go func() {
+			<-peer.Done()
+			for _, close := range cleanup {
+				close()
+			}
+		}()
+		return nil
+	}
+	return options
+}
+
+func wirePhysicalView(peer *runtime.Peer, presentation string, observer *wireAllocationObserver) (duplex.Wire, func(), error) {
+	selected := peer.Wire()
+	cleanup := func() {}
+	if presentation != "local" {
+		selected = duplex.At(duplex.Mount(map[string]duplex.Wire{"route": selected}), []string{"route", "outer", "inner"})
+	}
+	if presentation == "forwarded" {
+		left, right, err := runtime.NewWirePair(runtime.Options{Observer: observer})
+		if err != nil {
+			return nil, nil, err
+		}
+		detach, err := runtime.ForwardWire(right, selected)
+		if err != nil {
+			return nil, nil, err
+		}
+		cleanup = func() { detach(); _ = left.Close(1000, ""); _ = right.Close(1000, "") }
+		selected = left
+	} else if presentation != "local" && presentation != "mounted" {
+		return nil, nil, fmt.Errorf("unknown presentation %s", presentation)
+	}
+	return selected, cleanup, nil
+}
+
+func wireAwaitZero(ctx context.Context, read func() map[string]int) (map[string]int, error) {
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		counts := read()
+		if counts["exports"] == 0 && counts["imports"] == 0 {
+			return counts, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}

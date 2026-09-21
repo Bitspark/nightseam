@@ -2,8 +2,10 @@
 package proofprotocol
 
 import (
+	context "context"
 	json "encoding/json"
 	errors "errors"
+	probeprotocol "example.test/generated/api/go/probe-protocol"
 	fmt "fmt"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 )
@@ -1062,6 +1064,328 @@ func ImportResult[T, E any](raw json.RawMessage, convertT func(json.RawMessage) 
 	}
 	return value, nil
 }
+
+// AdapterCarried composes declaration validation and conversion within the supplied invocation context.
+func AdapterCarried[SEnvelope, SHandle, Item any](adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) runtime.ValueAdapter[Carried[SEnvelope, SHandle, Item]] {
+	typeSEnvelope := adapterSEnvelope.Binding
+	typeSHandle := adapterSHandle.Binding
+	typeItem := adapterItem.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle, "Item": typeItem}, nil), Type: "Carried"}
+	return runtime.ValueAdapter[Carried[SEnvelope, SHandle, Item]]{
+		Binding:      binding,
+		NeedsContext: adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext || adapterItem.NeedsContext,
+		Export: func(ctx context.Context, value Carried[SEnvelope, SHandle, Item]) (json.RawMessage, error) {
+			raw, err := ExportCarried[SEnvelope, SHandle, Item](value, func(value SEnvelope) (json.RawMessage, error) { return adapterSEnvelope.Export(ctx, value) }, typeSEnvelope, func(value SHandle) (json.RawMessage, error) { return adapterSHandle.Export(ctx, value) }, typeSHandle, func(value Item) (json.RawMessage, error) { return adapterItem.Export(ctx, value) }, typeItem)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Carried[SEnvelope, SHandle, Item], error) {
+			var zero Carried[SEnvelope, SHandle, Item]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportCarried[SEnvelope, SHandle, Item](raw, func(value json.RawMessage) (SEnvelope, error) { return adapterSEnvelope.Import(ctx, value) }, typeSEnvelope, func(value json.RawMessage) (SHandle, error) { return adapterSHandle.Import(ctx, value) }, typeSHandle, func(value json.RawMessage) (Item, error) { return adapterItem.Import(ctx, value) }, typeItem)
+		},
+	}
+}
+
+// AdapterOption composes declaration validation and conversion within the supplied invocation context.
+func AdapterOption[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[Option[T]] {
+	typeT := adapterT.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: "Option"}
+	return runtime.ValueAdapter[Option[T]]{
+		Binding:      binding,
+		NeedsContext: adapterT.NeedsContext,
+		Export: func(ctx context.Context, value Option[T]) (json.RawMessage, error) {
+			raw, err := ExportOption[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Option[T], error) {
+			var zero Option[T]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportOption[T](raw, func(value json.RawMessage) (T, error) { return adapterT.Import(ctx, value) }, typeT)
+		},
+	}
+}
+
+// AdapterOptionNone composes declaration validation and conversion within the supplied invocation context.
+func AdapterOptionNone() runtime.ValueAdapter[OptionNone] {
+	binding := runtime.TypeBinding{Schema: schema, Type: runtime.MustTypeExpression("{\"kind\":\"record\"}")}
+	return runtime.ValueAdapter[OptionNone]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value OptionNone) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (OptionNone, error) {
+			var zero OptionNone
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (OptionNone, error) {
+				var value OptionNone
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterPage composes declaration validation and conversion within the supplied invocation context.
+func AdapterPage[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[Page[T]] {
+	typeT := adapterT.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: "Page"}
+	return runtime.ValueAdapter[Page[T]]{
+		Binding:      binding,
+		NeedsContext: adapterT.NeedsContext,
+		Export: func(ctx context.Context, value Page[T]) (json.RawMessage, error) {
+			raw, err := ExportPage[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Page[T], error) {
+			var zero Page[T]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportPage[T](raw, func(value json.RawMessage) (T, error) { return adapterT.Import(ctx, value) }, typeT)
+		},
+	}
+}
+
+// AdapterPart composes declaration validation and conversion within the supplied invocation context.
+func AdapterPart() runtime.ValueAdapter[Part] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Part"}
+	return runtime.ValueAdapter[Part]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Part) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Part, error) {
+			var zero Part
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Part, error) { var value Part; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterPartImage composes declaration validation and conversion within the supplied invocation context.
+func AdapterPartImage() runtime.ValueAdapter[PartImage] {
+	binding := runtime.TypeBinding{Schema: schema, Type: runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"url\",\"type\":\"string\",\"required\":true,\"pattern\":\"^https://[A-Za-z0-9.-]+/[^ ]*$\"},{\"name\":\"alt\",\"type\":{\"nullable\":\"string\"},\"required\":false}]}")}
+	return runtime.ValueAdapter[PartImage]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value PartImage) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (PartImage, error) {
+			var zero PartImage
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (PartImage, error) { var value PartImage; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterParts composes declaration validation and conversion within the supplied invocation context.
+func AdapterParts() runtime.ValueAdapter[Parts] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Parts"}
+	return runtime.ValueAdapter[Parts]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Parts) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Parts, error) {
+			var zero Parts
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Parts, error) { var value Parts; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterPartsRequest composes declaration validation and conversion within the supplied invocation context.
+func AdapterPartsRequest() runtime.ValueAdapter[PartsRequest] {
+	binding := runtime.TypeBinding{Schema: schema, Type: runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"after\",\"type\":{\"nullable\":\"string\"},\"required\":false}]}")}
+	return runtime.ValueAdapter[PartsRequest]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value PartsRequest) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (PartsRequest, error) {
+			var zero PartsRequest
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (PartsRequest, error) {
+				var value PartsRequest
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterResult composes declaration validation and conversion within the supplied invocation context.
+func AdapterResult[T, E any](adapterT runtime.ValueAdapter[T], adapterE runtime.ValueAdapter[E]) runtime.ValueAdapter[Result[T, E]] {
+	typeT := adapterT.Binding
+	typeE := adapterE.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT, "E": typeE}, nil), Type: "Result"}
+	return runtime.ValueAdapter[Result[T, E]]{
+		Binding:      binding,
+		NeedsContext: adapterT.NeedsContext || adapterE.NeedsContext,
+		Export: func(ctx context.Context, value Result[T, E]) (json.RawMessage, error) {
+			raw, err := ExportResult[T, E](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT, func(value E) (json.RawMessage, error) { return adapterE.Export(ctx, value) }, typeE)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Result[T, E], error) {
+			var zero Result[T, E]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportResult[T, E](raw, func(value json.RawMessage) (T, error) { return adapterT.Import(ctx, value) }, typeT, func(value json.RawMessage) (E, error) { return adapterE.Import(ctx, value) }, typeE)
+		},
+	}
+}
+
+// AdapterRichPart composes declaration validation and conversion within the supplied invocation context.
+func AdapterRichPart() runtime.ValueAdapter[RichPart] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "RichPart"}
+	return runtime.ValueAdapter[RichPart]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value RichPart) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (RichPart, error) {
+			var zero RichPart
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (RichPart, error) { var value RichPart; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterRichPartTable composes declaration validation and conversion within the supplied invocation context.
+func AdapterRichPartTable() runtime.ValueAdapter[RichPartTable] {
+	binding := runtime.TypeBinding{Schema: schema, Type: runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"rows\",\"type\":{\"array\":{\"nullable\":\"string\"}},\"required\":true}]}")}
+	return runtime.ValueAdapter[RichPartTable]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value RichPartTable) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (RichPartTable, error) {
+			var zero RichPartTable
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (RichPartTable, error) {
+				var value RichPartTable
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterTextPart composes declaration validation and conversion within the supplied invocation context.
+func AdapterTextPart() runtime.ValueAdapter[TextPart] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "TextPart"}
+	return runtime.ValueAdapter[TextPart]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value TextPart) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (TextPart, error) {
+			var zero TextPart
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (TextPart, error) { var value TextPart; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+type ServerMethods[SEnvelope, SHandle, Item any] interface {
+	Echo(ctx context.Context, params probeprotocol.Payload) (probeprotocol.Payload, error)
+	NoArgs(ctx context.Context) (string, error)
+	Classify(ctx context.Context, params Part) (string, error)
+	ClassifyRich(ctx context.Context, params RichPart) (string, error)
+	Parts(ctx context.Context, params PartsRequest) (Result[Parts, string], error)
+	Relay(ctx context.Context, params Carried[SEnvelope, SHandle, Item]) (Option[Envelope], error)
+}
+type ServerEvents[SEnvelope, SHandle, Item any] interface {
+}
+type Server[SEnvelope, SHandle, Item any] struct {
+	Methods ServerMethods[SEnvelope, SHandle, Item]
+	Events  ServerEvents[SEnvelope, SHandle, Item]
+}
+type ClientMethods[SEnvelope, SHandle, Item any] interface {
+}
+type ClientEvents[SEnvelope, SHandle, Item any] interface {
+	Changed(ctx context.Context, data probeprotocol.Payload) error
+	PartAdded(ctx context.Context, data RichPart) error
+}
+type Client[SEnvelope, SHandle, Item any] struct {
+	Methods ClientMethods[SEnvelope, SHandle, Item]
+	Events  ClientEvents[SEnvelope, SHandle, Item]
+}
+type ServerModel[SEnvelope, SHandle, Item any] func(Client[SEnvelope, SHandle, Item]) (Server[SEnvelope, SHandle, Item], error)
+type ClientModel[SEnvelope, SHandle, Item any] func(Server[SEnvelope, SHandle, Item]) (Client[SEnvelope, SHandle, Item], error)
 
 // The public errors of the family: what a handler returns, as the Code of a *runtime.PublicError, and a caller tells apart with IsError.
 const (

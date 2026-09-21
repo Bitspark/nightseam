@@ -8,6 +8,7 @@ import type { Observer, ObserverEvent } from './observer.ts';
 import { webSocketConnection } from '@nightseam/duplex';
 import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from '@nightseam/duplex';
 import { positiveInteger } from './index.ts';
+import { emitWire } from './wire.ts';
 
 test('component limits share validation while the peer keeps its safe-integer bound', () => {
   for (const safe of [false, true]) {
@@ -357,34 +358,111 @@ test('incoming saturation responds busy without blocking responses', async (t) =
   assert.equal(await first, null);
 });
 
-test('output queues are bounded and a stalled socket is paced, then disconnected', async () => {
+test('wire output overflow ends the carrier without waiting for the socket to drain', async (t) => {
   const socket = new Socket();
   socket.bufferedAmount = 1;
-  const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 40 });
+  const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 5_000 });
+  t.after(() => peer.close());
   await peer.attach(socket);
   // The first is accepted for sending, which is queued and no more.
-  await peer.emit('first');
-  // The second meets a full queue and is paced for one write deadline before
-  // the consumer is called stalled; nothing drains, so the deadline passes.
-  await assert.rejects(peer.emit('second'));
+  emitWire(peer.wire(), ['first']);
+  await Promise.resolve();
+  // The consumer remains blocked. Admission must settle before another turn,
+  // independently of the much longer transport write deadline.
+  const ended = deferred<DuplexError>();
+  peer.onClose(ended.resolve);
+  emitWire(peer.wire(), ['second']);
+  const outcome = await Promise.race([
+    ended.promise.then((error) => {
+      assert.equal(error.code, 'busy');
+      return 'refused';
+    }),
+    nextTurn().then(() => 'waited'),
+  ]);
+  assert.equal(outcome, 'refused');
   assert.equal(peer.status, 'disconnected');
+  assert.equal(socket.closeCount, 1);
+  assert.equal(socket.sent.length, 0);
 });
 
-test('an outgoing burst that drains within the deadline is paced, not disconnected', async () => {
+test('the accepted output prefix drains in order within its bound', async (t) => {
+  for (const capacity of [2, 8]) {
+    await t.test(`capacity ${capacity}`, async (t) => {
+      const socket = new Socket();
+      socket.bufferedAmount = 1;
+      const drained = deferred();
+      const send = socket.send.bind(socket);
+      socket.send = (text) => {
+        send(text);
+        if (socket.sent.length === capacity) drained.resolve();
+      };
+      const peer = new DuplexPeer({ queueCapacity: capacity, writeTimeoutMs: 5_000 });
+      t.after(() => peer.close());
+      await peer.attach(socket);
+      for (let sequence = 0; sequence < capacity; sequence++) await peer.emit('item', sequence);
+      assert.equal(socket.sent.length, 0);
+      // Every emit already completed while the destination remained held.
+      socket.bufferedAmount = 0;
+      await drained.promise;
+      assert.equal(peer.status, 'connected');
+      assert.deepEqual(
+        socket.sent.map((frame) => frame.data),
+        Array.from({ length: capacity }, (_, i) => i),
+      );
+      await peer.emit('marker', capacity);
+      assert.equal(socket.sent.at(-1)?.data, capacity);
+    });
+  }
+});
+
+test('a pre-aborted call does not attempt admission to a full output queue', async (t) => {
   const socket = new Socket();
   socket.bufferedAmount = 1;
-  const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 1_000 });
+  const drained = deferred();
+  const send = socket.send.bind(socket);
+  socket.send = (text) => {
+    send(text);
+    drained.resolve();
+  };
+  const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 5_000 });
+  t.after(() => peer.close());
   await peer.attach(socket);
-  const first = peer.emit('first');
-  const second = peer.emit('second');
-  // The socket drains: the queue empties, the paced sender is woken, and both
-  // frames go. Before the queue was paced the second ended the connection.
-  socket.bufferedAmount = 0;
-  await Promise.all([first, second]);
+  await peer.emit('accepted');
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(peer.call('unadmitted', {}, { signal: controller.signal }), { code: 'cancelled' });
   assert.equal(peer.status, 'connected');
+  assert.equal(socket.closeCount, 0);
+  assert.equal(socket.sent.length, 0);
+  socket.bufferedAmount = 0;
+  await drained.promise;
   assert.deepEqual(
     socket.sent.map((frame) => frame.event),
-    ['first', 'second'],
+    ['accepted'],
+  );
+});
+
+test('a sent call cancels promptly when its best-effort cancellation cannot be queued', async (t) => {
+  const { client, server, left } = await paired({ queueCapacity: 1, writeTimeoutMs: 5_000 });
+  t.after(() => client.close());
+  const started = deferred();
+  server.handle('wait', (_params, context) => {
+    started.resolve();
+    return new Promise((resolve) => context.signal.addEventListener('abort', () => resolve(null), { once: true }));
+  });
+  const controller = new AbortController();
+  const cancelled = assert.rejects(client.call('wait', {}, { signal: controller.signal }), { code: 'cancelled' });
+  await started.promise;
+  left.bufferedAmount = 1;
+  await client.emit('accepted');
+  controller.abort();
+  const outcome = await Promise.race([cancelled.then(() => 'cancelled'), nextTurn().then(() => 'waited')]);
+  assert.equal(outcome, 'cancelled');
+  assert.equal(client.status, 'connected');
+  assert.equal(server.status, 'connected');
+  assert.deepEqual(
+    left.sent.map((frame) => frame.kind),
+    ['request'],
   );
 });
 
@@ -1374,7 +1452,7 @@ test('a handler deadline is observed locally as a timeout and remotely as a refu
   ]);
 });
 
-test('backpressure is observed where the queue fills and where the deadline passes', async () => {
+test('wire output overflow is observed once and accepted writes retain their transport deadline', async () => {
   // A socket whose buffer never drains: the first frame waits, the second meets a full queue.
   // A frame that merely waits on the socket is not backpressure; a queue full or a deadline passed is, as the Go peer tells it.
   const socket = new Socket();
@@ -1382,17 +1460,16 @@ test('backpressure is observed where the queue fills and where the deadline pass
   const full = recorder();
   const peer = new DuplexPeer({ queueCapacity: 1, writeTimeoutMs: 40, observer: full });
   await peer.attach(socket);
-  await peer.emit('first');
-  // Paced first and only then disconnected, as the Go peer paces it. The
-  // queue's deadline and the socket's are one limit, so whichever expires
-  // first ends the connection and the code it ends with is its own; what is
-  // held is the pair of events, which is the same either way.
-  await assert.rejects(peer.emit('second'));
+  emitWire(peer.wire(), ['first']);
+  await Promise.resolve();
+  // The queue limit ends admission immediately and reports one terminal
+  // pressure event; a transport timeout is a separate case below.
+  const ended = deferred<DuplexError>();
+  peer.onClose(ended.resolve);
+  emitWire(peer.wire(), ['second']);
+  assert.equal((await ended.promise).code, 'busy');
   assert.equal(peer.status, 'disconnected');
-  assert.deepEqual(backpressure(full.events), [
-    { type: 'backpressure', queued: 1, stalled: false, deadlineMs: 40 },
-    { type: 'backpressure', queued: 1, stalled: true, deadlineMs: 40 },
-  ]);
+  assert.deepEqual(backpressure(full.events), [{ type: 'backpressure', queued: 1, stalled: true, deadlineMs: 40 }]);
 
   const slow = new Socket();
   slow.bufferedAmount = 1;

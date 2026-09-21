@@ -1,16 +1,10 @@
-func (*Client[SEnvelope, SHandle, Item]) Classify(ctx context.Context, params protocol.Part) (string, error)
-func (*Client[SEnvelope, SHandle, Item]) ClassifyRich(ctx context.Context, params protocol.RichPart) (string, error)
-func (*Client[SEnvelope, SHandle, Item]) Close() error
-func (*Client[SEnvelope, SHandle, Item]) Echo(ctx context.Context, params probeprotocol.Payload) (probeprotocol.Payload, error)
-func (*Client[SEnvelope, SHandle, Item]) NoArgs(ctx context.Context) (string, error)
-func (*Client[SEnvelope, SHandle, Item]) OnChanged(handler func(context.Context, probeprotocol.Payload)) error
-func (*Client[SEnvelope, SHandle, Item]) OnPartAdded(handler func(context.Context, protocol.RichPart)) error
-func (*Client[SEnvelope, SHandle, Item]) Parts(ctx context.Context, params protocol.PartsRequest) (protocol.Result[protocol.Parts, string], error)
-func (*Client[SEnvelope, SHandle, Item]) Relay(ctx context.Context, params protocol.Carried[SEnvelope, SHandle, Item]) (protocol.Option[protocol.Envelope], error)
-func Attach[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[SEnvelope, SHandle, Item], events Events[SEnvelope, SHandle, Item]) (*Client[SEnvelope, SHandle, Item], error)
-func Dial[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[SEnvelope, SHandle, Item], events Events[SEnvelope, SHandle, Item]) (*Client[SEnvelope, SHandle, Item], error)
-func Open[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler[SEnvelope, SHandle, Item], events Events[SEnvelope, SHandle, Item]) (*Client[SEnvelope, SHandle, Item], error)
-type Caller[SEnvelope any, SHandle any, Item any] interface{Classify(ctx context.Context, params protocol.Part) (string, error); ClassifyRich(ctx context.Context, params protocol.RichPart) (string, error); Echo(ctx context.Context, params probeprotocol.Payload) (probeprotocol.Payload, error); NoArgs(ctx context.Context) (string, error); Parts(ctx context.Context, params protocol.PartsRequest) (protocol.Result[protocol.Parts, string], error); Relay(ctx context.Context, params protocol.Carried[SEnvelope, SHandle, Item]) (protocol.Option[protocol.Envelope], error)}
-type Client[SEnvelope any, SHandle any, Item any] struct{Peer *runtime.Peer}
-type Events[SEnvelope any, SHandle any, Item any] struct{Changed func(context.Context, probeprotocol.Payload); PartAdded func(context.Context, protocol.RichPart)}
-type Handler[SEnvelope any, SHandle any, Item any] interface{}
+func (*clientEvents[SEnvelope, SHandle, Item]) Changed(ctx context.Context, data probeprotocol.Payload) error
+func (*clientEvents[SEnvelope, SHandle, Item]) PartAdded(ctx context.Context, data protocol.RichPart) error
+func (*serverMethods[SEnvelope, SHandle, Item]) Classify(ctx context.Context, params protocol.Part) (string, error)
+func (*serverMethods[SEnvelope, SHandle, Item]) ClassifyRich(ctx context.Context, params protocol.RichPart) (string, error)
+func (*serverMethods[SEnvelope, SHandle, Item]) Echo(ctx context.Context, params probeprotocol.Payload) (probeprotocol.Payload, error)
+func (*serverMethods[SEnvelope, SHandle, Item]) NoArgs(ctx context.Context) (string, error)
+func (*serverMethods[SEnvelope, SHandle, Item]) Parts(ctx context.Context, params protocol.PartsRequest) (protocol.Result[protocol.Parts, string], error)
+func (*serverMethods[SEnvelope, SHandle, Item]) Relay(ctx context.Context, params protocol.Carried[SEnvelope, SHandle, Item]) (protocol.Option[protocol.Envelope], error)
+func FromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext, adapterItem runtime.ValueAdapter[Item]) (protocol.ClientModel[SEnvelope, SHandle, Item], error)
+func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](model protocol.ClientModel[SEnvelope, SHandle, Item], environment runtime.AdapterContext, adapterItem runtime.ValueAdapter[Item]) (duplex.Wire, error)

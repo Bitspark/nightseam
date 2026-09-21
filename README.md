@@ -8,9 +8,10 @@
 Declare a duplex API once, in tiers of JSON. Get a typed server and a typed
 client in Go and TypeScript — every one of them typed in
 both directions, since a client serves what the server calls — all speaking
-one wire profile: `nightseam.duplex/1`, JSON frames carrying requests,
-responses, events and cancellation over a WebSocket, a tunnel channel or an
-in-memory pipe.
+one wire profile: `nightseam.duplex/1`. Generated models convert to and from
+a relative-path `Wire`, over a socket, a prepared tunnel channel, a local pair
+or a selected and mounted origin. Physical peers carry the same four kinds
+of JSON frame: request, response, event and cancellation.
 
 Duplex means both ends call. The server calls the client with the machinery
 the client calls the server with, declared in the same file and typed the
@@ -59,29 +60,38 @@ Go, the server side. Generated code is never edited by hand; behavior goes
 in a file of your own, which `nightseam init probe` writes once:
 
 ```go
-type Probe struct{}
+type Probe struct{ remote protocol.Client }
 
-func (Probe) Echo(ctx context.Context, remote *binding.Remote, p protocol.Payload) (protocol.Payload, error) {
-	return remote.Reverse(ctx, p) // the server calls the client, typed, inside the request
+func (p Probe) Echo(ctx context.Context, value protocol.Payload) (protocol.Payload, error) {
+	return p.remote.Methods.Reverse(ctx, value)
 }
 
-// wherever you serve:
-handler, err := binding.NewHandler(Probe{}, runtime.ServerOptions{})
-http.Handle("/probe", handler)
+model := func(remote protocol.Client) (protocol.Server, error) {
+	return protocol.Server{Methods: Probe{remote: remote}}, nil
+}
+wire, err := binding.ToWire(model, runtime.AdapterContext{})
 ```
+
+The host can use this Wire locally, select or mount it, or forward a physical
+peer's Wire to it during peer preparation. The host owns authentication,
+transport setup and closure; the model receives typed reverse calls and events.
 
 ### Call it
 
 TypeScript, the client side:
 
 ```ts
-const client = await Client.dial('wss://example.test/probe', {}, {
-  reverse: ({ text, count }) => ({ text: [...text].reverse().join(''), count }),
-}, {
-  changed: p => console.log('changed', p.text),
+const peer = new DuplexPeer();
+const factory = await binding.fromWire(peer.wire(), {});
+const server = factory({
+  methods: {
+    reverse: ({ text, count }) => ({ text: [...text].reverse().join(''), count }),
+  },
+  events: { changed: p => console.log('changed', p.text) },
 });
+await peer.connect('wss://example.test/probe');
 
-const payload = await client.echo({ text: 'hello', count: 1 });
+const payload = await server.methods.echo({ text: 'hello', count: 1 });
 ```
 
 What you never write: the envelope, the correlation of a response to its
@@ -91,9 +101,9 @@ the declaration — or the second language's copy of any of it.
 ## Status
 
 Pre-1.0. Published packages, the generator's runtime dependency version and
-Go module tags move in lockstep. The 0.5.0 work replaces the governed session
-layer directly, with no compatibility shim; this is the current release
-policy, not a settled compatibility policy for a mature ecosystem.
+Go module tags move in lockstep. APIs change directly, with no compatibility
+shim; this is the current release policy, not a settled compatibility policy
+for a mature ecosystem.
 `CHANGELOG.md` says what each version holds. The conformance suite under
 [conformance/](conformance/) holds every language's
 seam, runtime, tunnel, live and generated packages to Go's over a real socket,
@@ -150,17 +160,17 @@ go get -tool github.com/Bitspark/nightseam/cmd/nightseam   # the generator, as a
 ```
 
 The generator is development tooling. Generated packages depend on their
-protocol types and the runtime components they use, including the tunnel for
-clients and the live runtime for live values. Generated data-only packages
-need no live runtime.
+protocol types and the runtime components they use. Carrier assembly chooses
+the tunnel explicitly; live values add the live runtime. Generated data-only
+and scalar-generic packages need no live runtime.
 
 ## The packages
 
 | npm | Go | what it is |
 | --- | --- | --- |
-| [`@nightseam/duplex`](duplex/ts) | [`duplex/go`](duplex/go) | the seam: ordered frames both ways, an explicit close with a code and a reason, a WebSocket adapter and an in-memory pipe |
-| [`@nightseam/runtime`](runtime/ts) | [`runtime/go`](runtime/go) | the peer of the profile: correlation, cancellation, backpressure, presence, trace context, the wire validator, the observer and its console and slog adapters |
-| [`@nightseam/tunnel`](tunnel/ts) | [`tunnel/go`](tunnel/go) | channels multiplexed over one peer, each one a connection of the seam, with per-channel credit |
+| [`@nightseam/duplex`](duplex/ts) | [`duplex/go`](duplex/go) | relative-path Wire frames, selection and mounting; raw ordered frame connections, a WebSocket adapter and an in-memory pipe |
+| [`@nightseam/runtime`](runtime/ts) | [`runtime/go`](runtime/go) | profile peers and local Wire pairs; correlation, cancellation, backpressure, value adapters, validation, trace context and observation |
+| [`@nightseam/tunnel`](tunnel/ts) | [`tunnel/go`](tunnel/go) | prepared Wire channels multiplexed over one peer with per-channel credit, and separate raw connections |
 | [`@nightseam/live`](live/ts) | [`live/go`](live/go) | callable values across one connection: a scope over a peer, exported bindings, imported references, release and forwarding |
 | [`@nightseam/otel`](otel/ts) | [`otel/go`](otel/go) | the OpenTelemetry adapter: a propagator over W3C trace context and an observer that opens a span per request. The four components above pull in no telemetry backend; their external Go dependencies provide WebSocket transport and strict JSON decoding. |
 | — | [`cmd/nightseam`](cmd/nightseam) | the generator |

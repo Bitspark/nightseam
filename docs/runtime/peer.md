@@ -1,7 +1,6 @@
 # The peer
 
-The peer of the profile is what a generated package binds to and what a
-consumer holds when it speaks the profile without one: `runtime.Peer` of
+The peer carries the profile over a physical frame connection: `runtime.Peer` of
 `runtime/go` and `DuplexPeer` of `@nightseam/runtime`. This page is its
 surface in both languages — each fact once, with both spellings — and what
 a consumer needs to know about the order it does things in. What crosses
@@ -25,7 +24,7 @@ close with a code and a reason, and nothing else. Three transports ship:
 the WebSocket adapter (`duplex/go/ws`; `webSocketConnection(socket)` of
 `@nightseam/duplex`, which adapts a browser or Node socket), an in-memory
 pipe (`duplex.Pipe(limit)`; `pipe()`, two connected ends for tests) and a
-tunnel channel ([the tunnel](tunnel.md)). Every transport of a language is held to
+tunnel's raw `Connection` ([the tunnel](tunnel.md)). Every transport of a language is held to
 the seam's conformance suite — `duplex/go/duplextest` and
 `duplex/ts/src/conformance.ts`, each run by the pipe, the WebSocket adapter
 and the tunnel channel — so a peer runs over any of them unchanged. To run
@@ -71,16 +70,64 @@ is installed on a peer the other side may already have called, which is
 `method_not_found` for the first request of a consumer that opens a channel
 the moment it sees the `101`. Install in `Prepare`, use in `OnConnect`.
 
-TypeScript has the same order by construction rather than by a hook: a
+TypeScript supports `PeerOptions.prepare`, run before reads begin, and the
+same explicit construction order: a
 `DuplexPeer` is made, `handle` and `onEvent` register on it, and `attach` or
 `connect` gives it a connection — handlers first, frames second.
 
-Generated clients take a typed `Events` value at `Dial`, `Attach` and `Open`
-(TypeScript `dial`, `attach` and `open`). Go installs it in `Prepare`, before
-running a caller-supplied `Prepare`; TypeScript installs it in the client
-constructor before connecting. An empty value leaves events unhandled.
-`OnX`/`onX` remain available for later registration, but a handler registered
-after the flow producing its events began may miss earlier events.
+Generated packages bind model sessions through `ToWire`/`FromWire`
+(`toWire`/`fromWire`), independently of carrier construction. Bind the complete
+model, including its reverse methods and events, during preparation before
+attaching a physical carrier. The [generated surface](../declaration/generated.md)
+describes the once-bound factory and explicit adapter context.
+
+## Structured Wire access
+
+`peer.Wire()` / `peer.wire()` returns the peer's root `duplex.Wire` / `Wire`.
+The same root shares its queues, correlation and carrier lifetime. Generated
+models consume this surface, a prepared tunnel channel, or a local Wire pair.
+The complete routing contract is [relative-path wires](wire.md).
+
+| Operation | Go | TypeScript |
+| --- | --- | --- |
+| send a structured frame | `wire.Send(path, message)` | `wire.send(path, message)` |
+| register a receiver | `wire.Receive(path, receiver)` | `wire.receive(path, receiver)` |
+| select a relative origin | `duplex.At(wire, prefix)` | `at(wire, prefix)` |
+| mount child origins | `duplex.Mount(children)` | `mount(children)` |
+| make a bounded local pair | `runtime.NewWirePair(options)` | `wirePair(options)` |
+| forward two origins | `runtime.ForwardWire(left, right)` | `forwardWire(left, right)` |
+| call, emit, register handlers | `runtime.CallWire`, `EmitWire`, `RegisterWire` | `callWire`, `emitWire`, `registerWire` |
+
+Paths are arrays of Unicode strings. Selection prefixes a path; mounting
+consumes one segment to choose a child. Neither allocates a peer, including
+on first use. Exact receivers win; a receiver with `Namespace: true` /
+`namespace: true` otherwise matches a segment prefix, with the longest match
+winning. Callback paths are relative to the Wire on which the receiver was
+registered. Registration returns a detach function.
+
+`ForwardWire` / `forwardWire` installs namespace receivers in both directions
+and returns a detach function. It preserves the frame and local return
+capability. It adds no channel, serialization or peer. The native profile
+frames and their physical path encoding are [the profile's](../wire/profile.md#relative-paths-on-a-wire).
+
+A local pair uses the existing structured request and return machinery. Its
+bounded queues drain asynchronously; TypeScript awaits each event callback,
+and Go drains event callbacks serially. Pending and handler reservations last
+through response completion, including a cancelled handler that has not
+settled. It creates no frame connection or `Peer`. `Send` admits or refuses
+without running an application body in the caller. A return from an event
+send acknowledges admission only. Ordering belongs to each Wire root; mounting
+independent roots does not impose a shared scheduler or a global order.
+
+Closing a selected view closes its underlying Wire. Closing a mount detaches
+its registrations and leaves its children open. A detach from forwarding
+leaves both roots open. These carrier operations do not release a live owner.
+Keep the host's explicit lifecycle alongside the model session.
+
+Verified request and event context accompanies local delivery through
+selection, mounting, forwarding and a local pair. It is not reconstructed
+from payload or metadata and does not cross a physical outgoing hop as local
+authority. Consumer checks still decide whether an effect is allowed.
 
 ## Options and limits
 
@@ -108,10 +155,11 @@ the one bound a layer above needs to know.
 Beside the bounds, `runtime.Options` carries `Handlers` and `Events` (what
 to serve, installed before the first frame), `Prepare`, `Propagator`,
 `Observer` and `Families`; `PeerOptions` carries `role`, `dispatch`,
-`webSocketFactory` (a socket of the platform's own), `subprotocols`,
+`webSocketFactory` (a socket of the platform's own), `subprotocols`, `prepare`,
 `propagator`, `onError`, `observer` and `families`. `Families` labels a
 method or event name with the family it belongs to, for the observer's
-sake; the generated install fills it in. Cancellation in TypeScript aborts a
+sake. Generated Wire adapters label their own operation observations with the
+declared family independently of a physical host's labels. Cancellation in TypeScript aborts a
 handler's signal but cannot interrupt running JavaScript, so a cancelled
 handler keeps its slot until it settles.
 

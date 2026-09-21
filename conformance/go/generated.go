@@ -60,7 +60,11 @@ func renderTestees(checkout, dir string) error {
 	world.Families["publication"] = publication.Families["publication"]
 	world.Problems["publication"] = publication.Problems["publication"]
 	world.Names = append(world.Names, "publication")
-	for _, name := range []string{"probe", "proof", "worker", "boxes", "combinator", "owners", "publication"} {
+	cell := k.Load(os.DirFS(filepath.Join(checkout, "conformance", "corpora", "wire-cell")), "api/contracts")
+	world.Families["cell"] = cell.Families["cell"]
+	world.Problems["cell"] = cell.Problems["cell"]
+	world.Names = append(world.Names, "cell")
+	for _, name := range []string{"probe", "proof", "worker", "boxes", "combinator", "owners", "publication", "cell"} {
 		result, err := k.Render(world, name)
 		if err != nil {
 			return fmt.Errorf("render the testees: %w", err)

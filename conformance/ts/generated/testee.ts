@@ -11,10 +11,12 @@ import { combinatorOps, resetCombinator, CombinatorFailure } from './combinator.
 import { forwardingOps, resetForwarding, ForwardingFailure } from './forwarding.ts';
 import { ownersOps, resetOwners, OwnerFailure } from './owners.ts';
 import { publicationOps, resetPublication, PublicationFailure } from './publication.ts';
+import { wireCellOps, resetWireCells } from './wire-cell.ts';
 import { createInterface } from 'node:readline';
-import { Client, DuplexError, errors, validateWire, type Payload, type Seen } from './api/ts/probe-client/src/index.ts';
+import * as probe from './api/ts/probe-client/src/index.ts';
+import { DuplexError, errors, validateWire, type Payload, type Seen } from './api/ts/probe-client/src/index.ts';
 import * as binding from './api/ts/probe-binding/src/index.ts';
-import { Inbox, Served } from './server.ts';
+import { Inbox, Served, Session } from './server.ts';
 
 class Failure extends Error {
   readonly code: string;
@@ -29,7 +31,8 @@ const fail = (code: string, message: string) => new Failure(code, message);
 type Args = Record<string, unknown>;
 
 class Dialled {
-  client!: Client;
+  connection!: Session<probe.Server>;
+  get client(): probe.Server { return this.connection.model; }
   readonly changed: Payload[] = [];
   readonly notifications: Array<{event:string; data:unknown}> = [];
   private readonly notificationWaiters: Array<() => void> = [];
@@ -51,11 +54,11 @@ class Dialled {
       this.waiters.push(() => { clearTimeout(timer); resolve(this.changed.shift()); });
     });
   }
-  shutdown(): void { this.client.close(); }
+  shutdown(): void { this.connection.close(); }
 }
 
 const handles = new Map<string, Dialled>();
-const servers = new Map<string, { served: Served<binding.Remote>; noticed: Inbox<Seen> }>();
+const servers = new Map<string, { served: Served<Session<probe.Client>>; noticed: Inbox<Seen> }>();
 let next = 0;
 let bye = false;
 
@@ -66,6 +69,7 @@ const reset = () => {
   resetForwarding();
   resetOwners();
   resetPublication();
+  resetWireCells();
   for (const d of handles.values()) d.shutdown();
   handles.clear();
   for (const s of servers.values()) s.served.shutdown();
@@ -89,7 +93,7 @@ const servedOf = (args: Args) => {
 const remoteOf = async (args: Args) => {
   const remote = await servedOf(args).served.remote(withinOf(args));
   if (!remote) throw fail('timeout', 'nobody connected');
-  return remote;
+  return remote.model;
 };
 
 /** How a typed call ended: the public error's code and data. */
@@ -117,35 +121,47 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
   ...forwardingOps,
   ...ownersOps,
   ...publicationOps,
+  ...wireCellOps,
   hello: () => ({ driver: 1, language: 'typescript', layers: ['generated'], features: ['listen'] }),
   reset: () => { reset(); return {}; },
   bye: () => { bye = true; reset(); return {}; },
   'gen.serve': async () => {
     const noticed = new Inbox<Seen>();
-    const served = await new Served(socket => binding.serve(socket, {}, {
-      echo: params => ({ ...params, text: [...params.text].reverse().join('') }),
-      noArgs: () => 'none',
-      seen: () => [],
-    }, { noticed: data => noticed.put(data) }).then(peer => new binding.Remote(peer))).listen();
+    const served = await new Served(socket => {
+      const connection = new Session<probe.Client>({ role: 'server' });
+      connection.expose(binding.toWire(remote => {
+        connection.model = remote;
+        return { methods: {
+          echo: params => ({ ...params, text: [...params.text].reverse().join('') }),
+          noArgs: () => 'none',
+          seen: () => [],
+        }, events: { noticed: data => noticed.put(data) } };
+      }, {}));
+      return connection.attach(socket);
+    }).listen();
     const handle = `srv${++next}`;
     servers.set(handle, { served, noticed });
     return { handle, url: served.url };
   },
   'gen.dial': async args => {
     const dialled = new Dialled();
-    const client = await Client.dial(String(args.url), {}, {
-      reverse: (params: Payload) => ({ ...params, text: 'typescript:' + params.text }),
-    }, { changed: data => dialled.changedEvent(data) }).catch(error => { throw fail('failed', String(error)); });
+    const connection = new Session<probe.Server>();
+    connection.expose(probe.toWire(remote => {
+      connection.model = remote;
+      return { methods: { reverse: (params: Payload) => ({ ...params, text: 'typescript:' + params.text }) },
+        events: { changed: data => dialled.changedEvent(data) } };
+    }, {}));
+    await connection.connect(String(args.url)).catch(error => { throw fail('failed', String(error)); });
     const handle = `cl${++next}`;
-    dialled.client = client;
+    dialled.connection = connection;
     handles.set(handle, dialled);
     return { handle };
   },
-  'client.echo': args => typed(() => dialledOf(args).client.echo(args.params as Payload)),
-  'client.seen': args => typed(() => dialledOf(args).client.seen(args.params as Seen)),
-  'client.no_args': args => typed(() => dialledOf(args).client.noArgs()),
+  'client.echo': args => typed(async () => dialledOf(args).client.methods.echo(args.params as Payload)),
+  'client.seen': args => typed(async () => dialledOf(args).client.methods.seen(args.params as Seen)),
+  'client.no_args': args => typed(async () => dialledOf(args).client.methods.noArgs({})),
   'client.emit_noticed': async args => {
-    await dialledOf(args).client.emitNoticed(args.data as Seen).catch(error => { throw fail('disconnected', String(error)); });
+    await Promise.resolve(dialledOf(args).client.events.noticed(args.data as Seen)).catch(error => { throw fail('disconnected', String(error)); });
     return {};
   },
   'client.await_changed': async args => {
@@ -153,7 +169,7 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
     if (data === undefined) throw fail('timeout', 'no changed event');
     return { data };
   },
-  'client.close': args => { dialledOf(args).client.close(); return {}; },
+  'client.close': args => { dialledOf(args).connection.close(); return {}; },
   'client.await_notification': async args => {
     const notification=await dialledOf(args).awaitNotification(withinOf(args));
     if(notification===undefined) throw fail('timeout','no typed notification');
@@ -162,11 +178,11 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
   'server.reverse': async args => {
     const signal = AbortSignal.timeout(withinOf(args));
     const remote = await remoteOf(args);
-    return typed(() => remote.reverse(args.params as Payload, { signal }));
+    return typed(async () => remote.methods.reverse(args.params as Payload, { signal }));
   },
   'server.emit_changed': async args => {
     const remote = await remoteOf(args);
-    await remote.emitChanged(args.data as Payload).catch(error => { throw fail('disconnected', String(error)); });
+    await Promise.resolve(remote.events.changed(args.data as Payload)).catch(error => { throw fail('disconnected', String(error)); });
     return {};
   },
   'server.await_noticed': async args => {

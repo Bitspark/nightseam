@@ -31,8 +31,7 @@ const scope = liveOver(peer); // before the peer is attached
 await peer.connect(url);
 ```
 
-Inside a handler, the scope is reached from the peer the handler was given —
-which is how generated code converts at the boundary without being handed one:
+Low-level peer handlers can look up the scope on their peer:
 
 ```go
 scope, ok := live.ScopeOf(peer)
@@ -41,6 +40,13 @@ scope, ok := live.ScopeOf(peer)
 ```ts
 const scope = scopeOf(context.peer);
 ```
+
+Generated models receive an explicit runtime adapter context instead. Supply
+`runtime.AdapterContext{ValueEnvironment: live.ValueEnvironment(scope)}` in Go
+or `{ valueEnvironment: valueEnvironment(scope) }` in TypeScript. This wraps
+the scope's owner selection and conversion batches without retaining one
+owner for the factory's lifetime. It is not a scope lookup keyed by a Wire;
+selecting or mounting that Wire does not change the chosen environment.
 
 ## The surface
 
@@ -62,8 +68,10 @@ const scope = scopeOf(context.peer);
 | hand one on to a destination owner | `live.Forward(destination, contract, origin)` | `forward(destination, contract, origin)` |
 | what this owner allocated directly | `owner.Counts()` → `Counts` | `owner.counts()` |
 | what the whole scope holds | `scope.Counts()` → `Counts` | `scope.counts()` |
-| carry an owner in a generated call | `live.WithOwner(ctx, owner)` | `options.owner` |
-| find the handler's owner | `live.OwnerOf(ctx)` → `(*Owner, bool)` | `context.owner` |
+| supply a model's value environment | `live.ValueEnvironment(scope)` | `valueEnvironment(scope)` |
+| carry an owner in a generated model call | `live.WithOwner(ctx, owner)` | `context.valueContext` |
+| find the model handler's owner | `live.OwnerOf(ctx)` → `(*Owner, bool)` | `context.valueContext` with the live environment |
+| carry an owner in a concrete callable invocation | `live.WithOwner(ctx, owner)` | `options.owner` |
 | the peer beneath | `scope.Peer()` | `scope.peer` |
 | end it | `scope.Close()` | `scope.close()` |
 
@@ -248,24 +256,26 @@ reviving any old owner or binding. `scope.Release(reference)` / `scope.release`
 still releases one binding regardless of which owner allocated it. Scope
 closure ends every owner with the connection's bindings.
 
-A generated ordinary call or event that carries live values uses the owner in
-`live.WithOwner(ctx, owner)` or `options.owner` when it belongs to that
+A generated model call or event using the live value environment uses the owner in
+`live.WithOwner(ctx, owner)` or TypeScript's `context.valueContext` when it belongs to that
 connection, falling back to the scope's root otherwise. This keeps native
 proxy forwarding across connections composable: an owner from the forwarding
 connection does not select a lifetime on the origin connection. To choose a
 narrower lifetime there, supply an owner for the origin connection. A released
 owner belonging to the current connection remains selected; it is not replaced
 by the root. Foreign native references are still refused by the low-level API.
-An imported callable likewise defaults to the connection's current root and
-accepts the same explicit override for values exchanged by that invocation.
+An imported concrete callable likewise defaults to the connection's current root;
+its TypeScript native options retain the explicit `owner` override for values
+exchanged by that invocation.
 This choice does not transfer ownership of the callable's attachment; a
 borrowed function remains usable after its borrowing owner is released.
 
 On receipt, generated operations and events carrying live values, and callable
 wrappers, give each invocation a child owner. Go handlers retrieve it with
 `live.OwnerOf(ctx)`;
-TypeScript handlers receive `context.owner` (callable bodies receive it in
-their options). Imports and returned exports use that child. A handler may
+TypeScript model handlers receive `context.valueContext`, whose live environment
+value is a `LiveOwner`; concrete callable bodies receive `options.owner`.
+Imports and returned exports use that child. A handler may
 keep the owner and release it later to revoke its returned functions. Returning
 from the RPC does not release it. The generated
 [owner scenario](../../conformance/scenarios/generated/live-owners.json)
@@ -277,6 +287,15 @@ when an invocation fails. A reply's absence does not end its handler owner or
 the caller's supplying owner.
 
 ## Forwarding callable-bearing values
+
+A checked imported callable can also be presented as a Wire operation at one
+opaque `[binding]` path, then selected, mounted and forwarded. This construction
+retains the live scope: import still requires the expected contract and an
+allocation owner, invocation still resolves the nonce-bearing id, and release
+still uses the binding barrier. Routing the path does not perform those checks
+or replace that state. The paired [construction evidence](compositions.md#live-access-through-wire)
+holds these distinctions. No `ImportWire` or `ExportWire` convenience API is
+implied by the construction.
 
 `Forward`/`forward` exports the raw `Invoke` it receives. It forwards the
 request and result bytes/values unchanged; it does not recursively translate

@@ -2,7 +2,9 @@
 package carrierprotocol
 
 import (
+	context "context"
 	json "encoding/json"
+	probeprotocol "example.test/generated/api/go/probe-protocol"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -362,3 +364,124 @@ func ImportFrames[SEnvelope any](raw json.RawMessage, convertSEnvelope func(json
 	value = converted
 	return value, nil
 }
+
+// AdapterAttachParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterAttachParams() runtime.ValueAdapter[AttachParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "AttachParams"}
+	return runtime.ValueAdapter[AttachParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value AttachParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (AttachParams, error) {
+			var zero AttachParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (AttachParams, error) {
+				var value AttachParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterAttachment composes declaration validation and conversion within the supplied invocation context.
+func AdapterAttachment[SHandle any](adapterSHandle runtime.ValueAdapter[SHandle]) runtime.ValueAdapter[Attachment[SHandle]] {
+	typeSHandle := adapterSHandle.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Handle": typeSHandle}, nil), Type: "Attachment"}
+	return runtime.ValueAdapter[Attachment[SHandle]]{
+		Binding:      binding,
+		NeedsContext: adapterSHandle.NeedsContext,
+		Export: func(ctx context.Context, value Attachment[SHandle]) (json.RawMessage, error) {
+			raw, err := ExportAttachment[SHandle](value, func(value SHandle) (json.RawMessage, error) { return adapterSHandle.Export(ctx, value) }, typeSHandle)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Attachment[SHandle], error) {
+			var zero Attachment[SHandle]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportAttachment[SHandle](raw, func(value json.RawMessage) (SHandle, error) { return adapterSHandle.Import(ctx, value) }, typeSHandle)
+		},
+	}
+}
+
+// AdapterFrame composes declaration validation and conversion within the supplied invocation context.
+func AdapterFrame[SEnvelope any](adapterSEnvelope runtime.ValueAdapter[SEnvelope]) runtime.ValueAdapter[Frame[SEnvelope]] {
+	typeSEnvelope := adapterSEnvelope.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope}, nil), Type: "Frame"}
+	return runtime.ValueAdapter[Frame[SEnvelope]]{
+		Binding:      binding,
+		NeedsContext: adapterSEnvelope.NeedsContext,
+		Export: func(ctx context.Context, value Frame[SEnvelope]) (json.RawMessage, error) {
+			raw, err := ExportFrame[SEnvelope](value, func(value SEnvelope) (json.RawMessage, error) { return adapterSEnvelope.Export(ctx, value) }, typeSEnvelope)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Frame[SEnvelope], error) {
+			var zero Frame[SEnvelope]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportFrame[SEnvelope](raw, func(value json.RawMessage) (SEnvelope, error) { return adapterSEnvelope.Import(ctx, value) }, typeSEnvelope)
+		},
+	}
+}
+
+// AdapterFrames composes declaration validation and conversion within the supplied invocation context.
+func AdapterFrames[SEnvelope any](adapterSEnvelope runtime.ValueAdapter[SEnvelope]) runtime.ValueAdapter[Frames[SEnvelope]] {
+	typeSEnvelope := adapterSEnvelope.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope}, nil), Type: "Frames"}
+	return runtime.ValueAdapter[Frames[SEnvelope]]{
+		Binding:      binding,
+		NeedsContext: adapterSEnvelope.NeedsContext,
+		Export: func(ctx context.Context, value Frames[SEnvelope]) (json.RawMessage, error) {
+			raw, err := ExportFrames[SEnvelope](value, func(value SEnvelope) (json.RawMessage, error) { return adapterSEnvelope.Export(ctx, value) }, typeSEnvelope)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Frames[SEnvelope], error) {
+			var zero Frames[SEnvelope]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportFrames[SEnvelope](raw, func(value json.RawMessage) (SEnvelope, error) { return adapterSEnvelope.Import(ctx, value) }, typeSEnvelope)
+		},
+	}
+}
+
+type ServerMethods[SEnvelope, SHandle any] interface {
+	Attach(ctx context.Context, params AttachParams) (Attachment[SHandle], error)
+	Relay(ctx context.Context, params Frame[SEnvelope]) (probeprotocol.Envelope, error)
+}
+type ServerEvents[SEnvelope, SHandle any] interface {
+}
+type Server[SEnvelope, SHandle any] struct {
+	Methods ServerMethods[SEnvelope, SHandle]
+	Events  ServerEvents[SEnvelope, SHandle]
+}
+type ClientMethods[SEnvelope, SHandle any] interface {
+}
+type ClientEvents[SEnvelope, SHandle any] interface {
+	FrameRelayed(ctx context.Context, data Frame[SEnvelope]) error
+}
+type Client[SEnvelope, SHandle any] struct {
+	Methods ClientMethods[SEnvelope, SHandle]
+	Events  ClientEvents[SEnvelope, SHandle]
+}
+type ServerModel[SEnvelope, SHandle any] func(Client[SEnvelope, SHandle]) (Server[SEnvelope, SHandle], error)
+type ClientModel[SEnvelope, SHandle any] func(Server[SEnvelope, SHandle]) (Client[SEnvelope, SHandle], error)

@@ -12,9 +12,9 @@ package composition_test
 //     carries and the only reference form the language has;
 //   - a reference means nothing off the connection that carried it, so a
 //     scope resolves against its own tunnel and nothing else;
-//   - a reference is resolved once: repeated import shares the one
-//     attachment, because a second attachment is a second peer reading one
-//     channel's frames and the two would take each other's replies;
+//   - a reference is resolved once: repeated import shares one generated
+//     model and its consumer-owned alias count; the tunnel itself owns the
+//     one prepared peer for each channel;
 //   - the contract is checked at the import, against the family the channel
 //     was opened for;
 //   - release drops an alias, the last alias closes the attachment, and
@@ -30,9 +30,9 @@ import (
 	"sync"
 
 	jobbinding "example.test/generated/api/go/job-binding"
-	jobclient "example.test/generated/api/go/job-client"
-	sinkbinding "example.test/generated/api/go/sink-binding"
+	jobprotocol "example.test/generated/api/go/job-protocol"
 	sinkclient "example.test/generated/api/go/sink-client"
+	sinkprotocol "example.test/generated/api/go/sink-protocol"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 	tunnel "github.com/Bitspark/nightseam/tunnel/go"
@@ -63,14 +63,15 @@ type scope struct {
 // channel knows its own family, so the binding does not repeat it.
 type binding struct {
 	channel *tunnel.Channel
-	peer    *runtime.Peer
+	wire    duplex.Wire
 }
 
 // proxy is the one attachment this side has over an imported binding, and the
 // number of aliases of it that have not been released.
 type proxy struct {
 	family  string
-	peer    *runtime.Peer
+	channel *tunnel.Channel
+	model   any
 	aliases int
 }
 
@@ -83,100 +84,73 @@ func newScope(carrier *tunnel.Tunnel) *scope {
 // connection rather than under a request that has ended.
 func (s *scope) context() context.Context { return s.carrier.Peer().Context() }
 
-// export opens a channel for the family, serves the implementation over it
-// and answers the reference. serve is the generated Attach or Serve of that
-// family; which of the two it is depends on the side the operations are
-// declared on, not on who is exporting.
-func (s *scope) export(ctx context.Context, family string, serve func(context.Context, *tunnel.Channel) (*runtime.Peer, error)) (int64, error) {
+// export publishes a model Wire over one prepared channel. The model is ready
+// before the channel's peer begins reading, and its lifetime follows the channel.
+func (s *scope) export(ctx context.Context, family string, model duplex.Wire) (int64, error) {
 	s.mu.Lock()
 	closed := s.closed
 	s.mu.Unlock()
 	if closed {
+		_ = model.Close(duplex.CodeGoingAway, "scope closed")
 		return 0, errScopeClosed
 	}
-	channel, err := s.carrier.Open(ctx, family)
+	channel, err := s.carrier.Open(ctx, family, runtime.Options{Prepare: func(peer *runtime.Peer) error {
+		if _, err := runtime.ForwardWire(peer.Wire(), model); err != nil {
+			return err
+		}
+		go func() { <-peer.Done(); _ = model.Close(duplex.CodeNormal, "channel ended") }()
+		return nil
+	}})
 	if err != nil {
-		return 0, err
-	}
-	// The connection's context and not the call's: a peer made under a
-	// request's context dies when that request ends, and a binding is meant
-	// to outlive the call that published it. This is the first thing the
-	// composition gets wrong if it is written the obvious way.
-	peer, err := serve(s.context(), channel)
-	if err != nil {
-		// A failed publication leaves no binding behind: the channel it was
-		// to be served on is closed here, before any reference to it exists.
-		_ = channel.Close(ctx, duplex.CodeInternalError, "the export failed")
+		_ = model.Close(duplex.CodeInternalError, "export failed")
 		return 0, err
 	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.closed {
-		s.mu.Unlock()
-		_ = peer.Close()
+		_ = channel.Close(duplex.CodeGoingAway, "scope closed")
+		_ = model.Close(duplex.CodeGoingAway, "scope closed")
 		return 0, errScopeClosed
 	}
-	s.served[channel.ID] = &binding{channel: channel, peer: peer}
-	s.mu.Unlock()
+	s.served[channel.ID] = &binding{channel: channel, wire: model}
 	return channel.ID, nil
 }
 
-// imported resolves a reference the connection carried into the one
-// attachment this side keeps over it. attach is the generated Attach or Serve
-// of the other side of that family.
-func (s *scope) imported(ctx context.Context, id int64, family string, attach func(context.Context, *tunnel.Channel) (*runtime.Peer, error)) (*runtime.Peer, error) {
+// imported keeps the consumer's model and aliases per channel. Interpretation
+// creates no second peer and runs while holding the consumer table lock, so two
+// simultaneous imports cannot install competing reverse handlers.
+func (s *scope) imported(ctx context.Context, id int64, family string, interpret func(duplex.Wire) (any, error)) (any, error) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.closed {
-		s.mu.Unlock()
 		return nil, errScopeClosed
 	}
 	if _, mine := s.served[id]; mine {
-		s.mu.Unlock()
 		return nil, errOwnReference
 	}
 	if held, ok := s.held[id]; ok {
 		if held.family != family {
-			s.mu.Unlock()
 			return nil, errWrongContract
 		}
 		held.aliases++
-		s.mu.Unlock()
-		return held.peer, nil
+		return held.model, nil
 	}
-	s.mu.Unlock()
-
-	// The whole of the scope check: a reference is an id on this connection.
-	// An id from another connection resolves to nothing here, or — if that
-	// number happens to be open here — to a channel of another family, which
-	// the next line refuses.
-	channel, ok := s.carrier.Channel(id)
+	channel, ok, err := s.carrier.Channel(id, runtime.Options{})
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return nil, errUnknownReference
 	}
 	if channel.Family != family {
 		return nil, fmt.Errorf("%w: %s, not %s", errWrongContract, channel.Family, family)
 	}
-	// Under the connection's context, for the reason export gives.
-	peer, err := attach(s.context(), channel)
+	model, err := interpret(channel)
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
-		_ = peer.Close()
-		return nil, errScopeClosed
-	}
-	if held, ok := s.held[id]; ok {
-		// Another goroutine resolved the same reference first; its attachment
-		// is the one, and this one never reads a frame.
-		held.aliases++
-		s.mu.Unlock()
-		_ = peer.Close()
-		return held.peer, nil
-	}
-	s.held[id] = &proxy{family: family, peer: peer, aliases: 1}
-	s.mu.Unlock()
-	return peer, nil
+	s.held[id] = &proxy{family: family, channel: channel, model: model, aliases: 1}
+	return model, nil
 }
 
 // release drops one alias of an imported reference and reports whether
@@ -197,7 +171,7 @@ func (s *scope) release(id int64) bool {
 	}
 	delete(s.held, id)
 	s.mu.Unlock()
-	_ = held.peer.Close()
+	_ = held.channel.Close(duplex.CodeNormal, "last alias released")
 	return true
 }
 
@@ -223,8 +197,8 @@ func (s *scope) revoke(ctx context.Context, id int64) bool {
 	if !ok {
 		return false
 	}
-	_ = served.peer.Close()
-	_ = served.channel.Close(ctx, duplex.CodeNormal, "the binding was released")
+	_ = served.wire.Close(duplex.CodeNormal, "binding released")
+	_ = served.channel.Close(duplex.CodeNormal, "the binding was released")
 	return true
 }
 
@@ -241,64 +215,66 @@ func (s *scope) close(ctx context.Context) {
 	s.served, s.held = map[int64]*binding{}, map[int64]*proxy{}
 	s.mu.Unlock()
 	for _, b := range served {
-		_ = b.peer.Close()
-		_ = b.channel.Close(ctx, duplex.CodeGoingAway, "the scope closed")
+		_ = b.wire.Close(duplex.CodeGoingAway, "scope closed")
+		_ = b.channel.Close(duplex.CodeGoingAway, "the scope closed")
 	}
 	for _, p := range held {
-		_ = p.peer.Close()
+		_ = p.channel.Close(duplex.CodeGoingAway, "scope closed")
 	}
 }
 
-// The typed halves of the two references this proof exchanges.
-//
-// A family's operations are declared on one of its two sides, and that
-// decides which generated package implements it: the sink's are the client
-// side's, so its implementor attaches the generated client and its holder
-// serves the generated binding and calls through Remote; the job's are the
-// server side's, and the two are the other way round. The declaration picks
-// the direction, and TypeScript — which the generator gives a client and no
-// binding — can therefore implement a client side only.
-
-func (s *scope) exportSink(ctx context.Context, impl sinkclient.Handler) (int64, error) {
-	return s.export(ctx, "sink", func(ctx context.Context, channel *tunnel.Channel) (*runtime.Peer, error) {
-		client, err := sinkclient.Attach(ctx, channel, runtime.Options{}, impl, sinkclient.Events{})
+// The same generated model/Wire conversion serves either family side. The
+// declaration chooses which side implements operations; carrier direction does
+// not enter the adapter.
+func (s *scope) exportSink(ctx context.Context, impl sinkprotocol.ClientMethods) (int64, error) {
+	wire, err := sinkclient.ToWire(func(sinkprotocol.Server) (sinkprotocol.Client, error) {
+		return sinkprotocol.Client{Methods: impl, Events: struct{}{}}, nil
+	}, runtime.AdapterContext{})
+	if err != nil {
+		return 0, err
+	}
+	return s.export(ctx, "sink", wire)
+}
+func (s *scope) importSink(ctx context.Context, id int64) (sinkprotocol.ClientMethods, error) {
+	value, err := s.imported(ctx, id, "sink", func(wire duplex.Wire) (any, error) {
+		factory, err := sinkclient.FromWire(ctx, wire, runtime.AdapterContext{})
 		if err != nil {
 			return nil, err
 		}
-		return client.Peer, nil
-	})
-}
-
-func (s *scope) importSink(ctx context.Context, id int64) (*sinkbinding.Remote, error) {
-	peer, err := s.imported(ctx, id, "sink", func(ctx context.Context, channel *tunnel.Channel) (*runtime.Peer, error) {
-		return sinkbinding.Serve(ctx, channel, runtime.Options{}, noServerSide{})
+		model, err := factory(sinkprotocol.Server{Methods: struct{}{}, Events: struct{}{}})
+		if err != nil {
+			return nil, err
+		}
+		return model.Methods, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &sinkbinding.Remote{Peer: peer}, nil
+	return value.(sinkprotocol.ClientMethods), nil
 }
-
-func (s *scope) exportJob(ctx context.Context, impl jobbinding.Handler) (int64, error) {
-	return s.export(ctx, "job", func(ctx context.Context, channel *tunnel.Channel) (*runtime.Peer, error) {
-		return jobbinding.Serve(ctx, channel, runtime.Options{}, impl)
-	})
+func (s *scope) exportJob(ctx context.Context, impl jobprotocol.ServerMethods) (int64, error) {
+	wire, err := jobbinding.ToWire(func(jobprotocol.Client) (jobprotocol.Server, error) {
+		return jobprotocol.Server{Methods: impl, Events: struct{}{}}, nil
+	}, runtime.AdapterContext{})
+	if err != nil {
+		return 0, err
+	}
+	return s.export(ctx, "job", wire)
 }
-
-func (s *scope) importJob(ctx context.Context, id int64) (*jobclient.Client, error) {
-	peer, err := s.imported(ctx, id, "job", func(ctx context.Context, channel *tunnel.Channel) (*runtime.Peer, error) {
-		client, err := jobclient.Attach(ctx, channel, runtime.Options{}, nil, jobclient.Events{})
+func (s *scope) importJob(ctx context.Context, id int64) (jobprotocol.ServerMethods, error) {
+	value, err := s.imported(ctx, id, "job", func(wire duplex.Wire) (any, error) {
+		factory, err := jobbinding.FromWire(ctx, wire, runtime.AdapterContext{})
 		if err != nil {
 			return nil, err
 		}
-		return client.Peer, nil
+		model, err := factory(jobprotocol.Client{Methods: struct{}{}, Events: struct{}{}})
+		if err != nil {
+			return nil, err
+		}
+		return model.Methods, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &jobclient.Client{Peer: peer}, nil
+	return value.(jobprotocol.ServerMethods), nil
 }
-
-// noServerSide implements the empty server side of a family whose operations
-// are all the client side's.
-type noServerSide struct{}

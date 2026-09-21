@@ -11,8 +11,8 @@ rather than the materials: a scope over a peer, bindings exported from it, and
 references that name them. **This page is not how to use that** — it is the
 composition attempt [admitting a concept](../admission.md#3-the-composition-attempt)
 requires, kept because what it found is why the layer has the shape it has.
-Three of its four findings below are answered by the layer, and the fourth
-was fixed in the generator. A consumer writing new code reaches for
+The original findings below now include the changes from the Wire construction.
+A consumer writing new code reaches for
 [`live/go` and `@nightseam/live`](live.md); a reader asking *why* that exists,
 and what it costs to do without it, reads on.
 
@@ -49,15 +49,14 @@ A caller opens a channel for the `sink` family, serves its own
 implementation over it, and sends that channel's id as `progress`. The worker
 resolves the id on its own tunnel, holds the typed proxy, opens a channel for
 the `job` family, serves a job over it, and answers with *that* id. The caller
-resolves it and calls `cancel`. Both directions are ordinary generated clients
-over ordinary channels; nothing new crosses the wire.
+resolves it and calls `cancel`. Both directions are generated models over
+channels; nothing new crosses the wire.
 
 **Which side implements what is a declaration decision, not a runtime one.** A
 family's operations sit on its server side or its client side, and that
-decides which generated package implements them: the sink's are the client
-side's, so its implementor attaches the generated *client* and its holder
-serves the generated *binding* and calls back through `Remote`; the job's are
-the server side's, and the two swap. The declaration picks the direction.
+decides which model adapter interprets them. The sink uses the client side
+model, the job the server side model. Either side has `ToWire` and `FromWire`;
+the declaration picks the direction.
 
 ## The rules, and who makes them
 
@@ -89,11 +88,9 @@ one suite and not two implementations that agree in prose.
 | The scope ends with the connection. | `peer.Done()` closes every binding and attachment. | `TestCloseSettlesPendingWork` |
 
 **The reference outliving its call is the one a reader gets wrong first.**
-`sinkbinding.Serve(ctx, channel, …)` with a handler's `ctx` makes a peer whose
-life is that request's: the call returns, the context ends, and the first
-report through the reference fails with a closed connection. The composition
-uses `carrier.Peer().Context()` instead, and the comment in `scope.export`
-says why.
+Prepared tunnel Wire acquisition uses the outer peer lifetime for its inner
+peer; its wait context bounds acquisition only. Consumer model state and live
+owners still need their explicitly chosen lifetimes.
 
 ## Three cancellations, three outcomes
 
@@ -234,25 +231,18 @@ first three are what [the live layer](live.md) was built to answer, and each
 says below how it answers them — the composition was right that nothing was
 missing from the wire, and right about what was missing above it.
 
-**1. Generated `Open` attaches once per call.** `Open` is `Channel(id)` then
-`Attach`, and `Attach` makes a *new* peer — so importing one reference twice
-through it leaves two peers reading one channel, taking each other's replies.
-[#202](https://github.com/Bitspark/nightseam/issues/202) requires the
-opposite. `TestGeneratedOpenAttachesOncePerCall` holds the current behavior so
-that the day it changes, this page is what gets rewritten. Until then an
-application must keep the table itself, which is what `scope.imported` is.
-**Answered:** `Scope.Import` keeps that table, and the same binding imported
-twice gives the same function back — held by `live/aliases` in the conformance
-suite and by the shared case of the same name in both languages.
+**1. Channel lookup reuses one prepared Wire.** The old generated `Open`
+facade made a second reader on every import. It is removed. Channel acquisition
+now prepares one inner peer, subsequent lookup returns that Wire, and selection
+or mounting creates no peer. `TestGeneratedModelsSharePreparedChannel` checks
+repeated acquisition and two successful `FromWire` interpretations of that
+same channel. The live attachment table separately shares
+aliases of an imported binding, as held by the live aliases scenario.
 
-**2. Generated `Open` checks no contract.** It never compares the channel's
-family to the family it is about to speak, although `Channel.Family` and
-`channel.family` are public and an application can. So today's "a wrong
-reference reaches an unrelated implementation" is an omission in generated
-code rather than an absent guarantee — a distinction
-[#199](https://github.com/Bitspark/nightseam/issues/199) §3 asks for
-explicitly.
-**Answered:** a live scope checks a reference's contract at import. The
+**2. Channel routing alone checks no live contract.** A channel family label
+and a selected path are routing facts. A generated adapter validates values
+against its declaration; a live scope separately checks the explicit expected
+contract at import. The
 invocation handlers in [Go](../../live/go/live.go) and
 [TypeScript](../../live/ts/src/index.ts) check it against the exported binding
 again when a call arrives. The shared scenario
@@ -295,8 +285,37 @@ language can implement either declared side. The composition retains its
 original declaration. Under the callable verdict on
 [#201](https://github.com/Bitspark/nightseam/issues/201), a live value is a
 function dispatched by the live scope, independent of which side a
-generated `Handler` implements; either peer may export one.
+generated model implements; either peer may export one.
 
+## Live access through Wire
+
+The paired [Go](../../live/go/wire_construction_test.go) and
+[TypeScript](../../live/ts/src/wire-construction.test.ts) construction imports
+a reference with an explicit expected contract and owner, registers its
+checked invocation at one opaque `[binding]` path on a bounded local Wire pair,
+then selects, mounts and forwards that origin. Local/self and real-socket
+routes retain consumer effect guards, native-scope and contract refusals
+before allocation, nonce lookup, release-as-barrier, pre-teardown counts and
+retention after uncertain publication.
+
+The construction preserves these guarantees by retaining live interpretation
+and state. The path alone does not supply the expected contract, allocation
+owner or release ledger. Closing the selected Wire ends an admitted reply
+while the live scope can still own the binding. Releasing the owner instead
+revokes later invocations, preserves already admitted results and clears its
+binding ledger. Wire closure cannot replace that barrier.
+
+Exporting an imported Wire invocation as an ordinary live binding gives the
+second scope a separately releasable lifetime. That raw forwarding witness
+carries scalar JSON; nested live references crossing scopes still need the
+generated import/export conversions described above. There is no new public
+`ImportWire` or `ExportWire` adapter hiding those responsibilities.
+
+This is common Wire access over retained live state, the first construction
+finding recorded on [#289](https://github.com/Bitspark/nightseam/issues/289).
+It does not claim that paths replace live references or prove future
+reorganization of that state impossible. Declaration digests remain separate
+work in [#323](https://github.com/Bitspark/nightseam/issues/323).
 ## What this proves, and what it does not
 
 It proves that the callback-and-returned-interface behavior of
@@ -308,8 +327,9 @@ above. Their classification under the admission policy does not prove that
 every desired behavior follows from a record of functions, or settle whether
 a reusable implementation should ship.
 
-The generated channel import leaves attachment sharing and contract checks to
-the consumer. The live layer supplies one attachment per binding and explicit
+Prepared channel acquisition shares the inner reader; the channel-reference
+composition still supplies its own binding aliases and contract checks.
+The live layer supplies one attachment per binding and explicit
 contract checks; it does not adopt this example's last-alias release policy or
 the derived compositions' application contracts. This construction is the evidence
 [#201](https://github.com/Bitspark/nightseam/issues/201) and

@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -25,6 +24,7 @@ import (
 	binding "example.test/generated/api/go/probe-binding"
 	client "example.test/generated/api/go/probe-client"
 	protocol "example.test/generated/api/go/probe-protocol"
+	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -143,7 +143,7 @@ type server struct {
 	noticed chan protocol.Seen
 }
 
-func (s *server) Echo(ctx context.Context, remote *binding.Remote, params protocol.Payload) (protocol.Payload, error) {
+func (s *server) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error) {
 	runes := []rune(params.Text)
 	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
 		runes[i], runes[j] = runes[j], runes[i]
@@ -151,10 +151,10 @@ func (s *server) Echo(ctx context.Context, remote *binding.Remote, params protoc
 	params.Text = string(runes)
 	return params, nil
 }
-func (s *server) NoArgs(ctx context.Context, remote *binding.Remote) (string, error) {
+func (s *server) NoArgs(ctx context.Context) (string, error) {
 	return "none", nil
 }
-func (s *server) Seen(ctx context.Context, remote *binding.Remote, params protocol.Seen) (protocol.Payloads, error) {
+func (s *server) Seen(ctx context.Context, params protocol.Seen) (protocol.Payloads, error) {
 	return protocol.Payloads{}, nil
 }
 
@@ -163,7 +163,7 @@ type served struct {
 	http    *http.Server
 	url     string
 	peer    chan *runtime.Peer
-	remote  *binding.Remote
+	remote  *protocol.Client
 	noticed chan protocol.Seen
 	mu      sync.Mutex
 }
@@ -174,14 +174,15 @@ func (s *served) shutdown() { _ = s.http.Close() }
 // prefixed by the language's name.
 type clientHandler struct{}
 
-func (clientHandler) Reverse(ctx context.Context, c *client.Client, params protocol.Payload) (protocol.Payload, error) {
+func (clientHandler) Reverse(ctx context.Context, params protocol.Payload) (protocol.Payload, error) {
 	params.Text = "go:" + params.Text
 	return params, nil
 }
 
 // dialled is a generated client under control.
 type dialled struct {
-	client            *client.Client
+	client            protocol.Server
+	peer              *runtime.Peer
 	changed           chan protocol.Payload
 	notifications     []map[string]any
 	notificationMu    sync.Mutex
@@ -189,7 +190,7 @@ type dialled struct {
 	cancel            context.CancelFunc
 }
 
-func (d *dialled) shutdown() { _ = d.client.Close(); d.cancel() }
+func (d *dialled) shutdown() { _ = d.peer.Close(); d.cancel() }
 func (d *dialled) notification(event string, data any) {
 	d.notificationMu.Lock()
 	d.notifications = append(d.notifications, map[string]any{"event": event, "data": data})
@@ -251,6 +252,9 @@ func decoded(v any) any {
 }
 
 func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	if strings.Contains(op, ".wire_") {
+		return t.wireDispatch(op, raw)
+	}
 	if strings.Contains(op, ".publication_") {
 		return t.publicationDispatch(op, raw)
 	}
@@ -280,20 +284,22 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		return nil, nil
 	case "gen.serve":
 		s := &served{peer: make(chan *runtime.Peer, 1), noticed: make(chan protocol.Seen, 16)}
-		handler, err := binding.NewHandler(&server{noticed: s.noticed}, runtime.ServerOptions{
+		handler, err := fixtureHandler(runtime.ServerOptions{
 			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 			CheckOrigin:  func(*http.Request) bool { return true },
 			OnConnect: func(p *runtime.Peer) {
-				remote := &binding.Remote{Peer: p}
-				_ = remote.OnNoticed(func(_ context.Context, data protocol.Seen) { s.noticed <- data })
-				s.mu.Lock()
-				s.remote = remote
-				s.mu.Unlock()
 				select {
 				case s.peer <- p:
 				default:
 				}
 			},
+		}, func(peer *runtime.Peer) (duplex.Wire, error) {
+			return binding.ToWire(func(remote protocol.Client) (protocol.Server, error) {
+				s.mu.Lock()
+				s.remote = &remote
+				s.mu.Unlock()
+				return protocol.Server{Methods: &server{noticed: s.noticed}, Events: probeServerEvents{s}}, nil
+			}, runtime.AdapterContext{})
 		})
 		if err != nil {
 			return nil, fail("failed", "%v", err)
@@ -311,21 +317,17 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		// long as the client does.
 		ctx, cancel := context.WithCancel(context.Background())
 		d := &dialled{changed: make(chan protocol.Payload, 16), notificationReady: make(chan struct{}, 1), cancel: cancel}
-		events := client.Events{Changed: func(_ context.Context, data protocol.Payload) {
-			d.changed <- data
-			d.notification("changed", decoded(data))
-		}}
-		endpoint, err := url.Parse(str(raw, "url"))
-		if err != nil {
-			cancel()
-			return nil, fail("invalid", "%v", err)
-		}
-		c, err := client.Dial(ctx, endpoint.String(), runtime.DialOptions{}, clientHandler{}, events)
+		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (duplex.Wire, error) {
+			return client.ToWire(func(remote protocol.Server) (protocol.Client, error) {
+				d.client = remote
+				return protocol.Client{Methods: clientHandler{}, Events: probeClientEvents{d}}, nil
+			}, runtime.AdapterContext{})
+		})
 		if err != nil {
 			cancel()
 			return nil, fail("failed", "%v", err)
 		}
-		d.client = c
+		d.peer = peer
 		return map[string]any{"handle": t.mint("cl", d)}, nil
 	case "client.echo", "client.seen", "client.no_args", "client.emit_noticed", "client.await_changed", "client.await_notification", "client.close":
 		object, ok := t.lookup(str(raw, "on"))
@@ -343,7 +345,7 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 			if err := json.Unmarshal(raw["params"], &params); err != nil {
 				return map[string]any{"error": map[string]any{"code": "invalid_params", "message": err.Error()}}, nil
 			}
-			result, err := d.client.Echo(ctx, params)
+			result, err := d.client.Methods.Echo(ctx, params)
 			if err != nil {
 				return map[string]any{"error": callError(err)}, nil
 			}
@@ -353,13 +355,13 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 			if err := json.Unmarshal(raw["params"], &params); err != nil {
 				return map[string]any{"error": map[string]any{"code": "invalid_params", "message": err.Error()}}, nil
 			}
-			result, err := d.client.Seen(ctx, params)
+			result, err := d.client.Methods.Seen(ctx, params)
 			if err != nil {
 				return map[string]any{"error": callError(err)}, nil
 			}
 			return map[string]any{"result": decoded(result)}, nil
 		case "client.no_args":
-			result, err := d.client.NoArgs(ctx)
+			result, err := d.client.Methods.NoArgs(ctx)
 			if err != nil {
 				return map[string]any{"error": callError(err)}, nil
 			}
@@ -369,7 +371,7 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 			if err := json.Unmarshal(raw["data"], &data); err != nil {
 				return nil, fail("invalid_params", "%v", err)
 			}
-			if err := d.client.EmitNoticed(ctx, data); err != nil {
+			if err := d.client.Events.Noticed(ctx, data); err != nil {
 				return nil, fail("disconnected", "%v", err)
 			}
 			return nil, nil
@@ -381,7 +383,7 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 				return nil, fail("timeout", "no changed event")
 			}
 		case "client.close":
-			_ = d.client.Close()
+			_ = d.peer.Close()
 			return nil, nil
 		}
 	case "server.emit_changed", "server.await_noticed", "server.reverse":
@@ -411,7 +413,7 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 			if err := json.Unmarshal(raw["data"], &data); err != nil {
 				return nil, fail("invalid_params", "%v", err)
 			}
-			if err := remote.EmitChanged(ctx, data); err != nil {
+			if err := remote.Events.Changed(ctx, data); err != nil {
 				return nil, fail("disconnected", "%v", err)
 			}
 			return nil, nil
@@ -427,7 +429,7 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 			if err := json.Unmarshal(raw["params"], &params); err != nil {
 				return map[string]any{"error": map[string]any{"code": "invalid_params", "message": err.Error()}}, nil
 			}
-			result, err := remote.Reverse(ctx, params)
+			result, err := remote.Methods.Reverse(ctx, params)
 			if err != nil {
 				return map[string]any{"error": callError(err)}, nil
 			}
@@ -456,4 +458,20 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		return map[string]any{"value": false}, nil
 	}
 	return nil, fail("unsupported", "no such op: %s", strings.TrimSpace(op))
+}
+
+// Each event implementation receives events from the opposite generated side.
+type probeServerEvents struct{ served *served }
+
+func (e probeServerEvents) Noticed(_ context.Context, data protocol.Seen) error {
+	e.served.noticed <- data
+	return nil
+}
+
+type probeClientEvents struct{ dialled *dialled }
+
+func (e probeClientEvents) Changed(_ context.Context, data protocol.Payload) error {
+	e.dialled.changed <- data
+	e.dialled.notification("changed", decoded(data))
+	return nil
 }

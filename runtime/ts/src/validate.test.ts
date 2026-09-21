@@ -3,6 +3,26 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { createValidator, type Validator, type WireFamily, type TypeExpression, type Slots } from './validate.ts';
 
+test('nested supplied type bindings retain their own declaration scopes', () => {
+  const scalar = createValidator({ types: { Count: { kind: 'alias', type: 'integer' } } });
+  const box = createValidator({
+    types: { Box: { kind: 'record', parameters: [{ name: 'T' }], fields: [{ name: 'value', type: 'T' }] } },
+  });
+  const cell = createValidator({
+    parameters: [{ name: 'T' }],
+    types: { Request: { kind: 'record', fields: [{ name: 'value', type: 'T' }] } },
+  });
+  const count = { type: 'Count', validate: scalar };
+  const slots: Slots = {
+    T: { type: 'Box', validate: box, slots: { T: { type: 'Box', validate: box, slots: { T: count } } } },
+  };
+  cell('Request', { value: { value: { value: 7 } } }, '$', slots);
+  assert.throws(() => cell('Request', { value: { value: { value: 'wrong' } } }, '$', slots), /integer/);
+  const cyclic: Record<string, { type: string; validate: Validator; slots?: Slots }> = {};
+  cyclic.T = { type: 'Box', validate: box, slots: cyclic };
+  assert.throws(() => cell('Request', {}, '$', cyclic), /cyclic type argument bindings/);
+});
+
 // The validator agrees with the conformance table every runtime is held
 // to, case by case, on the wire description of a family and of one it
 // refers to — on the verdict, and on the diagnostic where the row states

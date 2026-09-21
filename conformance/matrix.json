@@ -12,12 +12,12 @@
       "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 103,
+          "passed": 104,
           "skipped": 0,
           "failed": 0
         },
         "generator": {
-          "passed": 22,
+          "passed": 32,
           "skipped": 0,
           "failed": 0
         },
@@ -43,12 +43,12 @@
       "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 206,
+          "passed": 208,
           "skipped": 0,
           "failed": 0
         },
         "generator": {
-          "passed": 44,
+          "passed": 64,
           "skipped": 0,
           "failed": 0
         },

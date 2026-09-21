@@ -4,7 +4,27 @@
 npm install @nightseam/duplex
 ```
 
-The seam beneath every protocol, in TypeScript: `FrameConnection` — ordered
+The common structured access surface is `Wire`: `send(path, message)`,
+`receive(path, receiver)` and `close(code, reason)`. Paths are arrays of
+Unicode strings; a message carries one of the four profile frame kinds and
+an optional local return capability, never another serialized envelope.
+
+```ts
+import { at, mount } from '@nightseam/duplex';
+import type { Wire } from '@nightseam/duplex';
+
+const joined: Wire = mount(new Map([['work', workWire], ['chat', chatWire]]));
+const selected = at(joined, ['work']);
+```
+
+Selection and mounting reuse existing roots, with no peer or channel allocated
+even on first use. Receivers match exact paths by default; `namespace: true`
+also matches descendants, with exact matches winning and otherwise the longest
+segment prefix. Closing a selected view closes its root; closing a mount
+detaches its registrations and leaves child roots open. The runtime supplies
+bounded asynchronous roots as `peer.wire()` and `wirePair()`.
+
+The raw transport seam remains `FrameConnection` — ordered
 frames, both ways, an explicit close with a code and a reason, and nothing
 else — with `webSocketConnection`, which adapts a browser or Node `WebSocket`
 to it, and `pipe()`, two connected ends in memory for tests. The close codes
@@ -26,8 +46,8 @@ const [left, right] = pipe();
 ```
 
 `@nightseam/runtime` speaks the `nightseam.duplex/1` profile over a
-`FrameConnection` and never touches a WebSocket itself; a tunnel channel or
-an in-memory pipe is a `FrameConnection` too, and the peer runs over either
+`FrameConnection` and never touches a WebSocket itself; a tunnel's raw
+`Connection` or an in-memory pipe is a `FrameConnection` too, and the peer runs over either
 unchanged. This package is the TypeScript half of the seam;
 [`duplex/go`](https://github.com/Bitspark/nightseam/tree/main/duplex/go) is the Go half, and each is held
 to the conformance suite of its language —

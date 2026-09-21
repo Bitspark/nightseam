@@ -35,7 +35,7 @@ both, and says so at the top.
 | [Credit is per channel](credit-is-per-channel.md) | [composability](../goals/composability.md) | 0.2.0 |
 | [The relay mints its own ids](the-relay-mints-its-own-ids.md) *(superseded, 0.5.0)* | [layering](../goals/layering.md) | 0.2.0 |
 | [The session's vocabulary is not logged](the-sessions-vocabulary-is-not-logged.md) *(superseded, 0.5.0)* | [layering](../goals/layering.md) | 0.3.0 |
-| [The session runs over any connection of the seam](the-session-runs-over-any-connection-of-the-seam.md) *(superseded in what it names, 0.5.0)* | [composability](../goals/composability.md) | #48 |
+| [A layer takes a wire](the-session-runs-over-any-connection-of-the-seam.md) | [composability](../goals/composability.md) | #48, #289, #321 |
 | [Refusals are codes, not prose](refusals-are-codes-not-prose.md) | [agnosticism](../goals/agnosticism.md) | 0.3.0 |
 | [The log is bound at its head](the-log-is-bound-at-its-head.md) *(superseded, 0.5.0)* | [composability](../goals/composability.md) | 0.3.0 |
 | [The observer is told at the write](the-observer-is-told-at-the-write.md) | [observability](../goals/observability.md) | 0.3.0 |

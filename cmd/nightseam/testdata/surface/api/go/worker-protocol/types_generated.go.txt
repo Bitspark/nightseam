@@ -37,6 +37,18 @@ func (Supervise) WireType() runtime.TypeBinding
 func (Ticket) MarshalJSON() ([]byte, error)
 func (Ticket) Of() Tag
 func (Ticket) WireType() runtime.TypeBinding
+func AdapterCancel() runtime.ValueAdapter[Cancel]
+func AdapterJob() runtime.ValueAdapter[Job]
+func AdapterOutcome() runtime.ValueAdapter[Outcome]
+func AdapterPercent() runtime.ValueAdapter[Percent]
+func AdapterProgressSink() runtime.ValueAdapter[ProgressSink]
+func AdapterRename() runtime.ValueAdapter[Rename]
+func AdapterReport() runtime.ValueAdapter[Report]
+func AdapterSinks() runtime.ValueAdapter[Sinks]
+func AdapterStart() runtime.ValueAdapter[Start]
+func AdapterSupervise() runtime.ValueAdapter[Supervise]
+func AdapterTicket() runtime.ValueAdapter[Ticket]
+func AdapterWatchers() runtime.ValueAdapter[Watchers]
 func ExportCancel(owner *live.Owner, v Cancel) (json.RawMessage, error)
 func ExportJob(owner *live.Owner, v Job) (json.RawMessage, error)
 func ExportOutcome(owner *live.Owner, v Outcome) (json.RawMessage, error)
@@ -59,6 +71,10 @@ func ImportSupervise(owner *live.Owner, raw json.RawMessage) (Supervise, error)
 func ImportWatchers(owner *live.Owner, raw json.RawMessage) (Watchers, error)
 func IsError(err error, code string) bool
 type Cancel func(ctx context.Context) error
+type Client struct{Methods ClientMethods; Events ClientEvents}
+type ClientEvents interface{Settled(ctx context.Context, data Outcome) error}
+type ClientMethods interface{Supervise(ctx context.Context, params Supervise) (Outcome, error)}
+type ClientModel func(Server) (Client, error)
 type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`; Traceparent runtime.Optional[string] `json:"traceparent,omitzero"`; Tracestate runtime.Optional[string] `json:"tracestate,omitzero"`; Meta runtime.Optional[map[string]string] `json:"meta,omitzero"`}
 type Handle struct{Channel int64 `json:"channel"`}
 type Job struct{Ticket string `json:"ticket"`; Cancel Cancel `json:"cancel"`; Rename runtime.Optional[Rename] `json:"rename,omitzero"`}
@@ -68,6 +84,10 @@ type Percent int64
 type ProgressSink struct{Report Report `json:"report"`}
 type Rename func(ctx context.Context, params Ticket) (Ticket, error)
 type Report func(ctx context.Context, params Percent) error
+type Server struct{Methods ServerMethods; Events ServerEvents}
+type ServerEvents interface{}
+type ServerMethods interface{Describe(ctx context.Context, params Ticket) (string, error); Start(ctx context.Context, params Start) (Job, error)}
+type ServerModel func(Client) (Server, error)
 type Sinks map[string]ProgressSink
 type Start struct{Ticket Ticket `json:"ticket"`; Progress ProgressSink `json:"progress"`; Watchers runtime.Optional[Watchers] `json:"watchers,omitzero"`}
 type Supervise struct{Sinks Sinks `json:"sinks"`}

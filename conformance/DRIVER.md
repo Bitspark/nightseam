@@ -229,6 +229,17 @@ The profile: `runtime/go`'s `Peer`, `@nightseam/runtime`'s `DuplexPeer`.
 | `peer.observed` | **`on`**, `trace` (bool), `drain` (bool, default true) | `[event, …]` what the observer was told, normalized, see below |
 | `peer.close` | **`on`** | `{}` |
 | `peer.await_close` | **`on`**, `within_ms` | `{"clean": bool, "code": int}` — the code the connection ended under and whether it was a close somebody chose |
+| `peer.recorded_wire_witness` | `within_ms` | `{"cases", "stalled"}` — test-only recorded-wire head, replay/follow order, bounded handoff and carrier isolation observations |
+
+`peer/recorded-wire-head-and-order.json` holds an in-memory test composition,
+not a production record/follow API. In both attach-before-append and
+append-before-attach interleavings, a barrier pauses replay after its first
+message while the producer appends into the bounded handoff. A fence through
+the same nested mounts and opaque-frame forward hop establishes the complete
+delivery sequence. Application callbacks reenter the append store. A stalled
+subscriber fills its two-message handoff and closes only its mounted carrier;
+a healthy follower and the underneath root remain usable. All barriers and
+observations finish before fixture teardown; no sleep establishes correctness.
 
 `meta` on `peer.call` and `peer.emit` is the profile's carriage the frame
 takes: an object whose every value is a string, absent by default. A testee
@@ -669,3 +680,40 @@ platform's executable suffix. A rendering placed under `{out}` lies inside
 the checkout, where a TypeScript package resolves `@nightseam/*` through
 the workspace. `env` on any command is
 merged over the runner's environment; `cwd` defaults to `{self}`.
+
+
+### Generated relative-path Wire construction
+
+The Cell<T> fixture is declared under `conformance/corpora/wire-cell`. Its one
+model retains values and revisions, calls the opposite model, and sends events
+through the generated value adapter. A presentation changes only assembly.
+Allocation counters observe cumulative runtime `ConnectionOpened` and tunnel
+`ChannelOpened` events; view construction and first use are measured separately.
+
+| op | arguments | answer |
+| --- | --- | --- |
+| `gen.wire_local` | **`presentation`**: `local`, `mounted`, or `forwarded`; `slot`: `string` (default), `unary`, `factory`, or `nested`; `within_ms` | `{"revisions":[1,2],"value","reverse","changed","noted","setup_allocations","view_allocations","use_allocations","counts":{"caller","callee"},"released_counts":{"caller","callee"}}` — both events and the reverse call complete before counts are returned; both explicit roots are released and reach zero before the carriers close. |
+| `gen.wire_serve` | **`slot`**, **`carrier`**: `socket` or `channel`, **`presentation`** | `{"handle","url"}` — one Cell implementation serves the selected value slot through its generated adapter. A channel is acquired as a prepared Wire once. |
+| `gen.wire_dial` | **`url`**, **`slot`**, **`carrier`**, **`presentation`** | `{"handle"}` — the opposite model supplies a typed mirror operation and changed-event receiver. |
+| `gen.wire_exercise` | **`on`**, `within_ms` | `{"revisions":[1,2],"value","reverse","changed","setup_allocations","view_allocations","use_allocations","counts"}` — two state changes followed by a read, a reverse call, both events, and invocation of any returned callable values. |
+| `gen.wire_inspect` | **`on`**, `within_ms` | `{"revision":2,"value","noted","setup_allocations","view_allocations","use_allocations","counts"}` — waits for the noted event and observes the retained value and event value while the scope remains open. |
+| `gen.wire_release` | **`on`**, `within_ms` | `{}` — releases the handle's explicit root owner; the carrier stays open. |
+| `gen.wire_counts` | **`on`**, `within_ms` | `{"exports":0,"imports":0}` once the released scope and its retained child lifetimes reach zero, or timeout. |
+| `gen.wire_bridge` | **`origin`** URL, **`slot`**: `factory`, **`presentation`**: `mounted` or `forwarded` | `{"handle","url"}` — derives a model with generated FromWire on the origin scope and passes that same model directly to generated ToWire on an independent destination scope. |
+| `gen.wire_bridge_counts` | **`on`**, `within_ms` | `{"origin":{"exports","imports"},"destination":{"exports","imports"},"setup_allocations","view_allocations","use_allocations"}` — both middle scopes before or after explicit release, without teardown. |
+| `gen.wire_bridge_release` | **`on`**, `within_ms` | `{}` — releases both middle root owners while both physical connections remain open. |
+
+The scalar slot uses `first` and `second`. A unary slot adds one or two and is
+observed at five. A factory slot calls its supplied unary and adds one or two;
+its supplied function adds three. The nested slot is
+`boxes.Page<combinator.Bundle<combinator.Unary>>`, preserving the extra `label`
+member and absent optional `next` while calling both nested functions.
+
+Local live cases explicitly prepare two scope peers before the allocation
+baseline; their ordinary operations still use a local model Wire. Socket cases
+prepare one peer per side. Channel cases prepare an outer peer and one channel
+peer per side. Mounted and forwarded carrier cases preserve the physical
+`outer/inner` path prefix. The scenarios assert literal counts for every scope,
+zero allocation deltas for views and first use, and zero bindings after explicit
+release. The bridge has four physical scopes in total and contains no handwritten
+per-operation or per-slot forwarding wrapper.

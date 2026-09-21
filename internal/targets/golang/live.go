@@ -37,6 +37,9 @@ import (
 func (p *plan) planLive() {
 	f := p.family
 	for _, t := range f.Types {
+		if !t.Carried {
+			p.declare(p.packages, identAdapter+p.types[t.Name], t.At, "value adapter factory")
+		}
 		if t.Carried || (!t.IsLive && len(t.Uses) == 0) {
 			continue
 		}
@@ -404,7 +407,15 @@ func (f *file) liveExpr(e model.TypeExpr, src, dst string, export bool, fail str
 		return fail + ", err"
 	}
 	if codec := f.parameterConverter(e); codec != "" {
-		if f.scopedCodecs {
+		if f.adapters {
+			codec = f.adapterPrefix + "adapter" + strings.TrimPrefix(codec, "convert")
+			if export {
+				codec += ".Export"
+			} else {
+				codec += ".Import"
+			}
+			src = "ctx, " + src
+		} else if f.scopedCodecs {
 			src = "owner, " + src
 		}
 		f.linef("%s, err := %s(%s)", dst, codec, src)

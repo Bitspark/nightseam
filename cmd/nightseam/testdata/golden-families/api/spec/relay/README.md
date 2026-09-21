@@ -162,13 +162,13 @@ Example unavailable (limit): no compatible concrete family is available for S.
 In `go`:
 
 ```go
-client.Relay(ctx, params)
+client.Methods.Relay(ctx, params)
 
-func (Handler[SEnvelope, SHandle]) Relay(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle], params protocol.Carried[SEnvelope, SHandle]) (SEnvelope, error)
+func (Handler[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.Carried[SEnvelope, SHandle]) (SEnvelope, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.relay(params)
+await server.methods.relay(params)
 ```

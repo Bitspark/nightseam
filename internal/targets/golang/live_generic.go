@@ -12,6 +12,18 @@ import (
 // establishes whether the payload could have reached the other side.
 func (f *file) publishBoundary(e model.TypeExpr, src, dst string, publish func()) {
 	json := f.std("json")
+	if f.adapters {
+		f.w.Block(fmt.Sprintf("%s, err := func() (%s.RawMessage, error) {", dst, json), "}()", func() {
+			f.w.Block(fmt.Sprintf("build := func(ctx %s.Context) (%s.RawMessage, error) {", f.std("context"), json), "}", func() {
+				f.liveBoundary(e, src, "sent", true)
+				f.line("return sent, err")
+			})
+			f.w.Block(fmt.Sprintf("publish := func(sent %s.RawMessage) (%s.RawMessage, error) {", json, json), "}", publish)
+			f.linef("if %s { return %senvironment.ValueEnvironment.Publish(ctx, build, publish) }", f.expressionLive(e), f.adapterPrefix)
+			f.line("sent, err := build(ctx); if err != nil { return nil, err }; return publish(sent)")
+		})
+		return
+	}
 	f.w.Block(fmt.Sprintf("%s, err := owner.PublishValue(", dst), ")", func() {
 		f.w.Block(fmt.Sprintf("func(owner *%s.Owner) (%s.RawMessage, error) {", f.live(), json), "},", func() {
 			f.liveBoundary(e, src, "sent", true)
@@ -25,6 +37,10 @@ func (f *file) publishBoundary(e model.TypeExpr, src, dst string, publish func()
 // anonymous containers and applications) use the same recursive conversion.
 func (f *file) liveBoundary(e model.TypeExpr, src, dst string, export bool) {
 	result := f.spell(e)
+	if f.adapters && f.needsConversion(e) {
+		f.adapterBoundary(e, src, dst, export)
+		return
+	}
 	// Ordinary data needs no lifetime. In particular, releasing an owner is
 	// a barrier to new acquisitions, not a cancellation of a dispatched call
 	// that is returning a scalar or record without live positions.
@@ -152,6 +168,9 @@ func (f *file) conversionCall(e model.TypeExpr, src, dst string, export bool) (s
 			parameters = "owner *" + f.live() + ".Owner, " + parameters
 		}
 		f.w.Block(fmt.Sprintf("%s := func(%s) (%s, error) {", name, parameters, to), "}", func() {
+			if t.IsLive && f.adapters && f.usesSlotContext(expr) {
+				f.linef("ctx := %s.WithOwner(ctx, owner)", f.live())
+			}
 			fail := "nil"
 			if !export {
 				f.linef("var zero %s", to)
@@ -164,4 +183,28 @@ func (f *file) conversionCall(e model.TypeExpr, src, dst string, export bool) (s
 		passed = append(passed, name, binding)
 	}
 	return call, strings.Join(passed, ", ")
+}
+
+// A concrete native converter already receives its owner parameter. Only a
+// nested slot adapter also needs that active view in the neutral context.
+func (f *file) usesSlotContext(e model.TypeExpr) bool {
+	if f.parameterConverter(e) != "" {
+		return true
+	}
+	switch x := e.(type) {
+	case model.Array:
+		return f.usesSlotContext(x.Elem)
+	case model.Map:
+		return f.usesSlotContext(x.Elem)
+	case model.Nullable:
+		return f.usesSlotContext(x.Elem)
+	}
+	if t, arguments := f.family.Conversion(e); t != nil {
+		for _, argument := range arguments {
+			if f.usesSlotContext(argument.Expression()) {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -218,8 +218,25 @@ Kept because each passes the test at its level, not because it was there.
 | coded refusals, `busy`, the bounds | primitive, RPC | the peer refuses before any handler runs; a composition would have already accepted the frame ([busy](decisions/busy-is-a-refusal-not-a-failure.md), [queues](decisions/queues-are-paced-for-one-deadline.md)). |
 | trace context; the `meta` header | primitive, RPC | a composition puts a fact about the call into every family's payloads, where the validator holds it as a value of the family's; the peer propagates the one and delivers the other beside the payload, validated by form alone ([header, not member](decisions/meta-is-a-header-not-a-member.md)). |
 | the observer | primitive, runtime surface | no public surface reveals a write the peer makes except the peer telling of it ([at the write](decisions/the-observer-is-told-at-the-write.md), [never a payload](decisions/an-observer-never-sees-a-payload.md)). |
-| the tunnel: channels, ids by parity, credit, close | composition, shipped | ordinary requests and events of the profile in a reserved prefix ([vocabulary](wire/vocabulary.md#a-layers-own-vocabulary)), which a client of the peer could send; shipped because every consumer would, identically, and it names no concept of theirs. Its channel is a connection of the seam, so a peer runs over it unknowing. |
+| the tunnel: channels, ids by parity, credit, close | composition, shipped | ordinary requests and events of the profile in a reserved prefix ([vocabulary](wire/vocabulary.md#a-layers-own-vocabulary)), which a client of the peer could send; shipped because every consumer would, identically, and it names no concept of theirs. Its prepared channel is a Wire; its raw Connection is the transport seam for a host that supplies preparation itself. |
 | `duplex.Handle` | data | a record that addresses a channel within its carrying connection. It states no contract and has no lifetime of its own: it is not a live binding. |
+
+### Relative-path access
+
+[#289](https://github.com/Bitspark/nightseam/issues/289)'s construction in
+[#321](https://github.com/Bitspark/nightseam/issues/321) exposes the existing
+profile guarantees at a shared access boundary. The
+[decision](decisions/the-session-runs-over-any-connection-of-the-seam.md)
+records the retained live responsibilities as well as what composes.
+
+| concept | class | the argument |
+| --- | --- | --- |
+| Wire carrying profile frames | primitive, RPC surface | an exposure of existing correlation, cancellation, refusal and bounds, not a second request stack. A return capability and received context remain local; the physical peer continues to own its ids and the four frame kinds. |
+| `at`, selecting a relative origin | composition, shipped | prefix a segment array and translate delivered paths back to the selected origin. No peer, channel or queue is allocated, including on first use. Opaque strings need no namespace or authority interpretation. |
+| `mount`, routing among child Wires | composition, shipped | choose a child by one segment, preserving the same frame and return capability. The mount owns registrations, borrows children and does not close them when it ends. |
+| forwarding a Wire | composition, shipped | register a namespace in each direction and pass messages through the other's Send. Existing roots own admission and correlation. Crossing live scopes still uses generated value converters; raw forwarding does not rewrite hidden references. |
+| the head and follow of a recorded Wire | composition, demonstrated | store admitted messages in order and atomically register a subscriber with its replay boundary under ordinary synchronization. The shared attach-during-append witness holds every message once. No production record/follow API is introduced by this construction. |
+| a live binding presented at `[binding]` | composition, demonstrated | checked import supplies an invocation at one opaque path segment. The nonce, expected contract, active owner and release ledger remain live responsibilities. Wire.Close terminates carrier work; owner release preserves already admitted results and revokes later invocation, so one cannot replace the other. |
 
 ### The data level
 

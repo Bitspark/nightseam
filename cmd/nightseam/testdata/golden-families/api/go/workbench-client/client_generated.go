@@ -8,126 +8,28 @@ import (
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
-	tunnel "github.com/Bitspark/nightseam/tunnel/go"
+	atomic "sync/atomic"
 )
 
-type Client struct{ Peer *runtime.Peer }
-
-// Events installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.
-type Events struct {
-	Changed func(context.Context, protocol.Event)
+type serverMethods struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
 }
-type Handler interface {
-}
-
-// Caller is the protocol's caller side: every operation a client sends. Client implements it.
-type Caller interface {
-	ListEvents(ctx context.Context, params protocol.ListEventsParams) ([]protocol.Event, error)
-	Me(ctx context.Context) (protocol.User, error)
-	CreateProject(ctx context.Context, params protocol.CreateProjectParams) (protocol.Project, error)
-	ListProjects(ctx context.Context, params protocol.ListProjectsParams) ([]protocol.Project, error)
-	UpdateProject(ctx context.Context, params protocol.UpdateProjectParams) (protocol.Project, error)
-	Subscribe(ctx context.Context, params protocol.SubscribeParams) (protocol.SubscribeResult, error)
-	CancelWorkItem(ctx context.Context, params protocol.CancelWorkItemParams) (protocol.WorkItem, error)
-	CreateWorkItem(ctx context.Context, params protocol.CreateWorkItemParams) (protocol.WorkItem, error)
-	SetDependencies(ctx context.Context, params protocol.SetDependenciesParams) (protocol.WorkItem, error)
-	GetWorkItem(ctx context.Context, params protocol.GetWorkItemParams) (protocol.WorkItem, error)
-	ListWorkItems(ctx context.Context, params protocol.ListWorkItemsParams) ([]protocol.WorkItem, error)
-	PublishSpecification(ctx context.Context, params protocol.PublishSpecificationParams) (protocol.WorkItem, error)
-	ReopenWorkItem(ctx context.Context, params protocol.ReopenWorkItemParams) (protocol.WorkItem, error)
-	SetSteps(ctx context.Context, params protocol.SetStepsParams) (protocol.WorkItem, error)
-	UpdateWorkItem(ctx context.Context, params protocol.UpdateWorkItemParams) (protocol.WorkItem, error)
+type serverEvents struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
 }
 
-var _ Caller = (*Client)(nil)
-
-// install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
-func install(handler Handler, events Events, options *runtime.Options) error {
-	handlers := map[string]runtime.Handler{}
-	for name, existing := range options.Handlers {
-		handlers[name] = existing
-	}
-	options.Handlers = handlers
-	families := map[string]string{}
-	for name, existing := range options.Families {
-		families[name] = existing
-	}
-	families["events.list"] = "workbench"
-	families["me"] = "workbench"
-	families["projects.create"] = "workbench"
-	families["projects.list"] = "workbench"
-	families["projects.update"] = "workbench"
-	families["subscribe"] = "workbench"
-	families["work.cancel"] = "workbench"
-	families["work.create"] = "workbench"
-	families["work.dependencies"] = "workbench"
-	families["work.get"] = "workbench"
-	families["work.list"] = "workbench"
-	families["work.publish"] = "workbench"
-	families["work.reopen"] = "workbench"
-	families["work.steps"] = "workbench"
-	families["work.update"] = "workbench"
-	families["workbench.changed"] = "workbench"
-	options.Families = families
-	prepare := options.Prepare
-	options.Prepare = func(peer *runtime.Peer) error {
-		client := &Client{Peer: peer}
-		if events.Changed != nil {
-			if err := client.OnChanged(events.Changed); err != nil {
-				return err
-			}
-		}
-		if prepare != nil {
-			return prepare(peer)
-		}
-		return nil
-	}
-	return nil
+func accessServer(wire duplex.Wire, environment runtime.AdapterContext) protocol.Server {
+	return protocol.Server{Methods: &serverMethods{wire: wire, environment: environment}, Events: &serverEvents{wire: wire, environment: environment}}
 }
-
-// Dial connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.
-func Dial(ctx context.Context, url string, options runtime.DialOptions, handler Handler, events Events) (*Client, error) {
-	if err := install(handler, events, &options.Options); err != nil {
-		return nil, err
-	}
-	peer, response, err := runtime.Dial(ctx, url, options)
-	if err != nil {
-		if response != nil && response.Body != nil {
-			_ = response.Body.Close()
-		}
-		return nil, err
-	}
-	return &Client{Peer: peer}, nil
-}
-
-// Attach speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.
-func Attach(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler, events Events) (*Client, error) {
-	if err := install(handler, events, &options); err != nil {
-		return nil, err
-	}
-	peer, err := runtime.NewPeer(ctx, conn, runtime.ClientRole, options)
-	if err != nil {
-		return nil, err
-	}
-	return &Client{Peer: peer}, nil
-}
-
-// Open resolves a handle to the channel it names on a tunnel and speaks the family over it.
-func Open(ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler, events Events) (*Client, error) {
-	channel, ok := t.Channel(handle.Channel)
-	if !ok {
-		return nil, fmt.Errorf("no channel %d on the connection", handle.Channel)
-	}
-	return Attach(ctx, channel, options, handler, events)
-}
-func (c *Client) Close() error { return c.Peer.Close() }
-func (c *Client) ListEvents(ctx context.Context, params protocol.ListEventsParams) ([]protocol.Event, error) {
+func (c *serverMethods) ListEvents(ctx context.Context, params protocol.ListEventsParams) ([]protocol.Event, error) {
 	var result []protocol.Event
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"ListEventsParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "events.list", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"events.list"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"array\":\"Event\"}"), raw); err != nil {
@@ -138,10 +40,10 @@ func (c *Client) ListEvents(ctx context.Context, params protocol.ListEventsParam
 	}
 	return result, nil
 }
-func (c *Client) Me(ctx context.Context) (protocol.User, error) {
+func (c *serverMethods) Me(ctx context.Context) (protocol.User, error) {
 	var result protocol.User
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "me", struct{}{}, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"me"}, struct{}{}, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"User\""), raw); err != nil {
@@ -152,13 +54,13 @@ func (c *Client) Me(ctx context.Context) (protocol.User, error) {
 	}
 	return result, nil
 }
-func (c *Client) CreateProject(ctx context.Context, params protocol.CreateProjectParams) (protocol.Project, error) {
+func (c *serverMethods) CreateProject(ctx context.Context, params protocol.CreateProjectParams) (protocol.Project, error) {
 	var result protocol.Project
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"CreateProjectParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "projects.create", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"projects.create"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Project\""), raw); err != nil {
@@ -169,13 +71,13 @@ func (c *Client) CreateProject(ctx context.Context, params protocol.CreateProjec
 	}
 	return result, nil
 }
-func (c *Client) ListProjects(ctx context.Context, params protocol.ListProjectsParams) ([]protocol.Project, error) {
+func (c *serverMethods) ListProjects(ctx context.Context, params protocol.ListProjectsParams) ([]protocol.Project, error) {
 	var result []protocol.Project
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"ListProjectsParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "projects.list", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"projects.list"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"array\":\"Project\"}"), raw); err != nil {
@@ -186,13 +88,13 @@ func (c *Client) ListProjects(ctx context.Context, params protocol.ListProjectsP
 	}
 	return result, nil
 }
-func (c *Client) UpdateProject(ctx context.Context, params protocol.UpdateProjectParams) (protocol.Project, error) {
+func (c *serverMethods) UpdateProject(ctx context.Context, params protocol.UpdateProjectParams) (protocol.Project, error) {
 	var result protocol.Project
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"UpdateProjectParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "projects.update", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"projects.update"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Project\""), raw); err != nil {
@@ -203,13 +105,13 @@ func (c *Client) UpdateProject(ctx context.Context, params protocol.UpdateProjec
 	}
 	return result, nil
 }
-func (c *Client) Subscribe(ctx context.Context, params protocol.SubscribeParams) (protocol.SubscribeResult, error) {
+func (c *serverMethods) Subscribe(ctx context.Context, params protocol.SubscribeParams) (protocol.SubscribeResult, error) {
 	var result protocol.SubscribeResult
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"SubscribeParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "subscribe", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"subscribe"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"SubscribeResult\""), raw); err != nil {
@@ -220,13 +122,13 @@ func (c *Client) Subscribe(ctx context.Context, params protocol.SubscribeParams)
 	}
 	return result, nil
 }
-func (c *Client) CancelWorkItem(ctx context.Context, params protocol.CancelWorkItemParams) (protocol.WorkItem, error) {
+func (c *serverMethods) CancelWorkItem(ctx context.Context, params protocol.CancelWorkItemParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"CancelWorkItemParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "work.cancel", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.cancel"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -237,13 +139,13 @@ func (c *Client) CancelWorkItem(ctx context.Context, params protocol.CancelWorkI
 	}
 	return result, nil
 }
-func (c *Client) CreateWorkItem(ctx context.Context, params protocol.CreateWorkItemParams) (protocol.WorkItem, error) {
+func (c *serverMethods) CreateWorkItem(ctx context.Context, params protocol.CreateWorkItemParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"CreateWorkItemParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "work.create", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.create"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -254,13 +156,13 @@ func (c *Client) CreateWorkItem(ctx context.Context, params protocol.CreateWorkI
 	}
 	return result, nil
 }
-func (c *Client) SetDependencies(ctx context.Context, params protocol.SetDependenciesParams) (protocol.WorkItem, error) {
+func (c *serverMethods) SetDependencies(ctx context.Context, params protocol.SetDependenciesParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"SetDependenciesParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "work.dependencies", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.dependencies"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -271,13 +173,13 @@ func (c *Client) SetDependencies(ctx context.Context, params protocol.SetDepende
 	}
 	return result, nil
 }
-func (c *Client) GetWorkItem(ctx context.Context, params protocol.GetWorkItemParams) (protocol.WorkItem, error) {
+func (c *serverMethods) GetWorkItem(ctx context.Context, params protocol.GetWorkItemParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"GetWorkItemParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "work.get", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.get"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -288,13 +190,13 @@ func (c *Client) GetWorkItem(ctx context.Context, params protocol.GetWorkItemPar
 	}
 	return result, nil
 }
-func (c *Client) ListWorkItems(ctx context.Context, params protocol.ListWorkItemsParams) ([]protocol.WorkItem, error) {
+func (c *serverMethods) ListWorkItems(ctx context.Context, params protocol.ListWorkItemsParams) ([]protocol.WorkItem, error) {
 	var result []protocol.WorkItem
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"ListWorkItemsParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "work.list", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.list"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"array\":\"WorkItem\"}"), raw); err != nil {
@@ -305,13 +207,13 @@ func (c *Client) ListWorkItems(ctx context.Context, params protocol.ListWorkItem
 	}
 	return result, nil
 }
-func (c *Client) PublishSpecification(ctx context.Context, params protocol.PublishSpecificationParams) (protocol.WorkItem, error) {
+func (c *serverMethods) PublishSpecification(ctx context.Context, params protocol.PublishSpecificationParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"PublishSpecificationParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "work.publish", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.publish"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -322,13 +224,13 @@ func (c *Client) PublishSpecification(ctx context.Context, params protocol.Publi
 	}
 	return result, nil
 }
-func (c *Client) ReopenWorkItem(ctx context.Context, params protocol.ReopenWorkItemParams) (protocol.WorkItem, error) {
+func (c *serverMethods) ReopenWorkItem(ctx context.Context, params protocol.ReopenWorkItemParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"ReopenWorkItemParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "work.reopen", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.reopen"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -339,13 +241,13 @@ func (c *Client) ReopenWorkItem(ctx context.Context, params protocol.ReopenWorkI
 	}
 	return result, nil
 }
-func (c *Client) SetSteps(ctx context.Context, params protocol.SetStepsParams) (protocol.WorkItem, error) {
+func (c *serverMethods) SetSteps(ctx context.Context, params protocol.SetStepsParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"SetStepsParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "work.steps", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.steps"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -356,13 +258,13 @@ func (c *Client) SetSteps(ctx context.Context, params protocol.SetStepsParams) (
 	}
 	return result, nil
 }
-func (c *Client) UpdateWorkItem(ctx context.Context, params protocol.UpdateWorkItemParams) (protocol.WorkItem, error) {
+func (c *serverMethods) UpdateWorkItem(ctx context.Context, params protocol.UpdateWorkItemParams) (protocol.WorkItem, error) {
 	var result protocol.WorkItem
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"UpdateWorkItemParams\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "work.update", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.update"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -373,17 +275,559 @@ func (c *Client) UpdateWorkItem(ctx context.Context, params protocol.UpdateWorkI
 	}
 	return result, nil
 }
-func (c *Client) OnChanged(handler func(context.Context, protocol.Event)) error {
-	return c.Peer.HandleEvent("workbench.changed", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Event\""), raw); err != nil {
-			_ = peer.Close()
-			return
+func bindServer(wire duplex.Wire, implementation protocol.Server, environment runtime.AdapterContext) error {
+	if implementation.Methods == nil {
+		return fmt.Errorf("Server methods are required")
+	}
+	var detach []func()
+	complete := false
+	defer func() {
+		if !complete {
+			for _, off := range detach {
+				off()
+			}
 		}
-		var data protocol.Event
-		if err := json.Unmarshal(raw, &data); err != nil {
-			_ = peer.Close()
-			return
+	}()
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"ListEventsParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.ListEventsParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.ListEvents(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("{\"array\":\"Event\"}"), result); err != nil {
+				return nil, err
+			}
+			return result, nil
 		}
-		handler(ctx, data)
-	})
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"events.list"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(map[string]any{"empty": true}, raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.Me(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"User\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"me"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"CreateProjectParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.CreateProjectParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.CreateProject(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Project\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"projects.create"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"ListProjectsParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.ListProjectsParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.ListProjects(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("{\"array\":\"Project\"}"), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"projects.list"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"UpdateProjectParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.UpdateProjectParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.UpdateProject(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Project\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"projects.update"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"SubscribeParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.SubscribeParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.Subscribe(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"SubscribeResult\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"subscribe"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"CancelWorkItemParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.CancelWorkItemParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.CancelWorkItem(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"work.cancel"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"CreateWorkItemParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.CreateWorkItemParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.CreateWorkItem(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"work.create"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"SetDependenciesParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.SetDependenciesParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.SetDependencies(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"work.dependencies"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"GetWorkItemParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.GetWorkItemParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.GetWorkItem(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"work.get"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"ListWorkItemsParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.ListWorkItemsParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.ListWorkItems(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("{\"array\":\"WorkItem\"}"), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"work.list"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"PublishSpecificationParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.PublishSpecificationParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.PublishSpecification(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"work.publish"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"ReopenWorkItemParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.ReopenWorkItemParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.ReopenWorkItem(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"work.reopen"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"SetStepsParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.SetStepsParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.SetSteps(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"work.steps"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"UpdateWorkItemParams\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.UpdateWorkItemParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.UpdateWorkItem(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"WorkItem\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"work.update"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	complete = true
+	return nil
+}
+
+type clientMethods struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
+}
+type clientEvents struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
+}
+
+func accessClient(wire duplex.Wire, environment runtime.AdapterContext) protocol.Client {
+	return protocol.Client{Methods: &clientMethods{wire: wire, environment: environment}, Events: &clientEvents{wire: wire, environment: environment}}
+}
+func (c *clientEvents) Changed(ctx context.Context, data protocol.Event) error {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Event\""), data); err != nil {
+		return err
+	}
+	return runtime.EmitWire(ctx, c.wire, []string{"workbench.changed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator})
+}
+func bindClient(wire duplex.Wire, implementation protocol.Client, environment runtime.AdapterContext) error {
+	var detach []func()
+	complete := false
+	defer func() {
+		if !complete {
+			for _, off := range detach {
+				off()
+			}
+		}
+	}()
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
+		if implementation.Events != nil {
+			handlers.Event = func(ctx context.Context, raw json.RawMessage) error {
+				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Event\""), raw); err != nil {
+					return err
+				}
+				var data protocol.Event
+				if err := json.Unmarshal(raw, &data); err != nil {
+					return err
+				}
+				return implementation.Events.Changed(ctx, data)
+			}
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"workbench.changed"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	complete = true
+	return nil
+}
+func normalizeContext(environment runtime.AdapterContext) (runtime.AdapterContext, error) {
+	if false && environment.ValueEnvironment == nil {
+		return environment, fmt.Errorf("a context-dependent adapter requires a value environment")
+	}
+	return environment, nil
+}
+
+// ToWire binds one model factory and returns its access wire.
+func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (duplex.Wire, error) {
+	if model == nil {
+		return nil, fmt.Errorf("model factory is required")
+	}
+	environment, err := normalizeContext(environment)
+	if err != nil {
+		return nil, err
+	}
+	options := environment.Options
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["11:events.list"] = "workbench"
+	families["2:me"] = "workbench"
+	families["15:projects.create"] = "workbench"
+	families["13:projects.list"] = "workbench"
+	families["15:projects.update"] = "workbench"
+	families["9:subscribe"] = "workbench"
+	families["11:work.cancel"] = "workbench"
+	families["11:work.create"] = "workbench"
+	families["17:work.dependencies"] = "workbench"
+	families["8:work.get"] = "workbench"
+	families["9:work.list"] = "workbench"
+	families["12:work.publish"] = "workbench"
+	families["11:work.reopen"] = "workbench"
+	families["10:work.steps"] = "workbench"
+	families["11:work.update"] = "workbench"
+	families["17:workbench.changed"] = "workbench"
+	options.Families = families
+	access, binding, err := runtime.NewWirePair(options)
+	if err != nil {
+		return nil, err
+	}
+	complete := false
+	defer func() {
+		if !complete {
+			_ = access.Close(duplex.CodeInternalError, "model construction failed")
+		}
+	}()
+	implementation, err := model(accessServer(binding, environment))
+	if err != nil {
+		return nil, err
+	}
+	if err := bindClient(binding, implementation, environment); err != nil {
+		return nil, err
+	}
+	complete = true
+	return access, nil
+}
+
+// FromWire interprets a wire as a factory that may be bound once.
+func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ClientModel, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if wire == nil {
+		return nil, fmt.Errorf("wire is required")
+	}
+	environment, err := normalizeContext(environment)
+	if err != nil {
+		return nil, err
+	}
+	var bound atomic.Bool
+	return func(implementation protocol.Server) (protocol.Client, error) {
+		if !bound.CompareAndSwap(false, true) {
+			return protocol.Client{}, fmt.Errorf("model factory is already bound")
+		}
+		if err := bindServer(wire, implementation, environment); err != nil {
+			return protocol.Client{}, err
+		}
+		return accessClient(wire, environment), nil
+	}, nil
 }

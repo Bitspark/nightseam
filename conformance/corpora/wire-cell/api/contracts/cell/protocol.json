@@ -1,0 +1,52 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [
+    {
+      "name": "T"
+    }
+  ],
+  "types": {
+    "PutParams": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "value",
+          "type": "T"
+        }
+      ]
+    }
+  },
+  "server": {
+    "methods": {
+      "put": {
+        "request": "PutParams",
+        "result": "integer"
+      },
+      "get": {
+        "result": "T"
+      },
+      "round_trip": {
+        "request": "PutParams",
+        "result": "T"
+      }
+    },
+    "events": {
+      "changed": {
+        "type": "PutParams"
+      }
+    }
+  },
+  "client": {
+    "methods": {
+      "mirror": {
+        "request": "PutParams",
+        "result": "T"
+      }
+    },
+    "events": {
+      "noted": {
+        "type": "PutParams"
+      }
+    }
+  }
+}

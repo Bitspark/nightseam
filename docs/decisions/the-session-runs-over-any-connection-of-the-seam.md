@@ -1,35 +1,54 @@
-# The session runs over any connection of the seam
+# A layer takes a wire
 
-> **Superseded in what it names, not in what it decided.** The session was
-> removed whole in 0.5.0 ([#196](https://github.com/Bitspark/nightseam/issues/196),
-> [#200](https://github.com/Bitspark/nightseam/issues/200)), so there is no
-> relay to run over anything. The decision itself — a layer takes a connection
-> of the seam and asks nothing about what multiplexed it — is the rule the
-> tunnel and every layer above it are still held to, and is why a peer attaches
-> to a channel, a pipe or a socket alike.
+**The question.** Can local model access, a socket, a prepared tunnel
+channel and a mounted or forwarded origin expose one interface without
+reimplementing correlation or losing the guarantees of live references?
 
-**The question.** A session's up and down sides were channels of a tunnel.
-Must they be, or is a tunnel one way among several to give a relay a
-connection?
+**Decided.** A Wire carries the profile's four frame kinds at a relative
+path. Selection prefixes the path; mounting chooses a child by one opaque
+segment; forwarding preserves the message and its local return capability.
+They allocate no peer or channel, including on first use. Generated
+`ToWire`/`FromWire` and `toWire`/`fromWire` interpret the same per-side model
+factory on this interface. Transport construction belongs to the host.
 
-**Decided.** Each side of a session is a connection of the seam — a tunnel
-channel, the seam's pipe, a bare socket: the relay sends on it, receives
-from it and closes it, and asks nothing about what multiplexed it. The
-tunnel is the answer where one connection carries many sessions and is no
-requirement where it carries one. The suite is run twice in each language,
-once over a tunnel's channels and once over the pipe with no tunnel at all.
+The wire's message is a frame; request/response is the peer's, not the
+adapter's; the abstract `void send` is realized by the peer's correlation
+for a request and by nothing for an event. A local runtime endpoint owns
+the equivalent bounded dispatch and completion rules without serializing
+bytes or constructing a peer. Send reports admission or refusal without
+executing application code on the caller's stack.
 
-**Why.** A relay that required a tunnel required a peer beneath the tunnel
-and a socket beneath the peer for a machine that runs in the same process
-as the registry and already speaks the profile over a pipe — three layers
-to reach a thing one layer away. Taking the seam instead of the tunnel is
-what makes an in-process machine bind the pipe it has and a consumer over
-a bare socket attach its own, and it cost the relay nothing: it never used
-anything a channel has that a connection of the seam lacks. Running the
-suite over both is what makes "the transport is none of the relay's
-business" a fact the tree holds rather than a sentence.
+**Why.** A generated transport facade made a family choose how it was
+carried. A Wire lets the same generated interpretation receive an existing
+origin. The path is encoded in the profile's existing method/event name,
+so routing requires no envelope extension. The peer continues to own its
+ids, cancellation and refusals. Bounds and carrier isolation stay with
+the destination, including a channel whose failure leaves its underlying
+connection and sibling channels usable.
 
-**Serves.** Composability — a part runs over any part beneath it and knows
-nothing of what assembled them.
+The live construction imports a reference with an expected contract and
+active owner before exposing its invocation at `[binding]`. Its nonce,
+contract checks, guard, release barrier and ownership ledger survive
+selection and mounting. This retains live interpretation and lifetime
+state. Closing the selected Wire ends an admitted reply but does not
+release the scope's binding; releasing its owner revokes later calls while
+allowing an admitted result to settle. The two operations cannot replace
+one another. A path under an origin alone therefore does not supply the
+full live-reference contract. Expected type, native scope association and
+allocation owner remain explicit inputs. The construction establishes
+common access over this retained state, not elimination of the live layer.
 
-**Since.** #48.
+Routing also supplies no authority. Incoming verified context remains
+attached through local composition; a physical downstream connection
+establishes its own context. Forwarding request metadata is an explicit
+consumer action. A local shortcut never unwraps an application guard.
+
+**Serves.** Composability: one model interpretation works over each Wire
+presentation. Agnosticism: scalar interpretation requires no live or
+tunnel component. The retained live state is chosen when values acquire
+bindings; a value factory itself captures no permanent owner.
+
+**Since.** #289 and its executed construction #321, with #290's send laws
+and #291's order law. This replaces in place #48's decision that a session
+took any transport connection. The session itself was removed by #196 and
+#200; the transport-independent rule now applies to relative-path access.

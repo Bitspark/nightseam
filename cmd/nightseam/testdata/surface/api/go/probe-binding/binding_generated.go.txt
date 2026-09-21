@@ -1,7 +1,8 @@
-func (*Remote) EmitChanged(ctx context.Context, data protocol.Payload) error
-func (*Remote) OnNoticed(handler func(context.Context, protocol.Seen)) error
-func (*Remote) Reverse(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
-func NewHandler(handler Handler, options runtime.ServerOptions) (http.Handler, error)
-func Serve(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler) (*runtime.Peer, error)
-type Handler interface{Echo(ctx context.Context, remote *Remote, params protocol.Payload) (protocol.Payload, error); NoArgs(ctx context.Context, remote *Remote) (string, error); Seen(ctx context.Context, remote *Remote, params protocol.Seen) (protocol.Payloads, error)}
-type Remote struct{Peer *runtime.Peer}
+func (*clientEvents) Changed(ctx context.Context, data protocol.Payload) error
+func (*clientMethods) Reverse(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
+func (*serverEvents) Noticed(ctx context.Context, data protocol.Seen) error
+func (*serverMethods) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
+func (*serverMethods) NoArgs(ctx context.Context) (string, error)
+func (*serverMethods) Seen(ctx context.Context, params protocol.Seen) (protocol.Payloads, error)
+func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ServerModel, error)
+func ToWire(model protocol.ServerModel, environment runtime.AdapterContext) (duplex.Wire, error)

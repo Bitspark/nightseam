@@ -65,6 +65,7 @@ fact once, with both spellings.
 
 | page | what |
 | --- | --- |
+| [wire.md](runtime/wire.md) | relative-path frame access: local pairs, peer and channel origins, selection, mounting, forwarding, bounds, context and ownership |
 | [peer.md](runtime/peer.md) | the peer: the seam beneath, making one, the order it starts in, options and limits, the subprotocol surface, the server's hooks, errors, request metadata, the propagator, the validator |
 | [tunnel.md](runtime/tunnel.md) | the tunnel: making one and when, the surface, options, credit in each language |
 | [live.md](runtime/live.md) | the live layer: making a scope and when, the surface, a reference that is minted and never constructed, the rules a consumer relies on, bounds |
