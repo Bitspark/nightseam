@@ -32,7 +32,8 @@ describes their construction and validation.
 
 Nightseam implements the typed-access foundation and planned optional rooted-grant
 authentication. Its Go and TypeScript access surfaces use the public Bitwire
-v0.1.0 contract, adopted in [0.6.0 work](https://github.com/Bitspark/nightseam/issues/421); the
+v0.2.0 contract — send-only `Wire`, receiving and closing `Endpoint` — adopted in
+[0.6.0 work](https://github.com/Bitspark/nightseam/issues/421); the
 runtime, generator and optional auth remain here. The
 [repository-home decision](docs/decisions/the-reusable-foundation-lives-in-nightseam.md)
 records contract and implementation ownership: bare data and RPC remain independent
