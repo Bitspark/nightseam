@@ -177,8 +177,15 @@ test('one call over a channel to a handler that calls back is one trace, parente
   assert.equal(served.parentSpanContext?.isRemote, true);
   assert.equal(answered.parentSpanContext?.isRemote, true);
   assert.equal(asked.parentSpanContext?.isRemote, undefined);
-  // Nothing else of the call is in the trace, and every span of it ended.
-  assert.deepEqual(spans.length, 5);
+  // The request tree is unchanged. Tunnel events carried under it now have
+  // their own producer/consumer moments, with no duration of their own.
+  const moments = spans.filter((span) => span.kind === SpanKind.PRODUCER || span.kind === SpanKind.CONSUMER);
+  assert.equal(moments.length > 0, true);
+  assert.equal(spans.length - moments.length, 5);
+  for (const moment of moments) {
+    assert.deepEqual(moment.startTime, moment.endTime, moment.name);
+    assert.ok(moment.parentSpanContext?.spanId, moment.name);
+  }
   for (const span of spans) assert.equal(span.ended, true, span.name);
   // Each request's frames are events of its span, and the family is on it.
   const events = called.events.map((event) => event.name);

@@ -16,9 +16,9 @@
  * the file complete is the import beside every layer that declares into the
  * registry, not a total anybody has to keep.
  *
- * The adapter itself declares nothing into that registry and switches over
- * nothing in it: a request becomes a span and everything else becomes a span
- * event, read off the event's own fields, so an event of a layer added later is
+ * The adapter itself declares nothing into that registry. Requests, connections
+ * and application events become spans; other runtime and layer events annotate
+ * an enclosing span, read off the event's own fields, so an event of a layer added later is
  * recorded without this package knowing its name. These are spelled out all the
  * same, because what an event is called and what it carries is what a backend
  * will be read in, and the suite takes the same list to hold what reaches a
