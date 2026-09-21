@@ -171,7 +171,7 @@ test('the exchange establishes the context the table says, and a handler decides
   assert.deepEqual(await client.call('list', { projectId: '7' }, options()), { count: 1, subject: toHex(key('bob')) });
 });
 
-test('a failed prove consumes the challenge; a malformed prove is an attempt too; no audience refuses the exchange', async (t) => {
+test('a failed prove consumes the challenge; a malformed prove is not an attempt; no audience refuses the exchange', async (t) => {
   clock = 1799990000n;
   const { client, serving } = await paired((peer) =>
     authOver(peer, { root, audience, now, nonce: () => hex('a1'.repeat(32)) }),
@@ -191,16 +191,7 @@ test('a failed prove consumes the challenge; a malformed prove is an attempt too
   );
   await client.call('auth.challenge', {}, options());
   await refused(() => client.call('auth.prove', { subject: 'not a key' }, options()), 'auth.malformed');
-  await refused(
-    () =>
-      client.call(
-        'auth.prove',
-        { subject: 'ed25519:' + toHex(key('bob')), possession: '00'.repeat(64), chain: [] },
-        options(),
-      ),
-    'auth.no_challenge',
-  );
-  await client.call('auth.challenge', {}, options());
+  // The challenge is still pending after a malformed prove: the next prove is judged.
   const wrong = prove(seed('mallory'), audience, hex('a1'.repeat(32)));
   await refused(
     () =>

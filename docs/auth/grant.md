@@ -140,7 +140,8 @@ function's question**; possession is [#351](https://github.com/Bitspark/nightsea
 and what the action means for the resource is the resource owner's.
 
 A refusal is a **code and a hop index** and nothing else — no member of any
-grant is echoed. The codes are the closed set above; a program branches on
+grant is echoed. `Open` on an envelope whose body is refused answers the
+code alone: the issuer that sealed a malformed body is not handed out. The codes are the closed set above; a program branches on
 them, as it does on every refusal of the profile.
 
 ## Issuance
@@ -150,7 +151,12 @@ grant *to* the issuer — after verifying that chain exactly as above, minus
 coverage, and holding the child to the same attenuation against its leaf.
 The issuer must be the leaf's subject (`issuer_mismatch`). A root grant has
 an empty chain and is issued by the root key alone (`root_mismatch`
-otherwise).
+otherwise). `Issue` sets the child's parent — the digest of the chain's
+last envelope, none for a root grant — and a child that arrives naming
+another is `parent_mismatch`. A refusal of the child itself carries the
+child's hop, one past the chain's last: hop 0 for a root grant. The child
+is held to attenuation and to nothing else: its own expiry is not compared
+with the decision time, and a finite root grant needs no time to issue.
 
 Validity may be given as **inherit** at issuance: it resolves to the
 parent's validity — finite or unbounded — *before* signing, and no inherit

@@ -68,11 +68,8 @@ export class AuthLayer {
   private prove(params: unknown): { expires_at?: number } {
     if (this.#trusted !== undefined) throw refusalError({ code: 'auth.established' });
     const parsed = parseProve(params);
-    if (parsed === undefined) {
-      // A malformed prove is an attempt: it consumes the pending challenge.
-      this.connection.prove(new Uint8Array(0), new Uint8Array(0), [], this.options.now());
-      throw refusalError({ code: 'auth.malformed' });
-    }
+    // A malformed prove is not an attempt: the pending challenge stays.
+    if (parsed === undefined) throw refusalError({ code: 'auth.malformed' });
     const outcome = this.connection.prove(parsed.subject, parsed.possession, parsed.chain, this.options.now());
     if ('code' in outcome) throw refusalError(outcome);
     return outcome.validity.finite ? { expires_at: Number(outcome.validity.expiresAt) } : {};
