@@ -289,8 +289,9 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 		}
 		dependencies[t.config.pkg(family)] = dependency
 	}
+	exports := map[string]string{".": "./src/index.ts", "./types": "./src/types.ts", "./test": "./src/test.ts"}
 	manifest, _ := json.Marshal(map[string]any{
-		"name": t.config.pkg(f.Name), "version": "0.0.0", "private": true, "type": "module", "exports": map[string]string{".": "./src/index.ts", "./types": "./src/types.ts"},
+		"name": t.config.pkg(f.Name), "version": "0.0.0", "private": true, "type": "module", "exports": exports,
 		"scripts": map[string]any{"check": "tsc --noEmit"}, "dependencies": dependencies,
 	})
 	files := []spi.File{
@@ -300,6 +301,9 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 		{Path: path.Join(dir, "tsconfig.json"), Data: []byte("{\"compilerOptions\":{\"target\":\"ES2022\",\"module\":\"NodeNext\",\"moduleResolution\":\"NodeNext\",\"strict\":true,\"skipLibCheck\":true,\"noEmit\":true,\"allowImportingTsExtensions\":true,\"lib\":[\"ES2022\",\"DOM\"]},\"include\":[\"src/**/*.ts\"]}\n")},
 	}
 	if hasModel {
+		clientTest := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("  "), prefix: "Protocol."}
+		emitTransparency(clientTest, "Client")
+		files = append(files, spi.File{Path: path.Join(dir, "src/test.ts"), Data: []byte(spi.Header + clientTest.w.String())})
 		binding := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("  "), prefix: "Protocol."}
 		emitBinding(binding)
 		bindingDir := t.config.bindingDir(f.Name)
@@ -319,13 +323,20 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 			bindingDependencies[t.config.pkg(family)] = dependency
 		}
 		bindingManifest, _ := json.Marshal(map[string]any{
-			"name": t.config.bindingPkg(f.Name), "version": "0.0.0", "private": true, "type": "module", "exports": "./src/index.ts",
+			"name": t.config.bindingPkg(f.Name), "version": "0.0.0", "private": true, "type": "module", "exports": map[string]string{".": "./src/index.ts", "./test": "./src/test.ts"},
 			"scripts": map[string]any{"check": "tsc --noEmit"}, "dependencies": bindingDependencies,
 		})
 		files = append(files,
 			spi.File{Path: path.Join(bindingDir, "src/index.ts"), Data: []byte(spi.Header + binding.w.String())},
 			spi.File{Path: path.Join(bindingDir, "package.json"), Data: append(bindingManifest, '\n')},
 			spi.File{Path: path.Join(bindingDir, "tsconfig.json"), Data: files[3].Data})
+		bindingTest := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("  "), prefix: "Protocol."}
+		emitTransparency(bindingTest, "Server")
+		files = append(files, spi.File{Path: path.Join(bindingDir, "src/test.ts"), Data: []byte(spi.Header + bindingTest.w.String())})
+	} else {
+		examples := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("  ")}
+		emitExampleTest(examples)
+		files = append(files, spi.File{Path: path.Join(dir, "src/test.ts"), Data: []byte(spi.Header + examples.w.String())})
 	}
 	return files, nil
 }

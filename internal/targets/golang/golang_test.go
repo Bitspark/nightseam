@@ -140,7 +140,7 @@ func TestRenderPlacesAndFormats(t *testing.T) {
 			t.Errorf("%s lacks the header", file.Path)
 		}
 	}
-	if got := strings.Join(paths, " "); got != "api/go/x-protocol/types_generated.go api/go/x-protocol/validation_generated.go api/go/x-binding/binding_generated.go api/go/x-client/client_generated.go" {
+	if got := strings.Join(paths, " "); got != "api/go/x-protocol/types_generated.go api/go/x-protocol/validation_generated.go api/go/x-binding/binding_generated.go api/go/x-client/client_generated.go api/go/x-binding/familytest/transparency_generated.go api/go/x-client/familytest/transparency_generated.go" {
 		t.Fatalf("placed at %s", got)
 	}
 	if !strings.Contains(string(files[2].Data), `protocol "example.test/m/api/go/x-protocol"`) {
@@ -174,7 +174,7 @@ func TestToWireLabelsEveryNameWithItsFamily(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, file := range files[2:] {
+	for _, file := range files[2:4] {
 		source := string(file.Data)
 		for _, want := range []string{
 			"families := map[string]string{}",
@@ -197,7 +197,7 @@ func TestWireAdaptersObserveTypedOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, file := range files[2:] {
+	for _, file := range files[2:4] {
 		for _, want := range []string{
 			`runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "x", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}`,
 			`runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "x", Propagator: c.environment.Options.Propagator}`,

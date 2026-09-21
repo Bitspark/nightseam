@@ -16,6 +16,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Clarified
 
+- The shared Wire contract will be adopted from Bitwire when ready, as required
+  0.6.0 work; Nightseam retains its runtime, generator, declaration/identity and
+  optional-auth implementation. The repository-home decision distinguishes the
+  readiness conditions from completed contract adoption.
 - The profile documentation names 4011 for a binary frame rejected by the
   JSON peer, matching both reference runtimes. A shared core scenario holds
   the close code at both ends and verifies the request is never dispatched.
@@ -49,6 +53,10 @@ are one number. Entries are in the words of the commits that landed them.
   Draw constraints follow the actual supplied family, so generic consumers
   derive independently of providers and unrelated families. Missing or nonplain
   members and non-object drawn RPC requests fail before model construction.
+- Generated Go and TypeScript model sides include consumer transparency helpers
+  with validated document examples, pipe pairs and smoke checks of method
+  inputs, results and public errors across local and carrier presentations.
+
 - Rust enters at tier 4 with bounded pipe and WebSocket connections, the
   duplex peer, schema validation, declaration identity, and relative-path
   Wire composition. Its private testee runs the shared core scenarios in
