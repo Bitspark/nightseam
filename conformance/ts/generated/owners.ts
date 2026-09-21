@@ -4,7 +4,7 @@ import * as worker from './api/ts/worker-client/src/index.ts';
 import * as binding from './api/ts/owners-binding/src/index.ts';
 import { Served, Session, adapterContext } from './server.ts';
 import { DuplexError } from '@nightseam/runtime';
-import { liveOver, type LiveScope, type LiveOwner } from '@nightseam/live';
+import { liveOver, LiveOwner, type LiveScope } from '@nightseam/live';
 
 type Args = Record<string, unknown>;
 export class OwnerFailure extends Error {
@@ -18,14 +18,16 @@ class OwnersServer implements ServerMethods {
   scope!: LiveScope;
   readonly held: LiveOwner[] = [];
   create: ServerMethods['create'] = async (params, context) => {
-    if (!context?.owner || context.owner.scope !== this.scope || context.owner === this.scope.owner()) throw new OwnerFailure('invalid', 'handler received no per-invocation child owner');
-    this.held.push(context.owner);
-    await params.progress.report(50, { signal: context.signal, owner: context.owner });
+    const owner = context?.valueContext;
+    if (!(owner instanceof LiveOwner) || owner.scope !== this.scope || owner === this.scope.owner()) throw new OwnerFailure('invalid', 'handler received no per-invocation child owner');
+    this.held.push(owner);
+    await params.progress.report(50, { signal: context?.signal, owner });
     return { items: [{ ticket: params.ticket.id, cancel: async () => {}, rename: async ticket => ticket }] };
   };
   pack: ServerMethods['pack'] = (params, context) => {
-    if (!context?.owner || context.owner.scope !== this.scope || context.owner === this.scope.owner()) throw new OwnerFailure('invalid', 'handler received no per-invocation child owner');
-    this.held.push(context.owner);
+    const owner = context?.valueContext;
+    if (!(owner instanceof LiveOwner) || owner.scope !== this.scope || owner === this.scope.owner()) throw new OwnerFailure('invalid', 'handler received no per-invocation child owner');
+    this.held.push(owner);
     return { metadata: { seed: 7 }, run: async n => params.item(await params.item(n)) };
   };
   drop(): boolean { for (const owner of this.held.splice(0)) owner.release(); return true; }
@@ -94,7 +96,7 @@ export const ownersOps: Record<string, (args: Args) => unknown | Promise<unknown
   'client.owners_create': async args => {
     const d = lookup(args);
     d.owner = d.scope.owner().child();
-    const page = await d.connection.model.methods.create({ ticket: { id: 'owned', label: 'owned' }, progress: { report: async () => { d.reports++; } } }, { owner: d.owner });
+    const page = await d.connection.model.methods.create({ ticket: { id: 'owned', label: 'owned' }, progress: { report: async () => { d.reports++; } } }, { valueContext: d.owner });
     if (page.items.length !== 1) throw new OwnerFailure('invalid', 'page lost its job');
     d.job = page.items[0]!;
     await d.job.cancel();
@@ -104,7 +106,7 @@ export const ownersOps: Record<string, (args: Args) => unknown | Promise<unknown
   'client.owners_pack': async args => {
     const d = lookup(args);
     d.owner = d.scope.owner().child();
-    const bundle = await d.connection.model.methods.pack({ item: async n => n + 3 }, { owner: d.owner });
+    const bundle = await d.connection.model.methods.pack({ item: async n => n + 3 }, { valueContext: d.owner });
     return { value: await bundle.run(5), seed: bundle.metadata.seed, counts: d.scope.counts() };
   },
   'client.owners_release': async args => {

@@ -11,7 +11,7 @@ import { combinatorOps, resetCombinator, CombinatorFailure } from './combinator.
 import { forwardingOps, resetForwarding, ForwardingFailure } from './forwarding.ts';
 import { ownersOps, resetOwners, OwnerFailure } from './owners.ts';
 import { publicationOps, resetPublication, PublicationFailure } from './publication.ts';
-import { wireCellOps } from './wire-cell.ts';
+import { wireCellOps, resetWireCells } from './wire-cell.ts';
 import { createInterface } from 'node:readline';
 import * as probe from './api/ts/probe-client/src/index.ts';
 import { DuplexError, errors, validateWire, type Payload, type Seen } from './api/ts/probe-client/src/index.ts';
@@ -69,6 +69,7 @@ const reset = () => {
   resetForwarding();
   resetOwners();
   resetPublication();
+  resetWireCells();
   for (const d of handles.values()) d.shutdown();
   handles.clear();
   for (const s of servers.values()) s.served.shutdown();
