@@ -6,6 +6,8 @@ import { scalarJSON } from './unicode.ts';
 import { defaultPropagator, traceOf } from './trace.ts';
 import type { ValueEnvironment } from './value-adapter.ts';
 import type { Trace, TraceContext } from './trace.ts';
+import type { Observer } from './observer.ts';
+import { observeWire, observeWireRequest } from './wire-observer.ts';
 import type {
   CallOptions,
   DuplexPeer,
@@ -104,12 +106,16 @@ export interface WireRequestContext extends WireModelContext {
   meta?: Meta;
 }
 export interface WireCallOptions {
+  observer?: Observer;
+  family?: string;
   signal?: AbortSignal;
   timeoutMs?: number;
   context?: TraceContext;
   meta?: Meta;
 }
 export interface WireEmitOptions {
+  observer?: Observer;
+  family?: string;
   context?: TraceContext;
   meta?: Meta;
 }
@@ -119,6 +125,12 @@ export interface WireEventContext extends TraceContext {
 }
 export type WireHandler = (params: unknown, context: WireRequestContext) => unknown | Promise<unknown>;
 export type WireEventListener = (data: unknown, context: WireEventContext) => void | Promise<void>;
+export interface WireHandlers {
+  request?: WireHandler;
+  event?: WireEventListener;
+  observer?: Observer;
+  family?: string;
+}
 
 /** @internal The completion/deadline primitive shared by Peer.call and CallWire. */
 export function requestCompletion<T>() {
@@ -314,6 +326,12 @@ function callWireTraced<T>(
     return Promise.reject(new UnpublishedError(error));
   }
   const completion = requestCompletion<T>();
+  const finish = observeWireRequest(options.observer, options.family, 'c:1', name, false, trace);
+  let localOutcome: 'cancelled' | 'timeout' | undefined;
+  void completion.promise.then(
+    () => finish(),
+    (error: unknown) => finish(error, localOutcome ?? 'error'),
+  );
   const returning: Wire = {
     send: (suffix, message) => {
       const frame = profileFrame(message.frame, '', dispatch?.maxFrameBytes);
@@ -341,9 +359,11 @@ function callWireTraced<T>(
   } catch (error) {
     completion.reject(new UnpublishedError(error));
   }
-  completion.wait(options.signal, options.timeoutMs ?? 30_000, name, (error) => {
+  completion.wait(options.signal, options.timeoutMs ?? 30_000, name, (error, outcome) => {
     if (completion.settled) return;
+    localOutcome = outcome;
     completion.reject(error);
+    finish(error, outcome);
     try {
       wire.send(path, { frame: { version: 1, kind: 'cancel', id: 'c:1', ...trace }, return: address });
     } catch {
@@ -359,11 +379,7 @@ export function handleWire(wire: Wire, path: Path, handler: WireHandler): () => 
 }
 
 /** Registers request and event facets at one operation with one cancellation map. */
-export function registerWire(
-  wire: Wire,
-  path: Path,
-  handlers: { request?: WireHandler; event?: WireEventListener },
-): () => void {
+export function registerWire(wire: Wire, path: Path, handlers: WireHandlers): () => void {
   const incoming = new Map<ReturnAddress, Map<string, AbortController>>();
   const stop = () => {
     for (const calls of incoming.values()) for (const controller of calls.values()) controller.abort();
@@ -374,6 +390,15 @@ export function registerWire(
       const frame = message.frame;
       if (frame.kind === 'event') {
         if (!handlers.event) return;
+        if (handlers.observer)
+          observeWire(handlers.observer, {
+            type: 'event.delivered',
+            at: new Date(),
+            name: encodePath(path),
+            bytes: new TextEncoder().encode(JSON.stringify(frame.data)).byteLength,
+            trace: traceOf(frame),
+            family: handlers.family ?? '',
+          });
         const dispatch = wireEventContext(message);
         const context = (dispatch ? Object.create(dispatch.context) : {}) as WireEventContext;
         Object.defineProperties(context, {
@@ -399,12 +424,24 @@ export function registerWire(
         calls?.get(frame.id)?.abort();
         return;
       }
+      const finish = observeWireRequest(
+        handlers.observer,
+        handlers.family,
+        frame.id,
+        encodePath(path),
+        true,
+        traceOf(frame),
+      );
       if (!handlers.request) {
-        response(message, undefined, new DuplexError('method_not_found', 'An event has no request handler.'));
+        const error = new DuplexError('method_not_found', 'An event has no request handler.');
+        finish(error);
+        response(message, undefined, error);
         return;
       }
       if (calls?.has(frame.id)) {
-        response(message, undefined, new DuplexError('invalid_message', 'Duplicate active request identifier.'));
+        const error = new DuplexError('invalid_message', 'Duplicate active request identifier.');
+        finish(error);
+        response(message, undefined, error);
         return;
       }
       if (!calls) {
@@ -428,20 +465,26 @@ export function registerWire(
         requestId: { value: dispatch?.context.requestId ?? frame.id, enumerable: true },
       });
       if (!dispatch) defaultPropagator.extract(context, traceOf(frame));
+      let cancelledBeforeHandler = false;
       void Promise.resolve()
         .then(() => {
-          if (context.signal.aborted) throw new DuplexError('cancelled', 'Request was cancelled.');
+          if (context.signal.aborted) {
+            cancelledBeforeHandler = true;
+            throw new DuplexError('cancelled', 'Request was cancelled.');
+          }
           return handlers.request!(frame.params, context);
         })
         .then(
-          (result) =>
-            response(
-              message,
-              result,
-              context.signal.aborted ? new DuplexError('cancelled', 'Request was cancelled.') : undefined,
-            ),
+          (result) => {
+            const error = context.signal.aborted ? new DuplexError('cancelled', 'Request was cancelled.') : undefined;
+            finish(error, error ? 'cancelled' : 'ok');
+            response(message, result, error);
+          },
           (error: unknown) => {
             if (!(error instanceof DuplexError)) dispatch?.panic(error);
+            // A public handler refusal stays an error even if cancellation
+            // raced its completion. Only this helper's withdrawal is local.
+            finish(error, cancelledBeforeHandler ? 'cancelled' : 'error');
             response(message, undefined, publicError(error));
           },
         )
@@ -460,10 +503,19 @@ export function registerWire(
 /** Emits a relative event; return means accepted, never consumed. */
 export function emitWire(wire: Wire, path: Path, data: unknown = null, options: WireEmitOptions = {}): void {
   try {
-    encodePath(path);
+    const name = encodePath(path);
     const frame = snapshot(
       carrying({ version: 1, kind: 'event', data, ...defaultPropagator.inject(options.context) }, options.meta),
     ) as unknown as ProfileFrame;
+    if (options.observer)
+      observeWire(options.observer, {
+        type: 'event.emitted',
+        at: new Date(),
+        name,
+        bytes: new TextEncoder().encode(JSON.stringify(frame.kind === 'event' ? frame.data : null)).byteLength,
+        trace: traceOf(frame),
+        family: options.family ?? '',
+      });
     wire.send(path, { frame });
   } catch (error) {
     throw new UnpublishedError(error);
