@@ -80,7 +80,7 @@
         },
         "generator": {
           "passed": 0,
-          "skipped": 64,
+          "skipped": 336,
           "failed": 0
         },
         "live": {
