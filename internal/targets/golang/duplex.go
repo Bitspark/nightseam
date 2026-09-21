@@ -81,8 +81,8 @@ func (f *file) emitWireAdapter(side, opposite string) {
 
 		f.line("return environment, nil")
 	})
-	f.linef("// ToWire binds one model factory and returns its access wire.")
-	f.w.Block(fmt.Sprintf("func ToWire%s(model %s%sModel%s, environment %s%s) (%s.Wire, error) {", open, proto, side, args, contextType, f.slotParameters(), seam), "}", func() {
+	f.linef("// ToWire binds one model factory and returns its owned access endpoint.")
+	f.w.Block(fmt.Sprintf("func ToWire%s(model %s%sModel%s, environment %s%s) (%s.Endpoint, error) {", open, proto, side, args, contextType, f.slotParameters(), seam), "}", func() {
 		f.linef("if model == nil { return nil, %s.Errorf(\"model factory is required\") }", f.std("fmt"))
 		f.linef("environment, err := normalizeContext%s(environment%s)", args, f.slotArguments())
 		f.line("if err != nil { return nil, err }")
@@ -94,11 +94,13 @@ func (f *file) emitWireAdapter(side, opposite string) {
 		f.line("if err != nil { return nil, err }")
 		f.line("complete := false")
 		f.linef("defer func() { if !complete { _ = access.Close(%s.CodeInternalError, \"model construction failed\") } }()", seam)
-		f.line("if _, err := registerIdentity(binding, identity); err != nil { return nil, err }")
+		f.linef("dispatcher, err := %s.NewDispatcher(binding)", rt)
+		f.line("if err != nil { return nil, err }")
+		f.line("if _, err := registerIdentity(dispatcher, identity); err != nil { return nil, err }")
 		f.linef("implementation, err := model(access%s%s(binding,environment%s))", opposite, args, f.slotArguments())
 		f.line("if err != nil { return nil, err }")
 		f.wireValidateImplementation(side, "return nil, ")
-		f.linef("if err := bind%s%s(binding,func() %s%s%s { return implementation },environment%s); err != nil { return nil, err }", side, args, proto, side, args, f.slotArguments())
+		f.linef("if err := bind%s%s(dispatcher,func() %s%s%s { return implementation },environment%s); err != nil { return nil, err }", side, args, proto, side, args, f.slotArguments())
 		f.line("complete = true; return access, nil")
 	})
 	f.emitWireIdentity(side, opposite)
@@ -209,7 +211,7 @@ func (f *file) wireEmitter(e render.Event, receiver string) {
 func (f *file) wireRegistration(side string, methods []render.Method, events []render.Event) {
 	rt := f.runtime()
 	decl, args := declare(f.family.Uses), apply(f.family.Uses)
-	f.w.Block(fmt.Sprintf("func bind%s%s(wire %s.Wire, lookup func() %s%s%s, environment %s%s) error {", side, decl, f.seam(), f.proto(), side, args, f.adapterContext(), f.slotParameters()), "}", func() {
+	f.w.Block(fmt.Sprintf("func bind%s%s(wire %s.HandlerRegistry, lookup func() %s%s%s, environment %s%s) error {", side, decl, f.runtime(), f.proto(), side, args, f.adapterContext(), f.slotParameters()), "}", func() {
 		f.line("var detach []func(); complete := false")
 		f.line("defer func(){if !complete{for _,off:=range detach{off()}}}()")
 		byName := map[string]bool{}

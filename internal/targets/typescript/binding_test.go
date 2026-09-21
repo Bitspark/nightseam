@@ -27,9 +27,9 @@ func TestRenderServerBinding(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		"export function toWire(model: Protocol.ServerModel, context: AdapterContext): Wire",
-		"export async function fromWire(wire: Wire, context: AdapterContext): Promise<Protocol.ServerModel>",
-		"const implementation = model(adapter.proxyClient(binding));", "adapter.validateServer(implementation);", "adapter.bindServer(binding, () => implementation)",
+		"export function toWire(model: Protocol.ServerModel, context: AdapterContext): Endpoint",
+		"export async function fromWire(wire: Endpoint, context: AdapterContext): Promise<Protocol.ServerModel>",
+		"const implementation = model(adapter.proxyClient(binding));", "adapter.validateServer(implementation);", "adapter.bindServer(dispatcher, () => implementation)",
 		"adapter.bindClient(gate.wire, () => implementation!)", "return adapter.proxyServer(gate.wire)",
 		`if (bound) throw new DuplexError('already_bound'`,
 		`registerWire(wire, ["run"], {`, `registerWire(wire, ["reverse"], {`,

@@ -46,7 +46,7 @@ func (f *file) emitRecordedEvents(side, opposite string) {
 	})
 	f.line("// Record checks a prepared origin before exposing typed event append. Setup")
 	f.line("// failure detaches this interpretation and leaves the borrowed target usable.")
-	f.w.Block(fmt.Sprintf("func Record%s(ctx %s.Context,target %s.Wire,log %s.WireLog,options %s.RecordOptions,environment %s%s)(*Recorder%s,error){", open, ctx, seam, seam, seam, f.adapterContext(), f.slotParameters(), args), "}", func() {
+	f.w.Block(fmt.Sprintf("func Record%s(ctx %s.Context,target %s.Endpoint,log %s.WireLog,options %s.RecordOptions,environment %s%s)(*Recorder%s,error){", open, ctx, seam, seam, seam, f.adapterContext(), f.slotParameters(), args), "}", func() {
 		f.linef("environment,err:=normalizeContext%s(environment%s);if err!=nil{return nil,err}", args, f.slotArguments())
 		f.linef("identity,err:=declarationIdentity%s(%s);if err!=nil{return nil,err}", args, identityArguments(f))
 		f.linef("preparation,err:=%s.PrepareIdentity(target,identity,environment.Options);if err!=nil{return nil,err}", rt)

@@ -27,10 +27,16 @@ func TestWireIdentityPreparationPrecedesModelBinding(t *testing.T) {
 		source := string(file.Data)
 		for _, want := range []string{
 			`const identity = { path: "x", digest: declarationDigest(validateWire, slots) };`,
-			"export function prepareFromWire(wire: Wire, context: AdapterContext)",
+			"export function prepareFromWire(wire: Endpoint, context: AdapterContext)",
 			"complete(options?: WireCallOptions): Promise<Protocol." + side + "Model>",
 			"const gate = prepareIdentity(wire, adapter.identity, adapter.options);",
-			"registerWire(binding, [IDENTITY_METHOD], { request: identityHandler(adapter.identity) })",
+			"const dispatcher = createDispatcher(binding);",
+			"registerWire(dispatcher, [IDENTITY_METHOD], { request: identityHandler(adapter.identity) })",
+			"function bindServer(wire: HandlerRegistry,",
+			"function bindClient(wire: HandlerRegistry,",
+			"function proxyServer(wire: Wire)",
+			"function proxyClient(wire: Wire)",
+			"export async function record(target: Endpoint,",
 			"adapter.bind" + opposite + "(gate.wire, () => implementation!)",
 			"await gate.check(options);",
 			"adapter.validate" + opposite + "(remote);",
@@ -46,6 +52,9 @@ func TestWireIdentityPreparationPrecedesModelBinding(t *testing.T) {
 		}
 		_, local, _ := strings.Cut(source, "export function toWire")
 		local, _, _ = strings.Cut(local, "export function prepareFromWire")
+		if got := strings.Count(local, "createDispatcher(binding)"); got != 1 {
+			t.Errorf("%s attaches %d dispatchers to its binding endpoint, want one", file.Path, got)
+		}
 		if responder, factory := strings.Index(local, "identityHandler(adapter.identity)"), strings.Index(local, "const implementation = model("); responder < 0 || factory < 0 || responder > factory {
 			t.Errorf("%s invokes the local model before installing its identity responder", file.Path)
 		}
@@ -57,7 +66,7 @@ func TestWireIdentityPreparationPrecedesModelBinding(t *testing.T) {
 }
 
 func TestWireIdentityConstructionNamesAreReserved(t *testing.T) {
-	for _, name := range []string{"prepareFromWire", "prepareIdentity", "identityHandler", "declarationDigest", "IDENTITY_METHOD", "WireCallOptions"} {
+	for _, name := range []string{"prepareFromWire", "prepareIdentity", "identityHandler", "declarationDigest", "IDENTITY_METHOD", "WireCallOptions", "Endpoint", "HandlerRegistry", "createDispatcher"} {
 		t.Run(name, func(t *testing.T) {
 			diagnostics := check(map[string]string{
 				"model.json":      fixtureModel,
