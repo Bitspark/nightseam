@@ -9,6 +9,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { dependency, examples, manifestsUnder, modules, packages, requirement, root } from "./packages.mjs";
+import { setHaskellVersion } from "./haskell-packages.mjs";
 const version = process.argv[2];
 if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version ?? "")) {
   console.error("usage: node scripts/version.mjs <major.minor.patch>");
@@ -23,6 +24,7 @@ if (!project || !pythonVersion.test(project)) {
   process.exit(1);
 }
 writeFileSync(python, pythonSource.replace(project, project.replace(pythonVersion, `version = "${version}"`)));
+setHaskellVersion(root, version);
 for (const directory of packages) {
   const file = join(root, directory, "package.json");
   const manifest = JSON.parse(readFileSync(file, "utf8"));

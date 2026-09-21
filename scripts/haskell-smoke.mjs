@@ -1,11 +1,15 @@
 // Build the source distributions as an unrelated consumer outside the checkout.
-import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { checkHaskellVersions } from "./haskell-packages.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const version = JSON.parse(readFileSync(join(root, "runtime/ts/package.json"), "utf8")).version;
+const problems = checkHaskellVersions(root, version);
+if (problems.length) throw new Error(problems.join("\n"));
 const scratch = mkdtempSync(join(tmpdir(), "nightseam-haskell-install-"));
 function run(argv, cwd = root) {
   const child = spawnSync(argv[0], argv.slice(1), { cwd, stdio: "inherit", windowsHide: true });
@@ -23,8 +27,8 @@ try {
 system-ghc: true
 packages:
   - .
-  - nightseam-duplex-0.6.0
-  - nightseam-runtime-0.6.0
+  - nightseam-duplex-${version}
+  - nightseam-runtime-${version}
 `);
   writeFileSync(join(scratch, "nightseam-consumer-smoke.cabal"), `cabal-version: 2.4
 name: nightseam-consumer-smoke
