@@ -292,8 +292,14 @@ func normalizeContext[SJob, SProgress any](environment runtime.AdapterContext, a
 	if adapterSJob.Export == nil || adapterSJob.Import == nil {
 		return environment, fmt.Errorf("SJob: both conversion recipes are required")
 	}
+	if err := runtime.ValidateDrawnType(adapterSJob.Binding, "Job", false); err != nil {
+		return environment, err
+	}
 	if adapterSProgress.Export == nil || adapterSProgress.Import == nil {
 		return environment, fmt.Errorf("SProgress: both conversion recipes are required")
+	}
+	if err := runtime.ValidateDrawnType(adapterSProgress.Binding, "Progress", false); err != nil {
+		return environment, err
 	}
 	if (adapterSJob.NeedsContext || adapterSProgress.NeedsContext) && environment.ValueEnvironment == nil {
 		return environment, fmt.Errorf("a context-dependent adapter requires a value environment")

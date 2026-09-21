@@ -612,6 +612,9 @@ func AdapterChoice[SJob any](adapterSJob runtime.ValueAdapter[SJob]) runtime.Val
 			if adapterSJob.Export == nil || adapterSJob.Import == nil {
 				return nil, fmt.Errorf("SJob: both conversion recipes are required")
 			}
+			if err := runtime.ValidateDrawnType(adapterSJob.Binding, "Job", false); err != nil {
+				return nil, err
+			}
 			if _, err := binding.Declaration(); err != nil {
 				return nil, err
 			}
@@ -625,6 +628,9 @@ func AdapterChoice[SJob any](adapterSJob runtime.ValueAdapter[SJob]) runtime.Val
 			var zero Choice[SJob]
 			if adapterSJob.Export == nil || adapterSJob.Import == nil {
 				return zero, fmt.Errorf("SJob: both conversion recipes are required")
+			}
+			if err := runtime.ValidateDrawnType(adapterSJob.Binding, "Job", false); err != nil {
+				return zero, err
 			}
 			if _, err := binding.Declaration(); err != nil {
 				return zero, err
@@ -649,8 +655,14 @@ func AdapterHeld[SJob, SProgress any](adapterSJob runtime.ValueAdapter[SJob], ad
 			if adapterSJob.Export == nil || adapterSJob.Import == nil {
 				return nil, fmt.Errorf("SJob: both conversion recipes are required")
 			}
+			if err := runtime.ValidateDrawnType(adapterSJob.Binding, "Job", false); err != nil {
+				return nil, err
+			}
 			if adapterSProgress.Export == nil || adapterSProgress.Import == nil {
 				return nil, fmt.Errorf("SProgress: both conversion recipes are required")
+			}
+			if err := runtime.ValidateDrawnType(adapterSProgress.Binding, "Progress", false); err != nil {
+				return nil, err
 			}
 			if _, err := binding.Declaration(); err != nil {
 				return nil, err
@@ -666,8 +678,14 @@ func AdapterHeld[SJob, SProgress any](adapterSJob runtime.ValueAdapter[SJob], ad
 			if adapterSJob.Export == nil || adapterSJob.Import == nil {
 				return zero, fmt.Errorf("SJob: both conversion recipes are required")
 			}
+			if err := runtime.ValidateDrawnType(adapterSJob.Binding, "Job", false); err != nil {
+				return zero, err
+			}
 			if adapterSProgress.Export == nil || adapterSProgress.Import == nil {
 				return zero, fmt.Errorf("SProgress: both conversion recipes are required")
+			}
+			if err := runtime.ValidateDrawnType(adapterSProgress.Binding, "Progress", false); err != nil {
+				return zero, err
 			}
 			if _, err := binding.Declaration(); err != nil {
 				return zero, err
@@ -691,6 +709,9 @@ func AdapterJobs[SJob any](adapterSJob runtime.ValueAdapter[SJob]) runtime.Value
 			if adapterSJob.Export == nil || adapterSJob.Import == nil {
 				return nil, fmt.Errorf("SJob: both conversion recipes are required")
 			}
+			if err := runtime.ValidateDrawnType(adapterSJob.Binding, "Job", false); err != nil {
+				return nil, err
+			}
 			if _, err := binding.Declaration(); err != nil {
 				return nil, err
 			}
@@ -704,6 +725,9 @@ func AdapterJobs[SJob any](adapterSJob runtime.ValueAdapter[SJob]) runtime.Value
 			var zero Jobs[SJob]
 			if adapterSJob.Export == nil || adapterSJob.Import == nil {
 				return zero, fmt.Errorf("SJob: both conversion recipes are required")
+			}
+			if err := runtime.ValidateDrawnType(adapterSJob.Binding, "Job", false); err != nil {
+				return zero, err
 			}
 			if _, err := binding.Declaration(); err != nil {
 				return zero, err
@@ -728,8 +752,14 @@ func AdapterNested[SJob, SProgress any](adapterSJob runtime.ValueAdapter[SJob], 
 			if adapterSJob.Export == nil || adapterSJob.Import == nil {
 				return nil, fmt.Errorf("SJob: both conversion recipes are required")
 			}
+			if err := runtime.ValidateDrawnType(adapterSJob.Binding, "Job", false); err != nil {
+				return nil, err
+			}
 			if adapterSProgress.Export == nil || adapterSProgress.Import == nil {
 				return nil, fmt.Errorf("SProgress: both conversion recipes are required")
+			}
+			if err := runtime.ValidateDrawnType(adapterSProgress.Binding, "Progress", false); err != nil {
+				return nil, err
 			}
 			if _, err := binding.Declaration(); err != nil {
 				return nil, err
@@ -745,8 +775,14 @@ func AdapterNested[SJob, SProgress any](adapterSJob runtime.ValueAdapter[SJob], 
 			if adapterSJob.Export == nil || adapterSJob.Import == nil {
 				return zero, fmt.Errorf("SJob: both conversion recipes are required")
 			}
+			if err := runtime.ValidateDrawnType(adapterSJob.Binding, "Job", false); err != nil {
+				return zero, err
+			}
 			if adapterSProgress.Export == nil || adapterSProgress.Import == nil {
 				return zero, fmt.Errorf("SProgress: both conversion recipes are required")
+			}
+			if err := runtime.ValidateDrawnType(adapterSProgress.Binding, "Progress", false); err != nil {
+				return zero, err
 			}
 			if _, err := binding.Declaration(); err != nil {
 				return zero, err
