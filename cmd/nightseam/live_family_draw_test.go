@@ -24,6 +24,23 @@ func TestLiveFamilyDrawGolden(t *testing.T) {
 	holdGolden(t, "testdata/golden-live-family-draws", renderTool(t, "testdata/live-family-draws"))
 }
 
+// GEN-BIND-CONSTRAINT: a consumer derives independently of its providers;
+// unrelated live declarations do not become obligations on the supplied slot.
+func TestLiveFamilyDrawIndependentGeneration(t *testing.T) {
+	for _, unrelated := range []bool{false, true} {
+		directory := t.TempDir()
+		copyFixtureTree(t, "testdata/live-family-draws/api/contracts/holder", filepath.Join(directory, "api/contracts/holder"))
+		if unrelated {
+			writeFixture(t, directory, "api/contracts/functions/model.json", []byte(`{"nightseam":2}`))
+			writeFixture(t, directory, "api/contracts/functions/protocol.json", []byte(`{"profile":"nightseam.duplex/1"}`))
+			writeFixture(t, directory, "api/contracts/functions/live.json", []byte(`{"types":{"Run":{"kind":"callable","request":"integer","result":"integer"}}}`))
+		}
+		if out, errs, err := run(t, directory, "generate"); err != nil {
+			t.Fatalf("GEN-BIND-CONSTRAINT unrelated=%v: %v\n%s\n%s", unrelated, err, out, errs)
+		}
+	}
+}
+
 func TestLiveFamilyDrawGeneration(t *testing.T) {
 	directory := liveFamilyDrawFixture(t)
 	for _, relative := range []string{"api/go/holder-protocol/types_generated.go", "api/go/holder-binding/binding_generated.go", "api/go/holder-client/client_generated.go", "api/ts/holder-client/src/types.ts", "api/ts/holder-client/src/index.ts", "api/ts/holder-client/package.json", "api/ts/holder-binding/src/index.ts", "api/ts/holder-binding/package.json"} {

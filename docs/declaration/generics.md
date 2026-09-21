@@ -17,8 +17,10 @@ used. One mechanism at every level, and a parameter is of one of two
   ([a family in tiers](families.md#the-files) has the table). A
   type is drawn *through* it, `S.Envelope` — one message of the family bound
   to `S` — `S.Handle` a channel that speaks it, `S.Payload` any record or
-  enum `Payload` of it, which every family that may bind `S` is then held to
-  declare, plainly, checked across the world.
+  enum `Payload` of it. That draw is a requirement on the supplied family,
+  checked when a concrete family fills the parameter and when a generated
+  boundary receives its interpretation. Unrelated families impose no constraint,
+  and the generic consumer derives without loading a provider.
 - **A type parameter** — it has no `of`. It is filled by a **type
   expression** and is written where a type is named: `{"array": "T"}`.
 

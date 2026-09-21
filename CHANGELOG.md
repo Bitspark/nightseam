@@ -55,6 +55,9 @@ are one number. Entries are in the words of the commits that landed them.
   use the active operation's ownership batch without adding live dependencies
   to generic consumers. TypeScript conversion-only record, union and alias
   helpers explicitly carry the `Unchecked` suffix.
+  Draw constraints follow the actual supplied family, so generic consumers
+  derive independently of providers and unrelated families. Missing or nonplain
+  members and non-object drawn RPC requests fail before model construction.
 - Python enters at tier 4 with bounded asyncio frame connections, peers,
   descriptor validation, Wire path views and declaration identity exchange,
   held against Go in both socket roles and by an installed-wheel smoke.
