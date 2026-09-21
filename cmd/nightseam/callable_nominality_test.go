@@ -102,7 +102,7 @@ func TestSameSignatureAssignmentUsesDestinationContract(t *testing.T) {
 const tsCallableNominalityFixture = `import * as nominal from './api/ts/nominal-client/src/index.ts';
 import * as binding from './api/ts/nominal-binding/src/index.ts';
 import { pipe } from '@nightseam/duplex';
-import { DuplexError, DuplexPeer } from '@nightseam/runtime';
+import { DuplexError, DuplexPeer, forwardWire } from '@nightseam/runtime';
 import { CONTRACT_MISMATCH, liveOver, scopeOf } from '@nightseam/live';
 
 for (const configured of [false, true]) {
@@ -111,17 +111,12 @@ const pa = new DuplexPeer({ role: 'client' });
 const from = liveOver(pa);
 let pb: DuplexPeer | undefined;
 try {
-  if (configured) {
-    pb = new DuplexPeer({ role: 'server' });
-    const existing = liveOver(pb, {maxExports:1, maxImports:1});
-    binding.install(pb, {});
-    if (scopeOf(pb) !== existing) throw new Error('install replaced the host live scope');
-    await Promise.all([pa.attach(a), pb.attach(b)]);
-  } else {
-    [pb] = await Promise.all([binding.serve(b, {}, {}), pa.attach(a)]);
-  }
-  const to = scopeOf(pb);
-  if (!to) throw new Error('binding installed no live scope');
+  pb = new DuplexPeer({ role: 'server' });
+  const to = liveOver(pb, configured ? {maxExports:1, maxImports:1} : {});
+  const wire = binding.toWire(() => ({methods:{},events:{}}), {scope:to});
+  forwardWire(pb.wire(), wire);
+  if (scopeOf(pb) !== to) throw new Error('adapter replaced the host live scope');
+  await Promise.all([pa.attach(a), pb.attach(b)]);
   const report: nominal.Report = async value => value + 1;
   const volume: binding.SetVolume = report; // Both roles share the same nominal protocol types.
   const raw = nominal.exportSetVolume(from.owner(), volume);

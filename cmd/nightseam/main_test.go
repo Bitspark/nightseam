@@ -246,27 +246,32 @@ func TestGeneratedTypeScriptChecksAndValidates(t *testing.T) {
 // beside rather than replacing: one peer carrying two families labels each
 // name with its own, and a name nobody labelled has no family.
 const tsRoundtrip = `import assert from 'node:assert/strict';
-import { Client } from './api/ts/probe-client/src/index.ts';
+import {toWire} from './api/ts/probe-client/src/index.ts';
+import {DuplexPeer,forwardWire} from '@nightseam/runtime';
+import {decodePath} from '@nightseam/duplex';
 const labels = new Map();
+const name = value => {try {const path=decodePath(value);return path.length===1?path[0]:value;}catch{return value;}};
 const observer = { observe(event) {
-  if (event.type === 'request.started') labels.set('started ' + event.method, event.family);
-  if (event.type === 'request.ended') labels.set('ended ' + event.method, event.family);
-  if (event.type === 'event.emitted') labels.set('emitted ' + event.name, event.family);
-  if (event.type === 'event.delivered') labels.set('delivered ' + event.name, event.family);
+  if (event.type === 'request.started') labels.set('started ' + name(event.method), event.family);
+  if (event.type === 'request.ended') labels.set('ended ' + name(event.method), event.family);
+  if (event.type === 'event.emitted') labels.set('emitted ' + name(event.name), event.family);
+  if (event.type === 'event.delivered') labels.set('delivered ' + name(event.name), event.family);
 } };
-const client = await Client.dial(process.argv[2], { observer, families: { relay: 'carrier' } }, { reverse(params) { return { ...params, text: 'typescript:' + params.text }; } }, {});
-let observed;
-client.onChanged(data => { observed = data; });
-const result = await client.echo({ text: 'value', count: 7, note: null });
+const peer=new DuplexPeer({observer:{observe:event=>{if(('method' in event)&&event.method==='relay')observer.observe(event);}},families:{relay:'carrier'}});
+let client,observed;
+const wire=toWire(remote=>{client=remote;return {methods:{reverse:params=>({...params,text:'typescript:'+params.text})},events:{changed:data=>{observed=data;}}};},{options:{observer}});
+forwardWire(peer.wire(),wire);
+await peer.dial(process.argv[2]);
+const result = await client.methods.echo({ text: 'value', count: 7, note: null });
 assert.equal(result.text, 'typescript:value');
 assert.equal(result.note, null);
 assert.equal(observed.count, 7);
-await assert.rejects(client.echo({ text: 'bad', count: 9007199254740992 }));
-await assert.rejects(client.peer.call('relay', {}), 'the probe server served a method of another family');
+await assert.rejects(client.methods.echo({ text: 'bad', count: 9007199254740992 }));
+await assert.rejects(peer.call('relay', {}), 'the probe server served a method of another family');
 for (const [name, family] of [['started echo', 'probe'], ['ended echo', 'probe'], ['delivered changed', 'probe'], ['started reverse', 'probe'], ['ended reverse', 'probe'], ['started relay', 'carrier'], ['ended relay', 'carrier']]) {
   assert.equal(labels.get(name), family, name + ' is labelled ' + labels.get(name) + ', not ' + family);
 }
-client.close();
+peer.close();wire.close();
 `
 
 // runtimeLoader resolves runtime and generated sibling packages to their
@@ -476,15 +481,45 @@ import (
  client "example.test/generated/api/go/probe-client"
  protocol "example.test/generated/api/go/probe-protocol"
  runtime "github.com/Bitspark/nightseam/runtime/go"
+ duplex "github.com/Bitspark/nightseam/duplex/go"
 )
-type serverHandler struct{}
-func(serverHandler)Echo(ctx context.Context,remote *binding.Remote,p protocol.Payload)(protocol.Payload,error){if err:=remote.EmitChanged(ctx,p);err!=nil{return p,err};return remote.Reverse(ctx,p)}
-func(serverHandler)NoArgs(context.Context,*binding.Remote)(string,error){return "ok",nil}
+type serverHandler struct{remote protocol.Client}
+func(h serverHandler)Echo(ctx context.Context,p protocol.Payload)(protocol.Payload,error){if err:=h.remote.Events.Changed(ctx,p);err!=nil{return p,err};return h.remote.Methods.Reverse(ctx,p)}
+func(serverHandler)NoArgs(context.Context)(string,error){return "ok",nil}
 type clientHandler struct{}
-func(clientHandler)Reverse(ctx context.Context,c *client.Client,p protocol.Payload)(protocol.Payload,error){p.Text="reversed:"+p.Text;return p,nil}
-func TestRoundTrip(t *testing.T){h,err:=binding.NewHandler(serverHandler{},runtime.ServerOptions{Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}});if err!=nil{t.Fatal(err)};server:=httptest.NewServer(h);defer server.Close();ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second);defer cancel();c,err:=client.Dial(ctx,"ws"+strings.TrimPrefix(server.URL,"http"),runtime.DialOptions{},clientHandler{}, client.Events{});if err!=nil{t.Fatal(err)};defer c.Close();result,err:=c.Echo(ctx,protocol.Payload{Text:"value",Count:3,Note:runtime.Some(runtime.Null[string]())});if err!=nil{t.Fatal(err)};if result.Text!="reversed:value"||!result.Note.Present||!result.Note.Value.Null{t.Fatalf("unexpected roundtrip %#v",result)}}
-func TestGeneratedTypeScript(t *testing.T){if _,err:=exec.LookPath("node");err!=nil{t.Skip("Node is not installed")};h,err:=binding.NewHandler(serverHandler{},runtime.ServerOptions{Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}});if err!=nil{t.Fatal(err)};server:=httptest.NewServer(h);defer server.Close();ctx,cancel:=context.WithTimeout(context.Background(),15*time.Second);defer cancel();command:=exec.CommandContext(ctx,"node","--loader","./runtime-loader.mjs","roundtrip.mjs","ws"+strings.TrimPrefix(server.URL,"http"));if output,err:=command.CombinedOutput();err!=nil{t.Fatalf("Node generated client: %v\n%s",err,output)}}
-func TestEmptyRequestAndNullResult(t *testing.T){ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second);defer cancel();options:=runtime.ServerOptions{Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}};h,err:=binding.NewHandler(serverHandler{},options);if err!=nil{t.Fatal(err)};server:=httptest.NewServer(h);defer server.Close();c,err:=client.Dial(ctx,"ws"+strings.TrimPrefix(server.URL,"http"),runtime.DialOptions{},clientHandler{}, client.Events{});if err!=nil{t.Fatal(err)};defer c.Close();var raw json.RawMessage;if err=c.Peer.Call(ctx,"no_args",42,&raw);err==nil{t.Fatal("accepted scalar request")};options.Options.Handlers=map[string]runtime.Handler{"no_args":func(context.Context,*runtime.Peer,json.RawMessage)(any,error){return nil,nil}};badHandler,err:=runtime.NewHandler(options);if err!=nil{t.Fatal(err)};badServer:=httptest.NewServer(badHandler);defer badServer.Close();badClient,err:=client.Dial(ctx,"ws"+strings.TrimPrefix(badServer.URL,"http"),runtime.DialOptions{},clientHandler{}, client.Events{});if err!=nil{t.Fatal(err)};defer badClient.Close();if _,err=badClient.NoArgs(ctx);err==nil{t.Fatal("accepted null string reply")}}
+func(clientHandler)Reverse(ctx context.Context,p protocol.Payload)(protocol.Payload,error){p.Text="reversed:"+p.Text;return p,nil}
+type changedEvents struct{receive func(protocol.Payload)}
+func(e changedEvents)Changed(_ context.Context,p protocol.Payload)error{if e.receive!=nil{e.receive(p)};return nil}
+func serverModel(remote protocol.Client)(protocol.Server,error){return protocol.Server{Methods:serverHandler{remote},Events:struct{}{}},nil}
+// Model roots own generated observations. The physical host still observes
+// unrelated raw operations on its own peer, with its own family labels.
+type hostObserver struct{observer runtime.Observer}
+func(o hostObserver)Observe(event runtime.ObserverEvent){switch e:=event.(type){case runtime.RequestStarted:if e.Method=="relay"{o.observer.Observe(event)};case runtime.RequestEnded:if e.Method=="relay"{o.observer.Observe(event)}}}
+func serveProbe(options runtime.ServerOptions)(http.Handler,error){
+ modelOptions:=options.Options;prepare:=options.Options.Prepare
+ if options.Options.Observer!=nil{options.Options.Observer=hostObserver{options.Options.Observer}}
+ options.Options.Prepare=func(peer *runtime.Peer)error{
+  wire,err:=binding.ToWire(serverModel,runtime.AdapterContext{Options:modelOptions});if err!=nil{return err}
+  if _,err=runtime.ForwardWire(peer.Wire(),wire);err!=nil{_ = wire.Close(duplex.CodeInternalError,"");return err}
+  go func(){<-peer.Done();_ = wire.Close(duplex.CodeNormal,"")}()
+  if prepare!=nil{return prepare(peer)};return nil
+ }
+ return runtime.NewHandler(options)
+}
+func dialProbe(ctx context.Context,url string,options runtime.DialOptions,events protocol.ClientEvents)(protocol.Server,*runtime.Peer,error){
+ var access protocol.Server;modelOptions:=options.Options;prepare:=options.Options.Prepare
+ if options.Options.Observer!=nil{options.Options.Observer=hostObserver{options.Options.Observer}}
+ options.Options.Prepare=func(peer *runtime.Peer)error{
+  wire,err:=client.ToWire(func(remote protocol.Server)(protocol.Client,error){access=remote;return protocol.Client{Methods:clientHandler{},Events:events},nil},runtime.AdapterContext{Options:modelOptions});if err!=nil{return err}
+  if _,err=runtime.ForwardWire(peer.Wire(),wire);err!=nil{_ = wire.Close(duplex.CodeInternalError,"");return err}
+  go func(){<-peer.Done();_ = wire.Close(duplex.CodeNormal,"")}()
+  if prepare!=nil{return prepare(peer)};return nil
+ }
+ peer,_,err:=runtime.Dial(ctx,url,options);return access,peer,err
+}
+func TestRoundTrip(t *testing.T){h,err:=serveProbe(runtime.ServerOptions{Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}});if err!=nil{t.Fatal(err)};server:=httptest.NewServer(h);defer server.Close();ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second);defer cancel();c,peer,err:=dialProbe(ctx,"ws"+strings.TrimPrefix(server.URL,"http"),runtime.DialOptions{},changedEvents{});if err!=nil{t.Fatal(err)};defer peer.Close();result,err:=c.Methods.Echo(ctx,protocol.Payload{Text:"value",Count:3,Note:runtime.Some(runtime.Null[string]())});if err!=nil{t.Fatal(err)};if result.Text!="reversed:value"||!result.Note.Present||!result.Note.Value.Null{t.Fatalf("unexpected roundtrip %#v",result)}}
+func TestGeneratedTypeScript(t *testing.T){h,err:=serveProbe(runtime.ServerOptions{Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}});if err!=nil{t.Fatal(err)};server:=httptest.NewServer(h);defer server.Close();ctx,cancel:=context.WithTimeout(context.Background(),15*time.Second);defer cancel();command:=exec.CommandContext(ctx,"node","--loader","./runtime-loader.mjs","roundtrip.mjs","ws"+strings.TrimPrefix(server.URL,"http"));if output,err:=command.CombinedOutput();err!=nil{t.Fatalf("Node generated client: %v\n%s",err,output)}}
+func TestEmptyRequestAndNullResult(t *testing.T){ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second);defer cancel();options:=runtime.ServerOptions{Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}};h,err:=serveProbe(options);if err!=nil{t.Fatal(err)};server:=httptest.NewServer(h);defer server.Close();_,peer,err:=dialProbe(ctx,"ws"+strings.TrimPrefix(server.URL,"http"),runtime.DialOptions{},changedEvents{});if err!=nil{t.Fatal(err)};defer peer.Close();var raw json.RawMessage;if err=runtime.CallWire(ctx,peer.Wire(),[]string{"no_args"},42,&raw);err==nil{t.Fatal("accepted scalar request")};options.Options.Prepare=func(p *runtime.Peer)error{_,err:=runtime.HandleWire(p.Wire(),[]string{"no_args"},func(context.Context,json.RawMessage)(any,error){return nil,nil});return err};badHandler,err:=runtime.NewHandler(options);if err!=nil{t.Fatal(err)};badServer:=httptest.NewServer(badHandler);defer badServer.Close();badClient,badPeer,err:=dialProbe(ctx,"ws"+strings.TrimPrefix(badServer.URL,"http"),runtime.DialOptions{},changedEvents{});if err!=nil{t.Fatal(err)};defer badPeer.Close();if _,err=badClient.Methods.NoArgs(ctx);err==nil{t.Fatal("accepted null string reply")}}
 func TestOpenOwnershipAndPrecision(t *testing.T){open:=protocol.OpenRecord{ID:"o",AdditionalFields:map[string]json.RawMessage{"note":json.RawMessage("\"injected\"")}};if _,err:=json.Marshal(open);err==nil{t.Fatal("extension overwrote omitted declared field")};for _,data:=range []string{"{\"text\":\"a\",\"count\":9007199254740991.1}","{\"text\":\"a\",\"count\":1.00000000000000001}","{\"text\":\"a\",\"count\":1e-1000000000}"}{var p protocol.Payload;if err:=json.Unmarshal([]byte(data),&p);err==nil{t.Fatalf("accepted imprecise integer %s",data)}};if err:=protocol.ValidateExpressionRaw("json",[]byte("{\"huge\":1e999}"));err==nil{t.Fatal("accepted nonfinite arbitrary JSON")}}
 func TestCodecs(t *testing.T){for _,input:=range []string{"{}","{\"text\":\"a\",\"count\":9007199254740992}","{\"text\":\"a\",\"count\":1,\"extra\":1}","{\"text\":null,\"count\":1}"}{var value protocol.Payload;if err:=json.Unmarshal([]byte(input),&value);err==nil{t.Errorf("accepted %s",input)}};for _,input:=range []string{"{\"text\":\"a\",\"count\":1}","{\"text\":\"a\",\"count\":1,\"note\":null}","{\"text\":\"a\",\"count\":1,\"note\":\"n\"}"}{var value protocol.Payload;if err:=json.Unmarshal([]byte(input),&value);err!=nil{t.Fatal(err)};data,err:=json.Marshal(value);if err!=nil{t.Fatal(err)};var again protocol.Payload;if err=json.Unmarshal(data,&again);err!=nil{t.Fatal(err)}};var open protocol.OpenRecord;if err:=json.Unmarshal([]byte("{\"id\":\"o\",\"extension\":true}"),&open);err!=nil{t.Fatal(err)};if len(open.AdditionalFields)!=1{t.Fatal("lost open fields")};if _,err:=json.Marshal(open);err!=nil{t.Fatal(err)}}
 
@@ -494,15 +529,16 @@ type labels struct{
  mu sync.Mutex
  seen map[string]string
 }
+func operationName(name string)string{path,err:=duplex.DecodePath(name);if err==nil&&len(path)==1{return path[0]};return name}
 func newLabels() *labels { return &labels{seen: map[string]string{}} }
 func (l *labels) Observe(event runtime.ObserverEvent) {
  l.mu.Lock()
  defer l.mu.Unlock()
  switch e := event.(type) {
- case runtime.RequestStarted: l.seen["started "+e.Method] = e.Family
- case runtime.RequestEnded: l.seen["ended "+e.Method] = e.Family
- case runtime.EventEmitted: l.seen["emitted "+e.Name] = e.Family
- case runtime.EventDelivered: l.seen["delivered "+e.Name] = e.Family
+ case runtime.RequestStarted: l.seen["started "+operationName(e.Method)] = e.Family
+ case runtime.RequestEnded: l.seen["ended "+operationName(e.Method)] = e.Family
+ case runtime.EventEmitted: l.seen["emitted "+operationName(e.Name)] = e.Family
+ case runtime.EventDelivered: l.seen["delivered "+operationName(e.Name)] = e.Family
  }
 }
 func (l *labels) hold(t *testing.T, side string, want map[string]string) {
@@ -513,9 +549,8 @@ func (l *labels) hold(t *testing.T, side string, want map[string]string) {
   if got, seen := l.seen[key]; got != family || !seen { t.Errorf("%s: %s is labelled %q, not %q", side, key, got, family) }
  }
 }
-// TestInstallLabelsEveryNameWithItsFamily: the generated install labels
-// every method and event of the family on the options each peer is made
-// with, so that an observer says which family a name belongs to without
+// TestInstallLabelsEveryNameWithItsFamily: the generated model root labels
+// every method and event of the family on its local runtime options, so that an observer says which family a name belongs to without
 // parsing it — on the side that sends a name as well as on the side that
 // serves it. The server's options already label the carrier's relay, which
 // probe's install merges beside rather than replacing: one peer carrying
@@ -525,21 +560,20 @@ func TestInstallLabelsEveryNameWithItsFamilyOverTheWire(t *testing.T) {
  consumer, machine := newLabels(), newLabels()
  options := runtime.ServerOptions{Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil }, CheckOrigin: func(*http.Request) bool { return true }}
  options.Options = runtime.Options{Observer: machine, Families: map[string]string{"relay": "carrier"}}
- h, err := binding.NewHandler(serverHandler{}, options)
+ h, err := serveProbe(options)
  if err != nil { t.Fatal(err) }
  server := httptest.NewServer(h)
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
  defer cancel()
- c, err := client.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), runtime.DialOptions{Options: runtime.Options{Observer: consumer}}, clientHandler{}, client.Events{})
- if err != nil { t.Fatal(err) }
- defer c.Close()
  changed := make(chan struct{}, 1)
- if err := c.OnChanged(func(context.Context, protocol.Payload) { select { case changed <- struct{}{}: default: } }); err != nil { t.Fatal(err) }
- if _, err := c.Echo(ctx, protocol.Payload{Text: "value", Count: 1}); err != nil { t.Fatal(err) }
+ c,peer,err := dialProbe(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), runtime.DialOptions{Options: runtime.Options{Observer: consumer}},changedEvents{func(protocol.Payload){select{case changed<-struct{}{}:default:}}})
+ if err != nil { t.Fatal(err) }
+ defer peer.Close()
+ if _, err := c.Methods.Echo(ctx, protocol.Payload{Text: "value", Count: 1}); err != nil { t.Fatal(err) }
  select { case <-changed: case <-ctx.Done(): t.Fatal("the event never arrived") }
  var raw json.RawMessage
- if err := c.Peer.Call(ctx, "relay", map[string]any{}, &raw); err == nil { t.Fatal("the probe server served a method of another family") }
+ if err := peer.Call(ctx, "relay", map[string]any{}, &raw); err == nil { t.Fatal("the probe server served a method of another family") }
  consumer.hold(t, "the consumer", map[string]string{"started echo": "probe", "ended echo": "probe", "delivered changed": "probe", "started reverse": "probe", "ended reverse": "probe", "started relay": ""})
  machine.hold(t, "the machine", map[string]string{"started echo": "probe", "ended echo": "probe", "emitted changed": "probe", "started reverse": "probe", "ended reverse": "probe", "started relay": "carrier", "ended relay": "carrier"})
 }
