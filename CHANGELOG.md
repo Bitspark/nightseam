@@ -8,6 +8,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Clarified
 
+- The profile documentation names 4011 for a binary frame rejected by the
+  JSON peer, matching both reference runtimes. A shared core scenario holds
+  the close code at both ends and verifies the request is never dispatched.
 - Nightseam is the implementation home for its reusable typed-access
   foundation and optional rooted-grant authentication, with public
   self-contained contracts and consumer-owned application policy. The
