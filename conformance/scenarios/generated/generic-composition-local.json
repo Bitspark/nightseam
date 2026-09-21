@@ -1,0 +1,26 @@
+{
+  "name": "GEN-COMPOSE-LOCAL unchanged Cell retains both generic forms across local Wire presentations",
+  "layer": "generated",
+  "needs": [
+    "generated"
+  ],
+  "mirror": true,
+  "foreach": {
+    "table": "tables/generic-composition.json",
+    "as": "row",
+    "where": {
+      "mode": "local"
+    }
+  },
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.wire_local",
+      "args": {
+        "slot": "$row.slot",
+        "presentation": "$row.presentation"
+      },
+      "expect": "$row.exercise"
+    }
+  ]
+}

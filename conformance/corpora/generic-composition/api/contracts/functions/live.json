@@ -1,0 +1,8 @@
+{
+  "types": {
+    "Function": {"kind":"callable","parameters":[{"name":"A"},{"name":"B"}],"request":"A","result":"B"},
+    "OtherFunction": {"kind":"callable","parameters":[{"name":"A"},{"name":"B"}],"request":"A","result":"B"},
+    "IntegerFunction": {"kind":"alias","type":{"apply":"Function","with":{"A":"integer","B":"integer"}}},
+    "Factory": {"kind":"alias","type":{"apply":"Function","with":{"A":"IntegerFunction","B":"IntegerFunction"}}}
+  }
+}

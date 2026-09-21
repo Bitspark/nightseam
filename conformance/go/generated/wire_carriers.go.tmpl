@@ -73,6 +73,16 @@ func wireCarrierDigest(slot string) (string, error) {
 		binding = wireFactories().adapter.Binding
 	case "nested":
 		binding = wireNested().adapter.Binding
+	case "generic-function":
+		binding = wireGenericFunctions().adapter.Binding
+	case "integer-function":
+		binding = wireIntegerFunctions().adapter.Binding
+	case "generic-factory":
+		binding = wireGenericFactories().adapter.Binding
+	case "holder-numbers":
+		binding = wireHolderNumbers().adapter.Binding
+	case "holder-texts":
+		binding = wireHolderTexts().adapter.Binding
 	default:
 		return "", fmt.Errorf("unknown wire slot %s", slot)
 	}
@@ -103,6 +113,16 @@ func wireCarrierServer(peer *runtime.Peer, h *wireCarrierHandle, presentation, s
 		return wireSlotServer(peer, h, wireFactories())
 	case "nested":
 		return wireSlotServer(peer, h, wireNested())
+	case "generic-function":
+		return wireSlotServer(peer, h, wireGenericFunctions())
+	case "integer-function":
+		return wireSlotServer(peer, h, wireIntegerFunctions())
+	case "generic-factory":
+		return wireSlotServer(peer, h, wireGenericFactories())
+	case "holder-numbers":
+		return wireSlotServer(peer, h, wireHolderNumbers())
+	case "holder-texts":
+		return wireSlotServer(peer, h, wireHolderTexts())
 	}
 	return nil, fmt.Errorf("unknown wire slot %s", slot)
 }
@@ -168,6 +188,16 @@ func wireCarrierClient(peer *runtime.Peer, h *wireCarrierHandle, presentation, s
 		return wireSlotClient(peer, h, wireFactories())
 	case "nested":
 		return wireSlotClient(peer, h, wireNested())
+	case "generic-function":
+		return wireSlotClient(peer, h, wireGenericFunctions())
+	case "integer-function":
+		return wireSlotClient(peer, h, wireIntegerFunctions())
+	case "generic-factory":
+		return wireSlotClient(peer, h, wireGenericFactories())
+	case "holder-numbers":
+		return wireSlotClient(peer, h, wireHolderNumbers())
+	case "holder-texts":
+		return wireSlotClient(peer, h, wireHolderTexts())
 	}
 	return nil, fmt.Errorf("unknown wire slot %s", slot)
 }
@@ -182,6 +212,13 @@ func wireSlotClient[T any](peer *runtime.Peer, h *wireCarrierHandle, values wire
 			first, err := remote.Methods.Put(ctx, cell.PutParams[T]{Value: values.make(1)})
 			if err != nil {
 				return nil, err
+			}
+			var retained T
+			if values.retain {
+				retained, err = remote.Methods.Get(ctx)
+				if err != nil {
+					return nil, err
+				}
 			}
 			second, err := remote.Methods.Put(ctx, cell.PutParams[T]{Value: values.make(2)})
 			if err != nil {
@@ -216,7 +253,14 @@ func wireSlotClient[T any](peer *runtime.Peer, h *wireCarrierHandle, values wire
 			if err != nil {
 				return nil, err
 			}
-			return map[string]any{"revisions": []int64{first, second}, "value": observed, "reverse": reversed, "changed": changed}, nil
+			result := map[string]any{"revisions": []int64{first, second}, "value": observed, "reverse": reversed, "changed": changed}
+			if values.retain {
+				result["retained"], err = values.observe(ctx, retained)
+				if err != nil {
+					return nil, err
+				}
+			}
+			return result, nil
 		}
 		return cell.Client[T]{Methods: wireMirror[T]{}, Events: wireChanged[T]{changed}}, nil
 	}, environment, values.adapter)

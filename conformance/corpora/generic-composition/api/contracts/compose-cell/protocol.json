@@ -1,0 +1,13 @@
+{
+  "profile":"nightseam.duplex/1",
+  "parameters":[{"name":"T"}],
+  "types":{"Put":{"kind":"record","fields":[{"name":"value","type":"T"}]}},
+  "server": {
+    "methods":{"put":{"request":"Put","result":"integer"},"get":{"result":"T"}},
+    "events":{"changed":{"type":"Put"}}
+  },
+  "client": {
+    "methods":{"mirror":{"request":"Put","result":"T"}},
+    "events":{"noted":{"type":"Put"}}
+  }
+}

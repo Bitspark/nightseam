@@ -1,0 +1,95 @@
+{
+  "name": "GEN-COMPOSE-CARRIERS unchanged Cell retains both generic forms across sockets and prepared channels",
+  "layer": "generated",
+  "needs": [
+    "generated"
+  ],
+  "mirror": true,
+  "foreach": {
+    "table": "tables/generic-composition.json",
+    "as": "row",
+    "where": {
+      "mode": "carrier"
+    }
+  },
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "$row.carrier",
+        "presentation": "$row.presentation",
+        "slot": "$row.slot"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "origin"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_dial",
+      "args": {
+        "url": "$origin",
+        "carrier": "$row.carrier",
+        "presentation": "$row.presentation",
+        "slot": "$row.client_slot"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": "$row.exercise"
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_inspect",
+      "args": {
+        "on": "$server"
+      },
+      "expect": "$row.inspect"
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {}
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {}
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    }
+  ]
+}

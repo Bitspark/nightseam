@@ -33,6 +33,7 @@ import { holdTarball } from "./tarball.mjs";
 import { prepareGoRehearsal } from "./rehearsal.mjs";
 import { holdProbeExchange } from "./probe-exchange.mjs";
 import { holdOutsiderImports } from "./smoke-imports.mjs";
+import { holdGenericComposition } from "./smoke-generic-composition.mjs";
 
 const keep = process.argv.includes("--keep");
 const manifest = directory => JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
@@ -141,6 +142,8 @@ async function smoke() {
   // published example's checked-in output is what it renders.
   step("go tool nightseam check");
   run("go", ["tool", "nightseam", "check"], { cwd: consumer, env: go, stdio: ["ignore", "inherit", "inherit"] });
+
+  holdGenericComposition({ root, consumer, go, pnpm, run, step });
 
   const address = `127.0.0.1:${await free()}`;
   step(`go run ./server on ws://${address}/probe`);

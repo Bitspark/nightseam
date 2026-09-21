@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	cellbinding "example.test/generated/api/go/cell-binding"
+	"fmt"
 	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
@@ -25,6 +26,43 @@ func (h *wireBridgeHandle) shutdown() {
 		_ = h.origin.Close()
 	}
 }
+
+func wireBridgeFactory(ctx context.Context, origin duplex.Wire, h *wireBridgeHandle, slot string) (fixtureWireFactory, error) {
+	switch slot {
+	case "", "factory":
+		return wireSlotBridge(ctx, origin, h, wireFactories())
+	case "generic-function":
+		return wireSlotBridge(ctx, origin, h, wireGenericFunctions())
+	case "integer-function":
+		return wireSlotBridge(ctx, origin, h, wireIntegerFunctions())
+	case "generic-factory":
+		return wireSlotBridge(ctx, origin, h, wireGenericFactories())
+	case "holder-numbers":
+		return wireSlotBridge(ctx, origin, h, wireHolderNumbers())
+	case "holder-texts":
+		return wireSlotBridge(ctx, origin, h, wireHolderTexts())
+	}
+	return nil, fmt.Errorf("unknown wire bridge slot %s", slot)
+}
+
+func wireSlotBridge[T any](ctx context.Context, origin duplex.Wire, h *wireBridgeHandle, values wireValues[T]) (fixtureWireFactory, error) {
+	model, err := cellbinding.FromWire(ctx, origin, runtime.AdapterContext{Options: runtime.Options{Observer: h.observer}, ValueEnvironment: live.ValueEnvironment(h.originScope)}, values.adapter)
+	if err != nil {
+		return nil, err
+	}
+	return func(peer *runtime.Peer) (duplex.Wire, error) {
+		var err error
+		h.destinationScope, err = live.Over(peer, live.Options{})
+		if err != nil {
+			return nil, err
+		}
+		h.side = &wireCarrierSide{}
+		// The exact model returned by the origin adapter is interpreted at the
+		// destination. Generated boundaries translate every nested live reference.
+		return cellbinding.ToWire(model, runtime.AdapterContext{Options: runtime.Options{Observer: h.observer}, ValueEnvironment: live.ValueEnvironment(h.destinationScope)}, values.adapter)
+	}, nil
+}
+
 func (t *testee) wireBridgeDispatch(op string, raw map[string]json.RawMessage) (any, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), within(raw))
 	defer cancel()
@@ -44,22 +82,10 @@ func (t *testee) wireBridgeDispatch(op string, raw map[string]json.RawMessage) (
 		}
 		h.originViews = h.observer.snapshot().since(before)
 		go func() { <-h.origin.Done(); cleanup() }()
-		adapter := wireFactories().adapter
-		model, err := cellbinding.FromWire(ctx, selected, runtime.AdapterContext{Options: runtime.Options{Observer: h.observer}, ValueEnvironment: live.ValueEnvironment(h.originScope)}, adapter)
+		build, err := wireBridgeFactory(ctx, selected, h, str(raw, "slot"))
 		if err != nil {
 			h.shutdown()
 			return nil, err
-		}
-		build := func(peer *runtime.Peer) (duplex.Wire, error) {
-			var err error
-			h.destinationScope, err = live.Over(peer, live.Options{})
-			if err != nil {
-				return nil, err
-			}
-			h.side = &wireCarrierSide{}
-			// The exact model returned by the origin adapter is interpreted at the
-			// destination. Generated boundaries translate every nested live reference.
-			return cellbinding.ToWire(model, runtime.AdapterContext{Options: runtime.Options{Observer: h.observer}, ValueEnvironment: live.ValueEnvironment(h.destinationScope)}, adapter)
 		}
 		handler, err := runtime.NewHandler(runtime.ServerOptions{
 			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil }, CheckOrigin: func(*http.Request) bool { return true },
