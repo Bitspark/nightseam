@@ -1,0 +1,66 @@
+name: prepare approved 0.7.0 planning metadata
+on:
+  push:
+    branches: ['planning/issue-345-milestone-070']
+    paths: ['.github/workflows/plan-070-once.yml']
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: planning-issue-345-milestone-070
+  cancel-in-progress: false
+jobs:
+  metadata:
+    if: github.repository == 'Bitspark/nightseam'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create or reuse milestone and attach explicitly named planning issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, time, urllib.request
+          repo = 'Bitspark/nightseam'
+          assert os.environ['GITHUB_REPOSITORY'] == repo
+          assert os.environ['GITHUB_REF'] == 'refs/heads/planning/issue-345-milestone-070'
+          base = 'https://api.github.com/repos/' + repo
+          headers = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10', 'User-Agent': 'nightseam-approved-planning'}
+          def api(method, path, data=None):
+              req = urllib.request.Request(base + path, data=None if data is None else json.dumps(data).encode(), headers=headers, method=method)
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  raw = response.read()
+              if method != 'GET': time.sleep(1)
+              return json.loads(raw) if raw else None
+          def pages(path):
+              result = []
+              for page in range(1, 21):
+                  rows = api('GET', path + ('&' if '?' in path else '?') + f'per_page=100&page={page}')
+                  result.extend(rows)
+                  if len(rows) < 100: return result
+              raise RuntimeError('pagination bound exceeded')
+          matches = [m for m in pages('/milestones?state=all') if m['title'] == '0.7.0']
+          if len(matches) > 1: raise RuntimeError('ambiguous milestone title')
+          description = 'Reusable decentralized authentication and delegated authority. Coordinated by #345. Archon identity mechanisms; locally verified immutable rooted grant chains; finite actions and explicit narrowing/depth; optional half-open expiry; no Logos/Ontos proof engine, revocation/status lookup or mandatory Cloud account. Early contracts and 0.6 integration-feasibility work start now; Go/TypeScript implementations follow accepted packets; real generated-wire, independent-consumer and anonymous-install evidence precede release. #336 owns package boundaries; #337 owns invocation integration. No due date or production rollout is implied.'
+          if matches:
+              milestone = matches[0]
+              if milestone['state'] != 'open': raise RuntimeError('existing 0.7.0 is closed; do not reopen automatically')
+              milestone = api('PATCH', '/milestones/' + str(milestone['number']), {'description': description})
+          else:
+              milestone = api('POST', '/milestones', {'title': '0.7.0', 'state': 'open', 'description': description})
+          issues = {}
+          for number in [345, 336, 337]:
+              issue = api('GET', f'/issues/{number}')
+              if 'pull_request' in issue: raise RuntimeError('expected issue, got pull request')
+              current = issue.get('milestone')
+              if current and current['number'] != milestone['number']: raise RuntimeError(f'issue {number} already belongs to another milestone')
+              issues[number] = api('PATCH', f'/issues/{number}', {'milestone': milestone['number'], 'type': 'Epic' if number == 345 else 'Task'})
+          attached = {row['id'] for row in pages('/issues/345/sub_issues')}
+          for number in [336, 337]:
+              if issues[number]['id'] not in attached:
+                  api('POST', '/issues/345/sub_issues', {'sub_issue_id': issues[number]['id'], 'replace_parent': False})
+          result = {'milestone': milestone['html_url'], 'number': milestone['number'], 'epic': issues[345]['html_url'], 'children': [336, 337], 'changed_source_on_main': False}
+          print(json.dumps(result, indent=2))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write('## Approved planning metadata\n\n```json\n' + json.dumps(result, indent=2) + '\n```\n')
+          PY
