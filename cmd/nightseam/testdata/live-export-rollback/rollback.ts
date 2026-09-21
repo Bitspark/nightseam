@@ -57,9 +57,7 @@ try {
             case 'generic':
               return protocol.exportGenericUnchecked(sa.owner(), [{ item: fn }, { item: fn }]);
             case 'generic-live':
-              return protocol.exportBoundUnchecked(sa.owner(), { first: fn, last: fn }, (owner, input) =>
-                protocol.exportCall(owner, input),
-              );
+              return protocol.exportBoundUnchecked(sa.owner(), { first: fn, last: fn }, protocol.adapterCall());
             case 'request':
               return use([fn, fn]);
             case 'reply':

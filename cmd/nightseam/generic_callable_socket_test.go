@@ -8,6 +8,10 @@ import (
 	"testing"
 )
 
+func TestGenericCallableGolden(t *testing.T) {
+	holdGolden(t, "testdata/golden-generic-callables", renderTool(t, "testdata/generic-callables"))
+}
+
 // GEN-CALL-SOCKETS holds the generated Cell model, nested callable conversion,
 // retained values and acquisition rollback in both generated language roles.
 func TestGenericCallableSockets(t *testing.T) {
