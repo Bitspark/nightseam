@@ -29,7 +29,7 @@ func accessServer(wire duplex.Wire, environment runtime.AdapterContext) protocol
 func (c *serverMethods) Name(ctx context.Context) (string, error) {
 	var result string
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"name"}, struct{}{}, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "combinator"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"name"}, struct{}{}, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "combinator", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"string\""), raw); err != nil {
@@ -86,7 +86,7 @@ func (c *serverMethods) Pack(ctx context.Context, params boxesprotocol.Box[proto
 		}
 		publish := func(sent json.RawMessage) (json.RawMessage, error) {
 			var raw json.RawMessage
-			err := runtime.CallWire(ctx, c.wire, []string{"pack"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "combinator"})
+			err := runtime.CallWire(ctx, c.wire, []string{"pack"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "combinator", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout})
 			return raw, err
 		}
 		if true {
@@ -167,7 +167,7 @@ func (c *serverMethods) Toolkit(ctx context.Context, params protocol.ToolkitRequ
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"toolkit"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "combinator"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"toolkit"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "combinator", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	received, err := func() (protocol.Toolkit, error) {

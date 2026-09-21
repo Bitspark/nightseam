@@ -31,7 +31,7 @@ func (c *serverMethods) Describe(ctx context.Context, params protocol.Ticket) (s
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"describe"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "worker"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"describe"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "worker", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"string\""), raw); err != nil {
@@ -81,7 +81,7 @@ func (c *serverMethods) Start(ctx context.Context, params protocol.Start) (proto
 		}
 		publish := func(sent json.RawMessage) (json.RawMessage, error) {
 			var raw json.RawMessage
-			err := runtime.CallWire(ctx, c.wire, []string{"start"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "worker"})
+			err := runtime.CallWire(ctx, c.wire, []string{"start"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "worker", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout})
 			return raw, err
 		}
 		if true {
@@ -331,7 +331,7 @@ func (c *clientMethods) Supervise(ctx context.Context, params protocol.Supervise
 		}
 		publish := func(sent json.RawMessage) (json.RawMessage, error) {
 			var raw json.RawMessage
-			err := runtime.CallWire(ctx, c.wire, []string{"supervise"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "worker"})
+			err := runtime.CallWire(ctx, c.wire, []string{"supervise"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "worker", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout})
 			return raw, err
 		}
 		if true {
@@ -420,7 +420,7 @@ func (c *clientEvents) Settled(ctx context.Context, data protocol.Outcome) error
 			return sent, err
 		}
 		publish := func(sent json.RawMessage) (json.RawMessage, error) {
-			return nil, runtime.EmitWire(ctx, c.wire, []string{"settled"}, sent, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "worker"})
+			return nil, runtime.EmitWire(ctx, c.wire, []string{"settled"}, sent, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "worker", Propagator: c.environment.Options.Propagator})
 		}
 		if true {
 			return c.environment.ValueEnvironment.Publish(ctx, build, publish)

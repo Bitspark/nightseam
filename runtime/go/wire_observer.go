@@ -9,17 +9,20 @@ import (
 
 var wireObservationSequence atomic.Uint64
 
-// WireCallOptions labels observations made by one model call. It does not
-// reconfigure the selected wire or its carrier's observer.
+// WireCallOptions configures one model call, independently of its carrier.
+// A zero RequestTimeout uses the runtime default; Propagator nil uses DefaultPropagator.
 type WireCallOptions struct {
-	Observer Observer
-	Family   string
+	Propagator     Propagator
+	RequestTimeout time.Duration
+	Observer       Observer
+	Family         string
 }
 
-// WireEmitOptions labels observations made by one model event emission.
+// WireEmitOptions configures one model event emission, independently of its carrier.
 type WireEmitOptions struct {
-	Observer Observer
-	Family   string
+	Propagator Propagator
+	Observer   Observer
+	Family     string
 }
 
 func observeWire(observer Observer, event ObserverEvent) {

@@ -30,7 +30,7 @@ func (c *serverMethods) Echo(ctx context.Context, params protocol.Payload) (prot
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"echo"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "codex"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"echo"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "codex", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
@@ -44,7 +44,7 @@ func (c *serverMethods) Echo(ctx context.Context, params protocol.Payload) (prot
 func (c *serverMethods) NoArgs(ctx context.Context) (string, error) {
 	var result string
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"no_args"}, struct{}{}, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "codex"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"no_args"}, struct{}{}, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "codex", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"string\""), raw); err != nil {
@@ -157,7 +157,7 @@ func (c *clientMethods) Reverse(ctx context.Context, params protocol.Payload) (p
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"reverse"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "codex"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"reverse"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "codex", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
@@ -172,7 +172,7 @@ func (c *clientEvents) Changed(ctx context.Context, data protocol.Payload) error
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Payload\""), data); err != nil {
 		return err
 	}
-	return runtime.EmitWire(ctx, c.wire, []string{"changed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "codex"})
+	return runtime.EmitWire(ctx, c.wire, []string{"changed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "codex", Propagator: c.environment.Options.Propagator})
 }
 func bindClient(wire duplex.Wire, lookup func() protocol.Client, environment runtime.AdapterContext) error {
 	var detach []func()

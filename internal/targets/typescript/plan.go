@@ -136,7 +136,7 @@ func (p *plan) plan() {
 	// A parameter becomes a type parameter of the generated declarations;
 	// its binding is an argument retained by the adapter closure.
 	bindings := emit.NewNamespace("adapter arguments")
-	bindings.Fix("generated adapter local", "context", "options", "identity", "bindings", "slots", "environment", "observer", "hasModelHandler", "proxyServer", "proxyClient", "validateServer", "validateClient", "bindServer", "bindClient", "wire", "model", "adapter", "access", "binding", "bound", "gate", "implementation", "completed", "closed", "detach", "cleanup", "preparation")
+	bindings.Fix("generated adapter local", "context", "options", "identity", "bindings", "slots", "environment", "observer", "propagator", "requestTimeoutMs", "hasModelHandler", "proxyServer", "proxyClient", "validateServer", "validateClient", "bindServer", "bindClient", "wire", "model", "adapter", "access", "binding", "bound", "gate", "implementation", "completed", "closed", "detach", "cleanup", "preparation")
 	for _, parameter := range f.Parameters {
 		if what, taken := p.module.Reserved(parameter.Name); taken {
 			p.Addf(parameter.At.Sub("name"), "generated_name_collision", "Generated type parameter %s collides with the %s.", parameter.Name, what)

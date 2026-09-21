@@ -501,7 +501,12 @@ export class DuplexPeer {
   private emitWithTrace(event: string, data: unknown, options: EmitOptions, trace?: Trace): Promise<void> {
     try {
       requireName(event, 'event');
-      return this.send(carrying(traced({ version: 1, kind: 'event', event, data }, trace), options.meta), event);
+      return this.send(
+        carrying(traced({ version: 1, kind: 'event', event, data }, trace), options.meta),
+        event,
+        undefined,
+        trace,
+      );
     } catch (error) {
       return Promise.reject(new UnpublishedError(error));
     }
@@ -519,7 +524,12 @@ export class DuplexPeer {
     return pending;
   }
 
-  private async send(envelope: Envelope, name = '', refused?: (error: UnpublishedError) => void): Promise<void> {
+  private async send(
+    envelope: Envelope,
+    name = '',
+    refused?: (error: UnpublishedError) => void,
+    carriedTrace?: Trace,
+  ): Promise<void> {
     let queued = false;
     let endOnRefusal = false;
     try {
@@ -554,7 +564,7 @@ export class DuplexPeer {
         throw error;
       }
       const kind = envelope.kind as string;
-      const trace = traceOf(envelope);
+      const trace = carriedTrace ?? traceOf(envelope);
       const family = this.family(name);
       // What the peer did comes before the frame that carried it, as the Go
       // peer tells it: an event is emitted, then its frame is sent. The frame

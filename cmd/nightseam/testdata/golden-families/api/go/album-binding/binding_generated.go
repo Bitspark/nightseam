@@ -30,7 +30,7 @@ func (c *serverMethods[AEnvelope, BEnvelope]) Look(ctx context.Context, params p
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"look"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "album"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"look"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "album", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Both\""), raw); err != nil {

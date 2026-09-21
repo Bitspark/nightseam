@@ -13,7 +13,8 @@ import {
 } from '@nightseam/duplex';
 import { DuplexPeer, DuplexError, UnpublishedError } from './peer.ts';
 import type { PeerOptions } from './peer.ts';
-import { callWire, handleWire, emitWire, onWireEvent } from './wire.ts';
+import { callWire, handleWire, emitWire, onWireEvent, forwardWire } from './wire.ts';
+import { wirePair } from './wire-pair.ts';
 import { defaultPropagator } from './trace.ts';
 import type { ObserverEvent } from './observer.ts';
 
@@ -528,4 +529,33 @@ test('wire handler responses over the peer frame limit settle as internal errors
   handleWire(pair.server.wire(), ['large'], () => 'x'.repeat(1_024));
   await assert.rejects(callWire(pair.client.wire(), ['large'], {}, { timeoutMs: 100 }), { code: 'internal' });
   assert.equal(pair.client.status, 'connected');
+});
+
+test('configured outgoing traces retain private identity through a local Wire and physical peer', async (t) => {
+  const trace = { traceparent: '00-11111111111111111111111111111111-2222222222222222-01', tracestate: 'vendor=kept' };
+  const seen: ObserverEvent[] = [];
+  const pair = await paired({ observer: { observe: (event) => seen.push(event) } });
+  const [access, binding] = wirePair();
+  t.after(() => {
+    access.close();
+    pair.close();
+  });
+  forwardWire(binding, pair.client.wire());
+  handleWire(pair.server.wire(), ['call'], () => null);
+  const delivered = deferred();
+  onWireEvent(pair.server.wire(), ['event'], () => delivered.resolve());
+  const propagator = { inject: () => trace, extract: () => {} };
+  await callWire(access, ['call'], {}, { propagator });
+  emitWire(access, ['event'], null, { propagator });
+  await delivered.promise;
+  const outgoing = seen.filter(
+    (event) => (event.type === 'request.started' && !event.incoming) || event.type === 'event.emitted',
+  );
+  assert.equal(outgoing.length, 2);
+  for (const event of outgoing) assert.equal('trace' in event && event.trace, trace);
+  // A frame reconstructed at the receiving carrier retains public values only.
+  const incoming = seen.find((event) => event.type === 'request.started' && event.incoming);
+  assert.ok(incoming && 'trace' in incoming);
+  assert.notEqual(incoming.trace, trace);
+  assert.deepEqual(incoming.trace, trace);
 });

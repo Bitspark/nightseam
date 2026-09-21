@@ -30,7 +30,7 @@ func (c *serverMethods) ListEvents(ctx context.Context, params protocol.ListEven
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"events.list"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"events.list"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"array\":\"Event\"}"), raw); err != nil {
@@ -44,7 +44,7 @@ func (c *serverMethods) ListEvents(ctx context.Context, params protocol.ListEven
 func (c *serverMethods) Me(ctx context.Context) (protocol.User, error) {
 	var result protocol.User
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"me"}, struct{}{}, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"me"}, struct{}{}, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"User\""), raw); err != nil {
@@ -61,7 +61,7 @@ func (c *serverMethods) CreateProject(ctx context.Context, params protocol.Creat
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"projects.create"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"projects.create"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Project\""), raw); err != nil {
@@ -78,7 +78,7 @@ func (c *serverMethods) ListProjects(ctx context.Context, params protocol.ListPr
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"projects.list"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"projects.list"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"array\":\"Project\"}"), raw); err != nil {
@@ -95,7 +95,7 @@ func (c *serverMethods) UpdateProject(ctx context.Context, params protocol.Updat
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"projects.update"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"projects.update"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Project\""), raw); err != nil {
@@ -112,7 +112,7 @@ func (c *serverMethods) Subscribe(ctx context.Context, params protocol.Subscribe
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"subscribe"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"subscribe"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"SubscribeResult\""), raw); err != nil {
@@ -129,7 +129,7 @@ func (c *serverMethods) CancelWorkItem(ctx context.Context, params protocol.Canc
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"work.cancel"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.cancel"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -146,7 +146,7 @@ func (c *serverMethods) CreateWorkItem(ctx context.Context, params protocol.Crea
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"work.create"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.create"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -163,7 +163,7 @@ func (c *serverMethods) SetDependencies(ctx context.Context, params protocol.Set
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"work.dependencies"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.dependencies"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -180,7 +180,7 @@ func (c *serverMethods) GetWorkItem(ctx context.Context, params protocol.GetWork
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"work.get"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.get"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -197,7 +197,7 @@ func (c *serverMethods) ListWorkItems(ctx context.Context, params protocol.ListW
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"work.list"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.list"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"array\":\"WorkItem\"}"), raw); err != nil {
@@ -214,7 +214,7 @@ func (c *serverMethods) PublishSpecification(ctx context.Context, params protoco
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"work.publish"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.publish"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -231,7 +231,7 @@ func (c *serverMethods) ReopenWorkItem(ctx context.Context, params protocol.Reop
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"work.reopen"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.reopen"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -248,7 +248,7 @@ func (c *serverMethods) SetSteps(ctx context.Context, params protocol.SetStepsPa
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"work.steps"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.steps"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -265,7 +265,7 @@ func (c *serverMethods) UpdateWorkItem(ctx context.Context, params protocol.Upda
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"work.update"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench"}); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"work.update"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"WorkItem\""), raw); err != nil {
@@ -883,7 +883,7 @@ func (c *clientEvents) Changed(ctx context.Context, data protocol.Event) error {
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Event\""), data); err != nil {
 		return err
 	}
-	return runtime.EmitWire(ctx, c.wire, []string{"workbench.changed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "workbench"})
+	return runtime.EmitWire(ctx, c.wire, []string{"workbench.changed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "workbench", Propagator: c.environment.Options.Propagator})
 }
 func bindClient(wire duplex.Wire, lookup func() protocol.Client, environment runtime.AdapterContext) error {
 	var detach []func()

@@ -24,28 +24,20 @@ import {
   SimpleSpanProcessor,
   type ReadableSpan,
 } from '@opentelemetry/sdk-trace-base';
-import { pipe } from '@nightseam/duplex';
-import { DuplexPeer } from '@nightseam/runtime';
+import { encodePath, pipe } from '@nightseam/duplex';
+import { DuplexPeer, forwardWire } from '@nightseam/runtime';
 import { Tunnel, type Connection } from '@nightseam/tunnel';
-import {
-  Client,
-  type Handler,
-  type Payload,
-} from '../../../cmd/nightseam/testdata/golden/api/ts/probe-client/src/index.ts';
+import { toWire } from '../../../cmd/nightseam/testdata/golden/api/ts/probe-client/src/index.ts';
+import type { Payload, Server } from '../../../cmd/nightseam/testdata/golden/api/ts/probe-client/src/types.ts';
 import { observer } from './observer.ts';
 import { propagator } from './propagator.ts';
 
 /** A string that stands for a payload: it is in the params, the result and the answer below. */
 const SENTINEL = 'sentinel-6d9f2c-payload';
-/** The family's names, as the generated client labels the peer it makes. */
-const FAMILIES = {
-  echo: 'probe',
-  no_args: 'probe',
-  seen: 'probe',
-  reverse: 'probe',
-  changed: 'probe',
-  noticed: 'probe',
-};
+/** The host labels the physical peer using the family's encoded operation paths. */
+const FAMILIES = Object.fromEntries(
+  ['echo', 'no_args', 'seen', 'reverse', 'changed', 'noticed'].map((name) => [encodePath([name]), 'probe']),
+);
 const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 
 // An injection from outside a request reads the active context, which means
@@ -101,31 +93,47 @@ async function calling(tracer: Tracer, text: string): Promise<Payload> {
     observer: observer(tracer),
     families: FAMILIES,
   });
-  served.handle('echo', async (params, context) => {
-    const reversed = await served.call<Payload>('reverse', params, { context });
+  served.handle(encodePath(['echo']), async (params, context) => {
+    const reversed = await served.call<Payload>(encodePath(['reverse']), params, { context });
     return { ...reversed, text: 'machine:' + reversed.text };
   });
   await served.attach(wire.server);
 
-  // The client: the generated one, answering the reverse call.
-  const answering: Handler = { reverse: (params) => ({ ...params, text: [...params.text].reverse().join('') }) };
-  const client = await Client.attach(
-    wire.client,
-    { propagator: propagator(), observer: observer(tracer) },
-    answering,
-    {},
+  // The host owns the peer; the generated model supplies reverse handlers and
+  // captures typed server access once, independently of its physical carrier.
+  const caller = new DuplexPeer({
+    role: 'client',
+    propagator: propagator(),
+    observer: observer(tracer),
+    families: FAMILIES,
+  });
+  let client!: Server;
+  const modelWire = toWire(
+    (remote) => {
+      client = remote;
+      return {
+        methods: { reverse: (params) => ({ ...params, text: [...params.text].reverse().join('') }) },
+        events: { changed: () => {} },
+      };
+    },
+    { options: { propagator: propagator() } },
   );
+  forwardWire(caller.wire(), modelWire);
+  await caller.attach(wire.client);
 
   // The caller's own span, which is what the call is made under: it is the
   // one span of the trace this adapter did not open.
   const answer = await tracer.startActiveSpan('consumer.call', async (root) => {
     try {
-      return await client.echo({ text, count: 1 });
+      return await client.methods.echo({ text, count: 1 });
     } finally {
       root.end();
     }
   });
   await tick();
+  modelWire.close();
+  caller.close();
+  served.close();
   wire.close();
   await tick();
   return answer;
@@ -149,10 +157,10 @@ test('one call over a channel to a handler that calls back is one trace, parente
     return found[0]!;
   };
   const root = named('consumer.call', SpanKind.INTERNAL);
-  const called = named('echo', SpanKind.CLIENT);
-  const served = named('echo', SpanKind.SERVER);
-  const asked = named('reverse', SpanKind.CLIENT);
-  const answered = named('reverse', SpanKind.SERVER);
+  const called = named(encodePath(['echo']), SpanKind.CLIENT);
+  const served = named(encodePath(['echo']), SpanKind.SERVER);
+  const asked = named(encodePath(['reverse']), SpanKind.CLIENT);
+  const answered = named(encodePath(['reverse']), SpanKind.SERVER);
   // The call the client made and the handler the channel carried it to are
   // both of the span the call was made under.
   assert.equal(called.parentSpanContext?.spanId, root.spanContext().spanId);
@@ -165,6 +173,7 @@ test('one call over a channel to a handler that calls back is one trace, parente
   // what the frame named; the reverse call is parented at the span itself,
   // which the handler's own context carried to it and which names no
   // remoteness.
+  assert.equal(called.parentSpanContext?.isRemote, undefined);
   assert.equal(served.parentSpanContext?.isRemote, true);
   assert.equal(answered.parentSpanContext?.isRemote, true);
   assert.equal(asked.parentSpanContext?.isRemote, undefined);
@@ -180,7 +189,7 @@ test('one call over a channel to a handler that calls back is one trace, parente
   );
   assert.equal(served.attributes['nightseam.family'], 'probe');
   assert.equal(served.attributes['nightseam.incoming'], true);
-  assert.equal(asked.attributes['nightseam.method'], 'reverse');
+  assert.equal(asked.attributes['nightseam.method'], encodePath(['reverse']));
 });
 
 test('no payload reaches a span of a call that carried one, anywhere in the trace', async () => {

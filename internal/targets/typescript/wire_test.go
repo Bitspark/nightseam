@@ -38,6 +38,11 @@ func TestWireModelsPreserveBothDirectionsAndEventFacets(t *testing.T) {
 				t.Errorf("%s adapter lacks %q", role, want)
 			}
 		}
+		for _, want := range []string{"const propagator = context.options?.propagator;", "const requestTimeoutMs = context.options?.requestTimeoutMs;", "timeoutMs: context?.timeoutMs ?? requestTimeoutMs", `meta: context?.outgoingMeta, observer, propagator, family: "x"`} {
+			if !strings.Contains(module, want) {
+				t.Errorf("%s adapter drops configured model operation options %q", role, want)
+			}
+		}
 		for _, removed := range []string{"DuplexPeer", "FrameConnection", "scopeOf(", "function serve", "function install", "static async dial", "static async attach", "static async open"} {
 			if strings.Contains(module, removed) {
 				t.Errorf("%s adapter retains transport entry point %q", role, removed)
