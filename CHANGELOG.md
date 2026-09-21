@@ -16,6 +16,9 @@ are one number. Entries are in the words of the commits that landed them.
 - The TypeScript OpenTelemetry adapter retains connection and event-only
   telemetry with the Go reference's connection lifecycle, producer/consumer
   spans and fallback routing, without copying connection events onto requests.
+- Go and TypeScript peer Wires retain canceled handlers in their concurrency
+  budget until their application bodies finish, including caller and receiver
+  deadlines. Caller cancellation still returns promptly and reaches the handler.
 
 ### Clarified
 
