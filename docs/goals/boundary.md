@@ -2,15 +2,22 @@
 
 ## At the limit
 
-Nightseam holds exactly what is the same for every consumer and can be
-stated in the terms of the profile and the declaration — mechanism — and
-nothing that names a concept of a consumer's or decides a policy. Every
+Nightseam holds exactly what is the same for every consumer of a component's
+declared profile and can be stated in that profile and the declaration —
+mechanism — and nothing that names a concept of a consumer's or decides a policy. Every
 policy is outside and calls in; every mechanism is inside and is called. No
 consumer re-implements a mechanism, because the one inside is complete;
 Nightseam decides no policy, because a policy is a consumer's fact about
 its own world. The line is stated sharply enough that a change can say
 which side it is on before it is made, and a change that cannot say is not
 made.
+
+Checking evidence against an explicitly selected authority profile is
+mechanism; choosing trusted roots, issued authority, resource meanings and
+current access policy is the consumer's. The resource owner supplies and
+enforces those facts at the point of effect or disclosure. An optional
+component preserves this line by its responsibility and dependency direction,
+not merely by living in a different directory.
 
 ## The dimensions
 

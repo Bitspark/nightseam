@@ -19,6 +19,13 @@ composition may still ship when it satisfies the boundary, with its behavior
 and evidence made explicit. Classifying it as a composition does not require
 every consumer to build it again.
 
+The [repository-home decision](decisions/the-reusable-foundation-lives-in-nightseam.md)
+admits the selected optional rooted-grant authority profile here. Its
+evidence checking and guard preservation are reusable mechanism; consumers
+still choose trust, issued authority and resource policy. This extends the
+admitted scope explicitly, without admitting a general policy or proof engine.
+Admission is not a claim that the implementation has shipped.
+
 Three arguments are named here because each was made once and does not
 count. **It already exists**: the present inventory may itself be misplaced,
 and this page classifies it with no exemption. **It owns no state of the
@@ -43,9 +50,10 @@ A concept, once put to the test, is exactly one of these.
   boundary's second dimension — every consumer would write it the same way,
   and it names no concept of theirs — and a shipped composition is still a
   composition: the tunnel is one. *Shipped* is not a class.
-- **Domain semantics** — a concept of a consumer's, or a policy: who may do
-  what, for how long, in what order of preference. Out of scope however
-  generic its name, however many applications share it, and whether or not
+- **Domain semantics** — a concept of a consumer's, or choosing a policy:
+  who may do what, for how long, in what order of preference. Checking
+  evidence against those supplied terms is mechanism. Policy is out of scope
+  however generic its name, however many applications share it, and whether or not
   it is in a package of its own.
 - **An unresolved candidate** — a concept whose test is not finished: the
   row names the step that has produced no evidence and where that evidence
@@ -65,9 +73,9 @@ its *Admission evidence*, and the first step that fails ends the argument.
 
 ### 1. Scope
 
-State the level the concept is proposed at — data, RPC or live, or the
-runtime surface — and the purpose of that level in its own terms, without
-defining it as what the tree happens to contain. The concept must be
+State the level the concept is proposed at — data, RPC, live, the selected
+authority profile or the runtime surface — and its purpose in its own terms,
+without defining it as what the tree happens to contain. The concept must be
 stateable in the terms of the profile and the declaration language and be
 the same for every consumer. Scope and irreducibility are separate
 questions: a concept can be indivisible in one API and still be a
@@ -79,6 +87,7 @@ consumer's.
 | RPC | correlated requests, events, cancellation, refusal, bounds and headers over one connection | the seam, and ordinary application facilities |
 | live | values that are implementations to invoke, scoped and released | the peer, the tunnel's channels and handles, the value constructors, the generated packages, and ordinary application facilities |
 | data | the shapes of values, stated once and validated everywhere | the constructors already justified, each with its decision |
+| optional authority | verify evidence under the selected rooted-grant profile and preserve guards through invocation | reviewed signing and verification dependencies, the public runtime surface, ordinary bounded state and consumer-supplied trust and policy facts |
 
 ### 2. The basis
 
@@ -263,7 +272,13 @@ shipped is still a composition.
 | the scope's bookkeeping and its owners — what #200 called the registry | composition, shipped | a `Scope` retains connection identity, `Decode`, raw-reference `Release`, aggregate `Counts` and bounds. Its root `Owner` and nested children supply caller-chosen lifetimes: `Export` owns a new binding, `Import` owns a fresh attachment and borrows a reused one, and owner release revokes its allocations and children without counting aliases or re-parenting them. `ExportValue` and `ImportValue` unwind only a failed batch's fresh allocations. Generated conversion uses these owners while handing the consumer plain native functions; the consumer chooses when its lifetime ends. This is bookkeeping of the rows above that every consumer would otherwise repeat, with no catalog, entity store or durable host: bindings and lookup remain connection-scoped even though serialized descriptors can be presented again. [#257's verdict](https://github.com/Bitspark/nightseam/issues/257#issuecomment-5752853362) and [the owner decision](decisions/an-owner-is-a-lifetime-the-caller-supplies.md) settle the local lifetime surface without adding wire vocabulary. |
 | stream, cell, topic | compositions, demonstrated | the [composition examples and evidence](runtime/compositions.md#the-four-compositions) state their chosen behavior: the stream awaits reports and attempts one ending on normal completion/cancellation; the cell versions writes under a lock and reports after unlocking; the topic bounds each subscriber's queue and drops overflowing reports without evicting the subscriber. The fixtures hold the sequential cases they execute, not ordered concurrent notification, atomic fan-out or guaranteed terminal delivery after connection loss. Those limits and the different backpressure choices belong to the compositions. Their classification introduces no new kind and does not preclude shipping a reusable composition. |
 | collection, space, factory and assembly | domain semantics | storage with its query and history; hosting, construction and durable records. A consumer's, or a host's. |
-| service, and access rules | domain semantics | an interface plus an implementation plus authorization: the interface is a record of callables, the rest is the consumer's. |
+| service policy and issuance choices | domain semantics | the consumer chooses trusted roots, privileged issuance, resource meaning and current access rules; an interface remains a record of callables. Checking evidence under the selected authority profile is classified separately below. |
+
+### The selected optional authority profile
+
+| concept | class | the argument |
+| --- | --- | --- |
+| rooted-grant verification and guarded invocation | composition, admitted for implementation | reviewed signing and verification, bounded state and the public runtime surface compose checking supplied evidence and preserving guards; consumers supply trust and resource policy. The [repository-home decision](decisions/the-reusable-foundation-lives-in-nightseam.md) admits this selected profile, with independent adoption and no dependency from bare data/RPC back into auth. [#345](https://github.com/Bitspark/nightseam/issues/345) holds implementation and conformance; this row does not claim either has shipped. |
 
 ## Prior art
 

@@ -8,6 +8,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Clarified
 
+- Nightseam is the implementation home for its reusable typed-access
+  foundation and optional rooted-grant authentication, with public
+  self-contained contracts and consumer-owned application policy. The
+  decision distinguishes adopted scope from completed implementation.
 - Language onboarding includes the live runtime and generated boundary
   conversion, with shared scenario evidence for every profile. It separates
   declaration tiers, planned language assignments and achieved support, and

@@ -21,6 +21,16 @@ a composition attempted, the obstruction shown — and a design issue that
 admits a concept supplies that evidence in its form; being reusable, already
 existing, or owning no state of the consumer's is not the argument.
 
+This repository is the specification and implementation home for the
+adopted typed-access foundation and optional rooted-grant authority profile,
+as recorded in [the repository-home decision](docs/decisions/the-reusable-foundation-lives-in-nightseam.md).
+The authority component checks evidence and preserves guards; consumers choose
+roots, issued authority, resource meaning and current policy. Its dependency
+direction keeps bare data and RPC independent of auth. Public contracts and
+examples must be usable without private checkouts. A package boundary is not
+an admission argument, and this selected profile admits no general policy or
+proof engine.
+
 ## No legacy, and rewrites are cheap
 
 Nightseam has no released consumer, and until it has one there is nothing

@@ -8,6 +8,12 @@ is going, the **state** pages (`wire/`, `runtime/`, `declaration/`,
 `languages/`) say what it is, and the **decisions** say what it was chosen
 over and why.
 
+The [repository-home decision](decisions/the-reusable-foundation-lives-in-nightseam.md)
+places the adopted typed-access foundation and optional rooted-grant authority
+profile in Nightseam. It records direction and dependency boundaries; the
+state pages describe implemented behavior. Public contracts and examples
+stand alone, without access to a private consumer repository.
+
 ## Where it is going — `goals/`
 
 The north stars, abstract and never done: what Nightseam is for, in one
