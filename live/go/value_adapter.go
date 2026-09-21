@@ -6,6 +6,14 @@ import (
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
+// AdapterContext supplies the explicit lifetime environment of a generated
+// interpretation. Reusable value adapters receive the active owner at each use.
+type AdapterContext struct {
+	runtime.AdapterContext
+	Scope *Scope
+	Owner *Owner
+}
+
 // ValueAdapter keeps a value's declaration and both boundary conversions
 // together. Live reports whether conversion can acquire bindings. Conversion
 // receives the current owner, including its active publication batch; factories

@@ -63,10 +63,8 @@ func TestCheckRejectsWhatGoCannotGenerate(t *testing.T) {
 		"reserved codec field":            {map[string]string{"model.json": fixtureModel, "protocol.json": fixtureProtocol(``), "go.json": `{"names": {"Input.text": "MarshalJSON"}}`}, "reserved_name", "go.json#/names/Input.text"},
 		"unexported override":             {map[string]string{"model.json": fixtureModel, "protocol.json": fixtureProtocol(``), "go.json": `{"names": {"Input.text": "text"}}`}, "invalid_name", "go.json#/names/Input.text"},
 		"extension storage field":         {map[string]string{"model.json": m(`"Input": {"kind": "record", "open": true, "fields": [{"name": "additional_fields", "type": "string"}]}`)}, "reserved_name", "model.json#/types/Input/fields/0"},
-		"reserved method":                 {map[string]string{"model.json": fixtureModel, "protocol.json": fixtureProtocol(``), "go.json": `{"names": {"run": "Close"}}`}, "reserved_name", "go.json#/names/run"},
-		"a method named close":            {map[string]string{"model.json": fixtureModel, "protocol.json": modeltest.Protocol(`"server": {"methods": {"close": {"result": "string"}}}`)}, "reserved_name", "protocol.json#/server/methods/close"},
-		"event helper collision":          {map[string]string{"model.json": fixtureModel, "protocol.json": fixtureProtocol(``), "go.json": `{"names": {"run": "OnChanged"}}`}, "generated_name_collision", "protocol.json#/server/events/changed"},
-		"peer field collision":            {map[string]string{"model.json": fixtureModel, "protocol.json": fixtureProtocol(``), "go.json": `{"names": {"run": "Peer"}}`}, "reserved_name", "go.json#/names/run"},
+		"model declaration collision":     {map[string]string{"model.json": m(`"ServerModel": {"kind": "record", "fields": []}`), "protocol.json": modeltest.Protocol(``)}, "reserved_name", "model.json#/types/ServerModel"},
+		"event facet collision":           {map[string]string{"model.json": fixtureModel, "protocol.json": modeltest.Protocol(`"server":{"events":{"changed":{"type":"Result"},"other":{"type":"Result"}}}`), "go.json": `{"names":{"other":"Changed"}}`}, "generated_name_collision", "go.json#/names/other"},
 		"Go operation collision":          {map[string]string{"model.json": fixtureModel, "protocol.json": modeltest.Protocol(`"server": {"methods": {"run": {"result": "string"}, "other": {"result": "string"}}}`), "go.json": `{"names": {"other": "Run"}}`}, "generated_name_collision", "protocol.json#/server/methods/run"},
 		"reserved type":                   {map[string]string{"model.json": m(`"Tag": {"kind": "record", "fields": []}`)}, "reserved_name", "model.json#/types/Tag"},
 		"a type that is a keyword":        {map[string]string{"model.json": m(`"Func": {"kind": "record", "fields": []}`), "go.json": `{"names": {"Func": "func"}}`}, "invalid_name", "go.json#/names/Func"},
@@ -169,11 +167,9 @@ func bothSides() *render.Family {
 	})
 }
 
-// TestInstallLabelsEveryNameWithItsFamily: each install — the binding's and
-// the client's — labels every method and event of the family, both sides,
-// with the family's name, merged onto the options beside whatever the
-// caller labelled, as the handlers above it are merged.
-func TestInstallLabelsEveryNameWithItsFamily(t *testing.T) {
+// Each ToWire labels the encoded paths of both sides with the family's name,
+// retaining whatever the host already labelled.
+func TestToWireLabelsEveryNameWithItsFamily(t *testing.T) {
 	files, err := New(Config{Module: "example.test/m"}).Render(bothSides())
 	if err != nil {
 		t.Fatal(err)
@@ -183,10 +179,10 @@ func TestInstallLabelsEveryNameWithItsFamily(t *testing.T) {
 		for _, want := range []string{
 			"families := map[string]string{}",
 			"for name, existing := range options.Families {",
-			`families["run"] = "x"`,
-			`families["back"] = "x"`,
-			`families["changed"] = "x"`,
-			`families["noticed"] = "x"`,
+			`families["3:run"] = "x"`,
+			`families["4:back"] = "x"`,
+			`families["7:changed"] = "x"`,
+			`families["7:noticed"] = "x"`,
 			"options.Families = families",
 		} {
 			if !strings.Contains(source, want) {
@@ -200,7 +196,7 @@ func TestInstallLabelsEveryNameWithItsFamily(t *testing.T) {
 // packages declare of themselves is reserved, and nothing else is.
 func TestReservedNamesAreWhatTheTargetEmits(t *testing.T) {
 	reserved := Reserved()
-	for _, ident := range []string{"Tag", "Client", "Handler", "Dial", "Peer", "Close", "IsError"} {
+	for _, ident := range []string{"Tag", "Server", "Client", "ServerModel", "ClientMethods", "ServerEvents", "ToWire", "FromWire", "IsError"} {
 		found := false
 		for _, r := range reserved {
 			found = found || r == ident
@@ -209,7 +205,7 @@ func TestReservedNamesAreWhatTheTargetEmits(t *testing.T) {
 			t.Errorf("%s is emitted and not reserved", ident)
 		}
 	}
-	for _, free := range []string{"Server", "API", "Optional", "Call", "Notify"} {
+	for _, free := range []string{"Handler", "Dial", "Attach", "Open", "Serve", "Remote", "Peer", "Close", "API", "Optional", "Call", "Notify"} {
 		for _, r := range reserved {
 			if r == free {
 				t.Errorf("%s is reserved and never emitted", free)

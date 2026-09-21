@@ -27,7 +27,11 @@ func TestGeneratedGoValueAdapters(t *testing.T) {
 		} else {
 			writeFixture(t, directory, path+"protocol.json", []byte(`{"profile":"nightseam.duplex/1",`+body+`}`))
 		}
-		program := strings.NewReplacer("FAMILY", family, "NAME", slot.name, "TYPE", slot.goType, "ADAPTER", slot.adapter, "VALUE", slot.value, "OBSERVE", slot.observe, "LIVE", fmt.Sprint(slot.live)).Replace(goBoundAdapterProgram)
+		contextA, contextB := "runtime.AdapterContext{}", "runtime.AdapterContext{}"
+		if slot.live {
+			contextA, contextB = "live.AdapterContext{Scope:sa}", "live.AdapterContext{Scope:sb}"
+		}
+		program := strings.NewReplacer("CONTEXTA", contextA, "CONTEXTB", contextB, "FAMILY", family, "NAME", slot.name, "TYPE", slot.goType, "ADAPTER", slot.adapter, "VALUE", slot.value, "OBSERVE", slot.observe, "LIVE", fmt.Sprint(slot.live)).Replace(goBoundAdapterProgram)
 		writeFixture(t, directory, family+"_test.go", []byte(program))
 	}
 	if out, errs, err := run(t, directory, "generate"); err != nil {
@@ -48,30 +52,41 @@ import (
  "time"
  boxes "example.test/generated/api/go/boxes-protocol"
  combinator "example.test/generated/api/go/combinator-protocol"
- client "example.test/generated/api/go/cell-client"
  binding "example.test/generated/api/go/cell-binding"
  cellprotocol "example.test/generated/api/go/cell-protocol"
  "github.com/Bitspark/nightseam/duplex/go"
  "github.com/Bitspark/nightseam/live/go"
  "github.com/Bitspark/nightseam/runtime/go"
 )
-type cell[T any] struct { value T; puts int64; remote *binding.Remote[T] }
-func (c *cell[T]) Put(_ context.Context, remote *binding.Remote[T], params cellprotocol.PutParams[T]) (int64,error) { c.value=params.Value; c.remote=remote; c.puts++; return c.puts,nil }
-func (c *cell[T]) Get(_ context.Context, _ *binding.Remote[T]) (T,error) { return c.value,nil }
+type cell[T any] struct { value T; puts int64; remote cellprotocol.Client[T]; changed,noted chan T }
+func (c *cell[T]) Put(_ context.Context, params cellprotocol.PutParams[T]) (int64,error) { c.value=params.Value; c.puts++; return c.puts,nil }
+func (c *cell[T]) Get(_ context.Context) (T,error) { return c.value,nil }
 type reverse[T any] struct{}
-func (reverse[T]) Mirror(_ context.Context,_ *client.Client[T],params cellprotocol.PutParams[T])(T,error){return params.Value,nil}
-func connect[T any](t *testing.T, adapter live.ValueAdapter[T]) (*client.Client[T],*cell[T],*live.Scope,*live.Scope) {
- t.Helper(); a,b:=duplex.Pipe(1<<20); implementation:=new(cell[T]); var sa,sb *live.Scope
- options:=func(scope **live.Scope) runtime.Options { return runtime.Options{Prepare:func(p *runtime.Peer)(err error){ if adapter.Live { *scope,err=live.Over(p,live.Options{}) }; return }} }
- server,err:=binding.Serve(context.Background(),b,options(&sb),implementation,adapter); if err!=nil {t.Fatal(err)}
- caller,err:=client.Attach(context.Background(),a,options(&sa),reverse[T]{},client.Events[T]{},adapter); if err!=nil {t.Fatal(err)}
- t.Cleanup(func(){_ = caller.Close(); _ = server.Close()}); return caller,implementation,sa,sb
+func (reverse[T]) Mirror(_ context.Context,params cellprotocol.PutParams[T])(T,error){return params.Value,nil}
+type receiveChanged[T any] struct{ values chan T }
+func(c receiveChanged[T]) Changed(_ context.Context,p cellprotocol.PutParams[T])error{c.values<-p.Value;return nil}
+type receiveNoted[T any] struct{ values chan T }
+func(c receiveNoted[T]) Noted(_ context.Context,p cellprotocol.PutParams[T])error{c.values<-p.Value;return nil}
+func physical(t *testing.T,isLive bool)(*runtime.Peer,*runtime.Peer,*live.Scope,*live.Scope){
+ t.Helper();a,b:=duplex.Pipe(1<<20);var sa,sb *live.Scope
+ options:=func(scope **live.Scope)runtime.Options{return runtime.Options{Prepare:func(p *runtime.Peer)(err error){if isLive{*scope,err=live.Over(p,live.Options{})};return}}}
+ pa,err:=runtime.NewPeer(context.Background(),a,runtime.ClientRole,options(&sa));if err!=nil{t.Fatal(err)}
+ pb,err:=runtime.NewPeer(context.Background(),b,runtime.ServerRole,options(&sb));if err!=nil{t.Fatal(err)}
+ t.Cleanup(func(){_=pa.Close();_=pb.Close()});return pa,pb,sa,sb
+}
+func connect[T any](t *testing.T, adapter live.ValueAdapter[T]) (cellprotocol.Server[T],*cell[T],*live.Scope,*live.Scope) {
+ t.Helper();pa,pb,sa,sb:=physical(t,adapter.Live);implementation:=&cell[T]{changed:make(chan T,4),noted:make(chan T,4)}
+ wire,err:=binding.ToWire(func(remote cellprotocol.Client[T])(cellprotocol.Server[T],error){implementation.remote=remote;return cellprotocol.Server[T]{Methods:implementation,Events:receiveNoted[T]{implementation.noted}},nil},live.AdapterContext{Scope:sb},adapter);if err!=nil{t.Fatal(err)}
+ off,err:=runtime.ForwardWire(pb.Wire(),wire);if err!=nil{t.Fatal(err)}
+ model,err:=binding.FromWire(context.Background(),pa.Wire(),live.AdapterContext{Scope:sa},adapter);if err!=nil{t.Fatal(err)}
+ caller,err:=model(cellprotocol.Client[T]{Methods:reverse[T]{},Events:receiveChanged[T]{implementation.changed}});if err!=nil{t.Fatal(err)}
+ t.Cleanup(func(){off();_=wire.Close(duplex.CodeNormal,"")});return caller,implementation,sa,sb
 }
 func zero(t *testing.T, scopes ...*live.Scope) { t.Helper(); deadline:=time.Now().Add(3*time.Second); for _,s:=range scopes { for s.Counts()!=(live.Counts{}) {if time.Now().After(deadline){t.Fatalf("leak: %+v",s.Counts())};time.Sleep(time.Millisecond)} } }
 func round[T any](t *testing.T,adapter live.ValueAdapter[T],value T,observe func(T)) {
  t.Helper(); caller,state,a,b:=connect(t,adapter); ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second); defer cancel()
- n,err:=caller.Put(ctx,cellprotocol.PutParams[T]{Value:value});if err!=nil||n!=1||state.puts!=1 {t.Fatalf("put: %d, %v; state %d",n,err,state.puts)}
- got,err:=caller.Get(ctx);if err!=nil {t.Fatal(err)}; observe(got)
+ n,err:=caller.Methods.Put(ctx,cellprotocol.PutParams[T]{Value:value});if err!=nil||n!=1||state.puts!=1 {t.Fatalf("put: %d, %v; state %d",n,err,state.puts)}
+ got,err:=caller.Methods.Get(ctx);if err!=nil {t.Fatal(err)}; observe(got)
  if adapter.Live {if a.Counts().Exports==0||b.Counts().Imports==0 {t.Fatal("slot did not export/import")}; _=a.Owner().Release();_=b.Owner().Release();zero(t,a,b)} else if a!=nil||b!=nil {t.Fatal("scalar requires live scope")}
 }
 func TestOneCellAcrossSlots(t *testing.T) {
@@ -104,10 +119,10 @@ func TestAdapterComposesWithCurrentOwnerAndRollsBack(t *testing.T) {
 func TestGenericPublicationRefusalDoesNotAcquire(t *testing.T) {
  adapter:=boxes.AdapterPage(combinator.AdapterUnary());caller,state,a,b:=connect(t,adapter)
  fn:=func(_ context.Context,n int64)(int64,error){return n,nil};owner:=a.Owner().Child();ctx,cancel:=context.WithCancel(live.WithOwner(context.Background(),owner));cancel()
- _,err:=caller.Put(ctx,cellprotocol.PutParams[boxes.Page[combinator.Unary]]{Value:boxes.Page[combinator.Unary]{Items:[]combinator.Unary{fn}}})
+ _,err:=caller.Methods.Put(ctx,cellprotocol.PutParams[boxes.Page[combinator.Unary]]{Value:boxes.Page[combinator.Unary]{Items:[]combinator.Unary{fn}}})
  var proof *runtime.UnpublishedError;if !errors.As(err,&proof) {t.Fatalf("missing unpublished refusal: %v",err)}
  if state.puts!=0 || owner.Counts()!=(live.Counts{}) || a.Counts()!=(live.Counts{}) || b.Counts()!=(live.Counts{}) {t.Fatalf("unpublished request changed state: %d %+v %+v",state.puts,a.Counts(),b.Counts())}
- good:=live.WithOwner(context.Background(),owner);if _,err:=caller.Put(good,cellprotocol.PutParams[boxes.Page[combinator.Unary]]{Value:boxes.Page[combinator.Unary]{Items:[]combinator.Unary{fn}}});err!=nil{t.Fatal(err)}
+ good:=live.WithOwner(context.Background(),owner);if _,err:=caller.Methods.Put(good,cellprotocol.PutParams[boxes.Page[combinator.Unary]]{Value:boxes.Page[combinator.Unary]{Items:[]combinator.Unary{fn}}});err!=nil{t.Fatal(err)}
  if owner.Counts().Exports!=1||a.Owner().Counts().Exports!=0 {t.Fatal("constructor captured a permanent owner")}
  _=owner.Release();_=b.Owner().Release();zero(t,a,b)
 }
@@ -117,13 +132,11 @@ func TestComposedBindingRejectsInvalidScalarInsideLiveValue(t *testing.T) {
 func TestSlotAdaptersReachReverseCallsAndEvents(t *testing.T) {
  caller,state,a,b:=connect(t,combinator.AdapterUnary());ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second);defer cancel();var calls atomic.Int64
  fn:=func(_ context.Context,n int64)(int64,error){calls.Add(1);return n+1,nil}
- if _,err:=caller.Put(ctx,cellprotocol.PutParams[combinator.Unary]{Value:fn});err!=nil{t.Fatal(err)}
- got,err:=state.remote.Mirror(ctx,cellprotocol.PutParams[combinator.Unary]{Value:fn});if err!=nil{t.Fatal(err)};if n,err:=got(ctx,4);err!=nil||n!=5{t.Fatalf("reverse: %d %v",n,err)}
- changed:=make(chan combinator.Unary,1);noted:=make(chan combinator.Unary,1)
- if err:=caller.OnChanged(func(_ context.Context,p cellprotocol.PutParams[combinator.Unary]){changed<-p.Value});err!=nil{t.Fatal(err)}
- if err:=state.remote.OnNoted(func(_ context.Context,p cellprotocol.PutParams[combinator.Unary]){noted<-p.Value});err!=nil{t.Fatal(err)}
- if err:=state.remote.EmitChanged(ctx,cellprotocol.PutParams[combinator.Unary]{Value:fn});err!=nil{t.Fatal(err)}
- if err:=caller.EmitNoted(ctx,cellprotocol.PutParams[combinator.Unary]{Value:fn});err!=nil{t.Fatal(err)}
+ if _,err:=caller.Methods.Put(ctx,cellprotocol.PutParams[combinator.Unary]{Value:fn});err!=nil{t.Fatal(err)}
+ got,err:=state.remote.Methods.Mirror(ctx,cellprotocol.PutParams[combinator.Unary]{Value:fn});if err!=nil{t.Fatal(err)};if n,err:=got(ctx,4);err!=nil||n!=5{t.Fatalf("reverse: %d %v",n,err)}
+ changed,noted:=state.changed,state.noted
+ if err:=state.remote.Events.Changed(ctx,cellprotocol.PutParams[combinator.Unary]{Value:fn});err!=nil{t.Fatal(err)}
+ if err:=caller.Events.Noted(ctx,cellprotocol.PutParams[combinator.Unary]{Value:fn});err!=nil{t.Fatal(err)}
  for _,event:=range []chan combinator.Unary{changed,noted}{select{case fn:=<-event:if n,err:=fn(ctx,5);err!=nil||n!=6{t.Fatalf("event: %d %v",n,err)};case <-ctx.Done():t.Fatal(ctx.Err())}}
  if calls.Load()!=3{t.Fatalf("callback count %d",calls.Load())};_=a.Owner().Release();_=b.Owner().Release();zero(t,a,b)
 }
@@ -151,7 +164,6 @@ import (
  boxes "example.test/generated/api/go/boxes-protocol"
  combinator "example.test/generated/api/go/combinator-protocol"
  concretebinding "example.test/generated/api/go/FAMILY-binding"
- concreteclient "example.test/generated/api/go/FAMILY-client"
  concreteprotocol "example.test/generated/api/go/FAMILY-protocol"
  cellprotocol "example.test/generated/api/go/cell-protocol"
  "github.com/Bitspark/nightseam/duplex/go"
@@ -159,8 +171,8 @@ import (
  "github.com/Bitspark/nightseam/runtime/go"
 )
 type sourceCellNAME struct { value TYPE; puts int64 }
-func (c *sourceCellNAME) Put(_ context.Context,_ *concretebinding.Remote,params concreteprotocol.PutParams)(int64,error){c.value=params.Value;c.puts++;return c.puts,nil}
-func (c *sourceCellNAME) Get(_ context.Context,_ *concretebinding.Remote)(TYPE,error){return c.value,nil}
+func (c *sourceCellNAME) Put(_ context.Context,params concreteprotocol.PutParams)(int64,error){c.value=params.Value;c.puts++;return c.puts,nil}
+func (c *sourceCellNAME) Get(_ context.Context)(TYPE,error){return c.value,nil}
 func TestIndependentConstructionNAME(t *testing.T) {
  ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second);defer cancel()
  var calls atomic.Int64
@@ -170,12 +182,13 @@ func TestIndependentConstructionNAME(t *testing.T) {
  _,_=factory,nested
  observe:=func(value TYPE) string { OBSERVE }
  generic,genericState,ga,gb:=connect(t,ADAPTER)
- n,err:=generic.Put(ctx,cellprotocol.PutParams[TYPE]{Value:VALUE});if err!=nil{t.Fatal(err)};gv,err:=generic.Get(ctx);if err!=nil{t.Fatal(err)};gObservation:=fmt.Sprint(n,"/",genericState.puts,"/",observe(gv));gCalls:=calls.Load()
- a,b:=duplex.Pipe(1<<20);source:=new(sourceCellNAME);var sa,sb *live.Scope
- options:=func(scope **live.Scope)runtime.Options{return runtime.Options{Prepare:func(p *runtime.Peer)(err error){if LIVE{*scope,err=live.Over(p,live.Options{})};return}}}
- server,err:=concretebinding.Serve(ctx,b,options(&sb),source);if err!=nil{t.Fatal(err)};defer server.Close()
- plain,err:=concreteclient.Attach(ctx,a,options(&sa),nil,concreteclient.Events{});if err!=nil{t.Fatal(err)};defer plain.Close()
- n,err=plain.Put(ctx,concreteprotocol.PutParams{Value:VALUE});if err!=nil{t.Fatal(err)};pv,err:=plain.Get(ctx);if err!=nil{t.Fatal(err)};pObservation:=fmt.Sprint(n,"/",source.puts,"/",observe(pv));pCalls:=calls.Load()-gCalls
+ n,err:=generic.Methods.Put(ctx,cellprotocol.PutParams[TYPE]{Value:VALUE});if err!=nil{t.Fatal(err)};gv,err:=generic.Methods.Get(ctx);if err!=nil{t.Fatal(err)};gObservation:=fmt.Sprint(n,"/",genericState.puts,"/",observe(gv));gCalls:=calls.Load()
+ pa,pb,sa,sb:=physical(t,LIVE);source:=new(sourceCellNAME)
+ wire,err:=concretebinding.ToWire(func(concreteprotocol.Client)(concreteprotocol.Server,error){return concreteprotocol.Server{Methods:source},nil},CONTEXTB);if err!=nil{t.Fatal(err)};defer wire.Close(duplex.CodeNormal,"")
+ off,err:=runtime.ForwardWire(pb.Wire(),wire);if err!=nil{t.Fatal(err)};defer off()
+ model,err:=concretebinding.FromWire(ctx,pa.Wire(),CONTEXTA);if err!=nil{t.Fatal(err)}
+ plain,err:=model(concreteprotocol.Client{});if err!=nil{t.Fatal(err)}
+ n,err=plain.Methods.Put(ctx,concreteprotocol.PutParams{Value:VALUE});if err!=nil{t.Fatal(err)};pv,err:=plain.Methods.Get(ctx);if err!=nil{t.Fatal(err)};pObservation:=fmt.Sprint(n,"/",source.puts,"/",observe(pv));pCalls:=calls.Load()-gCalls
  if gObservation!=pObservation||gCalls!=pCalls{t.Fatalf("paths differ: generic %s/%d, source %s/%d",gObservation,gCalls,pObservation,pCalls)}
  if LIVE {if ga.Counts()!=sa.Counts()||gb.Counts()!=sb.Counts(){t.Fatalf("counts differ: %+v/%+v %+v/%+v",ga.Counts(),gb.Counts(),sa.Counts(),sb.Counts())};_=ga.Owner().Release();_=gb.Owner().Release();_=sa.Owner().Release();_=sb.Owner().Release();zero(t,ga,gb,sa,sb)}
 }
