@@ -105,6 +105,15 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.6.7'
+          enable-stack: true
+          stack-version: '3.7.1'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.stack
+          key: haskell-${{ runner.os }}-9.6.7-${{ hashFiles('conformance/haskell/stack.yaml.lock') }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -155,6 +164,8 @@ jobs:
       # than a release.
       - run: pnpm -r build
       - run: pnpm -r test
+      - run: stack --system-ghc --no-install-ghc --stack-yaml conformance/haskell/stack.yaml test
+      - run: node scripts/haskell-smoke.mjs
       # Hold the committed README to its committed evidence before the new
       # run writes fresh cells. A provisional cell must be reported without
       # becoming a second, stricter gate through a changed README count.

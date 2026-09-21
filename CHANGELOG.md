@@ -47,6 +47,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Haskell enters at tier 4 with bounded pipes and WebSockets, the native peer,
+  relative-path Wires and strict shared-table validation, held against Go in
+  both roles and by an outside source-distribution consumer.
 - Rust enters at tier 4 with bounded pipe and WebSocket connections, the
   duplex peer, schema validation, declaration identity, and relative-path
   Wire composition. Its private testee runs the shared core scenarios in
