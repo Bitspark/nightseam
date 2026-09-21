@@ -44,6 +44,9 @@ are one number. Entries are in the words of the commits that landed them.
   use the active operation's ownership batch without adding live dependencies
   to generic consumers. TypeScript conversion-only record, union and alias
   helpers explicitly carry the `Unchecked` suffix.
+  Draw constraints follow the actual supplied family, so generic consumers
+  derive independently of providers and unrelated families. Missing or nonplain
+  members and non-object drawn RPC requests fail before model construction.
 - Java 21 joins at tier 4 with native framed connections, bounded pipes and
   WebSockets, a symmetric peer, exact JSON/schema validation, relative-path
   Wires and declaration identity. The shared core suite holds both Java/Go
