@@ -8,7 +8,7 @@ use nightseam_duplex::{
     decode_path, encode_path,
 };
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, VecDeque},
     future::Future,
     panic::AssertUnwindSafe,
     sync::{
@@ -18,7 +18,7 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    sync::{mpsc, watch},
+    sync::{Notify, mpsc, watch},
     time::{Instant, timeout},
 };
 use tokio_util::sync::CancellationToken;
@@ -153,12 +153,21 @@ pub struct Call {
     result: watch::Receiver<Option<Answer>>,
     cancel: CancellationToken,
     admitted: watch::Receiver<bool>,
+    finished: watch::Receiver<bool>,
 }
 impl Call {
     async fn admitted(&self) {
         let mut admitted = self.admitted.clone();
         while !*admitted.borrow_and_update() {
             if admitted.changed().await.is_err() {
+                return;
+            }
+        }
+    }
+    async fn finished(&self) {
+        let mut finished = self.finished.clone();
+        while !*finished.borrow_and_update() {
+            if finished.changed().await.is_err() {
                 return;
             }
         }
@@ -207,8 +216,9 @@ struct Inner {
     listeners: Mutex<BTreeMap<u64, Listener>>,
     life: Mutex<Weak<Life>>,
     routes: Arc<crate::access::Registry>,
-    wire_outgoing: mpsc::Sender<(Vec<String>, Message, Context)>,
-    wire_calls: Mutex<BTreeMap<(usize, String), Context>>,
+    registrations: Mutex<()>,
+    wire_queue: Mutex<WireQueue>,
+    wire_wake: Notify,
 }
 
 /// Dropping or cancelling this registration stops just this listener.
@@ -243,7 +253,6 @@ impl Peer {
         }
         let (outgoing, outputs) = mpsc::channel(options.queue_capacity);
         let (events, event_rx) = mpsc::channel(options.queue_capacity);
-        let (wire_outgoing, wire_rx) = mpsc::channel(options.queue_capacity);
         let inner = Arc::new(Inner {
             conn,
             role,
@@ -258,8 +267,9 @@ impl Peer {
             listeners: Mutex::new(BTreeMap::new()),
             life: Mutex::new(Weak::new()),
             routes: Arc::default(),
-            wire_outgoing,
-            wire_calls: Mutex::new(BTreeMap::new()),
+            registrations: Mutex::new(()),
+            wire_queue: Mutex::new(WireQueue::default()),
+            wire_wake: Notify::new(),
             options,
         });
         let life = Arc::new(Life(Arc::downgrade(&inner)));
@@ -267,8 +277,14 @@ impl Peer {
         tokio::spawn(inner.clone().write_loop(outputs));
         tokio::spawn(inner.clone().read_loop(events));
         tokio::spawn(inner.clone().event_loop(event_rx));
-        tokio::spawn(inner.clone().wire_loop(wire_rx));
+        tokio::spawn(inner.clone().wire_loop());
         Ok(Self { inner, _life: life })
+    }
+    fn wire_exact_registered(&self, name: &str) -> bool {
+        decode_path(name)
+            .ok()
+            .and_then(|path| self.inner.routes.find(&path))
+            .is_some_and(|receiver| !receiver.namespace)
     }
     pub fn wire(&self) -> SharedWire {
         Arc::new(PeerWire(self.clone()))
@@ -303,6 +319,10 @@ impl Peer {
         if self.inner.stop.is_cancelled() {
             return Err(disconnected());
         }
+        let _registration = self.inner.registrations.lock().unwrap();
+        if self.wire_exact_registered(name) {
+            return Err(invalid("wire path already registered"));
+        }
         let mut handlers = self.inner.handlers.lock().unwrap();
         if handlers.contains_key(name) {
             return Err(invalid("method already registered"));
@@ -323,6 +343,10 @@ impl Peer {
         }
         if self.inner.stop.is_cancelled() {
             return Err(disconnected());
+        }
+        let _registration = self.inner.registrations.lock().unwrap();
+        if self.wire_exact_registered(name) {
+            return Err(invalid("wire path already registered"));
         }
         let mut handlers = self.inner.events.lock().unwrap();
         if handlers.contains_key(name) {
@@ -363,15 +387,19 @@ impl Peer {
         supplied: Option<Trace>,
     ) -> Call {
         let (admission, admitted) = watch::channel(false);
+        let (completion, finished) = watch::channel(false);
+        let routed = supplied.is_some();
         let (answer, result) = watch::channel(None);
         let cancel = CancellationToken::new();
         let call = Call {
             result,
             cancel: cancel.clone(),
             admitted,
+            finished,
         };
         let reject = |error| {
             admission.send_replace(true);
+            completion.send_replace(true);
             answer.send_replace(Some(Err(error)));
         };
         if method.is_empty() {
@@ -463,10 +491,13 @@ impl Peer {
                     trace,
                     ..Wire::default()
                 };
-                if let Ok(data) = inner.encode(&frame) {
+                if routed {
+                    let _ = inner.enqueue(frame, &inner.stop).await;
+                } else if let Ok(data) = inner.encode(&frame) {
                     let _ = inner.outgoing.try_send(data);
                 }
             }
+            completion.send_replace(true);
         });
         call
     }
@@ -507,12 +538,67 @@ impl Peer {
 }
 
 impl Inner {
-    async fn wire_loop(
-        self: Arc<Self>,
-        mut incoming: mpsc::Receiver<(Vec<String>, Message, Context)>,
-    ) {
+    async fn wire_loop(self: Arc<Self>) {
         loop {
-            let (path, message, ctx) = tokio::select! { _=self.stop.cancelled()=>return, value=incoming.recv()=>match value { Some(value)=>value, None=>return } };
+            let delivery = {
+                let mut queue = self.wire_queue.lock().unwrap();
+                if self.stop.is_cancelled() {
+                    return;
+                }
+                let delivery = queue.deliveries.pop_front();
+                if delivery
+                    .as_ref()
+                    .is_some_and(|d| d.message.frame.kind != ProfileKind::Cancel)
+                {
+                    queue.data -= 1;
+                }
+                delivery
+            };
+            let Some(delivery) = delivery else {
+                tokio::select! { _=self.stop.cancelled()=>return, _=self.wire_wake.notified()=>{} }
+                continue;
+            };
+            let WireDelivery {
+                path,
+                message,
+                pending,
+                refusal,
+            } = delivery;
+            if let Some(error) = refusal {
+                let _ = crate::access::response(&message, Err(error));
+                continue;
+            }
+            if message.frame.kind == ProfileKind::Cancel {
+                let pending = pending.unwrap();
+                let dispatch = {
+                    let mut queue = self.wire_queue.lock().unwrap();
+                    let key = wire_key(&message);
+                    if let Some(state) = queue
+                        .calls
+                        .get_mut(&key)
+                        .filter(|state| Arc::ptr_eq(&state.pending, &pending))
+                    {
+                        state.cancel_queued = false;
+                        state.cancelled = true;
+                        if state.completed {
+                            queue.calls.remove(&key);
+                            false
+                        } else {
+                            true
+                        }
+                    } else {
+                        false
+                    }
+                };
+                if dispatch {
+                    pending.ctx.cancel();
+                    let call = pending.call.lock().unwrap().clone();
+                    if let Some(call) = call {
+                        call.finished().await;
+                    }
+                }
+                continue;
+            }
             let life = self.life.lock().unwrap().upgrade();
             let Some(life) = life else {
                 return;
@@ -523,6 +609,8 @@ impl Inner {
             };
             let name = encode_path(&path);
             if message.frame.kind == ProfileKind::Event {
+                let ctx = Context::received(message.frame.trace.clone(), BTreeMap::new())
+                    .with_meta(message.frame.meta.clone());
                 if peer
                     .emit_with_trace(ctx, &name, message.frame.data, Some(message.frame.trace))
                     .await
@@ -532,18 +620,38 @@ impl Inner {
                     return;
                 }
             } else {
+                let pending = pending.unwrap();
                 let call = peer.call_with_trace(
-                    ctx,
+                    pending.ctx.clone(),
                     &name,
                     message.frame.params.clone(),
                     Some(message.frame.trace.clone()),
                 );
+                *pending.call.lock().unwrap() = Some(call.clone());
                 call.admitted().await;
                 let inner = self.clone();
                 tokio::spawn(async move {
                     let answer = call.result().await;
-                    inner.wire_calls.lock().unwrap().remove(&wire_key(&message));
-                    let _ = crate::access::response(&message, answer);
+                    let respond = {
+                        let mut queue = inner.wire_queue.lock().unwrap();
+                        let key = wire_key(&message);
+                        if let Some(state) = queue
+                            .calls
+                            .get_mut(&key)
+                            .filter(|state| Arc::ptr_eq(&state.pending, &pending))
+                        {
+                            state.completed = true;
+                            if !state.cancel_queued {
+                                queue.calls.remove(&key);
+                            }
+                            true
+                        } else {
+                            false
+                        }
+                    };
+                    if respond {
+                        let _ = crate::access::response(&message, answer);
+                    }
                 });
             }
         }
@@ -575,8 +683,25 @@ impl Inner {
         drop(ended);
         self.stop.cancel();
         self.routes.close(close.code, &close.reason);
-        for ctx in self.wire_calls.lock().unwrap().values() {
-            ctx.cancel();
+        let queued = {
+            let mut queue = self.wire_queue.lock().unwrap();
+            for delivery in queue.deliveries.drain(..) {
+                if delivery.refusal.is_some() {
+                    tokio::spawn(async move {
+                        let _ = crate::access::response(&delivery.message, Err(disconnected()));
+                    });
+                }
+            }
+            queue.data = 0;
+            std::mem::take(&mut queue.calls)
+        };
+        for state in queued.into_values() {
+            state.pending.ctx.cancel();
+            if !state.completed {
+                tokio::spawn(async move {
+                    let _ = crate::access::response(&state.pending.request, Err(disconnected()));
+                });
+            }
         }
         for (_, answer) in std::mem::take(&mut *self.pending.lock().unwrap()) {
             answer.send_replace(Some(Err(disconnected())));
@@ -876,6 +1001,30 @@ fn child_trace(trace: &Trace) -> Result<Trace, PublicError> {
     }
 }
 
+struct WirePending {
+    ctx: Context,
+    request: Message,
+    call: Mutex<Option<Call>>,
+}
+struct WireRequest {
+    pending: Arc<WirePending>,
+    completed: bool,
+    cancel_queued: bool,
+    cancelled: bool,
+}
+struct WireDelivery {
+    path: Vec<String>,
+    message: Message,
+    pending: Option<Arc<WirePending>>,
+    refusal: Option<PublicError>,
+}
+#[derive(Default)]
+struct WireQueue {
+    deliveries: VecDeque<WireDelivery>,
+    data: usize,
+    calls: BTreeMap<(usize, String), WireRequest>,
+}
+
 struct PeerWire(Peer);
 fn wire_key(message: &Message) -> (usize, String) {
     (
@@ -897,44 +1046,71 @@ impl nightseam_duplex::Wire for PeerWire {
             return Err(invalid("responses use a return address"));
         }
         let key = wire_key(&message);
-        if message.frame.kind == ProfileKind::Cancel {
-            if let Some(ctx) = inner.wire_calls.lock().unwrap().get(&key) {
-                ctx.cancel();
-            }
-            return Ok(());
+        let mut queue = inner.wire_queue.lock().unwrap();
+        if inner.stop.is_cancelled() {
+            return Err(disconnected());
         }
-        let ctx = Context::received(message.frame.trace.clone(), BTreeMap::new())
-            .with_meta(message.frame.meta.clone());
-        if message.frame.kind == ProfileKind::Request {
-            let mut calls = inner.wire_calls.lock().unwrap();
-            if calls.contains_key(&key) || calls.len() >= inner.options.max_pending_requests {
-                let code = if calls.contains_key(&key) {
-                    "invalid_message"
-                } else {
-                    "busy"
-                };
-                tokio::spawn(async move {
-                    let _ = crate::access::response(
-                        &message,
-                        Err(PublicError::new(code, "Request admission refused")),
-                    );
-                });
+        let mut pending = None;
+        let mut refusal = None;
+        if message.frame.kind == ProfileKind::Cancel {
+            let Some(state) = queue.calls.get_mut(&key) else {
+                return Ok(());
+            };
+            if state.completed || state.cancel_queued || state.cancelled {
                 return Ok(());
             }
-            calls.insert(key.clone(), ctx.clone());
+            state.cancel_queued = true;
+            pending = Some(state.pending.clone());
+        } else {
+            if queue.data >= inner.options.queue_capacity {
+                drop(queue);
+                inner.finish(Close::new(4011, "wire queue limit reached"), true);
+                return Err(PublicError::new("backpressure", "wire queue limit reached"));
+            }
+            queue.data += 1;
+            if message.frame.kind == ProfileKind::Request {
+                if queue.calls.contains_key(&key)
+                    || queue.calls.len() >= inner.options.max_pending_requests
+                {
+                    let code = if queue.calls.contains_key(&key) {
+                        "invalid_message"
+                    } else {
+                        "busy"
+                    };
+                    refusal = Some(PublicError::new(code, "Request admission refused"));
+                } else {
+                    let ctx = Context::received(message.frame.trace.clone(), BTreeMap::new())
+                        .with_meta(message.frame.meta.clone());
+                    let request = Arc::new(WirePending {
+                        ctx,
+                        request: message.clone(),
+                        call: Mutex::new(None),
+                    });
+                    queue.calls.insert(
+                        key,
+                        WireRequest {
+                            pending: request.clone(),
+                            completed: false,
+                            cancel_queued: false,
+                            cancelled: false,
+                        },
+                    );
+                    pending = Some(request);
+                }
+            }
         }
-        if inner
-            .wire_outgoing
-            .try_send((path.to_vec(), message, ctx))
-            .is_err()
-        {
-            inner.wire_calls.lock().unwrap().remove(&key);
-            inner.finish(Close::new(4011, "wire queue limit reached"), true);
-            return Err(PublicError::new("backpressure", "wire queue limit reached"));
-        }
+        queue.deliveries.push_back(WireDelivery {
+            path: path.to_vec(),
+            message,
+            pending,
+            refusal,
+        });
+        drop(queue);
+        inner.wire_wake.notify_one();
         Ok(())
     }
     fn receive(&self, path: &[String], receiver: Receiver) -> Result<Detach, PublicError> {
+        let _registration = self.0.inner.registrations.lock().unwrap();
         let name = encode_path(path);
         if !receiver.namespace
             && (name.is_empty()

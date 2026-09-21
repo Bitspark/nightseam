@@ -10,6 +10,236 @@ use std::{
 };
 use tokio::sync::mpsc;
 
+struct ReturnSink(mpsc::UnboundedSender<Message>);
+impl nightseam_duplex::Wire for ReturnSink {
+    fn send(&self, _: &[String], message: Message) -> Result<(), nightseam::PublicError> {
+        self.0.send(message).unwrap();
+        Ok(())
+    }
+    fn receive(
+        &self,
+        _: &[String],
+        _: Receiver,
+    ) -> Result<nightseam_duplex::Detach, nightseam::PublicError> {
+        unreachable!()
+    }
+    fn close(&self, _: u16, _: &str) -> Result<(), nightseam::PublicError> {
+        Ok(())
+    }
+}
+
+fn addressed(
+    kind: ProfileKind,
+    address: &Arc<nightseam_duplex::ReturnAddress>,
+    id: &str,
+) -> Message {
+    let mut frame = ProfileFrame::new(kind);
+    frame.id = id.into();
+    if kind == ProfileKind::Request {
+        frame.params = Payload::from_json("{}").unwrap();
+    }
+    Message {
+        frame,
+        returning: Some(address.clone()),
+        context: None,
+    }
+}
+
+#[tokio::test]
+async fn closing_a_peer_settles_a_request_still_in_its_wire_queue() {
+    let (near, far) = pipe(0);
+    let peer = Peer::over(near, Role::Client, Options::default()).unwrap();
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let address = Arc::new(nightseam_duplex::ReturnAddress {
+        wire: Arc::new(ReturnSink(tx)),
+    });
+    peer.wire()
+        .send(
+            &path(&["operation"]),
+            addressed(ProfileKind::Request, &address, "c:1"),
+        )
+        .unwrap();
+    // No await has let the wire worker consume the admitted request.
+    peer.close();
+    let reply = tokio::time::timeout(Duration::from_millis(200), rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(reply.frame.error.unwrap().code, "disconnected");
+    assert!(rx.try_recv().is_err());
+    far.abort();
+}
+
+#[tokio::test]
+async fn wire_cancellation_uses_reserved_capacity_in_admission_order() {
+    let (near, far) = pipe(0);
+    let peer = Peer::over(
+        near,
+        Role::Client,
+        Options {
+            queue_capacity: 2,
+            max_pending_requests: 1,
+            ..Options::default()
+        },
+    )
+    .unwrap();
+    let wire = peer.wire();
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let address = Arc::new(nightseam_duplex::ReturnAddress {
+        wire: Arc::new(ReturnSink(tx)),
+    });
+    wire.send(
+        &path(&["operation"]),
+        addressed(ProfileKind::Request, &address, "c:1"),
+    )
+    .unwrap();
+    emit_wire(
+        Context::default(),
+        wire.clone(),
+        &path(&["event"]),
+        Payload::from_json("null").unwrap(),
+    )
+    .unwrap();
+    // Both data slots are full. Control has exactly one reservation per request.
+    for _ in 0..5 {
+        wire.send(
+            &path(&["operation"]),
+            addressed(ProfileKind::Cancel, &address, "c:1"),
+        )
+        .unwrap();
+        wire.send(
+            &path(&["operation"]),
+            addressed(ProfileKind::Cancel, &address, "c:999"),
+        )
+        .unwrap();
+    }
+    for kind in ["request", "event", "cancel"] {
+        let frame = tokio::time::timeout(Duration::from_secs(1), far.receive())
+            .await
+            .unwrap()
+            .unwrap();
+        let nightseam_duplex::Frame::Text(bytes) = frame else {
+            panic!("expected profile text")
+        };
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(value["kind"], kind);
+    }
+    assert_eq!(
+        rx.recv().await.unwrap().frame.error.unwrap().code,
+        "cancelled"
+    );
+    wire.send(
+        &path(&["operation"]),
+        addressed(ProfileKind::Cancel, &address, "c:1"),
+    )
+    .unwrap();
+    emit_wire(
+        Context::default(),
+        wire,
+        &path(&["fence"]),
+        Payload::from_json("null").unwrap(),
+    )
+    .unwrap();
+    let nightseam_duplex::Frame::Text(bytes) = far.receive().await.unwrap() else {
+        panic!("expected profile text")
+    };
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["kind"],
+        "event"
+    );
+    peer.close();
+    far.abort();
+}
+
+#[tokio::test]
+async fn exact_wire_and_raw_registrations_refuse_duplicates_in_both_orders() {
+    let (near, far) = pipe(0);
+    let peer = Peer::over(near, Role::Client, Options::default()).unwrap();
+    let wire = peer.wire();
+    let route = path(&["operation"]);
+    let name = nightseam_duplex::encode_path(&route);
+    let detach = wire.receive(&route, Receiver::new(|_, _| {})).unwrap();
+    assert!(
+        peer.handle(&name, |_, value| async move { Ok(value) })
+            .is_err()
+    );
+    assert!(peer.on_event(&name, |_, _| async {}).is_err());
+    detach();
+    detach();
+    peer.handle(&name, |_, value| async move { Ok(value) })
+        .unwrap();
+    assert!(wire.receive(&route, Receiver::new(|_, _| {})).is_err());
+    let other = path(&["event"]);
+    peer.on_event(&nightseam_duplex::encode_path(&other), |_, _| async {})
+        .unwrap();
+    assert!(wire.receive(&other, Receiver::new(|_, _| {})).is_err());
+    wire.receive(
+        &[],
+        Receiver {
+            namespace: true,
+            ..Receiver::new(|_, _| {})
+        },
+    )
+    .unwrap();
+    peer.handle("5:exact", |_, value| async move { Ok(value) })
+        .unwrap();
+    peer.close();
+    far.abort();
+}
+
+#[tokio::test]
+async fn refused_requests_consume_bounded_data_capacity_and_close_with_their_carrier() {
+    let (near, far) = pipe(0);
+    let peer = Peer::over(
+        near,
+        Role::Client,
+        Options {
+            queue_capacity: 2,
+            max_pending_requests: 1,
+            ..Options::default()
+        },
+    )
+    .unwrap();
+    let wire = peer.wire();
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let address = Arc::new(nightseam_duplex::ReturnAddress {
+        wire: Arc::new(ReturnSink(tx)),
+    });
+    wire.send(
+        &path(&["op"]),
+        addressed(ProfileKind::Request, &address, "c:1"),
+    )
+    .unwrap();
+    // A pending-capacity refusal remains an admitted data delivery until dispatch.
+    wire.send(
+        &path(&["op"]),
+        addressed(ProfileKind::Request, &address, "c:2"),
+    )
+    .unwrap();
+    assert!(rx.try_recv().is_err());
+    assert_eq!(
+        wire.send(
+            &path(&["op"]),
+            addressed(ProfileKind::Request, &address, "c:3")
+        )
+        .unwrap_err()
+        .code,
+        "backpressure"
+    );
+    let mut ids = Vec::new();
+    for _ in 0..2 {
+        let reply = tokio::time::timeout(Duration::from_millis(200), rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(reply.frame.error.unwrap().code, "disconnected");
+        ids.push(reply.frame.id);
+    }
+    ids.sort();
+    assert_eq!(ids, ["c:1", "c:2"]);
+    far.abort();
+}
+
 fn path(segments: &[&str]) -> Vec<String> {
     segments.iter().map(|s| (*s).to_owned()).collect()
 }
