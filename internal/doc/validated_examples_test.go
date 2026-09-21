@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Bitspark/nightseam/internal/analysis"
+	"github.com/Bitspark/nightseam/internal/examples"
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
 	"github.com/Bitspark/nightseam/internal/render"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
@@ -22,6 +23,24 @@ func TestGenericExamplesExposeTheirConcreteBindings(t *testing.T) {
 	page := typed(f, "Page")
 	if page.ExampleBindings["T"].Type != "string" || page.ExampleUnavailable != nil {
 		t.Fatalf("generic type example: %#v", page)
+	}
+}
+
+func TestRequestExampleDoesNotDependOnAnUnavailableResult(t *testing.T) {
+	w := analysis.World(modeltest.World(map[string]map[string]string{"x": {"protocol.json": `{
+		"profile":"nightseam.duplex/1","types":{
+			"Input":{"kind":"record","fields":[{"name":"value","type":"integer","min":1}]},
+			"Impossible":{"kind":"record","fields":[{"name":"text","type":"string","pattern":"a^"}]}
+		},"server":{"methods":{"echo":{"request":"Input","result":"Impossible"},"ping":{"result":"Impossible"}}}}`}}))
+	f := render.Build(analysis.Resolve(w, "x"))
+	for _, method := range f.Server.Methods {
+		raw, info := examples.New(f).Request(method)
+		if info.ExampleUnavailable != nil || raw == nil {
+			t.Fatalf("%s request unavailable: %+v", method.Name, info)
+		}
+		if method.Name == "ping" && string(raw) != "{}" {
+			t.Fatalf("no-argument example: %s", raw)
+		}
 	}
 }
 

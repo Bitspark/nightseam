@@ -1,0 +1,15 @@
+add_executable(nightseam_cpp_testee testee.cpp recorded_wire.cpp)
+target_link_libraries(nightseam_cpp_testee PRIVATE Nightseam::runtime)
+set_target_properties(nightseam_cpp_testee PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+
+if(BUILD_TESTING AND NIGHTSEAM_BUILD_TESTS)
+  add_executable(nightseam_recorded_wire_tests recorded_wire_test.cpp recorded_wire.cpp)
+  target_link_libraries(nightseam_recorded_wire_tests PRIVATE Nightseam::runtime)
+  add_test(NAME cpp.recorded_wire COMMAND nightseam_recorded_wire_tests "${PROJECT_SOURCE_DIR}/conformance/scenarios/peer/recorded-wire-head-and-order.json")
+  set_tests_properties(cpp.recorded_wire PROPERTIES TIMEOUT 20)
+
+  add_executable(nightseam_driver_tests driver_test.cpp)
+  target_link_libraries(nightseam_driver_tests PRIVATE Nightseam::runtime)
+  add_test(NAME cpp.driver COMMAND nightseam_driver_tests)
+  set_tests_properties(cpp.driver PROPERTIES TIMEOUT 20)
+endif()

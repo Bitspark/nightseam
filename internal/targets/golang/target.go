@@ -230,12 +230,21 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 		return nil, err
 	}
 	if !f.HasModel() {
+		if err := put(path.Join(protocolDir, "familytest"), "examples_generated.go", t.file(p, f, "test", emitExampleTest)); err != nil {
+			return nil, err
+		}
 		return files, nil
 	}
 	if err := put(bindingDir, "binding_generated.go", t.file(p, f, "binding", emitBinding)); err != nil {
 		return nil, err
 	}
 	if err := put(clientDir, "client_generated.go", t.file(p, f, "client", emitClient)); err != nil {
+		return nil, err
+	}
+	if err := put(path.Join(bindingDir, "familytest"), "transparency_generated.go", t.file(p, f, "test", emitServerTest)); err != nil {
+		return nil, err
+	}
+	if err := put(path.Join(clientDir, "familytest"), "transparency_generated.go", t.file(p, f, "test", emitClientTest)); err != nil {
 		return nil, err
 	}
 	return files, nil

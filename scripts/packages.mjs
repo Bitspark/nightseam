@@ -8,6 +8,7 @@
 import { copyFileSync, cpSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { copyRustNotices } from "./rust-packages.mjs";
 
 export const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -58,6 +59,7 @@ export function copyNotices() {
   for (const directory of packages) {
     for (const name of ["LICENSE", "NOTICE"]) copyFileSync(join(root, name), join(root, directory, name));
   }
+  copyRustNotices(root);
 }
 
 /** Copy the registry's consumer with its own workspace and unchanged release manifests. */
