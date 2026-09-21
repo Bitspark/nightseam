@@ -230,10 +230,11 @@ type Matrix struct {
 	profiles []string
 	rows     map[string]map[string]*profileCell
 	tiers    map[string]int
+	absent   map[string]map[string]string
 }
 
 func NewMatrix(p *Profiles) *Matrix {
-	m := &Matrix{rows: map[string]map[string]*profileCell{}, tiers: map[string]int{}}
+	m := &Matrix{rows: map[string]map[string]*profileCell{}, tiers: map[string]int{}, absent: map[string]map[string]string{}}
 	for name := range p.Profiles {
 		m.profiles = append(m.profiles, name)
 	}
@@ -242,6 +243,16 @@ func NewMatrix(p *Profiles) *Matrix {
 		m.tiers[language] = l.Tier
 	}
 	return m
+}
+
+func (m *Matrix) recordAbsent(language, kind, reason string) {
+	if m.rows[language] == nil {
+		m.rows[language] = map[string]*profileCell{}
+	}
+	if m.absent[language] == nil {
+		m.absent[language] = map[string]string{}
+	}
+	m.absent[language][kind] = reason
 }
 
 // Record adds one outcome for a language in a profile.
@@ -281,6 +292,12 @@ func (m *Matrix) Verdict(p *Profiles, language string) string {
 		return "provisional"
 	}
 	row := m.rows[language]
+	if len(m.absent[language]) > 0 {
+		if tier.OnFailure == "stop" {
+			return "blocking"
+		}
+		return "provisional"
+	}
 	for _, profile := range tier.Requires {
 		if cell := row[profile]; cell != nil && (cell.Failed > 0 || cell.Skipped > 0) {
 			switch tier.OnFailure {
@@ -307,6 +324,8 @@ type languageReport struct {
 	Tier    int                    `json:"tier,omitempty"`
 	Verdict string                 `json:"verdict"`
 	Cells   map[string]profileCell `json:"cells"`
+	State   string                 `json:"state,omitempty"`
+	Reasons map[string]string      `json:"reasons,omitempty"`
 }
 
 // Write renders the matrix as JSON to file, rows and profiles sorted, so
@@ -318,7 +337,11 @@ func (m *Matrix) Write(p *Profiles, file string) error {
 		for profile, cell := range row {
 			cells[profile] = *cell
 		}
-		report.Languages[language] = languageReport{Tier: m.tiers[language], Verdict: m.Verdict(p, language), Cells: cells}
+		r := languageReport{Tier: m.tiers[language], Verdict: m.Verdict(p, language), Cells: cells}
+		if len(m.absent[language]) > 0 {
+			r.State, r.Reasons = "absent", m.absent[language]
+		}
+		report.Languages[language] = r
 	}
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
@@ -382,6 +405,11 @@ func (m *Matrix) String() string {
 			fmt.Fprintf(&b, " %-22s", fmt.Sprintf("%d passed %d skipped %d failed", cell.Passed, cell.Skipped, cell.Failed))
 		}
 		b.WriteString("\n")
+		for _, kind := range []string{"runtime", "generated"} {
+			if reason := m.absent[language][kind]; reason != "" {
+				fmt.Fprintf(&b, "  %s testee absent — build failed:\n%s\n", kind, indent(reason))
+			}
+		}
 	}
 	return b.String()
 }

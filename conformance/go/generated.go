@@ -1,7 +1,6 @@
 package conformance
 
 import (
-	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -143,7 +142,7 @@ func (s *Suite) PrepareGenerated(t *testing.T) []string {
 	languages := s.Languages()
 	for _, language := range languages {
 		recipe := s.Recipes[language]
-		if recipe.Generated == nil {
+		if recipe.Generated == nil || s.buildUnavailable(language, false) != "" {
 			continue
 		}
 		from := filepath.Join(recipe.Dir, "generated")
@@ -161,10 +160,8 @@ func (s *Suite) PrepareGenerated(t *testing.T) []string {
 		if err := layGenerated(s.Checkout, from, places.Rendered); err != nil {
 			t.Fatal(err)
 		}
-		if err := withBuildDeadline(func(ctx context.Context) error {
-			return recipe.RunBuild(ctx, places, true)
-		}); err != nil {
-			t.Fatalf("build the %s generated testee: %v", language, err)
+		if !s.buildTestee(t, recipe, places, true) {
+			continue
 		}
 		s.rendered[language] = places.Rendered
 	}

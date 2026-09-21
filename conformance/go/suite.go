@@ -69,6 +69,9 @@ type Suite struct {
 	places  Places
 	// rendered is where each language's probe rendering lies, once prepared.
 	rendered map[string]string
+	// unavailable records this suite's failed runtime/generated builds. The
+	// matrix retains every failure across suites in the same test process.
+	unavailable map[string]map[string]string
 }
 
 // Open reads the scenarios and the recipes of the checkout, holds every
@@ -131,18 +134,19 @@ func Open(t *testing.T) *Suite {
 			t.Errorf("the tier table stops a release on: %v", blocking)
 		}
 	})
+	s.buildRuntime(t)
+	return s
+}
+
+func (s *Suite) buildRuntime(t *testing.T) {
+	t.Helper()
 	for _, language := range s.Languages() {
-		recipe := recipes[language]
+		recipe := s.Recipes[language]
 		if err := recipe.CheckToolchains(); err != nil {
 			t.Fatal(err)
 		}
-		if err := withBuildDeadline(func(ctx context.Context) error {
-			return recipe.RunBuild(ctx, s.places, false)
-		}); err != nil {
-			t.Fatalf("build the %s testee: %v", language, err)
-		}
+		s.buildTestee(t, recipe, s.places, false)
 	}
-	return s
 }
 
 // Languages is every language with a recipe, sorted, Go first.
@@ -180,7 +184,13 @@ func (s *Suite) runGenerated(t *testing.T, a, b string) {
 func (s *Suite) run(t *testing.T, a, b string, generated bool, keep func(Scenario) bool) {
 	t.Helper()
 	unavailable := ""
-	if generated {
+	for _, language := range []string{a, b} {
+		if reason := s.buildUnavailable(language, generated); reason != "" {
+			unavailable = reason
+			break
+		}
+	}
+	if generated && unavailable == "" {
 		for _, language := range []string{a, b} {
 			if s.Recipes[language].Generated == nil {
 				unavailable = fmt.Sprintf("the %s testee has no generated target", language)

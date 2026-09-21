@@ -38,6 +38,25 @@ const matrix = {
   languages: { go: row(1, all(green)), typescript: row(1, all(green)) },
 };
 
+test("build absence remains visible and follows the tier gate independently of scenario counts", () => {
+  for (const kind of ["runtime", "generated"]) {
+    for (const tier of [1, 2, 3, 4]) {
+      const absent = {
+        profiles: matrix.profiles,
+        languages: { java: { ...row(tier, all(green)), state: "absent", reasons: { [kind]: "compiler refused the testee" } } },
+      };
+      const result = gate(absent, profiles, undefined);
+      assert.equal(result.problems.length, tier <= 2 ? 1 : 0);
+      assert.equal(result.provisional.length, tier <= 2 ? 0 : 1);
+      assert.match([...result.problems, ...result.provisional][0], new RegExp(`${kind} testee absent — build failed`));
+      assert.match(table(absent, profiles), new RegExp(`${kind} testee absent — build failed`));
+      assert.deepEqual(unrun(absent, profiles), []);
+      const { generator, ...partialCells } = absent.languages.java.cells;
+      absent.languages.java.cells = partialCells;
+      assert.deepEqual(unrun(absent, profiles), ["java has no generator cell"]);
+    }
+  }
+});
 test("a cell says what passed, what was skipped with it, and what failed", () => {
   assert.equal(cell(undefined), "—");
   assert.equal(cell({ passed: 0, skipped: 0, failed: 0 }), "—");

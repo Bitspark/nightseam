@@ -79,7 +79,8 @@ export function table(matrix, profiles) {
     const row = matrix.languages[language];
     const reference = profiles.languages?.[language]?.reference ? " *(reference)*" : "";
     const cells = names.map(name => cell(row.cells?.[name]));
-    lines.push(`| \`${language}\`${reference} | ${row.tier ?? "—"} | ${cells.join(" | ")} | ${row.verdict ?? "—"} |`);
+    const absence = row.state === "absent" ? `; ${absentTestees(row)} absent — build failed` : "";
+    lines.push(`| \`${language}\`${reference} | ${row.tier ?? "—"} | ${cells.join(" | ")} | ${row.verdict ?? "—"}${absence} |`);
   }
   return lines.join("\n");
 }
@@ -139,6 +140,7 @@ export function gate(matrix, profiles, previous) {
       .sort();
     const elsewhere = failed.filter(name => !required.includes(name));
     const incomplete = [];
+    if (row.state === "absent") incomplete.push(`${absentTestees(row)} absent — build failed`);
     if (inRequired.length > 0) incomplete.push(`fails ${inRequired.join(", ")}`);
     if (skippedRequired.length > 0) incomplete.push(`skips ${skippedRequired.join(", ")}`);
     if (incomplete.length > 0) {
@@ -154,6 +156,11 @@ export function gate(matrix, profiles, previous) {
     }
   }
   return { problems, provisional, lagging };
+}
+
+function absentTestees(row) {
+  const kinds = Object.keys(row.reasons ?? {}).sort();
+  return kinds.length ? `${kinds.join(" and ")} testee${kinds.length > 1 ? "s" : ""}` : "testee";
 }
 
 /** Whether the last release's matrix had this language failing outside what its tier requires. */

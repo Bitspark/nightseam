@@ -99,6 +99,30 @@ test("a tier 3 language failing what it guarantees ships, and the release names 
   assert.match(out, /marking 1 language in the notes/);
 });
 
+test("a provisional build absence ships with a note while required build absences refuse the tag", () => {
+  for (const kind of ["runtime", "generated"]) {
+    for (const tier of [1, 2, 4]) {
+      const language = tier === 1 ? "typescript" : tier === 2 ? "python" : "java";
+      const base = green.languages[language];
+      const cells = Object.fromEntries(Object.entries(base.cells).map(([profile, cell]) => [profile,
+        kind === "runtime" || profile === "generator" ? { passed: 0, skipped: 4, failed: 0 } : cell,
+      ]));
+      const absent = { ...green, languages: { ...green.languages, [language]: {
+        ...base, tier, verdict: "ok", cells, state: "absent", reasons: { [kind]: "fixture compiler refused the testee" },
+      } } };
+      const { code, out } = prepare("--matrix", write(`absent-${kind}-${tier}.json`, absent), "--no-previous");
+      assert.equal(code, tier <= 2 ? 1 : 0, out);
+      assert.match(out, new RegExp(`${kind} testee absent — build failed`));
+      if (tier === 4) {
+        assert.match(out, /tier 4 ships provisional/);
+        assert.match(out, /marking 1 language in the notes/);
+      } else {
+        assert.match(out, /stops a release/);
+      }
+    }
+  }
+});
+
 test("a tier 2 language failing outside what it guarantees spends its lag, and the next release refuses it", () => {
   const lagging = withFailure("tier2.json", "python", 2, "tunnel");
 

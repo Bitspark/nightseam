@@ -135,6 +135,15 @@ test holds this rule at every tier, including a missing required generated
 server role. The release script independently applies the same rule to the
 matrix's cells; a stored `ok` verdict cannot hide missing coverage.
 
+A runtime or generated testee that fails to build is recorded as **absent —
+build failed**, with the affected testee named and the command's exit status
+and bounded last output lines in the matrix and job summary. Its scenarios
+remain explicit skips while the other pairings continue. At a provisional
+tier any such build failure marks the language provisional, including an
+optional generated testee; tier 1 and tier 2 still stop the job, and the
+nightly matrix fails on every build failure. A missing toolchain or a malformed
+recipe or rendering remains a setup error at every tier.
+
 The CI star and release gate agree: only a nonempty `Matrix.Blocking` fails
 the star. A tier-3/4 required-profile failure or skip stays provisional, and
 a tier-2 failure outside `core`/`generator` stays nonblocking for this release.

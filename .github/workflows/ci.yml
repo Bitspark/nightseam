@@ -175,7 +175,7 @@ jobs:
       # name so that a failure of the matrix reads as one, and its
       # matrix.json is kept as the run's artifact.
       - run: go test -v ./conformance/go -run 'TestSelf|TestStar|TestGenerated' -count=1
-      - name: Publish the conformance matrix and provisional cells
+      - name: Publish the conformance matrix, provisional cells and absent testees
         if: always()
         run: |
           if [ -f "$NIGHTSEAM_MATRIX_SUMMARY" ]; then

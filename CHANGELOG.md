@@ -8,6 +8,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Provisional-tier testee build failures remain visible as absent runtime or
+  generated testees in the matrix and job summary while other pairings run;
+  required tiers and the nightly matrix still fail on those builds.
 - The cancellation-budget test drains completion observations during admission
   retries, so its own observer cannot stall the peer after a handler returns.
 - Conformance build commands own their process trees and stop descendants on
