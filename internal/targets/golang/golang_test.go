@@ -214,7 +214,7 @@ func TestWireAdaptersObserveTypedOperations(t *testing.T) {
 // packages declare of themselves is reserved, and nothing else is.
 func TestReservedNamesAreWhatTheTargetEmits(t *testing.T) {
 	reserved := Reserved()
-	for _, ident := range []string{"Tag", "Server", "Client", "ServerModel", "ClientMethods", "ServerEvents", "ToWire", "FromWire", "IsError"} {
+	for _, ident := range []string{"Tag", "Server", "Client", "ServerModel", "ClientMethods", "ServerEvents", "ToWire", "FromWire", "PrepareFromWire", "IsError"} {
 		found := false
 		for _, r := range reserved {
 			found = found || r == ident
