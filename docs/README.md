@@ -9,10 +9,11 @@ is going, the **state** pages (`wire/`, `runtime/`, `declaration/`,
 over and why.
 
 The [repository-home decision](decisions/the-reusable-foundation-lives-in-nightseam.md)
-places the adopted typed-access foundation and optional rooted-grant authority
-profile in Nightseam. It records direction and dependency boundaries; the
-state pages describe implemented behavior. Public contracts and examples
-stand alone, without access to a private consumer repository.
+keeps runtime, generator, declaration/identity and optional rooted-grant authority
+implementation in Nightseam, while selecting Bitwire as the home of the shared
+Wire contract once ready. [#421](https://github.com/Bitspark/nightseam/issues/421)
+holds adoption in 0.6.0. The state pages describe today's implementation; public
+contracts, builds and examples remain usable without private repository access.
 
 ## Where it is going — `goals/`
 
