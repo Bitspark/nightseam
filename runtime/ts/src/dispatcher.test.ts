@@ -60,7 +60,7 @@ test('an explicitly owned dispatcher closes its endpoint', () => {
   try {
     const dispatcher = createDispatcher(right, { ownEndpoint: true });
     dispatcher.close(1002, 'wire event rejected');
-    assert.throws(() => right.receive({}), { code: 'closed' });
+    assert.throws(() => right.receive({}), { code: 'disconnected' });
     dispatcher.close();
   } finally {
     left.close();
