@@ -1,0 +1,15 @@
+[package]
+name = "nightseam-testee"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+nightseam = { path = "../../runtime/rs" }
+nightseam-duplex = { path = "../../duplex/rs" }
+tokio = { workspace = true, features = ["io-std"] }
+tokio-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64 = "0.22"

@@ -1,0 +1,20 @@
+[package]
+name = "nightseam-duplex"
+description = "Ordered bidirectional frames for Nightseam, over pipes and WebSockets."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+include = ["src/**", "README.md", "LICENSE", "NOTICE"]
+
+[dependencies]
+async-trait.workspace = true
+futures-util.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tokio-tungstenite.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true

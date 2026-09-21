@@ -60,6 +60,12 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -152,6 +158,7 @@ jobs:
       # taken back.
       - name: Install what is about to be published
         run: node scripts/smoke-packed.mjs
+      - run: node scripts/smoke-rust-packed.mjs
       - name: Publish to npm
         # On a rehearsal this packs each tarball, mints the provenance
         # attestation and stops short of the upload.
