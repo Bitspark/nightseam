@@ -11,13 +11,13 @@ import (
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
 )
 
-func TestValidatorDescriptorBytesRemainStable(t *testing.T) {
+func TestWireDigestTablePreservesDescriptorsAndCanonicalDeclarations(t *testing.T) {
 	data, err := os.ReadFile("../../conformance/tables/digests.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var table struct {
-		Cases []struct{ Name, Declaration, Wire, Digest string }
+		Cases []struct{ Name, Declaration, Wire, Canonical, Digest string }
 	}
 	if err := json.Unmarshal(data, &table); err != nil {
 		t.Fatal(err)
@@ -38,9 +38,12 @@ func TestValidatorDescriptorBytesRemainStable(t *testing.T) {
 			if first.Wire != row.Wire {
 				t.Fatalf("descriptor changed: got %s, want %s", first.Wire, row.Wire)
 			}
-			descriptorHash := sha256.Sum256([]byte(first.Wire))
-			if hex.EncodeToString(descriptorHash[:]) != row.Digest {
-				t.Fatal("validator descriptor byte fixture changed")
+			if first.Declaration != row.Canonical {
+				t.Fatalf("canonical declaration changed: got %s, want %s", first.Declaration, row.Canonical)
+			}
+			declarationHash := sha256.Sum256([]byte(row.Canonical))
+			if digest := hex.EncodeToString(declarationHash[:]); digest != row.Digest || first.WireDigest != digest {
+				t.Fatalf("declaration digest: got %s, rendered %s, want %s", digest, first.WireDigest, row.Digest)
 			}
 			if first.Declaration != second.Declaration || first.WireDigest != second.WireDigest {
 				t.Fatal("declaration identity is not deterministic")
@@ -60,10 +63,10 @@ func TestWireDigestIgnoresDocumentationAndDetectsOptionalMembers(t *testing.T) {
 		"nightseam": 2
 	}`)
 	optional := build(`{"nightseam":2,"types":{"Payload":{"kind":"record","fields":[{"name":"text","type":"string"},{"name":"hint","type":"string","required":false}]}}}`)
-	if first.Wire != documented.Wire || first.WireDigest != documented.WireDigest {
-		t.Fatal("source formatting or documentation changed the rendered descriptor's digest")
+	if first.Wire != documented.Wire || first.Declaration != documented.Declaration || first.WireDigest != documented.WireDigest {
+		t.Fatal("source formatting or documentation changed the descriptor or canonical declaration identity")
 	}
-	if first.Wire == optional.Wire || first.WireDigest == optional.WireDigest {
+	if first.Wire == optional.Wire || first.Declaration == optional.Declaration || first.WireDigest == optional.WireDigest {
 		t.Fatal("an optional member added to the same family's declaration kept its digest")
 	}
 }

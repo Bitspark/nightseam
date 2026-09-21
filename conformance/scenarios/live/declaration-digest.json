@@ -12,7 +12,7 @@
       "args": {
         "on": "$la",
         "contract": "same/Report",
-        "digest": "4433469c3fb5e66b667a7b4463cb878ab59d214bb1f9163e92bc2005b9987cc3",
+        "digest": "dba2fd6f12d09fb58455bc67f96cd0b6db007050e64c3d0a10b553f06c933cfc",
         "behavior": { "kind": "echo" }
       },
       "bind": { "reference": "exported" }
@@ -32,10 +32,10 @@
         "on": "$lb",
         "reference": "$carried",
         "contract": "same/Report",
-        "digest": "c4dbce5dafcb23c6863de70876927aee504ca5323397908f8abacebc089322b1"
+        "digest": "ef49baa1d813f43084fd46df10305134de7601e18b059f066f082b3515630e3e"
       },
       "expect_error": { "code": "contract_mismatch" },
-      "note": "the two generated digests are tables/digests.json's callable revisions, differing only by an optional record member"
+      "note": "the two generated digests hash tables/digests.json's canonical full-declaration documents for the callable revisions, differing only by an optional record member; the validator descriptors are held separately"
     },
     { "on": "b", "op": "live.counts", "args": { "on": "$lb" }, "expect": { "exports": 0, "imports": 0 } },
     {
@@ -51,7 +51,7 @@
         "on": "$lb",
         "reference": "$carried",
         "contract": "same/Report",
-        "digest": "4433469c3fb5e66b667a7b4463cb878ab59d214bb1f9163e92bc2005b9987cc3"
+        "digest": "dba2fd6f12d09fb58455bc67f96cd0b6db007050e64c3d0a10b553f06c933cfc"
       },
       "bind": "same"
     },

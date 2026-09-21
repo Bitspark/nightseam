@@ -11,7 +11,7 @@
         "on": "$pa",
         "options": {
           "accept_capacity": 1,
-          "contracts": { "same": "68025e009ca0e1d178ab57548a507c65dcaefb7b62f3867207b26fdbe5739cb0" }
+          "contracts": { "same": "8666a8fbdacb02b4e8c807fc3b01d56d31bf2fef60626d163b896b0c939a84a6" }
         }
       },
       "bind": "ta"
@@ -23,10 +23,10 @@
       "args": {
         "on": "$tb",
         "family": "same",
-        "digest": "ccc90bf9332f9595615ec1c0c34627a7cc52779378f7ca00e56d6de7e89955fb"
+        "digest": "2652993925b416656e545667c44375ad6e07430586b4416433d0df4534a8303d"
       },
       "expect_error": { "code": "contract_mismatch", "message": "the declaration digest for same differs" },
-      "note": "tables/digests.json's second record revision only adds an optional member, so the original value fits both validators"
+      "note": "tables/digests.json's canonical full-declaration digests differ because the second record revision adds an optional member; the original value still fits both separately held validator descriptors"
     },
     {
       "on": "b",
@@ -34,7 +34,7 @@
       "args": {
         "on": "$tb",
         "family": "same",
-        "digest": "68025e009ca0e1d178ab57548a507c65dcaefb7b62f3867207b26fdbe5739cb0"
+        "digest": "8666a8fbdacb02b4e8c807fc3b01d56d31bf2fef60626d163b896b0c939a84a6"
       },
       "bind": { "handle": "cb", "id": "opened" }
     },
@@ -45,7 +45,7 @@
       "expect": {
         "id": "$opened",
         "family": "same",
-        "digest": "68025e009ca0e1d178ab57548a507c65dcaefb7b62f3867207b26fdbe5739cb0"
+        "digest": "8666a8fbdacb02b4e8c807fc3b01d56d31bf2fef60626d163b896b0c939a84a6"
       },
       "bind": { "handle": "ca" },
       "note": "the refused channel occupied no capacity and never reached an acceptor"
@@ -79,14 +79,14 @@
       "args": {
         "on": "$ta",
         "family": "same",
-        "digest": "68025e009ca0e1d178ab57548a507c65dcaefb7b62f3867207b26fdbe5739cb0"
+        "digest": "8666a8fbdacb02b4e8c807fc3b01d56d31bf2fef60626d163b896b0c939a84a6"
       }
     },
     {
       "on": "b",
       "op": "tunnel.accept",
       "args": { "on": "$tb" },
-      "expect": { "family": "same", "digest": "68025e009ca0e1d178ab57548a507c65dcaefb7b62f3867207b26fdbe5739cb0" },
+      "expect": { "family": "same", "digest": "8666a8fbdacb02b4e8c807fc3b01d56d31bf2fef60626d163b896b0c939a84a6" },
       "note": "a receiver carrying no expected digest also accepts"
     }
   ]
