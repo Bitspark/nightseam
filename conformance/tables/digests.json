@@ -1,4 +1,5 @@
 {
+  "description": "SHA-256 lowercase hex over the exact UTF-8 rendered descriptor string in each wire member, with no added newline or reserialization. The generator and both runtime validators read these rows. Optional declaration members give the source input where the descriptor adds a nominal callable contract. The paired revisions differ by one optional record member, so the original payload fits both schemas while their digest identities differ.",
   "cases": [
     {
       "name": "empty family",
