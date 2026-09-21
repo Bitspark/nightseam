@@ -111,7 +111,12 @@ func TestHelpers(t *testing.T){
  changed:=func(ctx context.Context,w duplex.Wire)(duplex.Wire,func(),error){return mutatingWire{w},func(){},nil}
  if err:=test.Smoke(ctx,model,opposite(),test.Options{Presentation:changed});err==nil||!strings.Contains(err.Error(),"constant.request"){t.Fatalf("constant handler concealed changed input: %v",err)}
  err=test.Smoke(ctx,func(protocol.Client)(protocol.Server,error){return protocol.Server{},errors.New("factory failed")},opposite(),test.Options{});if err==nil{t.Fatal("factory failure ignored")}
- ended,abort:=context.WithCancel(ctx);abort();if _,_,err:=test.Pair(ended,model,test.Options{});err==nil{t.Fatal("cancelled preparation succeeded")}
+ ended,abort:=context.WithCancel(ctx);abort()
+ var abandoned duplex.Wire;detached:=0
+ failedPresentation:=func(_ context.Context,w duplex.Wire)(duplex.Wire,func(),error){abandoned=w;return w,func(){detached++},nil}
+ if factory,stop,err:=test.Pair(ended,model,test.Options{Presentation:failedPresentation});err==nil||factory!=nil||stop!=nil{t.Fatal("cancelled preparation returned usable resources",err)}
+ if detached!=1{t.Fatalf("failed preparation detached %d times",detached)}
+ var discarded int64;if err:=runtime.CallWire(ctx,abandoned,[]string{"ping"},struct{}{},&discarded);err==nil{t.Fatal("failed preparation left its model wire open")}
  if err:=celltest.Smoke(ctx,func(cell.Client[int64])(cell.Server[int64],error){return cell.Server[int64]{Methods:cellMethods[int64]{}},nil},cell.Client[int64]{},celltest.Options{Inputs:map[string]any{"echo":cell.Input[int64]{Value:23}}},runtime.JSONAdapter[int64]());err!=nil{t.Fatal(err)}
  if err:=celltest.Smoke(ctx,func(cell.Client[string])(cell.Server[string],error){return cell.Server[string]{Methods:cellMethods[string]{}},nil},cell.Client[string]{},celltest.Options{},runtime.JSONAdapter[string]());err!=nil{t.Fatal(err)}
  clientModel:=func(protocol.Server)(protocol.Client,error){return opposite(),nil}
@@ -180,7 +185,12 @@ await rejects(()=>test.smoke(model,opposite(),{inputs:{constant:{value:-1}}}));
 await rejects(()=>test.smoke(remote=>({...model(remote),methods:{...model(remote).methods,echo:()=>({value:-1})}}),opposite(),{}));
 await rejects(()=>test.smoke(model,opposite(),{presentation:wire=>({wire:{...wire,send(path,message){wire.send(path,path[0]==='constant'&&message.frame.kind==='request'?{...message,frame:{...message.frame,params:{value:77}}}:message);},receive:wire.receive.bind(wire),close:wire.close.bind(wire)},close(){}})}),'constant.request');
 await rejects(()=>test.pair(()=>{throw new Error('factory failed');},{}),'factory failed');
-await rejects(()=>test.pair(model,{callContext:{signal:AbortSignal.abort()}}));
+{
+ let abandoned:Wire|undefined;let detached=0;
+ await rejects(()=>test.pair(model,{callContext:{signal:AbortSignal.abort()},presentation:wire=>{abandoned=wire;return {wire,close(){detached++;}};}}));
+ check(abandoned!==undefined&&detached===1,'failed preparation must release its presentation once');
+ await rejects(()=>callWire(abandoned!,['ping'],{}));
+}
 const numbers=jsonAdapter<number>({type:'integer',validate:validateWire});
 await cellTest.smoke<number>(()=>({methods:{echo:input=>input.value},events:{}}),{methods:{},events:{}},{inputs:{echo:{value:23}}},numbers);
 await clientTest.smoke(()=>opposite(),model(opposite()),{});
