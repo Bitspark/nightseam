@@ -17,7 +17,7 @@ func (f *file) emitValueAdapters() {
 		}
 		f.uses, f.codecs = t.Uses, t.Uses
 		name := f.plan.types[t.Name]
-		self := name + apply(t.Uses)
+		self := f.spell(model.Named{Name: t.Name})
 		var parameters, needs []string
 		if t.IsLive {
 			needs = append(needs, "true")
