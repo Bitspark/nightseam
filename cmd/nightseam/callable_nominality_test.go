@@ -16,8 +16,10 @@ func TestGeneratedCallableNominality(t *testing.T) {
 	writeFixture(t, directory, "api/contracts/nominal/protocol.json", []byte(`{"profile":"nightseam.duplex/1"}`))
 	writeFixture(t, directory, "api/contracts/nominal/live.json", []byte(`{"types":{
 		"Report":{"kind":"callable","request":"integer","result":"integer"},
-		"SetVolume":{"kind":"callable","request":"integer","result":"integer"}
-	}}`))
+		"SetVolume":{"kind":"callable","request":"integer","result":"integer"},
+		"Invocation":{"kind":"record","fields":[{"name":"callback","type":"SetVolume"}]}
+	},"server":{"methods":{"accept":{"request":"Invocation","result":"integer"}}},
+	"client":{"methods":{"reverse":{"request":"Invocation","result":"integer"}}}}`))
 	if _, errs, err := run(t, directory, "generate"); err != nil {
 		t.Fatalf("generate: %v\n%s", err, errs)
 	}
@@ -67,6 +69,8 @@ import (
 	"time"
 
 	protocol "example.test/generated/api/go/nominal-protocol"
+	binding "example.test/generated/api/go/nominal-binding"
+	client "example.test/generated/api/go/nominal-client"
 	previous "example.test/generated/api-v1/go/nominal-protocol"
 	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/live/go"
@@ -124,11 +128,56 @@ func TestSameSignatureAssignmentUsesDestinationContract(t *testing.T) {
 	}
 }
 
+type nominalServer struct { calls *atomic.Int64 }
+func (h nominalServer) Accept(ctx context.Context, _ *binding.Remote, params protocol.Invocation) (int64, error) {
+	h.calls.Add(1)
+	return params.Callback(ctx, 41)
+}
+type nominalClient struct { calls *atomic.Int64 }
+func (h nominalClient) Reverse(ctx context.Context, _ *client.Client, params protocol.Invocation) (int64, error) {
+	h.calls.Add(1)
+	return params.Callback(ctx, 41)
+}
+
+func TestGeneratedGoReverseDispatchChecksTheDigest(t *testing.T) {
+	var serverCalls, clientCalls, invoked atomic.Int64
+	connected := make(chan *runtime.Peer, 1)
+	handler, err := binding.NewHandler(nominalServer{&serverCalls}, runtime.ServerOptions{
+		Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
+		CheckOrigin: func(*http.Request) bool { return true },
+		OnConnect: func(peer *runtime.Peer) { connected <- peer },
+	})
+	if err != nil { t.Fatal(err) }
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	caller, err := client.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), runtime.DialOptions{}, nominalClient{&clientCalls}, client.Events{})
+	if err != nil { t.Fatal(err) }
+	defer caller.Close()
+	var peer *runtime.Peer
+	select { case peer = <-connected: case <-ctx.Done(): t.Fatal(ctx.Err()) }
+	scope, ok := live.ScopeOf(peer)
+	if !ok { t.Fatal("generated server installed no live scope") }
+	implementation := func(_ context.Context, n int64) (int64, error) { invoked.Add(1); return n+1, nil }
+	old, err := previous.ExportSetVolume(scope.Owner(), implementation)
+	if err != nil { t.Fatal(err) }
+	var result int64
+	err = peer.Call(ctx, "reverse", map[string]json.RawMessage{"callback": old}, &result)
+	var mismatch *runtime.PublicError
+	if !errors.As(err, &mismatch) || mismatch.Code != "contract_mismatch" || !strings.Contains(mismatch.Message, "nominal/SetVolume") { t.Fatalf("generated reverse refusal: %v", err) }
+	if clientCalls.Load() != 0 || invoked.Load() != 0 { t.Fatal("mismatched reference reached the generated reverse handler") }
+	current, err := protocol.ExportSetVolume(scope.Owner(), implementation)
+	if err != nil { t.Fatal(err) }
+	if err := peer.Call(ctx, "reverse", map[string]json.RawMessage{"callback": current}, &result); err != nil || result != 42 { t.Fatalf("matching reverse: %d, %v", result, err) }
+	if clientCalls.Load() != 1 || invoked.Load() != 1 { t.Fatal("matching reference did not reach the generated reverse handler once") }
+}
+
 func TestGeneratedRevisionsAcrossARealSocket(t *testing.T) {
 	for _, mode := range []string{"same", "different"} {
 		t.Run(mode, func(t *testing.T) {
-			var invoked atomic.Int64
-			handler, err := runtime.NewHandler(runtime.ServerOptions{
+			var invoked, dispatched atomic.Int64
+			handler, err := binding.NewHandler(nominalServer{&dispatched}, runtime.ServerOptions{
 				Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 				CheckOrigin: func(*http.Request) bool { return true },
 				Options: runtime.Options{Prepare: func(peer *runtime.Peer) error {
@@ -141,6 +190,15 @@ func TestGeneratedRevisionsAcrossARealSocket(t *testing.T) {
 					}); err != nil { return err }
 					scope, err := live.Over(peer, live.Options{})
 					if err != nil { return err }
+					if err := peer.Handle("dispatch_reverse", func(ctx context.Context, _ *runtime.Peer, _ json.RawMessage) (any, error) {
+						encode := protocol.ExportSetVolume
+						if mode == "different" { encode = previous.ExportSetVolume }
+						raw, err := encode(scope.Owner(), func(_ context.Context, n int64) (int64, error) { return n + 1, nil })
+						if err != nil { return nil, err }
+						var result int64
+						err = peer.Call(ctx, "reverse", map[string]json.RawMessage{"callback": raw}, &result)
+						return result, err
+					}); err != nil { return err }
 					if err := peer.Handle("offer", func(context.Context, *runtime.Peer, json.RawMessage) (any, error) {
 						return previous.ExportSetVolume(scope.Owner(), func(_ context.Context, n int64) (int64, error) { invoked.Add(1); return n + 1, nil })
 					}); err != nil { return err }
@@ -161,6 +219,7 @@ func TestGeneratedRevisionsAcrossARealSocket(t *testing.T) {
 			want := int64(0)
 			if mode == "same" { want = 1 }
 			if got := invoked.Load(); got != want { t.Fatalf("implementation ran %d times, want %d", got, want) }
+			if got := dispatched.Load(); got != want { t.Fatalf("generated server handler ran %d times, want %d", got, want) }
 		})
 	}
 }
@@ -168,6 +227,7 @@ func TestGeneratedRevisionsAcrossARealSocket(t *testing.T) {
 
 const tsCallableDigestSocketFixture = `import assert from 'node:assert/strict';
 import * as current from './api/ts/nominal-client/src/types.ts';
+import { Client } from './api/ts/nominal-client/src/index.ts';
 import * as previous from './api-v1/ts/nominal-client/src/types.ts';
 import { DuplexPeer, DuplexError } from '@nightseam/runtime';
 import { liveOver } from '@nightseam/live';
@@ -179,6 +239,8 @@ const peer = new DuplexPeer();
 const scope = liveOver(peer);
 const carrier = new Tunnel(peer, { contracts: { nominal: protocol.wireDigest } });
 let invoked = 0;
+let dispatched = 0;
+new Client(peer, { reverse(params) { dispatched++; return params.callback(41); } }, {});
 try {
   await peer.connect(process.argv[2]!);
   if (mode === 'different') {
@@ -206,12 +268,27 @@ try {
     assert.equal(await peer.call('check', raw), 42);
   }
   assert.equal(invoked, mode === 'same' ? 1 : 0);
+  // Use the peer directly so the receiver, rather than the sender's generated
+  // preflight validation, must reject the revision before entering its handler.
+  const dispatchProtocol = mode === 'same' ? current : previous;
+  let dispatchInvoked = 0;
+  const dispatchRaw = dispatchProtocol.exportSetVolume(scope.owner(), async value => { dispatchInvoked++; return value + 1; });
+  if (mode === 'different') {
+    for (const operation of [() => peer.call('accept', { callback: dispatchRaw }), () => peer.call('dispatch_reverse', {})])
+      await assert.rejects(operation, (error: unknown) => error instanceof DuplexError && error.code === 'contract_mismatch' && error.message.includes('nominal/SetVolume'));
+  } else {
+    assert.equal(await peer.call('accept', { callback: dispatchRaw }), 42);
+    assert.equal(await peer.call('dispatch_reverse', {}), 42);
+  }
+  assert.equal(dispatched, mode === 'same' ? 1 : 0);
+  assert.equal(dispatchInvoked, mode === 'same' ? 1 : 0);
 } finally {
   peer.close();
 }
 `
 
-const tsCallableNominalityFixture = `import * as nominal from './api/ts/nominal-client/src/index.ts';
+const tsCallableNominalityFixture = `import assert from 'node:assert/strict';
+import * as nominal from './api/ts/nominal-client/src/index.ts';
 import * as previous from './api-v1/ts/nominal-client/src/types.ts';
 import * as binding from './api/ts/nominal-binding/src/index.ts';
 import { pipe } from '@nightseam/duplex';
@@ -223,15 +300,18 @@ const [a, b] = pipe();
 const pa = new DuplexPeer({ role: 'client' });
 const from = liveOver(pa);
 let pb: DuplexPeer | undefined;
+let serverCalls = 0, reverseCalls = 0;
+const handler: binding.Handler = { accept(params) { serverCalls++; return params.callback(41); } };
+new nominal.Client(pa, { reverse(params) { reverseCalls++; return params.callback(41); } }, {});
 try {
   if (configured) {
     pb = new DuplexPeer({ role: 'server' });
-    const existing = liveOver(pb, {maxExports:1, maxImports:1});
-    binding.install(pb, {});
+    const existing = liveOver(pb, {maxExports:2, maxImports:1});
+    binding.install(pb, handler);
     if (scopeOf(pb) !== existing) throw new Error('install replaced the host live scope');
     await Promise.all([pa.attach(a), pb.attach(b)]);
   } else {
-    [pb] = await Promise.all([binding.serve(b, {}, {}), pa.attach(a)]);
+    [pb] = await Promise.all([binding.serve(b, {}, handler), pa.attach(a)]);
   }
   const to = scopeOf(pb);
   if (!to) throw new Error('binding installed no live scope');
@@ -267,6 +347,17 @@ try {
   if (await imported(41, { signal: AbortSignal.timeout(5000) }) !== 42) {
     throw new Error('assigned implementation answered wrongly');
   }
+  const mismatch = (error: unknown): boolean => error instanceof DuplexError && error.code === CONTRACT_MISMATCH && error.message.includes('nominal/SetVolume');
+  await assert.rejects(pa.call('accept', { callback: old }), mismatch);
+  const reverseOld = previous.exportSetVolume(to.owner(), volume);
+  await assert.rejects(pb.call('reverse', { callback: reverseOld }), mismatch);
+  assert.equal(serverCalls, 0);
+  assert.equal(reverseCalls, 0);
+  assert.equal(await pa.call('accept', { callback: raw }), 42);
+  const reverseRaw = nominal.exportSetVolume(to.owner(), volume);
+  assert.equal(await pb.call('reverse', { callback: reverseRaw }), 42);
+  assert.equal(serverCalls, 1);
+  assert.equal(reverseCalls, 1);
 } finally {
   pa.close();
   pb?.close();
