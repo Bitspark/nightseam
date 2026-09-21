@@ -59,6 +59,11 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- The grant packet of the optional authority profile: a canonical body sealed
+  in an Archon envelope in the `nightseam-grant/1` domain, the chain rules
+  and their refusals, issuance with inherit, the interface both verifiers
+  export, and a table of 72 cases both are held to — specified before either
+  verifier is written.
 - Combined Go and TypeScript acceptance exercises closed callable applications
   and two-provider family draws through one Cell model across local Wires,
   sockets, channels and two-connection forwarding. Independent specialization,

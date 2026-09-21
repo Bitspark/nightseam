@@ -73,6 +73,7 @@ export const sets = [
   { directory: "docs/runtime", index: "docs/README.md" },
   { directory: "docs/declaration", index: "docs/README.md" },
   { directory: "docs/languages", index: "docs/README.md" },
+  { directory: "docs/auth", index: "docs/README.md" },
 ];
 
 /**
@@ -93,6 +94,7 @@ export const parts = ["The question", "Decided", "Why", "Serves", "Since"];
  * that a new thing is now spoken of, which is the point of the row.
  */
 export const attributable = new Set([
+  "Archon",
   "CI",
   "ECMAScript",
   "GitHub",

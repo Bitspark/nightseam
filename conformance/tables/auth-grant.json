@@ -1,0 +1,1720 @@
+{
+  "description": "Vectors for the nightseam-grant/1 packet (docs/auth/grant.md). Keys are Ed25519 from the seeds shown; every byte is deterministic. Envelopes are Archon sdk envelopes sealed in the grant domain; digests are SHA-256 over whole envelope bytes. now is seconds since the Unix epoch, UTC, or null for no trusted time.",
+  "version": "0.1.0",
+  "domain": "nightseam-grant/1",
+  "bounds": {
+    "max_body_bytes": 65535,
+    "max_chain": 16,
+    "max_depth": 15,
+    "max_domain_bytes": 255,
+    "max_entries": 64,
+    "max_entry_bytes": 1024
+  },
+  "keys": {
+    "alice": {
+      "seed": "0202020202020202020202020202020202020202020202020202020202020202",
+      "pubkey": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
+    },
+    "bob": {
+      "seed": "0303030303030303030303030303030303030303030303030303030303030303",
+      "pubkey": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+    },
+    "carol": {
+      "seed": "0404040404040404040404040404040404040404040404040404040404040404",
+      "pubkey": "ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c"
+    },
+    "mallory": {
+      "seed": "0505050505050505050505050505050505050505050505050505050505050505",
+      "pubkey": "6e7a1cdd29b0b78fd13af4c5598feff4ef2a97166e3ca6f2e4fbfccd80505bf1"
+    },
+    "other_root": {
+      "seed": "0606060606060606060606060606060606060606060606060606060606060606",
+      "pubkey": "8a875fff1eb38451577acd5afee405456568dd7c89e090863a0557bc7af49f17"
+    },
+    "root": {
+      "seed": "0101010101010101010101010101010101010101010101010101010101010101",
+      "pubkey": "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c"
+    }
+  },
+  "envelopes": {
+    "alice_bob": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3944f78460cc17d271e5dc0d854aae850ba2530683673e30f6c0306506a3ced2d8271dc1d111053443fbfa6202c72c4d37a87fa85fe25784bb04a582909202c8e08010c6578616d706c652e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d101a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f3700020004726561640005777269746500010004726561640201000000006b49d200",
+    "alice_bob_other_trust_domain": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394b34a308873d170524ea1bd1d66454212f56ab1733130ffd6037ac6315447ee3fd8d8103042579a6d3e223162d1dfb1b1b3bae74d18bfad16d01fe96c215d2207010a6f746865722e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d101a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f37000100047265616400010004726561640200",
+    "alice_bob_unbounded": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394c84e27f9c58f6663056013a0498d87de486f872dd43bad93453df94965e8ee93e223566217c93c1e080f0e3456cafcca096eb3a7584a23db200f989aebedb10a010c6578616d706c652e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d101a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f3700020004726561640005777269746500010004726561640200",
+    "alice_bob_widened_actions": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394c85f17fa7e8785a0784690fdd99352ce5f28b63e6983d2974d1f619669427f5c6886a3248c25188ea6d7e5f187cc3a3c91cbcc84d3ce278d2158486831b8c00e010c6578616d706c652e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d101a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f370003000663616e63656c0004726561640005777269746500010004726561640200",
+    "alice_bob_widened_depth": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39466d83c22d34cb88bb5577e8b1756678872067a0571d1a2713b8c96542c4e59325c7afc0fa74cdace0ab7b5e93833467e6d574cfb088372659bd278e0bba05501010c6578616d706c652e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d101a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f37000100047265616400010004726561640300",
+    "alice_bob_widened_scope": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39454b974d793dfdce5be7b3306791397bd9b4c35c7c8846294ed9a7cd17b13c4273b8e69c5c4451c3308f34cab9586eed7fe5b09abe1bb37d4ca604529057c540c010c6578616d706c652e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d101a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0002000a70726f6a656374732f3700057465616d73000100047265616400010004726561640200",
+    "alice_bob_wrong_parent": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394fe49f016deff83d6e54767fe4c368205faac87d2b1fa34fba98c18a3f2619fbe2e3dcd64294652738faba106950e3aa452ce38d3808f2f88b0311bfd743ec00b010c6578616d706c652e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1010144fab7905a6d275b51786dbe70078ebc1d608e1ee08ea456a9a00f4ba92ba10001000a70726f6a656374732f37000100047265616400010004726561640200",
+    "bob_carol": "6172636e01116e696768747365616d2d6772616e742f31ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1d6011d56d3cc4f10051822aa2a57eb0c1636876adeb80fc07f41cf24ce762e8cdac37d4a2e128c5ec1b35303c8d3b5a43cf135cac7fcc99b710dc44159dcf802010c6578616d706c652e74657374ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c01bec9e2aa107654ff4c4e0fc6bb84c4eae8641065cc72e80598a149cb6af426c50001001170726f6a656374732f372f6c6564676572000100047265616400000001000000006b49d200",
+    "bob_carol_later_expiry": "6172636e01116e696768747365616d2d6772616e742f31ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1ea9c8c0e86080968d87e24ac49e13bd76a672800ceb603f830725f6e2ed8dab8e95030aed925f17f1177ad61a703eeed1bbaf57af58ebadc0c29d5676a409701010c6578616d706c652e74657374ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c01bec9e2aa107654ff4c4e0fc6bb84c4eae8641065cc72e80598a149cb6af426c50001001170726f6a656374732f372f6c6564676572000100047265616400000001000000006b49d201",
+    "bob_carol_unbounded": "6172636e01116e696768747365616d2d6772616e742f31ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1dcc40d86277437c90f38de60f4b7dfbce270d9d457b94eccc565264350491377ef6aa8eee13433fa799dfbc6228706e753403e624b82ee339deaff2a62d8a504010c6578616d706c652e74657374ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c010144fab7905a6d275b51786dbe70078ebc1d608e1ee08ea456a9a00f4ba92ba10001001170726f6a656374732f372f6c6564676572000100047265616400000100",
+    "bob_carol_unbounded_under_finite": "6172636e01116e696768747365616d2d6772616e742f31ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d13af8d8c90a0bc1542d2940b01b534aba5b13c2163353626fdd209a5d61b1e0a6a4925adc0023515edcb1bedc6e96761af8281fc7059bfa09c2770053bdf57c04010c6578616d706c652e74657374ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c01bec9e2aa107654ff4c4e0fc6bb84c4eae8641065cc72e80598a149cb6af426c50001001170726f6a656374732f372f6c6564676572000100047265616400000000",
+    "carol_mallory_under_depth0": "6172636e01116e696768747365616d2d6772616e742f31ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7cecce1c61e214fc3aa9a2e1ce49007d5cb189e83e8bcfdf34ed0925b0b9a919a3bdb017ff38e35c846a19c73fd01a8d7a218966fef143502b16c4eb54a2bf630f010c6578616d706c652e746573746e7a1cdd29b0b78fd13af4c5598feff4ef2a97166e3ca6f2e4fbfccd80505bf101d8276e3eeded0219c6e9f4bb4deb88560fff29c70614a6e462be260ccaeb4e5c0001001170726f6a656374732f372f6c6564676572000100047265616400000001000000006b49d200",
+    "mallory_carol_forged": "6172636e01116e696768747365616d2d6772616e742f316e7a1cdd29b0b78fd13af4c5598feff4ef2a97166e3ca6f2e4fbfccd80505bf1a2c7bf6c1574b3a0c22c71d1f8f69a2175e7d7e7c638f9e44c410920ce0878b0688c5c0f57bea825eb944dbe87687af745971705ca19dd5b3eca7c75ad568a0c010c6578616d706c652e74657374ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c01bec9e2aa107654ff4c4e0fc6bb84c4eae8641065cc72e80598a149cb6af426c50001001170726f6a656374732f372f6c6564676572000100047265616400000001000000006b49d200",
+    "other_root_alice": "6172636e01116e696768747365616d2d6772616e742f318a875fff1eb38451577acd5afee405456568dd7c89e090863a0557bc7af49f1746e49b7294845f6a78015a6b3f6750386c912c409a7c443603edbfe8c1c64525ab43d2f05ab0b037d7cfbda137459faeb000593276ca28317ee6f169708f830d010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300",
+    "root_alice": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c6f78fb44bbbb08c0f17de081df55c05c08cda4e5ff95b057ec22735bdcdde4aef6f36d669b4619ff7ad605a10ed5c13bfd97545f2b6e5b291d3a35203b97dc07010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300",
+    "root_alice_body_v2": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5ca55bcbbf1ab34abcfed0cd97fd5c181b2a1c64f7b73c055a6bbcd88533d8bf3b180b03376ff3cef1c000fa9b7ff51430065d3fdd2d6fdac35281b32eba73c70d020c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300",
+    "root_alice_other_domain": "6172636e01116e696768747365616d2d6772616e742f308a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c7c8a9d6d7b172d00c6f490851430b00719fdb22d5af5a637071c4e7ee0adc57903775c3bc041cb21f473d839f0fd8c45172f2a6837340f97041fea4684ab430a010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300",
+    "root_alice_tampered": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c6f78fb44bbbb08c0f17de081df55c05c08cda4e5ff95b057ec22735bdcdde4aef6f36d669b4619ff7ad605a10ed5c13bfd97545f2b6e5b291d3a35203b97dc07010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650301",
+    "root_alice_trailing_byte": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c48c29eeabdaf80a863573062885ce319be9575372b5d4d85906a8dbb9e645864cd3b6d51135aac73928c5b2feb1033a77f2cf1698cc4e20e133c409ebf48e70a010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a65637473000200047265616400057772697465000200047265616400057772697465030000",
+    "root_alice_with_parent": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5cc2fba8c5c7918284e1987a803e5716167319e612b0ba14413c7ca282fff538f0e495f59c46ed9c96d61d82aaa36cf64317e864eae2a67efaa7af7a6bceda7208010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39401a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300"
+  },
+  "cases": [
+    {
+      "family": "grant_encode",
+      "id": "AUTH-GRANT-001",
+      "name": "root grant, unbounded, no parent",
+      "grant": {
+        "domain": "example.test",
+        "subject": "alice",
+        "parent": null,
+        "scope": [
+          "projects"
+        ],
+        "actions": [
+          "read",
+          "write"
+        ],
+        "delegable": [
+          "read",
+          "write"
+        ],
+        "depth": 3,
+        "validity": "unbounded"
+      },
+      "body": "010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300"
+    },
+    {
+      "family": "grant_encode",
+      "id": "AUTH-GRANT-002",
+      "name": "child grant, finite, parent digest",
+      "grant": {
+        "domain": "example.test",
+        "subject": "bob",
+        "parent": "root_alice",
+        "scope": [
+          "projects/7"
+        ],
+        "actions": [
+          "read",
+          "write"
+        ],
+        "delegable": [
+          "read"
+        ],
+        "depth": 2,
+        "validity": {
+          "expires_at": 1800000000
+        }
+      },
+      "body": "010c6578616d706c652e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d101a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f3700020004726561640005777269746500010004726561640201000000006b49d200"
+    },
+    {
+      "family": "grant_encode",
+      "id": "AUTH-GRANT-003",
+      "name": "leaf grant, empty delegable, depth 0",
+      "grant": {
+        "domain": "example.test",
+        "subject": "carol",
+        "parent": "alice_bob",
+        "scope": [
+          "projects/7/ledger"
+        ],
+        "actions": [
+          "read"
+        ],
+        "delegable": null,
+        "depth": 0,
+        "validity": {
+          "expires_at": 1800000000
+        }
+      },
+      "body": "010c6578616d706c652e74657374ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c01bec9e2aa107654ff4c4e0fc6bb84c4eae8641065cc72e80598a149cb6af426c50001001170726f6a656374732f372f6c6564676572000100047265616400000001000000006b49d200"
+    },
+    {
+      "family": "grant_encode",
+      "id": "AUTH-GRANT-004",
+      "name": "empty scope and empty actions encode",
+      "grant": {
+        "domain": "example.test",
+        "subject": "alice",
+        "parent": null,
+        "scope": null,
+        "actions": null,
+        "delegable": null,
+        "depth": 0,
+        "validity": "unbounded"
+      },
+      "body": "010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000000000000000000"
+    },
+    {
+      "family": "grant_encode",
+      "id": "AUTH-GRANT-005",
+      "name": "actions out of byte order are refused",
+      "grant": {
+        "domain": "example.test",
+        "subject": "alice",
+        "parent": null,
+        "scope": null,
+        "actions": [
+          "write",
+          "read"
+        ],
+        "delegable": null,
+        "depth": 0,
+        "validity": "unbounded"
+      },
+      "refused": true
+    },
+    {
+      "family": "grant_encode",
+      "id": "AUTH-GRANT-006",
+      "name": "duplicate scope entries are refused",
+      "grant": {
+        "domain": "example.test",
+        "subject": "alice",
+        "parent": null,
+        "scope": [
+          "a",
+          "a"
+        ],
+        "actions": null,
+        "delegable": null,
+        "depth": 0,
+        "validity": "unbounded"
+      },
+      "refused": true
+    },
+    {
+      "family": "grant_encode",
+      "id": "AUTH-GRANT-007",
+      "name": "delegable outside actions is refused",
+      "grant": {
+        "domain": "example.test",
+        "subject": "alice",
+        "parent": null,
+        "scope": null,
+        "actions": [
+          "read"
+        ],
+        "delegable": [
+          "write"
+        ],
+        "depth": 0,
+        "validity": "unbounded"
+      },
+      "refused": true
+    },
+    {
+      "family": "grant_encode",
+      "id": "AUTH-GRANT-008",
+      "name": "depth above the bound is refused",
+      "grant": {
+        "domain": "example.test",
+        "subject": "alice",
+        "parent": null,
+        "scope": null,
+        "actions": null,
+        "delegable": null,
+        "depth": 16,
+        "validity": "unbounded"
+      },
+      "refused": true
+    },
+    {
+      "family": "grant_encode",
+      "id": "AUTH-GRANT-009",
+      "name": "empty domain is refused",
+      "grant": {
+        "domain": "",
+        "subject": "alice",
+        "parent": null,
+        "scope": null,
+        "actions": null,
+        "delegable": null,
+        "depth": 0,
+        "validity": "unbounded"
+      },
+      "refused": true
+    },
+    {
+      "family": "grant_encode",
+      "id": "AUTH-GRANT-010",
+      "name": "a control character in an entry is refused",
+      "grant": {
+        "domain": "example.test",
+        "subject": "alice",
+        "parent": null,
+        "scope": [
+          "a\tb"
+        ],
+        "actions": null,
+        "delegable": null,
+        "depth": 0,
+        "validity": "unbounded"
+      },
+      "refused": true
+    },
+    {
+      "family": "grant_encode",
+      "id": "AUTH-GRANT-011",
+      "name": "inherit is an issuance input, not an encoding",
+      "grant": {
+        "domain": "example.test",
+        "subject": "alice",
+        "parent": null,
+        "scope": null,
+        "actions": null,
+        "delegable": null,
+        "depth": 0,
+        "validity": "inherit"
+      },
+      "refused": true
+    },
+    {
+      "family": "grant_decode",
+      "id": "AUTH-GRANT-012",
+      "name": "a canonical body decodes to its grant (subject and parent as hex here)",
+      "body": "010c6578616d706c652e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d101a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f3700020004726561640005777269746500010004726561640201000000006b49d200",
+      "grant": {
+        "domain": "example.test",
+        "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1",
+        "parent": "a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e",
+        "scope": [
+          "projects/7"
+        ],
+        "actions": [
+          "read",
+          "write"
+        ],
+        "delegable": [
+          "read"
+        ],
+        "depth": 2,
+        "validity": {
+          "expires_at": 1800000000
+        }
+      }
+    },
+    {
+      "family": "grant_decode",
+      "id": "AUTH-GRANT-013",
+      "name": "trailing byte is malformed",
+      "body": "010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a65637473000200047265616400057772697465000200047265616400057772697465030000",
+      "refused": "malformed"
+    },
+    {
+      "family": "grant_decode",
+      "id": "AUTH-GRANT-014",
+      "name": "truncated body is malformed",
+      "body": "010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974",
+      "refused": "malformed"
+    },
+    {
+      "family": "grant_decode",
+      "id": "AUTH-GRANT-015",
+      "name": "unknown body version is unsupported_version",
+      "body": "020c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300",
+      "refused": "unsupported_version"
+    },
+    {
+      "family": "grant_decode",
+      "id": "AUTH-GRANT-016",
+      "name": "unknown parent kind is malformed",
+      "body": "010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394020001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300",
+      "refused": "malformed"
+    },
+    {
+      "family": "grant_decode",
+      "id": "AUTH-GRANT-017",
+      "name": "unknown validity kind is malformed",
+      "body": "010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650302",
+      "refused": "malformed"
+    },
+    {
+      "family": "grant_decode",
+      "id": "AUTH-GRANT-018",
+      "name": "empty body is malformed",
+      "body": "",
+      "refused": "malformed"
+    },
+    {
+      "family": "grant_seal",
+      "id": "AUTH-GRANT-019",
+      "name": "root seals a root grant in the grant domain",
+      "issuer": "root",
+      "grant": {
+        "domain": "example.test",
+        "subject": "alice",
+        "parent": null,
+        "scope": [
+          "projects"
+        ],
+        "actions": [
+          "read",
+          "write"
+        ],
+        "delegable": [
+          "read",
+          "write"
+        ],
+        "depth": 3,
+        "validity": "unbounded"
+      },
+      "envelope": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c6f78fb44bbbb08c0f17de081df55c05c08cda4e5ff95b057ec22735bdcdde4aef6f36d669b4619ff7ad605a10ed5c13bfd97545f2b6e5b291d3a35203b97dc07010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300",
+      "digest": "a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e"
+    },
+    {
+      "family": "grant_seal",
+      "id": "AUTH-GRANT-020",
+      "name": "alice seals a child; parent is the digest of root_alice",
+      "issuer": "alice",
+      "grant": {
+        "domain": "example.test",
+        "subject": "bob",
+        "parent": "root_alice",
+        "scope": [
+          "projects/7"
+        ],
+        "actions": [
+          "read",
+          "write"
+        ],
+        "delegable": [
+          "read"
+        ],
+        "depth": 2,
+        "validity": {
+          "expires_at": 1800000000
+        }
+      },
+      "envelope": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3944f78460cc17d271e5dc0d854aae850ba2530683673e30f6c0306506a3ced2d8271dc1d111053443fbfa6202c72c4d37a87fa85fe25784bb04a582909202c8e08010c6578616d706c652e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d101a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f3700020004726561640005777269746500010004726561640201000000006b49d200",
+      "digest": "bec9e2aa107654ff4c4e0fc6bb84c4eae8641065cc72e80598a149cb6af426c5"
+    },
+    {
+      "family": "grant_open",
+      "id": "AUTH-GRANT-021",
+      "name": "a sealed grant opens to its issuer and body",
+      "envelope": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3944f78460cc17d271e5dc0d854aae850ba2530683673e30f6c0306506a3ced2d8271dc1d111053443fbfa6202c72c4d37a87fa85fe25784bb04a582909202c8e08010c6578616d706c652e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d101a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f3700020004726561640005777269746500010004726561640201000000006b49d200",
+      "issuer": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394",
+      "grant": {
+        "domain": "example.test",
+        "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1",
+        "parent": "a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e",
+        "scope": [
+          "projects/7"
+        ],
+        "actions": [
+          "read",
+          "write"
+        ],
+        "delegable": [
+          "read"
+        ],
+        "depth": 2,
+        "validity": {
+          "expires_at": 1800000000
+        }
+      }
+    },
+    {
+      "family": "grant_open",
+      "id": "AUTH-GRANT-022",
+      "name": "a flipped payload byte is envelope_invalid",
+      "envelope": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c6f78fb44bbbb08c0f17de081df55c05c08cda4e5ff95b057ec22735bdcdde4aef6f36d669b4619ff7ad605a10ed5c13bfd97545f2b6e5b291d3a35203b97dc07010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650301",
+      "refused": "envelope_invalid"
+    },
+    {
+      "family": "grant_open",
+      "id": "AUTH-GRANT-023",
+      "name": "an envelope in another domain is envelope_invalid",
+      "envelope": "6172636e01116e696768747365616d2d6772616e742f308a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c7c8a9d6d7b172d00c6f490851430b00719fdb22d5af5a637071c4e7ee0adc57903775c3bc041cb21f473d839f0fd8c45172f2a6837340f97041fea4684ab430a010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300",
+      "refused": "envelope_invalid"
+    },
+    {
+      "family": "grant_open",
+      "id": "AUTH-GRANT-024",
+      "name": "a body of another version opens the envelope but is unsupported_version",
+      "envelope": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5ca55bcbbf1ab34abcfed0cd97fd5c181b2a1c64f7b73c055a6bbcd88533d8bf3b180b03376ff3cef1c000fa9b7ff51430065d3fdd2d6fdac35281b32eba73c70d020c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300",
+      "refused": "unsupported_version"
+    },
+    {
+      "family": "grant_open",
+      "id": "AUTH-GRANT-025",
+      "name": "a body with a trailing byte opens the envelope but is malformed",
+      "envelope": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c48c29eeabdaf80a863573062885ce319be9575372b5d4d85906a8dbb9e645864cd3b6d51135aac73928c5b2feb1033a77f2cf1698cc4e20e133c409ebf48e70a010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a65637473000200047265616400057772697465000200047265616400057772697465030000",
+      "refused": "malformed"
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-026",
+      "name": "one hop, unbounded, no time needed",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "write",
+        "scope": "projects/9"
+      },
+      "now": null,
+      "verified": {
+        "subject": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394",
+        "depth": 3,
+        "validity": "unbounded",
+        "hops": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-027",
+      "name": "three hops, finite, before expiry",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob",
+        "bob_carol"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": 1799999999,
+      "verified": {
+        "subject": "ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c",
+        "depth": 0,
+        "validity": {
+          "expires_at": 1800000000
+        },
+        "hops": 3
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-028",
+      "name": "three hops, all unbounded, no time needed",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob_unbounded",
+        "bob_carol_unbounded"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "verified": {
+        "subject": "ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c",
+        "depth": 1,
+        "validity": "unbounded",
+        "hops": 3
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-029",
+      "name": "exactly at expiry is expired (half-open)",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob",
+        "bob_carol"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": 1800000000,
+      "refused": {
+        "code": "expired",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-030",
+      "name": "a bounded chain with no trusted time is time_required",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob",
+        "bob_carol"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "refused": {
+        "code": "time_required",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-031",
+      "name": "past the first finite hop's expiry: expired at that hop",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob",
+        "bob_carol"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": 1800000100,
+      "refused": {
+        "code": "expired",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-032",
+      "name": "the effective validity is the earliest finite expiry",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7"
+      },
+      "now": 1799999999,
+      "verified": {
+        "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1",
+        "depth": 2,
+        "validity": {
+          "expires_at": 1800000000
+        },
+        "hops": 2
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-033",
+      "name": "configured root differs: root_mismatch",
+      "root": {
+        "key": "other_root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "refused": {
+        "code": "root_mismatch",
+        "hop": 0
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-034",
+      "name": "a root grant carrying a parent is parent_mismatch at hop 0",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice_with_parent"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "refused": {
+        "code": "parent_mismatch",
+        "hop": 0
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-035",
+      "name": "a child whose parent digest is not the previous envelope: parent_mismatch",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob_wrong_parent"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "refused": {
+        "code": "parent_mismatch",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-036",
+      "name": "a skipped hop is a splice: parent_mismatch",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "bob_carol"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "parent_mismatch",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-037",
+      "name": "a leaf from another chain is a splice: parent_mismatch",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob",
+        "bob_carol_unbounded"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "parent_mismatch",
+        "hop": 2
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-038",
+      "name": "a child signed by a key that is not the parent's subject: issuer_mismatch",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob",
+        "mallory_carol_forged"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "issuer_mismatch",
+        "hop": 2
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-039",
+      "name": "a tampered envelope is envelope_invalid",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice_tampered"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "refused": {
+        "code": "envelope_invalid",
+        "hop": 0
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-040",
+      "name": "an envelope in another signing domain is envelope_invalid",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice_other_domain"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "refused": {
+        "code": "envelope_invalid",
+        "hop": 0
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-041",
+      "name": "a body of another version is unsupported_version",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice_body_v2"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "refused": {
+        "code": "unsupported_version",
+        "hop": 0
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-042",
+      "name": "a grant in another trust domain is domain_mismatch",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob_other_trust_domain"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "refused": {
+        "code": "domain_mismatch",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-043",
+      "name": "a request in another trust domain is domain_mismatch",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice"
+      ],
+      "request": {
+        "domain": "other.test",
+        "action": "read",
+        "scope": "projects/7"
+      },
+      "now": null,
+      "refused": {
+        "code": "domain_mismatch",
+        "hop": 0
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-044",
+      "name": "widened actions",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob_widened_actions"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "refused": {
+        "code": "widened_actions",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-045",
+      "name": "widened scope",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob_widened_scope"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "refused": {
+        "code": "widened_scope",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-046",
+      "name": "depth not decreasing",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob_widened_depth"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "refused": {
+        "code": "widened_depth",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-047",
+      "name": "a child under depth 0",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob",
+        "bob_carol",
+        "carol_mallory_under_depth0"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "widened_depth",
+        "hop": 3
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-048",
+      "name": "unbounded child under a finite parent: widened_validity",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob",
+        "bob_carol_unbounded_under_finite"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "widened_validity",
+        "hop": 2
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-049",
+      "name": "later expiry than the parent is refused, not clipped",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob",
+        "bob_carol_later_expiry"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "widened_validity",
+        "hop": 2
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-050",
+      "name": "an action no hop grants: not_covered at hop 0",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "archive",
+        "scope": "projects/7"
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "not_covered",
+        "hop": 0
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-051",
+      "name": "an action the ancestor may use but not delegate: not_covered at that hop",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob",
+        "bob_carol"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "write",
+        "scope": "projects/7/ledger"
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "not_covered",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-052",
+      "name": "a scope outside a hop: not_covered at that hop",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/8"
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "not_covered",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-053",
+      "name": "subtree coverage: projects covers projects/7/ledger",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "verified": {
+        "subject": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394",
+        "depth": 3,
+        "validity": "unbounded",
+        "hops": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-054",
+      "name": "a sibling prefix is not a subtree: projects/7 does not cover projects/70",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/70"
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "not_covered",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-055",
+      "name": "an empty chain is malformed",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "refused": {
+        "code": "malformed",
+        "hop": 0
+      }
+    },
+    {
+      "family": "grant_verify",
+      "id": "AUTH-GRANT-056",
+      "name": "seventeen envelopes are chain_too_long before any is opened",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "chain": [
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice",
+        "root_alice"
+      ],
+      "request": {
+        "domain": "example.test",
+        "action": "read",
+        "scope": "projects/7/ledger"
+      },
+      "now": null,
+      "refused": {
+        "code": "chain_too_long",
+        "hop": 0
+      }
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-057",
+      "name": "root issues a root grant; bytes equal root_alice",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": null,
+      "issuer": "root",
+      "child": {
+        "domain": "example.test",
+        "subject": "alice",
+        "parent": null,
+        "scope": [
+          "projects"
+        ],
+        "actions": [
+          "read",
+          "write"
+        ],
+        "delegable": [
+          "read",
+          "write"
+        ],
+        "depth": 3,
+        "validity": "unbounded"
+      },
+      "now": null,
+      "envelope": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c6f78fb44bbbb08c0f17de081df55c05c08cda4e5ff95b057ec22735bdcdde4aef6f36d669b4619ff7ad605a10ed5c13bfd97545f2b6e5b291d3a35203b97dc07010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300",
+      "same_as": "root_alice"
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-058",
+      "name": "a root grant may not inherit: it states its validity",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": null,
+      "issuer": "root",
+      "child": {
+        "domain": "example.test",
+        "subject": "alice",
+        "parent": null,
+        "scope": [
+          "projects"
+        ],
+        "actions": [
+          "read"
+        ],
+        "delegable": [
+          "read"
+        ],
+        "depth": 3,
+        "validity": "inherit"
+      },
+      "now": null,
+      "refused": {
+        "code": "malformed",
+        "hop": 0
+      }
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-059",
+      "name": "a key that is not the root may not issue a root grant",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": null,
+      "issuer": "alice",
+      "child": {
+        "domain": "example.test",
+        "subject": "alice",
+        "parent": null,
+        "scope": [
+          "projects"
+        ],
+        "actions": [
+          "read",
+          "write"
+        ],
+        "delegable": [
+          "read",
+          "write"
+        ],
+        "depth": 3,
+        "validity": "unbounded"
+      },
+      "now": null,
+      "refused": {
+        "code": "root_mismatch",
+        "hop": 0
+      }
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-060",
+      "name": "inherit under an unbounded parent resolves to unbounded; bytes equal alice_bob_unbounded",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": [
+        "root_alice"
+      ],
+      "issuer": "alice",
+      "child": {
+        "domain": "example.test",
+        "subject": "bob",
+        "parent": null,
+        "scope": [
+          "projects/7"
+        ],
+        "actions": [
+          "read",
+          "write"
+        ],
+        "delegable": [
+          "read"
+        ],
+        "depth": 2,
+        "validity": "inherit"
+      },
+      "now": null,
+      "envelope": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394c84e27f9c58f6663056013a0498d87de486f872dd43bad93453df94965e8ee93e223566217c93c1e080f0e3456cafcca096eb3a7584a23db200f989aebedb10a010c6578616d706c652e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d101a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f3700020004726561640005777269746500010004726561640200",
+      "same_as": "alice_bob_unbounded"
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-061",
+      "name": "inherit under a finite parent resolves to the parent's expiry; bytes equal bob_carol",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "issuer": "bob",
+      "child": {
+        "domain": "example.test",
+        "subject": "carol",
+        "parent": null,
+        "scope": [
+          "projects/7/ledger"
+        ],
+        "actions": [
+          "read"
+        ],
+        "delegable": null,
+        "depth": 0,
+        "validity": "inherit"
+      },
+      "now": 1799999999,
+      "envelope": "6172636e01116e696768747365616d2d6772616e742f31ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1d6011d56d3cc4f10051822aa2a57eb0c1636876adeb80fc07f41cf24ce762e8cdac37d4a2e128c5ec1b35303c8d3b5a43cf135cac7fcc99b710dc44159dcf802010c6578616d706c652e74657374ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c01bec9e2aa107654ff4c4e0fc6bb84c4eae8641065cc72e80598a149cb6af426c50001001170726f6a656374732f372f6c6564676572000100047265616400000001000000006b49d200",
+      "same_as": "bob_carol"
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-062",
+      "name": "issuing again yields the same bytes: a retry renews nothing",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "issuer": "bob",
+      "child": {
+        "domain": "example.test",
+        "subject": "carol",
+        "parent": null,
+        "scope": [
+          "projects/7/ledger"
+        ],
+        "actions": [
+          "read"
+        ],
+        "delegable": null,
+        "depth": 0,
+        "validity": "inherit"
+      },
+      "now": 1799999500,
+      "envelope": "6172636e01116e696768747365616d2d6772616e742f31ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1d6011d56d3cc4f10051822aa2a57eb0c1636876adeb80fc07f41cf24ce762e8cdac37d4a2e128c5ec1b35303c8d3b5a43cf135cac7fcc99b710dc44159dcf802010c6578616d706c652e74657374ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c01bec9e2aa107654ff4c4e0fc6bb84c4eae8641065cc72e80598a149cb6af426c50001001170726f6a656374732f372f6c6564676572000100047265616400000001000000006b49d200",
+      "same_as": "bob_carol"
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-063",
+      "name": "an unbounded child under a finite parent is refused",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "issuer": "bob",
+      "child": {
+        "domain": "example.test",
+        "subject": "carol",
+        "parent": null,
+        "scope": [
+          "projects/7/ledger"
+        ],
+        "actions": [
+          "read"
+        ],
+        "delegable": null,
+        "depth": 0,
+        "validity": "unbounded"
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "widened_validity",
+        "hop": 2
+      }
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-064",
+      "name": "a later expiry than the parent is refused, not clipped",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "issuer": "bob",
+      "child": {
+        "domain": "example.test",
+        "subject": "carol",
+        "parent": null,
+        "scope": [
+          "projects/7/ledger"
+        ],
+        "actions": [
+          "read"
+        ],
+        "delegable": null,
+        "depth": 0,
+        "validity": {
+          "expires_at": 1800000001
+        }
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "widened_validity",
+        "hop": 2
+      }
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-065",
+      "name": "an earlier expiry than the parent is permitted",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "issuer": "bob",
+      "child": {
+        "domain": "example.test",
+        "subject": "carol",
+        "parent": null,
+        "scope": [
+          "projects/7/ledger"
+        ],
+        "actions": [
+          "read"
+        ],
+        "delegable": null,
+        "depth": 0,
+        "validity": {
+          "expires_at": 1799999000
+        }
+      },
+      "now": 1799998000,
+      "envelope": "6172636e01116e696768747365616d2d6772616e742f31ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1a09d5b789de7bf0c7b6aeda001f1bdf93c660866e286a5554b90adf63fdcfc355e15ef88e3fd776a0aa6693eb15d2d866635c92cf9d1ed9125975a9d6d864c03010c6578616d706c652e74657374ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c01bec9e2aa107654ff4c4e0fc6bb84c4eae8641065cc72e80598a149cb6af426c50001001170726f6a656374732f372f6c6564676572000100047265616400000001000000006b49ce18"
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-066",
+      "name": "the issuer must be the parent's subject",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "issuer": "mallory",
+      "child": {
+        "domain": "example.test",
+        "subject": "carol",
+        "parent": null,
+        "scope": [
+          "projects/7/ledger"
+        ],
+        "actions": [
+          "read"
+        ],
+        "delegable": null,
+        "depth": 0,
+        "validity": "inherit"
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "issuer_mismatch",
+        "hop": 2
+      }
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-067",
+      "name": "issuing under a finite parent needs a trusted time",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "issuer": "bob",
+      "child": {
+        "domain": "example.test",
+        "subject": "carol",
+        "parent": null,
+        "scope": [
+          "projects/7/ledger"
+        ],
+        "actions": [
+          "read"
+        ],
+        "delegable": null,
+        "depth": 0,
+        "validity": "inherit"
+      },
+      "now": null,
+      "refused": {
+        "code": "time_required",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-068",
+      "name": "issuing under an expired parent is refused",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "issuer": "bob",
+      "child": {
+        "domain": "example.test",
+        "subject": "carol",
+        "parent": null,
+        "scope": [
+          "projects/7/ledger"
+        ],
+        "actions": [
+          "read"
+        ],
+        "delegable": null,
+        "depth": 0,
+        "validity": "inherit"
+      },
+      "now": 1800000000,
+      "refused": {
+        "code": "expired",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-069",
+      "name": "widening actions at issuance is refused",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": [
+        "root_alice"
+      ],
+      "issuer": "alice",
+      "child": {
+        "domain": "example.test",
+        "subject": "bob",
+        "parent": null,
+        "scope": [
+          "projects/7"
+        ],
+        "actions": [
+          "cancel",
+          "read"
+        ],
+        "delegable": [
+          "read"
+        ],
+        "depth": 2,
+        "validity": "unbounded"
+      },
+      "now": null,
+      "refused": {
+        "code": "widened_actions",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-070",
+      "name": "widening scope at issuance is refused",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": [
+        "root_alice"
+      ],
+      "issuer": "alice",
+      "child": {
+        "domain": "example.test",
+        "subject": "bob",
+        "parent": null,
+        "scope": [
+          "teams"
+        ],
+        "actions": [
+          "read"
+        ],
+        "delegable": [
+          "read"
+        ],
+        "depth": 2,
+        "validity": "unbounded"
+      },
+      "now": null,
+      "refused": {
+        "code": "widened_scope",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-071",
+      "name": "depth must decrease at issuance",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": [
+        "root_alice"
+      ],
+      "issuer": "alice",
+      "child": {
+        "domain": "example.test",
+        "subject": "bob",
+        "parent": null,
+        "scope": [
+          "projects/7"
+        ],
+        "actions": [
+          "read"
+        ],
+        "delegable": [
+          "read"
+        ],
+        "depth": 3,
+        "validity": "unbounded"
+      },
+      "now": null,
+      "refused": {
+        "code": "widened_depth",
+        "hop": 1
+      }
+    },
+    {
+      "family": "grant_issue",
+      "id": "AUTH-GRANT-072",
+      "name": "a leaf at depth 0 may not issue",
+      "root": {
+        "key": "root",
+        "domain": "example.test"
+      },
+      "parents": [
+        "root_alice",
+        "alice_bob",
+        "bob_carol"
+      ],
+      "issuer": "carol",
+      "child": {
+        "domain": "example.test",
+        "subject": "mallory",
+        "parent": null,
+        "scope": [
+          "projects/7/ledger"
+        ],
+        "actions": [
+          "read"
+        ],
+        "delegable": null,
+        "depth": 0,
+        "validity": "inherit"
+      },
+      "now": 1799999999,
+      "refused": {
+        "code": "widened_depth",
+        "hop": 3
+      }
+    }
+  ]
+}
