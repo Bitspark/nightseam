@@ -148,6 +148,8 @@ class Builder {
         return simple({ primitive: type });
       const target = this.lookup(type, validate, slots);
       if (target.definition.kind === 'alias') {
+        const declared = this.alias(target.validate, target.name);
+        if (declared) return this.canonical(declared.graph, declared.type, target.slots, depth + 1);
         if (!target.definition.type) throw new Error('declaration: expected alias target');
         return this.expression(
           { type: target.definition.type, validate: target.validate, slots: target.slots },
@@ -156,6 +158,11 @@ class Builder {
       }
       const graph = this.graph(target.validate),
         family = object(graph.root).ref;
+      if (!graph.definitions[family + '/' + target.name] && ['Envelope', 'Handle'].includes(target.name))
+        return simple({
+          projection: target.name,
+          family: { graph: this.named(graph, String(family), target.slots, depth) },
+        });
       return this.named(graph, family + '/' + target.name, target.slots, depth);
     }
     for (const key of ['array', 'map', 'nullable'] as const) {
@@ -164,23 +171,21 @@ class Builder {
           { type: (type as Record<string, TypeExpression>)[key]!, validate, slots },
           depth + 1,
         );
-        graph.root = { [key]: graph.root };
-        return graph;
+        return simple({ [key]: { graph } });
       }
     }
     if ('literal' in type) return simple({ literal: type.literal });
     if ('empty' in type && type.empty) return simple({ empty: true });
     if ('ref' in type) {
       const graph = this.expression({ type: type.ref, validate, slots }, depth + 1);
-      graph.root = { entity: graph.root };
-      return graph;
+      return simple({ entity: { graph } });
     }
     if ('apply' in type) {
       const target = this.lookup(type.apply, validate, slots);
       const bound: Record<string, FamilyBinding<AnyFamily> | TypeBinding> = { ...target.slots };
-      const graph = this.graph(target.validate),
-        family = object(graph.root).ref;
-      const definition = graph.definitions[family + '/' + target.name]
+      const graph = declarations.get(target.validate),
+        family = graph ? object(graph.root).ref : '';
+      const definition = graph?.definitions[family + '/' + target.name]
         ? object(graph.definitions[family + '/' + target.name])
         : {};
       const parameters = [...((definition.captures as Value[]) ?? []), ...((definition.parameters as Value[]) ?? [])];
@@ -191,6 +196,12 @@ class Builder {
         expected.set(String(p.name), String(p.of));
       }
       for (const parameter of target.definition.parameters ?? []) expected.set(parameter.name, parameter.of ?? '');
+      const alias = target.definition.kind === 'alias' ? this.alias(target.validate, target.name) : undefined;
+      if (alias) {
+        const needed = bindingNames(alias.graph, alias.type);
+        for (const parameter of validatorMetadata(target.validate).family.parameters ?? [])
+          if (needed.has(parameter.name)) expected.set(parameter.name, parameter.of ?? '');
+      }
       for (const [name, value] of Object.entries(type.with)) {
         const of = expected.get(name);
         if (of === undefined) throw new Error('declaration: unknown parameter ' + name);
@@ -206,12 +217,130 @@ class Builder {
         } else bound[name] = { type: value, validate, slots };
       }
       if (target.definition.kind === 'alias') {
+        for (const parameter of target.definition.parameters ?? [])
+          if (!bound[parameter.name]) throw new Error('declaration: missing required binding ' + parameter.name);
+        const declared = this.alias(target.validate, target.name);
+        if (declared) return this.canonical(declared.graph, declared.type, bound, depth + 1);
         if (!target.definition.type) throw new Error('declaration: expected alias target');
         return this.expression({ type: target.definition.type, validate: target.validate, slots: bound }, depth + 1);
       }
-      return this.named(graph, family + '/' + target.name, bound, depth);
+      return this.named(this.graph(target.validate), family + '/' + target.name, bound, depth);
     }
+    if ('kind' in type) return this.inline(type, validate, slots, depth);
     throw new Error('declaration: type argument has no canonical declaration provenance');
+  }
+
+  private alias(validator: Validator, name: string): { graph: Graph; type: Value } | undefined {
+    const graph = declarations.get(validator);
+    if (!graph) return undefined;
+    const path = String(object(graph.root).ref),
+      family = object(graph.definitions[path]);
+    const nominal = graph.definitions[path + '/' + name];
+    if (nominal && object(nominal).kind === 'alias') return { graph, type: object(nominal).type! };
+    const expression = family.types && object(family.types)[name];
+    return expression ? { graph, type: expression } : undefined;
+  }
+
+  // Generated alias provenance preserves exact constraint literals that a JS
+  // validator's numeric presentation cannot retain outside its safe integer range.
+  private canonical(graph: Graph, value: Value, slots: Slots, depth: number): Graph {
+    if (depth > 256) throw new Error('declaration: cyclic supplied bindings');
+    const node = object(value);
+    if (node.graph) {
+      const inner = node.graph as Graph;
+      return this.canonical(inner, inner.root, slots, depth + 1);
+    }
+    if (typeof node.parameter === 'string') {
+      const name = node.parameter.slice(node.parameter.lastIndexOf('/') + 1),
+        supplied = slots[name];
+      if (!supplied) throw new Error('declaration: missing required binding ' + name);
+      return 'type' in supplied
+        ? this.expression(supplied, depth + 1)
+        : this.family(supplied.validate, supplied.slots ?? {});
+    }
+    if (typeof node.ref === 'string') return this.named(graph, node.ref, slots, depth);
+    if (node.draw) {
+      const source = object(node.draw);
+      if (typeof source.parameter === 'string') {
+        const name = source.parameter.slice(source.parameter.lastIndexOf('/') + 1),
+          family = slots[name];
+        if (!family || 'type' in family)
+          throw new Error('declaration: missing family binding for draw ' + String(node.name));
+        return this.expression({ validate: family.validate, type: String(node.name), slots: family.slots }, depth + 1);
+      }
+      if (typeof source.ref === 'string') {
+        const family = object(graph.definitions[source.ref]),
+          types = object(family.types);
+        const member = types[String(node.name)];
+        if (member) return this.canonical(graph, member, {}, depth + 1);
+      }
+      throw new Error('declaration: missing family binding for draw ' + String(node.name));
+    }
+    const child = (expression: Value): Value => ({ graph: this.canonical(graph, expression, slots, depth + 1) });
+    const closed: ObjectValue = { ...node };
+    if (typeof node.apply === 'string') closed.arguments = (node.arguments as Value[]).map(child);
+    for (const key of ['array', 'map', 'nullable', 'entity', 'draw', 'family', 'type', 'request', 'result'])
+      if (node[key] && typeof node[key] === 'object') closed[key] = child(node[key]);
+    if (Array.isArray(node.fields))
+      closed.fields = node.fields.map((field) => ({ ...object(field), type: child(object(field).type!) }));
+    if (Array.isArray(node.extends)) closed.extends = node.extends.map(child);
+    if (node.variants) {
+      const variants: ObjectValue = {};
+      for (const [tag, type] of Object.entries(object(node.variants))) variants[tag] = child(type);
+      closed.variants = variants;
+    }
+    return select(graph, closed);
+  }
+
+  private inline(definition: WireType, validate: Validator, slots: Slots, depth: number): Graph {
+    if (definition.parameters?.length) throw new Error('declaration: inline type has unbound parameters');
+    const child = (type: TypeExpression): Value => ({ graph: this.expression({ type, validate, slots }, depth + 1) });
+    const node: ObjectValue = { kind: definition.kind, parameters: [] };
+    if (definition.extends?.length) node.extends = definition.extends.map(child);
+    switch (definition.kind) {
+      case 'record':
+      case 'entity': {
+        node.open = definition.open ?? false;
+        node.fields = (definition.fields ?? []).map((field) => {
+          const entry: ObjectValue = {
+            name: field.name,
+            type: child(field.type),
+            required: field.required ?? false,
+            nullable: field.nullable ?? false,
+            unique: field.unique ?? false,
+          };
+          if (field.min !== undefined) entry.min = decimal(field.min);
+          if (field.max !== undefined) entry.max = decimal(field.max);
+          if (field.length) {
+            const length: ObjectValue = {};
+            if (field.length.min !== undefined) length.min = String(field.length.min);
+            if (field.length.max !== undefined) length.max = String(field.length.max);
+            entry.length = length;
+          }
+          if (field.pattern) entry.pattern = field.pattern;
+          return entry;
+        });
+        if (definition.kind === 'entity') node.key = definition.key ?? '';
+        break;
+      }
+      case 'enum':
+        node.values = [...new Set(definition.values ?? [])].sort(compareUTF8);
+        break;
+      case 'union': {
+        node.tag = definition.tag ?? '';
+        node.value = definition.value ?? 'value';
+        const variants: ObjectValue = {};
+        for (const [tag, type] of Object.entries(definition.variants ?? {})) variants[tag] = child(type);
+        node.variants = variants;
+        break;
+      }
+      case 'alias':
+        if (!definition.type) throw new Error('declaration: expected alias target');
+        return this.expression({ type: definition.type, validate, slots }, depth + 1);
+      default:
+        throw new Error('declaration: expected canonical provenance for ' + definition.kind);
+    }
+    return { definitions: {}, root: node, version: 1 };
   }
 
   private lookup(
@@ -238,6 +367,38 @@ class Builder {
     if (!definition) throw new Error('declaration: expected known type ' + name);
     return { name, validate: validator, slots, definition };
   }
+}
+
+function bindingNames(graph: Graph, value: Value): Set<string> {
+  const names = new Set<string>();
+  const visit = (value: Value): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+    if (typeof value.parameter === 'string') names.add(value.parameter.slice(value.parameter.lastIndexOf('/') + 1));
+    if (typeof value.ref === 'string') {
+      const definition = object(graph.definitions[value.ref]);
+      for (const item of [...((definition.captures as Value[]) ?? []), ...((definition.parameters as Value[]) ?? [])])
+        names.add(String(object(item).name));
+    }
+    Object.values(value).forEach(visit);
+  };
+  visit(value);
+  return names;
+}
+
+function decimal(number: number): string {
+  if (!Number.isFinite(number)) throw new Error('declaration: expected finite number');
+  if (number === 0) return '0';
+  const negative = number < 0,
+    [mantissa, exponent = '0'] = String(Math.abs(number)).toLowerCase().split('e');
+  const [whole, fraction = ''] = mantissa!.split('.');
+  const digits = (whole! + fraction).replace(/^0+/, ''),
+    trimmed = digits.replace(/0+$/, '');
+  const power = BigInt(exponent) - BigInt(fraction.length) + BigInt(digits.length - trimmed.length);
+  return (negative ? '-' : '') + trimmed + (power === 0n ? '' : 'e' + power);
 }
 
 function select(source: Graph, root: Value): Graph {

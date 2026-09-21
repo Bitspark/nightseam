@@ -88,6 +88,7 @@ interface Schema {
   family: WireFamily;
   digest: string;
   imported: Record<string, Validator>;
+  scope?: Scope;
 }
 type Scope = Record<string, { type: Expression } | { family: Schema }>;
 interface Expression {
@@ -345,7 +346,7 @@ function named(expression: Expression, name: string, location: string): [Express
       if (!schema) bad(location, 'known family');
     }
     name = name.slice(dot + 1);
-    expression = { schema, value: name, scope: {} };
+    expression = { schema, value: name, scope: { ...schema.scope } };
     if (/^[a-z]/.test(family)) {
       const source = singleFamilyParameter(caller.schema),
         target = schema.family.types[name];
@@ -684,6 +685,26 @@ function boundScope(slots: Slots, active = new Set<Slots>()): Scope {
 
 function validDeclarationDigest(digest: string): boolean {
   return digest === '' || /^[0-9a-f]{64}$/.test(digest);
+}
+
+function boundScope(slots: Slots, active = new Set<Slots>()): Scope {
+  if (active.has(slots)) throw new Error('cyclic type argument bindings');
+  active.add(slots);
+  const scope: Scope = Object.create(null) as Scope;
+  try {
+    for (const [parameter, binding] of Object.entries(slots)) {
+      scalarValue(parameter);
+      const nested = boundScope(binding.slots ?? {}, active);
+      if ('type' in binding) {
+        scalarValue(binding.type);
+        checkPatterns(binding.type);
+        scope[parameter] = { type: { schema: binding.validate[descriptor], value: binding.type, scope: nested } };
+      } else scope[parameter] = { family: { ...binding.validate[descriptor], scope: nested } };
+    }
+    return scope;
+  } finally {
+    active.delete(slots);
+  }
 }
 
 /** Creates a validator whose imports retain their declaration scope and generated
