@@ -15,7 +15,7 @@ func TestWireDigestMatchesExactDescriptorBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	var table struct {
-		Cases []struct{ Name, Wire, Digest string }
+		Cases []struct{ Name, Declaration, Wire, Digest string }
 	}
 	if err := json.Unmarshal(data, &table); err != nil {
 		t.Fatal(err)
@@ -25,8 +25,12 @@ func TestWireDigestMatchesExactDescriptorBytes(t *testing.T) {
 	}
 	for _, row := range table.Cases {
 		t.Run(row.Name, func(t *testing.T) {
+			source := row.Declaration
+			if source == "" {
+				source = `{"nightseam":2,` + row.Wire[1:]
+			}
 			world := analysis.World(modeltest.World(map[string]map[string]string{
-				"same": {"model.json": `{"nightseam":2,` + row.Wire[1:]},
+				"same": {"model.json": source},
 			}))
 			first, second := Build(analysis.Resolve(world, "same")), Build(analysis.Resolve(world, "same"))
 			if first.Wire != row.Wire {

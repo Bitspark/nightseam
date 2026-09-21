@@ -34,6 +34,7 @@ import (
 // conformance/tables/validator.json, including the same refusal strings.
 type Schema struct {
 	types      map[string]*wireType
+	digest     string
 	imported   map[string]*Schema
 	scope      map[string]argument
 	parameters []wireParameter
@@ -83,16 +84,20 @@ type wireField struct {
 	Pattern  string
 }
 
-// NewSchema reads a family's wire description; imported maps each family
-// it refers to to that family's Schema.
-func NewSchema(wire []byte, imported map[string]*Schema) (*Schema, error) {
+// NewSchema reads a family's wire description and its generated digest;
+// imported maps each family it refers to to that family's Schema. An empty
+// digest leaves declaration identity unspecified.
+func NewSchema(wire []byte, digest string, imported map[string]*Schema) (*Schema, error) {
+	if !validDeclarationDigest(digest) {
+		return nil, fmt.Errorf("schema.digest: expected empty or lowercase SHA-256 digest")
+	}
 	if err := scalarjson.Value(imported); err != nil {
 		return nil, err
 	}
 	if err := scalarjson.Raw(wire); err != nil {
 		return nil, err
 	}
-	s := &Schema{imported: imported}
+	s := &Schema{imported: imported, digest: digest}
 	decoder := json.NewDecoder(bytes.NewReader(wire))
 	decoder.UseNumber()
 	var description struct {
@@ -118,12 +123,27 @@ func NewSchema(wire []byte, imported map[string]*Schema) (*Schema, error) {
 }
 
 // MustSchema is NewSchema for a description the generator wrote.
-func MustSchema(wire string, imported map[string]*Schema) *Schema {
-	s, err := NewSchema([]byte(wire), imported)
+func MustSchema(wire string, digest string, imported map[string]*Schema) *Schema {
+	s, err := NewSchema([]byte(wire), digest, imported)
 	if err != nil {
 		panic(err)
 	}
 	return s
+}
+
+func validDeclarationDigest(digest string) bool {
+	if digest == "" {
+		return true
+	}
+	if len(digest) != 64 {
+		return false
+	}
+	for _, c := range digest {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // MustTypeExpression decodes a type expression the generator wrote, and
@@ -772,6 +792,8 @@ func (e expression) validate(value any, location string) error {
 			// contract is **nominal**, so the only reference this position
 			// accepts is one declared as this callable — which is what keeps
 			// a reference from reaching an implementation of something else.
+			// When both carry a digest, the declaration revision must match
+			// the callable's own schema, including across imports and bindings.
 			//
 			// Validation ends there. It resolves nothing, registers nothing
 			// and reaches no network: whether the binding exists, is still
@@ -792,8 +814,19 @@ func (e expression) validate(value any, location string) error {
 			if contract != t.Contract {
 				return fmt.Errorf("%s.contract: the reference carries %s where %s is expected", location, contract, t.Contract)
 			}
+			digest := ""
+			if value, present := obj["digest"]; present {
+				var valid bool
+				digest, valid = value.(string)
+				if !valid || !validDeclarationDigest(digest) {
+					return fmt.Errorf("%s.digest: expected empty or lowercase SHA-256 digest", location)
+				}
+			}
+			if digest != "" && r.schema.digest != "" && digest != r.schema.digest {
+				return &PublicError{Code: "contract_mismatch", Message: fmt.Sprintf("%s.digest: the reference to %s carries declaration digest %s where %s is expected", location, t.Contract, digest, r.schema.digest)}
+			}
 			for _, key := range sortedKeys(obj) {
-				if key != "binding" && key != "contract" {
+				if key != "binding" && key != "contract" && key != "digest" {
 					return fmt.Errorf("%s.%s: unknown field", location, key)
 				}
 			}

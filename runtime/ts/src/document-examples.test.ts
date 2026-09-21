@@ -25,7 +25,7 @@ test('every concrete document example validates with its visible bindings', () =
   const checkouts: Record<string, Record<string, Validator>> = {};
   for (const [corpus, schemas] of Object.entries(table.schemas)) {
     const imported: Record<string, Validator> = {};
-    for (const [name, wire] of Object.entries(schemas)) imported[name] = createValidator(wire, imported);
+    for (const [name, wire] of Object.entries(schemas)) imported[name] = createValidator(wire, '', imported);
     checkouts[corpus] = imported;
   }
   for (const row of table.rows) {

@@ -5,6 +5,7 @@
 // conformance/tables/validator.json. TypeScript's runtime slots supply the
 // bindings that generated Go codecs also carry in their instantiated types.
 import { scalarValue } from './unicode.ts';
+import { DuplexError } from './error.ts';
 
 /** An expression as the declaration writes it, including unnamed shapes. */
 export type TypeExpression =
@@ -83,6 +84,7 @@ export type Slots = { readonly [parameter: string]: FamilyBinding<AnyFamily> | T
 const descriptor = Symbol('validator descriptor');
 interface Schema {
   family: WireFamily;
+  digest: string;
   imported: Record<string, Validator>;
 }
 type Scope = Record<string, { type: Expression } | { family: Schema }>;
@@ -469,7 +471,8 @@ function validate(expression: Expression, value: unknown, location: string): voi
         // A live value on the wire is a reference to one binding: the
         // binding, opaque here, and the contract it implements. The contract
         // is nominal, so the only reference this position accepts is one
-        // declared as this callable. Validation resolves nothing, registers
+        // declared as this callable, with the same declaration digest when
+        // both carry one. Validation resolves nothing, registers
         // nothing and reaches no network; whether the binding exists, is
         // still alive or belongs to this scope is the live runtime's to
         // answer when it imports it.
@@ -491,8 +494,26 @@ function validate(expression: Expression, value: unknown, location: string): voi
               ' is expected',
           );
         }
+        const digest = Object.hasOwn(reference, 'digest') ? reference['digest'] : '';
+        if (typeof digest !== 'string' || !validDeclarationDigest(digest)) {
+          throw new Error(location + '.digest: expected empty or lowercase SHA-256 digest');
+        }
+        if (digest !== '' && resolved.schema.digest !== '' && digest !== resolved.schema.digest) {
+          throw new DuplexError(
+            'contract_mismatch',
+            location +
+              '.digest: the reference to ' +
+              definition.contract +
+              ' carries declaration digest ' +
+              digest +
+              ' where ' +
+              resolved.schema.digest +
+              ' is expected',
+          );
+        }
         for (const key of Object.keys(reference).sort()) {
-          if (key !== 'binding' && key !== 'contract') throw new Error(location + '.' + key + ': unknown field');
+          if (key !== 'binding' && key !== 'contract' && key !== 'digest')
+            throw new Error(location + '.' + key + ': unknown field');
         }
         return;
       }
@@ -624,13 +645,24 @@ function validate(expression: Expression, value: unknown, location: string): voi
   }
 }
 
-/** Creates a validator whose imports retain both values and declaration scope. */
-export function createValidator(family: WireFamily, imported: Record<string, Validator> = {}): Validator {
+function validDeclarationDigest(digest: string): boolean {
+  return digest === '' || /^[0-9a-f]{64}$/.test(digest);
+}
+
+/** Creates a validator whose imports retain their declaration scope and generated
+ * digest. An empty digest leaves identity unspecified. */
+export function createValidator(
+  family: WireFamily,
+  digest: string,
+  imported: Record<string, Validator> = {},
+): Validator {
+  if (typeof digest !== 'string' || !validDeclarationDigest(digest))
+    throw new Error('schema.digest: expected empty or lowercase SHA-256 digest');
   scalarValue(family);
   scalarValue(Object.keys(imported));
   if (!family.types) throw new Error('expected family descriptor with types');
   checkPatterns(family.types);
-  const schema: Schema = { family, imported };
+  const schema: Schema = { family, digest, imported };
   const validateWire = (type: TypeExpression, value: unknown, location = '$', slots: Slots = {}): void => {
     scalarValue(type);
     scalarValue(value);

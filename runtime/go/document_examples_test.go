@@ -30,7 +30,7 @@ func TestDocumentExamplesConformance(t *testing.T) {
 	for corpus, descriptions := range table.Schemas {
 		schemas := map[string]*Schema{}
 		for name, wire := range descriptions {
-			schemas[name] = MustSchema(string(wire), schemas)
+			schemas[name] = MustSchema(string(wire), "", schemas)
 		}
 		checkouts[corpus] = schemas
 	}

@@ -161,7 +161,7 @@ func emitValidation(f *file) {
 		imported = append(imported, fmt.Sprintf("%q: %s.%s()", family, f.peer(family), identWireSchema))
 	}
 	f.line("// schema is the family's wire description, as the runtime validates it; a type of another family is validated by that family's own validator.")
-	f.linef("var schema = %s.MustSchema(%s, map[string]*%s.Schema{%s})", runtime, quote(f.family.Wire), runtime, strings.Join(imported, ", "))
+	f.linef("var schema = %s.MustSchema(%s, %s(), map[string]*%s.Schema{%s})", runtime, quote(f.family.Wire), identWireDigest, runtime, strings.Join(imported, ", "))
 	f.linef("// %s supplies the family's descriptor and imports for scoped validation.", identWireSchema)
 	f.linef("func %s() *%s.Schema { return schema }", identWireSchema, runtime)
 	f.linef("// %s is the SHA-256 digest of the family's exact wire description.", identWireDigest)

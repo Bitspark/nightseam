@@ -21,7 +21,7 @@ func TestGeneratedWireDigestsAgreeWithTheDescriptorTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	var table struct {
-		Cases []struct{ Name, Wire, Digest string }
+		Cases []struct{ Name, Declaration, Wire, Digest string }
 	}
 	if err := json.Unmarshal(data, &table); err != nil {
 		t.Fatal(err)
@@ -31,7 +31,11 @@ func TestGeneratedWireDigestsAgreeWithTheDescriptorTable(t *testing.T) {
 	}
 	for _, row := range table.Cases {
 		t.Run(row.Name, func(t *testing.T) {
-			sources := map[string]string{"model.json": `{"nightseam":2,` + row.Wire[1:]}
+			source := row.Declaration
+			if source == "" {
+				source = `{"nightseam":2,` + row.Wire[1:]
+			}
+			sources := map[string]string{"model.json": source}
 			if row.Name == "UTF-8 enum" {
 				sources["go.json"] = `{"names":{"Greeting.你好":"GreetingChinese"}}`
 			}
@@ -49,12 +53,12 @@ func TestGeneratedWireDigestsAgreeWithTheDescriptorTable(t *testing.T) {
 				var checks map[string][]string
 				if target.Name() == "go" {
 					checks = map[string][]string{"api/go/same-protocol/validation_generated.go": {
-						"MustSchema(" + strconv.Quote(row.Wire) + ",",
+						"MustSchema(" + strconv.Quote(row.Wire) + ", WireDigest(),",
 						`func WireDigest() string { return "` + row.Digest + `" }`,
 					}}
 				} else {
 					checks = map[string][]string{
-						"api/ts/same-client/src/types.ts": {"const contractTypes = " + row.Wire + " as unknown as WireFamily;", `export const wireDigest = "` + row.Digest + `";`},
+						"api/ts/same-client/src/types.ts": {"const contractTypes = " + row.Wire + " as unknown as WireFamily;", `export const wireDigest = "` + row.Digest + `";`, "createValidator(contractTypes, wireDigest,"},
 						"api/ts/same-client/src/index.ts": {"export * from './types.ts';"},
 					}
 				}

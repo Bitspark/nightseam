@@ -19,6 +19,18 @@
       "name": "record revision two adds an optional member",
       "wire": "{\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true},{\"name\":\"hint\",\"type\":\"string\",\"required\":false}]}}}",
       "digest": "ccc90bf9332f9595615ec1c0c34627a7cc52779378f7ca00e56d6de7e89955fb"
+    },
+    {
+      "name": "callable revision 1",
+      "declaration": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true}]},\"Report\":{\"kind\":\"callable\",\"request\":\"Payload\"}}}",
+      "wire": "{\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true}]},\"Report\":{\"kind\":\"callable\",\"contract\":\"same/Report\",\"request\":\"Payload\"}}}",
+      "digest": "4433469c3fb5e66b667a7b4463cb878ab59d214bb1f9163e92bc2005b9987cc3"
+    },
+    {
+      "name": "callable revision 2",
+      "declaration": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true},{\"name\":\"hint\",\"type\":\"string\",\"required\":false}]},\"Report\":{\"kind\":\"callable\",\"request\":\"Payload\"}}}",
+      "wire": "{\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true},{\"name\":\"hint\",\"type\":\"string\",\"required\":false}]},\"Report\":{\"kind\":\"callable\",\"contract\":\"same/Report\",\"request\":\"Payload\"}}}",
+      "digest": "c4dbce5dafcb23c6863de70876927aee504ca5323397908f8abacebc089322b1"
     }
   ]
 }
