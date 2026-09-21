@@ -36,6 +36,17 @@ the profile requires a nonempty root request/event path. This does not make
 the runner permits exactly this physical exception and reports it. Nightseam's
 existing physical opaque-path tests separately hold supported segment encoding.
 
+This follows the published contract's
+[path admission boundary](https://github.com/Bitspark/bitwire/blob/9f45a2e0e9dc576db34237e5ad3aaaa0266a276b/docs/wire/contract.md#paths)
+and [preservation laws](https://github.com/Bitspark/bitwire/blob/9f45a2e0e9dc576db34237e5ad3aaaa0266a276b/docs/wire/contract.md#preservation-laws):
+empty selection preserves the peer root's existing request/event refusal.
+The exact receiver-registration refusal is the existing Nightseam profile
+interpretation, not a universal Bitwire registration requirement. The upstream
+[baseline](https://github.com/Bitspark/bitwire/blob/9f45a2e0e9dc576db34237e5ad3aaaa0266a276b/conformance/README.md#what-remains-distinct)
+uses local pairs and leaves remote-carrier coverage separate. This gate keeps
+that entire mandatory baseline and reports the additional physical coverage's
+limit; it introduces no new exception to the shared path or composition laws.
+
 These 56 observations establish the shared composition cases after adoption,
 not all profile or live-reference obligations. The ordinary full suite retains
 prepared tunnel, checked context, admission/cancellation, live scope and release
