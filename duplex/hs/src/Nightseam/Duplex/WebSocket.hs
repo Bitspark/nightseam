@@ -24,10 +24,10 @@ import qualified Network.WebSockets.Stream as WS
 import Nightseam.Duplex
 import System.Timeout
 
-data Listener = Listener N.Socket (Async ()) (TBQueue Connection) (TVar (Maybe N.Socket)) Text
+data Listener = Listener N.Socket (Async ()) (TBQueue Connection) (TVar (Maybe N.Socket)) (TMVar CloseError) Text
 
 listenerURL :: Listener -> Text
-listenerURL (Listener _ _ _ _ url) = url
+listenerURL (Listener _ _ _ _ _ url) = url
 
 options :: Int -> W.ConnectionOptions
 options limit = W.defaultConnectionOptions
@@ -42,9 +42,15 @@ listen limit protocols = N.withSocketsDo $ do
   let port = case address of N.SockAddrInet p _ -> p; N.SockAddrInet6 p _ _ _ -> p; _ -> 0
   queue <- newTBQueueIO 64
   active <- newTVarIO Nothing
-  worker <- async $ forever $ do
+  closed <- newEmptyTMVarIO
+  worker <- async $ mask $ \restore -> forever $ do
+    -- Own each accepted socket before allowing cancellation again. Closing the
+    -- listener cannot strand a socket between accept and handshake ownership.
     (socket, _) <- N.accept sock
-    atomically (writeTVar active (Just socket))
+    owned <- atomically $ do
+      ended <- not <$> isEmptyTMVar closed
+      if ended then pure False else writeTVar active (Just socket) >> pure True
+    unless owned (N.close socket >> throwIO (CloseError 1000 "listener closed"))
     let handshake = do
           pending <- W.makePendingConnection socket (options limit)
           let offered = W.getRequestSubprotocols (W.pendingRequest pending)
@@ -52,32 +58,44 @@ listen limit protocols = N.withSocketsDo $ do
           ws <- W.acceptRequestWith pending W.defaultAcceptRequest { W.acceptSubprotocol = chosen }
           conn <- wrap socket ws (maybe "" TE.decodeUtf8 chosen)
           admitted <- atomically $ do
+            ended <- not <$> isEmptyTMVar closed
             full <- isFullTBQueue queue
-            if full then pure False else writeTBQueue queue conn >> pure True
+            if ended || full then pure False else do
+              -- Publication transfers socket ownership in this transaction;
+              -- closeListener must never close a carrier returned by accept.
+              writeTBQueue queue conn
+              writeTVar active Nothing
+              pure True
           unless admitted (abortConnection conn)
-    result <- try (timeout 30000000 handshake)
-    atomically (writeTVar active Nothing)
+    result <- try (restore (timeout 30000000 handshake))
+    retained <- atomically $ do
+      held <- readTVar active
+      writeTVar active Nothing
+      pure (case held of Just _ -> True; Nothing -> False)
     case result of
       Right (Just ()) -> pure ()
-      _ -> N.close socket
+      _ -> when retained (N.close socket)
     case result of
       Left (e :: SomeException) | Just (_ :: AsyncException) <- fromException e -> throwIO e
       _ -> pure ()
-  pure (Listener sock worker queue active ("ws://127.0.0.1:" <> T.pack (show port)))
+  pure (Listener sock worker queue active closed ("ws://127.0.0.1:" <> T.pack (show port)))
 
 accept :: Listener -> IO Connection
-accept (Listener _ _ queue _ _) = atomically (readTBQueue queue)
+accept (Listener _ _ queue _ closed _) = atomically $
+  (readTMVar closed >>= throwSTM) `orElse` readTBQueue queue
 
 closeListener :: Listener -> IO ()
-closeListener (Listener sock worker queue active _) = do
-  N.close sock
-  readTVarIO active >>= mapM_ N.close
-  cancel worker
-  pending <- atomically $ let drain = do
-                               next <- tryReadTBQueue queue
-                               maybe (pure []) (\x -> (x:) <$> drain) next
-                         in drain
-  mapM_ abortConnection pending
+closeListener (Listener sock worker queue active closed _) = mask_ $ do
+  fresh <- atomically (tryPutTMVar closed (CloseError 1000 "listener closed"))
+  when fresh $ do
+    N.close sock
+    readTVarIO active >>= mapM_ N.close
+    cancel worker `finally` do
+      pending <- atomically $ let drain = do
+                                   next <- tryReadTBQueue queue
+                                   maybe (pure []) (\x -> (x:) <$> drain) next
+                             in drain
+      mapM_ abortConnection pending
 
 dial :: Text -> Int -> [Text] -> IO Connection
 dial url limit protocols = N.withSocketsDo $ do

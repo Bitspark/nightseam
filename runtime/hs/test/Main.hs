@@ -6,6 +6,7 @@ import Control.Concurrent.STM
 import Control.Exception (try)
 import Control.Monad
 import Data.Aeson hiding (Options, defaultOptions)
+import qualified Data.Map.Strict as M
 import Nightseam.Duplex
 import Nightseam.Runtime
 import System.Timeout
@@ -19,6 +20,37 @@ main = do
   ctx <- newCallContext
   result <- call client ctx "echo" (object ["answer" .= (42 :: Int)])
   unless (result == object ["answer" .= (42 :: Int)]) (error "round trip")
+  -- Incoming metadata remains observable without becoming outbound authority.
+  let credential = M.singleton "authorization" "private"
+      explicit = M.singleton "chosen" "outbound"
+  handle client "inspect-meta" (\incoming _ _ -> pure (toJSON (contextReceivedMeta incoming)))
+  handle server "reverse-meta" $ \incoming remote _ -> do
+    unless (contextReceivedMeta incoming == credential) (error "incoming metadata missing")
+    call remote incoming "inspect-meta" Null
+  reversed <- call client ctx { contextMeta = credential } "reverse-meta" Null
+  unless (reversed == object []) (error "reverse call implicitly copied received metadata")
+  handle server "explicit-meta" $ \incoming remote _ ->
+    call remote incoming { contextMeta = explicit } "inspect-meta" Null
+  selected <- call client ctx { contextMeta = credential } "explicit-meta" Null
+  unless (selected == toJSON explicit) (error "explicit reverse metadata missing")
+  events <- newTQueueIO
+  detach <- onEvent client $ \incoming _ _ -> atomically (writeTQueue events (contextReceivedMeta incoming))
+  handle server "emit-meta" $ \incoming remote _ -> do
+    emit remote incoming "ordinary" Null
+    emit remote incoming { contextMeta = explicit } "selected" Null
+    pure Null
+  _ <- call client ctx { contextMeta = credential } "emit-meta" Null
+  ordinaryEvent <- timeout 1000000 (atomically (readTQueue events))
+  selectedEvent <- timeout 1000000 (atomically (readTQueue events))
+  unless (ordinaryEvent == Just M.empty && selectedEvent == Just explicit)
+    (error "request metadata leaked to an event or explicit event metadata was lost")
+  handleEvent server "reflect-meta" $ \incoming value -> do
+    unless (contextReceivedMeta incoming == credential) (error "incoming event metadata missing")
+    emit server incoming "reflected" value
+  emit client ctx { contextMeta = credential } "reflect-meta" Null
+  reflectedEvent <- timeout 1000000 (atomically (readTQueue events))
+  unless (reflectedEvent == Just M.empty) (error "event metadata implicitly propagated")
+  detach
   began <- newEmptyTMVarIO
   handle server "wait" $ \incoming _ _ -> do
     atomically (putTMVar began ())

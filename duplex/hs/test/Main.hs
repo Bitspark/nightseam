@@ -31,14 +31,21 @@ main = do
   result <- waitCatch waiter
   check "abort wakes receiver" (case result of Left _ -> True; _ -> False)
   listener <- WS.listen 1024 []
+  pendingAccept <- async (try (WS.accept listener) :: IO (Either CloseError Connection))
   stopped <- timeout 1000000 (WS.closeListener listener)
-  check "listener shutdown wakes blocked accept" (stopped == Just ())
+  check "listener shutdown ends its worker" (stopped == Just ())
+  acceptedAfterClose <- timeout 1000000 (wait pendingAccept)
+  let closedAccept outcome = case outcome of Just (Left (CloseError 1000 _)) -> True; _ -> False
+  check "listener shutdown wakes a pending public accept" (closedAccept acceptedAfterClose)
+  futureAccept <- timeout 1000000 (try (WS.accept listener) :: IO (Either CloseError Connection))
+  check "accept refuses an already closed listener" (closedAccept futureAccept)
   listener2 <- WS.listen 1024 []
   socketClient <- WS.dial (WS.listenerURL listener2) 1024 []
   socketServer <- WS.accept listener2
+  WS.closeListener listener2
   sendFrame socketClient (Frame TextFrame "socket frame")
   received <- timeout 1000000 (receiveFrame socketServer)
-  check "WebSocket adapter request" (received == Just (Frame TextFrame "socket frame"))
+  check "closing a listener preserves accepted WebSocket carriers" (received == Just (Frame TextFrame "socket frame"))
   closeConnection socketServer 4002 "socket ended"
   socketEnd <- timeout 1000000 (try (receiveFrame socketClient) :: IO (Either CloseError Frame))
   check "WebSocket close code and reason" (socketEnd == Just (Left (CloseError 4002 "socket ended")))

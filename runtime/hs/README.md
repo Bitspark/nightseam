@@ -10,7 +10,8 @@ Create both peers with `newPeer`, register methods with `handle`, create a
 `CallContext` with `newCallContext`, and invoke `call`. Cancellation through
 `cancelContext` settles the caller and informs the remote handler. A handler
 that ignores cancellation retains its capacity until it returns. Metadata
-is explicit; received metadata does not automatically accompany reverse calls.
+is explicit: `contextReceivedMeta` exposes incoming fields, while `contextMeta`
+supplies outgoing fields. Received metadata does not automatically accompany reverse calls.
 The context carries trace information for child calls.
 
 `peerWire` supplies the relative-path interface used by future generated

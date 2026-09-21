@@ -98,7 +98,7 @@ adopt :: Peer -> IO ControlledPeer
 adopt peer = do
   events <- newTVarIO []
   requests <- newTVarIO []
-  _ <- onEvent peer $ \ctx name value -> put events (object (["name" .= name, "data" .= value] ++ if M.null (contextMeta ctx) then [] else ["meta" .= contextMeta ctx]))
+  _ <- onEvent peer $ \ctx name value -> put events (object (["name" .= name, "data" .= value] ++ if M.null (contextReceivedMeta ctx) then [] else ["meta" .= contextReceivedMeta ctx]))
   pure (ControlledPeer peer events requests)
 reset :: Testee -> IO ()
 reset (Testee _ handles) = do
@@ -141,7 +141,7 @@ asError exception = case fromException exception of
 
 handler :: ControlledPeer -> Text -> Value -> Handler
 handler p method behavior ctx remote params = do
-  put (requestInbox p) (object (["method" .= method, "phase" .= ("started"::Text)] ++ if M.null (contextMeta ctx) then [] else ["meta" .= contextMeta ctx]))
+  put (requestInbox p) (object (["method" .= method, "phase" .= ("started"::Text)] ++ if M.null (contextReceivedMeta ctx) then [] else ["meta" .= contextReceivedMeta ctx]))
   result <- try $ case text (get "kind" behavior) of
     "echo" -> pure params
     "return" -> pure (get "value" behavior)
@@ -153,8 +153,8 @@ handler p method behavior ctx remote params = do
       flip finally detach (atomically (readTMVar released))
       pure (get "value" behavior)
     "panic" -> throwIO (userError "private handler panic")
-    "reverse" -> call remote ctx { contextMeta = M.empty } (text (get "method" behavior)) (case behavior of Object xs -> fromMaybe params (KM.lookup "params" xs); _ -> params)
-    "emit" -> emit remote ctx { contextMeta = M.empty } (text (get "event" behavior)) (get "data" behavior) >> pure (get "then" behavior)
+    "reverse" -> call remote ctx (text (get "method" behavior)) (case behavior of Object xs -> fromMaybe params (KM.lookup "params" xs); _ -> params)
+    "emit" -> emit remote ctx (text (get "event" behavior)) (get "data" behavior) >> pure (get "then" behavior)
     _ -> err "invalid" "unknown canned handler"
   let outcome = case result of Right _ -> "ok"; Left (e::SomeException) -> case fromException e of Just pe | errorCode pe == "cancelled" -> "cancelled"; _ | text (get "kind" behavior) == "panic" -> "panic"; _ -> "error"
   put (requestInbox p) (object ["method" .= method, "phase" .= ("ended"::Text), "outcome" .= (outcome::Text)])

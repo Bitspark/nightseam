@@ -55,11 +55,12 @@ failure code message = PublicError code message Nothing
 
 data CallContext = CallContext
   { contextCancelled :: TMVar (), contextTraceparent :: Text, contextTracestate :: Text
-  , contextMeta :: M.Map Text Text, contextTimeoutMs :: Int
+  , contextMeta :: M.Map Text Text, contextReceivedMeta :: M.Map Text Text
+  , contextTimeoutMs :: Int
   } deriving Typeable
 
 newCallContext :: IO CallContext
-newCallContext = CallContext <$> newEmptyTMVarIO <*> pure "" <*> pure "" <*> pure M.empty <*> pure 0
+newCallContext = CallContext <$> newEmptyTMVarIO <*> pure "" <*> pure "" <*> pure M.empty <*> pure M.empty <*> pure 0
 cancelContext :: CallContext -> IO ()
 cancelContext ctx = atomically (void (tryPutTMVar (contextCancelled ctx) ()))
 awaitCancellation :: CallContext -> IO ()
@@ -285,7 +286,7 @@ fromFrame :: Value -> IO CallContext
 fromFrame frame = do
   ctx <- newCallContext
   let meta = case get "meta" frame of Object xs -> M.fromList [(K.toText k,t) | (k,String t) <- KM.toList xs]; _ -> M.empty
-  pure ctx { contextTraceparent = str (get "traceparent" frame), contextTracestate = str (get "tracestate" frame), contextMeta = meta }
+  pure ctx { contextTraceparent = str (get "traceparent" frame), contextTracestate = str (get "tracestate" frame), contextReceivedMeta = meta }
 
 call :: Peer -> CallContext -> Text -> Value -> IO Value
 call peer original method params = mask $ \restore -> do
