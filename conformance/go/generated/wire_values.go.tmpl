@@ -134,7 +134,7 @@ func wireHolderBatch[J, P any](value holder.Value[J, P]) holder.Batch[J, P] {
 	return holder.Batch[J, P]{
 		runtime.Null[map[string]holder.Choice[J, P]](),
 		runtime.NonNull(map[string]holder.Choice[J, P]{
-			"kept":  {Value: &holder.ChoiceValueValue[J, P]{Value: value}},
+			"kept":  {Value: &value},
 			"empty": {Empty: &struct{}{}},
 		}),
 	}
@@ -148,7 +148,7 @@ func wireHolderValue[J, P any](batch holder.Batch[J, P]) (holder.Value[J, P], er
 	if held.Kind() != holder.ChoiceKindValue || empty.Kind() != holder.ChoiceKindEmpty {
 		return zero, fmt.Errorf("generic holder lost value or empty union arm")
 	}
-	return held.Value.Value, nil
+	return *held.Value, nil
 }
 func wireHolderNumbers() wireValues[holder.Batch[numbers.Job, numbers.Progress]] {
 	return wireValues[holder.Batch[numbers.Job, numbers.Progress]]{

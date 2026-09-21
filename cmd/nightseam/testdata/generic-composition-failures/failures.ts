@@ -120,7 +120,8 @@ class Policy {
   factories = 0;
   calls = 0;
   supplied = 0;
-  constructor(readonly offset: number) {}
+  readonly offset: number;
+  constructor(offset: number) { this.offset = offset; }
   check() { if (!this.allowed) throw new DuplexError('denied', 'consumer exposure revoked'); }
   snapshot() { return [this.factories, this.calls, this.supplied]; }
   callback(): Unary {
@@ -154,7 +155,13 @@ async function expose<T>(recipe: ValueAdapter<T>, makeValue: (policy: Policy) =>
   // B-C. The same recipe object crosses both independently created scopes.
   const forwarded = transfer(owners[2], owners[3], recipe, remote);
   return { scopes, owners, policy, values: [self, remote, returned, forwarded],
-    async release() { for (const owner of owners) owner.release(); await zero(scopes); },
+    async release() {
+      for (const owner of owners) owner.release();
+      // Origin conversion of a forwarded higher-order call uses its own
+      // connection's documented root fallback for a foreign supplied owner.
+      for (const scope of scopes) scope.owner().release();
+      await zero(scopes);
+    },
     close() { ab.close(); bc.close(); },
   };
 }
@@ -164,10 +171,10 @@ async function exerciseExposures<T>(recipe: ValueAdapter<T>, makeValue: (p: Poli
   // One immutable generated interpretation exists before either exposure.
   const exposures = await Promise.all([10, 20].map(offset => expose(recipe, makeValue, offset)));
   try {
+    for (const exposure of exposures) for (const scope of exposure.scopes) assert.deepEqual(scope.owner().counts(), empty, 'explicit child conversion allocated in the root owner');
     const retained = await Promise.all(exposures.map(e => Promise.all(e.values.map((value, index) =>
       capture(value, e.owners[index === 1 ? 1 : index === 3 ? 3 : 0], e.policy)))));
     await Promise.all(retained.flat().map(invoke => invoke()));
-    for (const exposure of exposures) for (const scope of exposure.scopes) assert.deepEqual(scope.owner().counts(), empty, 'recipe captured root owner');
     exposures[0].policy.allowed = false;
     let before = exposures[0].policy.snapshot();
     for (const invoke of retained[0]) await assert.rejects(invoke, { code: 'denied' });

@@ -125,7 +125,9 @@ construction and first use; selection adds no peer or channel. The bridge
 contains no per-method or per-slot forwarding implementation.
 
 The independent Holder route substitutes the source model with
-`internal/oracle` before either target resolves or renders it. The generic
+`internal/oracle` before either target resolves or renders it. Its concrete
+types and operations live in `live.json`, because the substituted source
+directly names live provider records. The generic
 route renders the original declaration and supplies value recipes in the
 consumer. They share parsing, target lowering and runtime mechanisms, but
 not the substitution route or generated native types. Callable aliases
@@ -142,6 +144,9 @@ local/self-reference and forwarded values. Revoking one exposure leaves
 another exposure of the same reusable type usable. This proves converter
 plumbing; it does not implement the exhaustive exposure binding of #356,
 authenticate a principal, or validate signatures, expiry or grants. The
+synthetic programs do not check an exhaustive policy inventory for omitted
+or newly added members, declarative deny entries or unknown-member policy
+binding; those remain #356 obligations. The
 fixtures exercise a finite grammar and do not prove higher-rank polymorphism
 or structural callable identity.
 

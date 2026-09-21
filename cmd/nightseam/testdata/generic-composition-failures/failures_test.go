@@ -115,13 +115,13 @@ func packed(value held) batch {
 	return batch{
 		{Null: true},
 		{Value: map[string]holder.Choice[numbers.Job, numbers.Progress]{
-			"entry": {Value: &holder.ChoiceValueValue[numbers.Job, numbers.Progress]{Value: value}},
+			"entry": {Value: &value},
 			"empty": {Empty: &struct{}{}},
 		}},
 	}
 }
 
-func unpack(value batch) held { return value[1].Value["entry"].Value.Value }
+func unpack(value batch) held { return *value[1].Value["entry"].Value }
 
 func TestNestedDrawRollbackPreservesBorrowedAndUnrelatedOwners(t *testing.T) {
 	sa, sb := pair(t, 4)
@@ -186,7 +186,7 @@ func TestNestedDrawRollbackPreservesBorrowedAndUnrelatedOwners(t *testing.T) {
 	// The first row reuses both borrowed aliases. The following row creates a
 	// fresh Job export before Progress's nested nil callable refuses.
 	bad := packed(specimen(50))
-	bad[1].Value["entry"].Value.Value.Progress.Notify.Run = nil
+	bad[1].Value["entry"].Value.Progress.Notify.Run = nil
 	bad = append(packed(unpack(borrowed)), bad[1])
 	peakExports = 0
 	_, err = exportValue(failed, recipe, bad)
@@ -318,6 +318,11 @@ func (e exposure[T]) release(t *testing.T) {
 	for _, owner := range e.owners {
 		_ = owner.Release()
 	}
+	// A forwarded higher-order call supplies another connection's owner.
+	// Its origin conversions use that connection's documented root fallback.
+	for _, scope := range e.scopes {
+		_ = scope.Owner().Release()
+	}
 	zero(t, e.scopes...)
 }
 
@@ -327,6 +332,13 @@ func exerciseExposures[T any](t *testing.T, recipe runtime.ValueAdapter[T], make
 	for _, offset := range []int64{10, 20} {
 		p := newPolicy(offset)
 		exposures = append(exposures, expose(t, recipe, makeValue(p), p))
+	}
+	for _, e := range exposures {
+		for _, scope := range e.scopes {
+			if scope.Owner().Counts() != (live.Counts{}) {
+				t.Fatal("explicit child conversion allocated in the root owner")
+			}
+		}
 	}
 	retained := make([][]func() error, 2)
 	for i, e := range exposures {
@@ -359,13 +371,6 @@ func exerciseExposures[T any](t *testing.T, recipe runtime.ValueAdapter[T], make
 	for err := range errorsCh {
 		if err != nil {
 			t.Fatal(err)
-		}
-	}
-	for _, e := range exposures {
-		for _, scope := range e.scopes {
-			if scope.Owner().Counts() != (live.Counts{}) {
-				t.Fatal("recipe captured root owner")
-			}
 		}
 	}
 	exposures[0].p.allowed.Store(false)
