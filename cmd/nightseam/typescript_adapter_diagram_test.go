@@ -42,20 +42,24 @@ func TestTypeScriptValueAdapterConstructionDiagram(t *testing.T) {
 			writeFixture(t, directory, path+"protocol.json", []byte(`{"profile":"nightseam.duplex/1","imports":["values"],`+body(slot.expression)+`}`))
 		}
 		fmt.Fprintf(&imports, "import * as client%s from '@example/%s-client';\nimport * as binding%s from '@example/%s-binding';\n", slot.name, name, slot.name, name)
+		serverContext, clientContext := "{}", "{}"
+		if slot.live {
+			serverContext, clientContext = "{scope:transport.far}", "{scope:transport.near}"
+		}
 		fmt.Fprintf(&routes, `
-const caller%s: Equal<genericClient.Caller<%s>, client%s.Caller> = true;
-const context%s: Equal<Parameters<genericBinding.Handler<%s>['put']>[2], Parameters<binding%s.Handler['put']>[2]> = true;
+const caller%s: Equal<genericBinding.Server<%s>, binding%s.Server> = true;
+const context%s: Equal<Parameters<genericBinding.ServerMethods<%s>['put']>[1], Parameters<binding%s.ServerMethods['put']>[1]> = true;
 async function source%s(state: State): Promise<Boundary<%s>> {
- const model = cell<%s>(state);
  const events = listeners<%s>(state);
- const [a,b] = pipe();
- const [peer,client] = await Promise.all([
-  binding%s.serve(b, {}, model, events.server),
-  client%s.Client.attach(a, {}, events.reverse, events.client),
- ]);
- return {peer, client, remote: new binding%s.Remote(peer), changed:events.changed, noted:events.noted};
+ const capture:Capture<%s>={};
+ const transport=await connect(%t);
+ const modelWire=binding%s.toWire(cell(state,events.server,capture),%s);
+ const detach=forwardWire(transport.serverPeer.wire(),modelWire);
+ const model=(await binding%s.fromWire(transport.clientPeer.wire(),%s))(events.client);
+ check(capture.remote!==undefined,'source factory did not capture its reverse proxy');
+ return {...transport,model,remote:capture.remote,modelWire,detach,changed:events.changed,noted:events.noted};
 }
-`, slot.name, slot.native, slot.name, slot.name, slot.native, slot.name, slot.name, slot.native, slot.native, slot.native, slot.name, slot.name, slot.name)
+`, slot.name, slot.native, slot.name, slot.name, slot.native, slot.name, slot.name, slot.native, slot.native, slot.native, slot.live, slot.name, serverContext, slot.name, clientContext)
 		fmt.Fprintf(&runs, `
 await compare<%s>(%q, %s, source%s, state => {
  const unary: values.Unary = async n => { state.callbacks++; return n+1; };
@@ -86,8 +90,8 @@ await compare<%s>(%q, %s, source%s, state => {
 	runFixture(t, directory, "node", "--loader", "./runtime-loader.mjs", "diagram.ts")
 }
 
-const tsAdapterDiagramProgram = `import {pipe} from '@nightseam/duplex';
-import {DuplexPeer, DuplexError, type CallOptions, type EmitOptions} from '@nightseam/runtime';
+const tsAdapterDiagramProgram = `import {pipe, type Wire} from '@nightseam/duplex';
+import {DuplexPeer, DuplexError, forwardWire} from '@nightseam/runtime';
 import {scopeOf, liveOver, type LiveOwner, type ValueAdapter} from '@nightseam/live';
 import * as values from '@example/values-client';
 import * as genericClient from '@example/cell-client';
@@ -97,17 +101,19 @@ type Equal<A,B>=(<T>()=>T extends A?1:2) extends (<T>()=>T extends B?1:2)?true:f
 function check(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
 function equal(a:unknown,b:unknown,message:string) { check(JSON.stringify(a)===JSON.stringify(b),message+': '+JSON.stringify(a)+' / '+JSON.stringify(b)); }
 const signal = AbortSignal.timeout(15000);
-type Options = CallOptions & {owner?:LiveOwner};
-type EventOptions = EmitOptions & {owner?:LiveOwner};
-type State = {transitions:string[]; callbacks:number; factories:number; arguments:number};
-const initial = ():State => ({transitions:[],callbacks:0,factories:0,arguments:0});
+type State = {transitions:string[]; callbacks:number; factories:number; arguments:number;sessions:number};
+const initial = ():State => ({transitions:[],callbacks:0,factories:0,arguments:0,sessions:0});
+type Capture<T>={remote?:genericBinding.Client<T>};
 
 // This stateful model is unchanged for every slot and for both construction routes.
-function cell<T>(state:State) {
- let value:T; let count=0;
- return {
-  put(params:{value:T}) { value=params.value; count++; state.transitions.push('put:'+count); return count; },
-  get() { state.transitions.push('get:'+count); return value; },
+function cell<T>(state:State,events:genericBinding.ServerEvents<T>,capture:Capture<T>):genericBinding.ServerModel<T> {
+ return remote=>{
+  state.sessions++;capture.remote=remote;
+  let value:T; let count=0;
+  return {methods:{
+   put(params) { value=params.value; count++; state.transitions.push('put:'+count); return count; },
+   get(_params) { state.transitions.push('get:'+count); return value; },
+  },events};
  };
 }
 function pending<T>() {
@@ -119,42 +125,49 @@ function listeners<T>(state:State) {
  const changed=pending<T>(),noted=pending<T>();
  return {
   changed:changed.value, noted:noted.value,
-  client:{changed(params:{value:T}){state.transitions.push('changed');changed.resolve(params.value);}},
+  client:{methods:{mirror(params:{value:T}){state.transitions.push('mirror');return params.value;}},events:{changed(params:{value:T}){state.transitions.push('changed');changed.resolve(params.value);}}},
   server:{noted(params:{value:T}){state.transitions.push('noted');noted.resolve(params.value);}},
-  reverse:{mirror(params:{value:T}){state.transitions.push('mirror');return params.value;}},
  };
 }
-interface Boundary<T> {
- peer:DuplexPeer;
- client:{peer:DuplexPeer;put(params:{value:T},options?:Options):Promise<number>;get(options?:Options):Promise<T>;emitNoted(params:{value:T},options?:EventOptions):Promise<void>;close():void};
- remote:{mirror(params:{value:T},options?:Options):Promise<T>;emitChanged(params:{value:T},options?:EventOptions):Promise<void>};
+async function connect(live:boolean) {
+ const clientPeer=new DuplexPeer({role:'client'}),serverPeer=new DuplexPeer({role:'server'});
+ const near=live?liveOver(clientPeer,{}):undefined,far=live?liveOver(serverPeer,{}):undefined;
+ const [a,b]=pipe();await Promise.all([clientPeer.attach(a),serverPeer.attach(b)]);
+ return {clientPeer,serverPeer,near,far};
+}
+interface Boundary<T> extends Awaited<ReturnType<typeof connect>> {
+ model:genericBinding.Server<T>;
+ remote:genericBinding.Client<T>;
+ modelWire:Wire;detach:()=>void;
  changed:Promise<T>;noted:Promise<T>;
 }
 async function derived<T>(adapter:ValueAdapter<T>,state:State):Promise<Boundary<T>> {
- const model=cell<T>(state),events=listeners<T>(state),[a,b]=pipe();
- const [peer,client]=await Promise.all([
-  genericBinding.serve(b,adapter,{},model,events.server),
-  genericClient.Client.attach(a,adapter,{},events.reverse,events.client),
- ]);
- return {peer,client,remote:new genericBinding.Remote(peer,adapter),changed:events.changed,noted:events.noted};
+ const events=listeners<T>(state),capture:Capture<T>={},transport=await connect(adapter.live);
+ const modelWire=genericBinding.toWire(cell(state,events.server,capture),{scope:transport.far},adapter);
+ const detach=forwardWire(transport.serverPeer.wire(),modelWire);
+ const model=(await genericBinding.fromWire(transport.clientPeer.wire(),{scope:transport.near},adapter))(events.client);
+ check(capture.remote!==undefined,'generic factory did not capture its reverse proxy');
+ return {...transport,model,remote:capture.remote,modelWire,detach,changed:events.changed,noted:events.noted};
 }
 type Input<T> = {input:T;observe:(value:T,owner:LiveOwner|undefined)=>Promise<number>};
 async function record<T>(make:()=>Promise<Boundary<T>>,live:boolean,state:State,value:Input<T>) {
- const boundary=await make(),{client,remote,peer}=boundary;
- const near=scopeOf(client.peer),far=scopeOf(peer);
+ const boundary=await make(),{model,remote,clientPeer,serverPeer,modelWire,detach}=boundary;
+ const near=scopeOf(clientPeer),far=scopeOf(serverPeer);
  check(Boolean(near)===live&&Boolean(far)===live,'a scalar route opened a live scope or a live route omitted one');
  const nearOwner=near?.owner().child(),farOwner=far?.owner().child();
  const owners=[nearOwner,farOwner],scopes=[near,far].filter(s=>s!==undefined);
  const snapshots:unknown[]=[];
  const snapshot=(name:string,result:unknown)=>snapshots.push({name,result,state:structuredClone(state),counts:scopes.map(scope=>scope.counts())});
  try {
-  const first=await client.put({value:value.input},{signal,owner:nearOwner}); check(first===1,'first state transition');snapshot('first',first);
-  const second=await client.put({value:value.input},{signal,owner:nearOwner});check(second===2,'second state transition');snapshot('second',second);
-  const got=await client.get({signal,owner:nearOwner});check(await value.observe(got,nearOwner)===42,'get behavior');snapshot('get',42);
-  const mirrored=await remote.mirror({value:value.input},{signal,owner:farOwner});check(await value.observe(mirrored,farOwner)===42,'reverse behavior');snapshot('mirror',42);
-  await remote.emitChanged({value:value.input},{owner:farOwner});check(await value.observe(await boundary.changed,nearOwner)===42,'changed behavior');snapshot('changed',42);
-  await client.emitNoted({value:value.input},{owner:nearOwner});check(await value.observe(await boundary.noted,farOwner)===42,'noted behavior');snapshot('noted',42);
+  const nearContext={signal,owner:nearOwner} as Parameters<typeof model.methods.put>[1],farContext={signal,owner:farOwner} as Parameters<typeof remote.methods.mirror>[1];
+  const first=await model.methods.put({value:value.input},nearContext); check(first===1,'first state transition');snapshot('first',first);
+  const second=await model.methods.put({value:value.input},nearContext);check(second===2,'second state transition');snapshot('second',second);
+  const got=await model.methods.get({},nearContext);check(await value.observe(got,nearOwner)===42,'get behavior');snapshot('get',42);
+  const mirrored=await remote.methods.mirror({value:value.input},farContext);check(await value.observe(mirrored,farOwner)===42,'reverse behavior');snapshot('mirror',42);
+  await remote.events.changed({value:value.input},farContext);check(await value.observe(await boundary.changed,nearOwner)===42,'changed behavior');snapshot('changed',42);
+  await model.events.noted({value:value.input},nearContext);check(await value.observe(await boundary.noted,farOwner)===42,'noted behavior');snapshot('noted',42);
   equal(state.transitions,['put:1','put:2','get:2','mirror','changed','noted'],'handler and event multiplicity');
+  check(state.sessions===1,'model factory or captured reverse proxy was constructed more than once');
   if(live)check(scopes.every(scope=>scope.counts().exports>0&&scope.counts().imports>0),'boundary never acquired both live directions');
   for(const owner of owners)owner?.release();
   for(const scope of scopes)scope.owner().release();
@@ -162,7 +175,7 @@ async function record<T>(make:()=>Promise<Boundary<T>>,live:boolean,state:State,
   while(scopes.some(scope=>scope.counts().exports||scope.counts().imports)){check(Date.now()<deadline,'explicit release leaked bindings');await new Promise(resolve=>setTimeout(resolve,1));}
   snapshot('released',null);
   return snapshots;
- } finally {client.close();peer.close();}
+ } finally {detach();modelWire.close();clientPeer.close();serverPeer.close();}
 }
 async function compare<T>(name:string,adapter:ValueAdapter<T>,source:(state:State)=>Promise<Boundary<T>>,makeInput:(state:State)=>Input<T>) {
  const genericState=initial(),sourceState=initial();
