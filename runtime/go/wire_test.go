@@ -181,6 +181,11 @@ func TestWireCancellationRetainsExecutingHandlerBudget(t *testing.T) {
 					if !errors.As(err, &public) || public.Code != "busy" {
 						t.Fatal(err)
 					}
+					// Each retry produces an observation before its refusal. Drain
+					// it so the test observer cannot block the next admission.
+					if e := receive(t, ended); e.ErrorCode != "busy" {
+						t.Fatalf("retry outcome = %+v", e)
+					}
 				}
 			})
 		}

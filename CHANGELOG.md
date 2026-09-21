@@ -8,6 +8,8 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- The cancellation-budget test drains completion observations during admission
+  retries, so its own observer cannot stall the peer after a handler returns.
 - Conformance build commands own their process trees and stop descendants on
   cancellation or parent exit, retaining failure output without an unbounded
   wait for inherited output pipes.
