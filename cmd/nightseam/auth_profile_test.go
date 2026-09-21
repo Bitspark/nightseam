@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -64,6 +65,15 @@ func TestAuthProfile(t *testing.T) {
 func fixtureModuleWithProfile(t *testing.T, directory, root string) {
 	t.Helper()
 	fixtureModule(t, directory, root)
+	// The fixture builds with the proxy off, from the module cache alone;
+	// the nested module's identity layer reaches the cache here, once, the
+	// way the root module's own requirements did before any fixture ran.
+	warm := exec.Command("go", "mod", "download", "all")
+	warm.Dir = filepath.Join(root, "auth", "go")
+	warm.Env = append(os.Environ(), "GOWORK=off")
+	if output, err := warm.CombinedOutput(); err != nil {
+		t.Fatalf("warming the identity layer's modules: %v\n%s", err, output)
+	}
 	authModule, err := os.ReadFile(filepath.Join(root, "auth", "go", "go.mod"))
 	if err != nil {
 		t.Fatal(err)
