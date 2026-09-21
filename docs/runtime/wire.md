@@ -154,8 +154,10 @@ or completed cancels do not acquire another reservation. Deadline expiry
 answers once. A handler that ignores cancellation still occupies its
 active-work budget until it exits.
 
-Closing a selected view closes the endpoint it selects. Closing a mount
-detaches its registrations and leaves borrowed children usable. Forwarding
+Closing a selected view releases that view's own route and leaves the
+dispatcher and the endpoint beneath it usable; closure authority over a
+borrowed endpoint is never inferred from a view of it. Closing a mount
+detaches its attachments and leaves borrowed children usable. Forwarding
 returns a detach function; detaching it also leaves both borrowed endpoints
 usable. Forwarding preserves frame order and local return identity; it
 does not inspect or translate references hidden in payloads.
