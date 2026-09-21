@@ -16,7 +16,7 @@ func TestRecordedRootDeliversRootRelativePath(t *testing.T) {
 	defer root.Close(duplex.CodeNormal, "done")
 	delivered := make(chan []string, 1)
 	want := []string{"source", "tick"}
-	_, err := root.Receive(want, duplex.Receiver{Message: func(path []string, _ duplex.Message) { delivered <- path }})
+	_, err := root.Receive(duplex.Receiver{Message: func(path []string, _ duplex.Message) { delivered <- path }})
 	if err != nil {
 		t.Fatal(err)
 	}

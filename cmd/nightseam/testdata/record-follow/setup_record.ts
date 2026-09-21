@@ -28,7 +28,9 @@ await assert.rejects(
   (error) => error instanceof DOMException && error.name === 'AbortError',
 );
 const log = new MemoryWireLog();
-const recorder = await binding.record(wire, log, {}, {});
+let finished!: () => void;
+const closed = new Promise<void>((resolve) => { finished = resolve; });
+const recorder = await binding.record(wire, log, { onClose: finished }, {});
 try {
   await assert.rejects(recorder.append({ name: 'tick', data: { value: 'invalid' as unknown as number } }));
   assert.equal(await recorder.head(), 0);
@@ -43,4 +45,18 @@ try {
   assert.deepEqual(values, [7]);
 } finally {
   recorder.close();
+}
+await closed;
+const rebound = await binding.record(wire, new MemoryWireLog(), {}, {});
+try {
+  await rebound.append({ name: 'tick', data: { value: 8 } });
+  const deadline = Date.now() + 5000;
+  while (values.length < 2) {
+    assert.ok(Date.now() < deadline, 'closed recorder retained its attachment or closed the borrowed target');
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  assert.deepEqual(values, [7, 8]);
+} finally {
+  rebound.close();
+  wire.close();
 }

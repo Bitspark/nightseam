@@ -799,8 +799,10 @@ func (p *Peer) startRequest(f frame) {
 	handler := p.handlers[f.Method]
 	fallback := p.requestFallback
 	p.mu.Unlock()
-	if handler == nil && fallback != nil {
-		handler = fallback(f.Method)
+	if fallback != nil {
+		if attached := fallback(f.Method); attached != nil {
+			handler = attached
+		}
 	}
 	// A response carries its request's trace, whether a handler ran or not.
 	trace := Trace{Parent: f.Traceparent, State: f.Tracestate}
@@ -950,8 +952,10 @@ func (p *Peer) eventLoop() {
 				listeners = append(listeners, l)
 			}
 			p.mu.Unlock()
-			if handler == nil && fallback != nil {
-				handler = fallback(event.Name)
+			if fallback != nil {
+				if attached := fallback(event.Name); attached != nil {
+					handler = attached
+				}
 			}
 			func() {
 				defer func() {

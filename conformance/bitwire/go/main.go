@@ -1,4 +1,4 @@
-// Adapted from Bitspark/bitwire v0.1.0 (9f45a2e0), conformance/drivers/nightseam/go/main.go.
+// Exercises actual Nightseam carriers against Bitwire v0.2.0 composition observations.
 // Apache-2.0; Bitspark. Expected observations remain in the published Bitwire module.
 // It does not contain a replacement Wire implementation or expected results.
 package main
@@ -6,38 +6,18 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"sync/atomic"
+	"reflect"
+	"runtime"
+	"strings"
 	"time"
 
 	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"github.com/Bitspark/nightseam/duplex/go"
 	ns "github.com/Bitspark/nightseam/runtime/go"
 )
-
-type registration struct {
-	ID        string   `json:"id"`
-	Path      []string `json:"path"`
-	Namespace bool     `json:"namespace"`
-	Result    any      `json:"result"`
-}
-type testCase struct {
-	ID              string                        `json:"id"`
-	Kind            string                        `json:"kind"`
-	Prefix          []string                      `json:"prefix"`
-	Selections      [][]string                    `json:"selections"`
-	MountKey        *string                       `json:"mountKey"`
-	Path            []string                      `json:"path"`
-	Payload         any                           `json:"payload"`
-	Registrations   []registration                `json:"registrations"`
-	Calls           []struct{ Path []string }     `json:"calls"`
-	Duplicate       struct{ Registration string } `json:"duplicate"`
-	ProfileRefusals [][]string                    `json:"profileRefusals"`
-}
 
 func check(err error) {
 	if err != nil {
@@ -47,10 +27,11 @@ func check(err error) {
 
 var cleanups []func()
 
-func pair() (bitwire.Wire, bitwire.Wire) {
+func pair() (bitwire.Endpoint, bitwire.Endpoint) {
 	if os.Getenv("NIGHTSEAM_BITWIRE_CARRIER") == "local" {
 		a, b, err := ns.NewWirePair(ns.Options{})
 		check(err)
+		cleanups = append(cleanups, func() { closeWire(a); closeWire(b) })
 		return a, b
 	}
 	connected := make(chan *ns.Peer, 1)
@@ -81,13 +62,6 @@ func pair() (bitwire.Wire, bitwire.Wire) {
 	}
 	return client.Wire(), remote.Wire()
 }
-func call(wire bitwire.Wire, path []string, value any) any {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	var result any
-	check(ns.CallWire(ctx, wire, path, value, &result))
-	return result
-}
 func reply(message bitwire.Message, value any) {
 	if message.Frame.Kind != bitwire.ProfileRequest || message.Return == nil {
 		panic("expected a request with return access")
@@ -98,8 +72,11 @@ func reply(message bitwire.Message, value any) {
 		Version: 1, Kind: bitwire.ProfileResponse, ID: message.Frame.ID, Result: encoded,
 	}}))
 }
-func echo(_ []string, message bitwire.Message) { reply(message, message.Frame.Params) }
-func closeWire(wire bitwire.Wire)              { check(wire.Close(duplex.CodeNormal, "conformance complete")) }
+func closeWire(wire interface {
+	Close(duplex.Code, string) error
+}) {
+	check(wire.Close(duplex.CodeNormal, "conformance complete"))
+}
 func event() bitwire.Message {
 	return bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileEvent, Data: json.RawMessage("null")}}
 }
@@ -108,7 +85,7 @@ func copyPath(path []string) []string { return append([]string{}, path...) }
 // Every operation is delegated. The spies observe the boundary before/after
 // composition, without implementing routing, dispatch or return correlation.
 type observer struct {
-	bitwire.Wire
+	bitwire.Endpoint
 	send    func([]string, bitwire.Message)
 	receive func([]string, bitwire.Message)
 }
@@ -117,10 +94,10 @@ func (w observer) Send(path []string, message bitwire.Message) error {
 	if w.send != nil {
 		w.send(path, message)
 	}
-	return w.Wire.Send(path, message)
+	return w.Endpoint.Send(path, message)
 }
-func (w observer) Receive(path []string, receiver bitwire.Receiver) (func(), error) {
-	return w.Wire.Receive(path, bitwire.Receiver{Namespace: receiver.Namespace, Closed: receiver.Closed,
+func (w observer) Receive(receiver bitwire.Receiver) (func(), error) {
+	return w.Endpoint.Receive(bitwire.Receiver{Closed: receiver.Closed,
 		Message: func(path []string, message bitwire.Message) {
 			if w.receive != nil {
 				w.receive(path, message)
@@ -132,149 +109,268 @@ func (w observer) Receive(path []string, receiver bitwire.Receiver) (func(), err
 	})
 }
 
-func access(test testCase) any {
-	client, server := pair()
-	defer closeWire(client)
-	var originalReturn, rootReturn, admittedReturn, receivedReturn *bitwire.ReturnAddress
-	var rootPath, receiverPath []string
-	clientSpy := observer{Wire: client, send: func(path []string, m bitwire.Message) {
-		rootPath, rootReturn = copyPath(path), m.Return
-	}}
-	serverSpy := observer{Wire: server, receive: func(_ []string, m bitwire.Message) { admittedReturn = m.Return }}
-	selected := duplex.At(clientSpy, test.Prefix)
-	if test.MountKey != nil {
-		mounted := duplex.Mount(map[string]bitwire.Wire{*test.MountKey: selected})
-		defer closeWire(mounted)
-		selected = duplex.At(mounted, []string{*test.MountKey})
-	}
-	prefix := copyPath(test.Prefix)
-	for _, part := range test.Selections {
-		selected = duplex.At(selected, part)
-		prefix = append(prefix, part...)
-	}
-	outer := observer{Wire: selected, send: func(_ []string, m bitwire.Message) { originalReturn = m.Return }}
-	receiver := duplex.At(serverSpy, prefix)
-	_, err := receiver.Receive(test.Path, bitwire.Receiver{Message: func(path []string, message bitwire.Message) {
-		receiverPath, receivedReturn = copyPath(path), message.Return
-		echo(path, message)
-	}})
-	check(err)
-	value := call(outer, test.Path, test.Payload)
-	return map[string]any{"rootPath": rootPath, "receiverPath": receiverPath, "payload": value,
-		"sendReturnIdentity":    originalReturn != nil && originalReturn == rootReturn,
-		"receiveReturnIdentity": admittedReturn != nil && admittedReturn == receivedReturn}
-}
-
-func routing(test testCase) any {
-	client, server := pair()
-	defer closeWire(client)
-	var duplicate registration
-	for _, entry := range test.Registrations {
-		if entry.ID == test.Duplicate.Registration {
-			duplicate = entry
-		}
-		_, err := server.Receive(entry.Path, bitwire.Receiver{Namespace: entry.Namespace, Message: func(path []string, message bitwire.Message) {
-			reply(message, map[string]any{"result": entry.Result, "receiverPath": copyPath(path), "receiver": entry.ID})
-		}})
-		check(err)
-	}
-	if duplicate.ID == "" {
-		panic("duplicate target does not name a registration")
-	}
-	detach, err := server.Receive(duplicate.Path, bitwire.Receiver{Namespace: duplicate.Namespace, Message: echo})
-	refused := err != nil
-	if detach != nil {
-		detach()
-	}
-	results := []any{}
-	for _, entry := range test.Calls {
-		results = append(results, call(client, entry.Path, nil))
-	}
-	observations := map[string]any{"calls": results, "duplicateRefused": refused}
-	if test.ProfileRefusals != nil {
-		refusals := []any{}
-		for _, path := range test.ProfileRefusals {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			var result any
-			err := ns.CallWire(ctx, client, path, nil, &result)
-			cancel()
-			var unpublished *ns.UnpublishedError
-			refusals = append(refusals, map[string]any{"path": copyPath(path), "refused": errors.As(err, &unpublished)})
-		}
-		observations["requestRefusals"] = refusals
-	}
-	return observations
-}
-
-func lifetime(test testCase) any {
-	client, server := pair()
-	defer closeWire(client)
-	mounted := duplex.Mount(map[string]bitwire.Wire{"leaf": client})
-	defer closeWire(mounted)
-	var mountCloseCount, detachCloseCount atomic.Int32
-	detach, err := server.Receive(test.Path, bitwire.Receiver{Message: echo, Closed: func(duplex.Code, string) { detachCloseCount.Add(1) }})
-	check(err)
-	selected := duplex.At(mounted, []string{"leaf"})
-	before := call(selected, test.Path, test.Payload)
-	detach()
-	detach()
-	detachAgain, err := server.Receive(test.Path, bitwire.Receiver{Message: echo})
-	check(err)
-	afterDetach := call(selected, test.Path, test.Payload)
-	_, err = mounted.Receive(nil, bitwire.Receiver{Namespace: true, Message: func([]string, bitwire.Message) {}, Closed: func(duplex.Code, string) { mountCloseCount.Add(1) }})
-	check(err)
-	mountOriginRefused := mounted.Send(nil, event()) != nil
-	closeWire(mounted)
-	closeWire(mounted)
-	// The former namespace must be free again on the borrowed endpoint.
-	detachNamespace, err := client.Receive(nil, bitwire.Receiver{Namespace: true, Message: func([]string, bitwire.Message) {}})
-	mountRegistrationReleased := err == nil
-	if detachNamespace != nil {
-		detachNamespace()
-	}
-	afterMountClose := call(client, test.Path, test.Payload)
-	detachAgain()
-	ended := make(chan struct{})
-	_, err = server.Receive(test.Path, bitwire.Receiver{Message: echo, Closed: func(duplex.Code, string) { close(ended) }})
-	check(err)
-	closeWire(duplex.At(client, nil))
+// These helpers provide only deadlines and observations. The production pair,
+// peer, dispatcher, selected endpoints, mount and forwarder do all delivery.
+func wait[T any](ch <-chan T) T {
 	select {
-	case <-ended:
+	case v := <-ch:
+		return v
 	case <-time.After(5 * time.Second):
-		panic("selected close did not notify endpoint receiver")
+		panic("delivery deadline exceeded")
 	}
-	selectedCloseRefused := client.Send(test.Path, event()) != nil
-	return map[string]any{"before": before, "afterDetach": afterDetach, "afterMountClose": afterMountClose,
-		"selectedCloseRefused": selectedCloseRefused, "mountOriginRefused": mountOriginRefused,
-		"mountCloseCount": mountCloseCount.Load(), "detachCloseCount": detachCloseCount.Load(),
-		"mountRegistrationReleased": mountRegistrationReleased}
 }
-
-func forwarding(test testCase) any {
+func attach(e bitwire.Endpoint, r bitwire.Receiver) func() {
+	off, err := e.Receive(r)
+	check(err)
+	return off
+}
+func dispatcher(e bitwire.Endpoint) *ns.Dispatcher {
+	d, err := ns.NewDispatcher(e)
+	check(err)
+	cleanups = append(cleanups, func() { closeWire(d) })
+	return d
+}
+func send(w bitwire.Wire, path []string, done <-chan struct{}) {
+	check(w.Send(path, event()))
+	wait(done)
+}
+func goroutine() string {
+	var data [128]byte
+	n := runtime.Stack(data[:], false)
+	return strings.Fields(string(data[:n]))[1]
+}
+func siblings() any {
+	client, server := pair()
+	router := dispatcher(server)
+	deliveries := []string{}
+	done := make(chan struct{}, 4)
+	sender := goroutine()
+	receiverRanDuringSend := false
+	receiver := func(name string) bitwire.Receiver {
+		return bitwire.Receiver{Message: func(path []string, _ bitwire.Message) {
+			receiverRanDuringSend = receiverRanDuringSend || goroutine() == sender
+			deliveries = append(deliveries, name+":"+strings.Join(path, "/"))
+			done <- struct{}{}
+		}}
+	}
+	detachA := attach(router.Select([]string{"a"}), receiver("a"))
+	attach(router.Select([]string{"b"}), receiver("b"))
+	_, err := server.Receive(bitwire.Receiver{})
+	duplicateEndpointAttachmentRefused := err != nil
+	send(duplex.At(client, []string{"a"}), []string{"run"}, done)
+	send(duplex.At(client, []string{"b"}), []string{"run"}, done)
+	detachA()
+	detachA()
+	check(duplex.At(client, []string{"a"}).Send([]string{"ignored"}, event()))
+	send(duplex.At(client, []string{"b"}), []string{"after-detach"}, done)
+	closeWire(router)
+	attachmentReusableAfterDetach := false
+	replacement := attach(server, bitwire.Receiver{Message: func([]string, bitwire.Message) { attachmentReusableAfterDetach = true; done <- struct{}{} }})
+	closeWire(router)
+	send(client, []string{"replacement"}, done)
+	replacement()
+	return map[string]any{"deliveries": deliveries, "receiverRanDuringSend": receiverRanDuringSend, "duplicateEndpointAttachmentRefused": duplicateEndpointAttachmentRefused, "attachmentReusableAfterDetach": attachmentReusableAfterDetach}
+}
+func overlap() any {
+	client, server := pair()
+	router := dispatcher(server)
+	deliveries := []string{}
+	done := make(chan struct{}, 2)
+	attach(router.Select([]string{"a"}), bitwire.Receiver{Message: func(path []string, _ bitwire.Message) {
+		deliveries = append(deliveries, "parent:"+strings.Join(path, "/"))
+		done <- struct{}{}
+	}})
+	detach := attach(router.Select([]string{"a", "b"}), bitwire.Receiver{Message: func(path []string, _ bitwire.Message) {
+		deliveries = append(deliveries, "deep:"+strings.Join(path, "/"))
+		done <- struct{}{}
+	}})
+	_, err := router.Select([]string{"a"}).Receive(bitwire.Receiver{})
+	duplicateRouteRefused := err != nil
+	send(client, []string{"a", "b", "run"}, done)
+	detach()
+	send(client, []string{"a", "b", "run"}, done)
+	return map[string]any{"deliveries": deliveries, "duplicateRouteRefused": duplicateRouteRefused}
+}
+func composition() any {
 	caller, inbound := pair()
-	outbound, server := pair()
-	defer closeWire(caller)
-	defer closeWire(outbound)
-	var inboundReturn, outboundReturn *bitwire.ReturnAddress
-	a := observer{Wire: inbound, receive: func(_ []string, m bitwire.Message) { inboundReturn = m.Return }}
-	b := observer{Wire: outbound, send: func(_ []string, m bitwire.Message) { outboundReturn = m.Return }}
-	detach, err := ns.ForwardWire(a, b)
+	outbound, destination := pair()
+	var entered, arrived bitwire.Message
+	framePreserved, returnIdentityPreserved, associatedContextPreserved := true, true, false
+	marker := new(int)
+	associated := map[*bitwire.ReturnAddress]*int{}
+	left := observer{Endpoint: inbound, receive: func(_ []string, m bitwire.Message) { entered = m }}
+	right := observer{Endpoint: outbound, send: func(_ []string, m bitwire.Message) {
+		framePreserved = framePreserved && reflect.DeepEqual(m.Frame, entered.Frame)
+		returnIdentityPreserved = returnIdentityPreserved && m.Return != nil && m.Return == entered.Return
+	}}
+	detach, err := ns.ForwardWire(left, right)
 	check(err)
 	defer detach()
-	_, err = server.Receive(test.Path, bitwire.Receiver{Message: echo})
-	check(err)
-	forwarded := call(caller, test.Path, test.Payload)
-	identity := inboundReturn != nil && inboundReturn == outboundReturn
+	router := dispatcher(observer{Endpoint: destination, receive: func(_ []string, m bitwire.Message) { arrived = m; associated[m.Return] = marker }})
+	view := router.Select([]string{"a"}).Select([]string{"b"})
+	captured := make(chan bitwire.Message, 1)
+	deliveredPath := []string{}
+	stop := attach(view, bitwire.Receiver{Message: func(path []string, m bitwire.Message) {
+		deliveredPath = copyPath(path)
+		framePreserved = framePreserved && reflect.DeepEqual(m.Frame, arrived.Frame)
+		returnIdentityPreserved = returnIdentityPreserved && m.Return != nil && m.Return == arrived.Return
+		associatedContextPreserved = m.Return != nil && associated[m.Return] == marker
+		captured <- m
+	}})
+	result := make(chan any, 1)
+	original := bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: "c:1", Params: json.RawMessage(`{"nested":[null,42,"value"]}`), Traceparent: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01", Tracestate: "vendor=opaque", Meta: map[string]string{"key": "value"}}, Return: &bitwire.ReturnAddress{Wire: replySink(func(_ []string, m bitwire.Message) error {
+		if m.Frame.Kind != bitwire.ProfileResponse || m.Frame.Error != nil {
+			panic("expected successful reply")
+		}
+		var value any
+		check(json.Unmarshal(m.Frame.Result, &value))
+		result <- value
+		return nil
+	})}}
+	callerRouter := dispatcher(observer{Endpoint: caller, send: func(_ []string, m bitwire.Message) {
+		framePreserved = framePreserved && reflect.DeepEqual(m.Frame, original.Frame)
+		returnIdentityPreserved = returnIdentityPreserved && m.Return == original.Return
+	}})
+	mounted := duplex.Mount(map[string]bitwire.Endpoint{"": callerRouter.Select([]string{"a"}).Select([]string{"b"})})
+	defer closeWire(mounted)
+	composed := duplex.At(mounted, []string{""})
+	if _, ok := composed.(bitwire.Endpoint); ok {
+		panic("selected access grants ownership")
+	}
+	check(composed.Send([]string{"run", ""}, original))
+	request := wait(captured)
 	detach()
 	detach()
-	_, err = inbound.Receive(test.Path, bitwire.Receiver{Message: echo})
-	check(err)
-	inboundAfterDetach := call(caller, test.Path, test.Payload)
-	outboundAfterDetach := call(outbound, test.Path, test.Payload)
-	return map[string]any{"forwarded": forwarded, "forwardReturnIdentity": identity,
-		"inboundAfterDetach": inboundAfterDetach, "outboundAfterDetach": outboundAfterDetach}
+	stop()
+	closeWire(view)
+	closeWire(mounted)
+	closeWire(callerRouter)
+	reply(request, "answer")
+	answer := wait(result)
+	done := make(chan struct{}, 2)
+	sourceStillUsable, targetStillUsable := false, false
+	stopSource := attach(inbound, bitwire.Receiver{Message: func([]string, bitwire.Message) { sourceStillUsable = true; done <- struct{}{} }})
+	send(caller, []string{"probe"}, done)
+	stopSource()
+	attach(router.Select([]string{"probe"}), bitwire.Receiver{Message: func([]string, bitwire.Message) { targetStillUsable = true; done <- struct{}{} }})
+	send(outbound, []string{"probe"}, done)
+	return map[string]any{"deliveredPath": deliveredPath, "framePreserved": framePreserved, "returnIdentityPreserved": returnIdentityPreserved, "associatedContextPreserved": associatedContextPreserved, "reply": answer, "borrowedEndpointUsableAfterDetach": sourceStillUsable && targetStillUsable}
+}
+func opaquePaths() any {
+	client, server := pair()
+	router := dispatcher(server)
+	result := []string{}
+	for _, entry := range []struct {
+		path []string
+		name string
+	}{{[]string{""}, "empty"}, {[]string{"a/b"}, "slash"}, {[]string{"a", "b"}, "split"}, {[]string{"é"}, "composed"}, {[]string{"e\u0301"}, "decomposed"}} {
+		done := make(chan struct{}, 1)
+		attach(router.Select(entry.path), bitwire.Receiver{Message: func([]string, bitwire.Message) { result = append(result, entry.name); done <- struct{}{} }})
+		send(client, entry.path, done)
+	}
+	return result
+}
+func selectedEndpoints() any {
+	client, root := pair()
+	router := dispatcher(root)
+	a := router.Select([]string{"scope"}).Select([]string{"a"})
+	b := router.Select([]string{"scope", "b"})
+	detached := router.Select([]string{"detached"})
+	notifications := map[string]int{"active": 0, "detached": 0, "sibling": 0}
+	nestedPath, selectedSendPath := []string{}, []string{}
+	siblingAfterViewClose, routeReusable := false, false
+	initial := attach(a, bitwire.Receiver{Message: func([]string, bitwire.Message) { panic("detached receiver ran") }})
+	_, err := a.Receive(bitwire.Receiver{})
+	duplicateReceiveRefused := err != nil
+	initial()
+	initial()
+	done := make(chan struct{}, 4)
+	rootClosed := make(chan struct{}, 1)
+	attach(a, bitwire.Receiver{Message: func(path []string, _ bitwire.Message) { nestedPath = copyPath(path); done <- struct{}{} }, Closed: func(duplex.Code, string) { notifications["active"]++ }})
+	initial()
+	attach(b, bitwire.Receiver{Message: func([]string, bitwire.Message) { siblingAfterViewClose = true; done <- struct{}{} }, Closed: func(duplex.Code, string) { notifications["sibling"]++; rootClosed <- struct{}{} }})
+	unused := attach(detached, bitwire.Receiver{Closed: func(duplex.Code, string) { notifications["detached"]++ }})
+	unused()
+	closeWire(detached)
+	closeWire(detached)
+	attach(client, bitwire.Receiver{Message: func(path []string, _ bitwire.Message) { selectedSendPath = copyPath(path); done <- struct{}{} }})
+	send(client, []string{"scope", "a", "in"}, done)
+	send(a, []string{"out"}, done)
+	closeWire(a)
+	closeWire(a)
+	_, err = a.Receive(bitwire.Receiver{})
+	closedReceiveRefused := err != nil
+	closedSendRefused := a.Send([]string{"ignored"}, event()) != nil
+	stop := attach(router.Select([]string{"scope", "a"}), bitwire.Receiver{Message: func([]string, bitwire.Message) { routeReusable = true; done <- struct{}{} }})
+	send(client, []string{"scope", "a", "replacement"}, done)
+	send(client, []string{"scope", "b", "sibling"}, done)
+	stop()
+	closeWire(root)
+	closeWire(root)
+	wait(rootClosed)
+	_, err = root.Receive(bitwire.Receiver{})
+	rootReceiveRefused := err != nil
+	_, err = b.Receive(bitwire.Receiver{})
+	viewAfterRootCloseRefused := err != nil
+	closeWire(b)
+	return map[string]any{"nestedPath": nestedPath, "selectedSendPath": selectedSendPath, "duplicateReceiveRefused": duplicateReceiveRefused, "notifications": notifications, "closedReceiveRefused": closedReceiveRefused, "closedSendRefused": closedSendRefused, "rootReceiveRefused": rootReceiveRefused, "viewAfterRootCloseRefused": viewAfterRootCloseRefused, "siblingAfterViewClose": siblingAfterViewClose, "routeReusable": routeReusable}
 }
 
+type replySink func([]string, bitwire.Message) error
+
+func (s replySink) Send(path []string, m bitwire.Message) error { return s(path, m) }
+func sameIDDelayedReplies() any {
+	client, root := pair()
+	var admitted *bitwire.ReturnAddress
+	router := dispatcher(observer{Endpoint: root, receive: func(_ []string, m bitwire.Message) { admitted = m.Return }})
+	view := router.Select([]string{"service"})
+	requests := []bitwire.Message{}
+	capturedReturnIdentities := []bool{}
+	done := make(chan struct{}, 2)
+	stop := attach(view, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) {
+		requests = append(requests, m)
+		capturedReturnIdentities = append(capturedReturnIdentities, m.Return != nil && m.Return == admitted)
+		done <- struct{}{}
+	}})
+	lateReplies, replyIDs := []string{}, []string{}
+	replied := make(chan struct{}, 2)
+	for _, entry := range []struct{ name, payload string }{{"left", "first"}, {"right", "second"}} {
+		sink := replySink(func(_ []string, m bitwire.Message) error {
+			if m.Frame.Kind != bitwire.ProfileResponse {
+				panic("expected reply")
+			}
+			var result string
+			check(json.Unmarshal(m.Frame.Result, &result))
+			lateReplies = append(lateReplies, entry.name+":"+result)
+			replyIDs = append(replyIDs, m.Frame.ID)
+			replied <- struct{}{}
+			return nil
+		})
+		payload, err := json.Marshal(entry.payload)
+		check(err)
+		check(duplex.At(client, []string{"service"}).Send([]string{"call"}, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: "c:1", Params: payload}, Return: &bitwire.ReturnAddress{Wire: sink}}))
+		wait(done)
+	}
+	stop()
+	closeWire(view)
+	replacementDeliveries := []string{}
+	attach(router.Select([]string{"service"}), bitwire.Receiver{Message: func(_ []string, m bitwire.Message) {
+		if m.Frame.Kind != bitwire.ProfileEvent {
+			panic("old request reached replacement")
+		}
+		var value string
+		check(json.Unmarshal(m.Frame.Data, &value))
+		replacementDeliveries = append(replacementDeliveries, value)
+		done <- struct{}{}
+	}})
+	check(client.Send([]string{"service", "probe"}, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileEvent, Data: json.RawMessage(`"probe"`)}}))
+	wait(done)
+	for i := len(requests) - 1; i >= 0; i-- {
+		reply(requests[i], requests[i].Frame.Params)
+		wait(replied)
+	}
+	return map[string]any{"capturedReturnIdentities": capturedReturnIdentities, "lateReplies": lateReplies, "replyIDs": replyIDs, "replacementDeliveries": replacementDeliveries}
+}
 func main() {
 	defer func() {
 		for i := len(cleanups) - 1; i >= 0; i-- {
@@ -284,39 +380,6 @@ func main() {
 	if carrier := os.Getenv("NIGHTSEAM_BITWIRE_CARRIER"); carrier != "local" && carrier != "peer" {
 		panic("expected local or peer carrier")
 	}
-	if len(os.Args) != 2 {
-		panic("usage: driver <cases.json>")
-	}
-	data, err := os.ReadFile(os.Args[1])
-	check(err)
-	var fixture struct {
-		SchemaVersion int        `json:"schemaVersion"`
-		Cases         []testCase `json:"cases"`
-	}
-	check(json.Unmarshal(data, &fixture))
-	if fixture.SchemaVersion != 1 || len(fixture.Cases) == 0 {
-		panic("unsupported or empty fixture")
-	}
-	results := []any{}
-	for _, test := range fixture.Cases {
-		if os.Getenv("NIGHTSEAM_BITWIRE_CARRIER") == "peer" && test.ID == "distinct-opaque-paths" {
-			fmt.Fprintln(os.Stderr, "Explicit physical applicability exclusion: exact [] registration unsupported by peer profile")
-			continue
-		}
-		var result any
-		switch test.Kind {
-		case "access":
-			result = access(test)
-		case "routing":
-			result = routing(test)
-		case "lifetime":
-			result = lifetime(test)
-		case "forwarding":
-			result = forwarding(test)
-		default:
-			panic(fmt.Sprintf("unknown case kind %q", test.Kind))
-		}
-		results = append(results, map[string]any{"id": test.ID, "observations": result})
-	}
-	check(json.NewEncoder(os.Stdout).Encode(results))
+	observations := map[string]any{"siblings": siblings(), "overlap": overlap(), "composition": composition(), "opaquePaths": opaquePaths(), "selectedEndpoints": selectedEndpoints(), "sameIDDelayedReplies": sameIDDelayedReplies()}
+	check(json.NewEncoder(os.Stdout).Encode(observations))
 }

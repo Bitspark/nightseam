@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"slices"
 	"sync"
 	"time"
 
@@ -17,7 +16,7 @@ import (
 // Sending on either endpoint delivers to receivers on the other. It allocates
 // no Peer and preserves structured frames and verified local request context.
 // The limits, propagator and observer in options apply to both directions.
-func NewWirePair(options Options) (left, right duplex.Wire, err error) {
+func NewWirePair(options Options) (left, right duplex.Endpoint, err error) {
 	o, err := options.normalized()
 	if err != nil {
 		return nil, nil, err
@@ -27,7 +26,7 @@ func NewWirePair(options Options) (left, right duplex.Wire, err error) {
 	}
 	p := &localWirePair{options: o, done: make(chan struct{})}
 	for i := range p.ends {
-		p.ends[i] = &localWire{pair: p, wake: make(chan struct{}, 1), calls: map[returnKey]*localWireCall{}, receivers: map[localRoute]*localRegistration{}}
+		p.ends[i] = &localWire{pair: p, wake: make(chan struct{}, 1), calls: map[returnKey]*localWireCall{}}
 	}
 	p.ends[0].other, p.ends[1].other = p.ends[1], p.ends[0]
 	for _, end := range p.ends {
@@ -44,12 +43,7 @@ type localWirePair struct {
 	closed  bool
 }
 
-type localRoute struct {
-	name      string
-	namespace bool
-}
 type localRegistration struct {
-	path     []string
 	receiver duplex.Receiver
 	active   bool
 }
@@ -68,7 +62,7 @@ type localWire struct {
 	active     int
 	eventTimer *time.Timer
 	calls      map[returnKey]*localWireCall
-	receivers  map[localRoute]*localRegistration
+	receiver   *localRegistration
 }
 type localWireCall struct {
 	key          returnKey
@@ -163,6 +157,9 @@ func (w *localWire) retireLocked(call *localWireCall) {
 		return
 	}
 	delete(w.calls, call.key)
+	if call.dispatch != nil {
+		call.dispatch.routes.retire()
+	}
 }
 func (w *localWire) complete(call *localWireCall) {
 	w.pair.mu.Lock()
@@ -181,23 +178,6 @@ func (w *localWire) complete(call *localWireCall) {
 	}
 	w.retireLocked(call)
 	w.pair.mu.Unlock()
-}
-
-func (w *localWire) matchLocked(path []string) *localRegistration {
-	name, _ := duplex.EncodePath(path)
-	if exact := w.receivers[localRoute{name: name}]; exact != nil {
-		return exact
-	}
-	var best *localRegistration
-	for route, registration := range w.receivers {
-		if !route.namespace || len(registration.path) > len(path) || !slices.Equal(registration.path, path[:len(registration.path)]) {
-			continue
-		}
-		if best == nil || len(registration.path) > len(best.path) {
-			best = registration
-		}
-	}
-	return best
 }
 
 func (w *localWire) next() (localDelivery, bool) {
@@ -234,7 +214,10 @@ func (w *localWire) run() {
 			continue
 		}
 		w.pair.mu.Lock()
-		registration := w.matchLocked(delivery.path)
+		registration := w.receiver
+		if registration != nil && registration.receiver.Message == nil {
+			registration = nil
+		}
 		if w.pair.closed {
 			w.pair.mu.Unlock()
 			return
@@ -274,6 +257,7 @@ func (w *localWire) run() {
 					w.pair.observe(HandlerPanic{At: time.Now(), Method: name, Value: fmt.Sprint(value), Family: w.pair.options.Families[name]})
 				}}
 			}
+			call.dispatch.routes = newWireRouteContext()
 			call.timer = time.AfterFunc(w.pair.options.RequestTimeout, func() { w.timeout(call) })
 		}
 		w.pair.mu.Unlock()
@@ -361,32 +345,24 @@ func (w *localWire) timeout(call *localWireCall) {
 	}
 }
 
-func (w *localWire) Receive(path []string, receiver duplex.Receiver) (func(), error) {
-	name, err := duplex.EncodePath(path)
-	if err != nil {
-		return nil, err
-	}
-	if receiver.Message == nil {
-		return nil, errors.New("a wire receiver requires a callback")
-	}
-	key := localRoute{name: name, namespace: receiver.Namespace}
-	registration := &localRegistration{path: append([]string(nil), path...), receiver: receiver, active: true}
+func (w *localWire) Receive(receiver duplex.Receiver) (func(), error) {
+	registration := &localRegistration{receiver: receiver, active: true}
 	w.pair.mu.Lock()
 	defer w.pair.mu.Unlock()
 	if w.pair.closed {
 		return nil, ErrClosed
 	}
-	if w.receivers[key] != nil {
+	if w.receiver != nil {
 		return nil, duplex.ErrReceiverExists
 	}
-	w.receivers[key] = registration
+	w.receiver = registration
 	return func() {
 		w.pair.mu.Lock()
-		defer w.pair.mu.Unlock()
-		if w.receivers[key] == registration {
-			delete(w.receivers, key)
+		if w.receiver == registration {
+			w.receiver = nil
 			registration.active = false
 		}
+		w.pair.mu.Unlock()
 	}, nil
 }
 func (w *localWire) Close(code duplex.Code, reason string) error {
@@ -412,9 +388,9 @@ func (p *localWirePair) end(code duplex.Code, reason string) {
 		if end.eventTimer != nil {
 			end.eventTimer.Stop()
 		}
-		for _, registration := range end.receivers {
-			registration.active = false
-			receivers = append(receivers, registration.receiver)
+		if end.receiver != nil {
+			end.receiver.active = false
+			receivers = append(receivers, end.receiver.receiver)
 		}
 		for _, call := range end.calls {
 			if call.timer != nil {
@@ -428,8 +404,11 @@ func (p *localWirePair) end(code duplex.Code, reason string) {
 				call.responded = true
 			}
 			call.completed = true
+			if call.dispatch != nil {
+				call.dispatch.routes.retire()
+			}
 		}
-		end.receivers = map[localRoute]*localRegistration{}
+		end.receiver = nil
 		end.calls = map[returnKey]*localWireCall{}
 		end.queue, end.dataQueued = nil, 0
 	}
@@ -483,7 +462,3 @@ func (r *localReturn) Send(path []string, message duplex.Message) (err error) {
 	}
 	return WithoutUnpublishedProof(r.call.key.address.Wire.Send(path, message))
 }
-func (*localReturn) Receive([]string, duplex.Receiver) (func(), error) {
-	return nil, duplex.ErrReceiverExists
-}
-func (r *localReturn) Close(duplex.Code, string) error { r.wire.complete(r.call); return nil }

@@ -34,7 +34,8 @@ func TestCancelledHeadDetachesGeneratedPreparation(t *testing.T) {
 	ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
 	defer stop()
 	store := duplex.NewMemoryWireLog()
-	recorder, err := binding.Record(ctx, target, store, duplex.RecordOptions{}, runtime.AdapterContext{})
+	closed := make(chan struct{})
+	recorder, err := binding.Record(ctx, target, store, duplex.RecordOptions{OnClose: func(error) { close(closed) }}, runtime.AdapterContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,4 +47,21 @@ func TestCancelledHeadDetachesGeneratedPreparation(t *testing.T) {
 	if head, err := recorder.Head(ctx); err != nil || head != 1 {
 		t.Fatalf("head %d %v", head, err)
 	}
+	if err := recorder.Close(1000, ""); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-closed:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	rebound, err := binding.Record(ctx, target, duplex.NewMemoryWireLog(), duplex.RecordOptions{}, runtime.AdapterContext{})
+	if err != nil {
+		t.Fatalf("closed recorder retained its attachment or closed the borrowed target: %v", err)
+	}
+	defer rebound.Close(1000, "")
+	if err := rebound.Append(ctx, binding.RecordedTick{Data: protocol.Payload{Value: 8}}); err != nil {
+		t.Fatal(err)
+	}
+	next(t, ctx, values, int64(8))
 }

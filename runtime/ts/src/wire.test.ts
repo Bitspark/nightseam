@@ -15,6 +15,7 @@ import { DuplexPeer, DuplexError, UnpublishedError } from './peer.ts';
 import type { PeerOptions } from './peer.ts';
 import { callWire, handleWire, emitWire, onWireEvent, forwardWire } from './wire.ts';
 import { wirePair } from './wire-pair.ts';
+import { createDispatcher } from './dispatcher.ts';
 import { defaultPropagator } from './trace.ts';
 import type { ObserverEvent } from './observer.ts';
 
@@ -99,7 +100,9 @@ for (const mode of ['cancel', 'caller-deadline', 'receiver-deadline', 'public-re
           t.after(forwardWire(pair.server.wire(), left));
           model = right;
         }
-        handleWire(model, ['hold'], handler);
+        const dispatcher = createDispatcher(model);
+        t.after(() => dispatcher.close());
+        handleWire(dispatcher, ['hold'], handler);
       }
       const call = (options: { signal?: AbortSignal; timeoutMs?: number } = {}) =>
         route === 'peer'
@@ -176,10 +179,12 @@ async function paired(options: PeerOptions = {}, clientOptions: PeerOptions = op
 test('mounted wire keeps independent c:1 origins and cancellation', async (t) => {
   const pair = await paired();
   t.after(pair.close);
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
   const started = { first: deferred(), second: deferred() },
     cancelled = deferred<string>(),
     finish = deferred();
-  handleWire(pair.server.wire(), ['worker', 'run'], async (params, context) => {
+  handleWire(server, ['worker', 'run'], async (params, context) => {
     const name = params as 'first' | 'second';
     started[name].resolve();
     const stopped = deferred();
@@ -201,8 +206,6 @@ test('mounted wire keeps independent c:1 origins and cancellation', async (t) =>
       sent.push(message);
       selected.send(path, message);
     },
-    receive: (path, receiver) => selected.receive(path, receiver),
-    close: (code, reason) => selected.close(code, reason),
   };
   assert.equal(pair.client.wire(), pair.client.wire());
   const controller = new AbortController();
@@ -218,7 +221,7 @@ test('mounted wire keeps independent c:1 origins and cancellation', async (t) =>
   controller.abort();
   assert.equal(((await firstResult) as DuplexError).code, 'cancelled');
   assert.equal(await cancelled.promise, 'first');
-  handleWire(pair.server.wire(), ['worker', 'echo'], (value) => value);
+  handleWire(server, ['worker', 'echo'], (value) => value);
   assert.equal(await callWire(opaque, ['echo'], 'still open'), 'still open');
   finish.resolve();
   assert.equal(await second, 'second');
@@ -227,13 +230,15 @@ test('mounted wire keeps independent c:1 origins and cancellation', async (t) =>
 test('wire paths preserve opaque scalar segments over the existing envelope', async (t) => {
   const pair = await paired();
   t.after(pair.close);
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
   for (const [path, value] of [
     [['a.b'], 'one'],
     [['a', 'b'], 'two'],
     [[''], 'empty'],
     [['😀', '\ufeff'], 'unicode'],
   ] as const) {
-    handleWire(pair.server.wire(), path, () => value);
+    handleWire(server, path, () => value);
   }
   for (const [path, value] of [
     [['a.b'], 'one'],
@@ -248,10 +253,12 @@ test('wire paths preserve opaque scalar segments over the existing envelope', as
 test('call and event helpers accept an empty suffix at a selected leaf', async (t) => {
   const pair = await paired();
   t.after(pair.close);
-  handleWire(pair.server.wire(), ['a.b'], (value) => value);
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
+  handleWire(server, ['a.b'], (value) => value);
   assert.equal(await callWire(at(pair.client.wire(), ['a.b']), [], 'selected'), 'selected');
   const arrived = deferred<unknown>();
-  onWireEvent(pair.server.wire(), [''], (value) => {
+  onWireEvent(server, [''], (value) => {
     arrived.resolve(value);
   });
   emitWire(at(pair.client.wire(), ['']), [], 'event');
@@ -261,13 +268,15 @@ test('call and event helpers accept an empty suffix at a selected leaf', async (
 test('wire root queues asynchronously and preserves request/event send order', async (t) => {
   const pair = await paired();
   t.after(pair.close);
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
   const seen: string[] = [],
     event = deferred();
-  handleWire(pair.server.wire(), ['first'], () => {
+  handleWire(server, ['first'], () => {
     seen.push('request');
     return null;
   });
-  onWireEvent(pair.server.wire(), ['second'], () => {
+  onWireEvent(server, ['second'], () => {
     seen.push('event');
     event.resolve();
   });
@@ -286,8 +295,12 @@ test('wire root queues asynchronously and preserves request/event send order', a
 test('wire carries same-call metadata but outgoing application calls copy it only explicitly', async (t) => {
   const pair = await paired();
   t.after(pair.close);
-  handleWire(pair.client.wire(), ['echoMeta'], (_value, context) => context.meta ?? null);
-  handleWire(pair.server.wire(), ['relay'], async (_value, context) => ({
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
+  const client = createDispatcher(pair.client.wire());
+  t.after(() => client.close());
+  handleWire(client, ['echoMeta'], (_value, context) => context.meta ?? null);
+  handleWire(server, ['relay'], async (_value, context) => ({
     received: context.meta,
     implicit: await callWire(context.wire, ['echoMeta'], null, { context }),
     explicit: await callWire(context.wire, ['echoMeta'], null, { context, meta: context.meta }),
@@ -302,7 +315,9 @@ test('wire carries same-call metadata but outgoing application calls copy it onl
 test('wire public refusals survive while dispatched nested publication proof does not', async (t) => {
   const pair = await paired();
   t.after(pair.close);
-  handleWire(pair.server.wire(), ['refuse'], () => {
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
+  handleWire(server, ['refuse'], () => {
     throw new UnpublishedError(new DuplexError('denied', 'No', { why: 7 }));
   });
   await assert.rejects(callWire(pair.client.wire(), ['refuse']), (error: unknown) => {
@@ -331,9 +346,11 @@ test('wire full admission ends the root immediately and settles queued calls', a
 test('wire close settles active calls and detaches registrations once', async (t) => {
   const pair = await paired();
   t.after(pair.close);
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
   const started = deferred(),
     cancelled = deferred();
-  handleWire(pair.server.wire(), ['held'], async (_value, context) => {
+  handleWire(server, ['held'], async (_value, context) => {
     context.signal.addEventListener('abort', () => cancelled.resolve(), { once: true });
     started.resolve();
     await cancelled.promise;
@@ -344,7 +361,7 @@ test('wire close settles active calls and detaches registrations once', async (t
   pair.client.wire().close(1000, 'done');
   assert.equal(((await response) as DuplexError).code, 'disconnected');
   await cancelled.promise;
-  assert.throws(() => pair.client.wire().receive(['later'], {}));
+  assert.throws(() => pair.client.wire().receive({}));
 });
 
 test('mounted async event receivers keep serial order and peer backpressure accounting', async (t) => {
@@ -355,7 +372,14 @@ test('mounted async event receivers keep serial order and peer backpressure acco
     ended = deferred<DuplexError>();
   t.after(() => unblock.resolve());
   pair.server.onClose((error) => ended.resolve(error));
-  const view = at(mount(new Map([['outer', pair.server.wire()]])), ['outer']);
+  const mounted = mount(new Map([['outer', pair.server.wire()]]));
+  const dispatcher = createDispatcher(mounted);
+  t.after(() => {
+    dispatcher.close();
+    mounted.close();
+  });
+  const view = createDispatcher(dispatcher.select(['outer']));
+  t.after(() => view.close());
   const seen: number[] = [];
   onWireEvent(view, ['notice'], async (data) => {
     seen.push(data as number);
@@ -425,8 +449,10 @@ test('wire handlers inherit verified receive context and keep peer panic observa
     },
   });
   t.after(pair.close);
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
   let inherited: unknown;
-  handleWire(pair.server.wire(), ['panic'], (_value, context) => {
+  handleWire(server, ['panic'], (_value, context) => {
     inherited = Reflect.get(context, 'verified');
     throw new Error('deliberate handler panic');
   });
@@ -438,9 +464,11 @@ test('wire handlers inherit verified receive context and keep peer panic observa
 test('wire cancellation reserves bounded admission behind a full data queue', async (t) => {
   const pair = await paired({ queueCapacity: 1 });
   t.after(pair.close);
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
   const started = deferred(),
     cancelled = deferred();
-  handleWire(pair.server.wire(), ['held'], async (_value, context) => {
+  handleWire(server, ['held'], async (_value, context) => {
     context.signal.addEventListener('abort', () => cancelled.resolve(), { once: true });
     started.resolve();
     await cancelled.promise;
@@ -454,8 +482,6 @@ test('wire cancellation reserves bounded admission behind a full data queue', as
       if (message.frame.kind === 'request') request = message;
       root.send(path, message);
     },
-    receive: (path, receiver) => root.receive(path, receiver),
-    close: (code, reason) => root.close(code, reason),
   };
   const result = callWire(selected, ['held'], {}, { signal: controller.signal }).catch((error: unknown) => error);
   await started.promise;
@@ -499,8 +525,6 @@ test('completed calls retain their budget until a reserved cancellation is drain
   const returning = (onResponse: (message: Message) => void): ReturnAddress => ({
     wire: {
       send: (_path, message) => onResponse(message),
-      receive: () => () => {},
-      close: () => {},
     },
   });
   const secondAddress = returning((message) => second.resolve(message));
@@ -530,8 +554,10 @@ test('completed calls retain their budget until a reserved cancellation is drain
 test('root wire validates structured profile frames before admission without ending its carrier', async (t) => {
   const pair = await paired({ queueCapacity: 1 });
   t.after(pair.close);
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
   let invoked = 0;
-  handleWire(pair.server.wire(), ['checked'], (value) => {
+  handleWire(server, ['checked'], (value) => {
     invoked++;
     return value;
   });
@@ -568,8 +594,6 @@ test('root wire validates structured profile frames before admission without end
     const reply = deferred<Message>();
     const returning: Wire = {
       send: (_path, message) => reply.resolve(message),
-      receive: () => () => {},
-      close: () => {},
     };
     root.send(['checked'], { frame: { version: 1, kind: 'request', id, params: id }, return: { wire: returning } });
     const response = await reply.promise;
@@ -582,26 +606,27 @@ test('root wire validates structured profile frames before admission without end
 test('root wire refuses oversized structured frames before accepting them', async (t) => {
   const pair = await paired({ maxFrameBytes: 512, queueCapacity: 1 });
   t.after(pair.close);
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
   const root = pair.client.wire();
   assert.throws(() => root.send(['large'], { frame: { version: 1, kind: 'event', data: '😀'.repeat(200) } }), {
     code: 'frame_too_large',
   });
   assert.equal(pair.client.status, 'connected');
   assert.equal(pair.writes(), 0);
-  handleWire(pair.server.wire(), ['small'], () => 'ok');
+  handleWire(server, ['small'], () => 'ok');
   assert.equal(await callWire(root, ['small']), 'ok');
 });
 
 test('local wire return addresses validate responses before settling the call', async () => {
+  const controller = new AbortController();
   let address!: ReturnAddress;
   const opaque: Wire = {
     send: (_path, message) => {
       address = message.return!;
     },
-    receive: () => () => {},
-    close: () => {},
   };
-  const pending = callWire(opaque, ['test']);
+  const pending = callWire(opaque, ['test'], undefined, { signal: controller.signal });
   const response = { version: 1, kind: 'response', id: 'c:1', result: null };
   const invalid: unknown[] = [
     { ...response, version: 2 },
@@ -618,7 +643,7 @@ test('local wire return addresses validate responses before settling the call', 
     address.wire.send([], { frame: { version: 1, kind: 'response', id: 'c:1', result: 'ok' } });
     assert.equal(await pending, 'ok');
   } finally {
-    address.wire.close();
+    controller.abort();
     await pending.catch(() => {});
   }
 });
@@ -626,11 +651,13 @@ test('local wire return addresses validate responses before settling the call', 
 test('wire handlers sanitize empty public error fields without disconnecting', async (t) => {
   const pair = await paired();
   t.after(pair.close);
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
   for (const [name, code, message] of [
     ['code', '', 'No'],
     ['message', 'denied', ''],
   ] as const) {
-    handleWire(pair.server.wire(), [name], () => {
+    handleWire(server, [name], () => {
       throw new DuplexError(code, message);
     });
     await assert.rejects(callWire(pair.client.wire(), [name]), { code: 'internal' });
@@ -641,7 +668,9 @@ test('wire handlers sanitize empty public error fields without disconnecting', a
 test('wire handler responses over the peer frame limit settle as internal errors', async (t) => {
   const pair = await paired({ maxFrameBytes: 512 });
   t.after(pair.close);
-  handleWire(pair.server.wire(), ['large'], () => 'x'.repeat(1_024));
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
+  handleWire(server, ['large'], () => 'x'.repeat(1_024));
   await assert.rejects(callWire(pair.client.wire(), ['large'], {}, { timeoutMs: 100 }), { code: 'internal' });
   assert.equal(pair.client.status, 'connected');
 });
@@ -655,10 +684,12 @@ test('configured outgoing traces retain private identity through a local Wire an
     access.close();
     pair.close();
   });
+  const server = createDispatcher(pair.server.wire());
+  t.after(() => server.close());
   forwardWire(binding, pair.client.wire());
-  handleWire(pair.server.wire(), ['call'], () => null);
+  handleWire(server, ['call'], () => null);
   const delivered = deferred();
-  onWireEvent(pair.server.wire(), ['event'], () => delivered.resolve());
+  onWireEvent(server, ['event'], () => delivered.resolve());
   const propagator = { inject: () => trace, extract: () => {} };
   await callWire(access, ['call'], {}, { propagator });
   emitWire(access, ['event'], null, { propagator });

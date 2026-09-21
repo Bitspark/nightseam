@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
 
@@ -48,33 +47,30 @@ func TestPathEncodingIsCanonicalAndComposable(t *testing.T) {
 	}
 }
 
-// queuedRoot is a deterministic dispatch fixture, not a transport. Only drain
-// executes destination callbacks, so a composition cannot pass by timing luck.
+// queuedRoot is a deterministic endpoint fixture. Only drain executes queued
+// deliveries, so composition cannot pass the asynchronous check by timing luck.
 type queuedRoot struct {
-	mu        sync.Mutex
-	queue     []queuedDelivery
-	receivers map[string]duplex.Receiver
-	closed    bool
-	closes    int
+	mu      sync.Mutex
+	queue   []queuedDelivery
+	current *rootAttachment
+	closed  bool
+	closes  int
 }
+type rootAttachment struct{ receiver duplex.Receiver }
 type queuedDelivery struct {
 	path    []string
 	message duplex.Message
 }
-
-// Wire values need not be comparable; only ReturnAddress identity is compared.
 type nonComparableRoot struct {
 	*queuedRoot
 	marker []int
 }
 
-func newRoot() *queuedRoot { return &queuedRoot{receivers: map[string]duplex.Receiver{}} }
+func newRoot() *queuedRoot { return &queuedRoot{} }
 func (r *queuedRoot) Send(path []string, message duplex.Message) error {
-	key, err := duplex.EncodePath(path)
-	if err != nil {
+	if _, err := duplex.EncodePath(path); err != nil {
 		return err
 	}
-	_ = key
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
@@ -83,25 +79,34 @@ func (r *queuedRoot) Send(path []string, message duplex.Message) error {
 	r.queue = append(r.queue, queuedDelivery{append([]string{}, path...), message})
 	return nil
 }
-func (r *queuedRoot) Receive(path []string, receiver duplex.Receiver) (func(), error) {
-	key, err := duplex.EncodePath(path)
-	if err != nil {
-		return nil, err
-	}
-	if receiver.Namespace {
-		key = "namespace " + key
-	}
+func (r *queuedRoot) Receive(receiver duplex.Receiver) (func(), error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
 		return nil, duplex.ErrClosed
 	}
-	if _, exists := r.receivers[key]; exists {
+	if r.current != nil {
 		return nil, duplex.ErrReceiverExists
 	}
-	r.receivers[key] = receiver
-	var once sync.Once
-	return func() { once.Do(func() { r.mu.Lock(); delete(r.receivers, key); r.mu.Unlock() }) }, nil
+	attachment := &rootAttachment{receiver}
+	r.current = attachment
+	return func() {
+		r.mu.Lock()
+		if r.current == attachment {
+			r.current = nil
+		}
+		r.mu.Unlock()
+	}, nil
+}
+func (r *queuedRoot) attached() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.current != nil
+}
+func (r *queuedRoot) captured() duplex.Receiver {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.current.receiver
 }
 func (r *queuedRoot) Close(code duplex.Code, reason string) error {
 	r.mu.Lock()
@@ -111,13 +116,11 @@ func (r *queuedRoot) Close(code duplex.Code, reason string) error {
 	}
 	r.closed = true
 	r.closes++
-	receivers := r.receivers
-	r.receivers = map[string]duplex.Receiver{}
+	attachment := r.current
+	r.current = nil
 	r.mu.Unlock()
-	for _, receiver := range receivers {
-		if receiver.Closed != nil {
-			receiver.Closed(code, reason)
-		}
+	if attachment != nil && attachment.receiver.Closed != nil {
+		attachment.receiver.Closed(code, reason)
 	}
 	return nil
 }
@@ -130,218 +133,265 @@ func (r *queuedRoot) drain() {
 		}
 		d := r.queue[0]
 		r.queue = r.queue[1:]
-		key, _ := duplex.EncodePath(d.path)
-		receiver, exact := r.receivers[key]
-		if !exact {
-			longest := -1
-			for prefix, candidate := range r.receivers {
-				if suffix, namespace := strings.CutPrefix(prefix, "namespace "); namespace && strings.HasPrefix(key, suffix) && len(suffix) > longest {
-					receiver, longest = candidate, len(suffix)
-				}
-			}
-		}
+		attachment := r.current
 		r.mu.Unlock()
-		if receiver.Message != nil {
-			receiver.Message(d.path, d.message)
+		if attachment != nil && attachment.receiver.Message != nil {
+			attachment.receiver.Message(d.path, d.message)
 		}
 	}
 }
 
-func TestMountNamespaceFansOutRelativePathsAndRetainsHealthyChildren(t *testing.T) {
-	left, right := newRoot(), newRoot()
-	mounted := duplex.Mount(map[string]duplex.Wire{"left": duplex.At(left, []string{"private"}), "": right})
-	var got [][]string
-	closed := 0
-	detach, err := mounted.Receive(nil, duplex.Receiver{Namespace: true,
-		Message: func(path []string, _ duplex.Message) { got = append(got, path) },
-		Closed:  func(duplex.Code, string) { closed++ },
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	message := duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: json.RawMessage("null")}}
-	if err := mounted.Send([]string{"left", "nested", "call"}, message); err != nil {
-		t.Fatal(err)
-	}
-	left.drain()
-	_ = left.Close(duplex.CodeNormal, "left ended")
-	if closed != 0 {
-		t.Fatal("one child ended the whole mounted namespace")
-	}
-	if err := mounted.Send([]string{"", "still", "usable"}, message); err != nil {
-		t.Fatal(err)
-	}
-	right.drain()
-	if !reflect.DeepEqual(got, [][]string{{"left", "nested", "call"}, {"", "still", "usable"}}) {
-		t.Fatalf("namespace paths = %v", got)
-	}
-	detach()
-	detach()
-	if len(right.receivers) != 0 || right.closed {
-		t.Fatal("detachment leaked a registration or closed its child")
-	}
-	_ = mounted.Close(duplex.CodeNormal, "mount ended")
-	if closed != 0 {
-		t.Fatal("detached namespace received closure")
-	}
-}
+type sendOnly func([]string, duplex.Message) error
 
-func TestMountNamespaceRegistrationFailureRollsBackEarlierChildren(t *testing.T) {
+func (s sendOnly) Send(path []string, message duplex.Message) error { return s(path, message) }
+
+func TestWireSelectionsGrantOnlySendAccess(t *testing.T) {
 	root := newRoot()
-	mounted := duplex.Mount(map[string]duplex.Wire{"one": root, "two": root})
-	if _, err := mounted.Receive(nil, duplex.Receiver{Namespace: true}); !errors.Is(err, duplex.ErrReceiverExists) {
-		t.Fatalf("overlapping namespace registration = %v", err)
-	}
-	if len(root.receivers) != 0 {
-		t.Fatal("partial namespace registration leaked")
-	}
-	if root.closed {
-		t.Fatal("rollback closed borrowed child")
-	}
-}
-
-func TestMountDetachPreservesCapturedRequestCancellation(t *testing.T) {
-	root := newRoot()
-	mounted := duplex.Mount(map[string]duplex.Wire{"service": root})
-	deliveries := 0
-	detach, err := mounted.Receive([]string{"service", "wait"}, duplex.Receiver{Message: func([]string, duplex.Message) { deliveries++ }})
-	if err != nil {
-		t.Fatal(err)
-	}
-	key, _ := duplex.EncodePath([]string{"wait"})
-	accepted := root.receivers[key]
-	accepted.Message([]string{"wait"}, duplex.Message{Frame: duplex.ProfileFrame{Kind: duplex.ProfileRequest}})
-	detach()
-	accepted.Message([]string{"wait"}, duplex.Message{Frame: duplex.ProfileFrame{Kind: duplex.ProfileCancel}})
-	if deliveries != 2 {
-		t.Fatalf("detachment lost captured cancellation: %d deliveries", deliveries)
-	}
-	if len(root.receivers) != 0 {
-		t.Fatal("detachment retained new-dispatch registration")
-	}
-}
-
-func TestWireSelectionMountAndReturnCapability(t *testing.T) {
-	root, reply := newRoot(), newRoot()
-	address := &duplex.ReturnAddress{Wire: nonComparableRoot{reply, []int{1}}}
 	prefix := []string{"a.b"}
-	selected := duplex.At(root, prefix)
+	selected := duplex.At(sendOnly(root.Send), prefix)
 	prefix[0] = "changed"
-	children := map[string]duplex.Wire{"x": selected}
-	mounted := duplex.Mount(children)
-	children["x"] = reply
-	view := duplex.At(duplex.At(mounted, []string{"x"}), []string{"😀"})
-	var received []duplex.Message
-	detach, err := view.Receive([]string{"call"}, duplex.Receiver{Message: func(path []string, m duplex.Message) {
-		if !reflect.DeepEqual(path, []string{"call"}) {
-			t.Errorf("receiver path = %v", path)
+	for _, view := range []duplex.Wire{selected, duplex.At(root, nil), duplex.At(selected, []string{"😀"})} {
+		if _, ok := view.(interface {
+			Receive(duplex.Receiver) (func(), error)
+		}); ok {
+			t.Fatal("selection grants receive authority")
 		}
-		received = append(received, m)
+		if _, ok := view.(interface {
+			Close(duplex.Code, string) error
+		}); ok {
+			t.Fatal("selection grants lifecycle authority")
+		}
+	}
+	path := []string{"call"}
+	if err := duplex.At(selected, []string{"😀"}).Send(path, duplex.Message{}); err != nil {
+		t.Fatal(err)
+	}
+	path[0] = "changed"
+	if !reflect.DeepEqual(root.queue[0].path, []string{"a.b", "😀", "call"}) {
+		t.Fatal(root.queue)
+	}
+}
+
+func TestMountPreservesPathsFramesAndReturnCapability(t *testing.T) {
+	left, right, reply := newRoot(), newRoot(), newRoot()
+	children := map[string]duplex.Endpoint{"left": left, "": right}
+	mounted := duplex.Mount(children)
+	children["left"] = reply
+	address := &duplex.ReturnAddress{Wire: nonComparableRoot{reply, []int{1}}}
+	var paths [][]string
+	var received []duplex.Message
+	_, err := mounted.Receive(duplex.Receiver{Message: func(path []string, message duplex.Message) {
+		paths = append(paths, path)
+		received = append(received, message)
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer detach()
 	frames := []duplex.ProfileFrame{
 		{Version: 1, Kind: duplex.ProfileRequest, ID: "c:1", Params: json.RawMessage(`{"n":9007199254740993}`), Meta: map[string]string{"tag": "value"}},
 		{Version: 1, Kind: duplex.ProfileResponse, ID: "c:1", Error: &duplex.ProfileError{Code: "refused", Message: "No", Data: json.RawMessage(`{"why":"test"}`)}},
 		{Version: 1, Kind: duplex.ProfileEvent, Data: json.RawMessage(`null`)},
 		{Version: 1, Kind: duplex.ProfileCancel, ID: "c:1"},
 	}
+	view := duplex.At(duplex.At(mounted, []string{"left"}), []string{"😀"})
 	for _, frame := range frames {
-		message := duplex.Message{Frame: frame, Return: address}
-		if err := view.Send([]string{"call"}, message); err != nil {
+		if err := view.Send([]string{"call"}, duplex.Message{Frame: frame, Return: address}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if len(received) != 0 {
-		t.Fatal("destination ran inside Send")
+	if len(received) != 0 || len(left.queue) != 4 || len(reply.queue) != 0 {
+		t.Fatal("composition changed dispatch ownership")
 	}
-	if len(root.queue) != 4 || len(reply.queue) != 0 {
-		t.Fatal("composition did not delegate to the existing root")
-	}
-	for _, d := range root.queue {
-		if !reflect.DeepEqual(d.path, []string{"a.b", "😀", "call"}) {
-			t.Fatal(d.path)
+	for _, delivery := range left.queue {
+		if !reflect.DeepEqual(delivery.path, []string{"😀", "call"}) {
+			t.Fatal(delivery.path)
 		}
 	}
-	root.drain()
-	if len(received) != 4 {
-		t.Fatal(received)
-	}
+	left.drain()
 	for i, frame := range frames {
-		if !reflect.DeepEqual(received[i].Frame, frame) || received[i].Return != address {
-			t.Fatal(received[i])
+		if !reflect.DeepEqual(paths[i], []string{"left", "😀", "call"}) || !reflect.DeepEqual(received[i].Frame, frame) || received[i].Return != address {
+			t.Fatal(paths[i], received[i])
 		}
 	}
-	if _, err := duplex.At(root, []string{"a.b", "😀"}).Receive([]string{"call"}, duplex.Receiver{}); !errors.Is(err, duplex.ErrReceiverExists) {
-		t.Fatalf("duplicate registration: %v", err)
-	}
-	detach()
-	if detach, err := duplex.At(root, nil).Receive([]string{"a.b", "😀", "call"}, duplex.Receiver{}); err != nil {
+	if err := mounted.Send([]string{""}, duplex.Message{}); err != nil {
 		t.Fatal(err)
-	} else {
-		detach()
+	}
+	right.drain()
+	if !reflect.DeepEqual(paths[4], []string{""}) {
+		t.Fatal(paths[4])
+	}
+	for _, path := range [][]string{nil, {"missing"}} {
+		if err := mounted.Send(path, duplex.Message{}); !errors.Is(err, duplex.ErrNoRoute) {
+			t.Fatal(err)
+		}
+	}
+	if err := mounted.Send([]string{"left", "\xff"}, duplex.Message{}); !errors.Is(err, duplex.ErrPath) {
+		t.Fatal(err)
 	}
 }
 
-func TestWireReceiverPathsAreRelativeToTheViewOrigin(t *testing.T) {
-	root := newRoot()
-	selected := duplex.At(root, []string{"stored", "service"})
-	mounted := duplex.Mount(map[string]duplex.Wire{"public": selected})
-	var got []string
-	_, err := mounted.Receive([]string{"public", "call"}, duplex.Receiver{Message: func(path []string, _ duplex.Message) { got = path }})
+func TestMountRefusesDuplicateAttachmentAndRebindsWithoutStealingCapturedDeliveries(t *testing.T) {
+	root, reply := newRoot(), newRoot()
+	mounted := duplex.Mount(map[string]duplex.Endpoint{"service": root})
+	address := &duplex.ReturnAddress{Wire: duplex.At(reply, nil)}
+	var old, fresh []duplex.ProfileKind
+	var oldPaths [][]string
+	closed := 0
+	detach, err := mounted.Receive(duplex.Receiver{
+		Message: func(path []string, message duplex.Message) {
+			oldPaths = append(oldPaths, path)
+			old = append(old, message.Frame.Kind)
+			if message.Return != address {
+				t.Fatal("return capability changed")
+			}
+		},
+		Closed: func(duplex.Code, string) { closed++ },
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := mounted.Send([]string{"public", "call"}, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: json.RawMessage("null")}}); err != nil {
+	captured := root.captured()
+	if _, err := mounted.Receive(duplex.Receiver{}); !errors.Is(err, duplex.ErrReceiverExists) {
+		t.Fatal(err)
+	}
+	captured.Message([]string{"wait"}, duplex.Message{Frame: duplex.ProfileFrame{Kind: duplex.ProfileRequest}, Return: address})
+	detach()
+	detach()
+	if root.attached() || root.closed {
+		t.Fatal("detach retained ownership or closed borrowed root")
+	}
+	freshDetach, err := mounted.Receive(duplex.Receiver{Message: func(_ []string, message duplex.Message) { fresh = append(fresh, message.Frame.Kind) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	detach() // The old token must never remove the new attachment.
+	captured.Closed(duplex.CodeNormal, "stale close")
+	captured.Message([]string{"wait"}, duplex.Message{Frame: duplex.ProfileFrame{Kind: duplex.ProfileCancel}, Return: address})
+	if err := address.Wire.Send(nil, duplex.Message{Frame: duplex.ProfileFrame{Kind: duplex.ProfileResponse}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := mounted.Send([]string{"service", "new"}, duplex.Message{Frame: duplex.ProfileFrame{Kind: duplex.ProfileEvent}}); err != nil {
 		t.Fatal(err)
 	}
 	root.drain()
-	if !reflect.DeepEqual(got, []string{"public", "call"}) {
-		t.Fatalf("mounted incoming path = %v", got)
+	if !reflect.DeepEqual(old, []duplex.ProfileKind{duplex.ProfileRequest, duplex.ProfileCancel}) || !reflect.DeepEqual(fresh, []duplex.ProfileKind{duplex.ProfileEvent}) || closed != 0 || len(reply.queue) != 1 {
+		t.Fatal(old, fresh, closed, reply.queue)
+	}
+	if !reflect.DeepEqual(oldPaths, [][]string{{"service", "wait"}, {"service", "wait"}}) {
+		t.Fatal(oldPaths)
+	}
+	freshDetach()
+	_ = mounted.Close(duplex.CodeNormal, "done")
+	if closed != 0 || root.closed {
+		t.Fatal("detached owner or borrowed child was closed")
 	}
 }
 
-func TestMountCloseDetachesOnlyItsRegistrationsAndPreservesChildren(t *testing.T) {
+func TestMountAttachmentFailureRollsBackOnlyItsBorrowedAttachments(t *testing.T) {
+	for _, duplicate := range []bool{false, true} {
+		t.Run(map[bool]string{false: "occupied-child", true: "aliased-child"}[duplicate], func(t *testing.T) {
+			first, occupied := newRoot(), newRoot()
+			if duplicate {
+				occupied = first
+			} else {
+				if _, err := occupied.Receive(duplex.Receiver{}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			mounted := duplex.Mount(map[string]duplex.Endpoint{"a": first, "z": occupied})
+			if _, err := mounted.Receive(duplex.Receiver{}); !errors.Is(err, duplex.ErrReceiverExists) {
+				t.Fatal(err)
+			}
+			if first.attached() || first.closed || occupied.closed {
+				t.Fatal("failed acquisition leaked or closed a child")
+			}
+			if !duplicate && !occupied.attached() {
+				t.Fatal("rollback removed another owner")
+			}
+			if _, err := first.Receive(duplex.Receiver{}); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestMountedChildEndKeepsHealthySiblingAndEndsOwnerOnce(t *testing.T) {
+	left, right := newRoot(), newRoot()
+	mounted := duplex.Mount(map[string]duplex.Endpoint{"left": left, "right": right})
+	closed, deliveries := 0, 0
+	_, err := mounted.Receive(duplex.Receiver{
+		Message: func(path []string, _ duplex.Message) {
+			if !reflect.DeepEqual(path, []string{"right", "call"}) {
+				t.Fatal(path)
+			}
+			deliveries++
+		},
+		Closed: func(code duplex.Code, reason string) {
+			closed++
+			if code != duplex.CodeNormal || reason != "last" {
+				t.Fatal(code, reason)
+			}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale := left.captured()
+	_ = left.Close(duplex.CodeNormal, "first")
+	stale.Closed(duplex.CodeNormal, "duplicate")
+	if closed != 0 {
+		t.Fatal("one child ended the mount attachment")
+	}
+	if err := mounted.Send([]string{"right", "call"}, duplex.Message{}); err != nil {
+		t.Fatal(err)
+	}
+	right.drain()
+	_ = right.Close(duplex.CodeNormal, "last")
+	if closed != 1 || deliveries != 1 {
+		t.Fatal(closed, deliveries)
+	}
+	if err := mounted.Send(nil, duplex.Message{}); !errors.Is(err, duplex.ErrNoRoute) {
+		t.Fatal("child ending permanently closed mount", err)
+	}
+	if _, err := mounted.Receive(duplex.Receiver{}); !errors.Is(err, duplex.ErrClosed) {
+		t.Fatal(err)
+	}
+	_ = mounted.Close(duplex.CodeNormal, "mount")
+	if closed != 1 {
+		t.Fatal(closed)
+	}
+}
+
+func TestMountCloseDetachesOwnAttachmentAndPreservesChildren(t *testing.T) {
 	root := newRoot()
-	mounted := duplex.Mount(map[string]duplex.Wire{"": root})
-	selected := duplex.At(mounted, []string{""})
+	mounted := duplex.Mount(map[string]duplex.Endpoint{"": root})
 	closed := 0
-	_, err := selected.Receive([]string{"call"}, duplex.Receiver{Closed: func(code duplex.Code, reason string) {
+	_, err := mounted.Receive(duplex.Receiver{Closed: func(code duplex.Code, reason string) {
 		closed++
 		if code != duplex.CodeNormal || reason != "mount ended" {
 			t.Error(code, reason)
 		}
-		_ = mounted.Close(code, reason) // Reentrant close must not hold its mutex.
+		_ = mounted.Close(code, reason)
+		if _, err := root.Receive(duplex.Receiver{}); err != nil {
+			t.Error("child was not released before closure callback", err)
+		}
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := mounted.Receive(nil, duplex.Receiver{}); !errors.Is(err, duplex.ErrNoRoute) {
-		t.Fatal(err)
-	}
-	if err := mounted.Close(duplex.CodeNormal, "mount ended"); err != nil {
-		t.Fatal(err)
-	}
+	_ = mounted.Close(duplex.CodeNormal, "mount ended")
 	_ = mounted.Close(duplex.CodeNormal, "again")
-	if closed != 1 || root.closes != 0 || len(root.receivers) != 0 {
-		t.Fatalf("close=%d child=%d registrations=%d", closed, root.closes, len(root.receivers))
+	if closed != 1 || root.closes != 0 || !root.attached() {
+		t.Fatal(closed, root.closes, root.attached())
 	}
-	if err := selected.Send([]string{"call"}, duplex.Message{}); !errors.Is(err, duplex.ErrClosed) {
+	if err := mounted.Send([]string{""}, duplex.Message{}); !errors.Is(err, duplex.ErrClosed) {
 		t.Fatal(err)
 	}
-	if _, err := selected.Receive([]string{"call"}, duplex.Receiver{}); !errors.Is(err, duplex.ErrClosed) {
+	if _, err := mounted.Receive(duplex.Receiver{}); !errors.Is(err, duplex.ErrClosed) {
 		t.Fatal(err)
 	}
-	if err := root.Send([]string{"call"}, duplex.Message{}); err != nil {
+	if err := root.Send(nil, duplex.Message{}); err != nil {
 		t.Fatal(err)
-	}
-	if _, err := root.Receive([]string{"call"}, duplex.Receiver{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := duplex.At(root, []string{"call"}).Close(duplex.CodeNormal, "root ended"); err != nil || root.closes != 1 {
-		t.Fatal(err, root.closes)
 	}
 }
 
@@ -351,20 +401,19 @@ type registeringRoot struct {
 	resume     chan struct{}
 }
 
-func (r *registeringRoot) Receive(path []string, receiver duplex.Receiver) (func(), error) {
-	detach, err := r.queuedRoot.Receive(path, receiver)
+func (r *registeringRoot) Receive(receiver duplex.Receiver) (func(), error) {
+	detach, err := r.queuedRoot.Receive(receiver)
 	close(r.registered)
 	<-r.resume
 	return detach, err
 }
-
-func TestMountCloseDuringReceiveCannotLeaveAChildRegistration(t *testing.T) {
+func TestMountCloseDuringReceiveDisposesLateChildAttachment(t *testing.T) {
 	root := &registeringRoot{newRoot(), make(chan struct{}), make(chan struct{})}
-	mounted := duplex.Mount(map[string]duplex.Wire{"x": root})
+	mounted := duplex.Mount(map[string]duplex.Endpoint{"x": root})
 	finished := make(chan error, 1)
 	closed := 0
 	go func() {
-		_, err := mounted.Receive([]string{"x", "call"}, duplex.Receiver{Closed: func(duplex.Code, string) { closed++ }})
+		_, err := mounted.Receive(duplex.Receiver{Closed: func(duplex.Code, string) { closed++ }})
 		finished <- err
 	}()
 	<-root.registered
@@ -373,25 +422,53 @@ func TestMountCloseDuringReceiveCannotLeaveAChildRegistration(t *testing.T) {
 	if err := <-finished; !errors.Is(err, duplex.ErrClosed) {
 		t.Fatal(err)
 	}
-	if len(root.receivers) != 0 || root.closes != 0 || closed != 1 {
-		t.Fatal(len(root.receivers), root.closes, closed)
+	if root.attached() || root.closes != 0 || closed != 1 {
+		t.Fatal(root.attached(), root.closes, closed)
 	}
 }
 
-func TestMountedChildCloseDoesNotEndItsSibling(t *testing.T) {
-	left, right := newRoot(), newRoot()
-	mounted := duplex.Mount(map[string]duplex.Wire{"left": left, "right": right})
-	closed := 0
-	_, err := mounted.Receive([]string{"left", "call"}, duplex.Receiver{Closed: func(duplex.Code, string) { closed++ }})
+type endingRoot struct{ *queuedRoot }
+
+func (r *endingRoot) Receive(receiver duplex.Receiver) (func(), error) {
+	detach, err := r.queuedRoot.Receive(receiver)
+	if err == nil {
+		_ = r.Close(duplex.CodeNormal, "ended during acquisition")
+	}
+	return detach, err
+}
+func TestMountChildEndingDuringAcquisitionRollsBackHealthySibling(t *testing.T) {
+	healthy := newRoot()
+	ending := &endingRoot{newRoot()}
+	mounted := duplex.Mount(map[string]duplex.Endpoint{"a": healthy, "z": ending})
+	if _, err := mounted.Receive(duplex.Receiver{}); !errors.Is(err, duplex.ErrClosed) {
+		t.Fatal(err)
+	}
+	if healthy.attached() || ending.attached() || healthy.closed {
+		t.Fatal("partial acquisition retained a child")
+	}
+	if _, err := healthy.Receive(duplex.Receiver{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEmptyMountStillOwnsOneDetachableAttachment(t *testing.T) {
+	mounted := duplex.Mount(nil)
+	detach, err := mounted.Receive(duplex.Receiver{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = left.Close(duplex.CodeNormal, "child ended")
-	if err := mounted.Send([]string{"right", "call"}, duplex.Message{}); err != nil {
+	if _, err := mounted.Receive(duplex.Receiver{}); !errors.Is(err, duplex.ErrReceiverExists) {
 		t.Fatal(err)
 	}
-	_ = mounted.Close(duplex.CodeNormal, "mount ended")
-	if closed != 1 || right.closes != 0 || len(right.queue) != 1 {
-		t.Fatal(closed, right.closes, len(right.queue))
+	detach()
+	closed := 0
+	_, err = mounted.Receive(duplex.Receiver{Closed: func(duplex.Code, string) { closed++ }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	detach()
+	_ = mounted.Close(duplex.CodeNormal, "done")
+	if closed != 1 {
+		t.Fatal(closed)
 	}
 }

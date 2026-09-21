@@ -46,7 +46,7 @@ func TestGeneratedTypeScriptWireFactories(t *testing.T) {
 	runFixture(t, directory, "node", "--loader", "./runtime-loader.mjs", "wire.ts")
 }
 
-const tsWireFactoriesProgram = `import type {Wire} from '@nightseam/duplex';
+const tsWireFactoriesProgram = `import type {Endpoint} from '@nightseam/duplex';
 import type {WireModelContext} from '@nightseam/runtime';
 import {adapterCount} from '@example/values-client';
 import * as binding from '@example/cell-binding';
@@ -101,7 +101,7 @@ function clientImplementation<T>(log:State):Client<T>{
 }
 async function serverRoute(roundtrip:boolean){
  const log=state(),opposite=clientImplementation<number>(log),factory=serverModel(log,0);
- let model:Server<number>,wire:Wire|undefined;
+ let model:Server<number>,wire:Endpoint|undefined;
  try{
   if(roundtrip){
    wire=binding.toWire(factory,context,adapterCount());
@@ -142,7 +142,7 @@ function serverImplementation<T>(log:State,initial:T):Server<T>{
 }
 async function clientRoute(roundtrip:boolean){
  const log=state(),opposite=serverImplementation(log,10),factory=clientModel<number>(log);
- let model:Client<number>,wire:Wire|undefined;
+ let model:Client<number>,wire:Endpoint|undefined;
  try{
   if(roundtrip){
    wire=client.toWire(factory,context,adapterCount());

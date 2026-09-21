@@ -56,10 +56,6 @@ func (s *wireReservationSink) Send(_ []string, message duplex.Message) error {
 	s.replies <- message.Frame
 	return nil
 }
-func (*wireReservationSink) Receive([]string, duplex.Receiver) (func(), error) {
-	return nil, duplex.ErrNoRoute
-}
-func (*wireReservationSink) Close(duplex.Code, string) error { return nil }
 
 func wireReservationAwait[T any](t *testing.T, values <-chan T) T {
 	t.Helper()

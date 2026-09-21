@@ -45,7 +45,8 @@ func newWireChannelHarness(t *testing.T) *wireChannelHarness {
 	a, b := h.open(t)
 	h.siblingClient = newWireChannelPeer(t, ctx, a, ws.ClientRole, ws.Options{})
 	h.siblingServer = newWireChannelPeer(t, ctx, b, ws.ServerRole, ws.Options{})
-	_, err = ws.HandleWire(h.siblingServer.Wire(), []string{"echo"}, func(_ context.Context, data json.RawMessage) (any, error) {
+	siblingBinding := testBinding(t, h.siblingServer.Wire())
+	_, err = ws.HandleWire(siblingBinding, []string{"echo"}, func(_ context.Context, data json.RawMessage) (any, error) {
 		h.siblingCalls.Add(1)
 		return data, nil
 	})
@@ -139,9 +140,9 @@ func wireChannelPressure(event ws.ObserverEvent) bool {
 // A selected mounted view uses the inner peer already carried by this channel.
 // No new channel or peer is introduced by selecting or mounting it.
 func wireChannelView(peer *ws.Peer) duplex.Wire {
-	return duplex.At(duplex.Mount(map[string]duplex.Wire{
-		"destination": duplex.At(peer.Wire(), []string{"events"}),
-	}), []string{"destination"})
+	return duplex.At(duplex.Mount(map[string]duplex.Endpoint{
+		"destination": peer.Wire(),
+	}), []string{"destination", "events"})
 }
 
 // The receiver takes nothing. One frame spends the window, the next blocks

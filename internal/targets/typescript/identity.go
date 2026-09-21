@@ -9,7 +9,7 @@ import (
 // implementation is supplied only after the peer's declaration is checked.
 func emitWireIdentity(f *file, side, opposite, decl, args, binding, passing string) {
 	f.line("/** Exposes one model session at a new local wire origin. */")
-	f.w.Block(fmt.Sprintf("export function toWire%s(model: Protocol.%sModel%s, context: AdapterContext%s): Wire {", decl, side, args, binding), "}", func() {
+	f.w.Block(fmt.Sprintf("export function toWire%s(model: Protocol.%sModel%s, context: AdapterContext%s): Endpoint {", decl, side, args, binding), "}", func() {
 		f.linef("const adapter = makeAdapter%s(context%s);", args, passing)
 		labels := []string{"...adapter.options.families"}
 		for _, name := range operations(f.family) {
@@ -17,15 +17,16 @@ func emitWireIdentity(f *file, side, opposite, decl, args, binding, passing stri
 		}
 		f.linef("const [access, binding] = wirePair({ ...adapter.options, families: { %s } });", strings.Join(labels, ", "))
 		f.w.Block("try {", "} catch (error) { access.close(); throw error; }", func() {
-			f.line("registerWire(binding, [IDENTITY_METHOD], { request: identityHandler(adapter.identity) });")
+			f.line("const dispatcher = createDispatcher(binding, { ownEndpoint: true });")
+			f.line("registerWire(dispatcher, [IDENTITY_METHOD], { request: identityHandler(adapter.identity) });")
 			f.linef("const implementation = model(adapter.proxy%s(binding));", opposite)
 			f.linef("adapter.validate%s(implementation);", side)
-			f.linef("adapter.bind%s(binding, () => implementation);", side)
+			f.linef("adapter.bind%s(dispatcher, () => implementation);", side)
 			f.line("return access;")
 		})
 	})
 	f.line("/** Registers receivers before reading begins; complete checks identity before returning the one-use model factory. Close detaches this interpretation without closing its carrier. */")
-	f.w.Block(fmt.Sprintf("export function prepareFromWire%s(wire: Wire, context: AdapterContext%s): { complete(options?: WireCallOptions): Promise<Protocol.%sModel%s>; close(): void } {", decl, binding, side, args), "}", func() {
+	f.w.Block(fmt.Sprintf("export function prepareFromWire%s(wire: Endpoint, context: AdapterContext%s): { complete(options?: WireCallOptions): Promise<Protocol.%sModel%s>; close(): void } {", decl, binding, side, args), "}", func() {
 		f.linef("const adapter = makeAdapter%s(context%s);", args, passing)
 		f.line("const gate = prepareIdentity(wire, adapter.identity, adapter.options);")
 		f.linef("let implementation: Protocol.%s%s | undefined;", opposite, args)
@@ -57,7 +58,7 @@ func emitWireIdentity(f *file, side, opposite, decl, args, binding, passing stri
 		})
 	})
 	f.line("/** Checks and interprets a wire as the same model factory; the resulting session binds once. */")
-	f.w.Block(fmt.Sprintf("export async function fromWire%s(wire: Wire, context: AdapterContext%s): Promise<Protocol.%sModel%s> {", decl, binding, side, args), "}", func() {
+	f.w.Block(fmt.Sprintf("export async function fromWire%s(wire: Endpoint, context: AdapterContext%s): Promise<Protocol.%sModel%s> {", decl, binding, side, args), "}", func() {
 		f.linef("const preparation = prepareFromWire%s(wire, context%s);", args, passing)
 		f.line("try { return await preparation.complete(); } catch (error) { preparation.close(); throw error; }")
 	})

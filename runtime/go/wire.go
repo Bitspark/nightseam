@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
-	"slices"
 	"sync"
 	"time"
 
@@ -44,13 +43,11 @@ type peerWire struct {
 	wake       chan struct{}
 	mu         sync.Mutex
 	incoming   map[returnKey]*routedCall
-	receivers  map[string]*wireRegistration
-	namespaces map[string]*wireRegistration
+	receiver   *wireRegistration
 }
 
 type wireRegistration struct {
 	receiver duplex.Receiver
-	path     []string
 }
 
 type wireFrameKey struct{}
@@ -61,6 +58,7 @@ type wireDispatchContext struct {
 	panic         func(any)
 	maxFrameBytes int64
 	completion    *wireCompletion
+	routes        *wireRouteContext
 }
 
 // Only a local handler can supply the cause of its cancellation. Serialized
@@ -78,10 +76,6 @@ type wireEventContext struct{ ctx context.Context }
 func (*wireEventContext) Send([]string, duplex.Message) error {
 	return errors.New("an event context is not a return address")
 }
-func (*wireEventContext) Receive([]string, duplex.Receiver) (func(), error) {
-	return nil, duplex.ErrReceiverExists
-}
-func (*wireEventContext) Close(duplex.Code, string) error { return nil }
 func eventContextOf(message duplex.Message) (context.Context, bool) {
 	if message.Return != nil {
 		if held, ok := message.Return.Wire.(*wireEventContext); ok {
@@ -97,9 +91,9 @@ func withWireEventContext(message duplex.Message, ctx context.Context) duplex.Me
 
 // Wire selects this peer's root origin. Repeated selection shares the peer,
 // its queues and its carrier lifetime.
-func (p *Peer) Wire() duplex.Wire {
+func (p *Peer) Wire() duplex.Endpoint {
 	p.wireOnce.Do(func() {
-		p.wire = &peerWire{peer: p, wake: make(chan struct{}, 1), incoming: map[returnKey]*routedCall{}, receivers: map[string]*wireRegistration{}, namespaces: map[string]*wireRegistration{}}
+		p.wire = &peerWire{peer: p, wake: make(chan struct{}, 1), incoming: map[returnKey]*routedCall{}}
 		p.mu.Lock()
 		p.requestFallback = p.wire.namespaceHandler
 		p.eventFallback = p.wire.namespaceEvent
@@ -216,14 +210,10 @@ func (w *peerWire) run() {
 		w.mu.Lock()
 		var receivers []duplex.Receiver
 		var cancels []context.CancelFunc
-		for _, registration := range w.receivers {
-			receivers = append(receivers, registration.receiver)
+		if w.receiver != nil {
+			receivers = append(receivers, w.receiver.receiver)
 		}
-		for _, registration := range w.namespaces {
-			receivers = append(receivers, registration.receiver)
-		}
-		w.receivers = map[string]*wireRegistration{}
-		w.namespaces = map[string]*wireRegistration{}
+		w.receiver = nil
 		for _, call := range w.incoming {
 			if call.cancel != nil {
 				cancels = append(cancels, call.cancel)
@@ -321,63 +311,28 @@ func (w *peerWire) run() {
 	}
 }
 
-func (w *peerWire) Receive(path []string, receiver duplex.Receiver) (func(), error) {
-	name, err := duplex.EncodePath(path)
-	if err != nil {
-		return nil, err
-	}
-	if (name == "" && !receiver.Namespace) || receiver.Message == nil {
-		return nil, errors.New("a wire receiver requires a callback and an operation path or namespace")
-	}
-	registration := &wireRegistration{receiver: receiver, path: append([]string{}, path...)}
+func (w *peerWire) Receive(receiver duplex.Receiver) (func(), error) {
+	registration := &wireRegistration{receiver: receiver}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	registrations := w.receivers
-	if receiver.Namespace {
-		registrations = w.namespaces
+	if err := w.peer.Err(); err != nil {
+		return nil, err
 	}
-	if _, exists := registrations[name]; exists {
+	if w.receiver != nil {
 		return nil, duplex.ErrReceiverExists
 	}
-	w.peer.mu.Lock()
-	defer w.peer.mu.Unlock()
-	if w.peer.err != nil {
-		return nil, w.peer.err
-	}
-	if !receiver.Namespace && (w.peer.handlers[name] != nil || w.peer.eventHandlers[name] != nil) {
-		return nil, duplex.ErrReceiverExists
-	}
-	if !receiver.Namespace {
-		w.peer.handlers[name] = w.requestReceiver(registration.path, receiver)
-		w.peer.eventHandlers[name] = w.eventReceiver(registration.path, receiver)
-	}
-	registrations[name] = registration
-	var once sync.Once
+	w.receiver = registration
 	return func() {
-		once.Do(func() {
-			w.mu.Lock()
-			defer w.mu.Unlock()
-			registrations := w.receivers
-			if receiver.Namespace {
-				registrations = w.namespaces
-			}
-			if registrations[name] != registration {
-				return
-			}
-			delete(registrations, name)
-			if receiver.Namespace {
-				return
-			}
-			w.peer.mu.Lock()
-			defer w.peer.mu.Unlock()
-			delete(w.peer.handlers, name)
-			delete(w.peer.eventHandlers, name)
-		})
+		w.mu.Lock()
+		if w.receiver == registration {
+			w.receiver = nil
+		}
+		w.mu.Unlock()
 	}, nil
 }
 
-// Namespace fallback only interprets canonical structured-wire paths. Raw Peer
-// methods and event handlers keep their existing exact-name behavior.
+// The profile presents canonical addressed operations to its one attachment.
+// Registration and path precedence belong to an explicit Dispatcher.
 func (w *peerWire) namespace(name string) ([]string, *wireRegistration) {
 	path, err := duplex.DecodePath(name)
 	if err != nil {
@@ -385,14 +340,11 @@ func (w *peerWire) namespace(name string) ([]string, *wireRegistration) {
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	var selected *wireRegistration
-	for _, registration := range w.namespaces {
-		prefix := registration.path
-		if len(prefix) <= len(path) && (selected == nil || len(prefix) > len(selected.path)) && slices.Equal(prefix, path[:len(prefix)]) {
-			selected = registration
-		}
+	registration := w.receiver
+	if registration == nil {
+		return nil, nil
 	}
-	return path, selected
+	return path, registration
 }
 
 func (w *peerWire) namespaceHandler(name string) Handler {
@@ -413,6 +365,9 @@ func (w *peerWire) namespaceEvent(name string) EventHandler {
 
 func (w *peerWire) requestReceiver(path []string, receiver duplex.Receiver) Handler {
 	return func(ctx context.Context, _ *Peer, params json.RawMessage) (any, error) {
+		if receiver.Message == nil {
+			return nil, &PublicError{Code: "method_not_found", Message: "Unknown method"}
+		}
 		var result json.RawMessage
 		incoming, _ := ctx.Value(wireFrameKey{}).(frame)
 		dispatch := &wireDispatchContext{ctx: ctx, peer: w.peer, frame: incoming}
@@ -425,6 +380,9 @@ func (w *peerWire) requestReceiver(path []string, receiver duplex.Receiver) Hand
 
 func (w *peerWire) eventReceiver(path []string, receiver duplex.Receiver) EventHandler {
 	return func(ctx context.Context, _ *Peer, data json.RawMessage) {
+		if receiver.Message == nil {
+			return
+		}
 		incoming, _ := ctx.Value(wireFrameKey{}).(frame)
 		receiver.Message(append([]string{}, path...), withWireEventContext(duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: data, Traceparent: incoming.Traceparent, Tracestate: incoming.Tracestate, Meta: MetaFrom(ctx)}}, ctx))
 	}
@@ -433,7 +391,7 @@ func (w *peerWire) eventReceiver(path []string, receiver duplex.Receiver) EventH
 // ForwardWire joins two existing origins without allocating a peer or channel.
 // Detach removes only the forwarding registrations; both wires remain owned by
 // their callers. Each root remains responsible for ending its failed carrier.
-func ForwardWire(inbound, outbound duplex.Wire) (func(), error) {
+func ForwardWire(inbound, outbound duplex.Endpoint) (func(), error) {
 	if inbound == nil || outbound == nil {
 		return nil, errors.New("wire forwarding requires two origins")
 	}
@@ -455,7 +413,7 @@ func ForwardWire(inbound, outbound duplex.Wire) (func(), error) {
 		}
 	}
 	receiver := func(destination duplex.Wire) duplex.Receiver {
-		return duplex.Receiver{Namespace: true, Closed: func(duplex.Code, string) { stop() }, Message: func(path []string, message duplex.Message) {
+		return duplex.Receiver{Closed: func(duplex.Code, string) { stop() }, Message: func(path []string, message duplex.Message) {
 			if err := destination.Send(path, message); err != nil {
 				stop()
 				if message.Frame.Kind == duplex.ProfileRequest {
@@ -464,8 +422,8 @@ func ForwardWire(inbound, outbound duplex.Wire) (func(), error) {
 			}
 		}}
 	}
-	for _, direction := range []struct{ source, destination duplex.Wire }{{inbound, outbound}, {outbound, inbound}} {
-		detach, err := direction.source.Receive(nil, receiver(direction.destination))
+	for _, direction := range []struct{ source, destination duplex.Endpoint }{{inbound, outbound}, {outbound, inbound}} {
+		detach, err := direction.source.Receive(receiver(direction.destination))
 		if err != nil {
 			stop()
 			return nil, err
@@ -493,10 +451,6 @@ func (w *receiverWire) Send(path []string, message duplex.Message) error {
 	w.receiver.Message(path, message)
 	return nil
 }
-func (w *receiverWire) Receive([]string, duplex.Receiver) (func(), error) {
-	return nil, duplex.ErrReceiverExists
-}
-func (w *receiverWire) Close(duplex.Code, string) error { return nil }
 
 type replyWire struct {
 	id       string
@@ -546,10 +500,15 @@ func (w *replyWire) Send(path []string, message duplex.Message) error {
 		return errors.New("duplicate wire response")
 	}
 }
-func (w *replyWire) Receive([]string, duplex.Receiver) (func(), error) {
-	return nil, duplex.ErrReceiverExists
+func (w *replyWire) finish() error {
+	w.once.Do(func() {
+		close(w.done)
+		if w.dispatch != nil {
+			w.dispatch.routes.retire()
+		}
+	})
+	return nil
 }
-func (w *replyWire) Close(duplex.Code, string) error { w.once.Do(func() { close(w.done) }); return nil }
 
 // CallWire calls a relative operation through the peer's request primitive.
 // Its local return address is independent of every other call's identifier.
@@ -591,10 +550,11 @@ func callWire(ctx context.Context, wire duplex.Wire, path []string, params, resu
 	if dispatch != nil {
 		copied := *dispatch
 		copied.completion = &wireCompletion{}
+		copied.routes = newWireRouteContext()
 		dispatch = &copied
 	}
 	returning := &replyWire{id: "c:1", reply: make(chan pendingResult, 1), done: make(chan struct{}), dispatch: dispatch}
-	defer returning.Close(duplex.CodeNormal, "")
+	defer returning.finish()
 	address := &duplex.ReturnAddress{Wire: returning}
 	var trace Trace
 	if dispatch != nil {
@@ -677,7 +637,7 @@ func EmitWire(ctx context.Context, wire duplex.Wire, path []string, data any, op
 
 // HandleWire registers one relative operation. The receiver returns before
 // running application code, and request cancellation uses its return address.
-func HandleWire(wire duplex.Wire, path []string, handler WireHandler) (func(), error) {
+func HandleWire(wire HandlerRegistry, path []string, handler WireHandler) (func(), error) {
 	if wire == nil || handler == nil {
 		return nil, errors.New("a wire handler requires a wire and body")
 	}
@@ -686,7 +646,7 @@ func HandleWire(wire duplex.Wire, path []string, handler WireHandler) (func(), e
 
 // RegisterWire installs a single receiver for a declared method, event, or both.
 // The one detach removes the group; an event-only path refuses requests.
-func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(), error) {
+func RegisterWire(wire HandlerRegistry, path []string, handlers WireHandlers) (func(), error) {
 	if wire == nil || (handlers.Request == nil && handlers.Event == nil) {
 		return nil, errors.New("wire registration requires a wire and at least one handler")
 	}
@@ -696,7 +656,7 @@ func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(
 	}
 	var mu sync.Mutex
 	incoming := map[returnKey]context.CancelFunc{}
-	return wire.Receive(path, duplex.Receiver{
+	return wire.Register(path, duplex.Receiver{
 		Closed: func(duplex.Code, string) {
 			mu.Lock()
 			defer mu.Unlock()

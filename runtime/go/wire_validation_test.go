@@ -14,7 +14,8 @@ import (
 func TestWireRefusesMalformedFramesBeforeDispatch(t *testing.T) {
 	client, server := newPair(t, ws.Options{}, ws.Options{MaxFrameBytes: 256})
 	invoked := 0
-	_, err := ws.HandleWire(server.Wire(), []string{"echo"}, func(_ context.Context, raw json.RawMessage) (any, error) {
+	serverBinding := testBinding(t, server.Wire())
+	_, err := ws.HandleWire(serverBinding, []string{"echo"}, func(_ context.Context, raw json.RawMessage) (any, error) {
 		invoked++
 		return raw, nil
 	})
@@ -53,8 +54,9 @@ func TestWireRefusesMalformedFramesBeforeDispatch(t *testing.T) {
 
 func TestWireSanitizesMalformedPublicErrors(t *testing.T) {
 	client, server := newPair(t, ws.Options{}, ws.Options{})
+	serverBinding := testBinding(t, server.Wire())
 	for _, value := range []*ws.PublicError{nil, {Code: ""}, {Code: "bad", Message: ""}} {
-		detach, err := ws.HandleWire(server.Wire(), []string{"fail"}, func(context.Context, json.RawMessage) (any, error) { return nil, value })
+		detach, err := ws.HandleWire(serverBinding, []string{"fail"}, func(context.Context, json.RawMessage) (any, error) { return nil, value })
 		if err != nil {
 			t.Fatal(err)
 		}

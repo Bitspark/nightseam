@@ -12,7 +12,8 @@ import (
 
 func TestWireForwardingRetainsTheAdmittedDeadline(t *testing.T) {
 	client, server := newPair(t, ws.Options{RequestTimeout: time.Minute}, ws.Options{RequestTimeout: time.Minute})
-	_, err := ws.HandleWire(server.Wire(), []string{"deadline"}, func(ctx context.Context, _ json.RawMessage) (any, error) {
+	serverBinding := testBinding(t, server.Wire())
+	_, err := ws.HandleWire(serverBinding, []string{"deadline"}, func(ctx context.Context, _ json.RawMessage) (any, error) {
 		deadline, ok := ctx.Deadline()
 		if !ok {
 			return int64(0), nil
@@ -51,10 +52,6 @@ type optionWire struct {
 }
 
 func (w optionWire) Send(path []string, m duplex.Message) error { return w.send(path, m) }
-func (optionWire) Receive([]string, duplex.Receiver) (func(), error) {
-	return nil, errors.New("not a receiver")
-}
-func (optionWire) Close(duplex.Code, string) error { return nil }
 
 func TestWireUsesTheConfiguredOutgoingPropagatorAndTimeout(t *testing.T) {
 	want := ws.Trace{Parent: "00-11111111111111111111111111111111-2222222222222222-01", State: "vendor=kept"}

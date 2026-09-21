@@ -38,7 +38,7 @@ const target = () =>
     adapter,
     handles.family,
   );
-const primary = target(),
+const primary = target(), subscriber = target(),
   log = new MemoryWireLog();
 try {
   const missing = { ...handles.family, types: {} } as unknown as FamilyBinding<handles.Family, 'Box'>;
@@ -61,7 +61,7 @@ try {
     await wait(1);
     assert.equal(values[0]!.item, 'native');
     assert.equal(await values[0]!.callback.invoke(2), 12);
-    const follower = await recorder.follow(0, target());
+    const follower = await recorder.follow(0, subscriber);
     await wait(2);
     assert.equal(values[1]!.item, 'native');
     assert.equal(await values[1]!.callback.invoke(2), 12);
@@ -74,6 +74,7 @@ try {
 } finally {
   owner.release();
   primary.close();
+  subscriber.close();
   a.close();
   b.close();
 }

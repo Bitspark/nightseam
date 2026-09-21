@@ -13,6 +13,7 @@ import (
 
 // Expose only the neutral contract, with no concrete peer available to inspect.
 type observedOpaqueWire struct{ duplex.Wire }
+type observedOpaqueEndpoint struct{ duplex.Endpoint }
 
 type cancellationObservingWire struct {
 	duplex.Wire
@@ -56,10 +57,11 @@ func (o *wireObservations) snapshot() []ObserverEvent {
 func TestWireHelperObservationsLabelOpaqueOperationsWithoutTransportEvents(t *testing.T) {
 	carrier, model := &wireObservations{}, &wireObservations{ended: make(chan struct{}, 1)}
 	a, b := localPair(t, Options{Observer: carrier})
-	left, right := observedOpaqueWire{a}, observedOpaqueWire{b}
+	left, right := observedOpaqueWire{a}, observedOpaqueEndpoint{b}
 	path := []string{"member.with.dot"}
 	delivered := make(chan struct{})
-	_, err := RegisterWire(right, path, WireHandlers{Observer: model, Family: "probe",
+	rightBinding := testBinding(t, right)
+	_, err := RegisterWire(rightBinding, path, WireHandlers{Observer: model, Family: "probe",
 		Request: func(_ context.Context, params json.RawMessage) (any, error) { return params, nil },
 		Event: func(_ context.Context, data json.RawMessage) error {
 			if string(data) != `"secret😀"` {
@@ -127,7 +129,8 @@ func TestWireHelperCompletionDistinguishesCancellationFromSameCodeRefusal(t *tes
 	a, b := localPair(t, Options{})
 	model := &wireObservations{ended: make(chan struct{}, 1)}
 	started := make(chan struct{})
-	_, err := RegisterWire(b, []string{"wait"}, WireHandlers{Observer: model, Family: "probe", Request: func(ctx context.Context, _ json.RawMessage) (any, error) {
+	bBinding := testBinding(t, b)
+	_, err := RegisterWire(bBinding, []string{"wait"}, WireHandlers{Observer: model, Family: "probe", Request: func(ctx context.Context, _ json.RawMessage) (any, error) {
 		close(started)
 		<-ctx.Done()
 		return nil, ctx.Err()
@@ -163,7 +166,7 @@ func TestWireHelperCompletionDistinguishesCancellationFromSameCodeRefusal(t *tes
 	if ends != 2 {
 		t.Fatalf("ended %d times", ends)
 	}
-	_, err = HandleWire(b, []string{"refuse"}, func(context.Context, json.RawMessage) (any, error) {
+	_, err = HandleWire(bBinding, []string{"refuse"}, func(context.Context, json.RawMessage) (any, error) {
 		return nil, &PublicError{Code: "cancelled", Message: "Application refusal"}
 	})
 	if err != nil {
@@ -183,7 +186,8 @@ func TestWireHelperObserverCannotBreakTrafficOrDuplicatePanic(t *testing.T) {
 	carrier, model := &wireObservations{}, &wireObservations{ended: make(chan struct{}, 1)}
 	a, b := localPair(t, Options{Observer: carrier})
 	observer := localTestObserver(func(event ObserverEvent) { model.Observe(event); panic("broken diagnostic") })
-	_, err := RegisterWire(b, []string{"panic"}, WireHandlers{Observer: observer, Family: "probe", Request: func(context.Context, json.RawMessage) (any, error) { panic("application panic") }})
+	bBinding := testBinding(t, b)
+	_, err := RegisterWire(bBinding, []string{"panic"}, WireHandlers{Observer: observer, Family: "probe", Request: func(context.Context, json.RawMessage) (any, error) { panic("application panic") }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +224,8 @@ func TestWireHelperHandlerRefusalRemainsAnErrorAfterCancellation(t *testing.T) {
 	a, b := localPair(t, Options{})
 	model := &wireObservations{ended: make(chan struct{}, 1)}
 	started := make(chan struct{})
-	_, err := RegisterWire(b, []string{"refuse"}, WireHandlers{Observer: model, Request: func(ctx context.Context, _ json.RawMessage) (any, error) {
+	bBinding := testBinding(t, b)
+	_, err := RegisterWire(bBinding, []string{"refuse"}, WireHandlers{Observer: model, Request: func(ctx context.Context, _ json.RawMessage) (any, error) {
 		close(started)
 		<-ctx.Done()
 		return nil, &PublicError{Code: "cancelled", Message: "Application refusal"}
@@ -274,7 +279,8 @@ func TestWireHelperConcurrentObserverIdentitiesDoNotCollide(t *testing.T) {
 	})
 	started := make(chan struct{}, 2)
 	first, second := make(chan struct{}), make(chan struct{})
-	_, err := RegisterWire(b, []string{"hold"}, WireHandlers{Observer: observer, Request: func(_ context.Context, params json.RawMessage) (any, error) {
+	bBinding := testBinding(t, b)
+	_, err := RegisterWire(bBinding, []string{"hold"}, WireHandlers{Observer: observer, Request: func(_ context.Context, params json.RawMessage) (any, error) {
 		started <- struct{}{}
 		if string(params) == "1" {
 			<-first
@@ -328,8 +334,9 @@ func TestWireHelperObservesSelectedBoundedResponseRefusal(t *testing.T) {
 	for _, kind := range []string{"oversized result", "oversized public refusal", "unencodable result"} {
 		t.Run(kind, func(t *testing.T) {
 			a, b := localPair(t, Options{MaxFrameBytes: 512})
+			bBinding := testBinding(t, b)
 			model := &wireObservations{ended: make(chan struct{}, 1)}
-			_, err := RegisterWire(b, []string{"response"}, WireHandlers{Observer: model, Family: "probe", Request: func(context.Context, json.RawMessage) (any, error) {
+			_, err := RegisterWire(bBinding, []string{"response"}, WireHandlers{Observer: model, Family: "probe", Request: func(context.Context, json.RawMessage) (any, error) {
 				switch kind {
 				case "oversized result":
 					return strings.Repeat("x", 2048), nil

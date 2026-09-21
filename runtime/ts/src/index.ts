@@ -60,3 +60,6 @@ export type {
   Slots,
   Validator,
 } from './validate.ts';
+
+export { createDispatcher, WireDispatcher, SelectedEndpoint } from './dispatcher.ts';
+export type { HandlerRegistry, DispatcherOptions } from './dispatcher.ts';

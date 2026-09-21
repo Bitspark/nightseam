@@ -54,7 +54,7 @@ function target(scope: LiveScope) {
 const local = await localScope(),
   other = await localScope();
 const owner = local.scope.owner().child();
-const primary = target(local.scope);
+const primary = target(local.scope), repeated = target(local.scope), elsewhere = target(other.scope);
 const history = new MemoryWireLog();
 const recorded = await binding.record(primary.wire, history, {}, { valueEnvironment: valueEnvironment(local.scope) });
 try {
@@ -71,12 +71,10 @@ try {
   );
   await until(() => primary.values.length === 1);
   assert.equal(await primary.values[0]!(3), 4);
-  const repeated = target(local.scope);
   const sameFollower = await recorded.follow(0, repeated.wire);
   await until(() => repeated.values.length === 1);
   assert.equal(await repeated.values[0]!(4), 5);
   assert.equal(owner.counts().exports, 1);
-  const elsewhere = target(other.scope);
   const foreignFollower = await recorded.follow(0, elsewhere.wire);
   await until(() => elsewhere.values.length === 1);
   await assert.rejects(
@@ -104,6 +102,7 @@ try {
   await Promise.all([sameFollower.done, foreignFollower.done]);
 } finally {
   recorded.close();
+  primary.wire.close();repeated.wire.close();elsewhere.wire.close();
   local.close();
   other.close();
 }

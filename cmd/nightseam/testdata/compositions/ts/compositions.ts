@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { DuplexPeer, forwardWire } from '@nightseam/runtime';
-import type { Wire } from '@nightseam/duplex';
+import type { Endpoint } from '@nightseam/duplex';
 import { Tunnel, type Channel } from '@nightseam/tunnel';
 import { prepareFromWire as prepareWorker, type Handle, type Held } from './api/ts/worker-binding/src/index.ts';
 import { toWire as sinkToWire, wireDigest as sinkDigest, type Ending, type ReportRequest } from './api/ts/sink-client/src/index.ts';
@@ -39,7 +39,7 @@ class Scope {
   }
 
   /** Opens a channel, serves an implementation over it, answers the reference. */
-  async export(family: string, digest: string, model: Wire): Promise<number> {
+  async export(family: string, digest: string, model: Endpoint): Promise<number> {
     if (this.closed) {
       model.close();
       throw new Error('the scope is closed');

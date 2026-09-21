@@ -32,7 +32,7 @@ func prepareTunnelProbe(peer *runtime.Peer)error{
  if _,err=runtime.ForwardWire(peer.Wire(),model);err!=nil{_ = model.Close(duplex.CodeInternalError,"setup failed");return err}
  go func(){<-peer.Done();_ = model.Close(duplex.CodeNormal,"")}();return nil
 }
-func interpretTunnelProbe(ctx context.Context,wire duplex.Wire)(protocol.ServerMethods,error){
+func interpretTunnelProbe(ctx context.Context,wire duplex.Endpoint)(protocol.ServerMethods,error){
  factory,err:=binding.FromWire(ctx,wire,runtime.AdapterContext{});if err!=nil{return nil,err}
  model,err:=factory(protocol.Client{Methods:tunnelReverse{},Events:tunnelEvents{}});if err!=nil{return nil,err};return model.Methods,nil
 }

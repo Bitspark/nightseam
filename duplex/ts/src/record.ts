@@ -1,4 +1,4 @@
-import { encodePath, WireError, type Message, type Path, type Receiver, type Wire } from './wire.ts';
+import { encodePath, WireError, type Message, type Path, type Wire } from './wire.ts';
 
 /** An immutable opaque message; replay preserves its original reference scope. */
 export interface WireRecord {
@@ -58,6 +58,7 @@ export interface RecordOptions {
 type Command = { readonly path: Path; readonly message: Message } | { readonly control: (head: number) => void };
 /** Bounded append-before-forward composition. Successful send is admission only. */
 export interface RecordedWire extends Wire {
+  close(code?: number, reason?: string): void;
   /** Fences earlier admissions, without promising delivery at the target. */
   head(signal?: AbortSignal): Promise<number>;
   /** Replay (after,head], then the live handoff. The signal owns this follower. */
@@ -102,7 +103,6 @@ export async function record(
     queue.length = 0;
     queueMicrotask(() => {
       for (const follower of [...followers]) follower.end(code, reason, error);
-      target.close(code, reason);
       options.onClose?.(error);
     });
   }
@@ -229,11 +229,7 @@ export async function record(
       this.wake = undefined;
       this.parentSignal?.removeEventListener('abort', this.aborted);
       queueMicrotask(() => {
-        try {
-          this.target.close(code, reason);
-        } finally {
-          this.finishCarrier();
-        }
+        this.finishCarrier();
       });
     }
     private send(entry: WireRecord) {
@@ -267,10 +263,6 @@ export async function record(
     send(path: Path, message: Message) {
       encodePath(path);
       admit({ path: [...path], message });
-    },
-    receive(path: Path, receiver: Receiver) {
-      if (closed) throw new WireError('closed');
-      return target.receive(path, receiver);
     },
     close(code = 1000, reason = '') {
       end(code, reason, undefined);

@@ -1,5 +1,6 @@
 import { encodePath, WireError } from '@nightseam/duplex';
-import type { Message, Path, Receiver, ReturnAddress, Wire } from '@nightseam/duplex';
+import type { Message, Path, Receiver, ReturnAddress, Wire, Endpoint as WireEndpoint } from '@nightseam/duplex';
+import { createDispatchRoutes } from './dispatcher.ts';
 import { DUPLEX_DEFAULTS, positiveInteger } from './peer.ts';
 import type { PeerOptions } from './peer.ts';
 import { DuplexError } from './error.ts';
@@ -17,7 +18,6 @@ import {
 import type { WireDispatchContext, WireRequestContext, WireEventContext } from './wire.ts';
 
 interface Registration {
-  path: Path;
   receiver: Receiver;
 }
 interface LocalCall {
@@ -43,7 +43,7 @@ interface Delivery {
   refusal?: DuplexError;
 }
 interface Endpoint {
-  wire: Wire;
+  wire: WireEndpoint;
   other: Endpoint;
   queue: Delivery[];
   queued: number;
@@ -52,8 +52,7 @@ interface Endpoint {
   eventTimer?: ReturnType<typeof setTimeout>;
   draining: boolean;
   calls: Map<ReturnAddress, Map<string, LocalCall>>;
-  exact: Map<string, Registration>;
-  namespaces: Map<string, Registration>;
+  attachment?: Registration;
 }
 
 /**
@@ -61,7 +60,7 @@ interface Endpoint {
  * receivers on the other. No Peer, transport connection, or request protocol
  * is constructed; the runtime's existing return capability carries responses.
  */
-export function wirePair(options: PeerOptions = {}): [Wire, Wire] {
+export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint] {
   const limits = { ...DUPLEX_DEFAULTS };
   for (const key of Object.keys(DUPLEX_DEFAULTS) as (keyof typeof DUPLEX_DEFAULTS)[]) {
     if (options[key] !== undefined) {
@@ -87,8 +86,7 @@ export function wirePair(options: PeerOptions = {}): [Wire, Wire] {
       requests: Message[] = [];
     for (const endpoint of ends) {
       clearTimeout(endpoint.eventTimer);
-      for (const registration of [...endpoint.exact.values(), ...endpoint.namespaces.values()])
-        receivers.push(registration.receiver);
+      if (endpoint.attachment) receivers.push(endpoint.attachment.receiver);
       for (const calls of endpoint.calls.values())
         for (const call of calls.values()) {
           clearTimeout(call.timer);
@@ -97,8 +95,7 @@ export function wirePair(options: PeerOptions = {}): [Wire, Wire] {
           if (!call.responded) requests.push(call.original);
           call.responded = call.completed = true;
         }
-      endpoint.exact.clear();
-      endpoint.namespaces.clear();
+      delete endpoint.attachment;
       endpoint.calls.clear();
       endpoint.queue.length = endpoint.queued = endpoint.retained = endpoint.active = 0;
     }
@@ -143,20 +140,7 @@ export function wirePair(options: PeerOptions = {}): [Wire, Wire] {
     }
     retire(endpoint, call);
   };
-  const match = (endpoint: Endpoint, path: Path): Registration | undefined => {
-    const exact = endpoint.exact.get(encodePath(path));
-    if (exact) return exact;
-    let best: Registration | undefined;
-    for (const registration of endpoint.namespaces.values()) {
-      if (
-        registration.path.length > path.length ||
-        !registration.path.every((segment, index) => path[index] === segment)
-      )
-        continue;
-      if (!best || registration.path.length > best.path.length) best = registration;
-    }
-    return best;
-  };
+
   const invoke = (registration: Registration, path: Path, message: Message): void | Promise<void> => {
     try {
       return registration.receiver.message!(path, message);
@@ -186,7 +170,7 @@ export function wirePair(options: PeerOptions = {}): [Wire, Wire] {
           response(message, undefined, refusal);
           continue;
         }
-        const registration = match(endpoint, path);
+        const registration = endpoint.attachment?.receiver.message ? endpoint.attachment : undefined;
         if (frame.kind === 'event') {
           if (registration) {
             let delivered = message;
@@ -246,6 +230,7 @@ export function wirePair(options: PeerOptions = {}): [Wire, Wire] {
         if (!call!.source) propagator.extract(context, traceOf(frame));
         call!.cleanup = setWireContext(call!.returning, {
           context,
+          routes: createDispatchRoutes(),
           completion: call!.source?.completion,
           maxFrameBytes: limits.maxFrameBytes,
           panic:
@@ -348,10 +333,6 @@ export function wirePair(options: PeerOptions = {}): [Wire, Wire] {
                   complete(endpoint, call!);
                 }
               },
-              receive: () => {
-                throw new WireError('receiver_exists');
-              },
-              close: () => complete(endpoint, call!),
             },
           };
           call = {
@@ -393,21 +374,16 @@ export function wirePair(options: PeerOptions = {}): [Wire, Wire] {
       active: 0,
       draining: false,
       calls: new Map(),
-      exact: new Map(),
-      namespaces: new Map(),
     } as unknown as Endpoint;
     endpoint.wire = {
       send: (path, message) => admit(endpoint.other, path, message),
-      receive: (path, receiver) => {
+      receive: (receiver) => {
         if (closed) throw disconnected();
-        const name = encodePath(path);
-        if (!receiver.message) throw new DuplexError('invalid_message', 'A wire receiver requires a callback.');
-        const registrations = receiver.namespace ? endpoint.namespaces : endpoint.exact;
-        if (registrations.has(name)) throw new WireError('receiver_exists');
-        const registration = { path: [...path], receiver };
-        registrations.set(name, registration);
+        if (endpoint.attachment) throw new WireError('receiver_exists');
+        const registration = { receiver };
+        endpoint.attachment = registration;
         return () => {
-          if (registrations.get(name) === registration) registrations.delete(name);
+          if (endpoint.attachment === registration) delete endpoint.attachment;
         };
       },
       close: end,

@@ -65,7 +65,8 @@ func TestFactories(t *testing.T){
  var remote protocol.Client
  var model protocol.ServerModel=func(opposite protocol.Client)(protocol.Server,error){factories.Add(1);remote=opposite;return protocol.Server{Methods:implementation{remote:opposite,state:&state},Events:incoming{steps}},nil}
  wire,err:=binding.ToWire(model,runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer wire.Close(duplex.CodeNormal,"")
- selected:=duplex.At(duplex.Mount(map[string]duplex.Wire{"nested":wire}),[]string{"nested"})
+ root:=duplex.Mount(map[string]duplex.Endpoint{"nested":wire});defer root.Close(duplex.CodeNormal,"")
+ dispatcher,err:=runtime.NewDispatcher(root);if err!=nil{t.Fatal(err)};defer dispatcher.Close(duplex.CodeNormal,"");selected:=dispatcher.Select([]string{"nested"})
  var roundtrip protocol.ServerModel
  roundtrip,err=binding.FromWire(ctx,selected,runtime.AdapterContext{});if err!=nil{t.Fatal(err)}
  rewired,err:=binding.ToWire(roundtrip,runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer rewired.Close(duplex.CodeNormal,"")

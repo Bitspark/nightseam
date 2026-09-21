@@ -3,6 +3,7 @@ package runtime_test
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"testing"
 	"time"
 
@@ -16,17 +17,22 @@ import (
 // named, structurally similar Message/Receiver/Code types do not satisfy it.
 var _ bitwire.Wire = (duplex.Wire)(nil)
 var _ duplex.Wire = (bitwire.Wire)(nil)
-var _ bitwire.Wire = (*tunnel.Channel)(nil)
+var _ bitwire.Endpoint = (duplex.Endpoint)(nil)
+var _ duplex.Endpoint = (bitwire.Endpoint)(nil)
+var _ bitwire.Endpoint = (*tunnel.Channel)(nil)
 
 func TestPublishedBitwireTypesCarryNightseamCalls(t *testing.T) {
 	left, right, err := runtime.NewWirePair(runtime.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var client, server bitwire.Wire = left, right
+	var client, server bitwire.Endpoint = left, right
 	defer client.Close(duplex.CodeNormal, "done")
-	detach, err := server.Receive([]string{"model", "read"}, bitwire.Receiver{
-		Message: func(_ []string, request bitwire.Message) {
+	detach, err := server.Receive(bitwire.Receiver{
+		Message: func(path []string, request bitwire.Message) {
+			if !slices.Equal(path, []string{"model", "read"}) {
+				t.Errorf("shared endpoint path = %v", path)
+			}
 			if request.Frame.Kind != bitwire.ProfileRequest || request.Return == nil {
 				t.Error("the shared receiver did not receive a request and return capability")
 				return
@@ -43,7 +49,7 @@ func TestPublishedBitwireTypesCarryNightseamCalls(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer detach()
-	selected := duplex.At(duplex.Mount(map[string]bitwire.Wire{"service": client}), []string{"service", "model"})
+	selected := duplex.At(duplex.Mount(map[string]bitwire.Endpoint{"service": client}), []string{"service", "model"})
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	var result json.RawMessage

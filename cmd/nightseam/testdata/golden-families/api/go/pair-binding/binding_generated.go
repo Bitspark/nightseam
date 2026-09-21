@@ -148,7 +148,7 @@ func (c *serverMethods[SEnvelope, SHandle, TEnvelope]) Relay(ctx context.Context
 	}()
 	return received, err
 }
-func bindServer[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func() protocol.Server[SEnvelope, SHandle, TEnvelope], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) error {
+func bindServer[SEnvelope, SHandle, TEnvelope any](wire runtime.HandlerRegistry, lookup func() protocol.Server[SEnvelope, SHandle, TEnvelope], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -370,7 +370,7 @@ func (c *clientEvents[SEnvelope, SHandle, TEnvelope]) Echoed(ctx context.Context
 	}()
 	return err
 }
-func bindClient[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func() protocol.Client[SEnvelope, SHandle, TEnvelope], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) error {
+func bindClient[SEnvelope, SHandle, TEnvelope any](wire runtime.HandlerRegistry, lookup func() protocol.Client[SEnvelope, SHandle, TEnvelope], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -462,8 +462,8 @@ func normalizeContext[SEnvelope, SHandle, TEnvelope any](environment runtime.Ada
 	return environment, nil
 }
 
-// ToWire binds one model factory and returns its access wire.
-func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](model protocol.ServerModel[SEnvelope, SHandle, TEnvelope], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (duplex.Wire, error) {
+// ToWire binds one model factory and returns its owned access endpoint.
+func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](model protocol.ServerModel[SEnvelope, SHandle, TEnvelope], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (duplex.Endpoint, error) {
 	if model == nil {
 		return nil, fmt.Errorf("model factory is required")
 	}
@@ -494,7 +494,11 @@ func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runt
 			_ = access.Close(duplex.CodeInternalError, "model construction failed")
 		}
 	}()
-	if _, err := registerIdentity(binding, identity); err != nil {
+	dispatcher, err := runtime.NewDispatcher(binding, runtime.DispatcherOptions{OwnEndpoint: true})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := registerIdentity(dispatcher, identity); err != nil {
 		return nil, err
 	}
 	implementation, err := model(accessClient[SEnvelope, SHandle, TEnvelope](binding, environment, adapterSEnvelope, adapterSHandle, adapterTEnvelope))
@@ -504,7 +508,7 @@ func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runt
 	if implementation.Methods == nil {
 		return nil, fmt.Errorf("Server methods are required")
 	}
-	if err := bindServer[SEnvelope, SHandle, TEnvelope](binding, func() protocol.Server[SEnvelope, SHandle, TEnvelope] { return implementation }, environment, adapterSEnvelope, adapterSHandle, adapterTEnvelope); err != nil {
+	if err := bindServer[SEnvelope, SHandle, TEnvelope](dispatcher, func() protocol.Server[SEnvelope, SHandle, TEnvelope] { return implementation }, environment, adapterSEnvelope, adapterSHandle, adapterTEnvelope); err != nil {
 		return nil, err
 	}
 	complete = true
@@ -517,7 +521,7 @@ func declarationIdentity[SEnvelope, SHandle, TEnvelope any](adapterSEnvelope run
 	}
 	return runtime.DeclarationIdentity{Path: "pair", Digest: digest}, nil
 }
-func registerIdentity(wire duplex.Wire, identity runtime.DeclarationIdentity) (func(), error) {
+func registerIdentity(wire runtime.HandlerRegistry, identity runtime.DeclarationIdentity) (func(), error) {
 	handler, err := runtime.IdentityHandler(identity)
 	if err != nil {
 		return nil, err
@@ -529,7 +533,7 @@ func registerIdentity(wire duplex.Wire, identity runtime.DeclarationIdentity) (f
 // Complete checks identity and returns a factory that may be bound once. Both steps
 // must finish within environment.Options.RequestTimeout. Cleanup detaches this
 // interpretation's registrations, including after success, and never closes the wire.
-func PrepareFromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](wire duplex.Wire, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (complete func(context.Context) (protocol.ServerModel[SEnvelope, SHandle, TEnvelope], error), cleanup func(), err error) {
+func PrepareFromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](wire duplex.Endpoint, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (complete func(context.Context) (protocol.ServerModel[SEnvelope, SHandle, TEnvelope], error), cleanup func(), err error) {
 	if wire == nil {
 		return nil, nil, fmt.Errorf("wire is required")
 	}
@@ -583,7 +587,7 @@ func PrepareFromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnve
 
 // FromWire checks identity and returns a factory that may be bound once.
 // Use PrepareFromWire before attachment when incoming delivery can begin immediately.
-func FromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (protocol.ServerModel[SEnvelope, SHandle, TEnvelope], error) {
+func FromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, wire duplex.Endpoint, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (protocol.ServerModel[SEnvelope, SHandle, TEnvelope], error) {
 	complete, cleanup, err := PrepareFromWire[SEnvelope, SHandle, TEnvelope](wire, environment, adapterSEnvelope, adapterSHandle, adapterTEnvelope)
 	if err != nil {
 		return nil, err
@@ -638,7 +642,7 @@ func (r *Recorder[SEnvelope, SHandle, TEnvelope]) Follow(ctx context.Context, af
 
 // Record checks a prepared origin before exposing typed event append. Setup
 // failure detaches this interpretation and leaves the borrowed target usable.
-func Record[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, target duplex.Wire, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (*Recorder[SEnvelope, SHandle, TEnvelope], error) {
+func Record[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, target duplex.Endpoint, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (*Recorder[SEnvelope, SHandle, TEnvelope], error) {
 	environment, err := normalizeContext[SEnvelope, SHandle, TEnvelope](environment, adapterSEnvelope, adapterSHandle, adapterTEnvelope)
 	if err != nil {
 		return nil, err

@@ -41,7 +41,7 @@ func emitRecordedEvents(f *file, side, opposite, decl, args string) {
 	context := f.lifetimeType("WireModelContext", "ValueContext", payloads...)
 	f.linef("export interface Recorder%s extends RecordedWire { append(event: RecordedEvent%s, context?: %s): Promise<void>; }", decl, args, context)
 	f.line("/** Checks a prepared origin before typed append; failed setup leaves its carrier usable. */")
-	f.w.Block(fmt.Sprintf("export async function record%s(target: Wire, log: WireLog, options: RecordOptions, context: AdapterContext%s, setup?: WireCallOptions): Promise<Recorder%s> {", decl, binding, args), "}", func() {
+	f.w.Block(fmt.Sprintf("export async function record%s(target: Endpoint, log: WireLog, options: RecordOptions, context: AdapterContext%s, setup?: WireCallOptions): Promise<Recorder%s> {", decl, binding, args), "}", func() {
 		f.linef("const adapter = makeAdapter%s(context%s);", args, passing)
 		f.line("const preparation = prepareIdentity(target, adapter.identity, adapter.options);")
 		f.w.Block("try {", "} catch (error) { preparation.close(); throw error; }", func() {

@@ -2,7 +2,7 @@ import { DuplexError, UnpublishedError } from './error.ts';
 export { DuplexError, UnpublishedError } from './error.ts';
 import { decodeEnvelope, carrying, requireName, isObject, type Envelope } from './envelope.ts';
 import { webSocketConnection } from '@nightseam/duplex';
-import type { Frame, FrameConnection, WebSocketLike, Wire } from '@nightseam/duplex';
+import type { Frame, FrameConnection, WebSocketLike, Endpoint } from '@nightseam/duplex';
 import { defaultPropagator, traceOf, traced } from './trace.ts';
 import type { Propagator, Trace, TraceContext } from './trace.ts';
 import { peerWire, requestCompletion, setReceivedEventTrace } from './wire.ts';
@@ -170,7 +170,7 @@ export class DuplexPeer {
   private stallTimer?: Timer;
   private generation = 0;
   private negotiated = '';
-  private relativeWire?: Wire;
+  private relativeWire?: Endpoint;
   private wireRequest?: (method: string) => RequestHandler | undefined;
   private wireEvent?: (name: string) => EventListener | undefined;
 
@@ -221,7 +221,7 @@ export class DuplexPeer {
   }
 
   /** This peer's relative origin; selections share its existing carrier. */
-  wire(): Wire {
+  wire(): Endpoint {
     return (this.relativeWire ??= peerWire(this, {
       queueCapacity: this.limits.queueCapacity,
       maxPendingRequests: this.limits.maxPendingRequests,
@@ -811,6 +811,7 @@ export class DuplexPeer {
     const context: RequestContext = { peer: this, signal: controller.signal, requestId: id };
     if (meta) context.meta = meta;
     this.propagator.extract(context, trace);
+    const attachedHandler = this.wireRequest?.(method);
     void Promise.resolve()
       .then(() => {
         // The peer can close or cancel before the handler's first microtask.
@@ -818,10 +819,9 @@ export class DuplexPeer {
           this.respond(id, incoming, undefined, new DuplexError('cancelled', 'Request was cancelled.'), 'cancelled');
           return;
         }
+        if (attachedHandler) return attachedHandler(params, context);
         const handler = this.handlers.get(method);
         if (handler) return handler(params, context);
-        const wireHandler = this.wireRequest?.(method);
-        if (wireHandler) return wireHandler(params, context);
         if (this.options.dispatch) return this.options.dispatch(method, params, context);
         throw new DuplexError('method_not_found', `Unknown method ${method}.`);
       })

@@ -14,7 +14,7 @@ import (
 // checks its declaration after attachment, and releases dispatch after binding.
 // It owns its registrations, never the source carrier or another receive queue.
 type IdentityPreparation struct {
-	source                  duplex.Wire
+	source                  HandlerRegistry
 	expected                DeclarationIdentity
 	limit                   int
 	mu                      sync.Mutex
@@ -48,11 +48,11 @@ type identityDelivery struct {
 
 type identityWire struct{ preparation *IdentityPreparation }
 type identityWatchWire struct {
-	duplex.Wire
+	HandlerRegistry
 	preparation *IdentityPreparation
 }
 
-func (w identityWatchWire) Receive(path []string, receiver duplex.Receiver) (func(), error) {
+func (w identityWatchWire) Register(path []string, receiver duplex.Receiver) (func(), error) {
 	closed := receiver.Closed
 	receiver.Closed = func(code duplex.Code, reason string) {
 		defer w.preparation.fail(ErrClosed)
@@ -60,13 +60,13 @@ func (w identityWatchWire) Receive(path []string, receiver duplex.Receiver) (fun
 			closed(code, reason)
 		}
 	}
-	return w.Wire.Receive(path, receiver)
+	return w.HandlerRegistry.Register(path, receiver)
 }
 
 // PrepareIdentity is synchronous: callers install receivers through Wire before
 // attaching their carrier, then call Check and bind the model before Ready.
 // RequestTimeout bounds the whole preparation, including a factory never bound.
-func PrepareIdentity(wire duplex.Wire, expected DeclarationIdentity, options Options) (*IdentityPreparation, error) {
+func PrepareIdentity(wire duplex.Endpoint, expected DeclarationIdentity, options Options) (*IdentityPreparation, error) {
 	if wire == nil {
 		return nil, errors.New("identity preparation requires a wire")
 	}
@@ -77,12 +77,17 @@ func PrepareIdentity(wire duplex.Wire, expected DeclarationIdentity, options Opt
 	if err != nil {
 		return nil, err
 	}
+	dispatcher, err := NewDispatcher(wire)
+	if err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithCancel(context.Background())
-	p := &IdentityPreparation{source: wire, expected: expected, limit: options.MaxConcurrentHandlers, released: make(chan struct{}), ctx: ctx, cancel: cancel, registrations: map[*identityRegistration]struct{}{}, pending: map[returnKey]*identityDelivery{}}
+	p := &IdentityPreparation{source: dispatcher, expected: expected, limit: options.MaxConcurrentHandlers, released: make(chan struct{}), ctx: ctx, cancel: cancel, registrations: map[*identityRegistration]struct{}{}, pending: map[returnKey]*identityDelivery{}}
 	handler, _ := IdentityHandler(expected)
-	detach, err := HandleWire(identityWatchWire{wire, p}, []string{IdentityMethod}, func(ctx context.Context, raw json.RawMessage) (any, error) { return handler(ctx, nil, raw) })
+	detach, err := HandleWire(identityWatchWire{dispatcher, p}, []string{IdentityMethod}, func(ctx context.Context, raw json.RawMessage) (any, error) { return handler(ctx, nil, raw) })
 	if err != nil {
 		cancel()
+		_ = dispatcher.Close(duplex.CodeNormal, "identity setup failed")
 		return nil, err
 	}
 	p.mu.Lock()
@@ -100,7 +105,7 @@ func PrepareIdentity(wire duplex.Wire, expected DeclarationIdentity, options Opt
 
 // Wire registers on the source directly and holds only model dispatch. Its
 // outgoing sends require readiness; Check uses the ungated source separately.
-func (p *IdentityPreparation) Wire() duplex.Wire { return &identityWire{preparation: p} }
+func (p *IdentityPreparation) Wire() HandlerRegistry { return &identityWire{preparation: p} }
 
 // Check makes the interpretation's first request. It may be started only once.
 // A failed or cancelled check releases waiting deliveries without dispatching.
@@ -186,6 +191,7 @@ func (p *IdentityPreparation) fail(err error) {
 	p.registrations = map[*identityRegistration]struct{}{}
 	p.mu.Unlock()
 	p.cancel()
+	_ = p.source.Close(duplex.CodeNormal, "interpretation ended")
 	if identityDetach != nil {
 		identityDetach()
 	}
@@ -218,14 +224,13 @@ func (w *identityWire) Send(path []string, message duplex.Message) error {
 	return p.source.Send(path, message)
 }
 
-// Closing an actual wire preserves normal carrier ownership. Close on the
-// preparation itself is the operation for abandoning only this interpretation.
+// Closing the interpretation releases its own attachment, never the borrowed endpoint.
 func (w *identityWire) Close(code duplex.Code, reason string) error {
 	w.preparation.Close()
-	return w.preparation.source.Close(code, reason)
+	return nil
 }
 
-func (w *identityWire) Receive(path []string, receiver duplex.Receiver) (func(), error) {
+func (w *identityWire) Register(path []string, receiver duplex.Receiver) (func(), error) {
 	if receiver.Message == nil {
 		return nil, errors.New("a wire receiver requires a callback")
 	}
@@ -239,7 +244,7 @@ func (w *identityWire) Receive(path []string, receiver duplex.Receiver) (func(),
 	}
 	p.registrations[registration] = struct{}{}
 	p.mu.Unlock()
-	detach, err := p.source.Receive(path, duplex.Receiver{Namespace: receiver.Namespace,
+	detach, err := p.source.Register(path, duplex.Receiver{
 		Message: func(path []string, message duplex.Message) { p.deliver(registration, path, message) },
 		Closed:  func(duplex.Code, string) { p.fail(ErrClosed) },
 	})
@@ -274,7 +279,7 @@ func (p *IdentityPreparation) deliver(registration *identityRegistration, path [
 	p.mu.Lock()
 	if message.Frame.Kind == duplex.ProfileCancel {
 		delivery := p.pending[key]
-		ready := p.ready && p.err == nil && registration.active
+		ready := p.ready && p.err == nil
 		p.mu.Unlock()
 		if delivery != nil {
 			delivery.mu.Lock()
@@ -310,7 +315,7 @@ func (p *IdentityPreparation) deliver(registration *identityRegistration, path [
 		p.mu.Unlock()
 		<-p.released
 		p.mu.Lock()
-		ready = p.ready && p.err == nil && registration.active
+		ready = p.ready && p.err == nil
 		p.mu.Unlock()
 		// A refused interpretation discards its held event. Returning an event
 		// error would close a shared carrier through RegisterWire.

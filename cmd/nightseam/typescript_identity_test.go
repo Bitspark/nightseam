@@ -35,8 +35,8 @@ func TestGeneratedTypeScriptIdentityPreparation(t *testing.T) {
 	runFixture(t, directory, "node", "--loader", "./runtime-loader.mjs", "identity.ts")
 }
 
-const tsIdentityPreparationProgram = `import type { Wire } from '@nightseam/duplex';
-import { DuplexError, IDENTITY_METHOD, callWire, emitWire, identityHandler, registerWire, wirePair } from '@nightseam/runtime';
+const tsIdentityPreparationProgram = `import type { Endpoint } from '@nightseam/duplex';
+import { DuplexError, IDENTITY_METHOD, callWire, emitWire, identityHandler, registerWire, wirePair, createDispatcher } from '@nightseam/runtime';
 import * as binding from '@example/same-binding';
 import * as client from '@example/same-client';
 import * as generic from '@example/generic-binding';
@@ -54,14 +54,21 @@ async function delivered(test: () => boolean) {
 const context = { options: { requestTimeoutMs: 1000 } };
 const expected = { path: 'same', digest: client.wireDigest };
 
+function pair() {
+  const [left, right] = wirePair(context.options);
+  const accessRegistry = createDispatcher(left), providerRegistry = createDispatcher(right);
+  return { access: accessRegistry.select([]), provider: providerRegistry.select([]), accessRegistry, providerRegistry,
+    close() { accessRegistry.close(); providerRegistry.close(); left.close(); } };
+}
+
 // Receivers must exist before reading starts; their implementation arrives
 // only after complete checks the peer and the returned factory is bound.
 {
-  const [access, provider] = wirePair(context.options);
+  const { access, provider, accessRegistry, providerRegistry, close } = pair();
   let callbacks = 0, events = 0;
-  registerWire(provider, [IDENTITY_METHOD], { request: identityHandler(expected) });
-  registerWire(provider, ['run'], { request: () => 42 });
-  registerWire(access, ['unrelated'], { request: () => 7 });
+  registerWire(providerRegistry, [IDENTITY_METHOD], { request: identityHandler(expected) });
+  registerWire(providerRegistry, ['run'], { request: () => 42 });
+  registerWire(accessRegistry, ['unrelated'], { request: () => 7 });
   const preparation = binding.prepareFromWire(access, context);
   const early = callWire<number>(provider, ['reverse'], {value:41}, {timeoutMs:1000});
   emitWire(provider, ['changed'], {value:41});
@@ -80,34 +87,36 @@ const expected = { path: 'same', digest: client.wireDigest };
   check(await model.methods.run({value:41})===42, 'duplicate completion closed the valid interpretation');
   preparation.close(); preparation.close();
   check(await callWire(provider, ['unrelated'], {})===7, 'cleanup detached an unrelated receiver or closed the carrier');
-  const detachIdentity = registerWire(access, [IDENTITY_METHOD], {request: identityHandler(expected)});
-  const detachReverse = registerWire(access, ['reverse'], {request: () => 9});
+  const rebound = createDispatcher(access);
+  const detachIdentity = registerWire(rebound, [IDENTITY_METHOD], {request: identityHandler(expected)});
+  const detachReverse = registerWire(rebound, ['reverse'], {request: () => 9});
   check(await callWire(provider, ['reverse'], {})===9, 'cleanup retained an owned receiver');
-  detachReverse(); detachIdentity(); access.close();
+  detachReverse(); detachIdentity(); rebound.close(); close();
 }
 
 // Both generated roles reject a same-name revision before exposing a factory.
 for (const prepare of [binding.prepareFromWire, client.prepareFromWire]) {
-  const [access, provider] = wirePair(context.options);
-  registerWire(provider, [IDENTITY_METHOD], {request: identityHandler({...expected, digest:'0'.repeat(64)})});
-  registerWire(access, ['unrelated'], {request: () => 7});
+  const { access, provider, accessRegistry, providerRegistry, close } = pair();
+  registerWire(providerRegistry, [IDENTITY_METHOD], {request: identityHandler({...expected, digest:'0'.repeat(64)})});
+  registerWire(accessRegistry, ['unrelated'], {request: () => 7});
   const preparation = prepare(access, context);
   let exposed = false;
   await rejected(async () => { await preparation.complete({timeoutMs:1000}); exposed = true; }, 'contract_mismatch');
   check(!exposed, 'mismatch exposed a model factory');
   check(await callWire(provider, ['unrelated'], {})===7, 'refusal closed the carrier');
-  const detach = registerWire(access, [IDENTITY_METHOD], {request: identityHandler(expected)});
-  detach(); preparation.close(); access.close();
+  const rebound = createDispatcher(access);
+  const detach = registerWire(rebound, [IDENTITY_METHOD], {request: identityHandler(expected)});
+  detach(); rebound.close(); preparation.close(); close();
 }
 
 // A peer with no identity handler remains an unspecified declaration.
 {
-  const [access, provider] = wirePair(context.options);
-  registerWire(provider, ['run'], {request: () => 42});
+  const { access, providerRegistry, close } = pair();
+  registerWire(providerRegistry, ['run'], {request: () => 42});
   const factory = await binding.fromWire(access, context);
   const model = factory({methods:{reverse: () => 0},events:{changed() {}}});
   check(await model.methods.run({value:41})===42, 'unspecified peer was refused');
-  access.close();
+  close();
 }
 
 // Local model adaptation also advertises identity before it returns a wire.
@@ -123,7 +132,7 @@ for (const prepare of [binding.prepareFromWire, client.prepareFromWire]) {
 // Missing type bindings fail synchronously before any registration or model.
 {
   let operations = 0, constructions = 0;
-  const wire: Wire = {send() {operations++;},receive() {operations++;return () => {};},close() {operations++;}};
+  const wire: Endpoint = {send() {operations++;},receive() {operations++;return () => {};},close() {operations++;}};
   let refused = 0;
   try { generic.prepareFromWire(wire, context, undefined as never); } catch { refused++; }
   try { generic.toWire(() => { constructions++; return {methods:{read: () => 0},events:{}}; }, context, undefined as never); } catch { refused++; }

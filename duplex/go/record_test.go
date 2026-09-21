@@ -99,7 +99,11 @@ func TestRecordedWireStorageAndTargetFailures(t *testing.T) {
 			if !errors.Is(err, want) {
 				t.Fatalf("got %v want %v", err, want)
 			}
-			recordWait(t, ctx, target.closed)
+			select {
+			case <-target.closed:
+				t.Fatal("recorder closed its borrowed target")
+			default:
+			}
 		})
 	}
 	for _, mode := range []string{"read", "sequence", "target"} {
@@ -146,7 +150,7 @@ func TestRecordedWireStorageAndTargetFailures(t *testing.T) {
 		})
 	}
 }
-func (*recordTarget) Receive([]string, duplex.Receiver) (func(), error) { return func() {}, nil }
+func (*recordTarget) Receive(duplex.Receiver) (func(), error) { return func() {}, nil }
 func (w *recordTarget) Close(duplex.Code, string) error {
 	w.once.Do(func() { close(w.closed) })
 	return nil
@@ -259,12 +263,14 @@ func TestRecordedWireHeadAndHandoff(t *testing.T) {
 			ctx := recordContext(t)
 			store := newHeldLog()
 			original := newRecordTarget()
-			w, err := duplex.Record(ctx, original, store, duplex.RecordOptions{MaxQueuedMessages: 8})
+			mounted := duplex.Mount(map[string]duplex.Endpoint{"history": original})
+			defer mounted.Close(1000, "done")
+			w, err := duplex.Record(ctx, duplex.At(mounted, []string{"history"}), store, duplex.RecordOptions{MaxQueuedMessages: 8})
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer w.Close(1000, "done")
-			source := duplex.At(duplex.Mount(map[string]duplex.Wire{"history": w}), []string{"history"})
+			source := duplex.At(w, nil)
 			for _, v := range c.Before {
 				if err := source.Send([]string{"tick"}, recordMessage(v)); err != nil {
 					t.Fatal(err)
@@ -325,7 +331,9 @@ func TestRecordedWireStalledFollowerIsIsolated(t *testing.T) {
 	defer w.Close(1000, "done")
 	w.Send([]string{"tick"}, recordMessage(1))
 	slowTarget := newRecordTarget()
-	slow, err := w.Follow(ctx, 0, duplex.At(duplex.Mount(map[string]duplex.Wire{"slow": slowTarget}), []string{"slow"}))
+	mounted := duplex.Mount(map[string]duplex.Endpoint{"slow": slowTarget})
+	defer mounted.Close(1000, "done")
+	slow, err := w.Follow(ctx, 0, duplex.At(mounted, []string{"slow"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +354,7 @@ func TestRecordedWireStalledFollowerIsIsolated(t *testing.T) {
 	if !errors.Is(slow.Err(), duplex.ErrRecordOverflow) {
 		t.Fatal(slow.Err())
 	}
-	// The follower owns the mount, not its borrowed underlying target.
+	// The follower borrows send authority; both mount and target stay usable.
 	if err := slowTarget.Send([]string{"probe"}, recordMessage(99)); err != nil {
 		t.Fatal(err)
 	}
@@ -377,7 +385,11 @@ func TestRecordedWireSlowStorageBoundsAdmission(t *testing.T) {
 	if err := recordWait(t, ctx, ended); !errors.Is(err, duplex.ErrRecordOverflow) {
 		t.Fatal(err)
 	}
-	recordWait(t, ctx, target.closed)
+	select {
+	case <-target.closed:
+		t.Fatal("recorder closed its borrowed target")
+	default:
+	}
 }
 
 func TestRecordedWireCursorCancellationAndCapabilities(t *testing.T) {

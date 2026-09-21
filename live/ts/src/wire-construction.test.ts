@@ -1,8 +1,24 @@
 import assert from 'node:assert/strict';
 import { createServer, createConnection, type Socket } from 'node:net';
 import test, { type TestContext } from 'node:test';
-import { at, mount, pipe, type Wire, type FrameConnection, type ConnectionHandlers } from '@nightseam/duplex';
-import { callWire, handleWire, wirePair, DuplexError, DuplexPeer, UnpublishedError } from '@nightseam/runtime';
+import {
+  at,
+  mount,
+  pipe,
+  type Wire,
+  type Endpoint,
+  type FrameConnection,
+  type ConnectionHandlers,
+} from '@nightseam/duplex';
+import {
+  callWire,
+  createDispatcher,
+  handleWire,
+  wirePair,
+  DuplexError,
+  DuplexPeer,
+  UnpublishedError,
+} from '@nightseam/runtime';
 import { liveOver, type LiveOwner, type LiveScope, type Reference } from './index.ts';
 
 function deferred<T>() {
@@ -15,13 +31,21 @@ function deferred<T>() {
 
 // The attempted composition keeps import-time interpretation and the active
 // owner explicit. This helper is evidence, not an additional shipped live API.
-function checkedBindingWire(t: TestContext, owner: LiveOwner, ref: Reference, contract: string): Wire {
+// Send access and the owned exposure endpoint remain separate capabilities.
+function checkedBindingWire(
+  t: TestContext,
+  owner: LiveOwner,
+  ref: Reference,
+  contract: string,
+): { wire: Wire; endpoint: Endpoint; binding: string } {
   const invoke = owner.import(ref, contract, '');
   const { binding } = ref.toJSON();
   const [access, endpoint] = wirePair();
+  const dispatcher = createDispatcher(endpoint);
   t.after(() => access.close());
-  t.after(handleWire(endpoint, [binding], (params, context) => invoke(params, { signal: context.signal })));
-  return at(access, [binding]);
+  t.after(() => dispatcher.close());
+  t.after(handleWire(dispatcher, [binding], (params, context) => invoke(params, { signal: context.signal })));
+  return { wire: at(access, [binding]), endpoint: access, binding };
 }
 
 interface Pair {
@@ -134,8 +158,12 @@ for (const carrier of ['local', 'socket']) {
       return params;
     });
     if (carrier === 'socket') ref = p.a.decode(ref.toJSON());
-    const selected = checkedBindingWire(t, holder, ref, 'test/Guarded');
-    const wire = at(mount(new Map([['outer', mount(new Map([['binding', selected]]))]])), ['outer', 'binding']);
+    const exposure = checkedBindingWire(t, holder, ref, 'test/Guarded');
+    const inner = mount(new Map([['binding', exposure.endpoint]]));
+    const outer = mount(new Map([['outer', inner]]));
+    t.after(() => outer.close());
+    t.after(() => inner.close());
+    const wire = at(outer, ['outer', 'binding', exposure.binding]);
     await assert.rejects(callWire(wire, [], 1), { code: 'denied' });
     assert.equal(effects, 0, 'wire bypassed the explicit guard');
     permitted = true;
@@ -170,7 +198,7 @@ test('live binding Wire construction checks interpretation and nonce', async (t)
   assert.deepEqual(holder.counts(), { exports: 0, imports: 0 });
   assert.equal(effects, 0);
   const unknown = p.a.decode({ binding: '0000000000000000.1', contract: 'test/Checked' });
-  const wire = checkedBindingWire(t, holder, unknown, 'test/Checked');
+  const { wire } = checkedBindingWire(t, holder, unknown, 'test/Checked');
   await assert.rejects(callWire(wire, [], 1), { code: 'reference_unknown' });
   assert.equal(effects, 0);
   assert.deepEqual(holder.counts(), { exports: 0, imports: 1 });
@@ -193,7 +221,7 @@ test('live binding Wire construction retains uncertain publication', async (t) =
     });
     return null;
   });
-  const wire = checkedBindingWire(t, p.a.owner(), ref, 'test/Retain');
+  const { wire } = checkedBindingWire(t, p.a.owner(), ref, 'test/Retain');
   const controller = new AbortController();
   let callbacks = 0;
   const pending = outgoing.publishValue(
@@ -228,13 +256,18 @@ test('exporting an imported binding Wire gives the destination its own lifetime'
     calls++;
     return value;
   });
-  const imported = checkedBindingWire(t, sourceHolder, origin.b.decode(ref.toJSON()), 'test/Forward');
+  const { wire: imported } = checkedBindingWire(t, sourceHolder, origin.b.decode(ref.toJSON()), 'test/Forward');
   // Opaque JSON only: forwarding does not discover or translate references
   // hidden inside a model payload. Those positions need generated converters.
   const forwarded = forwardOwner.export('test/Forward', '', (value, options) =>
     callWire(imported, [], value, { signal: options?.signal }),
   );
-  const access = checkedBindingWire(t, forwardHolder, destination.b.decode(forwarded.toJSON()), 'test/Forward');
+  const { wire: access } = checkedBindingWire(
+    t,
+    forwardHolder,
+    destination.b.decode(forwarded.toJSON()),
+    'test/Forward',
+  );
   assert.equal(await callWire(access, [], 73), 73);
   assert.equal(calls, 1);
   assert.deepEqual(origin.a.counts(), { exports: 1, imports: 0 });
@@ -256,7 +289,7 @@ test('exporting an imported binding Wire gives the destination its own lifetime'
   assert.deepEqual(origin.b.counts(), { exports: 0, imports: 0 });
 });
 
-test('closing a binding Wire exposure is not the live release barrier', async (t) => {
+test('closing a binding exposure endpoint is not the live release barrier', async (t) => {
   const p = await scopes(t);
   const owner = p.a.owner().child();
   const entered = deferred<void>();
@@ -269,10 +302,10 @@ test('closing a binding Wire exposure is not the live release barrier', async (t
     }
     return value;
   });
-  const wire = checkedBindingWire(t, owner, ref, 'test/Close');
+  const { wire, endpoint } = checkedBindingWire(t, owner, ref, 'test/Close');
   const pending = callWire(wire, [], 81);
   await entered.promise;
-  wire.close(1000, 'end this exposure');
+  endpoint.close(1000, 'end this exposure');
   await assert.rejects(pending, { code: 'disconnected' });
   finish.resolve();
   assert.deepEqual(owner.counts(), { exports: 1, imports: 0 });
