@@ -46,6 +46,7 @@ func testTransparencyFixture(t *testing.T, tests string) {
 	writeFixture(t, directory, "runtime-loader.mjs", []byte(strings.Replace(runtimeLoader, "const generated=", "const generated=name.endsWith('/test')?'./api/ts/'+name.slice(0,-5)+'/src/test.ts':", 1)))
 	writeFixture(t, directory, "transparency.ts", []byte(tsTransparencyProgram))
 	writeFixture(t, directory, "presentations.ts", []byte(tsTransparencyPresentations))
+	runFixture(t, directory, "go", "vet", "./...")
 	runFixture(t, directory, "node", tsc, "--project", "tsconfig.json")
 	runFixture(t, directory, "node", "--loader", "./runtime-loader.mjs", "transparency.ts")
 	runFixture(t, directory, "go", "test", "-count=1", "-run", tests, ".")
