@@ -47,6 +47,7 @@ if (process.argv.includes('--test')) {
   run('javac', ['--release', '21', '-encoding', 'UTF-8', '-cp', classes, '-d', testClasses, `@${testArgs}`]);
   for (const name of ['io.nightseam.duplex.SeamTest', 'io.nightseam.runtime.SchemaTest', 'io.nightseam.runtime.PeerTest', 'io.nightseam.runtime.PeerWireTest', 'io.nightseam.runtime.PeerLifecycleTest',
     'io.nightseam.runtime.WirePairTest', 'io.nightseam.conformance.RecordedWireTest']) {
+    console.log(`Java native suite: ${name}`);
     run('java', ['-ea', '-cp', [classes, testClasses].join(delimiter), name, root]);
   }
   // An isolated consumer has no source tree, class directory or workspace dependency.

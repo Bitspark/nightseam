@@ -17,6 +17,10 @@ pair[0].close(1000, "finished");
 that time out abort the connection because a partially published frame
 cannot be retried on the same stream. Calls fail with `CloseException`
 after closure; its `code()` and `reason()` carry the transport ending.
+An in-progress socket send may instead fail with `IOException` when the far
+side ends the connection before the complete frame is written. A receiver
+can reject an oversized frame from its header, before the sender finishes
+writing the payload; the receiver still reports code 1009.
 `closed()` completes once when an ending is known. Remote closure leaves
 preceding queued frames readable; local close or abort releases blocked
 operations immediately. Abort has code 1006. A frame over the receive
