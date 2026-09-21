@@ -13,17 +13,15 @@ import (
 func liveFamilyDrawFixture(t *testing.T) string {
 	t.Helper()
 	directory := t.TempDir()
-	for _, name := range []string{"first", "second"} {
-		writeFixture(t, directory, "api/contracts/"+name+"/model.json", []byte(`{"nightseam":2}`))
-		writeFixture(t, directory, "api/contracts/"+name+"/protocol.json", []byte(`{"profile":"nightseam.duplex/1"}`))
-		writeFixture(t, directory, "api/contracts/"+name+"/live.json", []byte(`{"types":{"Run":{"kind":"callable","request":"integer","result":"integer"},"Job":{"kind":"record","fields":[{"name":"run","type":"Run"}]},"Progress":{"kind":"record","fields":[{"name":"read","type":"Run"}]}}}`))
-	}
-	writeFixture(t, directory, "api/contracts/holder/model.json", []byte(`{"nightseam":2}`))
-	writeFixture(t, directory, "api/contracts/holder/protocol.json", []byte(`{"profile":"nightseam.duplex/1","parameters":[{"name":"S","of":"live"}],"types":{"Held":{"kind":"record","fields":[{"name":"job","type":"S.Job"},{"name":"progress","type":"S.Progress"}]}},"server":{"methods":{"exchange":{"request":"Held","result":"Held"}}}}`))
+	copyFixtureTree(t, "testdata/live-family-draws/api/contracts", filepath.Join(directory, "api/contracts"))
 	if out, errs, err := run(t, directory, "generate"); err != nil {
 		t.Fatalf("GEN-BIND-GENERATION: %v\n%s\n%s", err, out, errs)
 	}
 	return directory
+}
+
+func TestLiveFamilyDrawGolden(t *testing.T) {
+	holdGolden(t, "testdata/golden-live-family-draws", renderTool(t, "testdata/live-family-draws"))
 }
 
 func TestLiveFamilyDrawGeneration(t *testing.T) {
