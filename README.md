@@ -24,10 +24,11 @@ inline shapes, type and family parameters, and inherited operations. The live
 tier adds callable values — functions that may take or return functions, and
 generic data containers applied to them — with scoped export, import and
 release. The [changelog](CHANGELOG.md) records the implemented forms and the
-removal of the governed session layer. Generic callables and live types drawn
-through family parameters remain unsupported; the
+removal of the governed session layer. Closed generic callables and live types
+drawn through family parameters use complete conversion adapters with the
+active invocation's ownership context. The
 [generated surface](docs/declaration/generated.md#generic-boundary-helpers)
-distinguishes those limits.
+describes their construction and validation.
 
 Nightseam implements the typed-access foundation and planned optional rooted-grant
 authentication. Its Go and TypeScript access surfaces use the public Bitwire
