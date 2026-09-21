@@ -29,12 +29,12 @@ func TestRenderServerBinding(t *testing.T) {
 	for _, want := range []string{
 		"export function toWire(model: Protocol.ServerModel, context: AdapterContext): Wire",
 		"export async function fromWire(wire: Wire, context: AdapterContext): Promise<Protocol.ServerModel>",
-		"const implementation = model(adapter.proxyClient(binding)); adapter.bindServer(binding, implementation)",
-		"adapter.bindClient(wire, remote)", "return adapter.proxyServer(wire)",
+		"const implementation = model(adapter.proxyClient(binding));", "adapter.validateServer(implementation);", "adapter.bindServer(binding, () => implementation)",
+		"adapter.bindClient(gate.wire, () => implementation!)", "return adapter.proxyServer(gate.wire)",
 		`if (bound) throw new DuplexError('already_bound'`,
 		`registerWire(wire, ["run"], {`, `registerWire(wire, ["reverse"], {`,
 		"async reverse(params, context)", "async changed(data, context)",
-		"await implementation.events.noticed(raw as Protocol.Input, context)", "event handler for noticed is required",
+		"await target.events.noticed(raw as Protocol.Input, context)", "event handler for noticed is required",
 	} {
 		if !strings.Contains(binding, want) {
 			t.Errorf("server binding lacks %q:\n%s", want, binding)
