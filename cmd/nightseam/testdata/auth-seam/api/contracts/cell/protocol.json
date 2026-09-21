@@ -1,0 +1,6 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [{"name": "T"}],
+  "types": {"Put": {"kind": "record", "fields": [{"name": "value", "type": "T"}]}},
+  "server": {"methods": {"replace": {"request": "Put", "result": "integer"}, "get": {"result": "T"}}}
+}

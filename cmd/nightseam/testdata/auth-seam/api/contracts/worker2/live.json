@@ -1,0 +1,15 @@
+{
+  "types": {
+    "JobStatus": {"kind": "callable", "request": "string", "result": "string"},
+    "JobCancel": {"kind": "callable", "request": "string", "result": "boolean"},
+    "ProgressSink": {"kind": "callable", "request": "Progress", "result": "boolean"},
+    "Job": {"kind": "record", "fields": [{"name": "projectId", "type": "string"}, {"name": "status", "type": "JobStatus"}, {"name": "cancel", "type": "JobCancel"}]},
+    "Subscription": {"kind": "record", "fields": [{"name": "projectId", "type": "string"}, {"name": "sink", "type": "ProgressSink"}]}
+  },
+  "server": {
+    "methods": {
+      "start": {"request": "StartRequest", "result": "Job"},
+      "subscribe": {"request": "Subscription", "result": "boolean"}
+    }
+  }
+}
