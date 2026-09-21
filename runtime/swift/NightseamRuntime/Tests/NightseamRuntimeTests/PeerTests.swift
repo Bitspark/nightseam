@@ -123,11 +123,17 @@ private func pair(_ options: PeerOptions = .init()) async throws -> (Peer, Peer)
     let (a, b) = try await pair()
     try await b.handle(method: "public") { _, _, _ in throw PublicError(code: "denied", message: "Denied", data: Data("1e3".utf8)) }
     try await b.handle(method: "private") { _, _, _ in throw PrivateFailure() }
+    try await b.handle(method: "empty-code") { _, _, _ in throw PublicError(code: "", message: "invalid") }
+    try await b.handle(method: "empty-message") { _, _, _ in throw PublicError(code: "invalid", message: "") }
     await a.start(); await b.start()
     do { _ = try await a.call(method: "public", params: nil); Issue.record("Public error succeeded") }
     catch let error as PublicError { #expect(error.code == "denied"); #expect(error.data == Data("1e3".utf8)) }
     do { _ = try await a.call(method: "private", params: nil); Issue.record("Private error succeeded") }
     catch let error as PublicError { #expect(error.code == "internal"); #expect(error.message == "Internal error") }
+    for method in ["empty-code", "empty-message"] {
+        do { _ = try await a.call(method: method, params: nil); Issue.record("Malformed public error succeeded") }
+        catch let error as PublicError { #expect(error.code == "internal"); #expect(error.message == "Internal error") }
+    }
     await a.close(); await b.close()
 }
 

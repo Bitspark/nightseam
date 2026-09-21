@@ -170,6 +170,7 @@ public actor Peer {
 
     public func call(method: String, params: Data?, context: RequestContext? = nil,
                      timeoutMilliseconds: Int? = nil, meta: Metadata? = nil, preservingTrace: Bool = false, admitted: (@Sendable () -> Void)? = nil, withdrawn: (@Sendable () -> Void)? = nil) async throws -> Data? {
+        let deadline = ContinuousClock.now.advanced(by: .milliseconds(min(timeoutMilliseconds ?? options.requestTimeoutMilliseconds, options.requestTimeoutMilliseconds)))
         guard !method.isEmpty else { throw PublicError(code: "invalid", message: "Empty method") }
         try Task.checkCancellation()
         guard context?.cancellation.isCancelled != true else { throw PublicError(code: "cancelled", message: "Request cancelled") }
@@ -185,13 +186,20 @@ public actor Peer {
         let bytes = try encode(frame, raw: ["params": params ?? Data("null".utf8)])
         let reply = AsyncResult<Data?>()
         pending[id] = Pending(reply: reply, trace: trace)
-        do { try await enqueue(bytes) } catch { pending.removeValue(forKey: id); throw error }
+        do { try await enqueue(bytes, requestDeadline: deadline, cancellation: context?.cancellation) }
+        catch {
+            pending.removeValue(forKey: id)
+            if error is CancellationError { throw PublicError(code: "cancelled", message: "Request cancelled") }
+            throw error
+        }
         admitted?()
         let remove = context?.cancellation.onCancel { Task { await self.withdraw(id: id, code: "cancelled"); withdrawn?() } }
         defer { remove?() }
         return try await withTaskCancellationHandler {
             do {
-                return try await withTimeout(milliseconds: min(timeoutMilliseconds ?? options.requestTimeoutMilliseconds, options.requestTimeoutMilliseconds)) {
+                let remaining = ContinuousClock.now.duration(to: deadline).components
+                let milliseconds = max(0, Int(remaining.seconds) * 1_000 + Int(remaining.attoseconds / 1_000_000_000_000_000))
+                return try await withTimeout(milliseconds: milliseconds) {
                     try await reply.value()
                 }
             } catch let failure as PublicError where failure.code == "timeout" {
@@ -219,14 +227,27 @@ public actor Peer {
         var frame = preservingTrace ? carriedTrace(context) : childTrace(context)
         frame["version"] = .number("1"); frame["kind"] = .string("event"); frame["event"] = .string(name)
         if let meta { frame["meta"] = meta.filter { !$0.0.hasPrefix("nightseam.") }.jsonValue }
-        try await enqueue(encode(frame, raw: ["data": data ?? Data("null".utf8)]))
+        try await enqueue(encode(frame, raw: ["data": data ?? Data("null".utf8)]), cancellation: context?.cancellation)
     }
 
-    private func enqueue(_ bytes: Data) async throws {
+    private func enqueue(_ bytes: Data, requestDeadline: ContinuousClock.Instant? = nil,
+                         cancellation: Cancellation? = nil, immediate: Bool = false) async throws {
         guard bytes.count <= options.maxFrameBytes else { throw PublicError(code: "frame_too_large", message: "Frame exceeds size limit") }
         let deadline = ContinuousClock.now.advanced(by: .milliseconds(options.writeTimeoutMilliseconds))
-        while outgoing.count >= options.queueCapacity {
+        var yielded = false
+        while true {
+            try Task.checkCancellation()
+            guard cancellation?.isCancelled != true else { throw PublicError(code: "cancelled", message: "Request cancelled") }
+            if let requestDeadline, ContinuousClock.now >= requestDeadline {
+                throw PublicError(code: "request_timeout", message: "Request deadline passed")
+            }
             guard end == nil else { throw disconnected() }
+            if outgoing.count < options.queueCapacity { break }
+            if immediate {
+                if !yielded { yielded = true; await Task.yield(); continue }
+                await finish(code: 1006, reason: "", send: false, abort: true)
+                throw disconnected()
+            }
             if ContinuousClock.now >= deadline {
                 await finish(code: 1006, reason: "", send: false, abort: true)
                 throw disconnected()
@@ -291,10 +312,10 @@ public actor Peer {
             let method = frame["method"]?.string ?? ""
             let context = contextFor(frame, method: method)
             guard let handler = handlers[Data(method.utf8)] ?? requestFallback?(method) else {
-                await respond(context, result: .failure(PublicError(code: "method_not_found", message: "Unknown method"))); return
+                await respond(context, result: .failure(PublicError(code: "method_not_found", message: "Unknown method")), immediate: true); return
             }
             guard incoming.count < options.maxConcurrentHandlers else {
-                await respond(context, result: .failure(PublicError(code: "busy", message: "Too many concurrent requests"))); return
+                await respond(context, result: .failure(PublicError(code: "busy", message: "Too many concurrent requests")), immediate: true); return
             }
             incoming[id] = context.cancellation
             let payload = try rawMember("params", in: raw).map { Data($0.utf8) }
@@ -326,7 +347,7 @@ public actor Peer {
             traceparent: frame["traceparent"]?.string, tracestate: frame["tracestate"]?.string,
             meta: frame["meta"].flatMap { try? Metadata(jsonValue: $0) })
     }
-    private func respond(_ context: RequestContext, result: Result<Data?, any Error>) async {
+    private func respond(_ context: RequestContext, result: Result<Data?, any Error>, immediate: Bool = false) async {
         guard end == nil else { return }
         var frame: [String: JSONValue] = ["version": .number("1"), "kind": .string("response"), "id": .string(context.id)]
         if let trace = context.traceparent { frame["traceparent"] = .string(trace) }
@@ -336,18 +357,21 @@ public actor Peer {
         case .success(let value): payload = value ?? Data("null".utf8)
         case .failure(let error):
             let publicError: PublicError
-            if let value = error as? PublicError { publicError = value }
+            if let value = error as? PublicError, !value.code.isEmpty, !value.message.isEmpty { publicError = value }
             else if error is CancellationError { publicError = PublicError(code: "cancelled", message: "Request cancelled") }
             else { publicError = PublicError(code: "internal", message: "Internal error") }
             var encoded: [String: JSONValue] = ["code": .string(publicError.code), "message": .string(publicError.message)]
             if let data = publicError.data, let value = try? JSONValue(parsing: String(decoding: data, as: UTF8.self)) { encoded["data"] = value }
             frame["error"] = .object(encoded)
         }
-        do { try await enqueue(encode(frame, raw: ["result": payload])) }
+        do { try await enqueue(encode(frame, raw: ["result": payload]), immediate: immediate) }
         catch {
+            guard end == nil else { return }
+            if immediate { await finish(code: 1006, reason: "", send: false, abort: true); return }
             frame.removeValue(forKey: "result")
             frame["error"] = .object(["code": .string("internal"), "message": .string("Response could not be encoded")])
-            if let data = try? encode(frame) { try? await enqueue(data) }
+            do { try await enqueue(encode(frame)) }
+            catch { await finish(code: 1006, reason: "", send: false, abort: true) }
         }
     }
     private func eventLoop() async {
