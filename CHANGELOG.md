@@ -12,6 +12,35 @@ are one number. Entries are in the words of the commits that landed them.
   conversion, with shared scenario evidence for every profile. It separates
   declaration tiers, planned language assignments and achieved support, and
   explains that live needs a peer rather than a tunnel.
+- The built-in family index lists `live` beside `duplex` and `tunnel`, the page
+  the spec target has rendered for it since the live tier landed. `RELEASING.md`
+  names `live/go/livetest` beside `duplex/go/duplextest` among the root module's
+  suites, and `@nightseam/otel`'s README counts `@nightseam/live` among the
+  packages it exists as a package of its own to keep free of every dependency.
+- The specification carries each composed language target's spelling, and the
+  generator pages say what disabling one withdraws.
+- The credit claim exempts ordinary contractions — `It's`, `That's`, `There's`
+  and their kin — which it had read as possessive proper nouns, and its
+  fixtures name nothing outside themselves.
+
+### Added
+
+- The documentation check holds every built-in family's reference to the index
+  beside it. The references are a directory per family, which no documented set
+  reaches, so a built-in arrived with the page the generator's golden test
+  writes and a row nobody owed.
+- The documentation check holds every page to crediting only what this
+  documentation speaks of, so that no page tells a reader about a repository
+  they cannot open. The list is of what may be credited and never of what may
+  not: a denylist of unpublished names would be the leak itself, committed and
+  kept forever.
+
+### Removed
+
+- `render.Unrendered` and the `unrendered_form` diagnostic it built. Every
+  target renders every form the declaration language settled, so the refusal
+  had no caller and the code was the one diagnostic the tree could name and not
+  emit. `render.FormsUsed` stays, as the inventory the proof family is held to.
 
 ## 0.5.0 - 2026-09-21
 
