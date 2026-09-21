@@ -105,7 +105,7 @@ type RecordedWire struct {
 
 // Record takes exclusive append ownership of log. Setup reads its initial head;
 // the target is this composition's carrier and closes when the recorder ends.
-func Record(target Wire, log WireLog, options RecordOptions) (*RecordedWire, error) {
+func Record(setup context.Context, target Wire, log WireLog, options RecordOptions) (*RecordedWire, error) {
 	if target == nil || log == nil {
 		return nil, fmt.Errorf("record requires a target and storage")
 	}
@@ -115,15 +115,20 @@ func Record(target Wire, log WireLog, options RecordOptions) (*RecordedWire, err
 	if options.MaxQueuedMessages < 1 {
 		return nil, fmt.Errorf("record queue bound must be positive")
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	head, err := log.Head(ctx)
+	if err := setup.Err(); err != nil {
+		return nil, err
+	}
+	head, err := log.Head(setup)
+	if err == nil {
+		err = setup.Err()
+	}
 	if err != nil || head > maxRecordSequence {
-		cancel()
 		if err == nil {
 			err = ErrRecordSequence
 		}
 		return nil, err
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	w := &RecordedWire{target: target, log: log, options: options, ctx: ctx, cancel: cancel, queue: make(chan recordCommand, options.MaxQueuedMessages), head: head, followers: map[*Follower]struct{}{}}
 	go w.run()
 	return w, nil

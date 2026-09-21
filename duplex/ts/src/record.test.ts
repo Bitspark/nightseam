@@ -106,6 +106,23 @@ class BrokenSequenceLog extends MemoryWireLog {
     return { ...(await super.read(at, signal)), sequence: at + 1 };
   }
 }
+test('setup can be cancelled before taking ownership of its target', async () => {
+  const entered = deferred();
+  class HeldHead extends MemoryWireLog {
+    override async head(signal: AbortSignal): Promise<number> {
+      entered.resolve();
+      return new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+    }
+  }
+  const setup = new AbortController();
+  const target = new Target();
+  const pending = record(target, new HeldHead(), {}, setup.signal);
+  await entered.promise;
+  setup.abort();
+  await assert.rejects(pending, (error) => error === setup.signal.reason);
+  assert.equal(target.closed, false);
+  target.send([], message(1));
+});
 for (const mode of ['append', 'sequence', 'target'])
   test(`recorder ${mode} failure ends only its carrier and permits reentrant close observation`, async () => {
     const sentinel = new Error('consumer failure');

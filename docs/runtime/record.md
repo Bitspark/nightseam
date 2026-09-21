@@ -8,7 +8,7 @@ The composition interprets neither payloads nor profile correlation.
 
 ```go
 log := duplex.NewMemoryWireLog()
-recorded, err := duplex.Record(target, log, duplex.RecordOptions{
+recorded, err := duplex.Record(ctx, target, log, duplex.RecordOptions{
     MaxQueuedMessages: 64,
 })
 if err != nil { return err }
@@ -22,7 +22,7 @@ defer follower.Close()
 
 ```ts
 const log = new MemoryWireLog();
-const recorded = await record(target, log, { maxQueuedMessages: 64 });
+const recorded = await record(target, log, { maxQueuedMessages: 64 }, setupSignal);
 const follower = await recorded.follow(after, subscriber, signal);
 // follower.head is the replay boundary. follower.done always resolves after
 // cleanup; follower.error reports a failure. follower.close() is idempotent.
@@ -40,7 +40,9 @@ The recorder has one append worker. `Send` validates the path and admits work
 without calling storage or a destination on the sender's stack. A successful
 send promises admission, not append completion, delivery or an application
 effect. `Head(ctx)` / `head(signal?)` fences earlier admitted appends. Setup
-reads the store's initial head; the constructor may wait for that read.
+reads the store's initial head under the supplied setup context or optional
+TypeScript signal; cancellation ends that read without taking ownership of
+the target. The setup lifetime does not become the recorder's lifetime.
 
 Taking a follower's head and registering its live handoff are one command in
 the append worker's order. The follower reads `(after, head]` on its own worker,

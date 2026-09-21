@@ -78,11 +78,18 @@ export interface Follower {
  * Messages must remain immutable after admission. This function never infers
  * ownership or translates references inside opaque frames.
  */
-export async function record(target: Wire, log: WireLog, options: RecordOptions = {}): Promise<RecordedWire> {
+export async function record(
+  target: Wire,
+  log: WireLog,
+  options: RecordOptions = {},
+  signal?: AbortSignal,
+): Promise<RecordedWire> {
   const bound = options.maxQueuedMessages ?? 64;
   if (!Number.isSafeInteger(bound) || bound < 1) throw new Error('Record queue bound must be a positive safe integer.');
   const life = new AbortController();
-  let head = await log.head(life.signal);
+  signal?.throwIfAborted();
+  let head = await log.head(signal ?? life.signal);
+  signal?.throwIfAborted();
   if (!sequence(head)) throw new RecordError('sequence');
   const queue: Command[] = [];
   const followers = new Set<Following>();

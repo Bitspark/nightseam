@@ -76,7 +76,7 @@ func TestRecordedWireStorageAndTargetFailures(t *testing.T) {
 			}
 			ended := make(chan error, 1)
 			var w *duplex.RecordedWire
-			w, err := duplex.Record(target, store, duplex.RecordOptions{OnClose: func(err error) {
+			w, err := duplex.Record(ctx, target, store, duplex.RecordOptions{OnClose: func(err error) {
 				_ = w.Close(1000, "reentrant")
 				_, headErr := w.Head(ctx)
 				if !errors.Is(headErr, duplex.ErrClosed) {
@@ -119,7 +119,7 @@ func TestRecordedWireStorageAndTargetFailures(t *testing.T) {
 			if mode == "sequence" {
 				store = &brokenSequenceLog{MemoryWireLog: memory}
 			}
-			w, err := duplex.Record(newRecordTarget(), store, duplex.RecordOptions{})
+			w, err := duplex.Record(ctx, newRecordTarget(), store, duplex.RecordOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -185,6 +185,33 @@ type heldLog struct {
 func newHeldLog() *heldLog {
 	return &heldLog{MemoryWireLog: duplex.NewMemoryWireLog(), entered: make(chan struct{}), release: make(chan struct{})}
 }
+
+type heldHeadLog struct {
+	*duplex.MemoryWireLog
+	entered chan struct{}
+}
+
+func (l *heldHeadLog) Head(ctx context.Context) (uint64, error) {
+	close(l.entered)
+	<-ctx.Done()
+	return 0, ctx.Err()
+}
+func TestRecordedWireSetupCanBeCancelled(t *testing.T) {
+	ctx := recordContext(t)
+	setup, cancel := context.WithCancel(ctx)
+	store := &heldHeadLog{MemoryWireLog: duplex.NewMemoryWireLog(), entered: make(chan struct{})}
+	target := newRecordTarget()
+	done := make(chan error, 1)
+	go func() { _, err := duplex.Record(setup, target, store, duplex.RecordOptions{}); done <- err }()
+	recordWait(t, ctx, store.entered)
+	cancel()
+	if err := recordWait(t, ctx, done); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	if err := target.Send(nil, recordMessage(1)); err != nil {
+		t.Fatal("failed setup took ownership of target", err)
+	}
+}
 func (l *heldLog) hold(ctx context.Context) error {
 	l.once.Do(func() { close(l.entered) })
 	select {
@@ -232,7 +259,7 @@ func TestRecordedWireHeadAndHandoff(t *testing.T) {
 			ctx := recordContext(t)
 			store := newHeldLog()
 			original := newRecordTarget()
-			w, err := duplex.Record(original, store, duplex.RecordOptions{MaxQueuedMessages: 8})
+			w, err := duplex.Record(ctx, original, store, duplex.RecordOptions{MaxQueuedMessages: 8})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -291,7 +318,7 @@ func TestRecordedWireStalledFollowerIsIsolated(t *testing.T) {
 	ctx := recordContext(t)
 	store := newHeldLog()
 	original := newRecordTarget()
-	w, err := duplex.Record(original, store, duplex.RecordOptions{MaxQueuedMessages: 2})
+	w, err := duplex.Record(ctx, original, store, duplex.RecordOptions{MaxQueuedMessages: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +362,7 @@ func TestRecordedWireSlowStorageBoundsAdmission(t *testing.T) {
 	store.holdAppend = true
 	target := newRecordTarget()
 	ended := make(chan error, 1)
-	w, err := duplex.Record(target, store, duplex.RecordOptions{MaxQueuedMessages: 2, OnClose: func(err error) { ended <- err }})
+	w, err := duplex.Record(ctx, target, store, duplex.RecordOptions{MaxQueuedMessages: 2, OnClose: func(err error) { ended <- err }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +384,7 @@ func TestRecordedWireCursorCancellationAndCapabilities(t *testing.T) {
 	ctx := recordContext(t)
 	store := duplex.NewMemoryWireLog()
 	target := newRecordTarget()
-	w, err := duplex.Record(target, store, duplex.RecordOptions{})
+	w, err := duplex.Record(ctx, target, store, duplex.RecordOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
