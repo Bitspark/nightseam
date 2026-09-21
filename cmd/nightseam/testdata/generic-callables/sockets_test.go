@@ -293,6 +293,22 @@ func (s *socketSession) controls(peer *runtime.Peer) error {
 			if revision, err := access.Methods.Replace(ctx, cell.Put[factory]{Value: first}); err != nil || revision != 3 {
 				return nil, fmt.Errorf("roundtrip replace: %d %v", revision, err)
 			}
+			roundtrip, err := access.Methods.Get(ctx)
+			if err != nil {
+				return nil, err
+			}
+			three, err := roundtrip(ctx, guarded(20))
+			if err != nil {
+				return nil, err
+			}
+			if n, err := three(ctx, 21); err != nil || n != 124 {
+				return nil, fmt.Errorf("roundtrip callable: %d %v", n, err)
+			}
+			_, err = three(ctx, 19)
+			var public *runtime.PublicError
+			if !errors.As(err, &public) || public.Code != "denied" {
+				return nil, fmt.Errorf("roundtrip lost guard: %v", err)
+			}
 			if n, err := one(ctx, 5); err != nil || n != 108 {
 				return nil, fmt.Errorf("replacement invalidated returned callable: %d %v", n, err)
 			}
@@ -322,6 +338,18 @@ func TestGenericCallableSocketRoles(t *testing.T) {
 	// Function application. These objects are reused by every physical scope.
 	number := runtime.JSONAdapter[int64]()
 	unaryAdapter := functions.AdapterFunction(number, number)
+	closedAdapter := functions.AdapterIntFunction()
+	composedIdentity, err := runtime.CallableIdentity(unaryAdapter.Binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	closedIdentity, err := runtime.CallableIdentity(closedAdapter.Binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if composedIdentity != closedIdentity {
+		t.Fatalf("source alias and runtime application differ: %+v %+v", closedIdentity, composedIdentity)
+	}
 	factoryAdapter := functions.AdapterFunction(unaryAdapter, unaryAdapter)
 	bundleAdapter := functions.AdapterBundle(unaryAdapter)
 	for _, role := range []string{"go-server", "typescript-server"} {
@@ -334,7 +362,7 @@ func TestGenericCallableSocketRoles(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					s := &socketSession{scope: scope, unary: unaryAdapter, bundle: bundleAdapter}
+					s := &socketSession{scope: scope, unary: closedAdapter, bundle: bundleAdapter}
 					if err := s.controls(peer); err != nil {
 						return err
 					}

@@ -40,7 +40,7 @@ function memoryCell<T>() {
   };
   const model: cell.ServerModel<T> = () => ({ methods: {
     replace(input, context) { retain(context); value = input.value; return ++revision; },
-    get(context) { retain(context); return value; },
+    get(_params, context) { retain(context); return value; },
   }, events: {} });
   return { model, drop() { for (const owner of owners.splice(0)) owner.release(); } };
 }
@@ -84,9 +84,9 @@ async function generatedCalls(c: Connection): Promise<void> {
     const call = () => ({ ...options(), valueContext: owner });
     const invoke = () => ({ ...options(), owner });
     assert.equal(await access.methods.replace({ value: makeFactory(100) }, call()), 1);
-    const first = await access.methods.get(call());
+    const first = await access.methods.get({}, call());
     assert.equal(await access.methods.replace({ value: makeFactory(200) }, call()), 2);
-    const second = await access.methods.get(call());
+    const second = await access.methods.get({}, call());
     const one = await first(guarded(0), invoke());
     const two = await second(guarded(10), invoke());
     // Both factory calls have returned. The returned functions still import
@@ -97,7 +97,7 @@ async function generatedCalls(c: Connection): Promise<void> {
     await assert.rejects(() => two(5, invoke()), { code: 'denied' });
     assert.equal(await one(5, invoke()), 108);
     assert.equal(await access.methods.replace({ value: first }, call()), 3);
-    const roundtrip = await access.methods.get(call());
+    const roundtrip = await access.methods.get({}, call());
     const three = await roundtrip(guarded(20), invoke());
     assert.equal(await three(21, invoke()), 124);
     await assert.rejects(() => three(19, invoke()), { code: 'denied' });
@@ -176,11 +176,13 @@ async function rollback(c: Connection): Promise<void> {
   assert.deepEqual(failed.counts(), empty, 'partial import kept fresh attachments');
   assert.deepEqual(receiver.counts(), { exports: 0, imports: 3 }, 'partial import released borrowed attachments');
   assert.equal(await retained.borrowed(1, options()), 401);
+  await assert.rejects(() => retained.borrowed(-1, options()), { code: 'denied' });
   const before = c.scope.counts();
   assert.throws(() => exportValue(c, failed, bundle, { borrowed: retained.borrowed, fresh: [guarded(0), undefined as unknown as Unary] }));
   assert.deepEqual(failed.counts(), empty, 'partial export kept fresh bindings');
   assert.deepEqual(c.scope.counts(), before);
   assert.equal(await retained.borrowed(1, options()), 401);
+  await assert.rejects(() => retained.borrowed(-1, options()), { code: 'denied' });
   assert.deepEqual(await c.peer.call('test.bad_export', {}, options()), { seen: 201, counts: { exports: 5, imports: 3 } });
   assert.deepEqual(c.scope.counts(), { exports: 5, imports: 3 });
   assert.deepEqual(await c.peer.call('test.counts', {}, options()), { exports: 5, imports: 3 });
