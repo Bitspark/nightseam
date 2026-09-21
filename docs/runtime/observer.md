@@ -189,6 +189,16 @@ the layers tell — frames, backpressure, a handler that gave up, the tunnel's
 channels and the live layer's bindings — is a span event on the span it
 belongs to.
 
+A frame belongs to the unique open request its id names, or to the connection
+when that id is absent, unknown, finished or ambiguous between directions.
+Other runtime and layer events belong to the connection alone; they are never
+copied onto every request in flight. Without an enclosing span, an annotation
+is dropped. Application event spans still exist without a connection, parented
+by the frame trace. The adapters use the consumer's tracer and sampler. The
+[shared event sequences](../../conformance/tables/otel-events.json) hold this
+topology, its timestamps, trace parents and idle-connection behavior in both
+languages.
+
 What reaches a backend is what the events carry and no more: a field that is
 a name, a count, a flag, a duration or a trace becomes an attribute and a
 field of any other kind is dropped rather than rendered, so an event of a
