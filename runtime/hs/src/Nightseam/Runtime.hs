@@ -239,7 +239,7 @@ writeLoop peer = forever $ do
 readLoop :: Peer -> IO ()
 readLoop peer = forever $ do
   frame <- receiveFrame (pConnection peer)
-  when (frameKind frame /= TextFrame) (finish peer (CloseError 1003 "text frames required") >> throwIO (CloseError 1003 "text frames required"))
+  when (frameKind frame /= TextFrame) (finish peer (CloseError 4011 "text frames required") >> throwIO (CloseError 4011 "text frames required"))
   when (B.length (frameData frame) > maxFrameBytes (pOptions peer)) (finish peer (CloseError 1009 "frame too large") >> throwIO (CloseError 1009 "frame too large"))
   value <- case decodeFrame (if pRole peer == Client then "client" else "server") (frameData frame) of
     Left reason -> finish peer (CloseError 4011 reason) >> throwIO (CloseError 4011 reason)
