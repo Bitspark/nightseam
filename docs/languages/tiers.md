@@ -135,8 +135,17 @@ test holds this rule at every tier, including a missing required generated
 server role. The release script independently applies the same rule to the
 matrix's cells; a stored `ok` verdict cannot hide missing coverage.
 
+The CI star and release gate agree: only a nonempty `Matrix.Blocking` fails
+the star. A tier-3/4 required-profile failure or skip stays provisional, and
+a tier-2 failure outside `core`/`generator` stays nonblocking for this release.
+Each remains visible in the matrix and the CI job summary, beside its counts
+and disposition. Scenario diagnostics stay in the test log. Setup, toolchain
+and testee startup failures still fail the job. The nightly full matrix fails
+on every failed scenario and every required-profile skip, regardless of tier.
+
 The release workflow refuses a tag whose matrix has a cell that the tier
 table says stops the release, and marks the languages that the table says
 are provisional in the release notes. The matrix of the last run on `main`
-is rendered into the README, and a table that drifted from
-`conformance/matrix.json` fails the pull request that drifted it.
+is rendered into the README. CI checks the committed table against the committed
+`conformance/matrix.json` before running conformance; the new run's matrix and
+provisional cells are published separately as its artifact and job summary.

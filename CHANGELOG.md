@@ -260,6 +260,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- The CI conformance star follows the language tiers' blocking verdicts and
+  reports provisional cells in its matrix and job summary; nightly remains
+  strict about every red cell.
+
 - Callable documentation separates named declarations from nominal wire
   identity and states the limits of native function assignment and contract
   evolution, held by compiled Go and TypeScript boundary examples.

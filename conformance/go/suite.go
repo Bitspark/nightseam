@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -40,6 +41,11 @@ func WriteMatrix() error {
 		return nil
 	}
 	fmt.Fprintf(os.Stderr, "the matrix of this run:\n%s", matrix)
+	if file := os.Getenv("NIGHTSEAM_MATRIX_SUMMARY"); file != "" {
+		if err := writeSummary(file, matrix, matrixProfiles); err != nil {
+			return err
+		}
+	}
 	if missing := matrix.Missing(matrixLanguages); len(missing) > 0 {
 		fmt.Fprintf(os.Stderr, "not written to matrix.json: the run did not hold %s\n", strings.Join(missing, ", "))
 		return nil
@@ -64,6 +70,8 @@ type Suite struct {
 	places  Places
 	// rendered is where each language's probe rendering lies, once prepared.
 	rendered map[string]string
+	// strict keeps nightly's per-scenario failures independent of tiers.
+	strict bool
 }
 
 // Open reads the scenarios and the recipes of the checkout, holds every
@@ -259,17 +267,40 @@ func (s *Suite) one(t *testing.T, ctx context.Context, sc Scenario, a, b string,
 			if a == "go" && b != "go" {
 				held = b
 			}
-			s.Matrix.Record(held, s.Placed[sc.Key()], outcome)
-			if s.Observe != nil {
-				s.Observe(sc, a, b, outcome)
-			}
-			if outcome.Skipped != "" {
-				t.Skip(outcome.Skipped)
-			}
-			if outcome.Failed != nil {
-				t.Fatalf("%s (a: %s, b: %s)\n%v", sc.File, a, b, outcome.Failed)
-			}
+			s.reportOutcome(t, sc, a, b, held, outcome)
 		})
+	}
+}
+
+type scenarioReporter interface {
+	Helper()
+	Skip(...any)
+	Fatalf(string, ...any)
+	Logf(string, ...any)
+}
+
+func (s *Suite) reportOutcome(t scenarioReporter, sc Scenario, a, b, held string, outcome Outcome) {
+	t.Helper()
+	s.Matrix.Record(held, s.Placed[sc.Key()], outcome)
+	if s.Observe != nil {
+		s.Observe(sc, a, b, outcome)
+	}
+	if outcome.Skipped != "" {
+		profile := s.Placed[sc.Key()]
+		tier := s.Profiles.Tiers[fmt.Sprint(s.Profiles.Languages[held].Tier)]
+		if s.strict && slices.Contains(tier.Requires, profile) {
+			t.Fatalf("%s: required %s/%s scenario skipped: %s", sc.File, held, profile, outcome.Skipped)
+			return
+		}
+		t.Skip(outcome.Skipped)
+		return
+	}
+	if outcome.Failed != nil {
+		if s.strict || slices.Contains(s.Matrix.Blocking(s.Profiles), held) {
+			t.Fatalf("%s (a: %s, b: %s)\n%v", sc.File, a, b, outcome.Failed)
+		} else {
+			t.Logf("nonblocking %s/%s failure: %s (a: %s, b: %s)\n%v", held, s.Placed[sc.Key()], sc.File, a, b, outcome.Failed)
+		}
 	}
 }
 
