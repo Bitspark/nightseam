@@ -1,0 +1,21 @@
+plugins { id 'java' }
+
+allprojects {
+    group = 'io.nightseam'
+    version = '0.6.0-SNAPSHOT'
+    apply plugin: 'java-library'
+    java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+    tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+}
+project(':runtime') { dependencies { api project(':duplex') } }
+subprojects {
+    tasks.named('jar') {
+        archiveBaseName = "nightseam-${project.name}"
+        from(rootProject.file('../../LICENSE'))
+    }
+}
+dependencies { implementation project(':runtime') }
+tasks.register('nativeCheck', Exec) {
+    commandLine 'node', 'build.mjs', layout.buildDirectory.dir('native').get().asFile.absolutePath, '--test'
+}
+tasks.named('check') { dependsOn 'nativeCheck' }

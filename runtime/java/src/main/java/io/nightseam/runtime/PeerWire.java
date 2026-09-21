@@ -255,13 +255,19 @@ final class PeerWire implements Wire {
             throw new IllegalArgumentException("a peer receiver needs a callback and operation path or namespace");
         var route = new Route(List.copyOf(path), receiver.namespace());
         var registration = new Registration(route.path(), receiver);
-        synchronized (lock) {
+        synchronized (peer) { synchronized (lock) {
             requireOpen();
             if (!receiver.namespace() && peer.hasHandlerOrEvent(name))
                 throw new IllegalStateException("wire operation already has a raw handler");
             if (receivers.putIfAbsent(route, registration) != null) throw new IllegalStateException("wire receiver already registered");
-        }
+        } }
         return () -> { synchronized (lock) { receivers.remove(route, registration); } };
+    }
+
+    boolean hasExactReceiver(String name) {
+        List<String> decoded=path(name);
+        if(decoded==null) return false;
+        synchronized(lock) { return receivers.containsKey(new Route(decoded,false)); }
     }
 
     private Registration match(List<String> path) {
@@ -398,7 +404,7 @@ final class PeerWire implements Wire {
         ending(new CloseInfo(1006, ""));
         Thread.ofVirtual().name("nightseam-peer-wire-failure").start(() -> {
             if (pressure && options.observer() != null) {
-                try { options.observer().accept(Map.of("type", "backpressure", "queued", depth, "stalled", true, "deadline", true)); }
+                try { options.observer().accept(Map.of("type", "backpressure", "queued", depth, "stalled", true, "deadline", options.writeTimeout().toNanos())); }
                 catch (RuntimeException ignored) { }
             }
             peer.fail();

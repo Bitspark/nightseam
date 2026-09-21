@@ -29,6 +29,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Java 21 joins at tier 4 with native framed connections, bounded pipes and
+  WebSockets, a symmetric peer, exact JSON/schema validation, relative-path
+  Wires and declaration identity. The shared core suite holds both Java/Go
+  roles; native tests and an isolated jar consumer hold the artifacts.
 - Generated Go and TypeScript families expose the canonical declaration and its
   SHA-256 digest, covering operations, events, errors and reachable imported
   declarations. Bound arguments retain their own declaration content and scope.

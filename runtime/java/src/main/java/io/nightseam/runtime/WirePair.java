@@ -115,7 +115,7 @@ public final class WirePair implements AutoCloseable {
                     if (dataQueued >= options.queueCapacity()) {
                         // Carrier callbacks occur asynchronously outside this lock.
                         end(4011, "local wire queue limit reached",
-                            Map.of("type", "backpressure", "queued", dataQueued, "stalled", true, "deadline", true));
+                            Map.of("type", "backpressure", "queued", dataQueued, "stalled", true, "deadline", options.writeTimeout().toNanos()));
                         throw new IllegalStateException("local wire backpressure");
                     }
                     dataQueued++;
@@ -216,7 +216,7 @@ public final class WirePair implements AutoCloseable {
                             depth = dataQueued;
                         }
                         end(4011, "local wire event consumer stalled",
-                            Map.of("type", "backpressure", "queued", depth, "stalled", true, "deadline", true));
+                            Map.of("type", "backpressure", "queued", depth, "stalled", true, "deadline", options.writeTimeout().toNanos()));
                     }, options.writeTimeout().toNanos(), TimeUnit.NANOSECONDS);
                 }
             }

@@ -228,7 +228,7 @@ public final class WirePairTest {
                     check(take(closed) == 4011, "stalled/overflow carrier close code");
                     var pressure = take(observed);
                     check(pressure.get("type").equals("backpressure") && pressure.get("stalled").equals(true)
-                        && pressure.get("deadline").equals(true), "missing backpressure observation");
+                        && pressure.get("deadline").equals(configured.writeTimeout().toNanos()), "missing backpressure observation");
                     check(take(observed).get("type").equals("connection.closed"), "pressure must precede closure");
                     fails(() -> pair.left().send(List.of("hold"), event(4)));
                 } finally { release.countDown(); }
