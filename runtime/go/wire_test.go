@@ -6,14 +6,175 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Bitspark/nightseam/duplex/go"
 	ws "github.com/Bitspark/nightseam/runtime/go"
 )
 
 type wireReplySink struct{ replies chan duplex.ProfileFrame }
+
+func TestReceiverDeadlineWinsImmediateHandlerRefusal(t *testing.T) {
+	previous := runtime.GOMAXPROCS(4)
+	t.Cleanup(func() { runtime.GOMAXPROCS(previous) })
+	ended := make(chan ws.RequestEnded, 1)
+	client, server := newPair(t, ws.Options{RequestTimeout: 100 * time.Microsecond, Observer: observerFunc(func(event ws.ObserverEvent) {
+		if e, ok := event.(ws.RequestEnded); ok && e.Incoming {
+			ended <- e
+		}
+	})}, ws.Options{})
+	if err := server.Handle("deadline", func(ctx context.Context, _ *ws.Peer, _ json.RawMessage) (any, error) {
+		<-ctx.Done()
+		return nil, &ws.PublicError{Code: "declined", Message: "Body completed at deadline"}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Exercise the real timer/body race: completion can run before the
+	// asynchronous deadline callback, but the deadline is already selected.
+	for i := range 1024 {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := client.Call(ctx, "deadline", nil, nil)
+		cancel()
+		var public *ws.PublicError
+		if !errors.As(err, &public) || public.Code != "cancelled" {
+			t.Fatalf("call %d deadline response = %v", i, err)
+		}
+		if e := receive(t, ended); e.Outcome != ws.OutcomeTimedOut || e.ErrorCode != "request_timeout" {
+			t.Fatalf("call %d deadline outcome = %+v", i, e)
+		}
+	}
+}
+
+func TestWireCancellationRetainsExecutingHandlerBudget(t *testing.T) {
+	for _, mode := range []string{"cancel", "caller-deadline", "receiver-deadline", "public-refusal"} {
+		for _, route := range []string{"wire", "forwarded", "peer"} {
+			t.Run(mode+"/"+route, func(t *testing.T) {
+				ended := make(chan ws.RequestEnded, 16)
+				options := ws.Options{MaxConcurrentHandlers: 1, Observer: observerFunc(func(event ws.ObserverEvent) {
+					if e, ok := event.(ws.RequestEnded); ok && e.Incoming {
+						ended <- e
+					}
+				})}
+				if mode == "receiver-deadline" {
+					options.RequestTimeout = 100 * time.Millisecond
+				}
+				client, server := newPair(t, options, ws.Options{})
+				entered, cancelled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
+				var released sync.Once
+				t.Cleanup(func() { released.Do(func() { close(release) }) })
+				var calls atomic.Int32
+				handler := func(ctx context.Context, _ json.RawMessage) (any, error) {
+					if calls.Add(1) == 1 {
+						close(entered)
+						<-ctx.Done()
+						close(cancelled)
+						<-release
+						if mode == "public-refusal" {
+							return nil, &ws.PublicError{Code: "cancelled", Message: "Application refusal"}
+						}
+					}
+					return "finished", nil
+				}
+				var err error
+				call := func(ctx context.Context) error { return ws.CallWire(ctx, client.Wire(), []string{"hold"}, nil, nil) }
+				if route == "peer" {
+					err = server.Handle("hold", func(ctx context.Context, _ *ws.Peer, params json.RawMessage) (any, error) {
+						return handler(ctx, params)
+					})
+					call = func(ctx context.Context) error { return client.Call(ctx, "hold", nil, nil) }
+				} else {
+					model := server.Wire()
+					if route == "forwarded" {
+						left, right, pairErr := ws.NewWirePair(ws.Options{})
+						if pairErr != nil {
+							t.Fatal(pairErr)
+						}
+						t.Cleanup(func() { _ = left.Close(duplex.CodeNormal, "") })
+						stop, forwardErr := ws.ForwardWire(server.Wire(), left)
+						if forwardErr != nil {
+							t.Fatal(forwardErr)
+						}
+						t.Cleanup(stop)
+						model = right
+					}
+					_, err = ws.HandleWire(model, []string{"hold"}, handler)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx, cancel := context.WithCancel(context.Background())
+				if mode == "caller-deadline" {
+					cancel()
+					ctx, cancel = context.WithTimeout(context.Background(), 100*time.Millisecond)
+				}
+				defer cancel()
+				result := make(chan error, 1)
+				go func() { result <- call(ctx) }()
+				receive(t, entered)
+				if mode == "cancel" || mode == "public-refusal" {
+					cancel()
+				}
+				if mode == "receiver-deadline" {
+					var public *ws.PublicError
+					if err := receive(t, result); !errors.As(err, &public) || public.Code != "cancelled" {
+						t.Fatalf("receiver deadline = %v", err)
+					}
+				} else {
+					if err := receive(t, result); !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+						t.Fatalf("caller cancellation = %v", err)
+					}
+				}
+				receive(t, cancelled)
+				if mode == "receiver-deadline" {
+					if e := receive(t, ended); e.Outcome != ws.OutcomeTimedOut || e.ErrorCode != "request_timeout" {
+						t.Fatalf("receiver deadline outcome = %+v", e)
+					}
+				}
+				// Repeated round trips keep exercising admission while the first body
+				// is explicitly held, independent of when its wrapper is scheduled.
+				for range 10 {
+					err := call(context.Background())
+					var public *ws.PublicError
+					if !errors.As(err, &public) || public.Code != "busy" {
+						t.Fatalf("request admitted while cancelled body still runs: calls=%d, err=%v", calls.Load(), err)
+					}
+					if e := receive(t, ended); e.ErrorCode != "busy" {
+						t.Fatalf("held request ended before its body returned: %+v", e)
+					}
+				}
+				if calls.Load() != 1 {
+					t.Fatalf("executed %d bodies at a limit of one", calls.Load())
+				}
+				released.Do(func() { close(release) })
+				if mode != "receiver-deadline" {
+					outcome := ws.OutcomeCancelled
+					if mode == "public-refusal" {
+						outcome = ws.OutcomeErrored
+					}
+					if e := receive(t, ended); e.Outcome != outcome || e.ErrorCode != "cancelled" {
+						t.Fatalf("withdrawal outcome = %+v", e)
+					}
+				}
+				ready, stop := context.WithTimeout(context.Background(), 5*time.Second)
+				defer stop()
+				for {
+					err := call(ready)
+					if err == nil {
+						break
+					}
+					var public *ws.PublicError
+					if !errors.As(err, &public) || public.Code != "busy" {
+						t.Fatal(err)
+					}
+				}
+			})
+		}
+	}
+}
 
 type wireVerifiedKey struct{}
 type wireContextPropagator struct{ ws.Propagator }
