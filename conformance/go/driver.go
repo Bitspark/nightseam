@@ -135,7 +135,7 @@ func (r Recipe) RunBuild(ctx context.Context, p Places, generated bool) error {
 	}
 	for _, c := range commands {
 		cmd := r.command(ctx, c, p)
-		if output, err := cmd.CombinedOutput(); err != nil {
+		if output, err := runBuildCommand(ctx, cmd); err != nil {
 			return fmt.Errorf("%s: %v: %v\n%s", r.Language, cmd.Args, err, output)
 		}
 	}
