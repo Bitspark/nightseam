@@ -23,14 +23,16 @@ const tag = "v" + JSON.parse(readFileSync(join(root, "runtime/ts/package.json"),
 // than read from conformance/matrix.json so that what the gate is given is
 // the fixture and nothing else: the file on disk is the artifact of whatever
 // run last touched the checkout, and a gate's test that moves with it holds
-// the gate to nothing.
-const profiles = ["core", "generator", "live", "observability", "tunnel"];
+// the gate to nothing. Derive only the inventory and tier assignments from
+// the declaration, so a new testee does not turn every fixture into a
+// missing-language refusal. Every cell is deliberately green, including
+// optional profiles: each test then introduces exactly its named defect.
+const declaration = JSON.parse(readFileSync(join(root, "conformance/profiles.json"), "utf8"));
+const profiles = Object.keys(declaration.profiles).sort();
+const greenRow = tier => ({ tier, verdict: "ok", cells: Object.fromEntries(profiles.map(name => [name, { passed: 4, skipped: 0, failed: 0 }])) });
 const green = {
   profiles,
-  languages: {
-    go: { tier: 1, verdict: "ok", cells: Object.fromEntries(profiles.map(name => [name, { passed: 4, skipped: 0, failed: 0 }])) },
-    typescript: { tier: 1, verdict: "ok", cells: Object.fromEntries(profiles.map(name => [name, { passed: 4, skipped: 0, failed: 0 }])) },
-  },
+  languages: Object.fromEntries(Object.entries(declaration.languages).map(([language, { tier }]) => [language, greenRow(tier)])),
 };
 
 const write = (name, matrix) => {
@@ -41,7 +43,7 @@ const write = (name, matrix) => {
 
 /** A matrix file with one cell of one language made red. */
 function withFailure(name, language, tier, profile) {
-  const row = green.languages[language] ?? { tier, cells: Object.fromEntries(profiles.map(p => [p, { passed: 4, skipped: 0, failed: 0 }])) };
+  const row = green.languages[language] ?? greenRow(tier);
   const languages = { ...green.languages, [language]: { ...row, tier, cells: { ...row.cells, [profile]: { passed: 1, skipped: 0, failed: 2 } } } };
   return write(name, { ...green, languages });
 }
@@ -118,7 +120,8 @@ test("a tier 2 language failing outside what it guarantees spends its lag, and t
 });
 
 test("a matrix with a language missing refuses the tag, since a filtered run writes one", () => {
-  const partial = write("partial.json", { ...green, languages: { typescript: green.languages.typescript } });
+  const { go, ...languages } = green.languages;
+  const partial = write("partial.json", { ...green, languages });
   const { code, out } = prepare("--matrix", partial, "--no-previous");
   assert.equal(code, 1);
   assert.match(out, /has no row for go, which profiles\.json places at a tier/);
