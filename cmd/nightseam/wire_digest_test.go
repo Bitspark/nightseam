@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"strconv"
@@ -15,13 +17,13 @@ import (
 	"github.com/Bitspark/nightseam/internal/targets/typescript"
 )
 
-func TestGeneratedWireDigestsAgreeWithTheDescriptorTable(t *testing.T) {
+func TestGeneratedWireDescriptorsKeepTheirBytesWithDeclarationDigests(t *testing.T) {
 	data, err := os.ReadFile("../../conformance/tables/digests.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var table struct {
-		Cases []struct{ Name, Declaration, Wire, Digest string }
+		Cases []struct{ Name, Declaration, Wire, Canonical, Digest string }
 	}
 	if err := json.Unmarshal(data, &table); err != nil {
 		t.Fatal(err)
@@ -41,6 +43,15 @@ func TestGeneratedWireDigestsAgreeWithTheDescriptorTable(t *testing.T) {
 			}
 			world := analysis.World(modeltest.World(map[string]map[string]string{"same": sources}))
 			family := render.Build(analysis.Resolve(world, "same"))
+			digest := sha256.Sum256([]byte(family.Declaration))
+			wantDigest := hex.EncodeToString(digest[:])
+			if family.Declaration != row.Canonical || wantDigest != row.Digest {
+				t.Fatalf("generated canonical declaration or digest differs from the shared table: declaration %q, digest %q", family.Declaration, wantDigest)
+			}
+			declarationJSON, err := json.Marshal(family.Declaration)
+			if err != nil {
+				t.Fatal(err)
+			}
 			for _, target := range []spi.Target{golang.New(golang.Config{Module: "example.test/m"}), typescript.New(typescript.Config{Scope: "@example"})} {
 				files, err := target.Render(family)
 				if err != nil {
@@ -54,11 +65,14 @@ func TestGeneratedWireDigestsAgreeWithTheDescriptorTable(t *testing.T) {
 				if target.Name() == "go" {
 					checks = map[string][]string{"api/go/same-protocol/validation_generated.go": {
 						"MustSchema(" + strconv.Quote(row.Wire) + ", WireDigest(),",
-						`func WireDigest() string { return "` + row.Digest + `" }`,
+						"}).MustWithDeclaration(WireDeclaration())",
+						"func WireDeclaration() string {",
+						"return " + strconv.Quote(family.Declaration),
+						`func WireDigest() string { return "` + wantDigest + `" }`,
 					}}
 				} else {
 					checks = map[string][]string{
-						"api/ts/same-client/src/types.ts": {"const contractTypes = " + row.Wire + " as unknown as WireFamily;", `export const wireDigest = "` + row.Digest + `";`, "createValidator(contractTypes, wireDigest,"},
+						"api/ts/same-client/src/types.ts": {"const contractTypes = " + row.Wire + " as unknown as WireFamily;", "export const wireDeclaration = " + string(declarationJSON) + ";", `export const wireDigest = "` + wantDigest + `";`, "createValidator(contractTypes, wireDigest,"},
 						"api/ts/same-client/src/index.ts": {"export * from './types.ts';"},
 					}
 				}
@@ -107,9 +121,12 @@ func TestGeneratedWireDigestNamesAreReserved(t *testing.T) {
 		name   string
 	}{
 		{golang.New(golang.Config{Module: "example.test/m"}), "WireDigest"},
+		{golang.New(golang.Config{Module: "example.test/m"}), "WireDeclaration"},
 		{typescript.New(typescript.Config{Scope: "@example"}), "wireDigest"},
+		{typescript.New(typescript.Config{Scope: "@example"}), "wireDeclaration"},
+		{typescript.New(typescript.Config{Scope: "@example"}), "withDeclaration"},
 	} {
-		t.Run(row.target.Name(), func(t *testing.T) {
+		t.Run(row.target.Name()+"/"+row.name, func(t *testing.T) {
 			world := analysis.World(modeltest.World(map[string]map[string]string{
 				"same": {"model.json": `{"nightseam":2,"types":{"Payload":{"kind":"record"}}}`, row.target.Name() + ".json": `{"names":{"Payload":"` + row.name + `"}}`},
 			}))

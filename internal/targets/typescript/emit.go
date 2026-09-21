@@ -86,7 +86,7 @@ func (f *file) imports(validators bool) {
 // family's wire description by the runtime.
 func emitTypes(f *file) {
 	p, fam := f.plan, f.family
-	f.linef("import { createValidator, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
+	f.linef("import { createValidator, withDeclaration, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
 	f.linef("export type { %s, %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots)
 	f.imports(true)
 	f.liveImports()
@@ -110,10 +110,12 @@ func emitTypes(f *file) {
 	for _, family := range fam.References {
 		validators = append(validators, quote(family)+": validate_"+alias(family))
 	}
-	f.line("/** The SHA-256 digest of the family's exact wire description. */")
+	f.line("/** The family's canonical wire-visible declaration, including reachable imported contracts. */")
+	f.linef("export const %s = %s;", identWireDeclaration, quote(fam.Declaration))
+	f.linef("/** The SHA-256 digest of the exact UTF-8 bytes of %s. */", identWireDeclaration)
 	f.linef("export const %s = %s;", identWireDigest, quote(fam.WireDigest))
 	f.line("/** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */")
-	f.linef("export const %s = createValidator(contractTypes, %s, { %s });", identValidateWire, identWireDigest, strings.Join(validators, ", "))
+	f.linef("export const %s = withDeclaration(createValidator(contractTypes, %s, { %s }), %s);", identValidateWire, identWireDigest, strings.Join(validators, ", "), identWireDeclaration)
 	f.line("/** This family bound: its name and its validator, to fill a family slot in another family's client. */")
 	f.linef("export const %s = { name: %s, validate: %s } as const;", identFamilyValue, quote(fam.Name), identValidateWire)
 }

@@ -15,37 +15,38 @@ import (
 // so may not see shadowed, which a family may not name: the emitters write
 // these constants and nothing else of their own.
 const (
-	identClient        = "Client"
-	identRemote        = "Remote"
-	identServe         = "serve"
-	identInstall       = "install"
-	identCaller        = "Caller"
-	identHandler       = "Handler"
-	identEvents        = "Events"
-	identFamily        = "Family"
-	identAnyFamily     = "AnyFamily"
-	identFamilyBinding = "FamilyBinding"
-	identTypeBinding   = "TypeBinding"
-	identSlots         = "Slots"
-	identErrorCode     = "ErrorCode"
-	identErrors        = "errors"
-	identFamilyValue   = "family"
-	identValidateWire  = "validateWire"
-	identWireDigest    = "wireDigest"
-	identProtocol      = "Protocol"
-	identPeer          = "peer"
-	identSlotsField    = "slots"
-	identClose         = "close"
-	identConstructor   = "constructor"
-	identThen          = "then"
-	identEmit          = "emit"
-	identOn            = "on"
+	identClient          = "Client"
+	identRemote          = "Remote"
+	identServe           = "serve"
+	identInstall         = "install"
+	identCaller          = "Caller"
+	identHandler         = "Handler"
+	identEvents          = "Events"
+	identFamily          = "Family"
+	identAnyFamily       = "AnyFamily"
+	identFamilyBinding   = "FamilyBinding"
+	identTypeBinding     = "TypeBinding"
+	identSlots           = "Slots"
+	identErrorCode       = "ErrorCode"
+	identErrors          = "errors"
+	identFamilyValue     = "family"
+	identValidateWire    = "validateWire"
+	identWireDigest      = "wireDigest"
+	identWireDeclaration = "wireDeclaration"
+	identProtocol        = "Protocol"
+	identPeer            = "peer"
+	identSlotsField      = "slots"
+	identClose           = "close"
+	identConstructor     = "constructor"
+	identThen            = "then"
+	identEmit            = "emit"
+	identOn              = "on"
 )
 
 // imported are the names the generated module imports from the runtime
 // and the tunnel; globals are the ones of the language it uses. A type of
 // either name would shadow them.
-var imported = []string{"DuplexPeer", "DuplexError", "PeerOptions", "CallOptions", "EmitOptions", "RequestContext", "EventContext", "FrameConnection", "WebSocketLike", "Tunnel", "LiveOwner", "liveOver", "scopeOf", "conversion", "createValidator", "TypeExpression", "WireFamily"}
+var imported = []string{"DuplexPeer", "DuplexError", "PeerOptions", "CallOptions", "EmitOptions", "RequestContext", "EventContext", "FrameConnection", "WebSocketLike", "Tunnel", "LiveOwner", "liveOver", "scopeOf", "conversion", "createValidator", "withDeclaration", "TypeExpression", "WireFamily"}
 var globals = []string{"Array", "Record", "Promise", "Set", "Error", "String"}
 
 // An omitted Events field must be absent on an ordinary {}. Inherited
@@ -60,7 +61,7 @@ var eventObjectMembers = []string{
 // Reserved is every identifier the generated module declares of itself,
 // imports, or uses of the language.
 func Reserved() []string {
-	names := []string{identClient, identRemote, identServe, identInstall, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identWireDigest, identProtocol}
+	names := []string{identClient, identRemote, identServe, identInstall, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identWireDigest, identWireDeclaration, identProtocol}
 	names = append(names, imported...)
 	names = append(names, globals...)
 	names = append(names, identPeer, identSlotsField, identClose, identConstructor, identThen)
@@ -92,7 +93,7 @@ type plan struct {
 
 func newPlan(f *render.Family) (*plan, []diag.Diagnostic) {
 	p := &plan{family: f, module: emit.NewNamespace("module"), client: emit.NewNamespace("client"), remote: emit.NewNamespace("remote"), types: map[string]string{}, operations: map[string]string{}, errors: map[string]string{}, List: diag.List{Family: f.Name}}
-	p.module.Fix("generated declaration", identClient, identRemote, identServe, identInstall, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identWireDigest, identProtocol)
+	p.module.Fix("generated declaration", identClient, identRemote, identServe, identInstall, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identWireDigest, identWireDeclaration, identProtocol)
 	p.module.Fix("generated import", imported...)
 	p.module.Fix("generated use of a global", globals...)
 	p.client.Fix("generated client field", identPeer, identSlotsField)
