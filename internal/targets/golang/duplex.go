@@ -244,8 +244,10 @@ func (f *file) wireRegistration(side string, methods []render.Method, events []r
 						f.wireEvent(e)
 					}
 				}
-				f.linef("off,err:=%s.RegisterWire(wire,[]string{%q},handlers)", rt, name)
-				f.line("if err != nil{return err};detach=append(detach,off)")
+				f.w.Block("if handlers.Request != nil || handlers.Event != nil {", "}", func() {
+					f.linef("off,err:=%s.RegisterWire(wire,[]string{%q},handlers)", rt, name)
+					f.line("if err != nil{return err};detach=append(detach,off)")
+				})
 			})
 		}
 		f.line("complete=true;return nil")
