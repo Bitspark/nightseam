@@ -99,6 +99,7 @@ incomingBudget routed deadline = do
         atomically (readTMVar released)
         pure Null
       cleanup = atomically (void (tryPutTMVar released ())) >> closePeer peer
+      request :: Text -> Text -> IO ()
       request ident method = inject (object ["version" .= (1 :: Int), "kind" .= ("request" :: Text),
         "id" .= ident, "method" .= method, "params" .= Null])
       next = within (atomically (readTQueue sent))
@@ -290,15 +291,20 @@ cancellationAfterDetach = do
     captured <- newTQueueIO
     replacements <- newTQueueIO
     let wire = peerWire peer
-    detach <- wireReceive wire ["op"] (Receiver False (\_ m -> atomically (writeTQueue captured (messageFrame m))) (\_ _ -> pure ()))
+    detach <- wireReceive wire ["op"] (Receiver False (\_ m -> atomically (writeTQueue captured m)) (\_ _ -> pure ()))
     inject (object ["version" .= (1 :: Int), "kind" .= ("request" :: Text), "id" .= ("s:1" :: Text), "method" .= ("2:op" :: Text), "params" .= Null])
     request <- within (atomically (readTQueue captured))
-    assert "request reaches original receiver" (field "kind" request == String "request")
+    assert "request reaches original receiver" (field "kind" (messageFrame request) == String "request")
     detach
     _ <- wireReceive wire ["op"] (Receiver False (\_ m -> atomically (writeTQueue replacements (messageFrame m))) (\_ _ -> pure ()))
     inject (object ["version" .= (1 :: Int), "kind" .= ("cancel" :: Text), "id" .= ("s:1" :: Text)])
     cancelled <- within (atomically (readTQueue captured))
-    assert "cancel retains receiver captured before detach" (field "kind" cancelled == String "cancel")
+    assert "cancel retains receiver captured before detach" (field "kind" (messageFrame cancelled) == String "cancel")
+    premature <- timeout 50000 (atomically (readTQueue sent))
+    assert "detaching does not finish the captured application" (premature == Nothing)
+    address <- maybe (fail "captured request has no return address") pure (messageReturn request)
+    wireSend (returnWire address) [] (Message (object ["version" .= (1 :: Int), "kind" .= ("response" :: Text),
+      "id" .= ("s:1" :: Text), "result" .= Null]) Nothing Nothing)
     response <- within (atomically (readTQueue sent))
     assert "captured cancel completes once" (field "code" (field "error" response) == String "cancelled")
     empty <- atomically (isEmptyTQueue replacements)

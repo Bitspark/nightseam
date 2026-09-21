@@ -406,7 +406,6 @@ incomingRequest :: Peer -> Value -> IO ()
 incomingRequest peer frame = do
   ctx <- fromFrame frame
   let ident = str (get "id" frame)
-      method = str (get "method" frame)
       respond answer = enqueue peer (object (["version" .= (1::Int), "kind" .= ("response"::Text), "id" .= ident] ++ answer ++ traceFields ctx))
   admitted <- atomically $ do
     openSTM peer
@@ -416,46 +415,69 @@ incomingRequest peer frame = do
     else writeTVar (pIncoming peer) (M.insert ident ctx incoming) >> pure True
   if not admitted then respond ["error" .= publicErrorValue (failure "busy" "too many active handlers")]
   else spawn peer $ guardLoop peer $ flip finally (atomically (modifyTVar' (pIncoming peer) (M.delete ident))) $ do
-    timer <- forkIO (threadDelay (requestTimeoutMs (pOptions peer) * 1000) >> cancelContext ctx)
-    outcome <- try $ flip finally (killThread timer) $ do
-      handlers <- readTVarIO (pHandlers peer)
-      case M.lookup method handlers of
-        Just handler -> handler ctx peer (get "params" frame)
-        Nothing -> do
-          target <- matchReceiver peer method
-          case target of
-            Nothing -> throwIO (failure "method_not_found" "Unknown method")
-            Just (path, receiver) -> do
-              result <- newEmptyTMVarIO
-              ended <- newTVarIO False
-              address <- newReturnAddress Wire
-                { wireSend = \returnPath answer -> do
-                    when (not (null returnPath) || str (get "kind" (messageFrame answer)) /= "response" || str (get "id" (messageFrame answer)) /= ident)
-                      (throwIO (failure "invalid_message" "invalid Wire response"))
-                    _ <- validateWireFrame peer [] (messageFrame answer)
-                    atomically $ do
-                      closed <- readTVar ended
-                      when closed (throwSTM WireClosed)
-                      accepted <- tryPutTMVar result (messageFrame answer)
-                      unless accepted (throwSTM (failure "invalid_message" "duplicate Wire response"))
-                , wireReceive = \_ _ -> throwIO NoRoute, wireClose = \_ _ -> atomically (writeTVar ended True) }
-              flip finally (atomically (writeTVar ended True)) $ do
-                let localFrame = Object (KM.delete "method" (case frame of Object xs -> xs; _ -> KM.empty))
-                receiverMessage receiver path (Message localFrame (Just address) (Just (toDyn ctx)))
-                answer <- atomically ((Just <$> readTMVar result) `orElse` (readTMVar (contextCancelled ctx) >> pure Nothing)
-                  `orElse` (readTVar ended >>= check >> throwSTM WireClosed))
-                  >>= maybe (do
-                    let cancelFrame = object (["version" .= (1 :: Int), "kind" .= ("cancel" :: Text), "id" .= ident] ++ traceFields ctx)
-                    receiverMessage receiver path (Message cancelFrame (Just address) (Just (toDyn ctx)))
-                    throwIO (failure "cancelled" "cancelled")) pure
-                case get "error" answer of
-                  Null -> pure (get "result" answer)
-                  e -> throwIO (PublicError (str (get "code" e)) (str (get "message" e)) (lookup "data" (members e)))
-    cancelled <- atomically (not <$> isEmptyTMVar (contextCancelled ctx))
-    let answer = if cancelled then Left (failure "cancelled" "request cancelled") else case outcome of
-          Right value -> Right value
-          Left (err :: SomeException) -> Left (fromMaybe (failure "internal" "Internal error") (fromException err))
-    respond (either (\err -> ["error" .= publicErrorValue err]) (\value -> ["result" .= value]) answer)
+    completed <- newEmptyTMVarIO
+    spawn peer $ do
+      outcome <- try (invokeIncoming peer ctx frame)
+      atomically (putTMVar completed (outcome :: Either SomeException Value))
+    let awaitBody = atomically (readTMVar completed)
+        answerBody outcome = do
+          cancelled <- atomically (not <$> isEmptyTMVar (contextCancelled ctx))
+          let answer = if cancelled then Left (failure "cancelled" "request cancelled") else case outcome of
+                Right value -> Right value
+                Left err -> Left (fromMaybe (failure "internal" "Internal error") (fromException err))
+          respond (either (\err -> ["error" .= publicErrorValue err]) (\value -> ["result" .= value]) answer)
+    -- Explicit withdrawal ends this timer and waits for actual completion.
+    -- A receiver deadline answers once, but retains admission until the body
+    -- returns. The timeout's timer is cancelled on either earlier outcome.
+    first <- timeout (requestTimeoutMs (pOptions peer) * 1000) $ atomically $
+      (Left <$> readTMVar completed) `orElse` (readTMVar (contextCancelled ctx) >> pure (Right ()))
+    case first of
+      Just (Left outcome) -> answerBody outcome
+      Just (Right ()) -> awaitBody >>= answerBody
+      Nothing -> do
+        deadlineWon <- atomically (tryPutTMVar (contextCancelled ctx) ())
+        if deadlineWon then do
+          respond ["error" .= publicErrorValue (failure "cancelled" "request cancelled")]
+          void awaitBody
+        else awaitBody >>= answerBody
+
+invokeIncoming :: Peer -> CallContext -> Value -> IO Value
+invokeIncoming peer ctx frame = do
+  let ident = str (get "id" frame)
+      method = str (get "method" frame)
+  handlers <- readTVarIO (pHandlers peer)
+  case M.lookup method handlers of
+    Just handler -> handler ctx peer (get "params" frame)
+    Nothing -> do
+      target <- matchReceiver peer method
+      case target of
+        Nothing -> throwIO (failure "method_not_found" "Unknown method")
+        Just (path, receiver) -> do
+          result <- newEmptyTMVarIO
+          ended <- newTVarIO False
+          address <- newReturnAddress Wire
+            { wireSend = \returnPath answer -> do
+                when (not (null returnPath) || str (get "kind" (messageFrame answer)) /= "response" || str (get "id" (messageFrame answer)) /= ident)
+                  (throwIO (failure "invalid_message" "invalid Wire response"))
+                _ <- validateWireFrame peer [] (messageFrame answer)
+                atomically $ do
+                  closed <- readTVar ended
+                  when closed (throwSTM WireClosed)
+                  accepted <- tryPutTMVar result (messageFrame answer)
+                  unless accepted (throwSTM (failure "invalid_message" "duplicate Wire response"))
+            , wireReceive = \_ _ -> throwIO NoRoute, wireClose = \_ _ -> atomically (writeTVar ended True) }
+          flip finally (atomically (writeTVar ended True)) $ do
+            let localFrame = Object (KM.delete "method" (case frame of Object xs -> xs; _ -> KM.empty))
+            receiverMessage receiver path (Message localFrame (Just address) (Just (toDyn ctx)))
+            answer <- atomically ((Just <$> readTMVar result) `orElse` (readTMVar (contextCancelled ctx) >> pure Nothing)
+              `orElse` (readTVar ended >>= check >> throwSTM WireClosed))
+              >>= maybe (do
+                let cancelFrame = object (["version" .= (1 :: Int), "kind" .= ("cancel" :: Text), "id" .= ident] ++ traceFields ctx)
+                receiverMessage receiver path (Message cancelFrame (Just address) (Just (toDyn ctx)))
+                atomically (readTMVar result `orElse` (readTVar ended >>= check >> throwSTM WireClosed))) pure
+            case get "error" answer of
+              Null -> pure (get "result" answer)
+              e -> throwIO (PublicError (str (get "code" e)) (str (get "message" e)) (lookup "data" (members e)))
 
 eventLoop :: Peer -> IO ()
 eventLoop peer = forever $ do
