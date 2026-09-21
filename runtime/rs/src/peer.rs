@@ -397,10 +397,10 @@ impl Peer {
             admitted,
             finished,
         };
-        let reject = |error| {
+        let reject = |error: PublicError| {
             admission.send_replace(true);
             completion.send_replace(true);
-            answer.send_replace(Some(Err(error)));
+            answer.send_replace(Some(Err(error.unpublished())));
         };
         if method.is_empty() {
             reject(invalid("method is empty"));
@@ -458,7 +458,7 @@ impl Peer {
             };
             admission.send_replace(true);
             let (outcome, cancel_remote) = match enqueued {
-                Err(error) => (Err(error), false),
+                Err(error) => (Err(error.unpublished()), false),
                 Ok(()) => {
                     let mut incoming = answer.subscribe();
                     let reply = async {
@@ -510,7 +510,9 @@ impl Peer {
         event: &str,
         data: Payload,
     ) -> Result<(), PublicError> {
-        self.emit_with_trace(ctx, event, data, None).await
+        self.emit_with_trace(ctx, event, data, None)
+            .await
+            .map_err(PublicError::unpublished)
     }
     async fn emit_with_trace(
         &self,
@@ -520,7 +522,7 @@ impl Peer {
         supplied: Option<Trace>,
     ) -> Result<(), PublicError> {
         if event.is_empty() {
-            return Err(invalid("event is empty"));
+            return Err(invalid("event is empty").unpublished());
         }
         let frame = Wire {
             version: 1,
@@ -533,7 +535,10 @@ impl Peer {
             meta: ctx.outgoing_meta.clone(),
             ..Wire::default()
         };
-        self.inner.enqueue(frame, &ctx.cancel).await
+        self.inner
+            .enqueue(frame, &ctx.cancel)
+            .await
+            .map_err(PublicError::unpublished)
     }
 }
 

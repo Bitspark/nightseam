@@ -185,7 +185,7 @@ pub(crate) async fn dispatch_request(
     receiver: Receiver,
     limit: usize,
 ) -> Answer {
-    let (sender, receive) = oneshot::channel();
+    let (sender, mut receive) = oneshot::channel();
     let id = format!("c:{}", NEXT.fetch_add(1, Ordering::Relaxed) + 1);
     let returning = Arc::new(ReturnAddress {
         wire: Arc::new(Reply {
@@ -208,12 +208,18 @@ pub(crate) async fn dispatch_request(
     callback(path.clone(), request.clone());
     tokio::select! {
         biased;
-        answer=receive=>answer.unwrap_or_else(|_| Err(closed())),
+        answer=&mut receive=>answer.unwrap_or_else(|_| Err(closed())),
         _=ctx.cancelled()=>{
             let mut cancel = request;
-            cancel.frame.kind = ProfileKind::Cancel; cancel.frame.params = Payload::Absent;
+            let mut frame = ProfileFrame::new(ProfileKind::Cancel);
+            frame.id = cancel.frame.id.clone();
+            frame.trace = cancel.frame.trace.clone();
+            cancel.frame = frame;
             callback(path, cancel);
-            Err(PublicError::new("cancelled", "Request cancelled"))
+            // Withdrawal signals the captured handler. Its admitted work still
+            // owns a slot until the handler answers, even when it ignores that
+            // signal. Peer closure separately abandons this entire dispatch.
+            receive.await.unwrap_or_else(|_| Err(closed()))
         },
     }
 }
@@ -246,7 +252,7 @@ pub(crate) fn response(request: &Message, answer: Answer) -> Result<(), PublicEr
                 value
             }
         }
-        Err(error) => frame.error = Some(error),
+        Err(error) => frame.error = Some(error.without_unpublished_proof()),
     }
     let wire = &request.returning.as_ref().ok_or_else(closed)?.wire;
     if let Err(error) = wire.send(&[], Message::new(frame.clone())) {
@@ -274,7 +280,12 @@ impl Wire for Reply {
             return Err(invalid("invalid wire response"));
         }
         validate(path, &message, self.limit)?;
-        let answer = message.frame.error.map_or(Ok(message.frame.result), Err);
+        let answer = message
+            .frame
+            .error
+            .map_or(Ok(message.frame.result), |error| {
+                Err(error.without_unpublished_proof())
+            });
         self.sender
             .lock()
             .unwrap()
@@ -326,9 +337,10 @@ pub async fn call_wire(
         context: Some(Arc::new(ctx.clone().for_delivery())),
     };
     if ctx.is_cancelled() {
-        return Err(PublicError::new("cancelled", "Request cancelled"));
+        return Err(PublicError::new("cancelled", "Request cancelled").unpublished());
     }
-    wire.send(path, message.clone())?;
+    wire.send(path, message.clone())
+        .map_err(PublicError::unpublished)?;
     let outcome = tokio::select! {
         biased;
         result=receive=>return result.unwrap_or_else(|_| Err(closed())),
@@ -337,8 +349,10 @@ pub async fn call_wire(
     };
     let mut cancel = message;
     let id = cancel.frame.id.clone();
+    let trace = cancel.frame.trace.clone();
     cancel.frame = ProfileFrame::new(ProfileKind::Cancel);
     cancel.frame.id = id;
+    cancel.frame.trace = trace;
     let _ = wire.send(path, cancel);
     outcome
 }
@@ -351,7 +365,7 @@ pub fn emit_wire(
     data: Payload,
 ) -> Result<(), PublicError> {
     if ctx.is_cancelled() {
-        return Err(PublicError::new("cancelled", "Request cancelled"));
+        return Err(PublicError::new("cancelled", "Request cancelled").unpublished());
     }
     let mut frame = ProfileFrame::new(ProfileKind::Event);
     frame.data = if data.is_absent() {
@@ -369,6 +383,7 @@ pub fn emit_wire(
             context: Some(Arc::new(ctx.for_delivery())),
         },
     )
+    .map_err(PublicError::unpublished)
 }
 
 /// The root dispatches this callback asynchronously; handler futures run in
@@ -481,6 +496,7 @@ struct Delivery {
     path: Vec<String>,
     message: Message,
     call: Option<Arc<LocalCall>>,
+    refusal: Option<PublicError>,
 }
 struct LocalCall {
     key: Key,
@@ -590,6 +606,7 @@ impl Pair {
         let end = &mut state.ends[side];
         let k = key(&message);
         let mut call = None;
+        let mut refusal = None;
         if message.frame.kind == ProfileKind::Cancel {
             let Some(held) = end.calls.get(&k).cloned() else {
                 return Ok(());
@@ -621,39 +638,33 @@ impl Pair {
                     } else {
                         "busy"
                     };
-                    end.data -= 1;
-                    drop(state);
-                    tokio::spawn(async move {
-                        let _ = response(
-                            &message,
-                            Err(PublicError::new(code, "Request admission refused")),
-                        );
+                    refusal = Some(PublicError::new(code, "Request admission refused"));
+                } else {
+                    let held = Arc::new(LocalCall {
+                        key: k.clone(),
+                        request: message.clone(),
+                        path: path.clone(),
+                        state: Mutex::new(LocalCallState::default()),
                     });
-                    return Ok(());
+                    message.returning = Some(Arc::new(ReturnAddress {
+                        wire: Arc::new(LocalReturn {
+                            pair: Arc::downgrade(self),
+                            side,
+                            call: held.clone(),
+                        }),
+                    }));
+                    held.state.lock().unwrap().returning =
+                        message.returning.as_ref().map(Arc::downgrade);
+                    end.calls.insert(k, held.clone());
+                    call = Some(held);
                 }
-                let held = Arc::new(LocalCall {
-                    key: k.clone(),
-                    request: message.clone(),
-                    path: path.clone(),
-                    state: Mutex::new(LocalCallState::default()),
-                });
-                message.returning = Some(Arc::new(ReturnAddress {
-                    wire: Arc::new(LocalReturn {
-                        pair: Arc::downgrade(self),
-                        side,
-                        call: held.clone(),
-                    }),
-                }));
-                held.state.lock().unwrap().returning =
-                    message.returning.as_ref().map(Arc::downgrade);
-                end.calls.insert(k, held.clone());
-                call = Some(held);
             }
         }
         end.queue.push_back(Delivery {
             path,
             message,
             call,
+            refusal,
         });
         drop(state);
         self.wake[side].notify_one();
@@ -739,6 +750,10 @@ impl Pair {
                 tokio::select! { _=self.stop.cancelled()=>return, _=self.wake[side].notified()=>{} }
                 continue;
             };
+            if let Some(error) = delivery.refusal {
+                let _ = response(&delivery.message, Err(error));
+                continue;
+            }
             if delivery.message.frame.kind == ProfileKind::Cancel {
                 let call = delivery.call.unwrap();
                 let mut state = self.state.lock().unwrap();
@@ -842,6 +857,7 @@ impl Pair {
                     context: None,
                 },
                 call: Some(call.clone()),
+                refusal: None,
             });
         }
         let respond = !status.responded;
@@ -874,7 +890,7 @@ impl Wire for LocalReturn {
         validate(path, &message, pair.options.max_frame_bytes)?;
         let respond = {
             let mut status = self.call.state.lock().unwrap();
-            let respond = !status.responded;
+            let respond = !status.responded && !status.completed;
             status.responded = true;
             respond
         };
@@ -889,6 +905,7 @@ impl Wire for LocalReturn {
             .ok_or_else(closed)?
             .wire
             .send(path, message)
+            .map_err(PublicError::without_unpublished_proof)
     }
     fn receive(&self, _: &[String], _: Receiver) -> Result<Detach, PublicError> {
         Err(invalid("return addresses cannot receive"))
