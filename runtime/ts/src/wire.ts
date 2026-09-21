@@ -4,6 +4,7 @@ import { DuplexError, UnpublishedError } from './error.ts';
 import { carrying, decodeEnvelope, isObject } from './envelope.ts';
 import { scalarJSON } from './unicode.ts';
 import { defaultPropagator, traceOf } from './trace.ts';
+import type { ValueEnvironment } from './value-adapter.ts';
 import type { Trace, TraceContext } from './trace.ts';
 import type {
   CallOptions,
@@ -56,6 +57,7 @@ export interface WireModelContext extends TraceContext {
 /** Runtime construction options shared by derived family adapters. */
 export interface AdapterContext {
   options?: PeerOptions;
+  valueEnvironment?: ValueEnvironment;
 }
 /** Context beside a wire request, independent of its concrete carrier. */
 export interface WireRequestContext extends WireModelContext {

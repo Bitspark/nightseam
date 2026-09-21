@@ -563,7 +563,10 @@ type WireHandlers struct {
 }
 
 // AdapterContext carries runtime options used when constructing model wires.
-type AdapterContext struct{ Options Options }
+type AdapterContext struct {
+	Options          Options
+	ValueEnvironment ValueEnvironment
+}
 
 // EmitWire admits one event at a relative path. The return says only that the
 // destination accepted it; processing and transport remain asynchronous.
