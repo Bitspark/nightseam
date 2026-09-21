@@ -52,3 +52,28 @@ func TestWireSendEndsAFullCarrierWithoutWaitingForItsConsumer(t *testing.T) {
 		t.Fatalf("observer received %d terminal pressure events, want 1", stalls)
 	}
 }
+
+func TestOutputOverflowProofBelongsOnlyToTheUnadmittedCall(t *testing.T) {
+	release := make(chan struct{})
+	defer close(release)
+	control := &delayedWriteControl{started: make(chan struct{}), gate: release}
+	_, destination := delayedWritePair(t, control, ws.Options{QueueCapacity: 1, WriteTimeout: 5 * time.Second}, ws.Options{})
+	accepted := make(chan error, 1)
+	go func() { accepted <- destination.Call(context.Background(), "accepted", nil, nil) }()
+	// The earlier call is already in its carrier's write. Hold it there, then
+	// occupy the only queue slot before attempting the rejected call.
+	receive(t, control.started)
+	if err := destination.Emit(context.Background(), "queued", nil); err != nil {
+		t.Fatal(err)
+	}
+	rejected := destination.Call(context.Background(), "rejected", nil, nil)
+	wantUnpublished(t, rejected, true)
+	if !errors.Is(rejected, ws.ErrBackpressure) {
+		t.Fatalf("rejected call = %v", rejected)
+	}
+	earlier := receive(t, accepted)
+	wantUnpublished(t, earlier, false)
+	if !errors.Is(earlier, ws.ErrBackpressure) {
+		t.Fatalf("earlier call = %v", earlier)
+	}
+}

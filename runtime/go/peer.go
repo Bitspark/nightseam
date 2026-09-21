@@ -197,6 +197,8 @@ type pendingResult struct {
 // The connection's receive limit is its maker's to set to MaxFrameBytes;
 // the peer refuses a larger frame it is nonetheless handed.
 type Peer struct {
+	wireOnce      sync.Once
+	wire          *peerWire
 	conn          duplex.Conn
 	ctx           context.Context
 	cancel        context.CancelFunc
@@ -433,17 +435,34 @@ func (p *Peer) OnEvent(listener func(context.Context, Event)) func() {
 // Call sends one request and waits for its response. It never retries. A caller
 // cancellation also sends best-effort cancellation to the remote handler.
 func (p *Peer) Call(ctx context.Context, method string, params, result any) error {
+	call, err := p.beginCall(ctx, method, params)
+	if err != nil {
+		return err
+	}
+	return call.await(result)
+}
+
+type admittedCall struct {
+	await    func(any) error
+	withdraw func()
+}
+
+// beginCall performs the bounded admission synchronously. A wire dispatcher
+// admits frames in its delivery order, then waits for each result separately;
+// starting goroutines before admission would reorder requests and events.
+func (p *Peer) beginCall(ctx context.Context, method string, params any) (*admittedCall, error) {
 	if ctx == nil || method == "" {
-		return Unpublished(errors.New("duplex call requires context and method"))
+		return nil, Unpublished(errors.New("duplex call requires context and method"))
 	}
 	ctx, cancel := context.WithTimeout(ctx, p.options.RequestTimeout)
-	defer cancel()
 	if err := ctx.Err(); err != nil {
-		return Unpublished(err)
+		cancel()
+		return nil, Unpublished(err)
 	}
 	data, err := MarshalJSON(params)
 	if err != nil {
-		return Unpublished(err)
+		cancel()
+		return nil, Unpublished(err)
 	}
 	id := p.prefix + strconv.FormatUint(p.next.Add(1), 10)
 	// One trace serves the request and the cancellation that may follow it: a
@@ -454,34 +473,52 @@ func (p *Peer) Call(ctx context.Context, method string, params, result any) erro
 	if p.err != nil {
 		err = p.err
 		p.mu.Unlock()
-		return Unpublished(err)
+		cancel()
+		return nil, Unpublished(err)
 	}
 	// The caller's own bound. A call past it never reaches the wire and never
 	// becomes an observer's request: nothing started, so nothing ended.
 	if len(p.pending) >= p.options.MaxPendingRequests {
 		p.mu.Unlock()
-		return Unpublished(&PublicError{Code: "busy", Message: "Outstanding call limit reached"})
+		cancel()
+		return nil, Unpublished(&PublicError{Code: "busy", Message: "Outstanding call limit reached"})
 	}
 	p.pending[id] = reply
 	p.mu.Unlock()
-	defer func() { p.mu.Lock(); delete(p.pending, id); p.mu.Unlock() }()
+	finish := func() { cancel(); p.mu.Lock(); delete(p.pending, id); p.mu.Unlock() }
 	started := p.requestStarted(id, method, false, trace)
-	cancelRemote, err := p.await(ctx, reply, frame{Version: 1, Kind: "request", ID: id, Method: method, Params: data,
-		Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}, result)
-	p.requestEnded(started, id, method, false, trace, err)
-	if cancelRemote {
-		p.cancelRequest(id, trace)
+	if err := p.enqueue(ctx, frame{Version: 1, Kind: "request", ID: id, Method: method, Params: data,
+		Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}); err != nil {
+		finish()
+		err = Unpublished(err)
+		p.requestEnded(started, id, method, false, trace, err)
+		return nil, err
 	}
-	return err
+	var completed sync.Once
+	complete := func(err error, withdrawn bool) {
+		completed.Do(func() {
+			p.requestEnded(started, id, method, false, trace, err)
+			if withdrawn {
+				p.cancelRequest(id, trace)
+			}
+		})
+	}
+	return &admittedCall{await: func(result any) error {
+		defer finish()
+		cancelRemote, err := awaitReply(ctx, reply, p.done, p.Err, result)
+		complete(err, cancelRemote)
+		return err
+	}, withdraw: func() {
+		cancel()
+		// A routed cancel occupies a position in this wire's send order. Its
+		// observation and best-effort admission finish before the next frame.
+		complete(context.Canceled, true)
+	}}, nil
 }
 
-// await sends one request and waits for whatever ends it: the response, the
-// caller's own end, or the connection's. It reports whether to cancel the queued
-// request, so Call can observe the ending before the writer can send its cancel.
-func (p *Peer) await(ctx context.Context, reply <-chan pendingResult, request frame, result any) (bool, error) {
-	if err := p.enqueue(ctx, request); err != nil {
-		return false, Unpublished(err)
-	}
+// awaitReply is the request primitive shared by carrier calls and relative
+// wires. A wire changes where a request is dispatched, not how it completes.
+func awaitReply(ctx context.Context, reply <-chan pendingResult, done <-chan struct{}, ended func() error, result any) (bool, error) {
 	select {
 	case r := <-reply:
 		if r.err != nil {
@@ -496,8 +533,8 @@ func (p *Peer) await(ctx context.Context, reply <-chan pendingResult, request fr
 		return false, nil
 	case <-ctx.Done():
 		return true, ctx.Err()
-	case <-p.done:
-		return false, p.Err()
+	case <-done:
+		return false, ended()
 	}
 }
 
@@ -744,6 +781,7 @@ func (p *Peer) startRequest(f frame) {
 	// to propagate, a carriage the consumer's.
 	handling := withIncomingMeta(p.options.Propagator.Extract(p.ctx, trace), f.Meta)
 	ctx, cancel := context.WithTimeout(handling, p.options.RequestTimeout)
+	ctx = context.WithValue(ctx, wireFrameKey{}, f)
 	p.mu.Lock()
 	p.incoming[f.ID] = cancel
 	p.mu.Unlock()
