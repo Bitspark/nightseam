@@ -569,6 +569,26 @@ class RecordTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(WireError):
             wire.receive([], Receiver())
 
+    async def test_reentrant_follower_close_does_not_start_another_replay_read(self):
+        reads = []
+
+        class CheckedLog(MemoryWireLog):
+            async def read(self, sequence):
+                reads.append(sequence)
+                return await super().read(sequence)
+
+        log, target = CheckedLog(), Target()
+        await log.append([], message(1))
+        await log.append([], message(2))
+        wire, _, _ = await self.recorder(log=log)
+        follower = await wire.follow(0, target)
+        target.on_send = lambda *args: follower.close()
+        await asyncio.wait_for(follower.wait_closed(), 2)
+        self.assertEqual(reads, [1])
+        self.assertEqual(target.values.qsize(), 1)
+        self.assertIsNone(follower.error)
+        self.assertEqual(await wire.head(), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

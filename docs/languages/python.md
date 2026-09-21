@@ -73,6 +73,8 @@ worker, and then forwards it to `target`. `await recorded.head()` fences earlier
 admitted appends. It does not promise delivery or an application effect.
 
 ```python
+import asyncio
+
 from nightseam.duplex import MemoryWireLog, Message, RecordOptions, record
 
 
@@ -124,7 +126,8 @@ or overflowing handoff ends only that follower's target. Overflow uses close
 code 1008; storage or target failure uses 1011. `RecordError.code` is `sequence`
 or `overflow`; consumer failures preserve their original exception. Carrier
 closure and `on_close` run off the sender's stack, and `on_close` runs once after
-the recorder's workers and carriers finish. Supplying a mount as a target keeps
+the recorder and follower workers finish and their carrier close calls return.
+Supplying a mount as a target keeps
 its borrowed children usable after closure. The [shared recording
 contract](../runtime/record.md) describes storage and scope ownership; cursors
 sent remotely remain ordinary consumer request data.

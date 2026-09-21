@@ -335,6 +335,8 @@ class Follower:
     async def _run(self, after):
         try:
             for sequence in range(after + 1, self._head + 1):
+                if self._stopped:
+                    return
                 entry = await self._owner._log.read(sequence)
                 if self._stopped:
                     return
