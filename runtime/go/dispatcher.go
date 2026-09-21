@@ -71,18 +71,26 @@ func routeContext(message duplex.Message) *wireRouteContext {
 // weaker detach/cancellation guarantees. Opaque endpoint wrappers are supported
 // because the association accompanies the unchanged return capability.
 type Dispatcher struct {
-	root   duplex.Endpoint
-	mu     sync.Mutex
-	closed bool
-	detach func()
-	routes map[dispatchRoute]*dispatchRegistration
+	root        duplex.Endpoint
+	ownEndpoint bool
+	mu          sync.Mutex
+	closed      bool
+	detach      func()
+	routes      map[dispatchRoute]*dispatchRegistration
 }
 
-func NewDispatcher(root duplex.Endpoint) (*Dispatcher, error) {
+// DispatcherOptions explicitly transfers closure authority for an endpoint the
+// caller owns. Borrowed endpoints remain the default.
+type DispatcherOptions struct{ OwnEndpoint bool }
+
+func NewDispatcher(root duplex.Endpoint, options ...DispatcherOptions) (*Dispatcher, error) {
 	if root == nil {
 		return nil, errors.New("dispatcher requires an endpoint")
 	}
 	d := &Dispatcher{root: root, routes: map[dispatchRoute]*dispatchRegistration{}}
+	if len(options) > 0 {
+		d.ownEndpoint = options[0].OwnEndpoint
+	}
 	detach, err := root.Receive(duplex.Receiver{Message: d.deliver, Closed: func(code duplex.Code, reason string) { _ = d.Close(code, reason) }})
 	if err != nil {
 		return nil, err
@@ -217,6 +225,9 @@ func (d *Dispatcher) Close(code duplex.Code, reason string) error {
 		if registration.receiver.Closed != nil {
 			func() { defer func() { _ = recover() }(); registration.receiver.Closed(code, reason) }()
 		}
+	}
+	if d.ownEndpoint {
+		return d.root.Close(code, reason)
 	}
 	return nil
 }

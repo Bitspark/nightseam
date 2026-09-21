@@ -54,3 +54,15 @@ test('an unmanaged invocation is explicitly refused with its original return cap
   assert.equal(reply?.frame.kind, 'response');
   if (reply?.frame.kind === 'response') assert.equal(reply.frame.error?.code, 'invalid_message');
 });
+
+test('an explicitly owned dispatcher closes its endpoint', () => {
+  const [left, right] = wirePair();
+  try {
+    const dispatcher = createDispatcher(right, { ownEndpoint: true });
+    dispatcher.close(1002, 'wire event rejected');
+    assert.throws(() => right.receive({}), { code: 'closed' });
+    dispatcher.close();
+  } finally {
+    left.close();
+  }
+});

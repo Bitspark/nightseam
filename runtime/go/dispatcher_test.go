@@ -54,6 +54,27 @@ func TestDispatcherSharesOneAttachmentAndPreservesBorrowedEndpoint(t *testing.T)
 	}
 }
 
+func TestDispatcherClosesAnExplicitlyOwnedEndpoint(t *testing.T) {
+	left, right, err := ws.NewWirePair(ws.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = left.Close(duplex.CodeNormal, "") })
+	dispatch, err := ws.NewDispatcher(right, ws.DispatcherOptions{OwnEndpoint: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := dispatch.Close(duplex.CodeProtocolError, "wire event rejected"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := right.Receive(duplex.Receiver{}); err == nil {
+		t.Fatal("owned endpoint stayed open")
+	}
+	if err := dispatch.Close(duplex.CodeNormal, "again"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDispatcherRefusesUnmanagedInvocationWithoutReplacingReturn(t *testing.T) {
 	root := &unmanagedDispatchEndpoint{}
 	dispatch, err := ws.NewDispatcher(root)

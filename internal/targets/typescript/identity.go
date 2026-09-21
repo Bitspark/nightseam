@@ -17,7 +17,7 @@ func emitWireIdentity(f *file, side, opposite, decl, args, binding, passing stri
 		}
 		f.linef("const [access, binding] = wirePair({ ...adapter.options, families: { %s } });", strings.Join(labels, ", "))
 		f.w.Block("try {", "} catch (error) { access.close(); throw error; }", func() {
-			f.line("const dispatcher = createDispatcher(binding);")
+			f.line("const dispatcher = createDispatcher(binding, { ownEndpoint: true });")
 			f.line("registerWire(dispatcher, [IDENTITY_METHOD], { request: identityHandler(adapter.identity) });")
 			f.linef("const implementation = model(adapter.proxy%s(binding));", opposite)
 			f.linef("adapter.validate%s(implementation);", side)

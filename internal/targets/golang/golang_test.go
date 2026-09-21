@@ -224,7 +224,7 @@ func TestWireAdaptersShareOneReceivingDispatcher(t *testing.T) {
 			"registerIdentity(wire runtime.HandlerRegistry,",
 			"bindServer(wire runtime.HandlerRegistry,",
 			"bindClient(wire runtime.HandlerRegistry,",
-			"dispatcher, err := runtime.NewDispatcher(binding)",
+			"dispatcher, err := runtime.NewDispatcher(binding, runtime.DispatcherOptions{OwnEndpoint: true})",
 			"registerIdentity(dispatcher, identity)",
 			"accessServer(wire duplex.Wire,",
 			"accessClient(wire duplex.Wire,",
@@ -237,7 +237,7 @@ func TestWireAdaptersShareOneReceivingDispatcher(t *testing.T) {
 		}
 		_, local, _ := strings.Cut(source, "func ToWire(")
 		local, _, _ = strings.Cut(local, "func declarationIdentity(")
-		if got := strings.Count(local, "runtime.NewDispatcher(binding)"); got != 1 {
+		if got := strings.Count(local, "runtime.NewDispatcher(binding, runtime.DispatcherOptions{OwnEndpoint: true})"); got != 1 {
 			t.Errorf("%s attaches %d dispatchers to its binding endpoint, want one", file.Path, got)
 		}
 	}

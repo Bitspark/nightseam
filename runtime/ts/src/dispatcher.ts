@@ -33,15 +33,21 @@ export function retireDispatchRoutes(routes: DispatchRoutes | undefined): void {
 }
 
 /** One attachment, with explicit exact-before-longest-prefix dispatch. */
+export interface DispatcherOptions {
+  /** Explicit closure authority over an endpoint owned by the caller. */
+  ownEndpoint?: boolean;
+}
 export class WireDispatcher implements HandlerRegistry {
   private readonly exact = new Map<string, Registration>();
   private readonly prefixes = new Map<string, Registration>();
   private ended = false;
   private detach: (() => void) | undefined;
   private readonly root: Endpoint;
+  private readonly ownEndpoint: boolean;
 
-  constructor(root: Endpoint) {
+  constructor(root: Endpoint, options: DispatcherOptions = {}) {
     this.root = root;
+    this.ownEndpoint = options.ownEndpoint ?? false;
     const detach = root.receive({
       message: (path, message) => this.deliver(path, message),
       closed: (code, reason) => this.close(code, reason),
@@ -141,10 +147,11 @@ export class WireDispatcher implements HandlerRegistry {
         /* Each owner receives its end. */
       }
     }
+    if (this.ownEndpoint) this.root.close(code, reason);
   }
 }
-export function createDispatcher(endpoint: Endpoint): WireDispatcher {
-  return new WireDispatcher(endpoint);
+export function createDispatcher(endpoint: Endpoint, options: DispatcherOptions = {}): WireDispatcher {
+  return new WireDispatcher(endpoint, options);
 }
 
 interface Attachment {

@@ -94,7 +94,7 @@ func (f *file) emitWireAdapter(side, opposite string) {
 		f.line("if err != nil { return nil, err }")
 		f.line("complete := false")
 		f.linef("defer func() { if !complete { _ = access.Close(%s.CodeInternalError, \"model construction failed\") } }()", seam)
-		f.linef("dispatcher, err := %s.NewDispatcher(binding)", rt)
+		f.linef("dispatcher, err := %s.NewDispatcher(binding, %s.DispatcherOptions{OwnEndpoint: true})", rt, rt)
 		f.line("if err != nil { return nil, err }")
 		f.line("if _, err := registerIdentity(dispatcher, identity); err != nil { return nil, err }")
 		f.linef("implementation, err := model(access%s%s(binding,environment%s))", opposite, args, f.slotArguments())

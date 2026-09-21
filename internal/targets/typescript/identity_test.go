@@ -30,7 +30,7 @@ func TestWireIdentityPreparationPrecedesModelBinding(t *testing.T) {
 			"export function prepareFromWire(wire: Endpoint, context: AdapterContext)",
 			"complete(options?: WireCallOptions): Promise<Protocol." + side + "Model>",
 			"const gate = prepareIdentity(wire, adapter.identity, adapter.options);",
-			"const dispatcher = createDispatcher(binding);",
+			"const dispatcher = createDispatcher(binding, { ownEndpoint: true });",
 			"registerWire(dispatcher, [IDENTITY_METHOD], { request: identityHandler(adapter.identity) })",
 			"function bindServer(wire: HandlerRegistry,",
 			"function bindClient(wire: HandlerRegistry,",
@@ -52,7 +52,7 @@ func TestWireIdentityPreparationPrecedesModelBinding(t *testing.T) {
 		}
 		_, local, _ := strings.Cut(source, "export function toWire")
 		local, _, _ = strings.Cut(local, "export function prepareFromWire")
-		if got := strings.Count(local, "createDispatcher(binding)"); got != 1 {
+		if got := strings.Count(local, "createDispatcher(binding, { ownEndpoint: true })"); got != 1 {
 			t.Errorf("%s attaches %d dispatchers to its binding endpoint, want one", file.Path, got)
 		}
 		if responder, factory := strings.Index(local, "identityHandler(adapter.identity)"), strings.Index(local, "const implementation = model("); responder < 0 || factory < 0 || responder > factory {
