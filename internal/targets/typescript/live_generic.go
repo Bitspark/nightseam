@@ -16,18 +16,29 @@ func (f *file) liveExport(e model.TypeExpr, src, slots string) string {
 		// it sends an empty record even when the result carries live values.
 		validation = "{ empty: true }"
 	}
-	if !f.needsConversion(e) {
-		return fmt.Sprintf("(() => { const converted = %s; %s(%s, converted%s); return converted; })()", f.liveConversion(e, src, true), identValidateWire, validation, slots)
+	plain := fmt.Sprintf("(() => { const converted = %s; %s(%s, converted%s); return converted; })()", f.liveConversion(e, src, true), identValidateWire, validation, slots)
+	live := f.boundaryLive(e)
+	if live == "false" {
+		return plain
 	}
-	return fmt.Sprintf("owner.exportValue((owner) => { const converted = %s; %s(%s, converted%s); return converted; })", f.liveConversion(e, src, true), identValidateWire, validation, slots)
+	owned := fmt.Sprintf("owner!.exportValue((owner) => { const converted = %s; %s(%s, converted%s); return converted; })", f.liveConversion(e, src, true), identValidateWire, validation, slots)
+	if live != "true" {
+		return "(" + live + " ? " + owned + " : " + plain + ")"
+	}
+	return owned
 }
 
 func (f *file) livePublish(e model.TypeExpr, src, slots, send string) string {
 	value := f.liveExport(e, src, slots)
-	if !f.needsConversion(e) {
+	live := f.boundaryLive(e)
+	if live == "false" {
 		return fmt.Sprintf(send, value)
 	}
-	return fmt.Sprintf("owner.publishValue(owner => %s, sent => %s)", value, fmt.Sprintf(send, "sent"))
+	owned := fmt.Sprintf("owner!.publishValue(owner => %s, sent => %s)", value, fmt.Sprintf(send, "sent"))
+	if live != "true" {
+		return "(" + live + " ? " + owned + " : " + fmt.Sprintf(send, value) + ")"
+	}
+	return owned
 }
 
 func converterName(use render.Use) string { return "convert_" + use.Parameter + "_" + use.Type }
@@ -71,6 +82,9 @@ func (f *file) parameterConverter(e model.TypeExpr) string {
 }
 
 func (f *file) needsConversion(e model.TypeExpr) bool {
+	if f.operationSlot(e) != "" {
+		return true
+	}
 	if f.parameterConverter(e) != "" {
 		return true
 	}
@@ -82,8 +96,15 @@ func (f *file) needsConversion(e model.TypeExpr) bool {
 	case model.Nullable:
 		return f.needsConversion(x.Elem)
 	}
-	if t, args := f.family.Conversion(e); t != nil && len(f.codecs) > 0 && len(args) > 0 {
-		return true
+	if t, args := f.family.Conversion(e); t != nil && len(args) > 0 {
+		if len(f.codecs) > 0 {
+			return true
+		}
+		for _, argument := range args {
+			if f.needsConversion(argument.Expression()) {
+				return true
+			}
+		}
 	}
 	return f.family.IsLive(e)
 }

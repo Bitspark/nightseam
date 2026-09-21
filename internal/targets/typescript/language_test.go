@@ -139,7 +139,7 @@ func TestMixedClientBindsTypesAndFamiliesInTheirRuntimeSlots(t *testing.T) {
 			t.Errorf("protocol and type bindings acquire an unrelated family dependency in %s", file.Path)
 		}
 	}
-	for _, want := range []string{`s: FamilyBinding<S>, item: TypeBinding`, `readonly item: TypeBinding;`, `this.slots = { "S": s, "Item": item };`, `validateWire("Mixed", result, '$', this.slots)`} {
+	for _, want := range []string{`s: FamilyBinding<S>, item: ValueAdapter<Item>`, `readonly item: ValueAdapter<Item>;`, `this.slots = { "S": s, "Item": item.binding };`, `validateWire("Mixed", result, '$', this.slots)`} {
 		if !strings.Contains(index, want) {
 			t.Errorf("missing %s in:\n%s", want, index)
 		}

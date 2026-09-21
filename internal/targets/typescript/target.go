@@ -274,11 +274,11 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 	emitTypes(types)
 	client := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("  "), prefix: "Protocol."}
 	protocol := slices.Contains(f.Files, model.ProtocolFile)
-	dependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion}
+	dependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion, t.config.Live: t.config.RuntimeVersion}
 	if protocol {
 		emitClient(client)
 		dependencies[t.config.Tunnel] = t.config.RuntimeVersion
-		if f.Live {
+		if f.Live || familyValueSlots(f) {
 			// A family with a live tier renders a module that imports the live
 			// layer, so the package declares it. Everywhere the generated
 			// output has run so far it resolved by where the package happens
@@ -317,7 +317,7 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 			return nil, fmt.Errorf("locate binding protocol: %w", err)
 		}
 		bindingDependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion, t.config.pkg(f.Name): clientDependency}
-		if f.Live {
+		if f.Live || familyValueSlots(f) {
 			bindingDependencies[t.config.Live] = t.config.RuntimeVersion
 		}
 		for _, family := range p.references() {

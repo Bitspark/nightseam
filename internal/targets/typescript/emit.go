@@ -14,14 +14,16 @@ import (
 // file is one TypeScript file being emitted, and the prefix a type of the
 // family is spelled with: none in types.ts, Protocol. in index.ts.
 type file struct {
-	plan         *plan
-	family       *render.Family
-	config       Config
-	w            *emit.Writer
-	prefix       string
-	scope        []model.Parameter
-	codecs       []render.Use
-	scopedCodecs bool
+	plan              *plan
+	family            *render.Family
+	config            Config
+	w                 *emit.Writer
+	prefix            string
+	scope             []model.Parameter
+	codecs            []render.Use
+	scopedCodecs      bool
+	operationAdapters bool
+	adapterReceiver   string
 	// conversion is the namespace a live type's generated export/import is
 	// called through: none in types.ts, which declares them, and the
 	// re-exported module in index.ts, which only calls them.
@@ -86,10 +88,11 @@ func (f *file) imports(validators bool) {
 // family's wire description by the runtime.
 func emitTypes(f *file) {
 	p, fam := f.plan, f.family
-	f.linef("import { createValidator, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
+	f.linef("import { createValidator, DuplexError, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
 	f.linef("export type { %s, %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots)
 	f.imports(true)
 	f.liveImports()
+	f.linef("import type { LiveOwner, ValueAdapter } from %s;", quote(f.config.Live))
 	for _, t := range fam.Types {
 		f.emitType(t)
 	}
@@ -104,6 +107,7 @@ func emitTypes(f *file) {
 	f.line("/** The family: its name and the wire types a slot of it draws on. */")
 	f.linef("export interface %s { readonly name: %s; %s }", identFamily, quote(fam.Name), strings.Join(drawn, "; "))
 	f.emitLive()
+	f.emitValueAdapters()
 	f.line("")
 	f.linef("const contractTypes = %s as unknown as WireFamily;", fam.Wire)
 	var validators []string
@@ -204,6 +208,7 @@ func requestExpression(m render.Method) string {
 func emitClient(f *file) {
 	p, fam := f.plan, f.family
 	f.scope = familyScope(fam)
+	f.operationAdapters = true
 	f.conversion = "conversion."
 	decl, args := f.declare(fam.Uses), apply(fam.Uses)
 	names := parameters(fam.Uses)
@@ -223,8 +228,8 @@ func emitClient(f *file) {
 	f.linef("import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection } from %s;", quote(f.config.Runtime))
 	f.linef("import type { Tunnel } from %s;", quote(f.config.Tunnel))
 	f.linef("import { %s } from './types.ts';", identValidateWire)
-	if fam.Live {
-		f.linef("import { liveOver, scopeOf, type LiveOwner } from %s;", quote(f.config.Live))
+	if fam.Live || familyValueSlots(fam) {
+		f.linef("import { liveOver, scopeOf, type LiveOwner, type ValueAdapter, type ValueContext, type ValueOptions } from %s;", quote(f.config.Live))
 		f.line("import * as conversion from './types.ts';")
 		f.liveSiblings()
 	}
@@ -239,10 +244,7 @@ func emitClient(f *file) {
 	f.line("/** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */")
 	f.w.Block(fmt.Sprintf("export interface %s%s {", identEvents, decl), "}", func() {
 		for _, e := range fam.Server.Events {
-			context := "EventContext"
-			if f.liveNeeded(e.Type) {
-				context += " & { owner: LiveOwner }"
-			}
+			context := f.lifetimeType("EventContext", "ValueContext", e.Type)
 			f.linef("%s?: (data: %s, context: %s) => void | Promise<void>;", p.operations[e.Name], f.spell(e.Type), context)
 		}
 	})
@@ -251,10 +253,7 @@ func emitClient(f *file) {
 			if m.Description != "" {
 				f.linef("/** %s */", comment(m.Description))
 			}
-			context := "RequestContext"
-			if f.liveNeeded(m.Request, m.Result) {
-				context += " & { owner: LiveOwner }"
-			}
+			context := f.lifetimeType("RequestContext", "ValueContext", m.Request, m.Result)
 			f.linef("%s(params: %s, context: %s): %s | Promise<%s>;", p.operations[m.Name], f.request(m), context, f.spell(m.Result), f.spell(m.Result))
 		}
 	})
@@ -288,7 +287,7 @@ func emitClient(f *file) {
 			for _, name := range names {
 				f.linef("/** The argument bound to %s validates values in its declaration scope. */", name)
 				f.linef("readonly %s: %s;", bindingName(name), f.bindingType(name))
-				made = append(made, quote(name)+": "+bindingName(name))
+				made = append(made, quote(name)+": "+f.bindingValue(name))
 			}
 			f.linef("readonly %s: %s;", identSlotsField, identSlots)
 		}
@@ -300,15 +299,15 @@ func emitClient(f *file) {
 				}
 				f.linef("this.%s = { %s };", identSlotsField, strings.Join(made, ", "))
 			}
-			if fam.Live {
+			if fam.Live || familyValueSlots(fam) {
 				f.line("/** The live layer is made over the peer before it reads, as a tunnel is: a peer already reading would refuse the first live.invoke. */")
-				f.line("if (!scopeOf(peer)) liveOver(peer, {});")
+				f.linef("if ((%s) && !scopeOf(peer)) liveOver(peer, {});", f.familyLiveCondition())
 			}
 			for _, m := range fam.Client.Methods {
 				f.line("if (!handler) throw new Error('reverse-call handler is required');")
 				if f.liveNeeded(m.Request, m.Result) {
 					f.linef("peer.handle(%s, async (raw, context) => { %s try { %s(%s, raw%s); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const params = %s; const result = await handler.%s(params as %s, ownedContext); return %s; });",
-						quote(m.Name), f.liveOwner(true), identValidateWire, requestExpression(m), slots,
+						quote(m.Name), f.liveOwner(true, m.Request, m.Result), identValidateWire, requestExpression(m), slots,
 						f.liveConversion(m.Request, "raw", false), p.operations[m.Name], f.request(m),
 						f.liveExport(m.Result, "result", slots))
 					continue
@@ -336,7 +335,7 @@ func emitClient(f *file) {
 			}
 			if f.liveNeeded(m.Request, m.Result) {
 				f.linef("async %s(%s): Promise<%s> { %s%s const result = await %s; %s(%s, result%s); return %s; }",
-					p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, f.liveOwner(false),
+					p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, f.liveOwner(false, m.Request, m.Result),
 					f.livePublish(m.Request, "params", slots, fmt.Sprintf("this.%s.call<unknown>(%s, %%s, options)", identPeer, quote(m.Name))),
 					identValidateWire, expression(m.Result), slots,
 					f.liveConversion(m.Result, "result", false))
@@ -346,8 +345,8 @@ func emitClient(f *file) {
 		}
 		for _, e := range fam.Client.Events {
 			if f.liveNeeded(e.Type) {
-				f.linef("async %s%s(data: %s, options?: EmitOptions & { owner?: LiveOwner }): Promise<void> { %s await %s; }",
-					identEmit, upperFirst(p.operations[e.Name]), f.spell(e.Type), f.liveOwner(false),
+				f.linef("async %s%s(data: %s, options?: %s): Promise<void> { %s await %s; }",
+					identEmit, upperFirst(p.operations[e.Name]), f.spell(e.Type), f.lifetimeType("EmitOptions", "ValueOptions", e.Type), f.liveOwner(false, e.Type),
 					f.livePublish(e.Type, "data", slots, fmt.Sprintf("this.%s.emit(%s, %%s, options)", identPeer, quote(e.Name))))
 				continue
 			}
@@ -356,8 +355,8 @@ func emitClient(f *file) {
 		for _, e := range fam.Server.Events {
 			data := f.spell(e.Type)
 			if f.liveNeeded(e.Type) {
-				f.linef("%s%s(handler: (data: %s, context: EventContext & { owner: LiveOwner }) => void | Promise<void>): () => void { return this.%s.onEvent(%s, (raw, context) => { %s try { %s(%s, raw%s); } catch(error) { this.%s.close(); throw error; } return handler(%s, ownedContext); }); }",
-					identOn, upperFirst(p.operations[e.Name]), data, identPeer, quote(e.Name), f.liveOwner(true),
+				f.linef("%s%s(handler: (data: %s, context: %s) => void | Promise<void>): () => void { return this.%s.onEvent(%s, (raw, context) => { %s try { %s(%s, raw%s); } catch(error) { this.%s.close(); throw error; } return handler(%s, ownedContext); }); }",
+					identOn, upperFirst(p.operations[e.Name]), data, f.lifetimeType("EventContext", "ValueContext", e.Type), identPeer, quote(e.Name), f.liveEventOwner(e.Type),
 					identValidateWire, expression(e.Type), slots, identPeer, f.liveConversion(e.Type, "raw", false))
 				continue
 			}
@@ -408,10 +407,7 @@ func operations(fam *render.Family) []string {
 // parameters is a method's signature: its params, when it takes any, and
 // the call's options.
 func (f *file) parameters(m render.Method) string {
-	options := "options?: CallOptions"
-	if f.liveNeeded(m.Request, m.Result) {
-		options += " & { owner?: LiveOwner }"
-	}
+	options := "options?: " + f.lifetimeType("CallOptions", "ValueOptions", m.Request, m.Result)
 	if m.Request == nil {
 		return options
 	}

@@ -2,6 +2,7 @@ package typescript
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/naming"
@@ -32,6 +33,9 @@ func (p *plan) planLive() {
 	f := p.family
 	p.exports, p.imports_, p.contracts = map[string]string{}, map[string]string{}, map[string]string{}
 	for _, t := range f.Types {
+		if typeAdapterSupported(t) {
+			p.declare(p.module, valueAdapterName(p.types[t.Name]), t.At, "value adapter factory")
+		}
 		if t.Carried || (!t.IsLive && len(t.Uses) == 0) {
 			continue
 		}
@@ -53,9 +57,6 @@ func (p *plan) planLive() {
 // ordinary import of a sibling family is type-only, which is right for a type
 // and not enough for a function.
 func (f *file) liveImports() {
-	if f.family.Live {
-		f.linef("import type { LiveOwner } from %s;", quote(f.config.Live))
-	}
 	f.liveSiblings()
 }
 
@@ -301,6 +302,14 @@ func (f *file) liveField(field render.Field, export bool) {
 // it is already the value the wire wants, and copying it would only risk
 // changing it.
 func (f *file) liveExpr(e model.TypeExpr, src string, export bool) string {
+	if slot := f.operationSlot(e); slot != "" {
+		method := "import"
+		if export {
+			method = "export"
+			src = "(" + src + ") as " + f.spell(e)
+		}
+		return slot + "." + method + "(owner, " + src + ")"
+	}
 	if codec := f.parameterConverter(e); codec != "" {
 		if export {
 			src = "(" + src + ") as " + f.spell(e)
@@ -395,14 +404,23 @@ func (f *file) liveConversion(e model.TypeExpr, src string, export bool) string 
 	if e == nil {
 		return src
 	}
-	if !f.family.IsLive(e) {
+	if !f.needsConversion(e) {
 		if export {
 			return src
 		}
 		return src + " as " + f.spell(e)
 	}
 	if !export {
-		return "owner.importValue((owner) => " + f.liveExpr(e, src, false) + ")"
+		converted := f.liveExpr(e, src, false)
+		live := f.boundaryLive(e)
+		if live == "false" {
+			return converted
+		}
+		imported := "owner!.importValue((owner) => " + converted + ")"
+		if live != "true" {
+			return "(" + live + " ? " + imported + " : " + converted + ")"
+		}
+		return imported
 	}
 	return f.liveExpr(e, src, export)
 }
@@ -414,7 +432,26 @@ func (f *file) liveScope() string {
 
 // liveOwner selects the caller's lifetime or gives an incoming handler a
 // child it can retain and release after the operation returns.
-func (f *file) liveOwner(incoming bool) string {
+func (f *file) liveOwner(incoming bool, parts ...model.TypeExpr) string {
+	var conditions []string
+	for _, part := range parts {
+		live := f.boundaryLive(part)
+		if live == "true" {
+			conditions = []string{"true"}
+			break
+		}
+		if live != "false" {
+			conditions = append(conditions, live)
+		}
+	}
+	if len(parts) > 0 && len(conditions) > 0 && conditions[0] != "true" {
+		condition := "(" + strings.Join(conditions, " || ") + ")"
+		prefix := "const scope = " + condition + " ? scopeOf(this." + identPeer + ") : undefined; if (" + condition + " && !scope) throw new DuplexError('scope_closed', 'the connection carries no live scope');"
+		if incoming {
+			return prefix + " const owner = scope?.owner().child(); const ownedContext = { ...context, ...(owner ? {owner} : {}) } as " + f.lifetimeType("RequestContext", "ValueContext", parts...) + ";"
+		}
+		return prefix + " const selectedOwner = (options as {owner?: LiveOwner} | undefined)?.owner; const owner = scope ? (selectedOwner?.scope === scope ? selectedOwner : scope.owner()) : undefined;"
+	}
 	if incoming {
 		return f.liveScope() + " const owner = scope.owner().child(); const ownedContext = { ...context, owner };"
 	}
@@ -425,9 +462,13 @@ func (f *file) liveOwner(incoming bool) string {
 // direction.
 func (f *file) liveNeeded(parts ...model.TypeExpr) bool {
 	for _, part := range parts {
-		if part != nil && f.family.IsLive(part) {
+		if part != nil && f.needsConversion(part) {
 			return true
 		}
 	}
 	return false
+}
+
+func (f *file) liveEventOwner(parts ...model.TypeExpr) string {
+	return strings.ReplaceAll(f.liveOwner(true, parts...), "RequestContext", "EventContext")
 }

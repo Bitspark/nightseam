@@ -21,7 +21,7 @@ func typescriptLanguageFixture(t *testing.T, world analysis.World, source, scrip
 	root := repositoryRoot(t)
 	tsc := fixture(t, root, "node", "tsc")
 	directory := t.TempDir()
-	for _, component := range []string{"runtime", "duplex", "tunnel"} {
+	for _, component := range []string{"runtime", "duplex", "tunnel", "live"} {
 		copyFixtureTree(t, filepath.Join(root, component, "ts"), filepath.Join(directory, component, "ts"))
 	}
 	k := kernel.New(typescript.New(typescript.Config{Scope: "@example"}))
@@ -169,6 +169,7 @@ import * as child from '@example/child-client';
 import * as fixed from '@example/fixed-client';
 import * as probe from '@example/probe-client';
 import {DuplexPeer} from '@nightseam/runtime';
+import {jsonAdapter} from '@nightseam/live';
 import {pipe} from '@nightseam/duplex';
 const binding = {type:'string', validate:probe.validateWire};
 const slots = {F:probe.family,Value:binding};
@@ -196,7 +197,7 @@ for (const kind of ['forwarded','fixed']) {
  server.onEvent('report', report);
  const reverse = {reverse: data => data};
  const client = kind === 'forwarded'
-  ? await child.Client.attach(near,probe.family,binding,{},reverse,{updated:event})
+  ? await child.Client.attach(near,probe.family,jsonAdapter(binding),{},reverse,{updated:event})
   : await fixed.Client.attach(near,{},reverse,{updated:event});
  try {
   assert.deepEqual(await client.fetch(value),{tag:'some',body:{item:'hello',owner:'entry'}});
@@ -272,12 +273,13 @@ func TestTypeScriptLocalFamilyParametersAndDrawnNames(t *testing.T) {
 import {Client, type Drawn, type Filled, type Local, type Inline} from '@example/carrier-client';
 import * as probe from '@example/probe-client';
 import {DuplexPeer} from '@nightseam/runtime';
+import {jsonAdapter} from '@nightseam/live';
 const drawn: Drawn<probe.Family> = {payload:{text:'hello'}};
 const defaultDrawn: Drawn = drawn;
 const value: Filled<probe.Family,string> = {message:{version:1,kind:'event',event:'changed',data:{}},handle:{channel:1},value:['hello',null]};
 const local: Local<probe.Family,string> = {...value,value:'hello'};
 const inline: Inline<string> = {choices:[{kind:'some',value:'hello'},{kind:'none'}]};
-const client = new Client<probe.Family,string>(new DuplexPeer(),probe.family,{type:'string',validate:probe.validateWire},undefined,{});
+const client = new Client<probe.Family,string>(new DuplexPeer(),probe.family,jsonAdapter<string>({type:'string',validate:probe.validateWire}),undefined,{});
 // @ts-expect-error The type-local family slot cannot bind a string.
 type BadFamily = Local<string,string>;
 // @ts-expect-error The inline union captures its enclosing type parameter.
@@ -301,6 +303,7 @@ const tsLanguageProofTypes = `
 import {Client, type Carried, type Option, type Page, type Part, type RichPart} from '@example/proof-client';
 import * as probe from '@example/probe-client';
 import {DuplexPeer, type TypeBinding} from '@nightseam/runtime';
+import {jsonAdapter} from '@nightseam/live';
 const text: Part = {type:'text', value:{type:'text', body:'hello'}};
 const rich: RichPart = text;
 const some: Option<Page<string>> = {kind:'some', value:{items:['hello']}};
@@ -308,7 +311,7 @@ const none: Option<string> = {kind:'none', value:{}};
 const table: RichPart = {type:'table', value:{rows:['hello', null]}};
 const carried: Carried<probe.Family, string> = {message:{version:1,kind:'event',event:'changed',data:{}},back:null,page:{items:['hello']}};
 const textBinding: TypeBinding = {type:'string', validate:probe.validateWire};
-const client = new Client<probe.Family, string>(new DuplexPeer(), probe.family, textBinding, undefined, {});
+const client = new Client<probe.Family, string>(new DuplexPeer(), probe.family, jsonAdapter<string>(textBinding), undefined, {});
 // @ts-expect-error An empty record payload remains present.
 const missing: Option<string> = {kind:'none'};
 // @ts-expect-error An empty record payload is an object, never a scalar.
@@ -328,6 +331,7 @@ import assert from 'node:assert/strict';
 import {Client, validateWire} from '@example/proof-client';
 import * as probe from '@example/probe-client';
 import {DuplexPeer} from '@nightseam/runtime';
+import {jsonAdapter} from '@nightseam/live';
 import {pipe} from '@nightseam/duplex';
 const slots = {S:probe.family, Item:{type:'string',validate:probe.validateWire}};
 const part = {type:'text', value:{type:'text',body:'hello'}};
@@ -353,7 +357,7 @@ const server = new DuplexPeer({role:'server'});
 server.handle('relay', data => ({kind:'some',value:data.message}));
 const [near,far] = pipe();
 await server.attach(far);
-const client = await Client.attach(near, probe.family, slots.Item, {}, undefined, {});
+const client = await Client.attach(near, probe.family, jsonAdapter(slots.Item), {}, undefined, {});
 try {
  const data = {message:{version:1,kind:'event',event:'changed',data:{}},back:null,page:{items:['hello']}};
  assert.deepEqual(await client.relay(data), {kind:'some',value:data.message});
