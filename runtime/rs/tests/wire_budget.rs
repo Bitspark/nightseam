@@ -96,6 +96,22 @@ async fn busy_refusals_keep_the_dispatch_order_and_consume_bounded_queue_capacit
         "a busy response overtook the blocked prior event"
     );
     assert_eq!(overflow.unwrap_err().code, "backpressure");
+    let mut settled = std::collections::BTreeSet::new();
+    for _ in 0..3 {
+        let reply = timeout(Duration::from_secs(1), reply_rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(reply.frame.error.unwrap().code, "disconnected");
+        settled.insert(reply.frame.id);
+    }
+    assert_eq!(
+        settled,
+        ["c:1", "c:2", "c:3"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    );
 }
 
 #[tokio::test]

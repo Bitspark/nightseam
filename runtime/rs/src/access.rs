@@ -671,23 +671,34 @@ impl Pair {
         Ok(())
     }
     fn close(&self, code: u16, reason: &str) {
-        let calls = {
+        let (calls, refusals) = {
             let mut state = self.state.lock().unwrap();
             if state.closed {
                 return;
             }
             state.closed = true;
-            state
+            let mut refusals = Vec::new();
+            let calls = state
                 .ends
                 .iter_mut()
                 .flat_map(|end| {
-                    end.queue.clear();
+                    refusals.extend(
+                        end.queue
+                            .drain(..)
+                            .filter_map(|delivery| delivery.refusal.map(|_| delivery.message)),
+                    );
                     end.data = 0;
                     std::mem::take(&mut end.calls).into_values()
                 })
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>();
+            (calls, refusals)
         };
         self.stop.cancel();
+        for request in refusals {
+            tokio::spawn(async move {
+                let _ = response(&request, Err(closed()));
+            });
+        }
         for registry in &self.registries {
             registry.close(code, reason);
         }
