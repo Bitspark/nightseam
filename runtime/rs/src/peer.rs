@@ -885,19 +885,33 @@ impl Inner {
         let inner = self.clone();
         let handler = handler.unwrap();
         tokio::spawn(async move {
-            let timer = {
-                let cancel = cancel.clone();
-                let within = inner.options.request_timeout;
-                tokio::spawn(async move {
-                    tokio::time::sleep(within).await;
-                    cancel.cancel();
-                })
-            };
             let operation =
                 AssertUnwindSafe(async { handler(ctx, frame.params).await }).catch_unwind();
-            let result =
-                tokio::select! {_=inner.stop.cancelled()=>None,result=operation=>Some(result)};
-            timer.abort();
+            tokio::pin!(operation);
+            let result = tokio::select! {
+                biased;
+                _=inner.stop.cancelled()=>None,
+                result=&mut operation=>Some(result),
+                _=cancel.cancelled()=>{
+                    // Explicit withdrawal signals work, but its response stays
+                    // tied to the body's completion rather than the deadline.
+                    tokio::select! {
+                        _=inner.stop.cancelled()=>None,
+                        result=&mut operation=>Some(result),
+                    }
+                },
+                _=tokio::time::sleep(inner.options.request_timeout)=>{
+                    cancel.cancel();
+                    inner.respond(frame.id.clone(), frame.trace.clone(), Err(cancelled())).await;
+                    // A receiver deadline settles the response once. Work that
+                    // ignores cancellation still owns its incoming handler slot.
+                    tokio::select! {
+                        _=inner.stop.cancelled()=>{},
+                        _=&mut operation=>{},
+                    }
+                    None
+                },
+            };
             if let Some(result) = result {
                 let answer = match result {
                     Ok(Ok(_)) if cancel.is_cancelled() => Err(cancelled()),

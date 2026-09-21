@@ -240,3 +240,97 @@ async fn cancelled_routed_handler_keeps_its_slot_until_it_returns() {
     assert!(echo.get("result").is_some());
     server.close();
 }
+
+#[tokio::test]
+async fn receiver_deadline_answers_once_while_raw_and_routed_work_keep_their_slots() {
+    for routed in [false, true] {
+        let (raw, connection) = pipe(0);
+        let server = Peer::over(
+            connection,
+            Role::Server,
+            Options {
+                max_concurrent_handlers: 1,
+                request_timeout: Duration::from_millis(50),
+                ..Options::default()
+            },
+        )
+        .unwrap();
+        let cancelled = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        let handler = {
+            let (cancelled, release) = (cancelled.clone(), release.clone());
+            move |ctx: nightseam::Context, _: Payload| {
+                let (cancelled, release) = (cancelled.clone(), release.clone());
+                async move {
+                    ctx.cancelled().await;
+                    cancelled.notify_one();
+                    release.notified().await;
+                    Ok(Payload::from_json("null").unwrap())
+                }
+            }
+        };
+        let method = if routed {
+            handle_wire(server.wire(), &["hold".into()], handler).unwrap();
+            "4:hold"
+        } else {
+            server.handle("hold", handler).unwrap();
+            "hold"
+        };
+        server
+            .handle("echo", |_, value| async move { Ok(value) })
+            .unwrap();
+        let request = |id: &str, method: &str| {
+            Frame::Text(
+                serde_json::to_vec(&json!({
+                    "version": 1, "kind": "request", "id": id,
+                    "method": method, "params": null
+                }))
+                .unwrap(),
+            )
+        };
+        raw.send(request("c:1", method)).await.unwrap();
+        timeout(Duration::from_secs(1), cancelled.notified())
+            .await
+            .unwrap();
+        let answer = timeout(Duration::from_secs(1), raw.receive()).await;
+        if answer.is_err() {
+            release.notify_one();
+            server.close();
+            panic!("receiver deadline waited for the body to return (routed={routed})");
+        }
+        let answer: Value = serde_json::from_slice(answer.unwrap().unwrap().data()).unwrap();
+        assert_eq!(answer["id"], "c:1");
+        assert_eq!(answer["error"]["code"], "cancelled");
+        raw.send(request("c:2", "echo")).await.unwrap();
+        let busy = timeout(Duration::from_secs(1), raw.receive())
+            .await
+            .unwrap()
+            .unwrap();
+        let busy: Value = serde_json::from_slice(busy.data()).unwrap();
+        assert_eq!(busy["id"], "c:2");
+        assert_eq!(busy["error"]["code"], "busy");
+        release.notify_one();
+        timeout(Duration::from_secs(1), async {
+            for n in 3.. {
+                let id = format!("c:{n}");
+                raw.send(request(&id, "echo")).await.unwrap();
+                let reply = raw.receive().await.unwrap();
+                let reply: Value = serde_json::from_slice(reply.data()).unwrap();
+                assert_eq!(reply["id"], id, "a completed deadline replied twice");
+                if reply.get("result").is_some() {
+                    break;
+                }
+                assert_eq!(reply["error"]["code"], "busy");
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        assert!(
+            timeout(Duration::from_millis(30), raw.receive())
+                .await
+                .is_err()
+        );
+        server.close();
+    }
+}

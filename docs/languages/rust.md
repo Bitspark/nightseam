@@ -43,7 +43,9 @@ numeric tokens or accepting malformed Unicode before validation.
 and composition. Selection allocates no additional peer or queue. Detach
 removes registrations; it preserves the return and cancellation path of
 already admitted calls. A cancelled handler keeps its active-work capacity
-until it returns. `Peer::identity` and `Peer::check_identity` perform the
+until it returns. Explicit withdrawal is answered when that work returns;
+a receiver deadline answers `cancelled` promptly while retaining its slot.
+`Peer::identity` and `Peer::check_identity` perform the
 ordinary `identity.check` exchange before model interpretation.
 
 `PublicError::is_unpublished` distinguishes a proven refusal before admission
