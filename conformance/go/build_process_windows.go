@@ -159,5 +159,22 @@ func windowsBuildExecutable(path, dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Like Cmd.Start, an explicit executable suffix is final. Looking it up
+	// again could run missing.exe.exe when missing.exe does not exist.
+	extensions := os.Getenv("PATHEXT")
+	if extensions == "" {
+		extensions = ".com;.exe;.bat;.cmd"
+	}
+	for _, extension := range strings.Split(extensions, ";") {
+		if extension == "" {
+			continue
+		}
+		if extension[0] != '.' {
+			extension = "." + extension
+		}
+		if strings.EqualFold(filepath.Ext(path), extension) {
+			return path, nil
+		}
+	}
 	return exec.LookPath(path)
 }

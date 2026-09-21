@@ -50,4 +50,18 @@ func TestBuildWindowsExecutablePaths(t *testing.T) {
 			}
 		})
 	}
+	t.Run("explicit missing extension is not searched again", func(t *testing.T) {
+		missing := filepath.Join(dir, "missing.exe")
+		if err := os.WriteFile(missing+".exe", data, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		recipe.Build[0].Argv[0] = missing
+		baseline := recipe.command(context.Background(), recipe.Build[0], Places{})
+		if err := baseline.Run(); err == nil {
+			t.Fatal("standard command accepted missing explicit executable")
+		}
+		if err := recipe.RunBuild(context.Background(), Places{}, false); err == nil {
+			t.Fatal("owned command ran the wrong executable by adding a second suffix")
+		}
+	})
 }

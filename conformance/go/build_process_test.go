@@ -44,6 +44,16 @@ func TestBuildProcessHelper(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 		}
 		fmt.Println("build parent started its child")
+		if mode != "parent" {
+			// Let the test observe real descendant work before ending the
+			// parent; process completion must not race the readiness check.
+			for {
+				if _, err := os.Stat(filepath.Join(dir, "finish-parent")); err == nil {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
 		if mode == "failed-parent" {
 			fmt.Fprintln(os.Stderr, "build refused")
 			os.Exit(7)
@@ -108,6 +118,11 @@ func TestBuildProcessesEndTogether(t *testing.T) {
 				case <-ctx.Done():
 					t.Fatal("helper did not start its descendant within two seconds")
 				case <-time.After(10 * time.Millisecond):
+				}
+			}
+			if mode == "failed-parent" || mode == "successful-parent" {
+				if err := os.WriteFile(filepath.Join(dir, "finish-parent"), nil, 0o600); err != nil {
+					t.Fatal(err)
 				}
 			}
 			if mode == "cancel" {
