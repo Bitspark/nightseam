@@ -64,6 +64,20 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- The authority profile over a peer, in both languages: the built-in family
+  `auth` declaring `auth.challenge` and `auth.prove` under a prefix now
+  reserved for every consumer declaration, as `live.` is; `auth/go/over` and
+  `@nightseam/auth/over` — the exchange installed beside live's handlers, the
+  connection's one context reachable from any handler of the connection, a
+  context by construction for a presentation with no audience, a guard an
+  implementation calls at dispatch and again at its effect, refusing as the
+  profile's public errors, and a side's surface read off the generated
+  declaration — and a fixture that runs the profile over generated
+  Go↔TypeScript sockets in both directions with the tables' keys, expiry at
+  use through a clock the test moves, emissions per recipient and the
+  reverse direction. The packets say what the two implementers read apart —
+  a malformed prove consumes no nonce, `read` on an answered login, the
+  effect's subject, a record written once — and both verifiers agree.
 - The Go realization of the optional authority profile, in the nested module
   `auth/go`: package `grant` — the canonical body and its total decoder, the
   envelope in `nightseam-grant/1`, the chain evaluation with its refusal
