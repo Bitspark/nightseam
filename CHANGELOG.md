@@ -42,6 +42,9 @@ are one number. Entries are in the words of the commits that landed them.
   with validated document examples, pipe pairs and smoke checks of method
   inputs, results and public errors across local and carrier presentations.
 
+- Swift joins at tier 4 with native bounded pipes and Linux WebSockets,
+  the core peer and relative-path Wire, shared descriptor/frame validation,
+  conformance in both Go roles, and an external Swift Package Manager smoke.
 - Java 21 joins at tier 4 with native framed connections, bounded pipes and
   WebSockets, a symmetric peer, exact JSON/schema validation, relative-path
   Wires and declaration identity. The shared core suite holds both Java/Go
@@ -49,6 +52,9 @@ are one number. Entries are in the words of the commits that landed them.
 - Python enters at tier 4 with bounded asyncio frame connections, peers,
   descriptor validation, Wire path views and declaration identity exchange,
   held against Go in both socket roles and by an installed-wheel smoke.
+- Python provides bounded Wire recording and independent following over
+  consumer-owned storage, with atomic replay heads, cancellation-safe follower
+  ownership and unchanged opaque message capabilities.
 - Go and TypeScript ship a bounded Wire record/follow composition with
   consumer-owned storage, an atomic replay-to-live handoff and independent
   subscriber failure. Opaque messages retain their existing reference scope.
