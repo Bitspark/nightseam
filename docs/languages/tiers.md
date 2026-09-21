@@ -139,7 +139,7 @@ The CI star and release gate agree: only a nonempty `Matrix.Blocking` fails
 the star. A tier-3/4 required-profile failure or skip stays provisional, and
 a tier-2 failure outside `core`/`generator` stays nonblocking for this release.
 Each remains visible in the matrix and the CI job summary, beside its counts
-and disposition. Scenario diagnostics stay in the test log. Setup, toolchain
+and disposition. Scenario diagnostics stay in the verbose test log. Setup, toolchain
 and testee startup failures still fail the job. The nightly full matrix fails
 on every failed scenario and every required-profile skip, regardless of tier.
 

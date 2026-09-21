@@ -150,7 +150,7 @@ jobs:
       # The conformance suite is in go test ./... above; it is run again by
       # name so that a failure of the matrix reads as one, and its
       # matrix.json is kept as the run's artifact.
-      - run: go test ./conformance/go -run 'TestSelf|TestStar|TestGenerated' -count=1
+      - run: go test -v ./conformance/go -run 'TestSelf|TestStar|TestGenerated' -count=1
       - name: Publish the conformance matrix and provisional cells
         if: always()
         run: |
