@@ -20,6 +20,11 @@ func TestGeneratedTypeScriptWireFactories(t *testing.T) {
 		"client":{"methods":{"mirror":{"request":"Value","result":"T"}},"events":{"noted":{"type":"Value"}}}
 	}`))
 	writeFixture(t, directory, "api/contracts/values/model.json", []byte(`{"nightseam":2,"types":{"Count":{"kind":"alias","type":"integer"}}}`))
+	writeFixture(t, directory, "api/contracts/intrinsics/model.json", []byte(`{"nightseam":2}`))
+	writeFixture(t, directory, "api/contracts/intrinsics/protocol.json", []byte(`{
+		"profile":"nightseam.duplex/1",
+		"server":{"methods":{"constructor":{"result":"integer"},"to_string":{"result":"string"}}}
+	}`))
 	if _, errs, err := run(t, directory, "generate"); err != nil {
 		t.Fatalf("generate: %v\n%s", err, errs)
 	}
@@ -46,6 +51,7 @@ import type {WireModelContext} from '@nightseam/runtime';
 import {adapterCount} from '@example/values-client';
 import * as binding from '@example/cell-binding';
 import * as client from '@example/cell-client';
+import * as intrinsics from '@example/intrinsics-binding';
 import type {Server, Client, ServerMethods, ClientMethods, ServerEvents, ClientEvents, ServerModel, ClientModel} from '@example/cell-client/types';
 
 type Equal<A,B>=(<T>()=>T extends A?1:2) extends (<T>()=>T extends B?1:2)?true:false;
@@ -158,4 +164,34 @@ async function clientRoute(roundtrip:boolean){
 
 equal(await serverRoute(false),await serverRoute(true),'server direct and wire observations');
 equal(await clientRoute(false),await clientRoute(true),'client direct and wire observations');
+
+// Object's inherited functions are absent handlers, while supplied prototype
+// implementations remain valid model facets.
+function rejectsMissingIntrinsic(methods:object,name:string){
+ let rejected=false;
+ try{
+  const wire=intrinsics.toWire(_remote=>({methods:methods as intrinsics.ServerMethods,events:{}}),{});
+  wire.close();
+ }catch(error){
+  check(error instanceof Error&&error.message==='handler for '+name+' is required','wrong missing handler refusal: '+String(error));
+  rejected=true;
+ }
+ check(rejected,'inherited Object intrinsic was accepted as '+name+' handler');
+}
+rejectsMissingIntrinsic({toString(){return 'provided';}},'constructor');
+rejectsMissingIntrinsic({constructor(){return 41;}},'to_string');
+const intrinsicCalls:string[]=[];
+const customPrototype:intrinsics.ServerMethods={
+ constructor(_params){intrinsicCalls.push('constructor');return 41;},
+ toString(_params){intrinsicCalls.push('to_string');return 'provided';},
+};
+const inheritedMethods=Object.create(Object.create(customPrototype)) as intrinsics.ServerMethods;
+check(!Object.hasOwn(inheritedMethods,'constructor')&&!Object.hasOwn(inheritedMethods,'toString'),'prototype fixture supplied own handlers');
+const intrinsicWire=intrinsics.toWire(_remote=>({methods:inheritedMethods,events:{}}),{});
+try{
+ const model=(await intrinsics.fromWire(intrinsicWire,{}))({methods:{},events:{}});
+ check(await model.methods.constructor({},callContext)===41,'custom prototype constructor was lost');
+ check(await model.methods.toString({},callContext)==='provided','custom prototype toString was lost');
+ equal(intrinsicCalls,['constructor','to_string'],'custom prototype handler multiplicity');
+}finally{intrinsicWire.close();}
 `
