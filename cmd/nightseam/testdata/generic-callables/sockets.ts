@@ -12,6 +12,7 @@ const role = process.argv[3]!;
 const number = jsonAdapter<number>({ type: 'integer', validate: functions.validateWire });
 // All conversion objects are constructed before either physical scope exists.
 const unary = functions.adapterFunction(number, number);
+const closedAlias = functions.adapterIntFunction();
 const factory = functions.adapterFunction(unary, unary);
 const bundle = functions.adapterBundle(unary);
 const empty = { exports: 0, imports: 0 };
@@ -141,7 +142,6 @@ async function identityBoundaries(c: Connection): Promise<void> {
   }
   assert.equal(effects, 0, 'mismatch invoked the protected TypeScript handler');
   // The source alias and the dynamically applied constructor interoperate.
-  const closedAlias = functions.adapterIntFunction();
   const accepted = importValue(c, owner, closedAlias, remote);
   assert.equal(await accepted(1, { ...options(), owner }), 2);
   owner.release();
