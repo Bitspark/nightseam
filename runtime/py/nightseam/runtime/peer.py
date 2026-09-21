@@ -262,6 +262,7 @@ class Peer:
         meta=ABSENT,
         trace_override=None,
         on_admitted=None,
+        immediate=False,
     ):
         from .publication import unpublished
 
@@ -282,6 +283,7 @@ class Peer:
                 meta=meta,
                 trace_override=trace_override,
                 on_admitted=admitted,
+                immediate=immediate,
             )
         except asyncio.CancelledError as error:
             if accepted:
@@ -302,6 +304,7 @@ class Peer:
         meta=ABSENT,
         trace_override=None,
         on_admitted=None,
+        immediate=False,
     ):
         require_name(method)
         timeout_ms = self.options.request_timeout_ms if timeout_ms is None else timeout_ms
@@ -347,7 +350,7 @@ class Peer:
                     },
                     meta,
                 )
-                await self._send(envelope, method, accepted=admitted)
+                await self._send(envelope, method, accepted=admitted, immediate=immediate)
                 return await asyncio.shield(future)
         except (TimeoutError, asyncio.CancelledError) as error:
             if self._pending.pop(request_id, None) is not None:
@@ -369,7 +372,7 @@ class Peer:
     async def emit(self, event, data=ABSENT, *, context=None, meta=ABSENT):
         await self._emit(event, data, context=context, meta=meta)
 
-    async def _emit(self, event, data=ABSENT, *, context=None, meta=ABSENT, trace_override=None):
+    async def _emit(self, event, data=ABSENT, *, context=None, meta=ABSENT, trace_override=None, immediate=False):
         from .publication import unpublished
 
         accepted = False
@@ -380,7 +383,13 @@ class Peer:
 
         try:
             await self._emit_admitting(
-                event, data, context=context, meta=meta, trace_override=trace_override, on_admitted=admitted
+                event,
+                data,
+                context=context,
+                meta=meta,
+                trace_override=trace_override,
+                on_admitted=admitted,
+                immediate=immediate,
             )
         except asyncio.CancelledError as error:
             if accepted:
@@ -392,7 +401,15 @@ class Peer:
             raise unpublished(error) from error
 
     async def _emit_admitting(
-        self, event, data=ABSENT, *, context=None, meta=ABSENT, trace_override=None, on_admitted=None
+        self,
+        event,
+        data=ABSENT,
+        *,
+        context=None,
+        meta=ABSENT,
+        trace_override=None,
+        on_admitted=None,
+        immediate=False,
     ):
         require_name(event)
         trace = (
@@ -404,6 +421,7 @@ class Peer:
             ),
             event,
             accepted=on_admitted,
+            immediate=immediate,
         )
 
     def _cancel_request(self, request_id, trace, method):

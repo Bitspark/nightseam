@@ -27,6 +27,55 @@ class PeerWireTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(client.wire(), client.wire())
         self.assertIs(at(client.wire(), [])._root, client.wire())
 
+    async def test_full_physical_handoff_is_refused_without_waiting_for_the_writer(self):
+        for kind in ("event", "request"):
+            with self.subTest(kind=kind):
+                started, release = asyncio.Event(), asyncio.Event()
+
+                class Blocked:
+                    async def send(self, frame):
+                        started.set()
+                        await release.wait()
+
+                    async def receive(self):
+                        await asyncio.Future()
+
+                    async def close(self, code=1000, reason=""):
+                        pass
+
+                    def abort(self):
+                        pass
+
+                peer = Peer(Blocked(), options=Options(queue_capacity=1, write_timeout_ms=10_000))
+                self.addAsyncCleanup(peer.close)
+                await peer.emit("active")
+                await asyncio.wait_for(started.wait(), 1)
+                await peer.emit("queued")
+                replies = asyncio.Queue()
+
+                class Returning:
+                    def send(self, path, message):
+                        replies.put_nowait(message.frame)
+
+                frame = {"version": 1, "kind": kind}
+                address = None
+                if kind == "request":
+                    frame.update(id="c:1", params={})
+                    address = ReturnAddress(Returning())
+                else:
+                    frame["data"] = None
+                peer.wire().send(["refused"], Message(frame, address))
+                try:
+                    # The ten-second transport deadline must not pace this
+                    # synchronous-admission handoff. The root owns the refusal.
+                    await asyncio.wait_for(peer._closed.wait(), 0.5)
+                    self.assertEqual((await peer.wait_closed())["code"], 4011)
+                    self.assertFalse(release.is_set())
+                    if kind == "request":
+                        self.assertEqual((await asyncio.wait_for(replies.get(), 1))["error"]["code"], "disconnected")
+                finally:
+                    release.set()
+
     async def test_paths_and_grouped_facets_use_the_existing_socket(self):
         from nightseam.runtime.wire import WireHandlers, call_wire, emit_wire, register_wire
 

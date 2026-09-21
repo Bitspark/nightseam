@@ -153,7 +153,9 @@ class PeerWire:
                 name = encode_path(path)
                 trace = outgoing_trace(frame)
                 if kind == "event":
-                    await self.peer._emit(name, frame["data"], meta=frame.get("meta", ABSENT), trace_override=trace)
+                    await self.peer._emit(
+                        name, frame["data"], meta=frame.get("meta", ABSENT), trace_override=trace, immediate=True
+                    )
                     continue
                 admitted = asyncio.get_running_loop().create_future()
 
@@ -168,6 +170,7 @@ class PeerWire:
                         meta=frame.get("meta", ABSENT),
                         trace_override=trace,
                         on_admitted=accepted,
+                        immediate=True,
                     )
                 )
                 call.task.add_done_callback(lambda task, entry=call: self._finished_call(entry, task))
