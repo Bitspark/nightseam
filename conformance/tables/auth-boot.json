@@ -1,0 +1,1735 @@
+{
+  "description": "Vectors for the authenticated connection and the bootstrap (docs/auth/connection.md): the audience a connection binds to, the connection proof in nightseam-auth/1, the exchange that makes a connection's context, the per-call decision at use, and login transcripts over Archon's scheme with recovery. Every input that is entropy or time is given, so every byte is deterministic. Envelopes named as in auth-grant.json are byte-identical to it. now is seconds since the Unix epoch, UTC; null is no trusted time.",
+  "version": "0.1.0",
+  "domains": {
+    "connection_proof": "nightseam-auth/1",
+    "grant": "nightseam-grant/1",
+    "login": "archon-login/1"
+  },
+  "bounds": {
+    "answer_retention": 300,
+    "collect_interval": 5,
+    "id_bytes": 16,
+    "issuer_clock_skew": 60,
+    "login_expires_in": 300,
+    "max_pending": 4096,
+    "max_valid_for": 2592000,
+    "nonce_bytes": 32
+  },
+  "root": {
+    "domain": "example.test",
+    "key": "root"
+  },
+  "keys": {
+    "alice": {
+      "seed": "0202020202020202020202020202020202020202020202020202020202020202",
+      "pubkey": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
+    },
+    "bob": {
+      "seed": "0303030303030303030303030303030303030303030303030303030303030303",
+      "pubkey": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+    },
+    "browser": {
+      "seed": "0707070707070707070707070707070707070707070707070707070707070707",
+      "pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c"
+    },
+    "carol": {
+      "seed": "0404040404040404040404040404040404040404040404040404040404040404",
+      "pubkey": "ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c"
+    },
+    "mallory": {
+      "seed": "0505050505050505050505050505050505050505050505050505050505050505",
+      "pubkey": "6e7a1cdd29b0b78fd13af4c5598feff4ef2a97166e3ca6f2e4fbfccd80505bf1"
+    },
+    "other_root": {
+      "seed": "0606060606060606060606060606060606060606060606060606060606060606",
+      "pubkey": "8a875fff1eb38451577acd5afee405456568dd7c89e090863a0557bc7af49f17"
+    },
+    "root": {
+      "seed": "0101010101010101010101010101010101010101010101010101010101010101",
+      "pubkey": "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c"
+    }
+  },
+  "envelopes": {
+    "alice_bob": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3944f78460cc17d271e5dc0d854aae850ba2530683673e30f6c0306506a3ced2d8271dc1d111053443fbfa6202c72c4d37a87fa85fe25784bb04a582909202c8e08010c6578616d706c652e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d101a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f3700020004726561640005777269746500010004726561640201000000006b49d200",
+    "alice_browser": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3945a17dc7e477f6dd4d15bb709c39783e644766a5f9452900488940109b714d94cc20ba1e0c51acd53334ea83247b976a1ac9dc96f5b8e8f2c704be13f85ca5a01010c6578616d706c652e74657374ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c01a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f37000100047265616400000001000000006b49b902",
+    "alice_browser_too_long": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394e59d748226bfb00a83852a47e0528e910c72094164d02e6a25fffdcc063ee8f2ac068d81cae4ed755db8916d0afbc3c24c5dd307e5c9ca63894b78f8cd5bc206010c6578616d706c652e74657374ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c01a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f37000100047265616400000001000000006b49b93f",
+    "alice_browser_unbounded": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394942dd0abfc5a6f9112ae1c9928b4761b95ada7440dc4a667638b1e8128d233180d56138db72540a5c87823e01aa4ca9d642fead892efbeb9a6baf26f50c8d102010c6578616d706c652e74657374ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c01a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f37000100047265616400000000",
+    "alice_browser_widened": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3942e134cd4228e3d49e1554367855cc5c5984f9fc4a85b8899c75719384905f1d6fd613d6af26aa8c6153d6444cdda17ca243c1f5916e5b4a294686184f5772005010c6578616d706c652e74657374ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c01a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f3700020004726561640005777269746500010004726561640101000000006b49b902",
+    "root_alice": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c6f78fb44bbbb08c0f17de081df55c05c08cda4e5ff95b057ec22735bdcdde4aef6f36d669b4619ff7ad605a10ed5c13bfd97545f2b6e5b291d3a35203b97dc07010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300",
+    "root_alice_tampered": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c6f78fb44bbbb08c0f17de081df55c05c08cda4e5ff95b057ec22735bdcdde4aef6f36d669b4619ff7ad605a10ed5c13bfd97545f2b6e5b291d3a35203b97dc07010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650301"
+  },
+  "cases": [
+    {
+      "family": "boot_audience",
+      "id": "AUTH-BOOT-001",
+      "name": "wss folds to https, host lowercases, the default port is dropped",
+      "url": "wss://API.example.test:443/nightseam",
+      "audience": "https://api.example.test/nightseam"
+    },
+    {
+      "family": "boot_audience",
+      "id": "AUTH-BOOT-002",
+      "name": "ws folds to http",
+      "url": "ws://localhost:8080",
+      "audience": "http://localhost:8080"
+    },
+    {
+      "family": "boot_audience",
+      "id": "AUTH-BOOT-003",
+      "name": "a non-default port stays",
+      "url": "https://api.example.test:8443/a/b",
+      "audience": "https://api.example.test:8443/a/b"
+    },
+    {
+      "family": "boot_audience",
+      "id": "AUTH-BOOT-004",
+      "name": "segments keep their case and escapes",
+      "url": "https://api.example.test/Team%20A/v1",
+      "audience": "https://api.example.test/Team%20A/v1"
+    },
+    {
+      "family": "boot_audience",
+      "id": "AUTH-BOOT-005",
+      "name": "an IPv6 host",
+      "url": "wss://[2001:db8::1]:443/x",
+      "audience": "https://[2001:db8::1]/x"
+    },
+    {
+      "family": "boot_audience",
+      "id": "AUTH-BOOT-006",
+      "name": "a trailing slash is an empty segment: refused",
+      "url": "wss://api.example.test/nightseam/",
+      "refused": true
+    },
+    {
+      "family": "boot_audience",
+      "id": "AUTH-BOOT-007",
+      "name": "a query is refused",
+      "url": "wss://api.example.test/nightseam?x=1",
+      "refused": true
+    },
+    {
+      "family": "boot_audience",
+      "id": "AUTH-BOOT-008",
+      "name": "userinfo is refused",
+      "url": "wss://user@api.example.test/nightseam",
+      "refused": true
+    },
+    {
+      "family": "boot_audience",
+      "id": "AUTH-BOOT-009",
+      "name": "a dot segment is refused",
+      "url": "wss://api.example.test/./nightseam",
+      "refused": true
+    },
+    {
+      "family": "boot_audience",
+      "id": "AUTH-BOOT-010",
+      "name": "a leading zero in the port is refused",
+      "url": "wss://api.example.test:0443/nightseam",
+      "refused": true
+    },
+    {
+      "family": "boot_audience",
+      "id": "AUTH-BOOT-011",
+      "name": "a scheme outside http(s)/ws(s) is refused",
+      "url": "ftp://api.example.test/nightseam",
+      "refused": true
+    },
+    {
+      "family": "auth_binding",
+      "id": "AUTH-BOOT-012",
+      "name": "the connection binding: role 0x01, then the audience",
+      "audience": "https://api.example.test/nightseam",
+      "binding": "01002268747470733a2f2f6170692e6578616d706c652e746573742f6e696768747365616d"
+    },
+    {
+      "family": "auth_prove",
+      "id": "AUTH-BOOT-013",
+      "name": "a proof over the challenge, bound to the audience reached",
+      "key": "bob",
+      "audience": "https://api.example.test/nightseam",
+      "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "proof": "80da68ec8d65bf2ab8aba49d98fdddcf0bf83d9fb9b39226ba6489c88d85c720c0b7ce137e1ef04c514a35fb75aaa24bc2f7c8d4dea1a96cce41d4e161e41d0b",
+      "verifies": true
+    },
+    {
+      "family": "auth_prove",
+      "id": "AUTH-BOOT-014",
+      "name": "the same proof presented at another audience: relayed, refused",
+      "key": "bob",
+      "audience": "https://other.example.test/nightseam",
+      "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "proof": "80da68ec8d65bf2ab8aba49d98fdddcf0bf83d9fb9b39226ba6489c88d85c720c0b7ce137e1ef04c514a35fb75aaa24bc2f7c8d4dea1a96cce41d4e161e41d0b",
+      "verifies": false
+    },
+    {
+      "family": "auth_prove",
+      "id": "AUTH-BOOT-015",
+      "name": "the same proof presented against another challenge: replayed, refused",
+      "key": "bob",
+      "audience": "https://api.example.test/nightseam",
+      "nonce": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+      "proof": "80da68ec8d65bf2ab8aba49d98fdddcf0bf83d9fb9b39226ba6489c88d85c720c0b7ce137e1ef04c514a35fb75aaa24bc2f7c8d4dea1a96cce41d4e161e41d0b",
+      "verifies": false
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-016",
+      "name": "a delegated subject: challenge, prove, established with the chain's validity",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "challenge",
+          "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "result": "challenged"
+        },
+        {
+          "op": "prove",
+          "subject": "bob",
+          "proof": "80da68ec8d65bf2ab8aba49d98fdddcf0bf83d9fb9b39226ba6489c88d85c720c0b7ce137e1ef04c514a35fb75aaa24bc2f7c8d4dea1a96cce41d4e161e41d0b",
+          "chain": [
+            "root_alice",
+            "alice_bob"
+          ],
+          "now": 1799990000,
+          "result": {
+            "since": 1799990000,
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1",
+            "validity": {
+              "expires_at": 1800000000
+            }
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-017",
+      "name": "the principal itself, with its own chain: no delegation needed",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "challenge",
+          "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "result": "challenged"
+        },
+        {
+          "op": "prove",
+          "subject": "alice",
+          "proof": "4b9fb6b5fc148d0d6bf23154cfff604c41b920d81ef597eb463d629df3ecd8f78f602cecc8e93d4aad40004b7f4ecedb0268d9137a9ef7d0c8c457c124433406",
+          "chain": [
+            "root_alice"
+          ],
+          "result": {
+            "since": 0,
+            "subject": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394",
+            "validity": "unbounded"
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-018",
+      "name": "a copied chain without possession: the proof is another key's",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "challenge",
+          "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "result": "challenged"
+        },
+        {
+          "op": "prove",
+          "subject": "bob",
+          "proof": "6c078d86a3566ddad7e9c2a34f72b06247d217c6e6470e4f61bdfac3c7194665e108c95c364b23e084b1caabed9f390d1cd45556ca851e5d09092d2fdcc93f01",
+          "chain": [
+            "root_alice",
+            "alice_bob"
+          ],
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.possession_invalid"
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-019",
+      "name": "a chain that does not end at the subject",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "challenge",
+          "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "result": "challenged"
+        },
+        {
+          "op": "prove",
+          "subject": "carol",
+          "proof": "40ce1906cb7250612c48c8fee45a1f3db266a4f9a75c070575f6b177d0ca6c4f098f2672fd2a1cebc602087cbdf6bebbbdeab160810a4452dcd14e15d07b7500",
+          "chain": [
+            "root_alice",
+            "alice_bob"
+          ],
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.subject_mismatch"
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-020",
+      "name": "a proof made for another audience: relayed",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "challenge",
+          "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "result": "challenged"
+        },
+        {
+          "op": "prove",
+          "subject": "bob",
+          "proof": "0d246a0bc3a6387d0ef98a9c46b8271e1173c175aaf403bcbcdc4c727af5948b0a79f2fac0c767242ebb16bf4da6682b678b20dbd329c449b4710b0ab205be0e",
+          "chain": [
+            "root_alice",
+            "alice_bob"
+          ],
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.possession_invalid"
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-021",
+      "name": "a proof over an earlier connection's challenge: a fresh connection inherits nothing",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "challenge",
+          "nonce": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+          "result": "challenged"
+        },
+        {
+          "op": "prove",
+          "subject": "bob",
+          "proof": "80da68ec8d65bf2ab8aba49d98fdddcf0bf83d9fb9b39226ba6489c88d85c720c0b7ce137e1ef04c514a35fb75aaa24bc2f7c8d4dea1a96cce41d4e161e41d0b",
+          "chain": [
+            "root_alice",
+            "alice_bob"
+          ],
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.possession_invalid"
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-022",
+      "name": "prove before any challenge",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "prove",
+          "subject": "bob",
+          "proof": "80da68ec8d65bf2ab8aba49d98fdddcf0bf83d9fb9b39226ba6489c88d85c720c0b7ce137e1ef04c514a35fb75aaa24bc2f7c8d4dea1a96cce41d4e161e41d0b",
+          "chain": [
+            "root_alice",
+            "alice_bob"
+          ],
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.no_challenge"
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-023",
+      "name": "one attempt per challenge: a failed prove consumes it",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "challenge",
+          "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "result": "challenged"
+        },
+        {
+          "op": "prove",
+          "subject": "bob",
+          "proof": "6c078d86a3566ddad7e9c2a34f72b06247d217c6e6470e4f61bdfac3c7194665e108c95c364b23e084b1caabed9f390d1cd45556ca851e5d09092d2fdcc93f01",
+          "chain": [
+            "root_alice",
+            "alice_bob"
+          ],
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.possession_invalid"
+          }
+        },
+        {
+          "op": "prove",
+          "subject": "bob",
+          "proof": "80da68ec8d65bf2ab8aba49d98fdddcf0bf83d9fb9b39226ba6489c88d85c720c0b7ce137e1ef04c514a35fb75aaa24bc2f7c8d4dea1a96cce41d4e161e41d0b",
+          "chain": [
+            "root_alice",
+            "alice_bob"
+          ],
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.no_challenge"
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-024",
+      "name": "a context is immutable: a second challenge or prove is refused",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "challenge",
+          "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "result": "challenged"
+        },
+        {
+          "op": "prove",
+          "subject": "bob",
+          "proof": "80da68ec8d65bf2ab8aba49d98fdddcf0bf83d9fb9b39226ba6489c88d85c720c0b7ce137e1ef04c514a35fb75aaa24bc2f7c8d4dea1a96cce41d4e161e41d0b",
+          "chain": [
+            "root_alice",
+            "alice_bob"
+          ],
+          "now": 1799990000,
+          "result": {
+            "since": 1799990000,
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1",
+            "validity": {
+              "expires_at": 1800000000
+            }
+          }
+        },
+        {
+          "op": "challenge",
+          "nonce": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+          "refused": {
+            "code": "auth.established"
+          }
+        },
+        {
+          "op": "prove",
+          "subject": "alice",
+          "proof": "db8bf2b3fad8ba8a96d0713fdccd1a58059b2b56eb58d171c6b8c067df0e6ae336b3268b1575455b727fc7a971fef3ff85802ef44401ae380eb35d7e2b4eeb09",
+          "chain": [
+            "root_alice"
+          ],
+          "refused": {
+            "code": "auth.established"
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-025",
+      "name": "a tampered envelope in the chain",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "challenge",
+          "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "result": "challenged"
+        },
+        {
+          "op": "prove",
+          "subject": "alice",
+          "proof": "4b9fb6b5fc148d0d6bf23154cfff604c41b920d81ef597eb463d629df3ecd8f78f602cecc8e93d4aad40004b7f4ecedb0268d9137a9ef7d0c8c457c124433406",
+          "chain": [
+            "root_alice_tampered"
+          ],
+          "refused": {
+            "code": "auth.chain_refused",
+            "grant": {
+              "code": "envelope_invalid",
+              "hop": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-026",
+      "name": "an expired chain at establishment",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "challenge",
+          "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "result": "challenged"
+        },
+        {
+          "op": "prove",
+          "subject": "bob",
+          "proof": "80da68ec8d65bf2ab8aba49d98fdddcf0bf83d9fb9b39226ba6489c88d85c720c0b7ce137e1ef04c514a35fb75aaa24bc2f7c8d4dea1a96cce41d4e161e41d0b",
+          "chain": [
+            "root_alice",
+            "alice_bob"
+          ],
+          "now": 1800000000,
+          "refused": {
+            "code": "auth.chain_refused",
+            "grant": {
+              "code": "expired",
+              "hop": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-027",
+      "name": "a bounded chain with no trusted time",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "challenge",
+          "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "result": "challenged"
+        },
+        {
+          "op": "prove",
+          "subject": "bob",
+          "proof": "80da68ec8d65bf2ab8aba49d98fdddcf0bf83d9fb9b39226ba6489c88d85c720c0b7ce137e1ef04c514a35fb75aaa24bc2f7c8d4dea1a96cce41d4e161e41d0b",
+          "chain": [
+            "root_alice",
+            "alice_bob"
+          ],
+          "refused": {
+            "code": "auth.chain_refused",
+            "grant": {
+              "code": "time_required",
+              "hop": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-028",
+      "name": "a presentation with no audience — a pipe — cannot run the exchange",
+      "audience": "",
+      "steps": [
+        {
+          "op": "challenge",
+          "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "refused": {
+            "code": "auth.unsupported"
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_connect",
+      "id": "AUTH-BOOT-029",
+      "name": "a challenge nonce of the wrong size is malformed",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "challenge",
+          "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "refused": {
+            "code": "auth.malformed"
+          }
+        }
+      ]
+    },
+    {
+      "family": "auth_call",
+      "id": "AUTH-BOOT-030",
+      "name": "a covered request within validity",
+      "subject": "bob",
+      "chain": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "request": {
+        "action": "read",
+        "domain": "example.test",
+        "scope": "projects/7/ledger"
+      },
+      "now": 1799990000,
+      "allowed": {
+        "depth": 2,
+        "hops": 2,
+        "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1",
+        "validity": {
+          "expires_at": 1800000000
+        }
+      }
+    },
+    {
+      "family": "auth_call",
+      "id": "AUTH-BOOT-031",
+      "name": "expiry at use, with the connection still open",
+      "subject": "bob",
+      "chain": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "request": {
+        "action": "read",
+        "domain": "example.test",
+        "scope": "projects/7/ledger"
+      },
+      "now": 1800000000,
+      "refused": {
+        "code": "auth.denied",
+        "grant": {
+          "code": "expired",
+          "hop": 1
+        }
+      }
+    },
+    {
+      "family": "auth_call",
+      "id": "AUTH-BOOT-032",
+      "name": "a scope the chain does not reach",
+      "subject": "bob",
+      "chain": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "request": {
+        "action": "read",
+        "domain": "example.test",
+        "scope": "projects/8"
+      },
+      "now": 1799990000,
+      "refused": {
+        "code": "auth.denied",
+        "grant": {
+          "code": "not_covered",
+          "hop": 1
+        }
+      }
+    },
+    {
+      "family": "auth_call",
+      "id": "AUTH-BOOT-033",
+      "name": "a context whose subject is not the chain's leaf: cross-user reuse",
+      "subject": "carol",
+      "chain": [
+        "root_alice",
+        "alice_bob"
+      ],
+      "request": {
+        "action": "read",
+        "domain": "example.test",
+        "scope": "projects/7"
+      },
+      "now": 1799990000,
+      "refused": {
+        "code": "auth.subject_mismatch"
+      }
+    },
+    {
+      "family": "auth_call",
+      "id": "AUTH-BOOT-034",
+      "name": "no context: an early protected call",
+      "request": {
+        "action": "read",
+        "domain": "example.test",
+        "scope": "projects/7"
+      },
+      "now": 1799990000,
+      "refused": {
+        "code": "auth.unauthenticated"
+      }
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-035",
+      "name": "the whole login, then recovery of the same answer, then retention ends",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "read",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "result": {
+            "browser": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+            "expires_at": 1799990300,
+            "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+            "scope": [
+              "action:read",
+              "scope:projects/7",
+              "depth:0"
+            ],
+            "valid_for": 3600
+          },
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+          "authority": [
+            "root_alice",
+            "alice_browser"
+          ],
+          "version": 1,
+          "result": "answered",
+          "state": "answered"
+        },
+        {
+          "op": "collect",
+          "now": 1799990003,
+          "id": "11111111111111111111111111111111",
+          "proof": "5c7088293a14d57cb6f84d5a205dab5c75cd1e88b34ab4796357ba744ca8989e51b27c636ed2a4e4b8994a5dcb2d78031a765e7e4844fc1c7a260afa6db71b0c",
+          "result": {
+            "authority": [
+              "root_alice",
+              "alice_browser"
+            ],
+            "possession": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+            "principal": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
+          },
+          "state": "collected"
+        },
+        {
+          "op": "collect",
+          "now": 1799990010,
+          "id": "11111111111111111111111111111111",
+          "proof": "5c7088293a14d57cb6f84d5a205dab5c75cd1e88b34ab4796357ba744ca8989e51b27c636ed2a4e4b8994a5dcb2d78031a765e7e4844fc1c7a260afa6db71b0c",
+          "result": {
+            "authority": [
+              "root_alice",
+              "alice_browser"
+            ],
+            "possession": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+            "principal": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
+          },
+          "state": "collected"
+        },
+        {
+          "op": "sweep",
+          "now": 1799990302,
+          "result": [
+            "11111111111111111111111111111111"
+          ]
+        },
+        {
+          "op": "collect",
+          "now": 1799990302,
+          "id": "11111111111111111111111111111111",
+          "proof": "5c7088293a14d57cb6f84d5a205dab5c75cd1e88b34ab4796357ba744ca8989e51b27c636ed2a4e4b8994a5dcb2d78031a765e7e4844fc1c7a260afa6db71b0c",
+          "refused": "expired_token"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-036",
+      "name": "collect before the answer is pending; a fast second poll is paced; issuer offline after answering changes nothing",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "read",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "result": {
+            "browser": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+            "expires_at": 1799990300,
+            "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+            "scope": [
+              "action:read",
+              "scope:projects/7",
+              "depth:0"
+            ],
+            "valid_for": 3600
+          },
+          "state": "pending"
+        },
+        {
+          "op": "collect",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "proof": "5c7088293a14d57cb6f84d5a205dab5c75cd1e88b34ab4796357ba744ca8989e51b27c636ed2a4e4b8994a5dcb2d78031a765e7e4844fc1c7a260afa6db71b0c",
+          "refused": "authorization_pending",
+          "state": "pending"
+        },
+        {
+          "op": "collect",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "proof": "5c7088293a14d57cb6f84d5a205dab5c75cd1e88b34ab4796357ba744ca8989e51b27c636ed2a4e4b8994a5dcb2d78031a765e7e4844fc1c7a260afa6db71b0c",
+          "refused": "slow_down",
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+          "authority": [
+            "root_alice",
+            "alice_browser"
+          ],
+          "version": 1,
+          "result": "answered",
+          "state": "answered"
+        },
+        {
+          "op": "collect",
+          "now": 1799990008,
+          "id": "11111111111111111111111111111111",
+          "proof": "5c7088293a14d57cb6f84d5a205dab5c75cd1e88b34ab4796357ba744ca8989e51b27c636ed2a4e4b8994a5dcb2d78031a765e7e4844fc1c7a260afa6db71b0c",
+          "result": {
+            "authority": [
+              "root_alice",
+              "alice_browser"
+            ],
+            "possession": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+            "principal": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
+          },
+          "state": "collected"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-037",
+      "name": "an answer whose proof covers other terms: the binding refuses it, the request stays pending",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "read",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "result": {
+            "browser": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+            "expires_at": 1799990300,
+            "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+            "scope": [
+              "action:read",
+              "scope:projects/7",
+              "depth:0"
+            ],
+            "valid_for": 3600
+          },
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "8d7723a459fd28b5c6a5db2aac8d014c00369fbf96dca6d68ffa845b549e9a2cfb339ae1fda56923efcad0f5e53cec1c33437a0924927e570049fff1a0494a0f",
+          "authority": [
+            "root_alice",
+            "alice_browser"
+          ],
+          "version": 1,
+          "refused": "invalid_grant",
+          "state": "pending"
+        },
+        {
+          "op": "collect",
+          "now": 1799990003,
+          "id": "11111111111111111111111111111111",
+          "proof": "5c7088293a14d57cb6f84d5a205dab5c75cd1e88b34ab4796357ba744ca8989e51b27c636ed2a4e4b8994a5dcb2d78031a765e7e4844fc1c7a260afa6db71b0c",
+          "refused": "authorization_pending",
+          "state": "pending"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-038",
+      "name": "a proof made for another audience: the wrong recipient",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "read",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "result": {
+            "browser": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+            "expires_at": 1799990300,
+            "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+            "scope": [
+              "action:read",
+              "scope:projects/7",
+              "depth:0"
+            ],
+            "valid_for": 3600
+          },
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "fef390d9acddd6986a3f2d68eb1fa352042dc1e8795a92d670564e6be19a59e5d9d4d03b54df589b4c0989b0d8bba9fcfed803ad1b97a80ad0eee60b93207d0d",
+          "authority": [
+            "root_alice",
+            "alice_browser"
+          ],
+          "version": 1,
+          "refused": "invalid_grant",
+          "state": "pending"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-039",
+      "name": "an authority wider than the request is refused: credential admission cannot mint",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "read",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "result": {
+            "browser": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+            "expires_at": 1799990300,
+            "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+            "scope": [
+              "action:read",
+              "scope:projects/7",
+              "depth:0"
+            ],
+            "valid_for": 3600
+          },
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+          "authority": [
+            "root_alice",
+            "alice_browser_widened"
+          ],
+          "version": 1,
+          "refused": {
+            "code": "invalid_grant",
+            "grant": {
+              "code": "widened_actions",
+              "hop": 1
+            }
+          },
+          "state": "pending"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-040",
+      "name": "an authority valid beyond the requested duration plus skew is refused",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "read",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "result": {
+            "browser": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+            "expires_at": 1799990300,
+            "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+            "scope": [
+              "action:read",
+              "scope:projects/7",
+              "depth:0"
+            ],
+            "valid_for": 3600
+          },
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+          "authority": [
+            "root_alice",
+            "alice_browser_too_long"
+          ],
+          "version": 1,
+          "refused": {
+            "code": "invalid_grant",
+            "grant": {
+              "code": "widened_validity",
+              "hop": 1
+            }
+          },
+          "state": "pending"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-041",
+      "name": "an unbounded authority is refused: a login always bounds",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "read",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "result": {
+            "browser": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+            "expires_at": 1799990300,
+            "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+            "scope": [
+              "action:read",
+              "scope:projects/7",
+              "depth:0"
+            ],
+            "valid_for": 3600
+          },
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+          "authority": [
+            "root_alice",
+            "alice_browser_unbounded"
+          ],
+          "version": 1,
+          "refused": {
+            "code": "invalid_grant",
+            "grant": {
+              "code": "widened_validity",
+              "hop": 1
+            }
+          },
+          "state": "pending"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-042",
+      "name": "a copied chain without possession: the principal did not issue the leaf",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "read",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "result": {
+            "browser": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+            "expires_at": 1799990300,
+            "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+            "scope": [
+              "action:read",
+              "scope:projects/7",
+              "depth:0"
+            ],
+            "valid_for": 3600
+          },
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "mallory",
+          "proof": "40831b1f1d02740b4fbc6609bcc559e95df7be1750af402aabb8a1befc85423fabc753caf51721bff8868ad2b9526a939e4fa48f0520aa687d8d9a287044890c",
+          "authority": [
+            "root_alice",
+            "alice_browser"
+          ],
+          "version": 1,
+          "refused": {
+            "code": "invalid_grant",
+            "grant": {
+              "code": "issuer_mismatch",
+              "hop": 1
+            }
+          },
+          "state": "pending"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-043",
+      "name": "a second answer is refused: one issued result",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "read",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "result": {
+            "browser": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+            "expires_at": 1799990300,
+            "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+            "scope": [
+              "action:read",
+              "scope:projects/7",
+              "depth:0"
+            ],
+            "valid_for": 3600
+          },
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+          "authority": [
+            "root_alice",
+            "alice_browser"
+          ],
+          "version": 1,
+          "result": "answered",
+          "state": "answered"
+        },
+        {
+          "op": "answer",
+          "now": 1799990003,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+          "authority": [
+            "root_alice",
+            "alice_browser"
+          ],
+          "version": 2,
+          "refused": "invalid_request",
+          "state": "answered"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-044",
+      "name": "a stale version at answer loses the compare-and-set: the replica re-reads",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "read",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "result": {
+            "browser": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+            "expires_at": 1799990300,
+            "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+            "scope": [
+              "action:read",
+              "scope:projects/7",
+              "depth:0"
+            ],
+            "valid_for": 3600
+          },
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+          "authority": [
+            "root_alice",
+            "alice_browser"
+          ],
+          "version": 7,
+          "refused": "invalid_request",
+          "state": "pending"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-045",
+      "name": "a pending login expires unanswered",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "read",
+          "now": 1799990300,
+          "id": "11111111111111111111111111111111",
+          "refused": "expired_token"
+        },
+        {
+          "op": "answer",
+          "now": 1799990300,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+          "authority": [
+            "root_alice",
+            "alice_browser"
+          ],
+          "version": 1,
+          "refused": "expired_token",
+          "state": "pending"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-046",
+      "name": "a collect proof by a key that is not the browser's: made over a forged request, refused against the real one",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "read",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "result": {
+            "browser": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+            "expires_at": 1799990300,
+            "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+            "scope": [
+              "action:read",
+              "scope:projects/7",
+              "depth:0"
+            ],
+            "valid_for": 3600
+          },
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+          "authority": [
+            "root_alice",
+            "alice_browser"
+          ],
+          "version": 1,
+          "result": "answered",
+          "state": "answered"
+        },
+        {
+          "op": "collect",
+          "now": 1799990003,
+          "id": "11111111111111111111111111111111",
+          "proof": "9c2b55caac866643a0692b72d63305ae8d990e402086f6465140d9d9e3c49fefe54eba7eb9060efd2055a44cbf1d2dbf0ec00eeab463dbea404cf7ecca5d4200",
+          "refused": "invalid_grant",
+          "state": "answered"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-047",
+      "name": "two collectors: the first transition wins and both receive the same answer",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "read",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "result": {
+            "browser": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+            "expires_at": 1799990300,
+            "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+            "scope": [
+              "action:read",
+              "scope:projects/7",
+              "depth:0"
+            ],
+            "valid_for": 3600
+          },
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+          "authority": [
+            "root_alice",
+            "alice_browser"
+          ],
+          "version": 1,
+          "result": "answered",
+          "state": "answered"
+        },
+        {
+          "op": "collect",
+          "now": 1799990003,
+          "id": "11111111111111111111111111111111",
+          "proof": "5c7088293a14d57cb6f84d5a205dab5c75cd1e88b34ab4796357ba744ca8989e51b27c636ed2a4e4b8994a5dcb2d78031a765e7e4844fc1c7a260afa6db71b0c",
+          "result": {
+            "authority": [
+              "root_alice",
+              "alice_browser"
+            ],
+            "possession": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+            "principal": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
+          },
+          "state": "collected"
+        },
+        {
+          "op": "collect",
+          "now": 1799990008,
+          "id": "11111111111111111111111111111111",
+          "proof": "5c7088293a14d57cb6f84d5a205dab5c75cd1e88b34ab4796357ba744ca8989e51b27c636ed2a4e4b8994a5dcb2d78031a765e7e4844fc1c7a260afa6db71b0c",
+          "result": {
+            "authority": [
+              "root_alice",
+              "alice_browser"
+            ],
+            "possession": "455f2f9982879ae995dfa7fcd86fc8a37f03003b07e4e96cef23097c185d0197140e446f135b24f267c47f997216027525e4168aa506ecdc611d8e6ea497dd0f",
+            "principal": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
+          },
+          "state": "collected"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-048",
+      "name": "the principal logs in as itself: its own chain, no new grant, no delegation permission needed",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "alice",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "6a824527d589d3acc0c632ec790f3ed8049ee6622cdad0cca5465e228284bedf8d56998d1caec3e759803ae0d93b035b7cf58a535df8bf0fbc785df8acd7fc0e",
+          "authority": [
+            "root_alice"
+          ],
+          "version": 1,
+          "result": "answered",
+          "state": "answered"
+        },
+        {
+          "op": "collect",
+          "now": 1799990003,
+          "id": "11111111111111111111111111111111",
+          "proof": "91c95fa128040dc59d66038d16af06a0ff0f15702f36aa1d6a213c308bc060366125a08a005f0ab57188d1390adc2845c3c945b32bbfb6ce240d729cfed88f09",
+          "result": {
+            "authority": [
+              "root_alice"
+            ],
+            "possession": "6a824527d589d3acc0c632ec790f3ed8049ee6622cdad0cca5465e228284bedf8d56998d1caec3e759803ae0d93b035b7cf58a535df8bf0fbc785df8acd7fc0e",
+            "principal": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
+          },
+          "state": "collected"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-049",
+      "name": "the principal logs in as itself for an action its chain does not grant",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "alice",
+          "scope": [
+            "action:archive",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "answer",
+          "now": 1799990002,
+          "id": "11111111111111111111111111111111",
+          "principal": "alice",
+          "proof": "b20ea2f52d1e52dfdd450acb6d2b37f61e664c171acf048ee9ddc98cef0f83195139aa19a075c097cfba81c9323d03ef4b992cf71becc58d5848405771d76207",
+          "authority": [
+            "root_alice"
+          ],
+          "version": 1,
+          "refused": {
+            "code": "invalid_grant",
+            "grant": {
+              "code": "not_covered",
+              "hop": 0
+            }
+          },
+          "state": "pending"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-050",
+      "name": "terms out of canonical order are refused at begin",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "scope:projects/7",
+            "action:read"
+          ],
+          "valid_for": 3600,
+          "refused": "invalid_request"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-051",
+      "name": "a zero validity is refused at begin",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "refused": "invalid_request"
+        }
+      ]
+    },
+    {
+      "family": "boot_login",
+      "id": "AUTH-BOOT-052",
+      "name": "a live id may not be begun twice",
+      "audience": "https://api.example.test/nightseam",
+      "steps": [
+        {
+          "op": "begin",
+          "now": 1799990000,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "result": {
+            "expires_at": 1799990300,
+            "version": 1
+          },
+          "state": "pending"
+        },
+        {
+          "op": "begin",
+          "now": 1799990001,
+          "id": "11111111111111111111111111111111",
+          "nonce": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "browser": "browser",
+          "scope": [
+            "action:read",
+            "scope:projects/7",
+            "depth:0"
+          ],
+          "valid_for": 3600,
+          "refused": "invalid_request"
+        }
+      ]
+    }
+  ]
+}

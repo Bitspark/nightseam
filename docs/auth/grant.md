@@ -131,7 +131,11 @@ Evaluation runs in this order, and the first failure is the answer:
 
 What comes back is the leaf's **subject**, its **depth**, the chain's
 effective **validity** — the earliest finite expiry, or unbounded — and the
-hop count. **Whether the presenter holds that subject's key is not this
+hop count. `Inspect` is the same evaluation without step 3 — a chain held
+to its length, ancestry, domain, attenuation and time, with no request yet
+— which is what [establishing a connection](connection.md#the-exchange)
+and issuance need; every refusal of the table that arises in steps 1, 2 or
+4 holds `Inspect` as it holds `Verify`. **Whether the presenter holds that subject's key is not this
 function's question**; possession is [#351](https://github.com/Bitspark/nightseam/issues/351)'s,
 and what the action means for the resource is the resource owner's.
 
@@ -205,6 +209,7 @@ func Decode(body []byte) (Grant, Code)
 func Seal(issuerSeed []byte, g Grant) ([]byte, error)
 func Open(envelope []byte) (issuer [32]byte, g Grant, code Code)
 func Digest(envelope []byte) [32]byte
+func Inspect(root Root, chain [][]byte, now Time) (Verified, *Refusal)   // steps 1, 2 and 4: the chain held without a request
 func Verify(root Root, chain [][]byte, request Request, now Time) (Verified, *Refusal)
 func Issue(root Root, parents [][]byte, issuerSeed []byte, child Grant, inherit bool, now Time) ([]byte, *Refusal)
 ```
@@ -227,6 +232,7 @@ export function decode(body: Uint8Array): Grant | Code;
 export function seal(issuerSeed: Uint8Array, g: Grant): Uint8Array;
 export function open(envelope: Uint8Array): { issuer: Uint8Array; grant: Grant } | Code;
 export function digest(envelope: Uint8Array): Uint8Array;
+export function inspect(root: Root, chain: Uint8Array[], now: Time): Verified | Refusal;
 export function verify(root: Root, chain: Uint8Array[], request: Request, now: Time): Verified | Refusal;
 export function issue(root: Root, parents: Uint8Array[], issuerSeed: Uint8Array, child: Grant, inherit: boolean, now: Time): Uint8Array | Refusal;
 ```

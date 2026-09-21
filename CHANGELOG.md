@@ -90,6 +90,13 @@ are one number. Entries are in the words of the commits that landed them.
   a malformed frame does. Reservation and publication share the outgoing
   queue's one ordering gate, a sender that would wrap refuses first, and every
   carrier bridge mints its own serials and maps the replies back.
+- The authenticated-connection packet of the optional authority profile: the
+  audience a connection binds to and never sends, the possession proof in
+  `nightseam-auth/1`, the `auth.challenge` / `auth.prove` exchange and the
+  one immutable context per connection, the decision at every protected
+  call with expiry at use, the bootstrap over Archon's login scheme with
+  Nightseam's admission law and a recoverable state machine, and a table of
+  52 cases — specified before either adapter is written.
 - The grant packet of the optional authority profile: a canonical body sealed
   in an Archon envelope in the `nightseam-grant/1` domain, the chain rules
   and their refusals, issuance with inherit, the interface both verifiers
