@@ -10,14 +10,26 @@
 //     which is what the squash commit will say;
 //   - nothing in the title or body is a trailer or an attribution line.
 //
-// One thing is reported and never refused: the directories the PR changes
-// against the issue's **Touches**, in either shape the tree holds — the
-// form's `### Touches` heading or a hand-written bold `**Touches:**`, read by
-// scripts/touches.mjs. A lane out of its box is visible in a comment, not
-// blocked — the issue may have guessed the files wrong, and a lane that knows
-// better should not have to edit the issue to land. An issue naming no
-// Touches gets a note saying so, because a check that holds nothing and
-// reports nothing reads exactly like one that passed.
+// Two things are reported and never refused, both read from the issue by
+// scripts/touches.mjs, and each commented at most once:
+//
+//   - the directories the PR changes against the issue's **Touches**, in
+//     either shape the tree holds — the form's `### Touches` heading or a
+//     hand-written bold `**Touches:**`. A lane out of its box is visible in a
+//     comment, not blocked — the issue may have guessed the files wrong, and a
+//     lane that knows better should not have to edit the issue to land. An
+//     issue naming no Touches gets a note saying so, because a check that
+//     holds nothing and reports nothing reads exactly like one that passed.
+//   - whether a PR whose issue declared a **Changelog** entry landed one. The
+//     lapse it answers happened twice — #307 and #372 each backfilled a round
+//     of missing entries — and #325 shipped inside v0.5.0 having extended
+//     `scripts/docs.mjs` without extending the changelog sentence describing
+//     it. Which is why this asks the issue rather than asking whether
+//     CHANGELOG.md was edited: that proxy would have passed #325, and would
+//     fire on the fifth of lanes that rightly have nothing to record.
+//
+// An issue that declares `None`, or that has no Changelog field at all, is
+// silent. Neither note refuses, because both are judgments.
 //
 //   node scripts/pr-scope.mjs <number>       check that PR, exit 1 on a refusal
 //
@@ -26,7 +38,7 @@
 // grants to this job alone.
 
 import { execFileSync } from "node:child_process";
-import { scopeNote } from "./touches.mjs";
+import { changelogNote, scopeNote } from "./touches.mjs";
 
 const repo = process.env.GITHUB_REPOSITORY ?? "Bitspark/nightseam";
 const number = process.argv[2];
@@ -61,15 +73,17 @@ if (/co-authored-by|generated with|🤖/i.test(title + "\n" + body)) {
   refusals.push("the title or body carries a trailer or an attribution line; commits here carry none");
 }
 
-// Scope, reported not refused: changed top-level areas against the issue's Touches.
-let note = "";
+// Reported, never refused: the areas this PR changes against the issue's
+// Touches, and the changelog entry the issue said it would land against
+// whether it landed one.
+const notes = [];
 if (issue && !issue.pull_request) {
   // One name per line rather than one JSON array: --paginate concatenates a
   // document per page, so a pull request past the first page of files is not
   // parseable as one array.
   const files = gh(["api", `repos/${repo}/pulls/${number}/files`, "--paginate", "--jq", ".[].filename"]).split("\n").map(line => line.trim()).filter(Boolean);
   const areas = [...new Set(files.map(f => f.split("/").slice(0, 2).join("/")))].sort();
-  note = scopeNote(issue, areas);
+  notes.push(["Scope note", scopeNote(issue, areas)], ["Changelog note", changelogNote(issue, files)]);
 }
 
 if (refusals.length) {
@@ -77,11 +91,15 @@ if (refusals.length) {
   process.exit(1);
 }
 console.log(`PR #${number}: closes #${unique[0]} (milestone ${issue.milestone.title}); title ok; no trailer`);
-if (note) {
-  // Comment once: skip if the same note is already there.
+const said = notes.filter(([, text]) => text);
+if (said.length) {
+  // Comment once per kind: a push that changes nothing about a note must not
+  // repeat it, and a note of one kind must not silence the other.
   const comments = gh(["api", `repos/${repo}/issues/${number}/comments`, "--paginate", "--jq", ".[].body"]).split("\n");
-  if (!comments.some(c => c.startsWith("Scope note"))) {
-    gh(["api", "--method", "POST", `repos/${repo}/issues/${number}/comments`, "-f", `body=${note}`]);
-    console.log("scope note posted");
-  } else console.log("scope note already posted");
+  const fresh = said.filter(([kind]) => !comments.some(c => c.startsWith(kind)));
+  for (const [kind, text] of fresh) {
+    gh(["api", "--method", "POST", `repos/${repo}/issues/${number}/comments`, "-f", `body=${text}`]);
+    console.log(`${kind.toLowerCase()} posted`);
+  }
+  for (const [kind] of said.filter(one => !fresh.includes(one))) console.log(`${kind.toLowerCase()} already posted`);
 }
