@@ -17,8 +17,8 @@ type namespaceObservation struct {
 	Path   []string
 }
 
-func namespaceReceiver(picked string, namespace bool, events chan namespaceObservation) duplex.Receiver {
-	return duplex.Receiver{Namespace: namespace, Message: func(path []string, message duplex.Message) {
+func namespaceReceiver(picked string, events chan namespaceObservation) duplex.Receiver {
+	return duplex.Receiver{Message: func(path []string, message duplex.Message) {
 		observation := namespaceObservation{picked, append([]string{}, path...)}
 		if message.Frame.Kind == duplex.ProfileEvent {
 			events <- observation
@@ -32,22 +32,22 @@ func namespaceReceiver(picked string, namespace bool, events chan namespaceObser
 	}}
 }
 
-func TestWireNamespaceUsesExactThenLongestSegmentPrefix(t *testing.T) {
+func TestDispatcherUsesExactThenLongestSegmentPrefix(t *testing.T) {
 	client, server := newPair(t, ws.Options{}, ws.Options{})
 	events := make(chan namespaceObservation, 20)
-	wire := server.Wire()
+	wire := testBinding(t, server.Wire())
 	for _, route := range []struct {
 		path []string
 		name string
 	}{{nil, "root"}, {[]string{"a"}, "a"}, {[]string{"a", "b"}, "ab"}} {
-		if _, err := wire.Receive(route.path, namespaceReceiver(route.name, true, events)); err != nil {
+		if _, err := wire.RegisterPrefix(route.path, namespaceReceiver(route.name, events)); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := wire.Receive(route.path, namespaceReceiver("duplicate", true, events)); !errors.Is(err, duplex.ErrReceiverExists) {
+		if _, err := wire.RegisterPrefix(route.path, namespaceReceiver("duplicate", events)); !errors.Is(err, duplex.ErrReceiverExists) {
 			t.Fatalf("duplicate namespace = %v", err)
 		}
 	}
-	detach, err := wire.Receive([]string{"a"}, namespaceReceiver("exact", false, events))
+	detach, err := wire.Register([]string{"a"}, namespaceReceiver("exact", events))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,11 +94,12 @@ func TestWireNamespaceUsesExactThenLongestSegmentPrefix(t *testing.T) {
 	}
 }
 
-func TestWireNamespaceCancellationKeepsOriginalRegistration(t *testing.T) {
+func TestDispatcherCancellationKeepsOriginalRegistration(t *testing.T) {
 	client, server := newPair(t, ws.Options{}, ws.Options{})
+	serverBinding := testBinding(t, server.Wire())
 	started := make(chan *duplex.ReturnAddress, 1)
 	cancelled := make(chan *duplex.ReturnAddress, 1)
-	detach, err := server.Wire().Receive([]string{"worker"}, duplex.Receiver{Namespace: true, Message: func(_ []string, m duplex.Message) {
+	detach, err := serverBinding.RegisterPrefix([]string{"worker"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
 		if m.Frame.Kind == duplex.ProfileRequest {
 			started <- m.Return
 		}
@@ -116,7 +117,7 @@ func TestWireNamespaceCancellationKeepsOriginalRegistration(t *testing.T) {
 	original := receive(t, started)
 	detach()
 	replacement := make(chan duplex.ProfileKind, 4)
-	if _, err := server.Wire().Receive([]string{"worker"}, duplex.Receiver{Namespace: true, Message: func(_ []string, m duplex.Message) { replacement <- m.Frame.Kind }}); err != nil {
+	if _, err := serverBinding.RegisterPrefix([]string{"worker"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) { replacement <- m.Frame.Kind }}); err != nil {
 		t.Fatal(err)
 	}
 	cancel()
@@ -135,8 +136,9 @@ func TestWireNamespaceCancellationKeepsOriginalRegistration(t *testing.T) {
 
 func TestStructuredWireBridgePreservesTraceVerbatim(t *testing.T) {
 	client, server := newPair(t, ws.Options{}, ws.Options{})
+	serverBinding := testBinding(t, server.Wire())
 	frames := make(chan duplex.ProfileFrame, 8)
-	_, err := server.Wire().Receive([]string{"trace"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
+	_, err := serverBinding.Register([]string{"trace"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
 		frames <- m.Frame
 		if m.Frame.Kind == duplex.ProfileRequest {
 			_ = m.Return.Wire.Send(nil, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileResponse, ID: m.Frame.ID, Result: json.RawMessage(`null`)}})
@@ -175,8 +177,9 @@ func TestStructuredWireBridgePreservesTraceVerbatim(t *testing.T) {
 
 func TestRegisterWireGroupsRequestAndEventAtOnePath(t *testing.T) {
 	client, server := newPair(t, ws.Options{}, ws.Options{})
+	serverBinding := testBinding(t, server.Wire())
 	events := make(chan string, 2)
-	detach, err := ws.RegisterWire(server.Wire(), []string{"shared"}, ws.WireHandlers{
+	detach, err := ws.RegisterWire(serverBinding, []string{"shared"}, ws.WireHandlers{
 		Request: func(_ context.Context, value json.RawMessage) (any, error) { return value, nil },
 		Event: func(_ context.Context, value json.RawMessage) error {
 			var text string
@@ -200,7 +203,7 @@ func TestRegisterWireGroupsRequestAndEventAtOnePath(t *testing.T) {
 	}
 	detach()
 	detach()
-	_, err = ws.RegisterWire(server.Wire(), []string{"shared"}, ws.WireHandlers{Event: func(context.Context, json.RawMessage) error { return nil }})
+	_, err = ws.RegisterWire(serverBinding, []string{"shared"}, ws.WireHandlers{Event: func(context.Context, json.RawMessage) error { return nil }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,9 +212,21 @@ func TestRegisterWireGroupsRequestAndEventAtOnePath(t *testing.T) {
 	if !errors.As(err, &public) || public.Code != "method_not_found" {
 		t.Fatalf("event-only request did not refuse: %v", err)
 	}
-	if _, err := ws.RegisterWire(server.Wire(), []string{"empty"}, ws.WireHandlers{}); err == nil {
+	if _, err := ws.RegisterWire(serverBinding, []string{"empty"}, ws.WireHandlers{}); err == nil {
 		t.Fatal("registered empty handlers")
 	}
+}
+
+// This fixture created and owns the carrier, so its registry explicitly owns
+// fatal-handler closure. Ordinary borrowed dispatchers only detach themselves.
+type ownedEventRegistry struct {
+	*ws.Dispatcher
+	endpoint duplex.Endpoint
+}
+
+func (r ownedEventRegistry) Close(code duplex.Code, reason string) error {
+	_ = r.Dispatcher.Close(code, reason)
+	return r.endpoint.Close(code, reason)
 }
 
 func TestRegisterWireEventFailuresEndOnlyTheirCarrierWithSanitizedReason(t *testing.T) {
@@ -219,7 +234,8 @@ func TestRegisterWireEventFailuresEndOnlyTheirCarrierWithSanitizedReason(t *test
 		t.Run(map[bool]string{false: "error", true: "panic"}[panics], func(t *testing.T) {
 			log := &recorder{}
 			client, server := newPair(t, ws.Options{Observer: log}, ws.Options{})
-			_, err := ws.RegisterWire(server.Wire(), []string{"rejected"}, ws.WireHandlers{Event: func(context.Context, json.RawMessage) error {
+			serverBinding := ownedEventRegistry{testBinding(t, server.Wire()), server.Wire()}
+			_, err := ws.RegisterWire(serverBinding, []string{"rejected"}, ws.WireHandlers{Event: func(context.Context, json.RawMessage) error {
 				if panics {
 					panic("private failure")
 				}
@@ -261,12 +277,9 @@ func (w *forwardRegistrationWire) Send(path []string, message duplex.Message) er
 	w.sent = append(w.sent, message)
 	return w.sendErr
 }
-func (w *forwardRegistrationWire) Receive(path []string, receiver duplex.Receiver) (func(), error) {
+func (w *forwardRegistrationWire) Receive(receiver duplex.Receiver) (func(), error) {
 	if w.receiveErr != nil {
 		return nil, w.receiveErr
-	}
-	if len(path) != 0 || !receiver.Namespace {
-		return nil, errors.New("forwarder must capture the origin namespace")
 	}
 	w.receiver = receiver
 	var once sync.Once
@@ -321,10 +334,10 @@ func TestForwardWirePreservesMessagesAndOwnsOnlyRegistrations(t *testing.T) {
 func TestForwardWireCarriesUnknownPathsAndReverseCallsAcrossPeers(t *testing.T) {
 	client, middleIn := newPair(t, ws.Options{}, ws.Options{})
 	middleOut, server := newPair(t, ws.Options{}, ws.Options{})
-	inbound := duplex.At(duplex.Mount(map[string]duplex.Wire{"in": duplex.At(middleIn.Wire(), []string{"gateway"})}), []string{"in"})
-	outbound := duplex.At(duplex.Mount(map[string]duplex.Wire{"out": duplex.At(middleOut.Wire(), []string{"service"})}), []string{"out"})
-	caller := duplex.At(client.Wire(), []string{"gateway"})
-	implementation := duplex.At(server.Wire(), []string{"service"})
+	inbound := testBinding(t, duplex.Mount(map[string]duplex.Endpoint{"in": testBinding(t, middleIn.Wire()).Select([]string{"gateway"})})).Select([]string{"in"})
+	outbound := testBinding(t, duplex.Mount(map[string]duplex.Endpoint{"out": testBinding(t, middleOut.Wire()).Select([]string{"service"})})).Select([]string{"out"})
+	caller := testBinding(t, testBinding(t, client.Wire()).Select([]string{"gateway"}))
+	implementation := testBinding(t, testBinding(t, server.Wire()).Select([]string{"service"}))
 	detach, err := ws.ForwardWire(inbound, outbound)
 	if err != nil {
 		t.Fatal(err)

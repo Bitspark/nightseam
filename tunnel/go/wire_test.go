@@ -44,7 +44,11 @@ func TestChannelIsAPreparedWireBeforeSelection(t *testing.T) {
 		result <- err
 	}()
 	accepted, err := server.Accept(ctx, runtime.Options{Observer: observer, Prepare: func(peer *runtime.Peer) error {
-		_, err := runtime.HandleWire(peer.Wire(), []string{"deep", "echo"}, func(_ context.Context, raw json.RawMessage) (any, error) { return raw, nil })
+		binding, err := runtime.NewDispatcher(peer.Wire())
+		if err != nil {
+			return err
+		}
+		_, err = runtime.HandleWire(binding, []string{"deep", "echo"}, func(_ context.Context, raw json.RawMessage) (any, error) { return raw, nil })
 		return err
 	}})
 	if err != nil {
@@ -60,7 +64,7 @@ func TestChannelIsAPreparedWireBeforeSelection(t *testing.T) {
 	if observer.count.Load() != 2 {
 		t.Fatalf("construction peers %d", observer.count.Load())
 	}
-	selected := duplex.At(duplex.Mount(map[string]duplex.Wire{"route": opened}), []string{"route", "deep"})
+	selected := duplex.At(duplex.Mount(map[string]duplex.Endpoint{"route": opened}), []string{"route", "deep"})
 	var got string
 	if err := runtime.CallWire(ctx, selected, []string{"echo"}, "selected", &got); err != nil || got != "selected" {
 		t.Fatalf("selected %q %v", got, err)
@@ -101,7 +105,11 @@ func TestServerOpenedWireChannelUsesOnePreparedPeerOnEachSide(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	prepare := runtime.Options{Prepare: func(peer *runtime.Peer) error {
-		_, err := runtime.HandleWire(peer.Wire(), []string{"echo"}, func(_ context.Context, raw json.RawMessage) (any, error) { return raw, nil })
+		binding, err := runtime.NewDispatcher(peer.Wire())
+		if err != nil {
+			return err
+		}
+		_, err = runtime.HandleWire(binding, []string{"echo"}, func(_ context.Context, raw json.RawMessage) (any, error) { return raw, nil })
 		return err
 	}}
 	opened, err := server.Open(ctx, "reverse", "", prepare)

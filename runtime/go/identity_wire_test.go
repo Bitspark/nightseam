@@ -15,14 +15,14 @@ import (
 var preparedIdentity = DeclarationIdentity{Path: "service", Digest: strings.Repeat("a", 64)}
 
 type observedIdentityWire struct {
-	duplex.Wire
+	duplex.Endpoint
 	observed chan duplex.ProfileKind
 }
 
-func (w observedIdentityWire) Receive(path []string, receiver duplex.Receiver) (func(), error) {
+func (w observedIdentityWire) Receive(receiver duplex.Receiver) (func(), error) {
 	original := receiver.Message
 	receiver.Message = func(path []string, message duplex.Message) { w.observed <- message.Frame.Kind; original(path, message) }
-	return w.Wire.Receive(path, receiver)
+	return w.Endpoint.Receive(receiver)
 }
 func identityWait(t *testing.T, signal <-chan duplex.ProfileKind, kind duplex.ProfileKind) {
 	t.Helper()
@@ -35,13 +35,13 @@ func identityWait(t *testing.T, signal <-chan duplex.ProfileKind, kind duplex.Pr
 		t.Fatal("delivery did not arrive")
 	}
 }
-func installWireIdentity(t *testing.T, wire duplex.Wire, identity DeclarationIdentity) {
+func installWireIdentity(t *testing.T, wire duplex.Endpoint, identity DeclarationIdentity) {
 	t.Helper()
 	handler, err := IdentityHandler(identity)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = HandleWire(wire, []string{IdentityMethod}, func(ctx context.Context, raw json.RawMessage) (any, error) { return handler(ctx, nil, raw) })
+	_, err = HandleWire(testBinding(t, wire), []string{IdentityMethod}, func(ctx context.Context, raw json.RawMessage) (any, error) { return handler(ctx, nil, raw) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,15 +111,17 @@ func TestIdentityPreparationHoldsFirstEventThroughCheckAndBinding(t *testing.T) 
 func TestIdentityPreparationMismatchDiscardsEventsAndPreservesSharedCarrier(t *testing.T) {
 	near, far := localPair(t, Options{})
 	installWireIdentity(t, far, DeclarationIdentity{Path: "service", Digest: strings.Repeat("b", 64)})
+	root := testBinding(t, near)
+	model := root.Select(nil)
 	observed := make(chan duplex.ProfileKind, 8)
-	p, err := PrepareIdentity(observedIdentityWire{near, observed}, preparedIdentity, Options{})
+	p, err := PrepareIdentity(observedIdentityWire{model, observed}, preparedIdentity, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer p.Close()
 	var effects atomic.Int32
 	_, _ = RegisterWire(p.Wire(), []string{"event"}, WireHandlers{Event: func(context.Context, json.RawMessage) error { effects.Add(1); return nil }})
-	_, _ = HandleWire(near, []string{"unrelated"}, func(context.Context, json.RawMessage) (any, error) { return 7, nil })
+	_, _ = HandleWire(root, []string{"unrelated"}, func(context.Context, json.RawMessage) (any, error) { return 7, nil })
 	_ = EmitWire(context.Background(), far, []string{"event"}, 1)
 	identityWait(t, observed, duplex.ProfileEvent)
 	requireIdentityCode(t, p.Check(context.Background()), "contract_mismatch")
@@ -132,7 +134,7 @@ func TestIdentityPreparationMismatchDiscardsEventsAndPreservesSharedCarrier(t *t
 		t.Fatal("mismatched model dispatched")
 	}
 	// All owned registrations were detached, permitting another interpreter.
-	if _, err = RegisterWire(near, []string{"event"}, WireHandlers{Event: func(context.Context, json.RawMessage) error { return nil }}); err != nil {
+	if _, err = RegisterWire(root, []string{"event"}, WireHandlers{Event: func(context.Context, json.RawMessage) error { return nil }}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -140,15 +142,17 @@ func TestIdentityPreparationMismatchDiscardsEventsAndPreservesSharedCarrier(t *t
 func TestIdentityPreparationDefersRequestsWithoutBlockingRootAndPreservesCancel(t *testing.T) {
 	near, far := localPair(t, Options{})
 	installWireIdentity(t, far, preparedIdentity)
+	root := testBinding(t, near)
+	model := root.Select(nil)
 	observed := make(chan duplex.ProfileKind, 8)
-	p, err := PrepareIdentity(observedIdentityWire{near, observed}, preparedIdentity, Options{})
+	p, err := PrepareIdentity(observedIdentityWire{model, observed}, preparedIdentity, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer p.Close()
 	var effects atomic.Int32
 	_, _ = HandleWire(p.Wire(), []string{"model"}, func(context.Context, json.RawMessage) (any, error) { effects.Add(1); return 11, nil })
-	_, _ = HandleWire(near, []string{"unrelated"}, func(context.Context, json.RawMessage) (any, error) { return 7, nil })
+	_, _ = HandleWire(root, []string{"unrelated"}, func(context.Context, json.RawMessage) (any, error) { return 7, nil })
 	ctx, cancel := context.WithCancel(context.Background())
 	answer := make(chan error, 1)
 	go func() { answer <- CallWire(ctx, far, []string{"model"}, nil, nil) }()
@@ -203,9 +207,11 @@ func TestIdentityPreparationBoundsUnstartedAndUnboundFactories(t *testing.T) {
 			if !errors.Is(p.Ready(), context.DeadlineExceeded) {
 				t.Fatalf("expiry: %v", p.Ready())
 			}
-			if _, err = HandleWire(near, []string{"model"}, func(context.Context, json.RawMessage) (any, error) { return nil, nil }); err != nil {
+			binding := testBinding(t, near)
+			if _, err = HandleWire(binding, []string{"model"}, func(context.Context, json.RawMessage) (any, error) { return nil, nil }); err != nil {
 				t.Fatal(err)
 			}
+			_ = binding.Close(duplex.CodeNormal, "rebind")
 			replacement, err := PrepareIdentity(near, preparedIdentity, Options{})
 			if err != nil {
 				t.Fatalf("identity responder leaked: %v", err)
