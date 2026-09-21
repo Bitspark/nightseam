@@ -216,6 +216,8 @@ public final class WebSocketTransport {
             if (ending != null) throw new CloseException(ending.code(), ending.reason());
         }
 
+        void checkSendOpen() throws CloseException { checkOpen(); }
+
         void end(int code, String reason, boolean local) {
             CloseInfo info;
             synchronized (this) {
@@ -229,7 +231,8 @@ public final class WebSocketTransport {
         }
 
         synchronized void publish(Frame frame) throws InterruptedException, CloseException {
-            while (ending == null && frames.size() >= CAPACITY) wait();
+            while (ending == null && !local && frames.size() >= CAPACITY) wait();
+            if (local) return;
             checkOpen();
             frames.addLast(frame);
             notifyAll();
@@ -256,7 +259,7 @@ public final class WebSocketTransport {
 
         void acquire(long deadline) throws InterruptedException, TimeoutException, CloseException {
             if (!sending.tryLock(Timeouts.remaining(deadline), TimeUnit.NANOSECONDS)) throw new TimeoutException("duplex send timed out");
-            try { checkOpen(); } catch (CloseException closed) { sending.unlock(); throw closed; }
+            try { checkSendOpen(); } catch (CloseException closed) { sending.unlock(); throw closed; }
         }
     }
 
@@ -266,6 +269,10 @@ public final class WebSocketTransport {
         private final OutputStream output;
         private final String protocol;
         private final boolean client;
+        private final CompletableFuture<Void> peerClosed = new CompletableFuture<>();
+        private final CompletableFuture<Void> closeWritten = new CompletableFuture<>();
+        private CloseInfo closing;
+        private boolean writingClose;
 
         Native(Socket socket, InputStream input, int limit, String protocol, boolean client) throws IOException {
             super(limit);
@@ -278,6 +285,11 @@ public final class WebSocketTransport {
 
         void start() { Thread.ofVirtual().name("nightseam-ws-reader").start(this::read); }
         @Override public String subprotocol() { return protocol; }
+
+        @Override synchronized void checkSendOpen() throws CloseException {
+            super.checkOpen();
+            if (closing != null) throw new CloseException(closing.code(), closing.reason());
+        }
 
         private void read() {
             ByteArrayOutputStream message = new ByteArrayOutputStream();
@@ -314,8 +326,9 @@ public final class WebSocketTransport {
                         int code = data.length == 0 ? 1005 : (data[0] & 255) << 8 | data[1] & 255;
                         String reason = data.length <= 2 ? "" : utf8(java.util.Arrays.copyOfRange(data, 2, data.length));
                         if (data.length >= 2 && !validCode(code)) { protocol(1002, "invalid close code"); return; }
-                        end(code, reason, false);
-                        try { writeControl(8, data); } catch (Exception ignored) {}
+                        synchronized (this) { if (closing == null) closing = new CloseInfo(code, reason); }
+                        peerClosed.complete(null);
+                        try { writeClose(data, Timeouts.deadline(CLOSE_TIMEOUT)); } catch (Exception ignored) {}
                         return;
                     }
                     if (opcode == 9) { writeControl(10, data); continue; }
@@ -331,9 +344,9 @@ public final class WebSocketTransport {
                     }
                 }
             } catch (CharacterCodingException invalid) { protocol(1007, "invalid UTF-8"); }
-            catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); end(1006, "", false); }
-            catch (IOException | TimeoutException failure) { end(1006, "", false); }
-            finally { closeSocket(socket); }
+            catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+            catch (IOException | TimeoutException failure) { /* The finalizer preserves the first close selection. */ }
+            finally { finishSocket(); }
         }
 
         @Override public void send(Frame frame, Duration timeout) throws IOException, InterruptedException, TimeoutException {
@@ -352,24 +365,59 @@ public final class WebSocketTransport {
                 FutureTask<Void> writing = new FutureTask<>(() -> { writeFrame(output, opcode, data, client); return null; });
                 Thread.ofVirtual().name("nightseam-ws-writer").start(writing);
                 try { writing.get(Timeouts.remaining(deadline), TimeUnit.NANOSECONDS); }
-                catch (ExecutionException failure) { abort(); throw io(failure.getCause()); }
-                catch (TimeoutException | InterruptedException failure) { abort(); throw failure; }
+                catch (ExecutionException failure) { finishSocket(); throw io(failure.getCause()); }
+                catch (TimeoutException | InterruptedException failure) { finishSocket(); throw failure; }
             } finally { sending.unlock(); }
         }
 
         private void protocol(int code, String reason) {
-            end(code, reason, true);
-            try { writeControl(8, closePayload(code, reason)); } catch (Exception ignored) {}
+            synchronized (this) { if (closing == null) closing = new CloseInfo(code, reason); local = true; }
+            try { writeClose(closePayload(code, reason), Timeouts.deadline(CLOSE_TIMEOUT)); } catch (Exception ignored) {}
+            finishSocket();
+        }
+
+        // A simultaneous close shares the first write. In particular, the
+        // reader cannot shut the socket while the local closer is flushing it.
+        private void writeClose(byte[] payload, long deadline) throws IOException, InterruptedException, TimeoutException {
+            boolean write;
+            synchronized (this) { write = !writingClose; writingClose = true; }
+            if (write) {
+                try { write(8, payload, deadline, false); closeWritten.complete(null); }
+                catch (IOException | InterruptedException | TimeoutException failure) {
+                    closeWritten.completeExceptionally(failure);
+                    throw failure;
+                }
+            } else {
+                try { closeWritten.get(Timeouts.remaining(deadline), TimeUnit.NANOSECONDS); }
+                catch (ExecutionException failure) { throw io(failure.getCause()); }
+            }
+        }
+
+        private void finishSocket() {
             closeSocket(socket);
+            CloseInfo info;
+            boolean own;
+            synchronized (this) { info = closing; own = local; }
+            if (info != null) end(info.code(), info.reason(), own);
+            else end(1006, "", false);
         }
 
         @Override public void close(int code, String reason) {
             validateClose(code, reason);
-            synchronized (this) { if (ending != null) return; }
-            end(code, reason, true);
+            synchronized (this) {
+                if (ending != null || closing != null) return;
+                closing = new CloseInfo(code, reason);
+                local = true;
+                frames.clear();
+                notifyAll();
+            }
+            long deadline = Timeouts.deadline(CLOSE_TIMEOUT);
             Thread.ofVirtual().name("nightseam-ws-close").start(() -> {
-                try { writeControl(8, closePayload(code, reason)); } catch (Exception ignored) {}
-                finally { closeSocket(socket); }
+                try {
+                    writeClose(closePayload(code, reason), deadline);
+                    peerClosed.get(Timeouts.remaining(deadline), TimeUnit.NANOSECONDS);
+                } catch (Exception ignored) {}
+                finally { finishSocket(); }
             });
         }
         @Override public void abort() { end(1006, "", true); closeSocket(socket); }
