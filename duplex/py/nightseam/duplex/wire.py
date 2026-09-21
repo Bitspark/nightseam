@@ -70,7 +70,7 @@ class _CancelFrame(_TracedFrame):
 ProfileFrame = _RequestFrame | _ResultFrame | _ErrorFrame | _EventFrame | _CancelFrame
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ReturnAddress:
     """Local return capability preserved through views, never serialized."""
 
