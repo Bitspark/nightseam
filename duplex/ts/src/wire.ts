@@ -36,6 +36,8 @@ export interface Message {
   readonly return?: ReturnAddress;
 }
 export interface Receiver {
+  /** Capture descendants too; exact routes win, then the longest namespace prefix. */
+  namespace?: boolean;
   message?: (path: Path, message: Message) => void | Promise<void>;
   closed?: (code: number, reason: string) => void;
 }
@@ -113,7 +115,11 @@ export function at(root: Wire, path: Path): Wire {
   const prefix = [...path];
   return {
     send: (suffix, message) => root.send([...prefix, ...suffix], message),
-    receive: (suffix, receiver) => root.receive([...prefix, ...suffix], receiver),
+    receive: (suffix, receiver) =>
+      root.receive([...prefix, ...suffix], {
+        ...receiver,
+        message: (delivered, message) => receiver.message?.(delivered.slice(prefix.length), message),
+      }),
     close: (code, reason) => root.close(code, reason),
   };
 }
@@ -145,30 +151,67 @@ export function mount(children: ReadonlyMap<string, Wire>): Wire {
     registration.detach?.();
     if (ending) registration.receiver.closed?.(ending.code, ending.reason);
   };
-  return {
-    send: (path, message) => destination(path).send(path.slice(1), message),
-    receive: (path, receiver) => {
-      const child = destination(path);
-      const registration: Registration = { receiver, active: true };
+  const receive = (path: Path, receiver: Receiver): (() => void) => {
+    if (!path.length && receiver.namespace) {
+      if (closed) throw new WireError('closed');
+      const keys = [...routes.keys()];
+      const detaches: (() => void)[] = [];
+      const registration: Registration = {
+        receiver,
+        active: true,
+        detach: () => {
+          for (const detach of detaches.splice(0)) detach();
+        },
+      };
       registrations.add(registration);
+      let remaining = keys.length;
       try {
-        registration.detach = child.receive(path.slice(1), {
-          message: (suffix, message) => {
-            if (registration.active) return receiver.message?.(suffix, message);
-          },
-          closed: (code, reason) => remove(registration, { code, reason }),
-        });
+        for (const key of keys) {
+          const detach = receive([key], {
+            namespace: true,
+            message: receiver.message,
+            closed: (code, reason) => {
+              if (--remaining === 0) remove(registration, { code, reason });
+            },
+          });
+          if (!registration.active) {
+            detach();
+            throw new WireError('closed');
+          }
+          detaches.push(detach);
+        }
       } catch (error) {
-        registration.active = false;
-        registrations.delete(registration);
+        remove(registration);
         throw error;
       }
-      if (!registration.active) {
-        registration.detach();
-        throw new WireError('closed');
-      }
       return () => remove(registration);
-    },
+    }
+    const child = destination(path);
+    const registration: Registration = { receiver, active: true };
+    registrations.add(registration);
+    try {
+      registration.detach = child.receive(path.slice(1), {
+        namespace: receiver.namespace,
+        message: (suffix, message) => {
+          // Captured requests retain this receiver for later cancellation.
+          return receiver.message?.([path[0]!, ...suffix], message);
+        },
+        closed: (code, reason) => remove(registration, { code, reason }),
+      });
+    } catch (error) {
+      registration.active = false;
+      registrations.delete(registration);
+      throw error;
+    }
+    if (!registration.active) {
+      registration.detach();
+      throw new WireError('closed');
+    }
+    return () => remove(registration);
+  };
+  return {
+    send: (path, message) => destination(path).send(path.slice(1), message),
+    receive,
     close: (code = 1000, reason = '') => {
       if (closed) return;
       closed = true;

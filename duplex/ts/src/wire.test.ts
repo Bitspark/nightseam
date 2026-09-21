@@ -42,7 +42,7 @@ class QueuedRoot implements Wire {
   }
   receive(path: Path, receiver: Receiver): () => void {
     if (this.closes) throw new WireError('closed');
-    const key = encodePath(path);
+    const key = (receiver.namespace ? 'namespace ' : '') + encodePath(path);
     if (this.receivers.has(key)) throw new WireError('receiver_exists');
     this.receivers.set(key, receiver);
     let active = true;
@@ -61,10 +61,91 @@ class QueuedRoot implements Wire {
     for (const receiver of receivers) receiver.closed?.(code, reason);
   }
   drain(): void {
-    for (let entry = this.queue.shift(); entry; entry = this.queue.shift())
-      this.receivers.get(encodePath(entry.path))?.message?.([], entry.message);
+    for (let entry = this.queue.shift(); entry; entry = this.queue.shift()) {
+      const key = encodePath(entry.path);
+      let receiver = this.receivers.get(key);
+      if (!receiver) {
+        let longest = -1;
+        for (const [prefix, candidate] of this.receivers) {
+          if (prefix.startsWith('namespace ') && key.startsWith(prefix.slice(10)) && prefix.length > longest) {
+            receiver = candidate;
+            longest = prefix.length;
+          }
+        }
+      }
+      receiver?.message?.(entry.path, entry.message);
+    }
   }
 }
+
+test('mount namespace restores relative paths and preserves a healthy child', () => {
+  const left = new QueuedRoot(),
+    right = new QueuedRoot();
+  const mounted = mount(
+    new Map([
+      ['left', at(left, ['private'])],
+      ['', right],
+    ]),
+  );
+  const received: Path[] = [];
+  let closed = 0;
+  const detach = mounted.receive([], {
+    namespace: true,
+    message: (path) => {
+      received.push(path);
+    },
+    closed: () => {
+      closed++;
+    },
+  });
+  const message: Message = { frame: { version: 1, kind: 'event', data: null } };
+  mounted.send(['left', 'nested', 'call'], message);
+  left.drain();
+  left.close(1000, 'left ended');
+  assert.equal(closed, 0);
+  mounted.send(['', 'still', 'usable'], message);
+  right.drain();
+  assert.deepEqual(received, [
+    ['left', 'nested', 'call'],
+    ['', 'still', 'usable'],
+  ]);
+  detach();
+  detach();
+  assert.equal(right.receivers.size, 0);
+  assert.equal(right.closes, 0);
+  mounted.close();
+  assert.equal(closed, 0);
+});
+
+test('partial mount namespace acquisition rolls back on overlap', () => {
+  const root = new QueuedRoot();
+  const mounted = mount(
+    new Map([
+      ['one', root],
+      ['two', root],
+    ]),
+  );
+  assert.throws(() => mounted.receive([], { namespace: true }), { code: 'receiver_exists' });
+  assert.equal(root.receivers.size, 0);
+  assert.equal(root.closes, 0);
+});
+
+test('mount detachment retains cancellation of an already captured request', () => {
+  const root = new QueuedRoot();
+  const mounted = mount(new Map([['service', root]]));
+  const kinds: string[] = [];
+  const detach = mounted.receive(['service', 'wait'], {
+    message: (_path, message) => {
+      kinds.push(message.frame.kind);
+    },
+  });
+  const accepted = root.receivers.get(encodePath(['wait']))!;
+  accepted.message?.(['wait'], { frame: { version: 1, kind: 'request', id: 'c:1', params: {} } });
+  detach();
+  accepted.message?.(['wait'], { frame: { version: 1, kind: 'cancel', id: 'c:1' } });
+  assert.deepEqual(kinds, ['request', 'cancel']);
+  assert.equal(root.receivers.size, 0);
+});
 
 test('selection and mount delegate to the existing queued root and preserve every frame and return capability', () => {
   const root = new QueuedRoot(),
@@ -80,7 +161,7 @@ test('selection and mount delegate to the existing queued root and preserve ever
   const received: Message[] = [];
   const detach = view.receive(['call'], {
     message: (path, message) => {
-      assert.deepEqual(path, []);
+      assert.deepEqual(path, ['call']);
       received.push(message);
     },
   });

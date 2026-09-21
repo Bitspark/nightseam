@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 
@@ -87,6 +88,9 @@ func (r *queuedRoot) Receive(path []string, receiver duplex.Receiver) (func(), e
 	if err != nil {
 		return nil, err
 	}
+	if receiver.Namespace {
+		key = "namespace " + key
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
@@ -127,11 +131,93 @@ func (r *queuedRoot) drain() {
 		d := r.queue[0]
 		r.queue = r.queue[1:]
 		key, _ := duplex.EncodePath(d.path)
-		receiver := r.receivers[key]
+		receiver, exact := r.receivers[key]
+		if !exact {
+			longest := -1
+			for prefix, candidate := range r.receivers {
+				if suffix, namespace := strings.CutPrefix(prefix, "namespace "); namespace && strings.HasPrefix(key, suffix) && len(suffix) > longest {
+					receiver, longest = candidate, len(suffix)
+				}
+			}
+		}
 		r.mu.Unlock()
 		if receiver.Message != nil {
-			receiver.Message([]string{}, d.message)
+			receiver.Message(d.path, d.message)
 		}
+	}
+}
+
+func TestMountNamespaceFansOutRelativePathsAndRetainsHealthyChildren(t *testing.T) {
+	left, right := newRoot(), newRoot()
+	mounted := duplex.Mount(map[string]duplex.Wire{"left": duplex.At(left, []string{"private"}), "": right})
+	var got [][]string
+	closed := 0
+	detach, err := mounted.Receive(nil, duplex.Receiver{Namespace: true,
+		Message: func(path []string, _ duplex.Message) { got = append(got, path) },
+		Closed:  func(duplex.Code, string) { closed++ },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	message := duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: json.RawMessage("null")}}
+	if err := mounted.Send([]string{"left", "nested", "call"}, message); err != nil {
+		t.Fatal(err)
+	}
+	left.drain()
+	_ = left.Close(duplex.CodeNormal, "left ended")
+	if closed != 0 {
+		t.Fatal("one child ended the whole mounted namespace")
+	}
+	if err := mounted.Send([]string{"", "still", "usable"}, message); err != nil {
+		t.Fatal(err)
+	}
+	right.drain()
+	if !reflect.DeepEqual(got, [][]string{{"left", "nested", "call"}, {"", "still", "usable"}}) {
+		t.Fatalf("namespace paths = %v", got)
+	}
+	detach()
+	detach()
+	if len(right.receivers) != 0 || right.closed {
+		t.Fatal("detachment leaked a registration or closed its child")
+	}
+	_ = mounted.Close(duplex.CodeNormal, "mount ended")
+	if closed != 0 {
+		t.Fatal("detached namespace received closure")
+	}
+}
+
+func TestMountNamespaceRegistrationFailureRollsBackEarlierChildren(t *testing.T) {
+	root := newRoot()
+	mounted := duplex.Mount(map[string]duplex.Wire{"one": root, "two": root})
+	if _, err := mounted.Receive(nil, duplex.Receiver{Namespace: true}); !errors.Is(err, duplex.ErrReceiverExists) {
+		t.Fatalf("overlapping namespace registration = %v", err)
+	}
+	if len(root.receivers) != 0 {
+		t.Fatal("partial namespace registration leaked")
+	}
+	if root.closed {
+		t.Fatal("rollback closed borrowed child")
+	}
+}
+
+func TestMountDetachPreservesCapturedRequestCancellation(t *testing.T) {
+	root := newRoot()
+	mounted := duplex.Mount(map[string]duplex.Wire{"service": root})
+	deliveries := 0
+	detach, err := mounted.Receive([]string{"service", "wait"}, duplex.Receiver{Message: func([]string, duplex.Message) { deliveries++ }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, _ := duplex.EncodePath([]string{"wait"})
+	accepted := root.receivers[key]
+	accepted.Message([]string{"wait"}, duplex.Message{Frame: duplex.ProfileFrame{Kind: duplex.ProfileRequest}})
+	detach()
+	accepted.Message([]string{"wait"}, duplex.Message{Frame: duplex.ProfileFrame{Kind: duplex.ProfileCancel}})
+	if deliveries != 2 {
+		t.Fatalf("detachment lost captured cancellation: %d deliveries", deliveries)
+	}
+	if len(root.receivers) != 0 {
+		t.Fatal("detachment retained new-dispatch registration")
 	}
 }
 
@@ -147,7 +233,7 @@ func TestWireSelectionMountAndReturnCapability(t *testing.T) {
 	view := duplex.At(duplex.At(mounted, []string{"x"}), []string{"😀"})
 	var received []duplex.Message
 	detach, err := view.Receive([]string{"call"}, duplex.Receiver{Message: func(path []string, m duplex.Message) {
-		if len(path) != 0 {
+		if !reflect.DeepEqual(path, []string{"call"}) {
 			t.Errorf("receiver path = %v", path)
 		}
 		received = append(received, m)
@@ -196,6 +282,24 @@ func TestWireSelectionMountAndReturnCapability(t *testing.T) {
 		t.Fatal(err)
 	} else {
 		detach()
+	}
+}
+
+func TestWireReceiverPathsAreRelativeToTheViewOrigin(t *testing.T) {
+	root := newRoot()
+	selected := duplex.At(root, []string{"stored", "service"})
+	mounted := duplex.Mount(map[string]duplex.Wire{"public": selected})
+	var got []string
+	_, err := mounted.Receive([]string{"public", "call"}, duplex.Receiver{Message: func(path []string, _ duplex.Message) { got = path }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mounted.Send([]string{"public", "call"}, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: json.RawMessage("null")}}); err != nil {
+		t.Fatal(err)
+	}
+	root.drain()
+	if !reflect.DeepEqual(got, []string{"public", "call"}) {
+		t.Fatalf("mounted incoming path = %v", got)
 	}
 }
 

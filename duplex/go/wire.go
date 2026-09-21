@@ -53,11 +53,14 @@ type Message struct {
 	Return *ReturnAddress `json:"-"`
 }
 
-// Receiver receives deliveries at its registered relative path, and an ending.
+// Receiver receives deliveries relative to its wire's origin, and an ending.
 // A root owns asynchronous dispatch; composition does not invoke Message itself.
 type Receiver struct {
-	Message func(path []string, message Message)
-	Closed  func(code Code, reason string)
+	// Namespace matches this path and every descendant. Exact registrations
+	// take precedence; otherwise the longest segment prefix wins.
+	Namespace bool
+	Message   func(path []string, message Message)
+	Closed    func(code Code, reason string)
 }
 
 // Wire is an endpoint with an origin. Receive registers an exact relative
@@ -143,7 +146,15 @@ func (w *selectedWire) Send(path []string, message Message) error {
 	return w.root.Send(w.path(path), message)
 }
 func (w *selectedWire) Receive(path []string, receiver Receiver) (func(), error) {
-	return w.root.Receive(w.path(path), receiver)
+	return w.root.Receive(w.path(path), Receiver{
+		Namespace: receiver.Namespace,
+		Message: func(delivered []string, message Message) {
+			if receiver.Message != nil {
+				receiver.Message(append([]string{}, delivered[len(w.prefix):]...), message)
+			}
+		},
+		Closed: receiver.Closed,
+	})
 }
 func (w *selectedWire) Close(code Code, reason string) error { return w.root.Close(code, reason) }
 
@@ -196,6 +207,9 @@ func (w *mountedWire) Send(path []string, message Message) error {
 	return child.Send(append([]string{}, path[1:]...), message)
 }
 func (w *mountedWire) Receive(path []string, receiver Receiver) (func(), error) {
+	if len(path) == 0 && receiver.Namespace {
+		return w.receiveNamespace(receiver)
+	}
 	w.mu.Lock()
 	child, err := w.destination(path)
 	if err != nil {
@@ -203,15 +217,16 @@ func (w *mountedWire) Receive(path []string, receiver Receiver) (func(), error) 
 		return nil, err
 	}
 	registration := &mountedReceiver{receiver: receiver, active: true}
+	key := path[0]
 	w.registrations[registration] = struct{}{}
 	w.mu.Unlock()
 	detach, err := child.Receive(append([]string{}, path[1:]...), Receiver{
+		Namespace: receiver.Namespace,
 		Message: func(path []string, message Message) {
-			w.mu.Lock()
-			active := registration.active
-			w.mu.Unlock()
-			if active && receiver.Message != nil {
-				receiver.Message(path, message)
+			// Detach removes future dispatch at the child. Already accepted
+			// requests retain their captured receiver for cancellation.
+			if receiver.Message != nil {
+				receiver.Message(append([]string{key}, path...), message)
 			}
 		},
 		Closed: func(code Code, reason string) { w.remove(registration, true, code, reason) },
@@ -233,6 +248,67 @@ func (w *mountedWire) Receive(path []string, receiver Receiver) (func(), error) 
 			detach()
 		}
 		return nil, ErrClosed
+	}
+	return func() { w.remove(registration, false, 0, "") }, nil
+}
+
+// A namespace at the mount origin receives every child under that child's
+// key. One child's end removes only that route; the namespace ends when its
+// last child ends or when the mount itself is closed.
+func (w *mountedWire) receiveNamespace(receiver Receiver) (func(), error) {
+	w.mu.Lock()
+	if w.closed {
+		w.mu.Unlock()
+		return nil, ErrClosed
+	}
+	keys := make([]string, 0, len(w.children))
+	for key, child := range w.children {
+		if child != nil {
+			keys = append(keys, key)
+		}
+	}
+	var mu sync.Mutex
+	var detaches []func()
+	ended, remaining := false, len(keys)
+	registration := &mountedReceiver{receiver: receiver, active: true}
+	registration.detach = func() {
+		mu.Lock()
+		ended = true
+		held := detaches
+		detaches = nil
+		mu.Unlock()
+		for _, detach := range held {
+			detach()
+		}
+	}
+	w.registrations[registration] = struct{}{}
+	w.mu.Unlock()
+	for _, key := range keys {
+		detach, err := w.Receive([]string{key}, Receiver{
+			Namespace: true,
+			Message:   receiver.Message,
+			Closed: func(code Code, reason string) {
+				mu.Lock()
+				remaining--
+				last := remaining == 0
+				mu.Unlock()
+				if last {
+					w.remove(registration, true, code, reason)
+				}
+			},
+		})
+		if err != nil {
+			w.remove(registration, false, 0, "")
+			return nil, err
+		}
+		mu.Lock()
+		if ended {
+			mu.Unlock()
+			detach()
+			return nil, ErrClosed
+		}
+		detaches = append(detaches, detach)
+		mu.Unlock()
 	}
 	return func() { w.remove(registration, false, 0, "") }, nil
 }
