@@ -38,7 +38,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
-- runtime/hs: add the native Haskell core runtime held against Go in both roles.
+- Haskell enters at tier 4 with bounded pipes and WebSockets, the native peer,
+  relative-path Wires and strict shared-table validation, held against Go in
+  both roles and by an outside source-distribution consumer.
 - C++20 has a bounded frames connection, pipe and WebSocket transports, the
   peer runtime and descriptor validator, held to the shared core scenarios
   against Go in both roles. Its CMake targets are `Nightseam::duplex` and

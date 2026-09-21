@@ -9,7 +9,9 @@ whose code, message and optional data reach the remote caller.
 Create both peers with `newPeer`, register methods with `handle`, create a
 `CallContext` with `newCallContext`, and invoke `call`. Cancellation through
 `cancelContext` settles the caller and informs the remote handler. A handler
-that ignores cancellation retains its capacity until it returns. Metadata
+that ignores cancellation retains its capacity until it returns. The receiver's
+own request deadline answers promptly while keeping that work counted; explicit
+remote cancellation waits for the application response. Metadata
 is explicit: `contextReceivedMeta` exposes incoming fields, while `contextMeta`
 supplies outgoing fields. Received metadata does not automatically accompany reverse calls.
 The context carries trace information for child calls.
@@ -33,5 +35,7 @@ node scripts/haskell-smoke.mjs
 
 The install smoke builds source distributions, installs them in an unrelated
 temporary consumer, and performs a request over a real WebSocket.
+The Cabal versions and local dependency pins move with `scripts/version.mjs`,
+and release preparation refuses drift from the repository version.
 Haskell enters at tier 4; generator, tunnel, live and observability coverage
 are separate lanes toward the tier-2 pilot.
