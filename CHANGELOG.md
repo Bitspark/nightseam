@@ -60,9 +60,6 @@ are one number. Entries are in the words of the commits that landed them.
   directions under each invocation's context. Applied names and digests retain
   nominal origin and argument revisions; source aliases emit independent
   specialized conversion bodies with the same identity.
-- Go and TypeScript ship a bounded Wire record/follow composition with
-  consumer-owned storage, an atomic replay-to-live handoff and independent
-  subscriber failure. Opaque messages retain their existing reference scope.
 - Generated Go and TypeScript family parameters supply complete interpretations
   of plain associated records containing callables. Constructors reject missing
   or mixed-family converters before model construction, and nested conversions
