@@ -156,6 +156,12 @@ export class DuplexPeer {
   // Only a request advances the mark: a response or a control names a serial
   // that was taken before it.
   private admittedSerial = 0;
+  // Requests publish in the order they were reserved. A request takes its
+  // place here when it enters the outgoing queue's gate and leaves when it has
+  // published or given up, so a sender that arrives while others are waiting
+  // for room takes its turn behind them rather than jumping in.
+  private readonly publishing: number[] = [];
+  private nextTicket = 0;
   private opening?: { resolve: () => void; reject: (error: DuplexError) => void; timer: Timer };
   private readonly pending = new Map<string, Pending>();
   private readonly incoming = new Map<string, Incoming>();
@@ -533,6 +539,16 @@ export class DuplexPeer {
     }
   }
 
+  /** Gives up this request's place in the publication order, once. Others
+   * waiting for room re-check their turn when the queue next drains. */
+  private release(ticket: number | undefined): void {
+    if (ticket === undefined) return;
+    const at = this.publishing.indexOf(ticket);
+    if (at < 0) return;
+    this.publishing.splice(at, 1);
+    if (at === 0) for (const wake of [...this.waitingForRoom]) wake(true);
+  }
+
   private isOpen(): boolean {
     return this.state === 'connected' && this.connection?.state === 'open';
   }
@@ -556,6 +572,10 @@ export class DuplexPeer {
   ): Promise<void> {
     let queued = false;
     let endOnRefusal = false;
+    // A response, a control or an event takes no serial and waits behind no
+    // request: only a request's publication order is a promise.
+    const ticket = envelope.kind === 'request' ? this.nextTicket++ : undefined;
+    if (ticket !== undefined) this.publishing.push(ticket);
     try {
       if (!this.isOpen()) throw new DuplexError('not_connected', 'Peer is not connected.');
       let text: string;
@@ -587,11 +607,12 @@ export class DuplexPeer {
         if (abandoned?.aborted) return;
         if (!this.isOpen() || this.connection !== connection)
           throw new DuplexError('not_connected', 'Peer is not connected.');
-        // The queue is the one ordering gate: a sender that arrives while
-        // others are waiting for room takes its turn behind them rather than
-        // jumping in. That is what keeps publication in the order senders
-        // reserved, which the request serial is a promise about.
-        if (this.outgoing.length < this.limits.queueCapacity && this.waitingForRoom.size === 0) break;
+        // The queue is the one ordering gate: room alone is not enough, the
+        // sender must also be the one whose turn it is. That is what keeps
+        // publication in the order senders reserved, which the request serial
+        // is a promise about.
+        if (this.outgoing.length < this.limits.queueCapacity && (ticket === undefined || this.publishing[0] === ticket))
+          break;
         if (immediate || Date.now() >= deadline) {
           if (this.observer) this.pressure(this.outgoing.length, true);
           endOnRefusal = true;
@@ -654,8 +675,10 @@ export class DuplexPeer {
       this.outgoing.push({ text, started: Date.now(), sent: false, waited: false, observeSent });
       queued = true;
       accepted?.();
+      this.release(ticket);
       this.flush();
     } catch (error) {
+      this.release(ticket);
       if (!queued) {
         const proof = new UnpublishedError(error);
         // Settle this unqueued attempt before a terminal admission failure
