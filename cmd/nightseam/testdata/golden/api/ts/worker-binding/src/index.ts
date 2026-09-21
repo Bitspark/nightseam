@@ -13,6 +13,8 @@ export type { AdapterContext };
 function makeAdapter(context: AdapterContext) {
   const options = { ...context.options };
   const observer = options.observer;
+  const propagator = options.propagator;
+  const requestTimeoutMs = options.requestTimeoutMs;
   const bindings = {  };
   const slots: Slots = {  };
   const identity = { path: "worker", digest: declarationDigest(validateWire, slots) };
@@ -28,14 +30,14 @@ function makeAdapter(context: AdapterContext) {
     return {
       methods: {
         async describe(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "worker" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "worker" };
           validateWire("Ticket", params);
           const result = await callWire<string>(wire, ["describe"], params, options);
           validateWire("string", result);
           return result;
         },
         async start(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "worker" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "worker" };
           const owner = (true || true) ? environment!.select((context as {valueContext?: unknown} | undefined)?.valueContext) : undefined;
           const result = await environment!.publish(owner, owner => environment!.export(owner, (owner) => { const converted = conversion.exportStart(owner as LiveOwner, (params) as Protocol.Start); validateWire("Start", converted); return converted; }), sent => callWire(wire, ["start"], sent, options));
           validateWire("Job", result);
@@ -82,7 +84,7 @@ function makeAdapter(context: AdapterContext) {
     return {
       methods: {
         async supervise(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "worker" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "worker" };
           const owner = (true || true) ? environment!.select((context as {valueContext?: unknown} | undefined)?.valueContext) : undefined;
           const result = await environment!.publish(owner, owner => environment!.export(owner, (owner) => { const converted = conversion.exportSupervise(owner as LiveOwner, (params) as Protocol.Supervise); validateWire("Supervise", converted); return converted; }), sent => callWire(wire, ["supervise"], sent, options));
           validateWire("Outcome", result);
@@ -91,7 +93,7 @@ function makeAdapter(context: AdapterContext) {
       },
       events: {
         async settled(data, context) {
-          const options = { context, meta: context?.outgoingMeta, observer, family: "worker" };
+          const options = { context, meta: context?.outgoingMeta, observer, propagator, family: "worker" };
           const owner = (true) ? environment!.select((context as {valueContext?: unknown} | undefined)?.valueContext) : undefined;
           await environment!.publish(owner, owner => environment!.export(owner, (owner) => { const converted = conversion.exportOutcome(owner as LiveOwner, (data) as Protocol.Outcome); validateWire("Outcome", converted); return converted; }), sent => (async () => { emitWire(wire, ["settled"], sent, options); })());
         },

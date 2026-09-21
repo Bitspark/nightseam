@@ -12,6 +12,8 @@ export type { AdapterContext };
 function makeAdapter(context: AdapterContext) {
   const options = { ...context.options };
   const observer = options.observer;
+  const propagator = options.propagator;
+  const requestTimeoutMs = options.requestTimeoutMs;
   const bindings = {  };
   const slots: Slots = {  };
   const identity = { path: "codex", digest: declarationDigest(validateWire, slots) };
@@ -25,14 +27,14 @@ function makeAdapter(context: AdapterContext) {
     return {
       methods: {
         async echo(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "codex" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "codex" };
           validateWire("Payload", params);
           const result = await callWire<Protocol.Payload>(wire, ["echo"], params, options);
           validateWire("Payload", result);
           return result;
         },
         async noArgs(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "codex" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "codex" };
           validateWire({ empty: true }, params);
           const result = await callWire<string>(wire, ["no_args"], params, options);
           validateWire("string", result);
@@ -78,7 +80,7 @@ function makeAdapter(context: AdapterContext) {
     return {
       methods: {
         async reverse(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "codex" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "codex" };
           validateWire("Payload", params);
           const result = await callWire<Protocol.Payload>(wire, ["reverse"], params, options);
           validateWire("Payload", result);
@@ -87,7 +89,7 @@ function makeAdapter(context: AdapterContext) {
       },
       events: {
         async changed(data, context) {
-          const options = { context, meta: context?.outgoingMeta, observer, family: "codex" };
+          const options = { context, meta: context?.outgoingMeta, observer, propagator, family: "codex" };
           validateWire("Payload", data);
           emitWire(wire, ["changed"], data, options);
         },

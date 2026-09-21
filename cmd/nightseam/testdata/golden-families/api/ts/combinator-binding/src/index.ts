@@ -15,6 +15,8 @@ export type { AdapterContext };
 function makeAdapter(context: AdapterContext) {
   const options = { ...context.options };
   const observer = options.observer;
+  const propagator = options.propagator;
+  const requestTimeoutMs = options.requestTimeoutMs;
   const bindings = {  };
   const slots: Slots = {  };
   const identity = { path: "combinator", digest: declarationDigest(validateWire, slots) };
@@ -30,21 +32,21 @@ function makeAdapter(context: AdapterContext) {
     return {
       methods: {
         async name(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "combinator" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "combinator" };
           validateWire({ empty: true }, params);
           const result = await callWire<string>(wire, ["name"], params, options);
           validateWire("string", result);
           return result;
         },
         async pack(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "combinator" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "combinator" };
           const owner = (true || true) ? environment!.select((context as {valueContext?: unknown} | undefined)?.valueContext) : undefined;
           const result = await environment!.publish(owner, owner => environment!.export(owner, (owner) => { const converted = live_boxes.exportBox<Protocol.Unary>((params) as boxes.Box<Protocol.Unary>, (input: Protocol.Unary): unknown => conversion.exportUnary(owner as LiveOwner, (input) as Protocol.Unary)); validateWire({"apply":"boxes.Box","with":{"T":"Unary"}}, converted); return converted; }), sent => callWire(wire, ["pack"], sent, options));
           validateWire({"apply":"boxes.Batch","with":{"T":{"apply":"Bundle","with":{"T":"Count"}}}}, result);
           return environment!.import(owner, (owner) => live_boxes.importBatch<Protocol.Bundle<Protocol.Count>>(result, (input: unknown): Protocol.Bundle<Protocol.Count> => (conversion.importBundle<Protocol.Count>(owner as LiveOwner, input, (owner: LiveOwner, input: unknown): Protocol.Count => (input) as Protocol.Count)) as Protocol.Bundle<Protocol.Count>));
         },
         async toolkit(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "combinator" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "combinator" };
           const owner = (true) ? environment!.select((context as {valueContext?: unknown} | undefined)?.valueContext) : undefined;
           const result = await callWire(wire, ["toolkit"], (() => { const converted = params; validateWire({"kind":"record","fields":[{"name":"seed","type":"Count","required":true}]}, converted); return converted; })(), options);
           validateWire("Toolkit", result);

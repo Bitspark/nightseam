@@ -13,6 +13,8 @@ export type { AdapterContext };
 function makeAdapter<S extends AnyFamily = AnyFamily>(context: AdapterContext, s: FamilyBinding<S>) {
   const options = { ...context.options };
   const observer = options.observer;
+  const propagator = options.propagator;
+  const requestTimeoutMs = options.requestTimeoutMs;
   const bindings = { s };
   const slots: Slots = { "S": s };
   const identity = { path: "carrier", digest: declarationDigest(validateWire, slots) };
@@ -26,14 +28,14 @@ function makeAdapter<S extends AnyFamily = AnyFamily>(context: AdapterContext, s
     return {
       methods: {
         async attach(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "carrier" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "carrier" };
           validateWire("AttachParams", params, '$', slots);
           const result = await callWire<Protocol.Attachment<S>>(wire, ["attach"], params, options);
           validateWire("Attachment", result, '$', slots);
           return result;
         },
         async relay(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "carrier" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "carrier" };
           validateWire("Frame", params, '$', slots);
           const result = await callWire<probe.Envelope>(wire, ["relay"], params, options);
           validateWire("probe.Envelope", result, '$', slots);
@@ -81,7 +83,7 @@ function makeAdapter<S extends AnyFamily = AnyFamily>(context: AdapterContext, s
       },
       events: {
         async frameRelayed(data, context) {
-          const options = { context, meta: context?.outgoingMeta, observer, family: "carrier" };
+          const options = { context, meta: context?.outgoingMeta, observer, propagator, family: "carrier" };
           validateWire("Frame", data, '$', slots);
           emitWire(wire, ["frame.relayed"], data, options);
         },

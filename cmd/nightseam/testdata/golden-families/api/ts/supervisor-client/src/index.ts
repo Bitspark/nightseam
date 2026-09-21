@@ -15,6 +15,8 @@ export type { AdapterContext };
 function makeAdapter(context: AdapterContext) {
   const options = { ...context.options };
   const observer = options.observer;
+  const propagator = options.propagator;
+  const requestTimeoutMs = options.requestTimeoutMs;
   const bindings = {  };
   const slots: Slots = {  };
   const identity = { path: "supervisor", digest: declarationDigest(validateWire, slots) };
@@ -30,21 +32,21 @@ function makeAdapter(context: AdapterContext) {
     return {
       methods: {
         async shift(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "supervisor" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "supervisor" };
           validateWire("Shift", params);
           const result = await callWire<string>(wire, ["shift"], params, options);
           validateWire("string", result);
           return result;
         },
         async relieve(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "supervisor" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "supervisor" };
           const owner = (true) ? environment!.select((context as {valueContext?: unknown} | undefined)?.valueContext) : undefined;
           const result = await environment!.publish(owner, owner => environment!.export(owner, (owner) => { const converted = conversion.exportRelieveRequest(owner as LiveOwner, (params) as Protocol.RelieveRequest); validateWire({"kind":"record","fields":[{"name":"shift","type":"Shift","required":true},{"name":"sink","type":"worker.ProgressSink","required":true}]}, converted); return converted; }), sent => callWire(wire, ["relieve"], sent, options));
           validateWire("Shift", result);
           return result as Protocol.Shift;
         },
         async watch(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "supervisor" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "supervisor" };
           const owner = (true || true) ? environment!.select((context as {valueContext?: unknown} | undefined)?.valueContext) : undefined;
           const result = await environment!.publish(owner, owner => environment!.export(owner, (owner) => { const converted = conversion.exportWatch(owner as LiveOwner, (params) as Protocol.Watch); validateWire("Watch", converted); return converted; }), sent => callWire(wire, ["watch"], sent, options));
           validateWire("worker.Job", result);

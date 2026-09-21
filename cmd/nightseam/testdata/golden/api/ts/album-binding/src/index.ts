@@ -15,6 +15,8 @@ export type { AdapterContext };
 function makeAdapter<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(context: AdapterContext, a: FamilyBinding<A>, b: FamilyBinding<B>) {
   const options = { ...context.options };
   const observer = options.observer;
+  const propagator = options.propagator;
+  const requestTimeoutMs = options.requestTimeoutMs;
   const bindings = { a, b };
   const slots: Slots = { "A": a, "B": b };
   const identity = { path: "album", digest: declarationDigest(validateWire, slots) };
@@ -28,7 +30,7 @@ function makeAdapter<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyF
     return {
       methods: {
         async look(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "album" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "album" };
           validateWire("Mine", params, '$', slots);
           const result = await callWire<Protocol.Both<A, B>>(wire, ["look"], params, options);
           validateWire("Both", result, '$', slots);

@@ -12,6 +12,8 @@ export type { AdapterContext };
 function makeAdapter(context: AdapterContext) {
   const options = { ...context.options };
   const observer = options.observer;
+  const propagator = options.propagator;
+  const requestTimeoutMs = options.requestTimeoutMs;
   const bindings = {  };
   const slots: Slots = {  };
   const identity = { path: "workbench", digest: declarationDigest(validateWire, slots) };
@@ -25,105 +27,105 @@ function makeAdapter(context: AdapterContext) {
     return {
       methods: {
         async listEvents(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("ListEventsParams", params);
           const result = await callWire<Array<Protocol.Event>>(wire, ["events.list"], params, options);
           validateWire({"array":"Event"}, result);
           return result;
         },
         async me(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire({ empty: true }, params);
           const result = await callWire<Protocol.User>(wire, ["me"], params, options);
           validateWire("User", result);
           return result;
         },
         async createProject(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("CreateProjectParams", params);
           const result = await callWire<Protocol.Project>(wire, ["projects.create"], params, options);
           validateWire("Project", result);
           return result;
         },
         async listProjects(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("ListProjectsParams", params);
           const result = await callWire<Array<Protocol.Project>>(wire, ["projects.list"], params, options);
           validateWire({"array":"Project"}, result);
           return result;
         },
         async updateProject(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("UpdateProjectParams", params);
           const result = await callWire<Protocol.Project>(wire, ["projects.update"], params, options);
           validateWire("Project", result);
           return result;
         },
         async subscribe(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("SubscribeParams", params);
           const result = await callWire<Protocol.SubscribeResult>(wire, ["subscribe"], params, options);
           validateWire("SubscribeResult", result);
           return result;
         },
         async cancelWorkItem(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("CancelWorkItemParams", params);
           const result = await callWire<Protocol.WorkItem>(wire, ["work.cancel"], params, options);
           validateWire("WorkItem", result);
           return result;
         },
         async createWorkItem(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("CreateWorkItemParams", params);
           const result = await callWire<Protocol.WorkItem>(wire, ["work.create"], params, options);
           validateWire("WorkItem", result);
           return result;
         },
         async setDependencies(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("SetDependenciesParams", params);
           const result = await callWire<Protocol.WorkItem>(wire, ["work.dependencies"], params, options);
           validateWire("WorkItem", result);
           return result;
         },
         async getWorkItem(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("GetWorkItemParams", params);
           const result = await callWire<Protocol.WorkItem>(wire, ["work.get"], params, options);
           validateWire("WorkItem", result);
           return result;
         },
         async listWorkItems(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("ListWorkItemsParams", params);
           const result = await callWire<Array<Protocol.WorkItem>>(wire, ["work.list"], params, options);
           validateWire({"array":"WorkItem"}, result);
           return result;
         },
         async publishSpecification(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("PublishSpecificationParams", params);
           const result = await callWire<Protocol.WorkItem>(wire, ["work.publish"], params, options);
           validateWire("WorkItem", result);
           return result;
         },
         async reopenWorkItem(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("ReopenWorkItemParams", params);
           const result = await callWire<Protocol.WorkItem>(wire, ["work.reopen"], params, options);
           validateWire("WorkItem", result);
           return result;
         },
         async setSteps(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("SetStepsParams", params);
           const result = await callWire<Protocol.WorkItem>(wire, ["work.steps"], params, options);
           validateWire("WorkItem", result);
           return result;
         },
         async updateWorkItem(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("UpdateWorkItemParams", params);
           const result = await callWire<Protocol.WorkItem>(wire, ["work.update"], params, options);
           validateWire("WorkItem", result);
@@ -314,7 +316,7 @@ function makeAdapter(context: AdapterContext) {
       },
       events: {
         async changed(data, context) {
-          const options = { context, meta: context?.outgoingMeta, observer, family: "workbench" };
+          const options = { context, meta: context?.outgoingMeta, observer, propagator, family: "workbench" };
           validateWire("Event", data);
           emitWire(wire, ["workbench.changed"], data, options);
         },

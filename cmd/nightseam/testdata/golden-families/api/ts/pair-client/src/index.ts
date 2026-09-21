@@ -13,6 +13,8 @@ export type { AdapterContext };
 function makeAdapter<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyFamily>(context: AdapterContext, s: FamilyBinding<S>, t: FamilyBinding<T>) {
   const options = { ...context.options };
   const observer = options.observer;
+  const propagator = options.propagator;
+  const requestTimeoutMs = options.requestTimeoutMs;
   const bindings = { s, t };
   const slots: Slots = { "S": s, "T": t };
   const identity = { path: "pair", digest: declarationDigest(validateWire, slots) };
@@ -26,14 +28,14 @@ function makeAdapter<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyF
     return {
       methods: {
         async named(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "pair" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "pair" };
           validateWire("Named", params, '$', slots);
           const result = await callWire<Protocol.Named>(wire, ["named"], params, options);
           validateWire("Named", result, '$', slots);
           return result;
         },
         async relay(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "pair" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "pair" };
           validateWire("T.Envelope", params, '$', slots);
           const result = await callWire<Protocol.Both<S, T>>(wire, ["relay"], params, options);
           validateWire("Both", result, '$', slots);
@@ -81,7 +83,7 @@ function makeAdapter<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyF
       },
       events: {
         async echoed(data, context) {
-          const options = { context, meta: context?.outgoingMeta, observer, family: "pair" };
+          const options = { context, meta: context?.outgoingMeta, observer, propagator, family: "pair" };
           validateWire("Echo", data, '$', slots);
           emitWire(wire, ["echoed"], data, options);
         },

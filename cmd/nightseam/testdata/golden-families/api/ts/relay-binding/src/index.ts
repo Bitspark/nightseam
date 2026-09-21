@@ -12,6 +12,8 @@ export type { AdapterContext };
 function makeAdapter<S extends AnyFamily = AnyFamily>(context: AdapterContext, s: FamilyBinding<S>) {
   const options = { ...context.options };
   const observer = options.observer;
+  const propagator = options.propagator;
+  const requestTimeoutMs = options.requestTimeoutMs;
   const bindings = { s };
   const slots: Slots = { "S": s };
   const identity = { path: "relay", digest: declarationDigest(validateWire, slots) };
@@ -25,7 +27,7 @@ function makeAdapter<S extends AnyFamily = AnyFamily>(context: AdapterContext, s
     return {
       methods: {
         async relay(params, context) {
-          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: "relay" };
+          const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: "relay" };
           validateWire("Carried", params, '$', slots);
           const result = await callWire<S["Envelope"]>(wire, ["relay"], params, options);
           validateWire("S.Envelope", result, '$', slots);
