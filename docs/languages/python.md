@@ -95,8 +95,10 @@ Request contexts expose `wire`, `request_id`, `cancelled`, `trace` and `meta`;
 event contexts expose `wire`, `trace` and `meta`. Received private context
 survives local composition and ends at a physical hop. Supplying `context=`
 to an outgoing helper propagates trace context; copy metadata only by passing
-`meta=context.meta` explicitly. A cancelled handler retains its active-work
-slot until it actually exits, even when its response deadline has passed.
+`meta=context.meta` explicitly. Cancelling a call ends the caller's wait promptly;
+the incoming response waits for the handler to exit unless its receiver deadline
+expires first. A cancelled handler retains its active-work slot until it actually
+exits, even when its response deadline has passed.
 
 For early incoming traffic, `Options(prepare=callback)` invokes `callback(peer)`
 synchronously before the reader and writer start. Install Wire receivers there;
@@ -119,7 +121,8 @@ python scripts/smoke-python.py
 
 The smoke builds a temporary source copy, installs its wheel into a new virtual
 environment outside the checkout, and holds imports and a real WebSocket
-request round trip. It also checks the wheel's modules, version and notices.
+request through mounted, forwarded local Wire endpoints. It also checks the
+wheel's modules, version and notices.
 CI, nightly conformance and release checks install Python and run these gates.
 The shared Go conformance runner exercises Python on either side of the socket;
 an unavailable Python interpreter or dependency fails its setup.
