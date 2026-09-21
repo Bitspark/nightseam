@@ -65,8 +65,11 @@ export function cell(value) {
 
 /**
  * The Markdown table: a row per language with its tier, a column per profile,
- * and the verdict the suite recorded. The reference is marked, since every
- * other language is held to it and a reader should know which one it is.
+ * and the verdict the suite recorded, followed by the testee that would not
+ * build where the row is `absent` — a reader seeing dashes should learn from
+ * the table itself whether a run was filtered or a testee was missing. The
+ * reference is marked, since every other language is held to it and a reader
+ * should know which one it is.
  */
 export function table(matrix, profiles) {
   const names = columns(matrix, profiles);
@@ -113,6 +116,11 @@ export function planned(profiles) {
  * failing. The lag is read against `previous`, the matrix of the last
  * release; with none, nothing is a second failure and the first one ships.
  *
+ * A row the run marked `absent` — a testee that would not build — reads the
+ * same way: the tier's `onFailure` decides, from the state rather than from
+ * the stored verdict, so a row that says `ok` beside a testee nobody could
+ * build never ships unmarked.
+ *
  * The verdict recorded in `matrix.json` is the required-profile outcome
  * alone, which is what the suite gates on; the lag lives between two
  * releases and so is computed here, from the cells, rather than read off a
@@ -146,7 +154,7 @@ export function gate(matrix, profiles, previous) {
     if (incomplete.length > 0) {
       const what = `\`${language}\` (tier ${row.tier}) ${incomplete.join(" and ")}`;
       if (tier.onFailure === "stop") problems.push(`${what}, which tier ${row.tier} stops a release for`);
-      else if (tier.onFailure === "provisional" || row.state === "absent") provisional.push(`${what}; tier ${row.tier} ships provisional`);
+      else if (tier.onFailure === "provisional") provisional.push(`${what}; tier ${row.tier} ships provisional`);
     }
     if (elsewhere.length > 0 && tier.otherwise === "stop-next") {
       const before = wasLagging(previous, language, profiles);
@@ -158,6 +166,7 @@ export function gate(matrix, profiles, previous) {
   return { problems, provisional, lagging };
 }
 
+/** Which of a row's testees would not build, named as the reasons key them: `runtime`, `generated`, or both. */
 function absentTestees(row) {
   const kinds = Object.keys(row.reasons ?? {}).sort();
   return kinds.length ? `${kinds.join(" and ")} testee${kinds.length > 1 ? "s" : ""}` : "testee";
