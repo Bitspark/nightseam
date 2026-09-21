@@ -70,6 +70,7 @@ retains a payload's original JSON spelling when forwarding it.
 python -m pip install -e '.[test]'
 python -m unittest discover -s duplex/py/tests
 python -m unittest discover -s runtime/py/tests
+python -m unittest discover -s conformance/python -p 'test_*.py'
 python scripts/smoke-python.py
 ```
 
