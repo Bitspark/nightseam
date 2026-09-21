@@ -14,13 +14,13 @@ func (f *file) publishBoundary(e model.TypeExpr, src, dst string, publish func()
 	json := f.std("json")
 	if f.adapters {
 		f.w.Block(fmt.Sprintf("%s, err := func() (%s.RawMessage, error) {", dst, json), "}()", func() {
-			f.w.Block(fmt.Sprintf("build := func(owner *%s.Owner) (%s.RawMessage, error) {", f.live(), json), "}", func() {
+			f.w.Block(fmt.Sprintf("build := func(ctx %s.Context) (%s.RawMessage, error) {", f.std("context"), json), "}", func() {
 				f.liveBoundary(e, src, "sent", true)
 				f.line("return sent, err")
 			})
 			f.w.Block(fmt.Sprintf("publish := func(sent %s.RawMessage) (%s.RawMessage, error) {", json, json), "}", publish)
-			f.linef("if %s { return owner.PublishValue(build, publish) }", f.expressionLive(e))
-			f.line("sent, err := build(owner); if err != nil { return nil, err }; return publish(sent)")
+			f.linef("if %s { return %senvironment.ValueEnvironment.Publish(ctx, build, publish) }", f.expressionLive(e), f.adapterPrefix)
+			f.line("sent, err := build(ctx); if err != nil { return nil, err }; return publish(sent)")
 		})
 		return
 	}
@@ -168,6 +168,9 @@ func (f *file) conversionCall(e model.TypeExpr, src, dst string, export bool) (s
 			parameters = "owner *" + f.live() + ".Owner, " + parameters
 		}
 		f.w.Block(fmt.Sprintf("%s := func(%s) (%s, error) {", name, parameters, to), "}", func() {
+			if t.IsLive && f.adapters {
+				f.linef("ctx := %s.WithOwner(ctx, owner)", f.live())
+			}
 			fail := "nil"
 			if !export {
 				f.linef("var zero %s", to)
