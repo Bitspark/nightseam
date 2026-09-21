@@ -31,11 +31,6 @@ export function carrierOf(trace: Trace): Record<string, string> {
   return carrier;
 }
 
-/** The span id a trace names, which is what an event of that trace is enclosed by. */
-export function spanIdOf(trace: Trace | undefined): string | undefined {
-  return trace?.traceparent && TRACEPARENT.test(trace.traceparent) ? trace.traceparent.slice(36, 52) : undefined;
-}
-
 /**
  * A trace of this adapter's own, sampled, with the context it stands for: what
  * an injection falls back to where there is no span to carry. The context holds
