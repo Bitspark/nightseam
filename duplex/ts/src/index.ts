@@ -1,3 +1,6 @@
+export { at, mount, encodePath, decodePath, WireError } from './wire.ts';
+export type { Path, ProfileFrame, ProfileError, ReturnAddress, Message, Receiver, Wire } from './wire.ts';
+
 /**
  * A frames duplex connection: ordered, message-framed, bidirectional, with an
  * explicit close carrying a code and a reason. Nothing about JSON, requests,
