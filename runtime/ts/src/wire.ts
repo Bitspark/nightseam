@@ -386,9 +386,15 @@ function callWireTraced<T>(
   }
   completion.wait(options.signal, options.timeoutMs ?? 30_000, name, (error, outcome) => {
     if (completion.settled) return;
-    localOutcome = outcome;
-    completion.reject(error);
-    finish(error, outcome);
+    completion.cleanup();
+    if (!dispatch) {
+      localOutcome = outcome;
+      completion.reject(error);
+      finish(error, outcome);
+    }
+    // An incoming dispatch occupies the carrier's handler budget until the
+    // receiver replies. Its cancellation ends the caller's wait elsewhere;
+    // settling this promise here would release a still-executing body.
     try {
       wire.send(path, { frame: { version: 1, kind: 'cancel', id: 'c:1', ...trace }, return: address });
     } catch {

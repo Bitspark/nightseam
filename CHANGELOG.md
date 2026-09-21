@@ -6,6 +6,12 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Fixed
+
+- Go and TypeScript peer Wires retain canceled handlers in their concurrency
+  budget until their application bodies finish, including caller and receiver
+  deadlines. Caller cancellation still returns promptly and reaches the handler.
+
 ### Clarified
 
 - Nightseam is the implementation home for its reusable typed-access

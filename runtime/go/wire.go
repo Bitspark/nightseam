@@ -595,6 +595,12 @@ func callWire(ctx context.Context, wire duplex.Wire, path []string, params, resu
 	finish(err)
 	if cancelRemote {
 		_ = wire.Send(path, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileCancel, ID: returning.id, Traceparent: trace.Parent, Tracestate: trace.State}, Return: address})
+		if dispatch != nil {
+			// This waiter is the carrier's admitted handler, not the outgoing
+			// caller. Cancellation reaches the body immediately, but its slot
+			// remains occupied until the receiver actually finishes its work.
+			_, err = awaitReply(context.WithoutCancel(ctx), returning.reply, returning.done, func() error { return ErrClosed }, result)
+		}
 	}
 	return err
 }

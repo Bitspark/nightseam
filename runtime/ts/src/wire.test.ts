@@ -25,11 +25,50 @@ function deferred<T = void>() {
   });
   return { promise, resolve };
 }
-async function paired(options: PeerOptions = {}) {
+
+for (const mode of ['cancel', 'caller-deadline', 'receiver-deadline']) {
+  test(`wire cancellation retains executing handler budget (${mode})`, async (t) => {
+    const pair = await paired(
+      { maxConcurrentHandlers: 1, requestTimeoutMs: mode === 'receiver-deadline' ? 100 : 5000 },
+      { maxConcurrentHandlers: 1, requestTimeoutMs: 5000 },
+    );
+    t.after(pair.close);
+    const entered = deferred(),
+      cancelled = deferred(),
+      release = deferred();
+    t.after(() => release.resolve());
+    let calls = 0;
+    handleWire(pair.server.wire(), ['hold'], async (_params, context) => {
+      if (++calls === 1) {
+        context.signal.addEventListener('abort', () => cancelled.resolve(), { once: true });
+        entered.resolve();
+        await release.promise;
+      }
+      return 'finished';
+    });
+    const controller = new AbortController();
+    const first = callWire(pair.client.wire(), ['hold'], null, {
+      signal: controller.signal,
+      timeoutMs: mode === 'caller-deadline' ? 100 : 5000,
+    });
+    const result = first.catch((error: unknown) => error);
+    await entered.promise;
+    if (mode === 'cancel') controller.abort();
+    assert.equal(((await result) as DuplexError).code, mode === 'caller-deadline' ? 'request_timeout' : 'cancelled');
+    await cancelled.promise;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    await assert.rejects(callWire(pair.client.wire(), ['hold']), { code: 'busy' });
+    assert.equal(calls, 1);
+    release.resolve();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(await callWire(pair.client.wire(), ['hold']), 'finished');
+  });
+}
+async function paired(options: PeerOptions = {}, clientOptions: PeerOptions = options) {
   const [left, right] = pipe();
   let writes = 0;
   const frames: { kind: string }[] = [];
-  const client = new DuplexPeer(options),
+  const client = new DuplexPeer(clientOptions),
     server = new DuplexPeer({ ...options, role: 'server' });
   await Promise.all([
     client.attach({
