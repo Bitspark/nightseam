@@ -89,6 +89,10 @@ jobs:
         with:
           node-version-file: package.json
           cache: pnpm
+      - uses: swift-actions/setup-swift@d8e84bc3a450686a95474d7d6fa4a3301498debc # v3
+        with:
+          swift-version: "6.1.3"
+      - run: node scripts/swift.mjs
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
       - run: pnpm -r check

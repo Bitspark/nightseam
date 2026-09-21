@@ -29,6 +29,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Swift joins at tier 4 with native bounded pipes and Linux WebSockets,
+  the core peer and relative-path Wire, shared descriptor/frame validation,
+  conformance in both Go roles, and an external Swift Package Manager smoke.
+
 - Generated Go and TypeScript families expose the canonical declaration and its
   SHA-256 digest, covering operations, events, errors and reachable imported
   declarations. Bound arguments retain their own declaration content and scope.
