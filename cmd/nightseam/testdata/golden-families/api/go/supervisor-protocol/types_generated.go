@@ -2,6 +2,7 @@
 package supervisorprotocol
 
 import (
+	context "context"
 	json "encoding/json"
 	errors "errors"
 	workerprotocol "example.test/generated/api/go/worker-protocol"
@@ -352,6 +353,125 @@ func ImportWatch(owner *live.Owner, raw json.RawMessage) (Watch, error) {
 	}
 	return value, nil
 }
+
+// AdapterRelieveRequest composes declaration validation and conversion within the supplied invocation context.
+func AdapterRelieveRequest() runtime.ValueAdapter[RelieveRequest] {
+	binding := runtime.TypeBinding{Schema: schema, Type: runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"shift\",\"type\":\"Shift\",\"required\":true},{\"name\":\"sink\",\"type\":\"worker.ProgressSink\",\"required\":true}]}")}
+	return runtime.ValueAdapter[RelieveRequest]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value RelieveRequest) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportRelieveRequest(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (RelieveRequest, error) {
+			var zero RelieveRequest
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportRelieveRequest(owner, raw)
+		},
+	}
+}
+
+// AdapterShift composes declaration validation and conversion within the supplied invocation context.
+func AdapterShift() runtime.ValueAdapter[Shift] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Shift"}
+	return runtime.ValueAdapter[Shift]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Shift) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Shift, error) {
+			var zero Shift
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Shift, error) { var value Shift; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterWatch composes declaration validation and conversion within the supplied invocation context.
+func AdapterWatch() runtime.ValueAdapter[Watch] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Watch"}
+	return runtime.ValueAdapter[Watch]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Watch) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportWatch(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Watch, error) {
+			var zero Watch
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportWatch(owner, raw)
+		},
+	}
+}
+
+type ServerMethods interface {
+	Shift(ctx context.Context, params Shift) (string, error)
+	Relieve(ctx context.Context, params RelieveRequest) (Shift, error)
+	Watch(ctx context.Context, params Watch) (workerprotocol.Job, error)
+}
+type ServerEvents interface {
+}
+type Server struct {
+	Methods ServerMethods
+	Events  ServerEvents
+}
+type ClientMethods interface {
+}
+type ClientEvents interface {
+}
+type Client struct {
+	Methods ClientMethods
+	Events  ClientEvents
+}
+type ServerModel func(Client) (Server, error)
+type ClientModel func(Server) (Client, error)
 
 // The public errors of the family: what a handler returns, as the Code of a *runtime.PublicError, and a caller tells apart with IsError.
 const (

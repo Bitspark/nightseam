@@ -1,4 +1,3 @@
-func NewHandler[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag any, BTag any](handler Handler[AEnvelope, BEnvelope], options runtime.ServerOptions) (http.Handler, error)
-func Serve[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag any, BTag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[AEnvelope, BEnvelope]) (*runtime.Peer, error)
-type Handler[AEnvelope any, BEnvelope any] interface{Look(ctx context.Context, remote *Remote[AEnvelope, BEnvelope], params protocol.Mine[AEnvelope]) (protocol.Both[AEnvelope, BEnvelope], error)}
-type Remote[AEnvelope any, BEnvelope any] struct{Peer *runtime.Peer}
+func (*serverMethods[AEnvelope, BEnvelope]) Look(ctx context.Context, params protocol.Mine[AEnvelope]) (protocol.Both[AEnvelope, BEnvelope], error)
+func FromWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag any, BTag any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ServerModel[AEnvelope, BEnvelope], error)
+func ToWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag any, BTag any](model protocol.ServerModel[AEnvelope, BEnvelope], environment runtime.AdapterContext) (duplex.Wire, error)

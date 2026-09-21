@@ -8,94 +8,28 @@ import (
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
-	tunnel "github.com/Bitspark/nightseam/tunnel/go"
+	atomic "sync/atomic"
 )
 
-type Client[SEnvelope, SHandle any] struct{ Peer *runtime.Peer }
-
-// Events installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.
-type Events[SEnvelope, SHandle any] struct {
+type serverMethods[SEnvelope, SHandle any] struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
 }
-type Handler[SEnvelope, SHandle any] interface {
-}
-
-// Caller is the protocol's caller side: every operation a client sends. Client implements it.
-type Caller[SEnvelope, SHandle any] interface {
-	Relay(ctx context.Context, params protocol.Carried[SEnvelope, SHandle]) (SEnvelope, error)
+type serverEvents[SEnvelope, SHandle any] struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
 }
 
-func _[SEnvelope, SHandle any]() {
-	var _ Caller[SEnvelope, SHandle] = (*Client[SEnvelope, SHandle])(nil)
+func accessServer[SEnvelope, SHandle any](wire duplex.Wire, environment runtime.AdapterContext) protocol.Server[SEnvelope, SHandle] {
+	return protocol.Server[SEnvelope, SHandle]{Methods: &serverMethods[SEnvelope, SHandle]{wire: wire, environment: environment}, Events: &serverEvents[SEnvelope, SHandle]{wire: wire, environment: environment}}
 }
-
-// install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
-func install[SEnvelope, SHandle any](handler Handler[SEnvelope, SHandle], events Events[SEnvelope, SHandle], options *runtime.Options) error {
-	handlers := map[string]runtime.Handler{}
-	for name, existing := range options.Handlers {
-		handlers[name] = existing
-	}
-	options.Handlers = handlers
-	families := map[string]string{}
-	for name, existing := range options.Families {
-		families[name] = existing
-	}
-	families["relay"] = "relay"
-	options.Families = families
-	prepare := options.Prepare
-	options.Prepare = func(peer *runtime.Peer) error {
-		if prepare != nil {
-			return prepare(peer)
-		}
-		return nil
-	}
-	return nil
-}
-
-// Dial connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.
-func Dial[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[SEnvelope, SHandle], events Events[SEnvelope, SHandle]) (*Client[SEnvelope, SHandle], error) {
-	if err := install[SEnvelope, SHandle](handler, events, &options.Options); err != nil {
-		return nil, err
-	}
-	peer, response, err := runtime.Dial(ctx, url, options)
-	if err != nil {
-		if response != nil && response.Body != nil {
-			_ = response.Body.Close()
-		}
-		return nil, err
-	}
-	return &Client[SEnvelope, SHandle]{Peer: peer}, nil
-}
-
-// Attach speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.
-func Attach[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[SEnvelope, SHandle], events Events[SEnvelope, SHandle]) (*Client[SEnvelope, SHandle], error) {
-	if err := install[SEnvelope, SHandle](handler, events, &options); err != nil {
-		return nil, err
-	}
-	peer, err := runtime.NewPeer(ctx, conn, runtime.ClientRole, options)
-	if err != nil {
-		return nil, err
-	}
-	return &Client[SEnvelope, SHandle]{Peer: peer}, nil
-}
-
-// Open resolves a handle to the channel it names on a tunnel and speaks the family over it.
-func Open[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler[SEnvelope, SHandle], events Events[SEnvelope, SHandle]) (*Client[SEnvelope, SHandle], error) {
-	channel, ok := t.Channel(handle.Channel)
-	if !ok {
-		return nil, fmt.Errorf("no channel %d on the connection", handle.Channel)
-	}
-	return Attach[SEnvelope, SHandle](ctx, channel, options, handler, events)
-}
-func (c *Client[SEnvelope, SHandle]) Close() error { return c.Peer.Close() }
-
-// Relay: Relays one message of the bound family.
-func (c *Client[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.Carried[SEnvelope, SHandle]) (SEnvelope, error) {
+func (c *serverMethods[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.Carried[SEnvelope, SHandle]) (SEnvelope, error) {
 	var result SEnvelope
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Carried\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "relay", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"relay"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "relay"}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"S.Envelope\""), raw); err != nil {
@@ -105,4 +39,143 @@ func (c *Client[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.
 		return result, err
 	}
 	return result, nil
+}
+func bindServer[SEnvelope, SHandle any](wire duplex.Wire, implementation protocol.Server[SEnvelope, SHandle], environment runtime.AdapterContext) error {
+	if implementation.Methods == nil {
+		return fmt.Errorf("Server methods are required")
+	}
+	var detach []func()
+	complete := false
+	defer func() {
+		if !complete {
+			for _, off := range detach {
+				off()
+			}
+		}
+	}()
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "relay"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Carried\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.Carried[SEnvelope, SHandle]
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.Relay(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateValue(protocol.MustTypeExpression("\"S.Envelope\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"relay"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	complete = true
+	return nil
+}
+
+type clientMethods[SEnvelope, SHandle any] struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
+}
+type clientEvents[SEnvelope, SHandle any] struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
+}
+
+func accessClient[SEnvelope, SHandle any](wire duplex.Wire, environment runtime.AdapterContext) protocol.Client[SEnvelope, SHandle] {
+	return protocol.Client[SEnvelope, SHandle]{Methods: &clientMethods[SEnvelope, SHandle]{wire: wire, environment: environment}, Events: &clientEvents[SEnvelope, SHandle]{wire: wire, environment: environment}}
+}
+func bindClient[SEnvelope, SHandle any](wire duplex.Wire, implementation protocol.Client[SEnvelope, SHandle], environment runtime.AdapterContext) error {
+	var detach []func()
+	complete := false
+	defer func() {
+		if !complete {
+			for _, off := range detach {
+				off()
+			}
+		}
+	}()
+	complete = true
+	return nil
+}
+func normalizeContext[SEnvelope, SHandle any](environment runtime.AdapterContext) (runtime.AdapterContext, error) {
+	if false && environment.ValueEnvironment == nil {
+		return environment, fmt.Errorf("a context-dependent adapter requires a value environment")
+	}
+	return environment, nil
+}
+
+// ToWire binds one model factory and returns its access wire.
+func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](model protocol.ClientModel[SEnvelope, SHandle], environment runtime.AdapterContext) (duplex.Wire, error) {
+	if model == nil {
+		return nil, fmt.Errorf("model factory is required")
+	}
+	environment, err := normalizeContext[SEnvelope, SHandle](environment)
+	if err != nil {
+		return nil, err
+	}
+	options := environment.Options
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["5:relay"] = "relay"
+	options.Families = families
+	access, binding, err := runtime.NewWirePair(options)
+	if err != nil {
+		return nil, err
+	}
+	complete := false
+	defer func() {
+		if !complete {
+			_ = access.Close(duplex.CodeInternalError, "model construction failed")
+		}
+	}()
+	implementation, err := model(accessServer[SEnvelope, SHandle](binding, environment))
+	if err != nil {
+		return nil, err
+	}
+	if err := bindClient[SEnvelope, SHandle](binding, implementation, environment); err != nil {
+		return nil, err
+	}
+	complete = true
+	return access, nil
+}
+
+// FromWire interprets a wire as a factory that may be bound once.
+func FromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ClientModel[SEnvelope, SHandle], error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if wire == nil {
+		return nil, fmt.Errorf("wire is required")
+	}
+	environment, err := normalizeContext[SEnvelope, SHandle](environment)
+	if err != nil {
+		return nil, err
+	}
+	var bound atomic.Bool
+	return func(implementation protocol.Server[SEnvelope, SHandle]) (protocol.Client[SEnvelope, SHandle], error) {
+		if !bound.CompareAndSwap(false, true) {
+			return protocol.Client[SEnvelope, SHandle]{}, fmt.Errorf("model factory is already bound")
+		}
+		if err := bindServer[SEnvelope, SHandle](wire, implementation, environment); err != nil {
+			return protocol.Client[SEnvelope, SHandle]{}, err
+		}
+		return accessClient[SEnvelope, SHandle](wire, environment), nil
+	}, nil
 }

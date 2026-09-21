@@ -1,0 +1,70 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	boxes "example.test/generated/api/go/boxes-protocol"
+	combinator "example.test/generated/api/go/combinator-protocol"
+	"fmt"
+	"github.com/Bitspark/nightseam/runtime/go"
+)
+
+type wireValues[T any] struct {
+	adapter runtime.ValueAdapter[T]
+	make    func(int64) T
+	observe func(context.Context, T) (any, error)
+}
+
+func wireStrings() wireValues[string] {
+	return wireValues[string]{runtime.JSONAdapter[string](), func(n int64) string {
+		if n == 1 {
+			return "first"
+		}
+		return "second"
+	}, func(_ context.Context, v string) (any, error) { return v, nil }}
+}
+func wireUnaries() wireValues[combinator.Unary] {
+	return wireValues[combinator.Unary]{combinator.AdapterUnary(), func(add int64) combinator.Unary {
+		return func(_ context.Context, n int64) (int64, error) { return n + add, nil }
+	}, func(ctx context.Context, fn combinator.Unary) (any, error) { return fn(ctx, 5) }}
+}
+func wireFactories() wireValues[combinator.Factory] {
+	return wireValues[combinator.Factory]{combinator.AdapterFactory(), func(add int64) combinator.Factory {
+		return func(_ context.Context, fn combinator.Unary) (combinator.Unary, error) {
+			return func(ctx context.Context, n int64) (int64, error) { value, err := fn(ctx, n); return value + add, err }, nil
+		}
+	}, func(ctx context.Context, fn combinator.Factory) (any, error) {
+		inner, err := fn(ctx, func(_ context.Context, n int64) (int64, error) { return n + 3, nil })
+		if err != nil {
+			return nil, err
+		}
+		return inner(ctx, 5)
+	}}
+}
+func wireNested() wireValues[boxes.Page[combinator.Bundle[combinator.Unary]]] {
+	return wireValues[boxes.Page[combinator.Bundle[combinator.Unary]]]{
+		adapter: boxes.AdapterPage(combinator.AdapterBundle(combinator.AdapterUnary())),
+		make: func(add int64) boxes.Page[combinator.Bundle[combinator.Unary]] {
+			unary := wireUnaries().make
+			return boxes.Page[combinator.Bundle[combinator.Unary]]{Items: []combinator.Bundle[combinator.Unary]{{Metadata: combinator.BundleMetadata[combinator.Unary]{Seed: unary(add)}, Run: unary(10 * add)}}, AdditionalFields: map[string]json.RawMessage{"label": json.RawMessage(`"kept"`)}}
+		},
+		observe: func(ctx context.Context, page boxes.Page[combinator.Bundle[combinator.Unary]]) (any, error) {
+			if len(page.Items) != 1 {
+				return nil, fmt.Errorf("nested page lost bundle")
+			}
+			seed, err := page.Items[0].Metadata.Seed(ctx, 5)
+			if err != nil {
+				return nil, err
+			}
+			run, err := page.Items[0].Run(ctx, 5)
+			if err != nil {
+				return nil, err
+			}
+			var label string
+			if err = json.Unmarshal(page.AdditionalFields["label"], &label); err != nil {
+				return nil, err
+			}
+			return map[string]any{"seed": seed, "run": run, "label": label, "next_absent": !page.Next.Present}, nil
+		},
+	}
+}

@@ -1,0 +1,742 @@
+{
+  "name": "one generated scalar model crosses sockets and prepared channels without allocation during selection or use",
+  "layer": "generated",
+  "needs": [
+    "generated"
+  ],
+  "mirror": true,
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "socket",
+        "presentation": "local",
+        "slot": "string"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_dial",
+      "args": {
+        "carrier": "socket",
+        "presentation": "local",
+        "slot": "string",
+        "url": "$url"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_inspect",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "revision": 2,
+        "value": "second",
+        "noted": "first",
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {}
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {}
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "socket",
+        "presentation": "mounted",
+        "slot": "string"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_dial",
+      "args": {
+        "carrier": "socket",
+        "presentation": "mounted",
+        "slot": "string",
+        "url": "$url"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_inspect",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "revision": 2,
+        "value": "second",
+        "noted": "first",
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {}
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {}
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "socket",
+        "presentation": "forwarded",
+        "slot": "string"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_dial",
+      "args": {
+        "carrier": "socket",
+        "presentation": "forwarded",
+        "slot": "string",
+        "url": "$url"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_inspect",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "revision": 2,
+        "value": "second",
+        "noted": "first",
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {}
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {}
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "channel",
+        "presentation": "local",
+        "slot": "string"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_dial",
+      "args": {
+        "carrier": "channel",
+        "presentation": "local",
+        "slot": "string",
+        "url": "$url"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_inspect",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "revision": 2,
+        "value": "second",
+        "noted": "first",
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {}
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {}
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "channel",
+        "presentation": "mounted",
+        "slot": "string"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_dial",
+      "args": {
+        "carrier": "channel",
+        "presentation": "mounted",
+        "slot": "string",
+        "url": "$url"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_inspect",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "revision": 2,
+        "value": "second",
+        "noted": "first",
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {}
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {}
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "channel",
+        "presentation": "forwarded",
+        "slot": "string"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_dial",
+      "args": {
+        "carrier": "channel",
+        "presentation": "forwarded",
+        "slot": "string",
+        "url": "$url"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_inspect",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "revision": 2,
+        "value": "second",
+        "noted": "first",
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {}
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {}
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    }
+  ]
+}

@@ -2,13 +2,13 @@
  * receive model factories and explicit conversion contexts. */
 import { createServer, type Server } from 'node:http';
 import { WebSocketServer } from 'ws';
-import { DuplexPeer, forwardWire, type PeerOptions, type WebSocketLike } from '@nightseam/runtime';
+import { DuplexPeer, forwardWire, type AdapterContext, type PeerOptions, type WebSocketLike } from '@nightseam/runtime';
 import type { Wire } from '@nightseam/duplex';
-import type { AdapterContext, LiveScope } from '@nightseam/live';
+import { valueEnvironment, type LiveScope } from '@nightseam/live';
 
 /** One fixture attachment point for adapter options and an explicit live scope. */
 export function adapterContext(scope?: LiveScope, options?: PeerOptions): AdapterContext {
-  return { scope, options };
+  return { options, ...(scope ? { valueEnvironment: valueEnvironment(scope) } : {}) };
 }
 
 /** Test transport assembly is separate from every generated model. The model

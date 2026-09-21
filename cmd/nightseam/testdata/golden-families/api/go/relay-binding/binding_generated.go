@@ -4,80 +4,178 @@ package relaybinding
 import (
 	context "context"
 	json "encoding/json"
-	errors "errors"
 	protocol "example.test/generated/api/go/relay-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
-	http "net/http"
+	atomic "sync/atomic"
 )
 
-// Remote provides typed calls back to the connected client.
-type Remote[SEnvelope, SHandle any] struct{ Peer *runtime.Peer }
-type Handler[SEnvelope, SHandle any] interface {
-	// Relay: Relays one message of the bound family.
-	Relay(ctx context.Context, remote *Remote[SEnvelope, SHandle], params protocol.Carried[SEnvelope, SHandle]) (SEnvelope, error)
+type serverMethods[SEnvelope, SHandle any] struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
+}
+type serverEvents[SEnvelope, SHandle any] struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
 }
 
-// install registers the family's methods on the options a peer is made with and labels its names with the family.
-func install[SEnvelope, SHandle any](handler Handler[SEnvelope, SHandle], options *runtime.Options) error {
-	if handler == nil {
-		return fmt.Errorf("handler is required")
+func accessServer[SEnvelope, SHandle any](wire duplex.Wire, environment runtime.AdapterContext) protocol.Server[SEnvelope, SHandle] {
+	return protocol.Server[SEnvelope, SHandle]{Methods: &serverMethods[SEnvelope, SHandle]{wire: wire, environment: environment}, Events: &serverEvents[SEnvelope, SHandle]{wire: wire, environment: environment}}
+}
+func (c *serverMethods[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.Carried[SEnvelope, SHandle]) (SEnvelope, error) {
+	var result SEnvelope
+	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Carried\""), params); err != nil {
+		return result, err
 	}
-	handlers := map[string]runtime.Handler{}
-	for name, existing := range options.Handlers {
-		handlers[name] = existing
+	var raw json.RawMessage
+	if err := runtime.CallWire(ctx, c.wire, []string{"relay"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "relay"}); err != nil {
+		return result, err
 	}
-	if _, exists := handlers["relay"]; exists {
-		return fmt.Errorf("duplicate handler %s", "relay")
+	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"S.Envelope\""), raw); err != nil {
+		return result, err
 	}
-	handlers["relay"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
-		var params protocol.Carried[SEnvelope, SHandle]
-		if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Carried\""), raw); err != nil {
-			var public *runtime.PublicError
-			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+func bindServer[SEnvelope, SHandle any](wire duplex.Wire, implementation protocol.Server[SEnvelope, SHandle], environment runtime.AdapterContext) error {
+	if implementation.Methods == nil {
+		return fmt.Errorf("Server methods are required")
+	}
+	var detach []func()
+	complete := false
+	defer func() {
+		if !complete {
+			for _, off := range detach {
+				off()
+			}
+		}
+	}()
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "relay"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Carried\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.Carried[SEnvelope, SHandle]
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.Relay(ctx, params)
+			if err != nil {
 				return nil, err
 			}
-			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
-		}
-		if err := json.Unmarshal(raw, &params); err != nil {
-			var public *runtime.PublicError
-			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+			if err = protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateValue(protocol.MustTypeExpression("\"S.Envelope\""), result); err != nil {
 				return nil, err
 			}
-			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			return result, nil
 		}
-		result, err := handler.Relay(ctx, &Remote[SEnvelope, SHandle]{Peer: peer}, params)
-		if err != nil {
-			return nil, err
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"relay"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
 		}
-		if err = protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle]()}, nil).ValidateValue(protocol.MustTypeExpression("\"S.Envelope\""), result); err != nil {
-			return nil, err
-		}
-		return result, nil
 	}
-	options.Handlers = handlers
+	complete = true
+	return nil
+}
+
+type clientMethods[SEnvelope, SHandle any] struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
+}
+type clientEvents[SEnvelope, SHandle any] struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
+}
+
+func accessClient[SEnvelope, SHandle any](wire duplex.Wire, environment runtime.AdapterContext) protocol.Client[SEnvelope, SHandle] {
+	return protocol.Client[SEnvelope, SHandle]{Methods: &clientMethods[SEnvelope, SHandle]{wire: wire, environment: environment}, Events: &clientEvents[SEnvelope, SHandle]{wire: wire, environment: environment}}
+}
+func bindClient[SEnvelope, SHandle any](wire duplex.Wire, implementation protocol.Client[SEnvelope, SHandle], environment runtime.AdapterContext) error {
+	var detach []func()
+	complete := false
+	defer func() {
+		if !complete {
+			for _, off := range detach {
+				off()
+			}
+		}
+	}()
+	complete = true
+	return nil
+}
+func normalizeContext[SEnvelope, SHandle any](environment runtime.AdapterContext) (runtime.AdapterContext, error) {
+	if false && environment.ValueEnvironment == nil {
+		return environment, fmt.Errorf("a context-dependent adapter requires a value environment")
+	}
+	return environment, nil
+}
+
+// ToWire binds one model factory and returns its access wire.
+func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](model protocol.ServerModel[SEnvelope, SHandle], environment runtime.AdapterContext) (duplex.Wire, error) {
+	if model == nil {
+		return nil, fmt.Errorf("model factory is required")
+	}
+	environment, err := normalizeContext[SEnvelope, SHandle](environment)
+	if err != nil {
+		return nil, err
+	}
+	options := environment.Options
 	families := map[string]string{}
 	for name, existing := range options.Families {
 		families[name] = existing
 	}
-	families["relay"] = "relay"
+	families["5:relay"] = "relay"
 	options.Families = families
-	return nil
-}
-
-// NewHandler serves the family at a WebSocket endpoint; it requires explicit authentication and origin policy through options.
-func NewHandler[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](handler Handler[SEnvelope, SHandle], options runtime.ServerOptions) (http.Handler, error) {
-	if err := install[SEnvelope, SHandle](handler, &options.Options); err != nil {
+	access, binding, err := runtime.NewWirePair(options)
+	if err != nil {
 		return nil, err
 	}
-	return runtime.NewHandler(options)
-}
-
-// Serve serves the family over a connection of the seam — a tunnel channel, a pipe, an accepted socket — as the server side of it; the peer is the caller's to close.
-func Serve[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[SEnvelope, SHandle]) (*runtime.Peer, error) {
-	if err := install[SEnvelope, SHandle](handler, &options); err != nil {
+	complete := false
+	defer func() {
+		if !complete {
+			_ = access.Close(duplex.CodeInternalError, "model construction failed")
+		}
+	}()
+	implementation, err := model(accessClient[SEnvelope, SHandle](binding, environment))
+	if err != nil {
 		return nil, err
 	}
-	return runtime.NewPeer(ctx, conn, runtime.ServerRole, options)
+	if err := bindServer[SEnvelope, SHandle](binding, implementation, environment); err != nil {
+		return nil, err
+	}
+	complete = true
+	return access, nil
+}
+
+// FromWire interprets a wire as a factory that may be bound once.
+func FromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ServerModel[SEnvelope, SHandle], error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if wire == nil {
+		return nil, fmt.Errorf("wire is required")
+	}
+	environment, err := normalizeContext[SEnvelope, SHandle](environment)
+	if err != nil {
+		return nil, err
+	}
+	var bound atomic.Bool
+	return func(implementation protocol.Client[SEnvelope, SHandle]) (protocol.Server[SEnvelope, SHandle], error) {
+		if !bound.CompareAndSwap(false, true) {
+			return protocol.Server[SEnvelope, SHandle]{}, fmt.Errorf("model factory is already bound")
+		}
+		if err := bindClient[SEnvelope, SHandle](wire, implementation, environment); err != nil {
+			return protocol.Server[SEnvelope, SHandle]{}, err
+		}
+		return accessServer[SEnvelope, SHandle](wire, environment), nil
+	}, nil
 }

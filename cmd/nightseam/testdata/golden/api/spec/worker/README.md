@@ -589,15 +589,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Describe(ctx, params)
+client.Methods.Describe(ctx, params)
 
-func (Handler) Describe(ctx context.Context, remote *binding.Remote, params protocol.Ticket) (string, error)
+func (Handler) Describe(ctx context.Context, params protocol.Ticket) (string, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.describe(params)
+await server.methods.describe(params)
 ```
 
 ### `start` on the wire
@@ -669,15 +669,15 @@ Or refuses with `denied`:
 In `go`:
 
 ```go
-client.Start(ctx, params)
+client.Methods.Start(ctx, params)
 
-func (Handler) Start(ctx context.Context, remote *binding.Remote, params protocol.Start) (protocol.Job, error)
+func (Handler) Start(ctx context.Context, params protocol.Start) (protocol.Job, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.start(params)
+await server.methods.start(params)
 ```
 
 ### `settled` on the wire
@@ -698,13 +698,13 @@ The server emits:
 In `go`:
 
 ```go
-remote.EmitSettled(ctx, data)
+remote.Events.Settled(ctx, data)
 ```
 
 In `typescript`:
 
 ```typescript
-client.onSettled(handler)
+settled(data, context)
 ```
 
 ## Client side
@@ -754,7 +754,7 @@ The client answers:
 In `go`:
 
 ```go
-remote.Supervise(ctx, params)
+remote.Methods.Supervise(ctx, params)
 ```
 
 In `typescript`:

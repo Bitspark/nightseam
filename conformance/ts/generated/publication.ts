@@ -1,14 +1,14 @@
 /** Ordinary generated callbacks survive uncertain publication and have explicit owners. */
 import * as publication from './api/ts/publication-client/src/index.ts';
 import * as binding from './api/ts/publication-binding/src/index.ts';
-import { DuplexError, UnpublishedError, type CallOptions, type EmitOptions, type WireModelContext } from '@nightseam/runtime';
-import { liveOver, type LiveScope, type LiveOwner } from '@nightseam/live';
+import { DuplexError, UnpublishedError, type WireModelContext } from '@nightseam/runtime';
+import { liveOver, LiveOwner, type LiveScope } from '@nightseam/live';
 import { Served, Session, adapterContext } from './server.ts';
 
 type Args = Record<string, unknown>;
-type OwnedCall = CallOptions & { owner: LiveOwner };
-type OwnedEmit = EmitOptions & { owner: LiveOwner };
-type ReceivedContext = WireModelContext & { owner?: LiveOwner };
+type OwnedCall = WireModelContext & { valueContext: LiveOwner };
+type OwnedEmit = WireModelContext & { valueContext: LiveOwner };
+type ReceivedContext = WireModelContext & { valueContext?: unknown };
 export class PublicationFailure extends Error {
   readonly code: string;
   constructor(code: string, message: string) { super(message); this.code = code; }
@@ -33,9 +33,10 @@ class Receiver {
   readonly scope: LiveScope;
   constructor(scope: LiveScope) { this.scope = scope; }
   retain(value: publication.Supply, context?: ReceivedContext): void {
-    if (!context?.owner) throw new PublicationFailure('invalid', 'generated receiver supplied no owner');
-    check(context.owner.scope === this.scope && context.owner !== this.scope.owner(), 'generated receiver did not supply a child owner');
-    this.owner = context.owner;
+    const owner = context?.valueContext;
+    if (!(owner instanceof LiveOwner)) throw new PublicationFailure('invalid', 'generated receiver supplied no owner');
+    check(owner.scope === this.scope && owner !== this.scope.owner(), 'generated receiver did not supply a child owner');
+    this.owner = owner;
     this.callback = value.callback;
   }
   async supply(value: publication.Supply, context?: ReceivedContext): Promise<number> {
@@ -109,16 +110,16 @@ async function exercise(endpoint: Endpoint, timeout: number): Promise<unknown> {
     let markEntered!: () => void;
     const started = new Promise<void>(resolve => { markEntered = resolve; });
     const value: publication.Supply = { mode, callback: async n => { if (n === -1) { entered = true; markEntered(); } return n + 1; } };
-    const options: OwnedCall = { owner, signal: controller.signal, timeoutMs: 1000 };
+    const options: OwnedCall = { valueContext: owner, signal: controller.signal, timeoutMs: 1000 };
     let outcome: unknown;
     if (mode === 'unpublished') {
       controller.abort();
       try { await endpoint.supply(value, options); } catch (error) { outcome = error; }
     } else if (mode === 'event_unpublished') {
       value.mode = 'x'.repeat(2048);
-      try { await endpoint.emit(value, { owner }); } catch (error) { outcome = error; }
+      try { await endpoint.emit(value, { valueContext: owner }); } catch (error) { outcome = error; }
     } else if (mode === 'event') {
-      await endpoint.emit(value, { owner });
+      await endpoint.emit(value, { valueContext: owner });
       await Promise.race([started, new Promise<void>((_, reject) => { const timer = setTimeout(() => reject(new PublicationFailure('timeout', 'event was not received')), 1000); void started.then(() => clearTimeout(timer)); })]);
     } else {
       const finished = (mode === 'returned_reply_lost' ? endpoint.produce(value, options) : endpoint.supply(value, options)).then(() => undefined, error => error as unknown);

@@ -4,178 +4,33 @@ package workerclient
 import (
 	context "context"
 	json "encoding/json"
-	errors "errors"
 	protocol "example.test/generated/api/go/worker-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	live "github.com/Bitspark/nightseam/live/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
-	tunnel "github.com/Bitspark/nightseam/tunnel/go"
+	atomic "sync/atomic"
 )
 
-type Client struct{ Peer *runtime.Peer }
-
-// Events installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.
-type Events struct {
-	Settled func(context.Context, protocol.Outcome)
+type serverMethods struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
 }
-type Handler interface {
-	// Supervise: The reverse direction: the server hands the client callables to call.
-	Supervise(ctx context.Context, client *Client, params protocol.Supervise) (protocol.Outcome, error)
+type serverEvents struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
 }
 
-// Caller is the protocol's caller side: every operation a client sends. Client implements it.
-type Caller interface {
-	Describe(ctx context.Context, params protocol.Ticket) (string, error)
-	Start(ctx context.Context, params protocol.Start) (protocol.Job, error)
+func accessServer(wire duplex.Wire, environment runtime.AdapterContext) protocol.Server {
+	return protocol.Server{Methods: &serverMethods{wire: wire, environment: environment}, Events: &serverEvents{wire: wire, environment: environment}}
 }
-
-var _ Caller = (*Client)(nil)
-
-// install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
-func install(handler Handler, events Events, options *runtime.Options) error {
-	if handler == nil {
-		return fmt.Errorf("reverse-call handler is required")
-	}
-	handlers := map[string]runtime.Handler{}
-	for name, existing := range options.Handlers {
-		handlers[name] = existing
-	}
-	if _, exists := handlers["supervise"]; exists {
-		return fmt.Errorf("duplicate handler %s", "supervise")
-	}
-	handlers["supervise"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
-		scope, ok := live.ScopeOf(peer)
-		if !ok {
-			return nil, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
-		}
-		owner := scope.Owner().Child()
-		ctx = live.WithOwner(ctx, owner)
-		params, err := func() (protocol.Supervise, error) {
-			var value protocol.Supervise
-			err := owner.ImportValue(func(owner *live.Owner) error {
-				converted, err := func() (protocol.Supervise, error) {
-					var zero protocol.Supervise
-					if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Supervise\""), raw); err != nil {
-						return zero, err
-					}
-					converted, err := protocol.ImportSupervise(owner, raw)
-					if err != nil {
-						return zero, err
-					}
-					return converted, nil
-				}()
-				value = converted
-				return err
-			})
-			if err != nil {
-				var zero protocol.Supervise
-				return zero, err
-			}
-			return value, nil
-		}()
-		if err != nil {
-			var public *runtime.PublicError
-			if errors.As(err, &public) && public.Code == "contract_mismatch" {
-				return nil, err
-			}
-			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
-		}
-		result, err := handler.Supervise(ctx, &Client{Peer: peer}, params)
-		if err != nil {
-			return nil, err
-		}
-		sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-			var zero json.RawMessage
-			converted, err := protocol.ExportOutcome(owner, result)
-			if err != nil {
-				return zero, err
-			}
-			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), converted); err != nil {
-				return zero, err
-			}
-			return converted, nil
-		})
-		return sent, err
-	}
-	options.Handlers = handlers
-	families := map[string]string{}
-	for name, existing := range options.Families {
-		families[name] = existing
-	}
-	families["describe"] = "worker"
-	families["start"] = "worker"
-	families["supervise"] = "worker"
-	families["settled"] = "worker"
-	options.Families = families
-	prepare := options.Prepare
-	options.Prepare = func(peer *runtime.Peer) error {
-		if prepare != nil {
-			if err := prepare(peer); err != nil {
-				return err
-			}
-		}
-		if _, ok := live.ScopeOf(peer); !ok {
-			if _, err := live.Over(peer, live.Options{}); err != nil {
-				return err
-			}
-		}
-		client := &Client{Peer: peer}
-		if events.Settled != nil {
-			if err := client.OnSettled(events.Settled); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	return nil
-}
-
-// Dial connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.
-func Dial(ctx context.Context, url string, options runtime.DialOptions, handler Handler, events Events) (*Client, error) {
-	if err := install(handler, events, &options.Options); err != nil {
-		return nil, err
-	}
-	peer, response, err := runtime.Dial(ctx, url, options)
-	if err != nil {
-		if response != nil && response.Body != nil {
-			_ = response.Body.Close()
-		}
-		return nil, err
-	}
-	return &Client{Peer: peer}, nil
-}
-
-// Attach speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.
-func Attach(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler, events Events) (*Client, error) {
-	if err := install(handler, events, &options); err != nil {
-		return nil, err
-	}
-	peer, err := runtime.NewPeer(ctx, conn, runtime.ClientRole, options)
-	if err != nil {
-		return nil, err
-	}
-	return &Client{Peer: peer}, nil
-}
-
-// Open resolves a handle to the channel it names on a tunnel and speaks the family over it.
-func Open(ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler, events Events) (*Client, error) {
-	channel, ok := t.Channel(handle.Channel)
-	if !ok {
-		return nil, fmt.Errorf("no channel %d on the connection", handle.Channel)
-	}
-	return Attach(ctx, channel, options, handler, events)
-}
-func (c *Client) Close() error { return c.Peer.Close() }
-
-// Describe: Ordinary RPC: self-contained data, usable with no live runtime.
-func (c *Client) Describe(ctx context.Context, params protocol.Ticket) (string, error) {
+func (c *serverMethods) Describe(ctx context.Context, params protocol.Ticket) (string, error) {
 	var result string
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Ticket\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "describe", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"describe"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "worker"}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"string\""), raw); err != nil {
@@ -186,91 +41,318 @@ func (c *Client) Describe(ctx context.Context, params protocol.Ticket) (string, 
 	}
 	return result, nil
 }
-
-// Start: Takes a callback and answers a record of callables.
-func (c *Client) Start(ctx context.Context, params protocol.Start) (protocol.Job, error) {
+func (c *serverMethods) Start(ctx context.Context, params protocol.Start) (protocol.Job, error) {
 	var result protocol.Job
-	scope, ok := live.ScopeOf(c.Peer)
-	if !ok {
-		return result, &runtime.PublicError{Code: live.ErrorScopeClosed, Message: "the connection carries no live scope"}
+	if true {
+		var err error
+		ctx, err = c.environment.ValueEnvironment.Select(ctx)
+		if err != nil {
+			return result, err
+		}
 	}
-	owner, ok := live.OwnerOf(ctx)
-	if !ok || owner.Scope() != scope {
-		owner = scope.Owner()
-	}
-	raw, err := owner.PublishValue(
-		func(owner *live.Owner) (json.RawMessage, error) {
-			sent, err := owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-				var zero json.RawMessage
-				converted, err := protocol.ExportStart(owner, params)
-				if err != nil {
-					return zero, err
+	raw, err := func() (json.RawMessage, error) {
+		build := func(ctx context.Context) (json.RawMessage, error) {
+			sent, err := func() (json.RawMessage, error) {
+				var value json.RawMessage
+				convert := func(ctx context.Context) (json.RawMessage, error) {
+					if ctx == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
+					}
+					owner, ok := live.OwnerOf(ctx)
+					if !ok || owner == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
+					}
+					converted, err := protocol.ExportStart(owner, params)
+					if err != nil {
+						return value, err
+					}
+					if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Start\""), converted); err != nil {
+						return value, err
+					}
+					return converted, nil
 				}
-				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Start\""), converted); err != nil {
-					return zero, err
+				if true {
+					return c.environment.ValueEnvironment.Export(ctx, convert)
 				}
-				return converted, nil
-			})
+				return convert(ctx)
+			}()
 			return sent, err
-		},
-		func(sent json.RawMessage) (json.RawMessage, error) {
+		}
+		publish := func(sent json.RawMessage) (json.RawMessage, error) {
 			var raw json.RawMessage
-			err := c.Peer.Call(ctx, "start", sent, &raw)
+			err := runtime.CallWire(ctx, c.wire, []string{"start"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "worker"})
 			return raw, err
-		},
-	)
+		}
+		if true {
+			return c.environment.ValueEnvironment.Publish(ctx, build, publish)
+		}
+		sent, err := build(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return publish(sent)
+	}()
 	if err != nil {
 		return result, err
 	}
 	received, err := func() (protocol.Job, error) {
 		var value protocol.Job
-		err := owner.ImportValue(func(owner *live.Owner) error {
-			converted, err := func() (protocol.Job, error) {
-				var zero protocol.Job
-				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Job\""), raw); err != nil {
-					return zero, err
-				}
-				converted, err := protocol.ImportJob(owner, raw)
-				if err != nil {
-					return zero, err
-				}
-				return converted, nil
-			}()
-			value = converted
-			return err
-		})
-		if err != nil {
-			var zero protocol.Job
-			return zero, err
+		convert := func(ctx context.Context) (protocol.Job, error) {
+			if ctx == nil {
+				return value, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return value, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Job\""), raw); err != nil {
+				return value, err
+			}
+			converted, err := protocol.ImportJob(owner, raw)
+			if err != nil {
+				return value, err
+			}
+			return converted, nil
 		}
-		return value, nil
+		if true {
+			err := c.environment.ValueEnvironment.Import(ctx, func(ctx context.Context) error {
+				converted, err := convert(ctx)
+				if err == nil {
+					value = converted
+				}
+				return err
+			})
+			if err != nil {
+				var zero protocol.Job
+				return zero, err
+			}
+			return value, nil
+		}
+		return convert(ctx)
 	}()
 	return received, err
 }
-func (c *Client) OnSettled(handler func(context.Context, protocol.Outcome)) error {
-	return c.Peer.HandleEvent("settled", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
-		scope, ok := live.ScopeOf(peer)
-		if !ok {
-			_ = peer.Close()
-			return
+func bindServer(wire duplex.Wire, implementation protocol.Server, environment runtime.AdapterContext) error {
+	if implementation.Methods == nil {
+		return fmt.Errorf("Server methods are required")
+	}
+	var detach []func()
+	complete := false
+	defer func() {
+		if !complete {
+			for _, off := range detach {
+				off()
+			}
 		}
-		owner := scope.Owner().Child()
-		ctx = live.WithOwner(ctx, owner)
-		data, err := func() (protocol.Outcome, error) {
-			var value protocol.Outcome
-			err := owner.ImportValue(func(owner *live.Owner) error {
-				converted, err := func() (protocol.Outcome, error) {
-					var zero protocol.Outcome
-					if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), raw); err != nil {
-						return zero, err
+	}()
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "worker"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Ticket\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.Ticket
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.Describe(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"string\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"describe"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "worker"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if true {
+				var err error
+				ctx, err = environment.ValueEnvironment.Child(ctx)
+				if err != nil {
+					return nil, err
+				}
+			}
+			params, err := func() (protocol.Start, error) {
+				var value protocol.Start
+				convert := func(ctx context.Context) (protocol.Start, error) {
+					if ctx == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
 					}
-					converted, err := protocol.ImportOutcome(owner, raw)
+					owner, ok := live.OwnerOf(ctx)
+					if !ok || owner == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
+					}
+					if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Start\""), raw); err != nil {
+						return value, err
+					}
+					converted, err := protocol.ImportStart(owner, raw)
 					if err != nil {
-						return zero, err
+						return value, err
 					}
 					return converted, nil
-				}()
-				value = converted
+				}
+				if true {
+					err := environment.ValueEnvironment.Import(ctx, func(ctx context.Context) error {
+						converted, err := convert(ctx)
+						if err == nil {
+							value = converted
+						}
+						return err
+					})
+					if err != nil {
+						var zero protocol.Start
+						return zero, err
+					}
+					return value, nil
+				}
+				return convert(ctx)
+			}()
+			if err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.Start(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			sent, err := func() (json.RawMessage, error) {
+				var value json.RawMessage
+				convert := func(ctx context.Context) (json.RawMessage, error) {
+					if ctx == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
+					}
+					owner, ok := live.OwnerOf(ctx)
+					if !ok || owner == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
+					}
+					converted, err := protocol.ExportJob(owner, result)
+					if err != nil {
+						return value, err
+					}
+					if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Job\""), converted); err != nil {
+						return value, err
+					}
+					return converted, nil
+				}
+				if true {
+					return environment.ValueEnvironment.Export(ctx, convert)
+				}
+				return convert(ctx)
+			}()
+			return sent, err
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"start"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	complete = true
+	return nil
+}
+
+type clientMethods struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
+}
+type clientEvents struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
+}
+
+func accessClient(wire duplex.Wire, environment runtime.AdapterContext) protocol.Client {
+	return protocol.Client{Methods: &clientMethods{wire: wire, environment: environment}, Events: &clientEvents{wire: wire, environment: environment}}
+}
+func (c *clientMethods) Supervise(ctx context.Context, params protocol.Supervise) (protocol.Outcome, error) {
+	var result protocol.Outcome
+	if true {
+		var err error
+		ctx, err = c.environment.ValueEnvironment.Select(ctx)
+		if err != nil {
+			return result, err
+		}
+	}
+	raw, err := func() (json.RawMessage, error) {
+		build := func(ctx context.Context) (json.RawMessage, error) {
+			sent, err := func() (json.RawMessage, error) {
+				var value json.RawMessage
+				convert := func(ctx context.Context) (json.RawMessage, error) {
+					if ctx == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
+					}
+					owner, ok := live.OwnerOf(ctx)
+					if !ok || owner == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
+					}
+					converted, err := protocol.ExportSupervise(owner, params)
+					if err != nil {
+						return value, err
+					}
+					if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Supervise\""), converted); err != nil {
+						return value, err
+					}
+					return converted, nil
+				}
+				if true {
+					return c.environment.ValueEnvironment.Export(ctx, convert)
+				}
+				return convert(ctx)
+			}()
+			return sent, err
+		}
+		publish := func(sent json.RawMessage) (json.RawMessage, error) {
+			var raw json.RawMessage
+			err := runtime.CallWire(ctx, c.wire, []string{"supervise"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "worker"})
+			return raw, err
+		}
+		if true {
+			return c.environment.ValueEnvironment.Publish(ctx, build, publish)
+		}
+		sent, err := build(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return publish(sent)
+	}()
+	if err != nil {
+		return result, err
+	}
+	received, err := func() (protocol.Outcome, error) {
+		var value protocol.Outcome
+		convert := func(ctx context.Context) (protocol.Outcome, error) {
+			if ctx == nil {
+				return value, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return value, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), raw); err != nil {
+				return value, err
+			}
+			converted, err := protocol.ImportOutcome(owner, raw)
+			if err != nil {
+				return value, err
+			}
+			return converted, nil
+		}
+		if true {
+			err := c.environment.ValueEnvironment.Import(ctx, func(ctx context.Context) error {
+				converted, err := convert(ctx)
+				if err == nil {
+					value = converted
+				}
 				return err
 			})
 			if err != nil {
@@ -278,11 +360,293 @@ func (c *Client) OnSettled(handler func(context.Context, protocol.Outcome)) erro
 				return zero, err
 			}
 			return value, nil
-		}()
-		if err != nil {
-			_ = peer.Close()
-			return
 		}
-		handler(ctx, data)
-	})
+		return convert(ctx)
+	}()
+	return received, err
+}
+func (c *clientEvents) Settled(ctx context.Context, data protocol.Outcome) error {
+	if true {
+		var err error
+		ctx, err = c.environment.ValueEnvironment.Select(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	_, err := func() (json.RawMessage, error) {
+		build := func(ctx context.Context) (json.RawMessage, error) {
+			sent, err := func() (json.RawMessage, error) {
+				var value json.RawMessage
+				convert := func(ctx context.Context) (json.RawMessage, error) {
+					if ctx == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
+					}
+					owner, ok := live.OwnerOf(ctx)
+					if !ok || owner == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
+					}
+					converted, err := protocol.ExportOutcome(owner, data)
+					if err != nil {
+						return value, err
+					}
+					if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), converted); err != nil {
+						return value, err
+					}
+					return converted, nil
+				}
+				if true {
+					return c.environment.ValueEnvironment.Export(ctx, convert)
+				}
+				return convert(ctx)
+			}()
+			return sent, err
+		}
+		publish := func(sent json.RawMessage) (json.RawMessage, error) {
+			return nil, runtime.EmitWire(ctx, c.wire, []string{"settled"}, sent, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "worker"})
+		}
+		if true {
+			return c.environment.ValueEnvironment.Publish(ctx, build, publish)
+		}
+		sent, err := build(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return publish(sent)
+	}()
+	return err
+}
+func bindClient(wire duplex.Wire, implementation protocol.Client, environment runtime.AdapterContext) error {
+	if implementation.Methods == nil {
+		return fmt.Errorf("Client methods are required")
+	}
+	var detach []func()
+	complete := false
+	defer func() {
+		if !complete {
+			for _, off := range detach {
+				off()
+			}
+		}
+	}()
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "worker"}
+		if implementation.Events != nil {
+			handlers.Event = func(ctx context.Context, raw json.RawMessage) error {
+				if true {
+					var err error
+					ctx, err = environment.ValueEnvironment.Child(ctx)
+					if err != nil {
+						return err
+					}
+				}
+				data, err := func() (protocol.Outcome, error) {
+					var value protocol.Outcome
+					convert := func(ctx context.Context) (protocol.Outcome, error) {
+						if ctx == nil {
+							return value, fmt.Errorf("a live conversion requires an active owner")
+						}
+						owner, ok := live.OwnerOf(ctx)
+						if !ok || owner == nil {
+							return value, fmt.Errorf("a live conversion requires an active owner")
+						}
+						if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), raw); err != nil {
+							return value, err
+						}
+						converted, err := protocol.ImportOutcome(owner, raw)
+						if err != nil {
+							return value, err
+						}
+						return converted, nil
+					}
+					if true {
+						err := environment.ValueEnvironment.Import(ctx, func(ctx context.Context) error {
+							converted, err := convert(ctx)
+							if err == nil {
+								value = converted
+							}
+							return err
+						})
+						if err != nil {
+							var zero protocol.Outcome
+							return zero, err
+						}
+						return value, nil
+					}
+					return convert(ctx)
+				}()
+				if err != nil {
+					return err
+				}
+				return implementation.Events.Settled(ctx, data)
+			}
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"settled"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "worker"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if true {
+				var err error
+				ctx, err = environment.ValueEnvironment.Child(ctx)
+				if err != nil {
+					return nil, err
+				}
+			}
+			params, err := func() (protocol.Supervise, error) {
+				var value protocol.Supervise
+				convert := func(ctx context.Context) (protocol.Supervise, error) {
+					if ctx == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
+					}
+					owner, ok := live.OwnerOf(ctx)
+					if !ok || owner == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
+					}
+					if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Supervise\""), raw); err != nil {
+						return value, err
+					}
+					converted, err := protocol.ImportSupervise(owner, raw)
+					if err != nil {
+						return value, err
+					}
+					return converted, nil
+				}
+				if true {
+					err := environment.ValueEnvironment.Import(ctx, func(ctx context.Context) error {
+						converted, err := convert(ctx)
+						if err == nil {
+							value = converted
+						}
+						return err
+					})
+					if err != nil {
+						var zero protocol.Supervise
+						return zero, err
+					}
+					return value, nil
+				}
+				return convert(ctx)
+			}()
+			if err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.Supervise(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			sent, err := func() (json.RawMessage, error) {
+				var value json.RawMessage
+				convert := func(ctx context.Context) (json.RawMessage, error) {
+					if ctx == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
+					}
+					owner, ok := live.OwnerOf(ctx)
+					if !ok || owner == nil {
+						return value, fmt.Errorf("a live conversion requires an active owner")
+					}
+					converted, err := protocol.ExportOutcome(owner, result)
+					if err != nil {
+						return value, err
+					}
+					if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Outcome\""), converted); err != nil {
+						return value, err
+					}
+					return converted, nil
+				}
+				if true {
+					return environment.ValueEnvironment.Export(ctx, convert)
+				}
+				return convert(ctx)
+			}()
+			return sent, err
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"supervise"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	complete = true
+	return nil
+}
+func normalizeContext(environment runtime.AdapterContext) (runtime.AdapterContext, error) {
+	if true && environment.ValueEnvironment == nil {
+		return environment, fmt.Errorf("a context-dependent adapter requires a value environment")
+	}
+	return environment, nil
+}
+
+// ToWire binds one model factory and returns its access wire.
+func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (duplex.Wire, error) {
+	if model == nil {
+		return nil, fmt.Errorf("model factory is required")
+	}
+	environment, err := normalizeContext(environment)
+	if err != nil {
+		return nil, err
+	}
+	options := environment.Options
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["8:describe"] = "worker"
+	families["5:start"] = "worker"
+	families["7:settled"] = "worker"
+	families["9:supervise"] = "worker"
+	options.Families = families
+	access, binding, err := runtime.NewWirePair(options)
+	if err != nil {
+		return nil, err
+	}
+	complete := false
+	defer func() {
+		if !complete {
+			_ = access.Close(duplex.CodeInternalError, "model construction failed")
+		}
+	}()
+	implementation, err := model(accessServer(binding, environment))
+	if err != nil {
+		return nil, err
+	}
+	if err := bindClient(binding, implementation, environment); err != nil {
+		return nil, err
+	}
+	complete = true
+	return access, nil
+}
+
+// FromWire interprets a wire as a factory that may be bound once.
+func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ClientModel, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if wire == nil {
+		return nil, fmt.Errorf("wire is required")
+	}
+	environment, err := normalizeContext(environment)
+	if err != nil {
+		return nil, err
+	}
+	var bound atomic.Bool
+	return func(implementation protocol.Server) (protocol.Client, error) {
+		if !bound.CompareAndSwap(false, true) {
+			return protocol.Client{}, fmt.Errorf("model factory is already bound")
+		}
+		if err := bindServer(wire, implementation, environment); err != nil {
+			return protocol.Client{}, err
+		}
+		return accessClient(wire, environment), nil
+	}, nil
 }

@@ -501,13 +501,13 @@ The server answers:
 In `go`:
 
 ```go
-client.Look(ctx, params)
+client.Methods.Look(ctx, params)
 
-func (Handler[AEnvelope, BEnvelope]) Look(ctx context.Context, remote *binding.Remote[AEnvelope, BEnvelope], params protocol.Mine[AEnvelope]) (protocol.Both[AEnvelope, BEnvelope], error)
+func (Handler[AEnvelope, BEnvelope]) Look(ctx context.Context, params protocol.Mine[AEnvelope]) (protocol.Both[AEnvelope, BEnvelope], error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.look(params)
+await server.methods.look(params)
 ```

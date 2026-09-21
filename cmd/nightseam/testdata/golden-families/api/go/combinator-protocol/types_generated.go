@@ -5,6 +5,7 @@ import (
 	context "context"
 	json "encoding/json"
 	errors "errors"
+	boxesprotocol "example.test/generated/api/go/boxes-protocol"
 	fmt "fmt"
 	live "github.com/Bitspark/nightseam/live/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
@@ -880,6 +881,329 @@ func ImportUnary(owner *live.Owner, raw json.RawMessage) (Unary, error) {
 		return answer, nil
 	}, nil
 }
+
+// AdapterBundle composes declaration validation and conversion within the supplied invocation context.
+func AdapterBundle[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[Bundle[T]] {
+	typeT := adapterT.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: "Bundle"}
+	return runtime.ValueAdapter[Bundle[T]]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Bundle[T]) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportBundle[T](owner, value, func(owner *live.Owner, value T) (json.RawMessage, error) {
+				return adapterT.Export(live.WithOwner(ctx, owner), value)
+			}, typeT)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Bundle[T], error) {
+			var zero Bundle[T]
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportBundle[T](owner, raw, func(owner *live.Owner, value json.RawMessage) (T, error) {
+				return adapterT.Import(live.WithOwner(ctx, owner), value)
+			}, typeT)
+		},
+	}
+}
+
+// AdapterBundleMetadata composes declaration validation and conversion within the supplied invocation context.
+func AdapterBundleMetadata[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[BundleMetadata[T]] {
+	typeT := adapterT.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"seed\",\"type\":\"T\",\"required\":true}]}")}
+	return runtime.ValueAdapter[BundleMetadata[T]]{
+		Binding:      binding,
+		NeedsContext: adapterT.NeedsContext,
+		Export: func(ctx context.Context, value BundleMetadata[T]) (json.RawMessage, error) {
+			raw, err := ExportBundleMetadata[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (BundleMetadata[T], error) {
+			var zero BundleMetadata[T]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportBundleMetadata[T](raw, func(value json.RawMessage) (T, error) { return adapterT.Import(ctx, value) }, typeT)
+		},
+	}
+}
+
+// AdapterCount composes declaration validation and conversion within the supplied invocation context.
+func AdapterCount() runtime.ValueAdapter[Count] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Count"}
+	return runtime.ValueAdapter[Count]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Count) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Count, error) {
+			var zero Count
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Count, error) { var value Count; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterFactory composes declaration validation and conversion within the supplied invocation context.
+func AdapterFactory() runtime.ValueAdapter[Factory] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Factory"}
+	return runtime.ValueAdapter[Factory]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Factory) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportFactory(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Factory, error) {
+			var zero Factory
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportFactory(owner, raw)
+		},
+	}
+}
+
+// AdapterProducer composes declaration validation and conversion within the supplied invocation context.
+func AdapterProducer() runtime.ValueAdapter[Producer] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Producer"}
+	return runtime.ValueAdapter[Producer]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Producer) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportProducer(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Producer, error) {
+			var zero Producer
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportProducer(owner, raw)
+		},
+	}
+}
+
+// AdapterSink composes declaration validation and conversion within the supplied invocation context.
+func AdapterSink() runtime.ValueAdapter[Sink] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Sink"}
+	return runtime.ValueAdapter[Sink]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Sink) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportSink(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Sink, error) {
+			var zero Sink
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportSink(owner, raw)
+		},
+	}
+}
+
+// AdapterToolkit composes declaration validation and conversion within the supplied invocation context.
+func AdapterToolkit() runtime.ValueAdapter[Toolkit] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Toolkit"}
+	return runtime.ValueAdapter[Toolkit]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Toolkit) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportToolkit(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Toolkit, error) {
+			var zero Toolkit
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportToolkit(owner, raw)
+		},
+	}
+}
+
+// AdapterToolkitRequest composes declaration validation and conversion within the supplied invocation context.
+func AdapterToolkitRequest() runtime.ValueAdapter[ToolkitRequest] {
+	binding := runtime.TypeBinding{Schema: schema, Type: runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"seed\",\"type\":\"Count\",\"required\":true}]}")}
+	return runtime.ValueAdapter[ToolkitRequest]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value ToolkitRequest) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (ToolkitRequest, error) {
+			var zero ToolkitRequest
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (ToolkitRequest, error) {
+				var value ToolkitRequest
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterUnary composes declaration validation and conversion within the supplied invocation context.
+func AdapterUnary() runtime.ValueAdapter[Unary] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Unary"}
+	return runtime.ValueAdapter[Unary]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Unary) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportUnary(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Unary, error) {
+			var zero Unary
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportUnary(owner, raw)
+		},
+	}
+}
+
+type ServerMethods interface {
+	Name(ctx context.Context) (string, error)
+	Pack(ctx context.Context, params boxesprotocol.Box[Unary]) (boxesprotocol.Batch[Bundle[Count]], error)
+	Toolkit(ctx context.Context, params ToolkitRequest) (Toolkit, error)
+}
+type ServerEvents interface {
+}
+type Server struct {
+	Methods ServerMethods
+	Events  ServerEvents
+}
+type ClientMethods interface {
+}
+type ClientEvents interface {
+}
+type Client struct {
+	Methods ClientMethods
+	Events  ClientEvents
+}
+type ServerModel func(Client) (Server, error)
+type ClientModel func(Server) (Client, error)
 
 // The public errors of the family: what a handler returns, as the Code of a *runtime.PublicError, and a caller tells apart with IsError.
 const (

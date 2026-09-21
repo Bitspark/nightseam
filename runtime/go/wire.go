@@ -568,7 +568,7 @@ func callWire(ctx context.Context, wire duplex.Wire, path []string, params, resu
 	if len(options) > 0 {
 		observation = options[0]
 	}
-	finish := observeWireRequest(observation.Observer, observation.Family, returning.id, name, false, trace)
+	finish := observeWireRequest(observation.Observer, observation.Family, name, false, trace)
 	defer func() { finish(err) }()
 	request := duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: returning.id, Params: encoded, Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}, Return: address}
 	if err := wire.Send(path, request); err != nil {
@@ -686,7 +686,7 @@ func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(
 			if message.Frame.Kind != duplex.ProfileRequest {
 				return
 			}
-			finish := observeWireRequest(handlers.Observer, handlers.Family, message.Frame.ID, name, true,
+			finish := observeWireRequest(handlers.Observer, handlers.Family, name, true,
 				Trace{Parent: message.Frame.Traceparent, State: message.Frame.Tracestate})
 			if handlers.Request == nil {
 				err := &PublicError{Code: "method_not_found", Message: "Unknown method"}

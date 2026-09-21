@@ -1,11 +1,6 @@
-func (*Client) Close() error
-func (*Client) Describe(ctx context.Context, params protocol.Ticket) (string, error)
-func (*Client) OnSettled(handler func(context.Context, protocol.Outcome)) error
-func (*Client) Start(ctx context.Context, params protocol.Start) (protocol.Job, error)
-func Attach(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler, events Events) (*Client, error)
-func Dial(ctx context.Context, url string, options runtime.DialOptions, handler Handler, events Events) (*Client, error)
-func Open(ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler, events Events) (*Client, error)
-type Caller interface{Describe(ctx context.Context, params protocol.Ticket) (string, error); Start(ctx context.Context, params protocol.Start) (protocol.Job, error)}
-type Client struct{Peer *runtime.Peer}
-type Events struct{Settled func(context.Context, protocol.Outcome)}
-type Handler interface{Supervise(ctx context.Context, client *Client, params protocol.Supervise) (protocol.Outcome, error)}
+func (*clientEvents) Settled(ctx context.Context, data protocol.Outcome) error
+func (*clientMethods) Supervise(ctx context.Context, params protocol.Supervise) (protocol.Outcome, error)
+func (*serverMethods) Describe(ctx context.Context, params protocol.Ticket) (string, error)
+func (*serverMethods) Start(ctx context.Context, params protocol.Start) (protocol.Job, error)
+func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ClientModel, error)
+func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (duplex.Wire, error)

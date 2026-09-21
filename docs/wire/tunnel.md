@@ -1,13 +1,19 @@
 # The tunnel
 
 A tunnel multiplexes channels over one peer of the profile. Either side
-opens a channel, saying the family it speaks; each channel is a connection
-of the seam, held to the same conformance
-suite as the WebSocket and the pipe, so a peer of any family runs over it
-unchanged, and a handle in a family's message, `{"channel": 12}`, names one.
+opens a channel, saying the family it speaks. The channel carries a raw frame
+connection, held to the same conformance suite as the WebSocket and the pipe.
+The consumer's `Channel` presents its eagerly prepared inner peer as a `Wire`;
+raw frame access has a separate `Connection` surface. A handle in a family's
+message, `{"channel": 12}`, names one.
 The outer peer sees four operations of the tunnel's own vocabulary and never
 what a channel carries. This page is what crosses the wire; what a consumer
 calls is [the tunnel's surface](../runtime/tunnel.md).
+
+An inner relative path is encoded in the inner profile's `method` or
+`event`, just as on a socket. Selecting or mounting a channel changes routing
+without opening another channel or peer. No path or local return capability
+is added to `channel.open` or `channel.frame`.
 
 ## The operations
 

@@ -1,9 +1,8 @@
 import * as proof from './api/ts/proof-client/src/index.ts';
 import * as binding from './api/ts/proof-binding/src/index.ts';
 import * as probe from './api/ts/probe-client/src/index.ts';
-import { callWire, validateUnicodeJSON, type TypeExpression } from '@nightseam/runtime';
+import { callWire, jsonAdapter, validateUnicodeJSON, type TypeExpression } from '@nightseam/runtime';
 import { Served, Session } from './server.ts';
-import { jsonAdapter } from '@nightseam/live';
 
 type Args = Record<string, unknown>;
 type Client = proof.Server<probe.Family, string>;

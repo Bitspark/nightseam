@@ -2,8 +2,9 @@
 
 The profile is what a peer speaks over a connection of the seam: JSON text
 frames, each one envelope, carrying requests, responses, events and
-cancellations both ways. It is what every generated package binds to and
-what every language's runtime implements, each held to the reference over a
+cancellations both ways. Generated packages interpret those frames through
+the relative-path `Wire` surface, and this is the profile
+every language's runtime implements, each held to the reference over a
 real socket by the conformance suite. This page is the wire — what a peer of
 any language sends, accepts and refuses — and names no runtime: what a
 consumer calls, in each language, is [the peer](../runtime/peer.md). A
@@ -87,6 +88,29 @@ read them. A number the receiver cannot represent exactly (beyond
 JavaScript's safe integers, non-finite) is refused by the validators, not
 by the profile.
 
+## Relative paths on a Wire
+
+A `Wire` carries a structured profile frame and a relative path. Requests and
+events use the path as their operation name; responses and cancellations keep
+their ordinary correlation. At a physical peer boundary the path is encoded
+into the existing `method` or `event` string. There is no path member, extra
+envelope or fifth frame kind.
+
+The encoding concatenates each segment's decimal UTF-8 byte length, a colon,
+and the segment. `[]` encodes as `""`, `[""]` as `"0:"`, and `["work", "read"]`
+as `"4:work4:read"`. Dots and slashes are ordinary segment content, so the
+single segment `["work.read"]` encodes as `"9:work.read"`. A peer-root request
+or event requires a nonempty path. Decoding is canonical and refuses malformed
+lengths and invalid Unicode.
+
+Local return addresses accompany messages as delivery capabilities. They are
+never serialized. The receiving peer associates replies and cancellations with
+its own request ids; views and mounts neither mint ids nor open another peer.
+Local verified request and event context survives selection and forwarding,
+but a physical outgoing hop establishes the next receiving context from that
+connection. A path supplies routing, not authorization or authenticated
+ancestry. The consumer surface is [the peer](../runtime/peer.md#structured-wire-access).
+
 ## Ids and correlation
 
 A request's `id` is minted by the side that sends it, with that side's
@@ -152,12 +176,15 @@ handshake 30. Each bound is one option under one name in both languages,
 the way the observer's events are one name in both — [the
 peer](../runtime/peer.md#options-and-limits) tables them.
 
-A producer that fills a queue is **paced for one write deadline** (10
-seconds); a consumer that still has not drained it by then is disconnected
-rather than allowed to hold the connection up. The rule is the same for
-every queue and in both runtimes, because a burst that would drain in a
-second should not end a connection ([queues are paced for one
-deadline](../decisions/queues-are-paced-for-one-deadline.md)). Pacing an
+A physical carrier write and an inbound event consumer are **paced for one
+write deadline** (10 seconds); a consumer that still has not drained is
+disconnected ([queues are paced for one
+deadline](../decisions/queues-are-paced-for-one-deadline.md)). Structured
+`Wire.Send` instead admits to its bounded queue or refuses immediately; it
+does not execute application handlers in the caller. A full Wire queue ends
+that carrier. Cancellation has a bounded reserved admission per retained
+request, so saturation cannot strand its cancellation. Accepted data and
+control frames retain their queue order. Pacing an
 *inbound* queue means pacing the remote, and the only way to do that is to
 stop taking what it sends: while the event queue is full, the responses and
 cancellations on that connection wait with the events. A runtime that

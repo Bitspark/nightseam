@@ -4,138 +4,32 @@ package codexclient
 import (
 	context "context"
 	json "encoding/json"
-	errors "errors"
 	protocol "example.test/generated/api/go/codex-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
-	tunnel "github.com/Bitspark/nightseam/tunnel/go"
+	atomic "sync/atomic"
 )
 
-type Client struct{ Peer *runtime.Peer }
-
-// Events installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.
-type Events struct {
-	Changed func(context.Context, protocol.Payload)
+type serverMethods struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
 }
-type Handler interface {
-	Reverse(ctx context.Context, client *Client, params protocol.Payload) (protocol.Payload, error)
-}
-
-// Caller is the protocol's caller side: every operation a client sends. Client implements it.
-type Caller interface {
-	Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
-	NoArgs(ctx context.Context) (string, error)
+type serverEvents struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
 }
 
-var _ Caller = (*Client)(nil)
-
-// install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
-func install(handler Handler, events Events, options *runtime.Options) error {
-	if handler == nil {
-		return fmt.Errorf("reverse-call handler is required")
-	}
-	handlers := map[string]runtime.Handler{}
-	for name, existing := range options.Handlers {
-		handlers[name] = existing
-	}
-	if _, exists := handlers["reverse"]; exists {
-		return fmt.Errorf("duplicate handler %s", "reverse")
-	}
-	handlers["reverse"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
-		var params protocol.Payload
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
-			var public *runtime.PublicError
-			if errors.As(err, &public) && public.Code == "contract_mismatch" {
-				return nil, err
-			}
-			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
-		}
-		if err := json.Unmarshal(raw, &params); err != nil {
-			var public *runtime.PublicError
-			if errors.As(err, &public) && public.Code == "contract_mismatch" {
-				return nil, err
-			}
-			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
-		}
-		result, err := handler.Reverse(ctx, &Client{Peer: peer}, params)
-		if err != nil {
-			return nil, err
-		}
-		if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Payload\""), result); err != nil {
-			return nil, err
-		}
-		return result, nil
-	}
-	options.Handlers = handlers
-	families := map[string]string{}
-	for name, existing := range options.Families {
-		families[name] = existing
-	}
-	families["echo"] = "codex"
-	families["no_args"] = "codex"
-	families["reverse"] = "codex"
-	families["changed"] = "codex"
-	options.Families = families
-	prepare := options.Prepare
-	options.Prepare = func(peer *runtime.Peer) error {
-		client := &Client{Peer: peer}
-		if events.Changed != nil {
-			if err := client.OnChanged(events.Changed); err != nil {
-				return err
-			}
-		}
-		if prepare != nil {
-			return prepare(peer)
-		}
-		return nil
-	}
-	return nil
+func accessServer(wire duplex.Wire, environment runtime.AdapterContext) protocol.Server {
+	return protocol.Server{Methods: &serverMethods{wire: wire, environment: environment}, Events: &serverEvents{wire: wire, environment: environment}}
 }
-
-// Dial connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.
-func Dial(ctx context.Context, url string, options runtime.DialOptions, handler Handler, events Events) (*Client, error) {
-	if err := install(handler, events, &options.Options); err != nil {
-		return nil, err
-	}
-	peer, response, err := runtime.Dial(ctx, url, options)
-	if err != nil {
-		if response != nil && response.Body != nil {
-			_ = response.Body.Close()
-		}
-		return nil, err
-	}
-	return &Client{Peer: peer}, nil
-}
-
-// Attach speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.
-func Attach(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler, events Events) (*Client, error) {
-	if err := install(handler, events, &options); err != nil {
-		return nil, err
-	}
-	peer, err := runtime.NewPeer(ctx, conn, runtime.ClientRole, options)
-	if err != nil {
-		return nil, err
-	}
-	return &Client{Peer: peer}, nil
-}
-
-// Open resolves a handle to the channel it names on a tunnel and speaks the family over it.
-func Open(ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler, events Events) (*Client, error) {
-	channel, ok := t.Channel(handle.Channel)
-	if !ok {
-		return nil, fmt.Errorf("no channel %d on the connection", handle.Channel)
-	}
-	return Attach(ctx, channel, options, handler, events)
-}
-func (c *Client) Close() error { return c.Peer.Close() }
-func (c *Client) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error) {
+func (c *serverMethods) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error) {
 	var result protocol.Payload
 	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Payload\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "echo", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"echo"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "codex"}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
@@ -146,10 +40,10 @@ func (c *Client) Echo(ctx context.Context, params protocol.Payload) (protocol.Pa
 	}
 	return result, nil
 }
-func (c *Client) NoArgs(ctx context.Context) (string, error) {
+func (c *serverMethods) NoArgs(ctx context.Context) (string, error) {
 	var result string
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "no_args", struct{}{}, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"no_args"}, struct{}{}, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "codex"}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"string\""), raw); err != nil {
@@ -160,17 +54,243 @@ func (c *Client) NoArgs(ctx context.Context) (string, error) {
 	}
 	return result, nil
 }
-func (c *Client) OnChanged(handler func(context.Context, protocol.Payload)) error {
-	return c.Peer.HandleEvent("changed", func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) {
-		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
-			_ = peer.Close()
-			return
+func bindServer(wire duplex.Wire, implementation protocol.Server, environment runtime.AdapterContext) error {
+	if implementation.Methods == nil {
+		return fmt.Errorf("Server methods are required")
+	}
+	var detach []func()
+	complete := false
+	defer func() {
+		if !complete {
+			for _, off := range detach {
+				off()
+			}
 		}
-		var data protocol.Payload
-		if err := json.Unmarshal(raw, &data); err != nil {
-			_ = peer.Close()
-			return
+	}()
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "codex"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.Payload
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.Echo(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Payload\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
 		}
-		handler(ctx, data)
-	})
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"echo"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "codex"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(map[string]any{"empty": true}, raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.NoArgs(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"string\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"no_args"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	complete = true
+	return nil
+}
+
+type clientMethods struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
+}
+type clientEvents struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
+}
+
+func accessClient(wire duplex.Wire, environment runtime.AdapterContext) protocol.Client {
+	return protocol.Client{Methods: &clientMethods{wire: wire, environment: environment}, Events: &clientEvents{wire: wire, environment: environment}}
+}
+func (c *clientMethods) Reverse(ctx context.Context, params protocol.Payload) (protocol.Payload, error) {
+	var result protocol.Payload
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Payload\""), params); err != nil {
+		return result, err
+	}
+	var raw json.RawMessage
+	if err := runtime.CallWire(ctx, c.wire, []string{"reverse"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "codex"}); err != nil {
+		return result, err
+	}
+	if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
+		return result, err
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+func (c *clientEvents) Changed(ctx context.Context, data protocol.Payload) error {
+	if err := protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Payload\""), data); err != nil {
+		return err
+	}
+	return runtime.EmitWire(ctx, c.wire, []string{"changed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "codex"})
+}
+func bindClient(wire duplex.Wire, implementation protocol.Client, environment runtime.AdapterContext) error {
+	if implementation.Methods == nil {
+		return fmt.Errorf("Client methods are required")
+	}
+	var detach []func()
+	complete := false
+	defer func() {
+		if !complete {
+			for _, off := range detach {
+				off()
+			}
+		}
+	}()
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "codex"}
+		if implementation.Events != nil {
+			handlers.Event = func(ctx context.Context, raw json.RawMessage) error {
+				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
+					return err
+				}
+				var data protocol.Payload
+				if err := json.Unmarshal(raw, &data); err != nil {
+					return err
+				}
+				return implementation.Events.Changed(ctx, data)
+			}
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"changed"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "codex"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.Payload
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.Reverse(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().ValidateValue(protocol.MustTypeExpression("\"Payload\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"reverse"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	complete = true
+	return nil
+}
+func normalizeContext(environment runtime.AdapterContext) (runtime.AdapterContext, error) {
+	if false && environment.ValueEnvironment == nil {
+		return environment, fmt.Errorf("a context-dependent adapter requires a value environment")
+	}
+	return environment, nil
+}
+
+// ToWire binds one model factory and returns its access wire.
+func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (duplex.Wire, error) {
+	if model == nil {
+		return nil, fmt.Errorf("model factory is required")
+	}
+	environment, err := normalizeContext(environment)
+	if err != nil {
+		return nil, err
+	}
+	options := environment.Options
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["4:echo"] = "codex"
+	families["7:no_args"] = "codex"
+	families["7:changed"] = "codex"
+	families["7:reverse"] = "codex"
+	options.Families = families
+	access, binding, err := runtime.NewWirePair(options)
+	if err != nil {
+		return nil, err
+	}
+	complete := false
+	defer func() {
+		if !complete {
+			_ = access.Close(duplex.CodeInternalError, "model construction failed")
+		}
+	}()
+	implementation, err := model(accessServer(binding, environment))
+	if err != nil {
+		return nil, err
+	}
+	if err := bindClient(binding, implementation, environment); err != nil {
+		return nil, err
+	}
+	complete = true
+	return access, nil
+}
+
+// FromWire interprets a wire as a factory that may be bound once.
+func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ClientModel, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if wire == nil {
+		return nil, fmt.Errorf("wire is required")
+	}
+	environment, err := normalizeContext(environment)
+	if err != nil {
+		return nil, err
+	}
+	var bound atomic.Bool
+	return func(implementation protocol.Server) (protocol.Client, error) {
+		if !bound.CompareAndSwap(false, true) {
+			return protocol.Client{}, fmt.Errorf("model factory is already bound")
+		}
+		if err := bindServer(wire, implementation, environment); err != nil {
+			return protocol.Client{}, err
+		}
+		return accessClient(wire, environment), nil
+	}, nil
 }

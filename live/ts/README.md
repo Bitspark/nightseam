@@ -13,6 +13,19 @@ callback an argument and an interface a result.
 The layer speaks `live.invoke` and `live.release` as ordinary frames of the
 profile, so a scope is made over a `DuplexPeer` and needs no tunnel.
 
+Generated models receive this scope explicitly through
+`{ valueEnvironment: valueEnvironment(scope) }` in their runtime
+`AdapterContext`. The environment selects a current owner for each operation
+and wraps conversion in export, import or publication batches. Reusable
+`ValueAdapter` factories retain no permanent owner. Model calls select an
+owner with `context.valueContext`; concrete native callable aliases keep
+their live-specific `options.owner` argument.
+
+A checked invocation can be exposed at an opaque Wire path and then selected
+or mounted while retaining this live interpretation. A path does not replace
+the expected contract, nonce lookup, owner or release barrier. Closing that
+Wire and releasing a binding have different effects on admitted calls.
+
 ```ts
 import { DuplexPeer } from '@nightseam/runtime';
 import { liveOver, scopeOf } from '@nightseam/live';

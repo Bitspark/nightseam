@@ -152,7 +152,7 @@ export const liveOps: Record<string, (args: Args) => unknown | Promise<unknown>>
       report: async (percent: number) => { server.calls.push(name + ':' + String(percent)); },
     }]));
     try {
-      const outcome = await remote.model.methods.supervise({ sinks }, { signal, owner: scopeOf(remote.peer)!.owner() });
+      const outcome = await remote.model.methods.supervise({ sinks }, { signal, valueContext: scopeOf(remote.peer)!.owner() });
       return { state: outcome.state };
     } catch (error) { return { error: callError(error) }; }
   },

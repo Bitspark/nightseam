@@ -340,9 +340,9 @@ func TestCommands(t *testing.T) {
 		t.Fatalf("unknown family: %v", err)
 	}
 	writeFamily(t, root, "codex")
-	writeFixture(t, root, "api/contracts/codex/go.json", []byte(`{"names": {"echo": "Close"}}`))
+	writeFixture(t, root, "api/contracts/codex/go.json", []byte(`{"names": {"Payload": "Server"}}`))
 	_, errs, err = run(t, root, "validate", "codex")
-	if err == nil || !strings.Contains(err.Error(), "problems") || !strings.Contains(errs, "codex/go.json#/names/echo:") || !strings.Contains(errs, "[reserved_name]") {
+	if err == nil || !strings.Contains(err.Error(), "problems") || !strings.Contains(errs, "codex/go.json#/names/Payload:") || !strings.Contains(errs, "[reserved_name]") {
 		t.Fatalf("validate did not report the diagnostic: %v\n%s", err, errs)
 	}
 	if _, _, err := run(t, root, "generate"); err == nil || !strings.Contains(err.Error(), "codex: invalid family") {
