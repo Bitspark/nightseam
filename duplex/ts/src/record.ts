@@ -229,11 +229,7 @@ export async function record(
       this.wake = undefined;
       this.parentSignal?.removeEventListener('abort', this.aborted);
       queueMicrotask(() => {
-        try {
-          this.target.close(code, reason);
-        } finally {
-          this.finishCarrier();
-        }
+        this.finishCarrier();
       });
     }
     private send(entry: WireRecord) {

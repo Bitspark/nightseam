@@ -298,7 +298,7 @@ func (f *Follower) end(code Code, reason string, err error) {
 	f.owner.mu.Lock()
 	delete(f.owner.followers, f)
 	f.owner.mu.Unlock()
-	go func() { _ = f.target.Close(code, reason); close(f.carrierClosed) }()
+	close(f.carrierClosed)
 }
 
 // Follow atomically takes a head and registers its handoff in append order.
