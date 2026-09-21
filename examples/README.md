@@ -74,13 +74,15 @@ against what a release *would* publish.
 | `api/go/`, `api/ts/`, `api/spec/` | what the generator renders, committed so that a reader sees it without running anything and `nightseam check` holds it |
 | `api/impl/probe/handler.go` | the server's behavior, where `nightseam init probe` wrote it once and will never write again |
 | `server/main.go` | an HTTP host that prepares a peer and scope, constructs `binding.ToWire`, and forwards the peer's Wire to it |
-| `client/src/main.ts` | `fromWire` and a model with reverse methods and events, bound before the host peer dials |
+| `client/src/main.ts` | `prepareFromWire` before dialing, then an identity check and a model bound with reverse methods and events |
 
 Generated code is never edited by hand. Behavior goes in files of your own,
 against the interfaces the generated packages declare — `api/impl` here,
 because that is where `nightseam init` puts it. `init` writes a TypeScript
 stub for the client's side of the family too; this example supplies those
-methods and events inline to the factory returned by `fromWire`. The model
+methods and events inline to the factory returned by the preparation's
+`complete()` after dialing. Preparation holds early delivery until that factory
+is bound. The model
 uses the generated methods; host code owns the physical peer and closes it.
 Live value interpretation is supplied explicitly with `valueEnvironment(scope)`.
 

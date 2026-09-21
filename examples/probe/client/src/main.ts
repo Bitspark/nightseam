@@ -3,7 +3,7 @@
 // and is never edited; the handler the server calls is written here, the
 // way the repository's README writes it.
 import { argv, env } from 'node:process';
-import { fromWire, type Payload } from '../../api/ts/probe-binding/src/index.ts';
+import { prepareFromWire, type Payload } from '../../api/ts/probe-binding/src/index.ts';
 import { DuplexPeer } from '@nightseam/runtime';
 import { liveOver, valueEnvironment } from '@nightseam/live';
 
@@ -11,20 +11,21 @@ const url = argv[2] ?? env.PROBE_URL ?? 'ws://127.0.0.1:8080/probe';
 
 // The server calls the client inside the request it is serving: this is
 // the other half of duplex, and it is typed like the first half.
-// The event handler is part of construction, ready even if the server emits
-// before dialing returns.
+// Preparation holds early events until the identity check completes and the
+// model binds its handlers, even if the server emits before dialing returns.
 let onChanged!: (payload: Payload) => void;
 const changed = new Promise<Payload>(resolve => {
   onChanged = resolve;
 });
 const peer = new DuplexPeer();
 const scope = liveOver(peer, {});
-const model = await fromWire(peer.wire(), { valueEnvironment: valueEnvironment(scope) });
+const prepared = prepareFromWire(peer.wire(), { valueEnvironment: valueEnvironment(scope) });
+await peer.connect(url);
+const model = await prepared.complete();
 const client = model({
   methods: { reverse: ({ text, count }: Payload): Payload => ({ text: [...text].reverse().join(''), count }) },
   events: { changed: onChanged },
 });
-await peer.dial(url);
 
 const result = await client.methods.echo({ text: 'hello', count: 1 });
 
@@ -51,4 +52,5 @@ await subscription.stop();
 
 console.log('stopped ->', notices.at(-1)?.text);
 
+prepared.close();
 peer.close();
