@@ -1,0 +1,6 @@
+{
+  "language": "python",
+  "toolchains": ["python"],
+  "build": [{"argv": ["python", "-c", "import websockets; assert __import__('sys').version_info >= (3, 11)"]}],
+  "run": {"argv": ["python", "{self}/testee.py"]}
+}

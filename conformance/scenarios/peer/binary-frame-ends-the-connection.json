@@ -1,0 +1,113 @@
+{
+  "name": "a binary frame ends the connection without dispatching its JSON request",
+  "layer": "peer",
+  "description": "The profile accepts JSON only in text frames. A valid request in a binary frame is refused with 4011 before dispatch, as read by both the rejecting peer and the raw remote connection. A successful text request first proves the handler is reachable.",
+  "needs": [
+    "peer",
+    "seam"
+  ],
+  "mirror": true,
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peer_and_conn",
+      "args": {
+        "peer": "b",
+        "role": "server"
+      },
+      "bind": {
+        "peer": "pb",
+        "conn": "ca"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.send",
+      "args": {
+        "on": "$ca",
+        "kind": "text",
+        "text": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:1\",\"method\":\"echo\",\"params\":\"text\"}"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.await_request",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "phase": "started"
+      },
+      "expect": {
+        "phase": "started"
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "kind": "text",
+        "text": "$regex:\"result\"\\s*:\\s*\"text\""
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.send",
+      "args": {
+        "on": "$ca",
+        "kind": "binary",
+        "base64": "eyJ2ZXJzaW9uIjoxLCJraW5kIjoicmVxdWVzdCIsImlkIjoiYzoyIiwibWV0aG9kIjoiZWNobyIsInBhcmFtcyI6ImJpbmFyeSJ9"
+      },
+      "note": "The bytes are {\"version\":1,\"kind\":\"request\",\"id\":\"c:2\",\"method\":\"echo\",\"params\":\"binary\"}: a valid request, carried by the wrong frame kind."
+    },
+    {
+      "on": "b",
+      "op": "peer.await_close",
+      "args": {
+        "on": "$pb"
+      },
+      "expect": {
+        "clean": false,
+        "code": 4011
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.await_close",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "code": 4011
+      },
+      "note": "The raw side receives the profile refusal code, rather than an abort or the seam's unsupported-data code."
+    },
+    {
+      "on": "b",
+      "op": "peer.await_request",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "phase": "started",
+        "within_ms": 200
+      },
+      "expect_error": {
+        "code": "timeout"
+      },
+      "note": "Closure is the barrier: the refused frame has been consumed, and no second request reached the handler."
+    }
+  ]
+}

@@ -6,6 +6,9 @@ Generated models use this interface for local access, sockets, prepared
 tunnel channels, selected paths, mounts and forwarding. The host chooses
 the carrier; the generated model does not inspect it.
 
+The [record/follow composition](record.md) adds consumer-owned message storage
+and an atomic replay-to-live handoff, with a bounded writer per subscriber.
+
 ## The surface
 
 | responsibility | Go | TypeScript |
