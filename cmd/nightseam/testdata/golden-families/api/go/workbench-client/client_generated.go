@@ -4,6 +4,7 @@ package workbenchclient
 import (
 	context "context"
 	json "encoding/json"
+	errors "errors"
 	protocol "example.test/generated/api/go/workbench-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
@@ -275,10 +276,7 @@ func (c *serverMethods) UpdateWorkItem(ctx context.Context, params protocol.Upda
 	}
 	return result, nil
 }
-func bindServer(wire duplex.Wire, implementation protocol.Server, environment runtime.AdapterContext) error {
-	if implementation.Methods == nil {
-		return fmt.Errorf("Server methods are required")
-	}
+func bindServer(wire duplex.Wire, lookup func() protocol.Server, environment runtime.AdapterContext) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -291,11 +289,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"ListEventsParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.ListEventsParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.ListEvents(ctx, params)
@@ -318,7 +328,15 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(map[string]any{"empty": true}, raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.Me(ctx)
@@ -341,11 +359,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"CreateProjectParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.CreateProjectParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.CreateProject(ctx, params)
@@ -368,11 +398,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"ListProjectsParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.ListProjectsParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.ListProjects(ctx, params)
@@ -395,11 +437,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"UpdateProjectParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.UpdateProjectParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.UpdateProject(ctx, params)
@@ -422,11 +476,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"SubscribeParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.SubscribeParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.Subscribe(ctx, params)
@@ -449,11 +515,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"CancelWorkItemParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.CancelWorkItemParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.CancelWorkItem(ctx, params)
@@ -476,11 +554,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"CreateWorkItemParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.CreateWorkItemParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.CreateWorkItem(ctx, params)
@@ -503,11 +593,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"SetDependenciesParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.SetDependenciesParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.SetDependencies(ctx, params)
@@ -530,11 +632,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"GetWorkItemParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.GetWorkItemParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.GetWorkItem(ctx, params)
@@ -557,11 +671,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"ListWorkItemsParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.ListWorkItemsParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.ListWorkItems(ctx, params)
@@ -584,11 +710,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"PublishSpecificationParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.PublishSpecificationParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.PublishSpecification(ctx, params)
@@ -611,11 +749,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"ReopenWorkItemParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.ReopenWorkItemParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.ReopenWorkItem(ctx, params)
@@ -638,11 +788,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"SetStepsParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.SetStepsParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.SetSteps(ctx, params)
@@ -665,11 +827,23 @@ func bindServer(wire duplex.Wire, implementation protocol.Server, environment ru
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"UpdateWorkItemParams\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.UpdateWorkItemParams
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.UpdateWorkItem(ctx, params)
@@ -711,7 +885,7 @@ func (c *clientEvents) Changed(ctx context.Context, data protocol.Event) error {
 	}
 	return runtime.EmitWire(ctx, c.wire, []string{"workbench.changed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "workbench"})
 }
-func bindClient(wire duplex.Wire, implementation protocol.Client, environment runtime.AdapterContext) error {
+func bindClient(wire duplex.Wire, lookup func() protocol.Client, environment runtime.AdapterContext) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -723,17 +897,19 @@ func bindClient(wire duplex.Wire, implementation protocol.Client, environment ru
 	}()
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "workbench"}
-		if implementation.Events != nil {
-			handlers.Event = func(ctx context.Context, raw json.RawMessage) error {
-				if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Event\""), raw); err != nil {
-					return err
-				}
-				var data protocol.Event
-				if err := json.Unmarshal(raw, &data); err != nil {
-					return err
-				}
-				return implementation.Events.Changed(ctx, data)
+		handlers.Event = func(ctx context.Context, raw json.RawMessage) error {
+			implementation := lookup()
+			if implementation.Events == nil {
+				return nil
 			}
+			if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Event\""), raw); err != nil {
+				return err
+			}
+			var data protocol.Event
+			if err := json.Unmarshal(raw, &data); err != nil {
+				return err
+			}
+			return implementation.Events.Changed(ctx, data)
 		}
 		if handlers.Request != nil || handlers.Event != nil {
 			off, err := runtime.RegisterWire(wire, []string{"workbench.changed"}, handlers)
@@ -759,6 +935,10 @@ func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (dup
 		return nil, fmt.Errorf("model factory is required")
 	}
 	environment, err := normalizeContext(environment)
+	if err != nil {
+		return nil, err
+	}
+	identity, err := declarationIdentity()
 	if err != nil {
 		return nil, err
 	}
@@ -794,40 +974,105 @@ func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (dup
 			_ = access.Close(duplex.CodeInternalError, "model construction failed")
 		}
 	}()
+	if _, err := registerIdentity(binding, identity); err != nil {
+		return nil, err
+	}
 	implementation, err := model(accessServer(binding, environment))
 	if err != nil {
 		return nil, err
 	}
-	if err := bindClient(binding, implementation, environment); err != nil {
+	if err := bindClient(binding, func() protocol.Client { return implementation }, environment); err != nil {
 		return nil, err
 	}
 	complete = true
 	return access, nil
 }
-
-// FromWire interprets a wire as a factory that may be bound once.
-func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ClientModel, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("context is required")
+func declarationIdentity() (runtime.DeclarationIdentity, error) {
+	digest, err := protocol.WireSchema().DeclarationDigest()
+	if err != nil {
+		return runtime.DeclarationIdentity{}, err
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if wire == nil {
-		return nil, fmt.Errorf("wire is required")
-	}
-	environment, err := normalizeContext(environment)
+	return runtime.DeclarationIdentity{Path: "workbench", Digest: digest}, nil
+}
+func registerIdentity(wire duplex.Wire, identity runtime.DeclarationIdentity) (func(), error) {
+	handler, err := runtime.IdentityHandler(identity)
 	if err != nil {
 		return nil, err
 	}
-	var bound atomic.Bool
-	return func(implementation protocol.Server) (protocol.Client, error) {
-		if !bound.CompareAndSwap(false, true) {
-			return protocol.Client{}, fmt.Errorf("model factory is already bound")
+	return runtime.HandleWire(wire, []string{runtime.IdentityMethod}, func(ctx context.Context, raw json.RawMessage) (any, error) { return handler(ctx, nil, raw) })
+}
+
+// PrepareFromWire registers receivers synchronously, before the wire is attached.
+// Complete checks identity and returns a factory that may be bound once. Both steps
+// must finish within environment.Options.RequestTimeout. Cleanup detaches this
+// interpretation's registrations, including after success, and never closes the wire.
+func PrepareFromWire(wire duplex.Wire, environment runtime.AdapterContext) (complete func(context.Context) (protocol.ClientModel, error), cleanup func(), err error) {
+	if wire == nil {
+		return nil, nil, fmt.Errorf("wire is required")
+	}
+	environment, err = normalizeContext(environment)
+	if err != nil {
+		return nil, nil, err
+	}
+	identity, err := declarationIdentity()
+	if err != nil {
+		return nil, nil, err
+	}
+	preparation, err := runtime.PrepareIdentity(wire, identity, environment.Options)
+	if err != nil {
+		return nil, nil, err
+	}
+	cleanup = preparation.Close
+	var implementation atomic.Pointer[protocol.Server]
+	lookup := func() protocol.Server {
+		if current := implementation.Load(); current != nil {
+			return *current
 		}
-		if err := bindServer(wire, implementation, environment); err != nil {
-			return protocol.Client{}, err
+		return protocol.Server{}
+	}
+	if err = bindServer(preparation.Wire(), lookup, environment); err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	var checking, bound atomic.Bool
+	complete = func(ctx context.Context) (protocol.ClientModel, error) {
+		if !checking.CompareAndSwap(false, true) {
+			return nil, fmt.Errorf("identity completion is already started")
 		}
-		return accessClient(wire, environment), nil
-	}, nil
+		if err := preparation.Check(ctx); err != nil {
+			cleanup()
+			return nil, err
+		}
+		return func(value protocol.Server) (protocol.Client, error) {
+			if !bound.CompareAndSwap(false, true) {
+				return protocol.Client{}, fmt.Errorf("model factory is already bound")
+			}
+			if value.Methods == nil {
+				cleanup()
+				return protocol.Client{}, fmt.Errorf("Server methods are required")
+			}
+			implementation.Store(&value)
+			if err := preparation.Ready(); err != nil {
+				cleanup()
+				return protocol.Client{}, err
+			}
+			return accessClient(preparation.Wire(), environment), nil
+		}, nil
+	}
+	return complete, cleanup, nil
+}
+
+// FromWire checks identity and returns a factory that may be bound once.
+// Use PrepareFromWire before attachment when incoming delivery can begin immediately.
+func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ClientModel, error) {
+	complete, cleanup, err := PrepareFromWire(wire, environment)
+	if err != nil {
+		return nil, err
+	}
+	model, err := complete(ctx)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+	return model, nil
 }

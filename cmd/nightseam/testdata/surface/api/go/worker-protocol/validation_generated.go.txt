@@ -2,5 +2,6 @@ func MustTypeExpression(encoded string) any
 func ValidateExpressionRaw(expression any, data []byte, at ...string) error
 func ValidateRaw(name string, data []byte, at ...string) error
 func ValidateValue(expression any, value any) error
+func WireDeclaration() string
 func WireDigest() string
 func WireSchema() *runtime.Schema

@@ -8,6 +8,7 @@ errors
 family
 validateWire
 wireDigest
+wireDeclaration
 Protocol
 Server
 Client
@@ -19,10 +20,12 @@ ServerModel
 ClientModel
 toWire
 fromWire
+prepareFromWire
 makeAdapter
 DuplexError
 Wire
 WireModelContext
+WireCallOptions
 AdapterContext
 LiveOwner
 ValueAdapter
@@ -35,6 +38,11 @@ wirePair
 encodePath
 conversion
 createValidator
+withDeclaration
+declarationDigest
+identityHandler
+IDENTITY_METHOD
+prepareIdentity
 TypeExpression
 WireFamily
 Array
