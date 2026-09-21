@@ -55,13 +55,13 @@ its own that lands alone:
    higher-order, nested-value, owner, uncertain-publication and forwarding
    scenarios; a passing runtime live cell alone does not prove generated
    conversion.
-5. The observer, propagator and `otel/<lang>` adapter hold `observability`,
-   the remaining P3 profile. Implement the
+5. The observer, propagator, shipped standard-logging adapter and
+   `otel/<lang>` adapter hold `observability`, the remaining P3 profile. Implement the
    [observer's events](../runtime/observer.md) under the common names and
    [trace propagation](../runtime/observer.md#the-opentelemetry-adapter),
    including the tunnel and live layers. The shared scenarios whose `needs`
    include `observer` or `propagator` belong to this profile, wherever their
-   layer places them; the adapter also has its own language suite.
+   layer places them; both adapters also have local tests.
 
 When every P3 profile holds for a release, the language may be promoted to
 tier 2 under the [existing promotion policy](tiers.md#the-assignment).
