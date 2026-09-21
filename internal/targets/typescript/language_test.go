@@ -85,13 +85,25 @@ func TestOwnTypeParametersCannotShadowGeneratedNames(t *testing.T) {
 	}
 }
 
-func TestTypeParameterBindingsCannotShadowClientMembers(t *testing.T) {
-	for _, name := range []string{"Peer", "Slots", "Close", "Constructor", "Then"} {
+func TestTypeParameterBindingsCannotShadowAdapterLocals(t *testing.T) {
+	for _, name := range []string{"Context", "Bindings", "Slots", "Scope", "DefaultOwner", "ProxyServer", "ProxyClient", "BindServer", "BindClient", "Wire", "Model", "Adapter", "Access", "Binding", "Bound"} {
 		t.Run(name, func(t *testing.T) {
 			r := family(map[string]string{"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"parameters":[{"name":"` + name + `"}],"server":{"methods":{"read":{"result":"` + name + `"}}}`)})
 			_, diagnostics := newPlan(r)
 			if !has(diagnostics, "generated_name_collision", "protocol.json#/parameters/0/name") {
 				t.Fatal(diagnostics)
+			}
+		})
+	}
+}
+
+func TestTypeParameterBindingsDoNotReserveFormerClientMembers(t *testing.T) {
+	for _, name := range []string{"Peer", "Close", "Constructor", "Then"} {
+		t.Run(name, func(t *testing.T) {
+			r := family(map[string]string{"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"parameters":[{"name":"` + name + `"}],"server":{"methods":{"read":{"result":"` + name + `"}}}`)})
+			_, diagnostics := newPlan(r)
+			if len(diagnostics) != 0 {
+				t.Fatalf("adapter binding was confused with a former client member: %v", diagnostics)
 			}
 		})
 	}
@@ -127,21 +139,24 @@ func TestTypeLocalFamilyParameterDefaultsToItsConstraint(t *testing.T) {
 	}
 }
 
-func TestMixedClientBindsTypesAndFamiliesInTheirRuntimeSlots(t *testing.T) {
+func TestMixedAdaptersBindTypesAndFamiliesInTheirRuntimeSlots(t *testing.T) {
 	r := family(map[string]string{"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"parameters":[{"name":"S","of":"protocol"},{"name":"Item"}],"types":{"Mixed":{"kind":"record","fields":[{"name":"message","type":"S.Envelope"},{"name":"item","type":"Item"}]}},"server":{"methods":{"read":{"result":"Mixed"}}}`)})
 	files, err := New(Config{Scope: "@example"}).Render(r)
 	if err != nil {
 		t.Fatal(err)
 	}
-	index := string(files[1].Data)
 	for _, file := range files {
 		if strings.Contains(string(file.Data), "probe-client") {
 			t.Errorf("protocol and type bindings acquire an unrelated family dependency in %s", file.Path)
 		}
-	}
-	for _, want := range []string{`s: FamilyBinding<S>, item: ValueAdapter<Item>`, `readonly item: ValueAdapter<Item>;`, `this.slots = { "S": s, "Item": item.binding };`, `validateWire("Mixed", result, '$', this.slots)`} {
-		if !strings.Contains(index, want) {
-			t.Errorf("missing %s in:\n%s", want, index)
+		if !strings.HasSuffix(file.Path, "/src/index.ts") {
+			continue
+		}
+		index := string(file.Data)
+		for _, want := range []string{`context: AdapterContext, s: FamilyBinding<S>, item: ValueAdapter<Item>`, `const bindings = { s, item };`, `const slots: Slots = { "S": s, "Item": item.binding };`, `validateWire("Mixed", result, '$', slots)`, `makeAdapter<S, Item>(context, s, item)`} {
+			if !strings.Contains(index, want) {
+				t.Errorf("%s lacks %s:\n%s", file.Path, want, index)
+			}
 		}
 	}
 }
