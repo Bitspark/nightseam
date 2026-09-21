@@ -252,6 +252,9 @@ func decoded(v any) any {
 }
 
 func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	if strings.HasPrefix(op, "gen.record_") {
+		return t.recordDispatch(op, raw)
+	}
 	if strings.Contains(op, ".wire_") {
 		return t.wireDispatch(op, raw)
 	}

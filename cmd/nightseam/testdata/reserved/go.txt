@@ -24,3 +24,6 @@ ClientModel
 ToWire
 FromWire
 PrepareFromWire
+Record
+Recorder
+RecordedEvent

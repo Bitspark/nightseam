@@ -18,11 +18,13 @@ import (
 )
 
 type wireCarrierSide struct {
-	exercise func(context.Context) (map[string]any, error)
-	inspect  func(context.Context) (map[string]any, error)
-	counts   func() map[string]int
-	release  func() error
-	views    wireAllocations
+	recordTarget duplex.Wire
+	recordRead   func(context.Context) ([]any, error)
+	exercise     func(context.Context) (map[string]any, error)
+	inspect      func(context.Context) (map[string]any, error)
+	counts       func() map[string]int
+	release      func() error
+	views        wireAllocations
 }
 type wireCarrierHandle struct {
 	mu       sync.Mutex
@@ -130,6 +132,22 @@ func wireSlotServer[T any](peer *runtime.Peer, h *wireCarrierHandle, values wire
 		return nil, err
 	}
 	state := &wireCell[T]{noted: make(chan T, 4)}
+	side.recordRead = func(ctx context.Context) ([]any, error) {
+		result := make([]any, 0, 2)
+		for len(result) < 2 {
+			select {
+			case value := <-state.noted:
+				observed, err := values.observe(ctx, value)
+				if err != nil {
+					return nil, err
+				}
+				result = append(result, observed)
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		return result, nil
+	}
 	side.inspect = func(ctx context.Context) (map[string]any, error) {
 		var noted T
 		select {
@@ -365,6 +383,7 @@ func wireCarrierPrepare(options runtime.Options, h *wireCarrierHandle, presentat
 			return err
 		}
 		cleanup := []func(){closeView}
+		h.side.recordTarget = selected
 		detach, err := runtime.ForwardWire(selected, model)
 		if err != nil {
 			return err

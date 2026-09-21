@@ -1,0 +1,126 @@
+package recording_test
+
+import (
+	"context"
+	binding "example.test/generated/api/go/handles-binding"
+	client "example.test/generated/api/go/handles-client"
+	protocol "example.test/generated/api/go/handles-protocol"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/live/go"
+	"github.com/Bitspark/nightseam/runtime/go"
+	"sync/atomic"
+	"testing"
+	"time"
+)
+
+type handleDestination struct{ values chan protocol.Callback }
+
+func (d handleDestination) Handle(_ context.Context, value protocol.Callback) error {
+	d.values <- value
+	return nil
+}
+func localScope(t *testing.T) *live.Scope {
+	t.Helper()
+	left, right := duplex.Pipe(1 << 20)
+	var scope *live.Scope
+	a, err := runtime.NewPeer(context.Background(), left, runtime.ClientRole, runtime.Options{Prepare: func(p *runtime.Peer) (err error) { scope, err = live.Over(p, live.Options{}); return }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := runtime.NewPeer(context.Background(), right, runtime.ServerRole, runtime.Options{Prepare: func(p *runtime.Peer) error { _, err := live.Over(p, live.Options{}); return err }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { a.Close(); b.Close() })
+	return scope
+}
+func handleTarget(t *testing.T, scope *live.Scope) (duplex.Wire, chan protocol.Callback) {
+	t.Helper()
+	values := make(chan protocol.Callback, 4)
+	wire, err := client.ToWire(func(protocol.Server) (protocol.Client, error) {
+		return protocol.Client{Events: handleDestination{values}}, nil
+	}, runtime.AdapterContext{ValueEnvironment: live.ValueEnvironment(scope)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { wire.Close(1000, "done") })
+	return wire, values
+}
+func handleNext(t *testing.T, ctx context.Context, values <-chan protocol.Callback) protocol.Callback {
+	t.Helper()
+	select {
+	case value := <-values:
+		return value
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+		return nil
+	}
+}
+func TestLiveHistoryPreservesScopeAndOwner(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	scope := localScope(t)
+	owner := scope.Owner().Child()
+	wire, values := handleTarget(t, scope)
+	store := duplex.NewMemoryWireLog()
+	recorded, err := binding.Record(ctx, wire, store, duplex.RecordOptions{}, runtime.AdapterContext{ValueEnvironment: live.ValueEnvironment(scope)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer recorded.Close(1000, "done")
+	var effects atomic.Int64
+	callback := func(_ context.Context, value int64) (int64, error) { effects.Add(1); return value + 1, nil }
+	if err := recorded.Append(live.WithOwner(ctx, owner), binding.RecordedHandle{Data: callback}); err != nil {
+		t.Fatal(err)
+	}
+	original := handleNext(t, ctx, values)
+	if value, err := original(ctx, 3); err != nil || value != 4 {
+		t.Fatalf("original %d %v", value, err)
+	}
+	second, replayed := handleTarget(t, scope)
+	follower, err := recorded.Follow(ctx, 0, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer follower.Close()
+	same := handleNext(t, ctx, replayed)
+	if value, err := same(ctx, 4); err != nil || value != 5 {
+		t.Fatalf("same scope %d %v", value, err)
+	}
+	if owner.Counts().Exports != 1 {
+		t.Fatalf("replay duplicated export: %+v", owner.Counts())
+	}
+	another := localScope(t)
+	otherWire, foreign := handleTarget(t, another)
+	foreignFollower, err := recorded.Follow(ctx, 0, otherWire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer foreignFollower.Close()
+	foreignCall := handleNext(t, ctx, foreign)
+	if _, err := foreignCall(ctx, 5); !isCode(err, "reference_unknown") {
+		t.Fatalf("cross scope invocation: %v", err)
+	}
+	if effects.Load() != 2 {
+		t.Fatal("foreign replay reached original callable")
+	}
+	if err := owner.Release(); err != nil {
+		t.Fatal(err)
+	}
+	if owner.Counts().Exports != 0 {
+		t.Fatal("recording retained released owner")
+	}
+	if _, err := same(ctx, 6); !isCode(err, "reference_released") {
+		t.Fatalf("released replay alias: %v", err)
+	}
+	entry, err := store.Read(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := protocol.ImportCallback(scope.Owner(), entry.Message.Frame.Data); !isCode(err, "reference_released") {
+		t.Fatalf("released history import: %v", err)
+	}
+	if effects.Load() != 2 {
+		t.Fatal("release was bypassed")
+	}
+}

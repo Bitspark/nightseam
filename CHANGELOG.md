@@ -60,6 +60,10 @@ are one number. Entries are in the words of the commits that landed them.
 - Go and TypeScript ship a bounded Wire record/follow composition with
   consumer-owned storage, an atomic replay-to-live handoff and independent
   subscriber failure. Opaque messages retain their existing reference scope.
+- Generated Go and TypeScript side packages derive typed outgoing event unions
+  and record/follow helpers. Closed declaration identity is checked before
+  history setup or replay; ordinary event conversion preserves live-reference
+  scope and owner lifetime without retaining or rebinding callables.
 - Generated Go and TypeScript family parameters supply complete interpretations
   of plain associated records containing callables. Constructors reject missing
   or mixed-family converters before model construction, and nested conversions

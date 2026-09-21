@@ -712,6 +712,9 @@ Allocation counters observe cumulative runtime `ConnectionOpened` and tunnel
 | `gen.wire_bridge` | **`origin`** URL, **`slot`**: `factory` or a generic composition slot, **`presentation`**: `mounted` or `forwarded` | `{"handle","url"}` — derives a model with generated FromWire on the origin scope and passes that same model directly to generated ToWire on an independent destination scope. |
 | `gen.wire_bridge_counts` | **`on`**, `within_ms` | `{"origin":{"exports","imports"},"destination":{"exports","imports"},"setup_allocations","view_allocations","use_allocations"}` — both middle scopes before or after explicit release, without teardown. |
 | `gen.wire_bridge_release` | **`on`**, `within_ms` | `{}` — releases both middle root owners while both physical connections remain open. |
+| `gen.record_local` | **`presentation`**: `local`, `mounted`, or `forwarded`; `within_ms` | `{"follower_head":1,"head":2,"original":["first","second"],"replayed":["first","second"]}` — typed Cell<string> events use generated record/follow across the chosen Wire presentation. |
+| `gen.record_exercise` | **`on`**: a string-slot wire client; `within_ms` | `{"follower_head":1,"head":2,"original":["first","second"]}` — creates local typed history, follows its existing prepared carrier at zero, and appends the second event after the atomic handoff. |
+| `gen.record_read` | **`on`**: the corresponding wire server; `within_ms` | `["first","second"]` — waits for the historical and live events in order through the server's existing generated receiver. |
 
 The scalar slot uses `first` and `second`. A unary slot adds one or two and is
 observed at five. A factory slot calls its supplied unary and adds one or two;

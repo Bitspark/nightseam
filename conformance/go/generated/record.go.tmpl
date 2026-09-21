@@ -1,0 +1,118 @@
+package main
+
+// The history stores converted event messages. The consumer chooses the
+// presentation of a follower; the generated adapter supplies its identity.
+import (
+	"context"
+	"encoding/json"
+	binding "example.test/generated/api/go/cell-binding"
+	client "example.test/generated/api/go/cell-client"
+	cell "example.test/generated/api/go/cell-protocol"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/runtime/go"
+)
+
+func recordDestination(values chan string) (duplex.Wire, error) {
+	return binding.ToWire(func(cell.Client[string]) (cell.Server[string], error) {
+		return cell.Server[string]{Methods: &wireCell[string]{}, Events: wireNoted[string]{values}}, nil
+	}, runtime.AdapterContext{}, runtime.JSONAdapter[string]())
+}
+
+func recordExercise(ctx context.Context, target duplex.Wire) (map[string]any, func(), error) {
+	originals := make(chan string, 4)
+	primary, err := recordDestination(originals)
+	if err != nil {
+		return nil, nil, err
+	}
+	recorded, err := client.Record(ctx, primary, duplex.NewMemoryWireLog(), duplex.RecordOptions{}, runtime.AdapterContext{}, runtime.JSONAdapter[string]())
+	if err != nil {
+		primary.Close(1000, "")
+		return nil, nil, err
+	}
+	cleanup := func() { recorded.Close(1000, "") }
+	appendValue := func(value string) error {
+		return recorded.Append(ctx, client.RecordedNoted[string]{Data: cell.PutParams[string]{Value: value}})
+	}
+	if err = appendValue("first"); err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	if _, err = recorded.Head(ctx); err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	// Follow owns a lifetime independent of this one driver operation.
+	follower, err := recorded.Follow(context.Background(), 0, target)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	if err = appendValue("second"); err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	head, err := recorded.Head(ctx)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	values, err := recordRead(ctx, originals)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	return map[string]any{"follower_head": follower.Head, "head": head, "original": values}, cleanup, nil
+}
+func recordRead(ctx context.Context, values <-chan string) ([]string, error) {
+	result := make([]string, 0, 2)
+	for len(result) < 2 {
+		select {
+		case value := <-values:
+			result = append(result, value)
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return result, nil
+}
+func (t *testee) recordDispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), within(raw))
+	defer cancel()
+	if op == "gen.record_local" {
+		values := make(chan string, 4)
+		wire, err := recordDestination(values)
+		if err != nil {
+			return nil, err
+		}
+		defer wire.Close(1000, "")
+		target, closeView, err := wirePresentation(wire, str(raw, "presentation"), runtime.Options{})
+		if err != nil {
+			return nil, err
+		}
+		defer closeView()
+		result, cleanup, err := recordExercise(ctx, target)
+		if err != nil {
+			return nil, err
+		}
+		defer cleanup()
+		replayed, err := recordRead(ctx, values)
+		result["replayed"] = replayed
+		return result, err
+	}
+	h, err := liveOf[*wireCarrierHandle](t, raw)
+	if err != nil {
+		return nil, err
+	}
+	if err = h.await(ctx); err != nil {
+		return nil, err
+	}
+	if op == "gen.record_read" {
+		return h.side.recordRead(ctx)
+	}
+	result, cleanup, err := recordExercise(ctx, h.side.recordTarget)
+	if err != nil {
+		return nil, err
+	}
+	go func() { <-h.peer.Done(); cleanup() }()
+	return result, nil
+}

@@ -97,6 +97,52 @@ release checks still apply. A consumer persisting opaque data must distinguish
 that data from local capabilities that its storage cannot preserve.
 
 The shared [head cases](../../conformance/tables/recorded-wire.json) drive
-paired runtime tests. Generated family event unions and typed helpers are a
-separate delivery under [#291](https://github.com/Bitspark/nightseam/issues/291);
-the raw runtime composition does not claim that generator work is complete.
+paired runtime and generated tests.
+
+## Typed family events
+
+Each generated binding and client package exposes a `RecordedEvent` union,
+`Recorder`, and `Record` / `record` constructor. The binding union contains
+server-declared outgoing events; the client union contains client-declared
+outgoing events, even when the two sides use the same event name.
+
+For a server-declared `changed` event carrying `Payload`:
+
+```go
+recorded, err := binding.Record(ctx, target, log, options, environment)
+if err != nil { return err }
+err = recorded.Append(ctx, binding.RecordedChanged{Data: payload})
+```
+
+```ts
+const recorded = await binding.record(target, log, options, context);
+await recorded.append({ name: 'changed', data: payload });
+```
+
+Go's sealed union has one `Recorded<Operation>` struct with a native `Data`
+field per event. TypeScript's union discriminates native payloads by `name`;
+a side with no outgoing events has `never`. Generic constructors take the
+same positional bindings as that side's existing Wire adapters. Append uses
+the existing event validation, conversion and publication path once, then
+records the resulting opaque message. Live payloads require the existing
+explicit owner in the call context.
+
+Setup checks the closed declaration identity before reading the log's initial
+head. Go's setup context, or TypeScript's final `WireCallOptions` argument,
+cancels setup. Failure detaches the interpretation and leaves its borrowed
+target usable. Typed `Follow` checks the subscriber's identity before admitting
+replay; a mismatch touches neither its handlers nor the history. Identity
+requests are never included in the event log. Head, bounds, storage, follower
+failure and close have the raw composition's contract above.
+
+Recording a live event stores its converted descriptor; it does not store the
+native function as a fresh export. Replaying within the original scope uses
+the original binding, and releasing that binding's owner invalidates aliases
+and later imports. A descriptor interpreted on an unrelated scope cannot
+invoke its original binding: the ordinary invocation refuses
+`reference_unknown`. Raw descriptor bytes do not prove their scope at import.
+This is preservation of an existing reference, not transfer to a new scope.
+
+The shared [generated scenario](../../conformance/scenarios/generated/record-follow.json)
+holds typed generic data history across local, mounted and forwarded Wires,
+sockets and prepared channels, with both Go and TypeScript in both roles.

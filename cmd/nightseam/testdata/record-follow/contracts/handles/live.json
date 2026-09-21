@@ -1,0 +1,1 @@
+{"types":{"Callback":{"kind":"callable","request":"integer","result":"integer"},"Box":{"kind":"record","fields":[{"name":"invoke","type":"Callback"}]}},"server":{"events":{"handle":{"type":"Callback"}}}}

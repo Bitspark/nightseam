@@ -9,6 +9,7 @@ import * as combinator from './api/ts/combinator-client/src/index.ts';
 import * as boxes from './api/ts/boxes-client/src/index.ts';
 import { Inbox, Served, adapterContext } from './server.ts';
 import { genericFunctionSlot, integerFunctionSlot, genericFactorySlot, holderNumbersSlot, holderTextsSlot } from './composition-values.ts';
+import { recordExercise, recordLocal, recordRead } from './record.ts';
 
 type Args = Record<string, unknown>;
 type Allocations = { peers: number; channels: number };
@@ -208,6 +209,10 @@ async function local<T>(args: Args, slot: Slot<T>): Promise<unknown> {
 
 /** The test owns the chosen carrier; the generic model and adapter do not. */
 class WireEndpoint<T> {
+
+  recordTarget?: Wire;
+  async record(within:number):Promise<unknown>{const exercise=await recordExercise(this.recordTarget!,within);this.detaches.push(exercise.close);return exercise.result;}
+  async readRecord(within:number):Promise<unknown>{return recordRead(this.state.noted,within);}
   readonly state: CellState<T>;
   readonly slot: Slot<T>;
   readonly first: T;
@@ -255,6 +260,7 @@ class WireEndpoint<T> {
     const beforeViews = this.snapshot();
     // Both sides preserve the prefix in the serialized method/event name.
     const presented = carrierView(peer.wire(), this.presentation, this.observer, this.owned, this.detaches);
+    this.recordTarget = presented;
     this.detaches.push(forwardWire(presented, local));
     this.viewAllocations = this.delta(beforeViews);
   }
@@ -327,6 +333,8 @@ class WireEndpoint<T> {
 }
 
 interface ActiveEndpoint {
+  record(within:number):Promise<unknown>;
+  readRecord(within:number):Promise<unknown>;
   start(socketOrURL: WebSocketLike | string): Promise<ActiveEndpoint>;
   exercise(within: number): Promise<unknown>;
   inspect(within: number): Promise<unknown>;
@@ -440,6 +448,9 @@ function bridge(args: Args): ModelBridge {
   return result;
 }
 export const wireCellOps: Record<string, (args: Args) => unknown | Promise<unknown>> = {
+  'gen.record_local': args => recordLocal(String(args.presentation ?? 'local'),within(args)),
+  'gen.record_exercise': async args => (await endpoint(args)).record(within(args)),
+  'gen.record_read': async args => (await endpoint(args)).readRecord(within(args)),
   'gen.wire_local': args => withSlot(args.slot, slot => local(args, slot)),
   'gen.wire_serve': async args => {
     const served = await new Served(socket => makeEndpoint(args, true).start(socket)).listen();
