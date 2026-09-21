@@ -88,7 +88,7 @@ func TestTierFilesAreLoadedAndRendered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"type Caller interface", "var _ Caller = (*Client)(nil)", "func (c *Client) Echo("} {
+	for _, want := range []string{"func ToWire(", "func FromWire(", " Echo(ctx "} {
 		if !strings.Contains(string(client), want) {
 			t.Errorf("the Go client lacks %s", want)
 		}
@@ -102,7 +102,7 @@ func TestTierFilesAreLoadedAndRendered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"export interface Caller {", "export class Client implements Caller {"} {
+	for _, want := range []string{"export function toWire(", "export async function fromWire(", "async echo(params, context)"} {
 		if !strings.Contains(string(index), want) {
 			t.Errorf("the TypeScript client lacks %s", want)
 		}

@@ -241,10 +241,9 @@ func TestGeneratedTypeScriptChecksAndValidates(t *testing.T) {
 
 // tsRoundtrip is the generated TypeScript client against the generated Go
 // server: the call, the reverse call and the event, with an observer that
-// holds what the client's own install labelled each name with. The dial
-// options already label the carrier's relay, which probe's install merges
-// beside rather than replacing: one peer carrying two families labels each
-// name with its own, and a name nobody labelled has no family.
+// holds the generated model adapter's family labels independently of the
+// physical host. The host labels its own relay operation; the model adapter
+// labels declared operations without claiming unrelated host dispatch.
 const tsRoundtrip = `import assert from 'node:assert/strict';
 import {toWire} from './api/ts/probe-client/src/index.ts';
 import {DuplexPeer,forwardWire} from '@nightseam/runtime';
@@ -291,7 +290,7 @@ func TestWorkbenchContractRenders(t *testing.T) {
 			t.Errorf("the workbench client lacks %s", want)
 		}
 	}
-	if !strings.Contains(string(files["api/go/workbench-client/client_generated.go"]), "func (c *Client) CreateProject(") {
+	if !strings.Contains(string(files["api/go/workbench-client/client_generated.go"]), " CreateProject(ctx ") {
 		t.Error("the Go client does not spell the override")
 	}
 }
@@ -553,9 +552,8 @@ func (l *labels) hold(t *testing.T, side string, want map[string]string) {
 // every method and event of the family on its local runtime options, so that an observer says which family a name belongs to without
 // parsing it — on the side that sends a name as well as on the side that
 // serves it. The server's options already label the carrier's relay, which
-// probe's install merges beside rather than replacing: one peer carrying
-// two families labels each name with its own, and a name nobody labelled
-// has no family rather than a guessed one.
+// the generated model's labels are observed beside the host's own labels.
+// Unrelated host operations retain their explicit family or have none.
 func TestInstallLabelsEveryNameWithItsFamilyOverTheWire(t *testing.T) {
  consumer, machine := newLabels(), newLabels()
  options := runtime.ServerOptions{Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil }, CheckOrigin: func(*http.Request) bool { return true }}
