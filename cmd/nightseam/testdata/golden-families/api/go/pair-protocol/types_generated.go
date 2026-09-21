@@ -5,6 +5,7 @@ import (
 	context "context"
 	json "encoding/json"
 	probeprotocol "example.test/generated/api/go/probe-protocol"
+	fmt "fmt"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -457,6 +458,18 @@ func AdapterBoth[SEnvelope, SHandle, TEnvelope any](adapterSEnvelope runtime.Val
 		Binding:      binding,
 		NeedsContext: adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext || adapterTEnvelope.NeedsContext,
 		Export: func(ctx context.Context, value Both[SEnvelope, SHandle, TEnvelope]) (json.RawMessage, error) {
+			if adapterSEnvelope.Export == nil || adapterSEnvelope.Import == nil {
+				return nil, fmt.Errorf("SEnvelope: both conversion recipes are required")
+			}
+			if adapterSHandle.Export == nil || adapterSHandle.Import == nil {
+				return nil, fmt.Errorf("SHandle: both conversion recipes are required")
+			}
+			if adapterTEnvelope.Export == nil || adapterTEnvelope.Import == nil {
+				return nil, fmt.Errorf("TEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return nil, err
+			}
 			raw, err := ExportBoth[SEnvelope, SHandle, TEnvelope](value, func(value SEnvelope) (json.RawMessage, error) { return adapterSEnvelope.Export(ctx, value) }, typeSEnvelope, func(value SHandle) (json.RawMessage, error) { return adapterSHandle.Export(ctx, value) }, typeSHandle, func(value TEnvelope) (json.RawMessage, error) { return adapterTEnvelope.Export(ctx, value) }, typeTEnvelope)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -465,6 +478,18 @@ func AdapterBoth[SEnvelope, SHandle, TEnvelope any](adapterSEnvelope runtime.Val
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Both[SEnvelope, SHandle, TEnvelope], error) {
 			var zero Both[SEnvelope, SHandle, TEnvelope]
+			if adapterSEnvelope.Export == nil || adapterSEnvelope.Import == nil {
+				return zero, fmt.Errorf("SEnvelope: both conversion recipes are required")
+			}
+			if adapterSHandle.Export == nil || adapterSHandle.Import == nil {
+				return zero, fmt.Errorf("SHandle: both conversion recipes are required")
+			}
+			if adapterTEnvelope.Export == nil || adapterTEnvelope.Import == nil {
+				return zero, fmt.Errorf("TEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return zero, err
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}
@@ -481,6 +506,12 @@ func AdapterEcho[TEnvelope any](adapterTEnvelope runtime.ValueAdapter[TEnvelope]
 		Binding:      binding,
 		NeedsContext: adapterTEnvelope.NeedsContext,
 		Export: func(ctx context.Context, value Echo[TEnvelope]) (json.RawMessage, error) {
+			if adapterTEnvelope.Export == nil || adapterTEnvelope.Import == nil {
+				return nil, fmt.Errorf("TEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return nil, err
+			}
 			raw, err := ExportEcho[TEnvelope](value, func(value TEnvelope) (json.RawMessage, error) { return adapterTEnvelope.Export(ctx, value) }, typeTEnvelope)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -489,6 +520,12 @@ func AdapterEcho[TEnvelope any](adapterTEnvelope runtime.ValueAdapter[TEnvelope]
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Echo[TEnvelope], error) {
 			var zero Echo[TEnvelope]
+			if adapterTEnvelope.Export == nil || adapterTEnvelope.Import == nil {
+				return zero, fmt.Errorf("TEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return zero, err
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}
@@ -506,6 +543,15 @@ func AdapterFrame[SEnvelope, SHandle any](adapterSEnvelope runtime.ValueAdapter[
 		Binding:      binding,
 		NeedsContext: adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext,
 		Export: func(ctx context.Context, value Frame[SEnvelope, SHandle]) (json.RawMessage, error) {
+			if adapterSEnvelope.Export == nil || adapterSEnvelope.Import == nil {
+				return nil, fmt.Errorf("SEnvelope: both conversion recipes are required")
+			}
+			if adapterSHandle.Export == nil || adapterSHandle.Import == nil {
+				return nil, fmt.Errorf("SHandle: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return nil, err
+			}
 			raw, err := ExportFrame[SEnvelope, SHandle](value, func(value SEnvelope) (json.RawMessage, error) { return adapterSEnvelope.Export(ctx, value) }, typeSEnvelope, func(value SHandle) (json.RawMessage, error) { return adapterSHandle.Export(ctx, value) }, typeSHandle)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -514,6 +560,15 @@ func AdapterFrame[SEnvelope, SHandle any](adapterSEnvelope runtime.ValueAdapter[
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Frame[SEnvelope, SHandle], error) {
 			var zero Frame[SEnvelope, SHandle]
+			if adapterSEnvelope.Export == nil || adapterSEnvelope.Import == nil {
+				return zero, fmt.Errorf("SEnvelope: both conversion recipes are required")
+			}
+			if adapterSHandle.Export == nil || adapterSHandle.Import == nil {
+				return zero, fmt.Errorf("SHandle: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return zero, err
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}

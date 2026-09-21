@@ -13,27 +13,33 @@ import (
 )
 
 type serverMethods[SEnvelope, SHandle, TEnvelope any] struct {
-	wire        duplex.Wire
-	environment runtime.AdapterContext
+	wire             duplex.Wire
+	environment      runtime.AdapterContext
+	adapterSEnvelope runtime.ValueAdapter[SEnvelope]
+	adapterSHandle   runtime.ValueAdapter[SHandle]
+	adapterTEnvelope runtime.ValueAdapter[TEnvelope]
 }
 type serverEvents[SEnvelope, SHandle, TEnvelope any] struct {
-	wire        duplex.Wire
-	environment runtime.AdapterContext
+	wire             duplex.Wire
+	environment      runtime.AdapterContext
+	adapterSEnvelope runtime.ValueAdapter[SEnvelope]
+	adapterSHandle   runtime.ValueAdapter[SHandle]
+	adapterTEnvelope runtime.ValueAdapter[TEnvelope]
 }
 
-func accessServer[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, environment runtime.AdapterContext) protocol.Server[SEnvelope, SHandle, TEnvelope] {
-	return protocol.Server[SEnvelope, SHandle, TEnvelope]{Methods: &serverMethods[SEnvelope, SHandle, TEnvelope]{wire: wire, environment: environment}, Events: &serverEvents[SEnvelope, SHandle, TEnvelope]{wire: wire, environment: environment}}
+func accessServer[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) protocol.Server[SEnvelope, SHandle, TEnvelope] {
+	return protocol.Server[SEnvelope, SHandle, TEnvelope]{Methods: &serverMethods[SEnvelope, SHandle, TEnvelope]{wire: wire, environment: environment, adapterSEnvelope: adapterSEnvelope, adapterSHandle: adapterSHandle, adapterTEnvelope: adapterTEnvelope}, Events: &serverEvents[SEnvelope, SHandle, TEnvelope]{wire: wire, environment: environment, adapterSEnvelope: adapterSEnvelope, adapterSHandle: adapterSHandle, adapterTEnvelope: adapterTEnvelope}}
 }
 func (c *serverMethods[SEnvelope, SHandle, TEnvelope]) Named(ctx context.Context, params protocol.Named) (protocol.Named, error) {
 	var result protocol.Named
-	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Named\""), params); err != nil {
+	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": c.adapterSEnvelope.Binding, "S.Handle": c.adapterSHandle.Binding, "T.Envelope": c.adapterTEnvelope.Binding}, nil).ValidateValue(protocol.MustTypeExpression("\"Named\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
 	if err := runtime.CallWire(ctx, c.wire, []string{"named"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "pair", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
 		return result, err
 	}
-	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Named\""), raw); err != nil {
+	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": c.adapterSEnvelope.Binding, "S.Handle": c.adapterSHandle.Binding, "T.Envelope": c.adapterTEnvelope.Binding}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Named\""), raw); err != nil {
 		return result, err
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -43,22 +49,106 @@ func (c *serverMethods[SEnvelope, SHandle, TEnvelope]) Named(ctx context.Context
 }
 func (c *serverMethods[SEnvelope, SHandle, TEnvelope]) Relay(ctx context.Context, params TEnvelope) (protocol.Both[SEnvelope, SHandle, TEnvelope], error) {
 	var result protocol.Both[SEnvelope, SHandle, TEnvelope]
-	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateValue(protocol.MustTypeExpression("\"T.Envelope\""), params); err != nil {
+	if c.adapterTEnvelope.NeedsContext || c.adapterSEnvelope.NeedsContext || c.adapterSHandle.NeedsContext || c.adapterTEnvelope.NeedsContext {
+		var err error
+		ctx, err = c.environment.ValueEnvironment.Select(ctx)
+		if err != nil {
+			return result, err
+		}
+	}
+	raw, err := func() (json.RawMessage, error) {
+		build := func(ctx context.Context) (json.RawMessage, error) {
+			sent, err := func() (json.RawMessage, error) {
+				var value json.RawMessage
+				convert := func(ctx context.Context) (json.RawMessage, error) {
+					converted, err := c.adapterTEnvelope.Export(ctx, params)
+					if err != nil {
+						return value, err
+					}
+					if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": c.adapterSEnvelope.Binding, "S.Handle": c.adapterSHandle.Binding, "T.Envelope": c.adapterTEnvelope.Binding}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"T.Envelope\""), converted); err != nil {
+						return value, err
+					}
+					return converted, nil
+				}
+				if c.adapterTEnvelope.NeedsContext {
+					return c.environment.ValueEnvironment.Export(ctx, convert)
+				}
+				return convert(ctx)
+			}()
+			return sent, err
+		}
+		publish := func(sent json.RawMessage) (json.RawMessage, error) {
+			var raw json.RawMessage
+			err := runtime.CallWire(ctx, c.wire, []string{"relay"}, sent, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "pair", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout})
+			return raw, err
+		}
+		if c.adapterTEnvelope.NeedsContext {
+			return c.environment.ValueEnvironment.Publish(ctx, build, publish)
+		}
+		sent, err := build(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return publish(sent)
+	}()
+	if err != nil {
 		return result, err
 	}
-	var raw json.RawMessage
-	if err := runtime.CallWire(ctx, c.wire, []string{"relay"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "pair", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}); err != nil {
-		return result, err
-	}
-	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Both\""), raw); err != nil {
-		return result, err
-	}
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return result, err
-	}
-	return result, nil
+	received, err := func() (protocol.Both[SEnvelope, SHandle, TEnvelope], error) {
+		var value protocol.Both[SEnvelope, SHandle, TEnvelope]
+		convert := func(ctx context.Context) (protocol.Both[SEnvelope, SHandle, TEnvelope], error) {
+			if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": c.adapterSEnvelope.Binding, "S.Handle": c.adapterSHandle.Binding, "T.Envelope": c.adapterTEnvelope.Binding}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Both\""), raw); err != nil {
+				return value, err
+			}
+			convertedConvert0 := func(input json.RawMessage) (SEnvelope, error) {
+				var zero SEnvelope
+				converted, err := c.adapterSEnvelope.Import(ctx, input)
+				if err != nil {
+					return zero, err
+				}
+				return converted, nil
+			}
+			convertedConvert1 := func(input json.RawMessage) (SHandle, error) {
+				var zero SHandle
+				converted, err := c.adapterSHandle.Import(ctx, input)
+				if err != nil {
+					return zero, err
+				}
+				return converted, nil
+			}
+			convertedConvert2 := func(input json.RawMessage) (TEnvelope, error) {
+				var zero TEnvelope
+				converted, err := c.adapterTEnvelope.Import(ctx, input)
+				if err != nil {
+					return zero, err
+				}
+				return converted, nil
+			}
+			converted, err := protocol.ImportBoth[SEnvelope, SHandle, TEnvelope](raw, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema().Bind(map[string]any{"S.Envelope": c.adapterSEnvelope.Binding, "S.Handle": c.adapterSHandle.Binding, "T.Envelope": c.adapterTEnvelope.Binding}, nil), Type: runtime.MustTypeExpression("\"S.Envelope\"")}, convertedConvert1, runtime.TypeBinding{Schema: protocol.WireSchema().Bind(map[string]any{"S.Envelope": c.adapterSEnvelope.Binding, "S.Handle": c.adapterSHandle.Binding, "T.Envelope": c.adapterTEnvelope.Binding}, nil), Type: runtime.MustTypeExpression("\"S.Handle\"")}, convertedConvert2, runtime.TypeBinding{Schema: protocol.WireSchema().Bind(map[string]any{"S.Envelope": c.adapterSEnvelope.Binding, "S.Handle": c.adapterSHandle.Binding, "T.Envelope": c.adapterTEnvelope.Binding}, nil), Type: runtime.MustTypeExpression("\"T.Envelope\"")})
+			if err != nil {
+				return value, err
+			}
+			return converted, nil
+		}
+		if c.adapterSEnvelope.NeedsContext || c.adapterSHandle.NeedsContext || c.adapterTEnvelope.NeedsContext {
+			err := c.environment.ValueEnvironment.Import(ctx, func(ctx context.Context) error {
+				converted, err := convert(ctx)
+				if err == nil {
+					value = converted
+				}
+				return err
+			})
+			if err != nil {
+				var zero protocol.Both[SEnvelope, SHandle, TEnvelope]
+				return zero, err
+			}
+			return value, nil
+		}
+		return convert(ctx)
+	}()
+	return received, err
 }
-func bindServer[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func() protocol.Server[SEnvelope, SHandle, TEnvelope], environment runtime.AdapterContext) error {
+func bindServer[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func() protocol.Server[SEnvelope, SHandle, TEnvelope], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -75,7 +165,7 @@ func bindServer[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func
 			if implementation.Methods == nil {
 				return nil, fmt.Errorf("model methods are required")
 			}
-			if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Named\""), raw); err != nil {
+			if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": adapterSEnvelope.Binding, "S.Handle": adapterSHandle.Binding, "T.Envelope": adapterTEnvelope.Binding}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Named\""), raw); err != nil {
 				var public *runtime.PublicError
 				if errors.As(err, &public) && public.Code == "contract_mismatch" {
 					return nil, err
@@ -94,7 +184,7 @@ func bindServer[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func
 			if err != nil {
 				return nil, err
 			}
-			if err = protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Named\""), result); err != nil {
+			if err = protocol.WireSchema().Bind(map[string]any{"S.Envelope": adapterSEnvelope.Binding, "S.Handle": adapterSHandle.Binding, "T.Envelope": adapterTEnvelope.Binding}, nil).ValidateValue(protocol.MustTypeExpression("\"Named\""), result); err != nil {
 				return nil, err
 			}
 			return result, nil
@@ -114,15 +204,42 @@ func bindServer[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func
 			if implementation.Methods == nil {
 				return nil, fmt.Errorf("model methods are required")
 			}
-			if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"T.Envelope\""), raw); err != nil {
-				var public *runtime.PublicError
-				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+			if adapterTEnvelope.NeedsContext || adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext || adapterTEnvelope.NeedsContext {
+				var err error
+				ctx, err = environment.ValueEnvironment.Child(ctx)
+				if err != nil {
 					return nil, err
 				}
-				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
-			var params TEnvelope
-			if err := json.Unmarshal(raw, &params); err != nil {
+			params, err := func() (TEnvelope, error) {
+				var value TEnvelope
+				convert := func(ctx context.Context) (TEnvelope, error) {
+					if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": adapterSEnvelope.Binding, "S.Handle": adapterSHandle.Binding, "T.Envelope": adapterTEnvelope.Binding}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"T.Envelope\""), raw); err != nil {
+						return value, err
+					}
+					converted, err := adapterTEnvelope.Import(ctx, raw)
+					if err != nil {
+						return value, err
+					}
+					return converted, nil
+				}
+				if adapterTEnvelope.NeedsContext {
+					err := environment.ValueEnvironment.Import(ctx, func(ctx context.Context) error {
+						converted, err := convert(ctx)
+						if err == nil {
+							value = converted
+						}
+						return err
+					})
+					if err != nil {
+						var zero TEnvelope
+						return zero, err
+					}
+					return value, nil
+				}
+				return convert(ctx)
+			}()
+			if err != nil {
 				var public *runtime.PublicError
 				if errors.As(err, &public) && public.Code == "contract_mismatch" {
 					return nil, err
@@ -133,10 +250,45 @@ func bindServer[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func
 			if err != nil {
 				return nil, err
 			}
-			if err = protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Both\""), result); err != nil {
-				return nil, err
-			}
-			return result, nil
+			sent, err := func() (json.RawMessage, error) {
+				var value json.RawMessage
+				convert := func(ctx context.Context) (json.RawMessage, error) {
+					convertedConvert0 := func(input SEnvelope) (json.RawMessage, error) {
+						converted, err := adapterSEnvelope.Export(ctx, input)
+						if err != nil {
+							return nil, err
+						}
+						return converted, nil
+					}
+					convertedConvert1 := func(input SHandle) (json.RawMessage, error) {
+						converted, err := adapterSHandle.Export(ctx, input)
+						if err != nil {
+							return nil, err
+						}
+						return converted, nil
+					}
+					convertedConvert2 := func(input TEnvelope) (json.RawMessage, error) {
+						converted, err := adapterTEnvelope.Export(ctx, input)
+						if err != nil {
+							return nil, err
+						}
+						return converted, nil
+					}
+					converted, err := protocol.ExportBoth[SEnvelope, SHandle, TEnvelope](result, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema().Bind(map[string]any{"S.Envelope": adapterSEnvelope.Binding, "S.Handle": adapterSHandle.Binding, "T.Envelope": adapterTEnvelope.Binding}, nil), Type: runtime.MustTypeExpression("\"S.Envelope\"")}, convertedConvert1, runtime.TypeBinding{Schema: protocol.WireSchema().Bind(map[string]any{"S.Envelope": adapterSEnvelope.Binding, "S.Handle": adapterSHandle.Binding, "T.Envelope": adapterTEnvelope.Binding}, nil), Type: runtime.MustTypeExpression("\"S.Handle\"")}, convertedConvert2, runtime.TypeBinding{Schema: protocol.WireSchema().Bind(map[string]any{"S.Envelope": adapterSEnvelope.Binding, "S.Handle": adapterSHandle.Binding, "T.Envelope": adapterTEnvelope.Binding}, nil), Type: runtime.MustTypeExpression("\"T.Envelope\"")})
+					if err != nil {
+						return value, err
+					}
+					if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": adapterSEnvelope.Binding, "S.Handle": adapterSHandle.Binding, "T.Envelope": adapterTEnvelope.Binding}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Both\""), converted); err != nil {
+						return value, err
+					}
+					return converted, nil
+				}
+				if adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext || adapterTEnvelope.NeedsContext {
+					return environment.ValueEnvironment.Export(ctx, convert)
+				}
+				return convert(ctx)
+			}()
+			return sent, err
 		}
 		if handlers.Request != nil || handlers.Event != nil {
 			off, err := runtime.RegisterWire(wire, []string{"relay"}, handlers)
@@ -151,24 +303,74 @@ func bindServer[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func
 }
 
 type clientMethods[SEnvelope, SHandle, TEnvelope any] struct {
-	wire        duplex.Wire
-	environment runtime.AdapterContext
+	wire             duplex.Wire
+	environment      runtime.AdapterContext
+	adapterSEnvelope runtime.ValueAdapter[SEnvelope]
+	adapterSHandle   runtime.ValueAdapter[SHandle]
+	adapterTEnvelope runtime.ValueAdapter[TEnvelope]
 }
 type clientEvents[SEnvelope, SHandle, TEnvelope any] struct {
-	wire        duplex.Wire
-	environment runtime.AdapterContext
+	wire             duplex.Wire
+	environment      runtime.AdapterContext
+	adapterSEnvelope runtime.ValueAdapter[SEnvelope]
+	adapterSHandle   runtime.ValueAdapter[SHandle]
+	adapterTEnvelope runtime.ValueAdapter[TEnvelope]
 }
 
-func accessClient[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, environment runtime.AdapterContext) protocol.Client[SEnvelope, SHandle, TEnvelope] {
-	return protocol.Client[SEnvelope, SHandle, TEnvelope]{Methods: &clientMethods[SEnvelope, SHandle, TEnvelope]{wire: wire, environment: environment}, Events: &clientEvents[SEnvelope, SHandle, TEnvelope]{wire: wire, environment: environment}}
+func accessClient[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) protocol.Client[SEnvelope, SHandle, TEnvelope] {
+	return protocol.Client[SEnvelope, SHandle, TEnvelope]{Methods: &clientMethods[SEnvelope, SHandle, TEnvelope]{wire: wire, environment: environment, adapterSEnvelope: adapterSEnvelope, adapterSHandle: adapterSHandle, adapterTEnvelope: adapterTEnvelope}, Events: &clientEvents[SEnvelope, SHandle, TEnvelope]{wire: wire, environment: environment, adapterSEnvelope: adapterSEnvelope, adapterSHandle: adapterSHandle, adapterTEnvelope: adapterTEnvelope}}
 }
 func (c *clientEvents[SEnvelope, SHandle, TEnvelope]) Echoed(ctx context.Context, data protocol.Echo[TEnvelope]) error {
-	if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Echo\""), data); err != nil {
-		return err
+	if c.adapterTEnvelope.NeedsContext {
+		var err error
+		ctx, err = c.environment.ValueEnvironment.Select(ctx)
+		if err != nil {
+			return err
+		}
 	}
-	return runtime.EmitWire(ctx, c.wire, []string{"echoed"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "pair", Propagator: c.environment.Options.Propagator})
+	_, err := func() (json.RawMessage, error) {
+		build := func(ctx context.Context) (json.RawMessage, error) {
+			sent, err := func() (json.RawMessage, error) {
+				var value json.RawMessage
+				convert := func(ctx context.Context) (json.RawMessage, error) {
+					convertedConvert0 := func(input TEnvelope) (json.RawMessage, error) {
+						converted, err := c.adapterTEnvelope.Export(ctx, input)
+						if err != nil {
+							return nil, err
+						}
+						return converted, nil
+					}
+					converted, err := protocol.ExportEcho[TEnvelope](data, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema().Bind(map[string]any{"S.Envelope": c.adapterSEnvelope.Binding, "S.Handle": c.adapterSHandle.Binding, "T.Envelope": c.adapterTEnvelope.Binding}, nil), Type: runtime.MustTypeExpression("\"T.Envelope\"")})
+					if err != nil {
+						return value, err
+					}
+					if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": c.adapterSEnvelope.Binding, "S.Handle": c.adapterSHandle.Binding, "T.Envelope": c.adapterTEnvelope.Binding}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Echo\""), converted); err != nil {
+						return value, err
+					}
+					return converted, nil
+				}
+				if c.adapterTEnvelope.NeedsContext {
+					return c.environment.ValueEnvironment.Export(ctx, convert)
+				}
+				return convert(ctx)
+			}()
+			return sent, err
+		}
+		publish := func(sent json.RawMessage) (json.RawMessage, error) {
+			return nil, runtime.EmitWire(ctx, c.wire, []string{"echoed"}, sent, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "pair", Propagator: c.environment.Options.Propagator})
+		}
+		if c.adapterTEnvelope.NeedsContext {
+			return c.environment.ValueEnvironment.Publish(ctx, build, publish)
+		}
+		sent, err := build(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return publish(sent)
+	}()
+	return err
 }
-func bindClient[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func() protocol.Client[SEnvelope, SHandle, TEnvelope], environment runtime.AdapterContext) error {
+func bindClient[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func() protocol.Client[SEnvelope, SHandle, TEnvelope], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -185,11 +387,50 @@ func bindClient[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func
 			if implementation.Events == nil {
 				return nil
 			}
-			if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Echo\""), raw); err != nil {
-				return err
+			if adapterTEnvelope.NeedsContext {
+				var err error
+				ctx, err = environment.ValueEnvironment.Child(ctx)
+				if err != nil {
+					return err
+				}
 			}
-			var data protocol.Echo[TEnvelope]
-			if err := json.Unmarshal(raw, &data); err != nil {
+			data, err := func() (protocol.Echo[TEnvelope], error) {
+				var value protocol.Echo[TEnvelope]
+				convert := func(ctx context.Context) (protocol.Echo[TEnvelope], error) {
+					if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": adapterSEnvelope.Binding, "S.Handle": adapterSHandle.Binding, "T.Envelope": adapterTEnvelope.Binding}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Echo\""), raw); err != nil {
+						return value, err
+					}
+					convertedConvert0 := func(input json.RawMessage) (TEnvelope, error) {
+						var zero TEnvelope
+						converted, err := adapterTEnvelope.Import(ctx, input)
+						if err != nil {
+							return zero, err
+						}
+						return converted, nil
+					}
+					converted, err := protocol.ImportEcho[TEnvelope](raw, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema().Bind(map[string]any{"S.Envelope": adapterSEnvelope.Binding, "S.Handle": adapterSHandle.Binding, "T.Envelope": adapterTEnvelope.Binding}, nil), Type: runtime.MustTypeExpression("\"T.Envelope\"")})
+					if err != nil {
+						return value, err
+					}
+					return converted, nil
+				}
+				if adapterTEnvelope.NeedsContext {
+					err := environment.ValueEnvironment.Import(ctx, func(ctx context.Context) error {
+						converted, err := convert(ctx)
+						if err == nil {
+							value = converted
+						}
+						return err
+					})
+					if err != nil {
+						var zero protocol.Echo[TEnvelope]
+						return zero, err
+					}
+					return value, nil
+				}
+				return convert(ctx)
+			}()
+			if err != nil {
 				return err
 			}
 			return implementation.Events.Echoed(ctx, data)
@@ -205,23 +446,32 @@ func bindClient[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func
 	complete = true
 	return nil
 }
-func normalizeContext[SEnvelope, SHandle, TEnvelope any](environment runtime.AdapterContext) (runtime.AdapterContext, error) {
-	if false && environment.ValueEnvironment == nil {
+func normalizeContext[SEnvelope, SHandle, TEnvelope any](environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (runtime.AdapterContext, error) {
+	if adapterSEnvelope.Export == nil || adapterSEnvelope.Import == nil {
+		return environment, fmt.Errorf("SEnvelope: both conversion recipes are required")
+	}
+	if adapterSHandle.Export == nil || adapterSHandle.Import == nil {
+		return environment, fmt.Errorf("SHandle: both conversion recipes are required")
+	}
+	if adapterTEnvelope.Export == nil || adapterTEnvelope.Import == nil {
+		return environment, fmt.Errorf("TEnvelope: both conversion recipes are required")
+	}
+	if (adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext || adapterTEnvelope.NeedsContext) && environment.ValueEnvironment == nil {
 		return environment, fmt.Errorf("a context-dependent adapter requires a value environment")
 	}
 	return environment, nil
 }
 
 // ToWire binds one model factory and returns its access wire.
-func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](model protocol.ClientModel[SEnvelope, SHandle, TEnvelope], environment runtime.AdapterContext) (duplex.Wire, error) {
+func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](model protocol.ClientModel[SEnvelope, SHandle, TEnvelope], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (duplex.Wire, error) {
 	if model == nil {
 		return nil, fmt.Errorf("model factory is required")
 	}
-	environment, err := normalizeContext[SEnvelope, SHandle, TEnvelope](environment)
+	environment, err := normalizeContext[SEnvelope, SHandle, TEnvelope](environment, adapterSEnvelope, adapterSHandle, adapterTEnvelope)
 	if err != nil {
 		return nil, err
 	}
-	identity, err := declarationIdentity[SEnvelope, SHandle, TEnvelope]()
+	identity, err := declarationIdentity[SEnvelope, SHandle, TEnvelope](adapterSEnvelope, adapterSHandle, adapterTEnvelope)
 	if err != nil {
 		return nil, err
 	}
@@ -247,18 +497,18 @@ func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runt
 	if _, err := registerIdentity(binding, identity); err != nil {
 		return nil, err
 	}
-	implementation, err := model(accessServer[SEnvelope, SHandle, TEnvelope](binding, environment))
+	implementation, err := model(accessServer[SEnvelope, SHandle, TEnvelope](binding, environment, adapterSEnvelope, adapterSHandle, adapterTEnvelope))
 	if err != nil {
 		return nil, err
 	}
-	if err := bindClient[SEnvelope, SHandle, TEnvelope](binding, func() protocol.Client[SEnvelope, SHandle, TEnvelope] { return implementation }, environment); err != nil {
+	if err := bindClient[SEnvelope, SHandle, TEnvelope](binding, func() protocol.Client[SEnvelope, SHandle, TEnvelope] { return implementation }, environment, adapterSEnvelope, adapterSHandle, adapterTEnvelope); err != nil {
 		return nil, err
 	}
 	complete = true
 	return access, nil
 }
-func declarationIdentity[SEnvelope, SHandle, TEnvelope any]() (runtime.DeclarationIdentity, error) {
-	digest, err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).DeclarationDigest()
+func declarationIdentity[SEnvelope, SHandle, TEnvelope any](adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (runtime.DeclarationIdentity, error) {
+	digest, err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": adapterSEnvelope.Binding, "S.Handle": adapterSHandle.Binding, "T.Envelope": adapterTEnvelope.Binding}, nil).DeclarationDigest()
 	if err != nil {
 		return runtime.DeclarationIdentity{}, err
 	}
@@ -276,15 +526,15 @@ func registerIdentity(wire duplex.Wire, identity runtime.DeclarationIdentity) (f
 // Complete checks identity and returns a factory that may be bound once. Both steps
 // must finish within environment.Options.RequestTimeout. Cleanup detaches this
 // interpretation's registrations, including after success, and never closes the wire.
-func PrepareFromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](wire duplex.Wire, environment runtime.AdapterContext) (complete func(context.Context) (protocol.ClientModel[SEnvelope, SHandle, TEnvelope], error), cleanup func(), err error) {
+func PrepareFromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](wire duplex.Wire, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (complete func(context.Context) (protocol.ClientModel[SEnvelope, SHandle, TEnvelope], error), cleanup func(), err error) {
 	if wire == nil {
 		return nil, nil, fmt.Errorf("wire is required")
 	}
-	environment, err = normalizeContext[SEnvelope, SHandle, TEnvelope](environment)
+	environment, err = normalizeContext[SEnvelope, SHandle, TEnvelope](environment, adapterSEnvelope, adapterSHandle, adapterTEnvelope)
 	if err != nil {
 		return nil, nil, err
 	}
-	identity, err := declarationIdentity[SEnvelope, SHandle, TEnvelope]()
+	identity, err := declarationIdentity[SEnvelope, SHandle, TEnvelope](adapterSEnvelope, adapterSHandle, adapterTEnvelope)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -300,7 +550,7 @@ func PrepareFromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnve
 		}
 		return protocol.Server[SEnvelope, SHandle, TEnvelope]{}
 	}
-	if err = bindServer[SEnvelope, SHandle, TEnvelope](preparation.Wire(), lookup, environment); err != nil {
+	if err = bindServer[SEnvelope, SHandle, TEnvelope](preparation.Wire(), lookup, environment, adapterSEnvelope, adapterSHandle, adapterTEnvelope); err != nil {
 		cleanup()
 		return nil, nil, err
 	}
@@ -326,7 +576,7 @@ func PrepareFromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnve
 				cleanup()
 				return protocol.Client[SEnvelope, SHandle, TEnvelope]{}, err
 			}
-			return accessClient[SEnvelope, SHandle, TEnvelope](preparation.Wire(), environment), nil
+			return accessClient[SEnvelope, SHandle, TEnvelope](preparation.Wire(), environment, adapterSEnvelope, adapterSHandle, adapterTEnvelope), nil
 		}, nil
 	}
 	return complete, cleanup, nil
@@ -334,8 +584,8 @@ func PrepareFromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnve
 
 // FromWire checks identity and returns a factory that may be bound once.
 // Use PrepareFromWire before attachment when incoming delivery can begin immediately.
-func FromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ClientModel[SEnvelope, SHandle, TEnvelope], error) {
-	complete, cleanup, err := PrepareFromWire[SEnvelope, SHandle, TEnvelope](wire, environment)
+func FromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (protocol.ClientModel[SEnvelope, SHandle, TEnvelope], error) {
+	complete, cleanup, err := PrepareFromWire[SEnvelope, SHandle, TEnvelope](wire, environment, adapterSEnvelope, adapterSHandle, adapterTEnvelope)
 	if err != nil {
 		return nil, err
 	}

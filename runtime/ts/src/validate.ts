@@ -6,6 +6,7 @@
 // bindings that generated Go codecs also carry in their instantiated types.
 import { scalarValue } from './unicode.ts';
 import { DuplexError } from './error.ts';
+import type { ValueAdapter } from './value-adapter.ts';
 
 /** An expression as the declaration writes it, including unnamed shapes. */
 export type TypeExpression =
@@ -67,12 +68,12 @@ export interface AnyFamily {
   Handle: unknown;
 }
 
-/** A family bound to a parameter, retaining its descriptor for nested applications. */
-export interface FamilyBinding<F extends AnyFamily> {
+/** A family descriptor, with complete recipes for the associated members a consumer uses. */
+export type FamilyBinding<F extends AnyFamily, K extends keyof F = never> = {
   readonly name: F['name'];
   readonly validate: Validator;
   readonly slots?: Slots;
-}
+} & ([K] extends [never] ? {} : { readonly types: { readonly [P in K]: ValueAdapter<F[P]> } });
 
 /** A type argument interpreted in the family whose validator is supplied. */
 export interface TypeBinding {

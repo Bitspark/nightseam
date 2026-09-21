@@ -17,7 +17,7 @@ func (f *file) emitValueAdapters() {
 		}
 		f.uses, f.codecs = t.Uses, t.Uses
 		name := f.plan.types[t.Name]
-		self := name + apply(t.Uses)
+		self := f.spell(model.Named{Name: t.Name})
 		var parameters, needs []string
 		if t.IsLive {
 			needs = append(needs, "true")
@@ -39,6 +39,7 @@ func (f *file) emitValueAdapters() {
 				f.line("Binding: binding,")
 				f.linef("NeedsContext: %s,", liveOr(needs...))
 				f.w.Block(fmt.Sprintf("Export: func(ctx %s.Context, value %s) (%s.RawMessage,error) {", f.std("context"), self, f.std("json")), "},", func() {
+					f.adapterInterpretation(t.Uses, "nil, ")
 					if t.IsLive {
 						f.nativeOwner("nil, ")
 					}
@@ -47,6 +48,7 @@ func (f *file) emitValueAdapters() {
 				})
 				f.w.Block(fmt.Sprintf("Import: func(ctx %s.Context, raw %s.RawMessage) (%s,error) {", f.std("context"), f.std("json"), self), "},", func() {
 					f.linef("var zero %s", self)
+					f.adapterInterpretation(t.Uses, "zero, ")
 					if t.IsLive {
 						f.nativeOwner("zero, ")
 					}
@@ -59,6 +61,26 @@ func (f *file) emitValueAdapters() {
 	f.uses, f.codecs = f.family.Uses, nil
 }
 
+// A composed interpretation checks the whole associated family before any
+// supplied recipe can acquire a value. Declaration uses the same canonical
+// drawn-family association as the model boundary, including bound revisions.
+func (f *file) adapterInterpretation(uses []render.Use, failure string) {
+	f.adapterRecipes(uses, failure)
+	for _, use := range uses {
+		if use.Type != "" {
+			f.linef("if _, err := binding.Declaration(); err != nil { return %serr }", failure)
+			return
+		}
+	}
+}
+
+func (f *file) adapterRecipes(uses []render.Use, failure string) {
+	for _, use := range uses {
+		name := "adapter" + parameterName(use)
+		f.linef("if %s.Export == nil || %s.Import == nil { return %s%s.Errorf(%q) }", name, name, failure, f.std("fmt"), parameterName(use)+": both conversion recipes are required")
+	}
+}
+
 // Native live declarations alone interpret the invocation context as an owner.
 func (f *file) nativeOwner(failure string) {
 	f.linef("if ctx == nil { return %s%s.Errorf(\"a live conversion requires an active owner\") }", failure, f.std("fmt"))
@@ -67,13 +89,7 @@ func (f *file) nativeOwner(failure string) {
 }
 
 func (f *file) slotUses() []render.Use {
-	var uses []render.Use
-	for _, use := range f.family.Uses {
-		if use.Type == "" {
-			uses = append(uses, use)
-		}
-	}
-	return uses
+	return f.family.Uses
 }
 
 func (f *file) operationAdapters() {

@@ -35,6 +35,12 @@ are one number. Entries are in the words of the commits that landed them.
 - Go and TypeScript ship a bounded Wire record/follow composition with
   consumer-owned storage, an atomic replay-to-live handoff and independent
   subscriber failure. Opaque messages retain their existing reference scope.
+- Generated Go and TypeScript family parameters supply complete interpretations
+  of plain associated records containing callables. Constructors reject missing
+  or mixed-family converters before model construction, and nested conversions
+  use the active operation's ownership batch without adding live dependencies
+  to generic consumers. TypeScript conversion-only record, union and alias
+  helpers explicitly carry the `Unchecked` suffix.
 - Generated Go and TypeScript families expose the canonical declaration and its
   SHA-256 digest, covering operations, events, errors and reachable imported
   declarations. Bound arguments retain their own declaration content and scope.

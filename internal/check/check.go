@@ -451,7 +451,6 @@ func (c *checker) drawn(x model.Drawn, at diag.Location, where site) {
 		c.Addf(at, "unresolved_parameter", "Unknown parameter %s: nothing in scope declares a parameter of that name.", x.Parameter)
 		return
 	}
-	c.liveDraw(x, at)
 	if model.Carried(x.Name) {
 		return
 	}
@@ -467,6 +466,8 @@ func (c *checker) drawn(x model.Drawn, at diag.Location, where site) {
 			c.Addf(at, "unresolved_type", "Type %s of %s: the %s family %s declares no type of that name, and every family that may bind %s must.", x.Name, x.Parameter, parameter.Of, name, x.Parameter)
 		case t.Kind == model.KindAlias:
 			c.Addf(at, "unresolved_type", "Type %s of %s: in the %s family %s it is an alias, and a slot draws a record or an enum.", x.Name, x.Parameter, parameter.Of, name)
+		case t.Kind == model.KindCallable:
+			c.Addf(at, "unresolved_type", "Type %s of %s: in the %s family %s it is a callable; draw a plain record containing the callable instead.", x.Name, x.Parameter, parameter.Of, name)
 		case len(other.Generics().Types[x.Name]) > 0 || len(t.Parameters) > 0:
 			c.Addf(at, "unresolved_type", "Type %s of %s: in the %s family %s it is generic, and a slot draws a plain type.", x.Name, x.Parameter, parameter.Of, name)
 		}
@@ -586,29 +587,6 @@ func lookup(parameters []model.Parameter, name string) (model.Parameter, bool) {
 		}
 	}
 	return model.Parameter{}, false
-}
-
-// liveDraw refuses drawing a live type through a family parameter. Every
-// family that may bind the parameter declares the drawn type, so whether it
-// is live is known here — and a live one has no conversion at the boundary,
-// since what fills the parameter is the consumer's to choose.
-func (c *checker) liveDraw(x model.Drawn, at diag.Location) {
-	parameter, ok := c.f.Parameter(x.Parameter)
-	if !ok || !parameter.IsFamily() {
-		return
-	}
-	carriers := c.f.Carriers(parameter.Of)
-	names := make([]string, 0, len(carriers))
-	for name := range carriers {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		if carriers[name].IsLiveType(x.Name) {
-			c.Addf(at, "live_draw", "%s.%s draws %s from %s, which carries a callable; the current family-binding contract supplies no live boundary converter for that draw. Use an explicitly named live type in %s instead.", x.Parameter, x.Name, x.Name, name, model.LiveFile)
-			return
-		}
-	}
 }
 
 func (c *checker) tierViolation(at diag.Location, context int, name, file string) {

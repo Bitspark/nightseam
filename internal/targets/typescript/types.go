@@ -27,9 +27,22 @@ func (f *file) parameter(name string) (model.Parameter, bool) {
 func (f *file) bindingType(name string) string {
 	parameter, _ := f.parameter(name)
 	if parameter.IsFamily() {
-		return identFamilyBinding + "<" + name + ">"
+		return familyBindingType(name, f.family.Uses)
 	}
 	return "ValueAdapter<" + name + ">"
+}
+
+func familyBindingType(name string, uses []render.Use) string {
+	var keys []string
+	for _, use := range uses {
+		if use.Parameter == name && use.Type != "" {
+			keys = append(keys, quote(use.Type))
+		}
+	}
+	if len(keys) == 0 {
+		return identFamilyBinding + "<" + name + ">"
+	}
+	return identFamilyBinding + "<" + name + ", " + strings.Join(keys, " | ") + ">"
 }
 
 // Type parameters admit a value type; family parameters expose associated

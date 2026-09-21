@@ -5,6 +5,7 @@ import (
 	context "context"
 	json "encoding/json"
 	probeprotocol "example.test/generated/api/go/probe-protocol"
+	fmt "fmt"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -400,6 +401,12 @@ func AdapterAttachment[SHandle any](adapterSHandle runtime.ValueAdapter[SHandle]
 		Binding:      binding,
 		NeedsContext: adapterSHandle.NeedsContext,
 		Export: func(ctx context.Context, value Attachment[SHandle]) (json.RawMessage, error) {
+			if adapterSHandle.Export == nil || adapterSHandle.Import == nil {
+				return nil, fmt.Errorf("SHandle: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return nil, err
+			}
 			raw, err := ExportAttachment[SHandle](value, func(value SHandle) (json.RawMessage, error) { return adapterSHandle.Export(ctx, value) }, typeSHandle)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -408,6 +415,12 @@ func AdapterAttachment[SHandle any](adapterSHandle runtime.ValueAdapter[SHandle]
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Attachment[SHandle], error) {
 			var zero Attachment[SHandle]
+			if adapterSHandle.Export == nil || adapterSHandle.Import == nil {
+				return zero, fmt.Errorf("SHandle: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return zero, err
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}
@@ -424,6 +437,12 @@ func AdapterFrame[SEnvelope any](adapterSEnvelope runtime.ValueAdapter[SEnvelope
 		Binding:      binding,
 		NeedsContext: adapterSEnvelope.NeedsContext,
 		Export: func(ctx context.Context, value Frame[SEnvelope]) (json.RawMessage, error) {
+			if adapterSEnvelope.Export == nil || adapterSEnvelope.Import == nil {
+				return nil, fmt.Errorf("SEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return nil, err
+			}
 			raw, err := ExportFrame[SEnvelope](value, func(value SEnvelope) (json.RawMessage, error) { return adapterSEnvelope.Export(ctx, value) }, typeSEnvelope)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -432,6 +451,12 @@ func AdapterFrame[SEnvelope any](adapterSEnvelope runtime.ValueAdapter[SEnvelope
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Frame[SEnvelope], error) {
 			var zero Frame[SEnvelope]
+			if adapterSEnvelope.Export == nil || adapterSEnvelope.Import == nil {
+				return zero, fmt.Errorf("SEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return zero, err
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}
@@ -448,6 +473,12 @@ func AdapterFrames[SEnvelope any](adapterSEnvelope runtime.ValueAdapter[SEnvelop
 		Binding:      binding,
 		NeedsContext: adapterSEnvelope.NeedsContext,
 		Export: func(ctx context.Context, value Frames[SEnvelope]) (json.RawMessage, error) {
+			if adapterSEnvelope.Export == nil || adapterSEnvelope.Import == nil {
+				return nil, fmt.Errorf("SEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return nil, err
+			}
 			raw, err := ExportFrames[SEnvelope](value, func(value SEnvelope) (json.RawMessage, error) { return adapterSEnvelope.Export(ctx, value) }, typeSEnvelope)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -456,6 +487,12 @@ func AdapterFrames[SEnvelope any](adapterSEnvelope runtime.ValueAdapter[SEnvelop
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Frames[SEnvelope], error) {
 			var zero Frames[SEnvelope]
+			if adapterSEnvelope.Export == nil || adapterSEnvelope.Import == nil {
+				return zero, fmt.Errorf("SEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return zero, err
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}
