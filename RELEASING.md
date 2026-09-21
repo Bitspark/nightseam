@@ -231,9 +231,9 @@ node scripts/smoke-packed.mjs
 The release preparation also copies the notices, except with `--dry-run`,
 which reports that they were not copied.
 
-It needs no registry and no tag, which is what lets it run while this
-repository is still private. Two choices make that true, and each had an
-alternative:
+It needs no registry and no tag, which is what lets it run before a version
+exists and without cutting a tag that could never be moved. Two choices make
+that true, and each had an alternative:
 
 - **npm: a pnpm `overrides` map to the tarballs' paths**, rather than
   `pnpm add ./scratch/*.tgz`. The published packages depend on one another,
