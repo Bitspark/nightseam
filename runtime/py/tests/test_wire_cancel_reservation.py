@@ -35,13 +35,20 @@ class _Sink:
 class _Carrier:
     """An actual peer with a separately drained physical endpoint.
 
-    Only root event admission is paused. The socket writer and remote reader
-    keep running, so carrier backpressure cannot disguise the root's bound.
+    Only root event admission is paused. As in the Go reservation fixture,
+    physical output has its own larger bound and drains independently, so
+    carrier backpressure cannot disguise the root's one-data-slot bound.
     """
 
     def __init__(self):
         near, self.remote = pipe()
-        self.peer = Peer(near, options=Options(queue_capacity=1, max_pending_requests=1))
+
+        def prepare(peer):
+            # Install before writer startup; the root still observes the
+            # configured queue_capacity=1 and max_pending_requests=1.
+            peer._outgoing = asyncio.Queue(16)
+
+        self.peer = Peer(near, options=Options(queue_capacity=1, max_pending_requests=1, prepare=prepare))
         self.wire = self.peer.wire()
         self.frames = asyncio.Queue()
         self.ended = asyncio.get_running_loop().create_future()
