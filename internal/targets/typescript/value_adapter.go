@@ -9,12 +9,7 @@ import (
 )
 
 func familyValueSlots(family *render.Family) bool {
-	for _, parameter := range family.Parameters {
-		if parameter.Of == "" {
-			return true
-		}
-	}
-	return false
+	return len(family.Uses) > 0
 }
 
 func typeAdapterSupported(t *render.Type) bool {
@@ -43,7 +38,7 @@ func (f *file) emitValueAdapters() {
 			parameter, _ := f.parameter(use.Parameter)
 			if !seen[use.Parameter] {
 				if parameter.IsFamily() {
-					parameters = append(parameters, name+": FamilyBinding<"+use.Parameter+">")
+					parameters = append(parameters, name+": "+familyBindingType(use.Parameter, t.Uses))
 					bindings = append(bindings, quote(use.Parameter)+": "+name)
 				} else {
 					parameters = append(parameters, name+": ValueAdapter<"+use.Parameter+">")
@@ -58,8 +53,10 @@ func (f *file) emitValueAdapters() {
 			}
 			if parameter.IsFamily() {
 				typ := use.Parameter + "[" + quote(use.Type) + "]"
-				exports = append(exports, "("+owner+"value: "+typ+") => value")
-				imports = append(imports, "("+owner+"value: unknown) => value as "+typ)
+				adapter := "type_" + use.Parameter + "_" + use.Type
+				live = append(live, adapter+".needsContext")
+				exports = append(exports, "("+owner+"value: "+typ+") => "+adapter+".export(owner, value)")
+				imports = append(imports, "("+owner+"value: unknown) => "+adapter+".import(owner, value)")
 			} else {
 				exports = append(exports, "("+owner+"value: "+use.Parameter+") => "+name+".export(owner, value)")
 				imports = append(imports, "("+owner+"value: unknown) => "+name+".import(owner, value)")
@@ -69,6 +66,11 @@ func (f *file) emitValueAdapters() {
 			live = append(live, "false")
 		}
 		f.w.Block(fmt.Sprintf("export function %s%s(%s): ValueAdapter<%s> {", valueAdapterName(f.plan.types[t.Name]), f.declare(t.Uses), strings.Join(parameters, ", "), self), "}", func() {
+			for _, use := range t.Uses {
+				if use.Type != "" {
+					f.linef("const type_%s_%s = familyTypeAdapter(slot_%s, %s);", use.Parameter, use.Type, use.Parameter, quote(use.Type))
+				}
+			}
 			f.linef("const slots: Slots = { %s };", strings.Join(bindings, ", "))
 			f.linef("const binding: TypeBinding = { type: %s, validate: validateWire, slots };", quote(t.Name))
 			f.linef("const needsContext = %s;", strings.Join(live, " || "))
@@ -147,10 +149,12 @@ func (f *file) familyLiveCondition() string {
 		return "true"
 	}
 	var parts []string
-	for _, name := range parameters(f.family.Uses) {
-		if parameter, ok := f.parameter(name); ok && !parameter.IsFamily() {
-			parts = append(parts, bindingName(name)+".needsContext")
+	for _, use := range f.family.Uses {
+		value := bindingName(use.Parameter)
+		if use.Type != "" {
+			value += ".types[" + quote(use.Type) + "]"
 		}
+		parts = append(parts, value+".needsContext")
 	}
 	if len(parts) == 0 {
 		return "false"
@@ -170,6 +174,13 @@ func (f *file) operationSlot(e model.TypeExpr) string {
 			}
 			return receiver + bindingName(named.Name)
 		}
+	}
+	if drawn, ok := e.(model.Drawn); ok {
+		receiver := f.adapterReceiver
+		if receiver == "" {
+			receiver = "this."
+		}
+		return receiver + bindingName(drawn.Parameter) + ".types[" + quote(drawn.Name) + "]"
 	}
 	return ""
 }
