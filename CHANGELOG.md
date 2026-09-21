@@ -8,6 +8,11 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- A testee that will not build in a language whose tier ships provisional is
+  recorded absent — the testee named, with its build's exit status and last
+  output lines, in the matrix and the job summary — and the star continues
+  with the remaining pairings, where before any build failure ended the run.
+  Tier 1 and tier 2 and the nightly full matrix still fail on one.
 - The cancellation-budget test drains completion observations during admission
   retries, so its own observer cannot stall the peer after a handler returns.
 - Conformance build commands own their process trees and stop descendants on

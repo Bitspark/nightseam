@@ -2,6 +2,7 @@ package conformance
 
 import (
 	"fmt"
+	"html"
 	"os"
 	"slices"
 	"sort"
@@ -53,6 +54,11 @@ func (m *Matrix) summary(p *Profiles) string {
 			notes = append(notes, fmt.Sprintf("- `%s/%s`: %d failed, %d skipped (%s).", language, profile, cell.Failed, cell.Skipped, disposition))
 		}
 		b.WriteByte('\n')
+		for _, kind := range []string{"runtime", "generated"} {
+			if reason := m.absent[language][kind]; reason != "" {
+				notes = append(notes, fmt.Sprintf("- `%s`: %s testee absent — build failed (%s).\n\n<pre>%s</pre>\n", language, kind, verdict, html.EscapeString(reason)))
+			}
+		}
 	}
 	b.WriteString("\n### Provisional and other red cells\n\n")
 	if len(notes) == 0 {

@@ -91,6 +91,34 @@ func TestVerdictsFollowTheTierTable(t *testing.T) {
 			}
 		})
 	}
+	// A testee that would not build is the row's own state and not a cell's,
+	// so the verdict is the tier's disposition however the cells that did run
+	// read: a green row cannot stand for a language the run never held, and a
+	// row of nothing at all is the same absence with nothing beside it.
+	for _, language := range []string{"go", "second", "third", "fourth"} {
+		t.Run(language+"/absent-testee", func(t *testing.T) {
+			tier := p.Tiers[fmt.Sprint(p.Languages[language].Tier)]
+			green := NewMatrix(p)
+			for _, profile := range tier.Requires {
+				green.Record(language, profile, Outcome{})
+			}
+			if got := green.Verdict(p, language); got != "ok" {
+				t.Fatalf("the row before the absence is %s", got)
+			}
+			for _, m := range []*Matrix{green, NewMatrix(p)} {
+				m.recordAbsent(language, "runtime", "the fixture compiler refused the testee")
+				if got := m.Verdict(p, language); got != want[language] {
+					t.Errorf("absent testee: verdict %s, want %s", got, want[language])
+				}
+				if got, blocks := strings.Join(m.Blocking(p), ","), want[language] == "blocking"; (got == language) != blocks {
+					t.Errorf("absent testee: blocking %q, want %s among them: %v", got, language, blocks)
+				}
+			}
+			if table := green.String(); !strings.Contains(table, "runtime testee absent") || !strings.Contains(table, "the fixture compiler refused the testee") {
+				t.Errorf("the matrix does not say what is absent or why:\n%s", table)
+			}
+		})
+	}
 	for _, c := range []struct {
 		language, profile, verdict string
 		blocking                   bool

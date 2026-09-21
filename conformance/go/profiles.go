@@ -230,10 +230,11 @@ type Matrix struct {
 	profiles []string
 	rows     map[string]map[string]*profileCell
 	tiers    map[string]int
+	absent   map[string]map[string]string
 }
 
 func NewMatrix(p *Profiles) *Matrix {
-	m := &Matrix{rows: map[string]map[string]*profileCell{}, tiers: map[string]int{}}
+	m := &Matrix{rows: map[string]map[string]*profileCell{}, tiers: map[string]int{}, absent: map[string]map[string]string{}}
 	for name := range p.Profiles {
 		m.profiles = append(m.profiles, name)
 	}
@@ -242,6 +243,22 @@ func NewMatrix(p *Profiles) *Matrix {
 		m.tiers[language] = l.Tier
 	}
 	return m
+}
+
+// recordAbsent marks a language's row absent: the testee of that kind —
+// runtime or generated — would not build, and the reason is what the build
+// said. It is the row's own state and not a cell's, since a testee that
+// does not exist is not a scenario that failed; the row is made even where
+// nothing else recorded one, so that every reader of the matrix sees the
+// language rather than a gap.
+func (m *Matrix) recordAbsent(language, kind, reason string) {
+	if m.rows[language] == nil {
+		m.rows[language] = map[string]*profileCell{}
+	}
+	if m.absent[language] == nil {
+		m.absent[language] = map[string]string{}
+	}
+	m.absent[language][kind] = reason
 }
 
 // Record adds one outcome for a language in a profile.
@@ -270,7 +287,10 @@ func (m *Matrix) Record(language, profile string, o Outcome) {
 // cell of a required profile passed without skips or failures; else what the tier's
 // onFailure says — blocking, which stops a release; provisional, which
 // marks the language in the notes; blocking-next, a tier 2 language's
-// second failing release. A language of no tier is never blocking.
+// second failing release. A row the run marked absent — a testee that would
+// not build — reads the same way, whatever the cells beside it say, since a
+// green cell cannot stand for a testee nobody could build. A language of no
+// tier is never blocking.
 func (m *Matrix) Verdict(p *Profiles, language string) string {
 	l, ok := p.Languages[language]
 	if !ok {
@@ -281,6 +301,12 @@ func (m *Matrix) Verdict(p *Profiles, language string) string {
 		return "provisional"
 	}
 	row := m.rows[language]
+	if len(m.absent[language]) > 0 {
+		if tier.OnFailure == "stop" {
+			return "blocking"
+		}
+		return "provisional"
+	}
 	for _, profile := range tier.Requires {
 		if cell := row[profile]; cell != nil && (cell.Failed > 0 || cell.Skipped > 0) {
 			switch tier.OnFailure {
@@ -307,6 +333,11 @@ type languageReport struct {
 	Tier    int                    `json:"tier,omitempty"`
 	Verdict string                 `json:"verdict"`
 	Cells   map[string]profileCell `json:"cells"`
+	// State is "absent" where a testee of the row would not build, and
+	// Reasons is what each such build said, by kind: runtime, generated. A
+	// row that held every testee carries neither.
+	State   string            `json:"state,omitempty"`
+	Reasons map[string]string `json:"reasons,omitempty"`
 }
 
 // Write renders the matrix as JSON to file, rows and profiles sorted, so
@@ -318,7 +349,11 @@ func (m *Matrix) Write(p *Profiles, file string) error {
 		for profile, cell := range row {
 			cells[profile] = *cell
 		}
-		report.Languages[language] = languageReport{Tier: m.tiers[language], Verdict: m.Verdict(p, language), Cells: cells}
+		r := languageReport{Tier: m.tiers[language], Verdict: m.Verdict(p, language), Cells: cells}
+		if len(m.absent[language]) > 0 {
+			r.State, r.Reasons = "absent", m.absent[language]
+		}
+		report.Languages[language] = r
 	}
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
@@ -382,6 +417,11 @@ func (m *Matrix) String() string {
 			fmt.Fprintf(&b, " %-22s", fmt.Sprintf("%d passed %d skipped %d failed", cell.Passed, cell.Skipped, cell.Failed))
 		}
 		b.WriteString("\n")
+		for _, kind := range []string{"runtime", "generated"} {
+			if reason := m.absent[language][kind]; reason != "" {
+				fmt.Fprintf(&b, "  %s testee absent — build failed:\n%s\n", kind, indent(reason))
+			}
+		}
 	}
 	return b.String()
 }
