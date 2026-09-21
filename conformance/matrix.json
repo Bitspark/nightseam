@@ -22,7 +22,7 @@
           "failed": 0
         },
         "live": {
-          "passed": 15,
+          "passed": 16,
           "skipped": 0,
           "failed": 0
         },
@@ -32,7 +32,7 @@
           "failed": 0
         },
         "tunnel": {
-          "passed": 5,
+          "passed": 6,
           "skipped": 0,
           "failed": 0
         }
@@ -53,7 +53,7 @@
           "failed": 0
         },
         "live": {
-          "passed": 30,
+          "passed": 32,
           "skipped": 0,
           "failed": 0
         },
@@ -63,7 +63,7 @@
           "failed": 0
         },
         "tunnel": {
-          "passed": 10,
+          "passed": 12,
           "skipped": 0,
           "failed": 0
         }
