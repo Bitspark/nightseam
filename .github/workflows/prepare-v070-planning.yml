@@ -1,0 +1,111 @@
+# One-off metadata administration for the operator-authorized #346 plan.
+# This file exists only on its isolated administration branch, not on main.
+name: prepare v0.7.0 planning metadata
+on:
+  push:
+    branches: [issue-346-v070-planning-metadata]
+    paths: [.github/workflows/prepare-v070-planning.yml]
+permissions:
+  issues: write
+concurrency:
+  group: prepare-v070-planning-metadata
+  cancel-in-progress: false
+jobs:
+  metadata:
+    if: github.repository == 'Bitspark/nightseam'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create or reuse the milestone and link the approved planning issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, time, urllib.request, urllib.error
+          repo = os.environ['GH_REPO']
+          assert repo == 'Bitspark/nightseam'
+          base = 'https://api.github.com/repos/' + repo
+          token = os.environ['GH_TOKEN']
+          headers = {'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'nightseam-v070-planning'}
+          def api(path, method='GET', payload=None):
+              data = None if payload is None else json.dumps(payload).encode()
+              req = urllib.request.Request(base + path, data=data, headers=headers, method=method)
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      raw = response.read()
+                      result = json.loads(raw) if raw else None
+              except urllib.error.HTTPError as exc:
+                  detail = exc.read().decode('utf-8', 'replace')
+                  raise RuntimeError(f'{method} {path}: HTTP {exc.code}: {detail}') from None
+              if method != 'GET':
+                  time.sleep(0.5)
+              return result
+          def pages(path):
+              result = []
+              for page in range(1, 21):
+                  separator = '&' if '?' in path else '?'
+                  batch = api(path + separator + f'per_page=100&page={page}')
+                  assert isinstance(batch, list)
+                  result.extend(batch)
+                  if len(batch) < 100:
+                      return result
+              raise RuntimeError('Unexpected pagination size; refusing to proceed with partial input')
+          members = [346, 336, 337, 347, 349, 350, 352]
+          children = members[1:]
+          issues = {n: api(f'/issues/{n}') for n in members + [321, 323]}
+          for n in members:
+              assert 'pull_request' not in issues[n], f'#{n} is not an issue'
+              assert issues[n]['state'] == 'open', f'#{n} is no longer open; review before moving it'
+          matches = [m for m in pages('/milestones?state=all') if m['title'].strip().lower() in ('0.7.0', 'v0.7.0') or m['title'].strip().lower().startswith(('0.7.0 ', 'v0.7.0 '))]
+          if len(matches) > 1:
+              raise RuntimeError('Multiple 0.7.0 milestones; refusing to choose')
+          description = ('Opt-in identity and expiring delegated authority over wires. Planning epic #346; profile/ownership #336; invocation/enforcement #337. Reuse applicable Archon identity/signing; carry forward Thesmos delegation and authenticated-scope concepts without Logos proof representations/checking/search or the Thesmos runtime. Initial profile: consumer-selected fixed root, immutable signed grants, expiry and non-widening delegation; no revocation/status lookup, freshness epochs, mandatory accounts, or arbitrary policy engine. Early alignment #347 runs alongside 0.6.0 without adding auth to #320/#321/#323 release scope. Specification/vectors #349, integration evidence #350, assurance and public-install gates #352. Exact crypto formats, package ownership, APIs and supported roles require explicit decisions and evidence. No due date or release-publication authorization is implied.')
+          if matches:
+              milestone = matches[0]
+              if milestone['state'] != 'open':
+                  raise RuntimeError('Existing 0.7.0 milestone is closed; refusing to reopen silently')
+              if not milestone.get('description'):
+                  milestone = api(f"/milestones/{milestone['number']}", 'PATCH', {'description': description})
+              elif '#346' not in milestone['description']:
+                  milestone = api(f"/milestones/{milestone['number']}", 'PATCH', {'description': milestone['description'] + '\n\nPlanning alignment (2026-09-21):\n' + description})
+          else:
+              milestone = api('/milestones', 'POST', {'title': '0.7.0', 'state': 'open', 'description': description})
+          number = milestone['number']
+          print('MILESTONE', number, milestone['html_url'], flush=True)
+          for n in members:
+              current = api(f'/issues/{n}')
+              existing = current.get('milestone')
+              if existing and existing['number'] != number:
+                  raise RuntimeError(f'#{n} now has another milestone; refusing to move it')
+              wanted_type = 'Epic' if n == 346 else 'Task'
+              old_type = current.get('type')
+              if old_type and old_type.get('name') != wanted_type:
+                  raise RuntimeError(f'#{n} now has another issue type; refusing to overwrite it')
+              updated = api(f'/issues/{n}', 'PATCH', {'milestone': number, 'type': wanted_type})
+              assert updated['milestone']['number'] == number
+              assert (updated.get('type') or {}).get('name') == wanted_type, f'Issue type was not applied to #{n}'
+              issues[n] = updated
+              print('ISSUE', n, wanted_type, 'milestone', number, flush=True)
+          attached = {item['id'] for item in pages('/issues/346/sub_issues')}
+          for n in children:
+              if issues[n]['id'] not in attached:
+                  api('/issues/346/sub_issues', 'POST', {'sub_issue_id': issues[n]['id'], 'replace_parent': False})
+              print('CHILD', n, 'parent', 346, flush=True)
+          prerequisites = {349: [336], 350: [337, 349, 321, 323]}
+          for n, blockers in prerequisites.items():
+              present = {item['id'] for item in pages(f'/issues/{n}/dependencies/blocked_by')}
+              for blocker in blockers:
+                  if issues[blocker]['id'] not in present:
+                      api(f'/issues/{n}/dependencies/blocked_by', 'POST', {'issue_id': issues[blocker]['id']})
+                  print('DEPENDENCY', n, 'blocked_by', blocker, flush=True)
+          verified_children = {item['number'] for item in pages('/issues/346/sub_issues')}
+          assert set(children) <= verified_children
+          for n in members:
+              assert api(f'/issues/{n}')['milestone']['number'] == number
+          result = {'milestone': number, 'milestone_url': milestone['html_url'], 'epic': 346, 'members': members, 'native_children': sorted(verified_children), 'dependencies_added': prerequisites, 'main_modified': False}
+          print('VERIFIED', json.dumps(result), flush=True)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as out:
+              out.write('## Verified 0.7.0 planning metadata\n\n```json\n' + json.dumps(result, indent=2) + '\n```\n')
+          PY
