@@ -63,6 +63,8 @@ pub struct PublicError {
     pub message: String,
     #[serde(default, skip_serializing_if = "Payload::is_absent")]
     pub data: Payload,
+    #[serde(skip)]
+    unpublished: bool,
 }
 impl PublicError {
     pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
@@ -70,7 +72,29 @@ impl PublicError {
             code: code.into(),
             message: message.into(),
             data: Payload::Absent,
+            unpublished: false,
         }
+    }
+
+    /// Mark a failure as proof that this operation was refused before admission.
+    /// This is a local fact; an error received in a response cannot supply it.
+    pub fn unpublished(mut self) -> Self {
+        self.unpublished = true;
+        self
+    }
+
+    /// Whether the failing operation is proven not to have been published.
+    /// Error codes and messages alone never establish this fact.
+    pub fn is_unpublished(&self) -> bool {
+        self.unpublished
+    }
+
+    /// Remove downstream proof after this operation has already been admitted.
+    /// Forwarding and response boundaries must not transfer another operation's
+    /// pre-admission guarantee to their caller.
+    pub fn without_unpublished_proof(mut self) -> Self {
+        self.unpublished = false;
+        self
     }
 }
 impl fmt::Display for PublicError {
