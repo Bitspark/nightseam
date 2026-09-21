@@ -36,7 +36,7 @@ export interface Message {
   readonly return?: ReturnAddress;
 }
 export interface Receiver {
-  message?: (path: Path, message: Message) => void;
+  message?: (path: Path, message: Message) => void | Promise<void>;
   closed?: (code: number, reason: string) => void;
 }
 /**
@@ -154,7 +154,7 @@ export function mount(children: ReadonlyMap<string, Wire>): Wire {
       try {
         registration.detach = child.receive(path.slice(1), {
           message: (suffix, message) => {
-            if (registration.active) receiver.message?.(suffix, message);
+            if (registration.active) return receiver.message?.(suffix, message);
           },
           closed: (code, reason) => remove(registration, { code, reason }),
         });

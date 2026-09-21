@@ -1,5 +1,3 @@
-import type { RequestContext } from './peer.ts';
-
 /**
  * W3C Trace Context as the wire carries it: the two members verbatim, nothing
  * invented and nothing normalised. An absent member is the empty string, which
@@ -11,6 +9,11 @@ export interface Trace {
   tracestate?: string;
 }
 
+/** The trace-bearing part shared by physical-peer and opaque-wire contexts. */
+export interface TraceContext {
+  trace?: Trace;
+}
+
 /**
  * Where an incoming trace goes and what an outgoing frame carries. The runtime
  * imports no tracing library: an adapter for one replaces this hook, and the
@@ -18,9 +21,9 @@ export interface Trace {
  */
 export interface Propagator {
   /** Places an incoming frame's trace on the context its handler runs with. */
-  extract(context: RequestContext, trace: Trace | undefined): void;
+  extract(context: TraceContext, trace: Trace | undefined): void;
   /** What an outgoing frame carries: a child of the context's trace, or a new trace. */
-  inject(context: RequestContext | undefined): Trace;
+  inject(context: TraceContext | undefined): Trace;
 }
 
 /** `version-traceid-spanid-flags`, the one form the profile accepts, in its parts. */
@@ -53,7 +56,7 @@ export const defaultPropagator: Propagator = {
 };
 
 /** The members an incoming frame carries, verbatim: what a propagator extracts. */
-export function traceOf(frame: Record<string, unknown>): Trace | undefined {
+export function traceOf(frame: { readonly traceparent?: unknown; readonly tracestate?: unknown }): Trace | undefined {
   const traceparent = typeof frame.traceparent === 'string' ? frame.traceparent : '';
   const tracestate = typeof frame.tracestate === 'string' ? frame.tracestate : '';
   if (!traceparent && !tracestate) return undefined;

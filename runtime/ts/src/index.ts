@@ -15,7 +15,16 @@ export { NO_OBSERVER } from './observer.ts';
 export type { Observer, ObserverEvent, ObserverEvents } from './observer.ts';
 export { consoleObserver } from './console.ts';
 export { defaultPropagator } from './trace.ts';
-export type { Trace, Propagator } from './trace.ts';
+export type { Trace, TraceContext, Propagator } from './trace.ts';
+export { callWire, handleWire, emitWire, onWireEvent } from './wire.ts';
+export type {
+  WireRequestContext,
+  WireCallOptions,
+  WireEmitOptions,
+  WireEventContext,
+  WireHandler,
+  WireEventListener,
+} from './wire.ts';
 export { webSocketConnection } from '@nightseam/duplex';
 export type { Frame, ConnectionState, ConnectionHandlers, FrameConnection, WebSocketLike } from '@nightseam/duplex';
 export { createValidator } from './validate.ts';
