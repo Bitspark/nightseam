@@ -43,20 +43,40 @@ func TestGenericCompositionIndependentRoutes(t *testing.T) {
 	directory := t.TempDir()
 	k, _ := toolKernel(load.Config{}, module, scope, "")
 	world := k.Load(os.DirFS(filepath.Join(root, "conformance/corpora/generic-composition")), "api/contracts")
-	for _, name := range []string{"functions", "numbers", "texts", "holder", "compose-cell"} {
-		result, err := k.Render(world, name)
+	// The concrete source names live provider records directly, so its types
+	// and operations belong in live.json. The generic source stays in protocol:
+	// its supplied interpretations remain neutral until consumer construction.
+	sourceRoot := t.TempDir()
+	copyFixtureTree(t, filepath.Join(root, "conformance/corpora/generic-composition/api/contracts"), filepath.Join(sourceRoot, "api/contracts"))
+	protocolPath := "api/contracts/holder/protocol.json"
+	data, err := os.ReadFile(filepath.Join(sourceRoot, protocolPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var protocol map[string]json.RawMessage
+	if err := json.Unmarshal(data, &protocol); err != nil {
+		t.Fatal(err)
+	}
+	live := map[string]json.RawMessage{}
+	for _, key := range []string{"types", "server", "client"} {
+		live[key] = protocol[key]
+		delete(protocol, key)
+	}
+	for file, document := range map[string]map[string]json.RawMessage{protocolPath: protocol, "api/contracts/holder/live.json": live} {
+		data, err := json.Marshal(document)
 		if err != nil {
 			t.Fatal(err)
 		}
-		writeAll(t, directory, result.Files)
+		writeFixture(t, sourceRoot, file, data)
 	}
+	sourceWorld := k.Load(os.DirFS(sourceRoot), "api/contracts")
 	for _, provider := range []string{"numbers", "texts"} {
-		bound := *world
-		bound.Families = make(map[string]*model.Family, len(world.Families))
-		for name, family := range world.Families {
+		bound := *sourceWorld
+		bound.Families = make(map[string]*model.Family, len(sourceWorld.Families))
+		for name, family := range sourceWorld.Families {
 			bound.Families[name] = family
 		}
-		bound.Families["holder"] = oracle.Substitute(world.Families["holder"], map[string]string{"S": provider})
+		bound.Families["holder"] = oracle.Substitute(sourceWorld.Families["holder"], map[string]string{"S": provider})
 		base := "bound/" + provider
 		plain := kernel.New(
 			golang.New(golang.Config{Module: module, Place: map[string]golang.Layout{"holder": {Protocol: base + "/go/{family}-protocol", Binding: base + "/go/{family}-binding", Client: base + "/go/{family}-client"}}}),
@@ -65,6 +85,13 @@ func TestGenericCompositionIndependentRoutes(t *testing.T) {
 		result, err := plain.Render(&bound, "holder")
 		if err != nil {
 			t.Fatalf("source specialization for %s: %v", provider, err)
+		}
+		writeAll(t, directory, result.Files)
+	}
+	for _, name := range []string{"functions", "numbers", "texts", "holder", "compose-cell"} {
+		result, err := k.Render(world, name)
+		if err != nil {
+			t.Fatal(err)
 		}
 		writeAll(t, directory, result.Files)
 	}
