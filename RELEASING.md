@@ -22,7 +22,10 @@ a permanent compatibility policy for consumers of future releases.
 The 0.6.0 candidate requires the completed
 [#365 generic composition workstream](https://github.com/Bitspark/nightseam/issues/365)
 and its [#370 combined acceptance](https://github.com/Bitspark/nightseam/issues/370).
-The candidate task must name #370 as a native prerequisite. Run
+The candidate task must name #370 and the adopted public Bitwire contract under
+[#421](https://github.com/Bitspark/nightseam/issues/421) as native prerequisites.
+Run `node scripts/bitwire-conformance.mjs` against the candidate and require
+its public dependency and installed-consumer evidence. Run
 `go test ./cmd/nightseam -run '^TestGenericComposition'`, the complete
 conformance suite and `node scripts/smoke-packed.mjs` against the actual
 candidate. The packed smoke generates and executes both closed callables and
