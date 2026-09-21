@@ -8,6 +8,8 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- The Java WebSocket transport finishes its bounded close handshake before
+  publishing closure, and the peer's terminal winner owns the transport action.
 - Give each language testee build its own bounded deadline.
 - The generated composition fixture waits for worker completion before
   asserting finished cancellation, preserving the final callback race.
