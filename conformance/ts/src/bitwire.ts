@@ -422,7 +422,7 @@ async function sameIDDelayedReplies() {
   const view = router.select(['service']),
     requests: Message[] = [],
     capturedReturnIdentities: boolean[] = [];
-  let signal = deferred<void>();
+  let signal: ReturnType<typeof deferred<void>>;
   const stop = view.receive({
     message(_path, message) {
       requests.push(message);
@@ -432,7 +432,7 @@ async function sameIDDelayedReplies() {
   });
   const lateReplies: string[] = [],
     replyIDs: string[] = [];
-  let replied = deferred<void>();
+  let replied: ReturnType<typeof deferred<void>>;
   for (const [name, payload] of [
     ['left', 'first'],
     ['right', 'second'],
