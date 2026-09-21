@@ -35,6 +35,7 @@ export { createValidator } from './validate.ts';
 export { familyTypeAdapter } from './family-adapter.ts';
 export { validateDrawnType } from './validate.ts';
 export { withDeclaration, boundDeclaration, declarationDigest, typeDeclaration } from './declaration_identity.ts';
+export { callableIdentity } from './callable_identity.ts';
 export { IDENTITY_METHOD, checkIdentity, identityHandler } from './identity.ts';
 export type { DeclarationIdentity } from './identity.ts';
 export { prepareIdentity } from './identity_wire.ts';

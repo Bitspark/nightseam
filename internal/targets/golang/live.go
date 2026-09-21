@@ -48,7 +48,7 @@ func (p *plan) planLive() {
 		p.imports_[t.Name] = identImport + name
 		p.declare(p.packages, p.exports[t.Name], t.At, "live export function")
 		p.declare(p.packages, p.imports_[t.Name], t.At, "live import function")
-		if t.Kind == model.KindCallable {
+		if _, callable := f.CallableView(t); callable {
 			p.contracts[t.Name] = identContract + name
 			p.declare(p.packages, p.contracts[t.Name], t.At, "callable contract constant")
 		}
@@ -64,15 +64,16 @@ func (f *file) emitLive() {
 		f.uses = t.Uses
 		f.codecs = t.Uses
 		f.scopedCodecs = t.IsLive
-		switch t.Kind {
-		case model.KindCallable:
-			f.emitCallable(t)
-		default:
+		f.adapters = t.IsLive && len(t.Uses) > 0
+		if callable, ok := f.family.CallableView(t); ok {
+			f.emitCallable(callable)
+		} else {
 			f.emitLiveConversion(t)
 		}
 	}
 	f.codecs = nil
 	f.scopedCodecs = false
+	f.adapters = false
 	f.uses = f.family.Uses
 }
 
@@ -81,6 +82,10 @@ func (f *file) emitLive() {
 // boundary.
 func (f *file) emitCallable(t *render.Type) {
 	name := f.plan.types[t.Name]
+	self := name + apply(t.Uses)
+	generic := len(t.Uses) > 0
+	alias := t.Declaration.Kind == model.KindAlias
+	applied := generic || alias
 	json := f.std("json")
 	owner := f.live() + ".Owner"
 	f.line("")
@@ -88,19 +93,38 @@ func (f *file) emitCallable(t *render.Type) {
 		f.linef("// %s: %s", name, t.Description)
 	}
 	f.linef("// A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime.")
-	f.linef("type %s = func(ctx %s.Context, %s) %s", name, f.std("context"), f.callableParam(t), f.callableResult(t))
+	if !alias {
+		f.linef("type %s%s = func(ctx %s.Context, %s) %s", name, declare(t.Uses), f.std("context"), f.callableParam(t), f.callableResult(t))
+	}
 	f.line("")
 	f.linef("// %s is the declaration a reference to %s carries. It is nominal: a reference is usable exactly where this callable is expected.", f.plan.contracts[t.Name], name)
-	f.linef("const %s = %s", f.plan.contracts[t.Name], quote(t.Contract))
+	contract, digest := f.plan.contracts[t.Name], identWireDigest+"()"
+	if applied {
+		f.w.Block(fmt.Sprintf("func %s%s(%s) (%s.DeclarationIdentity, error) {", contract, declare(t.Uses), strings.TrimPrefix(f.completeParameters(t), ", "), f.runtime()), "}", func() {
+			f.adapterRecipes(t.Uses, f.runtime()+".DeclarationIdentity{}, ")
+			f.linef("binding := %s.TypeBinding{Schema: %s, Type: %s}", f.runtime(), f.boundSchema(t.Uses), f.typeExpression(t))
+			f.linef("return %s.CallableIdentity(binding)", f.runtime())
+		})
+		contract, digest = "contract.Path", "contract.Digest"
+	} else {
+		f.linef("const %s = %s", contract, quote(t.Contract))
+	}
 	f.line("")
 	f.linef("// %s makes a binding of a local %s and writes the reference that names it.", f.plan.exports[t.Name], name)
-	f.w.Block(fmt.Sprintf("func %s(owner *%s, v %s) (%s.RawMessage, error) {", f.plan.exports[t.Name], owner, name, json), "}", func() {
+	f.w.Block(fmt.Sprintf("func %s%s(owner *%s, v %s%s) (%s.RawMessage, error) {", f.plan.exports[t.Name], declare(t.Uses), owner, self, f.completeParameters(t), json), "}", func() {
 		f.linef("if owner == nil { return nil, %s.Errorf(\"%s: a live value is exported into an owner\") }", f.std("fmt"), name)
 		f.linef("if v == nil { return nil, %s.Errorf(\"%s: no implementation to export\") }", f.std("fmt"), name)
+		if applied {
+			f.linef("contract, err := %s%s(%s)", f.plan.contracts[t.Name], apply(t.Uses), strings.TrimPrefix(f.completeArguments(t), ", "))
+			f.line("if err != nil { return nil, err }")
+		}
 		f.w.Block(fmt.Sprintf("return owner.ExportValue(func(owner *%s) (%s.RawMessage, error) {", owner, json), "})", func() {
-			f.w.Block(fmt.Sprintf("reference, err := owner.Export(%s, %s(), func(ctx %s.Context, request %s.RawMessage) (%s.RawMessage, error) {", f.plan.contracts[t.Name], identWireDigest, f.std("context"), json, json), "})", func() {
+			f.w.Block(fmt.Sprintf("reference, err := owner.Export(%s, %s, func(ctx %s.Context, request %s.RawMessage) (%s.RawMessage, error) {", contract, digest, f.std("context"), json, json), "})", func() {
 				f.line("owner := owner.Child()")
 				f.linef("ctx = %s.WithOwner(ctx, owner)", f.live())
+				if generic && (f.needsConversion(t.Request) || f.needsConversion(t.Result)) {
+					f.linef("environment := %s.AdapterContext{ValueEnvironment: %s.ValueEnvironment(owner.Scope())}", f.runtime(), f.live())
+				}
 				if t.Request != nil {
 					f.linef("if err := %s; err != nil { return nil, err }", f.validateExpression(t.Request, "request"))
 					// A callable's own request is converted like any other
@@ -125,11 +149,15 @@ func (f *file) emitCallable(t *render.Type) {
 	})
 	f.line("")
 	f.linef("// %s is a %s that calls the binding a reference names.", f.plan.imports_[t.Name], name)
-	f.w.Block(fmt.Sprintf("func %s(owner *%s, raw %s.RawMessage) (%s, error) {", f.plan.imports_[t.Name], owner, json, name), "}", func() {
+	f.w.Block(fmt.Sprintf("func %s%s(owner *%s, raw %s.RawMessage%s) (%s, error) {", f.plan.imports_[t.Name], declare(t.Uses), owner, json, f.completeParameters(t), self), "}", func() {
 		f.linef("if owner == nil { return nil, %s.Errorf(\"%s: a live value is imported into an owner\") }", f.std("fmt"), name)
+		if applied {
+			f.linef("contract, err := %s%s(%s)", f.plan.contracts[t.Name], apply(t.Uses), strings.TrimPrefix(f.completeArguments(t), ", "))
+			f.line("if err != nil { return nil, err }")
+		}
 		f.line("reference, err := owner.Scope().Decode(raw)")
 		f.line("if err != nil { return nil, err }")
-		f.linef("invoke, err := owner.Import(reference, %s, %s())", f.plan.contracts[t.Name], identWireDigest)
+		f.linef("invoke, err := owner.Import(reference, %s, %s)", contract, digest)
 		f.line("if err != nil { return nil, err }")
 		carriesLive := f.needsConversion(t.Request) || f.needsConversion(t.Result)
 		if carriesLive {
@@ -148,6 +176,10 @@ func (f *file) emitCallable(t *render.Type) {
 				f.linef("if supplied, ok := %s.OwnerOf(ctx); ok && supplied.Scope() == scope {", f.live())
 				f.line("owner = supplied")
 				f.line("}")
+				if generic {
+					f.linef("ctx = %s.WithOwner(ctx, owner)", f.live())
+					f.linef("environment := %s.AdapterContext{ValueEnvironment: %s.ValueEnvironment(scope)}", f.runtime(), f.live())
+				}
 			}
 			f.emitCallableInvoke(t, zero)
 		})
@@ -208,6 +240,10 @@ func callArgument(t *render.Type) string {
 // alias: the pair that converts it, and the refusal that says a live value has
 // no encoding of its own.
 func (f *file) emitLiveConversion(t *render.Type) {
+	if t.IsLive && len(t.Uses) > 0 {
+		f.emitCompleteLiveConversion(t)
+		return
+	}
 	name := f.plan.types[t.Name]
 	json := f.std("json")
 	self := f.spell(model.Named{Name: t.Name})

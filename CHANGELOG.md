@@ -57,6 +57,11 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Declared Go and TypeScript callables accept fixed type arguments, including
+  nested callables and live values. Complete adapters compose both conversion
+  directions under each invocation's context. Applied names and digests retain
+  nominal origin and argument revisions; source aliases emit independent
+  specialized conversion bodies with the same identity.
 - Generated Go and TypeScript family parameters supply complete interpretations
   of plain associated records containing callables. Constructors reject missing
   or mixed-family converters before model construction, and nested conversions

@@ -180,6 +180,8 @@ func (r *Family) surfaceReferences() {
 			visit(field.Type)
 		}
 		visit(t.Alias)
+		visit(t.Request)
+		visit(t.Result)
 		for _, base := range t.Bases {
 			add(base.Type.Origin.Family)
 			arguments(base.Type.Arguments)

@@ -56,6 +56,9 @@ func useExpression(use render.Use) model.TypeExpr {
 }
 
 func (f *file) converterParameters(t *render.Type, export bool) string {
+	if t.IsLive && len(t.Uses) > 0 {
+		return ", " + f.completeParameters(t.Uses)
+	}
 	var out strings.Builder
 	for _, use := range t.Uses {
 		from, to := f.spell(useExpression(use)), "unknown"
@@ -88,7 +91,7 @@ func (f *file) parameterConverter(e model.TypeExpr) string {
 }
 
 func (f *file) needsConversion(e model.TypeExpr) bool {
-	if f.operationSlot(e) != "" {
+	if f.valueSlot(e) != "" {
 		return true
 	}
 	if f.parameterConverter(e) != "" {
@@ -129,6 +132,10 @@ func (f *file) conversionCall(e model.TypeExpr, src string, export bool) string 
 		src = "(" + src + ") as " + f.spell(e)
 	}
 	passed = append(passed, src)
+	if t.IsLive && len(arguments) > 0 {
+		passed = append(passed, f.completeArguments(arguments)...)
+		return f.liveCall(e, export) + f.renderArguments(arguments) + "(" + strings.Join(passed, ", ") + ")"
+	}
 	for _, argument := range arguments {
 		expr := argument.Expression()
 		from, to := f.spell(expr), "unknown"

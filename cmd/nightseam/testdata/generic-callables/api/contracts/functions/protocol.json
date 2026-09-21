@@ -1,0 +1,4 @@
+{
+  "profile":"nightseam.duplex/1",
+  "types":{"Bundle":{"kind":"record","parameters":[{"name":"T"}],"fields":[{"name":"borrowed","type":"T"},{"name":"fresh","type":{"array":"T"}}]}}
+}
