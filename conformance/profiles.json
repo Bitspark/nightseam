@@ -16,6 +16,7 @@
   "languages": {
     "go": {"tier": 1, "reference": true},
     "typescript": {"tier": 1},
+    "cpp": {"tier": 4},
     "swift": {"tier": 4},
     "java": {"tier": 4},
     "python": {"tier": 4},

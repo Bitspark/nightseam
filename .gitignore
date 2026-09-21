@@ -14,6 +14,7 @@ conformance/*/.generated/
 secrets/
 .worktrees/
 target/
+.build/
 .venv/
 __pycache__/
 *.egg-info/
