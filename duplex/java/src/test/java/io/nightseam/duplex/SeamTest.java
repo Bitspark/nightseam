@@ -43,6 +43,7 @@ public final class SeamTest {
             }
         });
         pipeAdmission();
+        remoteCloseDuringWrite();
         pathViews();
         nativeServerProtocol();
         nativeClientProtocol();
@@ -110,11 +111,21 @@ public final class SeamTest {
             try {
                 sender.send(frame("text", "😀".repeat(256)), WAIT);
                 equal(string(receiver.receive(WAIT)), "😀".repeat(256), "inclusive UTF-8 byte limit");
-                sender.send(frame("text", "😀".repeat(256) + "x"), WAIT);
+                // The receiver can reject the length from the header and
+                // close before the sender finishes publishing the payload.
+                // A failed write is valid only with the required remote end.
+                IOException writing = null;
+                try { sender.send(frame("text", "😀".repeat(256) + "x"), WAIT); }
+                catch (IOException rejected) { writing = rejected; }
                 Connection limited = receiver;
-                closeCode(() -> limited.receive(WAIT), 1009);
-                closeCode(() -> limited.receive(WAIT), 1009);
-                equal(receiver.closed().get(5, TimeUnit.SECONDS).code(), 1009, "oversize completion");
+                try {
+                    closeCode(() -> limited.receive(WAIT), 1009);
+                    closeCode(() -> limited.receive(WAIT), 1009);
+                    equal(receiver.closed().get(5, TimeUnit.SECONDS).code(), 1009, "oversize completion");
+                } catch (Exception | AssertionError failure) {
+                    if (writing != null) failure.addSuppressed(writing);
+                    throw failure;
+                }
             } finally { abort(pair); }
 
             for (int code : new int[] { 1000, 1001, 1002, 1003, 1007, 1008, 1009, 1011, 4011 }) {
@@ -172,6 +183,39 @@ public final class SeamTest {
             pair[1].abort();
             blocked.get(2, TimeUnit.SECONDS);
         } finally { abort(pair); }
+    }
+
+    private static void remoteCloseDuringWrite() throws Exception {
+        try (ServerSocket server = new ServerSocket()) {
+            // A frame much larger than this window cannot finish while the
+            // far side reads only its header and then resets the connection.
+            server.setReceiveBufferSize(1024);
+            server.bind(new java.net.InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 1);
+            CompletableFuture<Void> reset = run(() -> {
+                try (Socket socket = server.accept()) {
+                    socket.setSoTimeout(5000);
+                    String request = rawHeaders(socket.getInputStream());
+                    String key = Arrays.stream(request.split("\r\n")).filter(line -> line.startsWith("Sec-WebSocket-Key: ")).findFirst().orElseThrow().substring(19);
+                    String accept = Base64.getEncoder().encodeToString(java.security.MessageDigest.getInstance("SHA-1")
+                            .digest((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").getBytes(StandardCharsets.US_ASCII)));
+                    socket.getOutputStream().write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: "
+                            + accept + "\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+                    equal(socket.getInputStream().read(), 0x82, "partial binary frame before remote reset");
+                    equal(socket.getInputStream().read(), 0xff, "masked large frame before remote reset");
+                    equal(socket.getInputStream().readNBytes(12).length, 12, "length and mask published before remote reset");
+                    check(socket.getInputStream().read() != -1, "payload started before remote reset");
+                    socket.setSoLinger(true, 0);
+                }
+            });
+            URI uri = URI.create("ws://127.0.0.1:" + server.getLocalPort() + "/");
+            Connection connection = WebSocketTransport.dial(uri, 1024, List.of());
+            try {
+                expect(IOException.class, () -> connection.send(new Frame("binary", new byte[8 << 20]), WAIT));
+                reset.get(5, TimeUnit.SECONDS);
+                equal(connection.closed().get(5, TimeUnit.SECONDS).code(), 1006, "mid-write reset ends transport");
+                expect(CloseException.class, () -> connection.send(frame("text", "after reset"), WAIT));
+            } finally { connection.abort(); }
+        }
     }
 
     private static void pathViews() throws Exception {
