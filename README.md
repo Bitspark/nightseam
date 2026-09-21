@@ -24,10 +24,11 @@ inline shapes, type and family parameters, and inherited operations. The live
 tier adds callable values — functions that may take or return functions, and
 generic data containers applied to them — with scoped export, import and
 release. The [changelog](CHANGELOG.md) records the implemented forms and the
-removal of the governed session layer. Generic callables and live types drawn
-through family parameters remain unsupported; the
+removal of the governed session layer. Closed generic callables and live types
+drawn through family parameters use complete conversion adapters with the
+active invocation's ownership context. The
 [generated surface](docs/declaration/generated.md#generic-boundary-helpers)
-distinguishes those limits.
+describes their construction and validation.
 
 Nightseam implements the typed-access foundation and planned optional rooted-grant
 authentication. It will adopt the shared Wire contract from Bitwire when ready,
@@ -134,13 +135,13 @@ pairing.
 <!-- matrix:start -->
 | language | tier | core | generator | tunnel | live | observability | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `cpp` | 4 | ✓ | — 68 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
+| `cpp` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
 | `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
-| `haskell` | 4 | ✓ | — 68 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
-| `java` | 4 | ✓ | — 68 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
-| `python` | 4 | ✓ | — 68 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
-| `rust` | 4 | ✓ | — 68 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
-| `swift` | 4 | ✓ | — 68 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
+| `haskell` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
+| `java` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
+| `python` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
+| `rust` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
+| `swift` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
 | `typescript` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
 
 Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2.

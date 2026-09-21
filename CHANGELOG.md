@@ -62,6 +62,11 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Combined Go and TypeScript acceptance exercises closed callable applications
+  and two-provider family draws through one Cell model across local Wires,
+  sockets, channels and two-connection forwarding. Independent specialization,
+  nested rollback, retained values and installed consumer fixtures hold the
+  same constructions beyond the generator's own rendering tests.
 - Generated Go and TypeScript side packages derive typed outgoing event unions
   and record/follow helpers. Closed declaration identity is checked before
   history setup or replay; ordinary event conversion preserves live-reference

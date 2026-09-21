@@ -1,0 +1,4213 @@
+{
+  "description": "Both generated routes, two provider families with two associated live members, and retained values on one unchanged Cell. Counts are observed before releasing explicit owners; carrier teardown is later. No selection adds a physical peer.",
+  "rows": [
+    {
+      "name": "generic-function-local",
+      "mode": "local",
+      "slot": "generic-function",
+      "client_slot": "generic-function",
+      "presentation": "local",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 5,
+            "imports": 5
+          },
+          "callee": {
+            "exports": 5,
+            "imports": 5
+          }
+        },
+        "noted": 6,
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "generic-function-mounted",
+      "mode": "local",
+      "slot": "generic-function",
+      "client_slot": "generic-function",
+      "presentation": "mounted",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 5,
+            "imports": 5
+          },
+          "callee": {
+            "exports": 5,
+            "imports": 5
+          }
+        },
+        "noted": 6,
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "generic-function-forwarded",
+      "mode": "local",
+      "slot": "generic-function",
+      "client_slot": "generic-function",
+      "presentation": "forwarded",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 5,
+            "imports": 5
+          },
+          "callee": {
+            "exports": 5,
+            "imports": 5
+          }
+        },
+        "noted": 6,
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "generic-function-socket-local",
+      "mode": "carrier",
+      "slot": "generic-function",
+      "client_slot": "generic-function",
+      "presentation": "local",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "generic-function-socket-mounted",
+      "mode": "carrier",
+      "slot": "generic-function",
+      "client_slot": "generic-function",
+      "presentation": "mounted",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "generic-function-socket-forwarded",
+      "mode": "carrier",
+      "slot": "generic-function",
+      "client_slot": "generic-function",
+      "presentation": "forwarded",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "generic-function-channel-local",
+      "mode": "carrier",
+      "slot": "generic-function",
+      "client_slot": "generic-function",
+      "presentation": "local",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "generic-function-channel-mounted",
+      "mode": "carrier",
+      "slot": "generic-function",
+      "client_slot": "generic-function",
+      "presentation": "mounted",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "generic-function-channel-forwarded",
+      "mode": "carrier",
+      "slot": "generic-function",
+      "client_slot": "generic-function",
+      "presentation": "forwarded",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "generic-function-socket-mounted",
+      "mode": "bridge",
+      "slot": "generic-function",
+      "client_slot": "generic-function",
+      "presentation": "mounted",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "bridge": {
+        "origin": {
+          "exports": 5,
+          "imports": 5
+        },
+        "destination": {
+          "exports": 5,
+          "imports": 5
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "name": "generic-function-socket-forwarded",
+      "mode": "bridge",
+      "slot": "generic-function",
+      "client_slot": "generic-function",
+      "presentation": "forwarded",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "bridge": {
+        "origin": {
+          "exports": 5,
+          "imports": 5
+        },
+        "destination": {
+          "exports": 5,
+          "imports": 5
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "name": "integer-function-local",
+      "mode": "local",
+      "slot": "integer-function",
+      "client_slot": "integer-function",
+      "presentation": "local",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 5,
+            "imports": 5
+          },
+          "callee": {
+            "exports": 5,
+            "imports": 5
+          }
+        },
+        "noted": 6,
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "integer-function-mounted",
+      "mode": "local",
+      "slot": "integer-function",
+      "client_slot": "integer-function",
+      "presentation": "mounted",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 5,
+            "imports": 5
+          },
+          "callee": {
+            "exports": 5,
+            "imports": 5
+          }
+        },
+        "noted": 6,
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "integer-function-forwarded",
+      "mode": "local",
+      "slot": "integer-function",
+      "client_slot": "integer-function",
+      "presentation": "forwarded",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 5,
+            "imports": 5
+          },
+          "callee": {
+            "exports": 5,
+            "imports": 5
+          }
+        },
+        "noted": 6,
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "integer-function-socket-local",
+      "mode": "carrier",
+      "slot": "integer-function",
+      "client_slot": "integer-function",
+      "presentation": "local",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "integer-function-socket-mounted",
+      "mode": "carrier",
+      "slot": "integer-function",
+      "client_slot": "integer-function",
+      "presentation": "mounted",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "integer-function-socket-forwarded",
+      "mode": "carrier",
+      "slot": "integer-function",
+      "client_slot": "integer-function",
+      "presentation": "forwarded",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "integer-function-channel-local",
+      "mode": "carrier",
+      "slot": "integer-function",
+      "client_slot": "integer-function",
+      "presentation": "local",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "integer-function-channel-mounted",
+      "mode": "carrier",
+      "slot": "integer-function",
+      "client_slot": "integer-function",
+      "presentation": "mounted",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "integer-function-channel-forwarded",
+      "mode": "carrier",
+      "slot": "integer-function",
+      "client_slot": "integer-function",
+      "presentation": "forwarded",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "integer-function-socket-mounted",
+      "mode": "bridge",
+      "slot": "integer-function",
+      "client_slot": "integer-function",
+      "presentation": "mounted",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "bridge": {
+        "origin": {
+          "exports": 5,
+          "imports": 5
+        },
+        "destination": {
+          "exports": 5,
+          "imports": 5
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "name": "integer-function-socket-forwarded",
+      "mode": "bridge",
+      "slot": "integer-function",
+      "client_slot": "integer-function",
+      "presentation": "forwarded",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "bridge": {
+        "origin": {
+          "exports": 5,
+          "imports": 5
+        },
+        "destination": {
+          "exports": 5,
+          "imports": 5
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "name": "generic-factory-local",
+      "mode": "local",
+      "slot": "generic-factory",
+      "client_slot": "generic-factory",
+      "presentation": "local",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "retained": 9,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 22,
+            "imports": 22
+          },
+          "callee": {
+            "exports": 22,
+            "imports": 22
+          }
+        },
+        "noted": 9,
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "generic-factory-mounted",
+      "mode": "local",
+      "slot": "generic-factory",
+      "client_slot": "generic-factory",
+      "presentation": "mounted",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "retained": 9,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 22,
+            "imports": 22
+          },
+          "callee": {
+            "exports": 22,
+            "imports": 22
+          }
+        },
+        "noted": 9,
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "generic-factory-forwarded",
+      "mode": "local",
+      "slot": "generic-factory",
+      "client_slot": "generic-factory",
+      "presentation": "forwarded",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "retained": 9,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 22,
+            "imports": 22
+          },
+          "callee": {
+            "exports": 22,
+            "imports": 22
+          }
+        },
+        "noted": 9,
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "generic-factory-socket-local",
+      "mode": "carrier",
+      "slot": "generic-factory",
+      "client_slot": "generic-factory",
+      "presentation": "local",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "retained": 9,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 21,
+          "imports": 21
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 10,
+        "noted": 9,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 23,
+          "imports": 23
+        }
+      }
+    },
+    {
+      "name": "generic-factory-socket-mounted",
+      "mode": "carrier",
+      "slot": "generic-factory",
+      "client_slot": "generic-factory",
+      "presentation": "mounted",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "retained": 9,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 21,
+          "imports": 21
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 10,
+        "noted": 9,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 23,
+          "imports": 23
+        }
+      }
+    },
+    {
+      "name": "generic-factory-socket-forwarded",
+      "mode": "carrier",
+      "slot": "generic-factory",
+      "client_slot": "generic-factory",
+      "presentation": "forwarded",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "retained": 9,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 21,
+          "imports": 21
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 10,
+        "noted": 9,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 23,
+          "imports": 23
+        }
+      }
+    },
+    {
+      "name": "generic-factory-channel-local",
+      "mode": "carrier",
+      "slot": "generic-factory",
+      "client_slot": "generic-factory",
+      "presentation": "local",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "retained": 9,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 21,
+          "imports": 21
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 10,
+        "noted": 9,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 23,
+          "imports": 23
+        }
+      }
+    },
+    {
+      "name": "generic-factory-channel-mounted",
+      "mode": "carrier",
+      "slot": "generic-factory",
+      "client_slot": "generic-factory",
+      "presentation": "mounted",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "retained": 9,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 21,
+          "imports": 21
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 10,
+        "noted": 9,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 23,
+          "imports": 23
+        }
+      }
+    },
+    {
+      "name": "generic-factory-channel-forwarded",
+      "mode": "carrier",
+      "slot": "generic-factory",
+      "client_slot": "generic-factory",
+      "presentation": "forwarded",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "retained": 9,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 21,
+          "imports": 21
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 10,
+        "noted": 9,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 23,
+          "imports": 23
+        }
+      }
+    },
+    {
+      "name": "generic-factory-socket-mounted",
+      "mode": "bridge",
+      "slot": "generic-factory",
+      "client_slot": "generic-factory",
+      "presentation": "mounted",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "retained": 9,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 21,
+          "imports": 21
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 10,
+        "noted": 9,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 23,
+          "imports": 23
+        }
+      },
+      "bridge": {
+        "origin": {
+          "exports": 23,
+          "imports": 23
+        },
+        "destination": {
+          "exports": 23,
+          "imports": 23
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "name": "generic-factory-socket-forwarded",
+      "mode": "bridge",
+      "slot": "generic-factory",
+      "client_slot": "generic-factory",
+      "presentation": "forwarded",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "retained": 9,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 21,
+          "imports": 21
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 10,
+        "noted": 9,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 23,
+          "imports": 23
+        }
+      },
+      "bridge": {
+        "origin": {
+          "exports": 23,
+          "imports": 23
+        },
+        "destination": {
+          "exports": 23,
+          "imports": 23
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "name": "holder-numbers-local",
+      "mode": "local",
+      "slot": "holder-numbers",
+      "client_slot": "holder-numbers",
+      "presentation": "local",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "reverse": {
+          "job": 7,
+          "notify": 25
+        },
+        "changed": {
+          "job": 7,
+          "notify": 25
+        },
+        "retained": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 10,
+            "imports": 10
+          },
+          "callee": {
+            "exports": 10,
+            "imports": 10
+          }
+        },
+        "noted": {
+          "job": 6,
+          "notify": 15
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "holder-numbers-mounted",
+      "mode": "local",
+      "slot": "holder-numbers",
+      "client_slot": "holder-numbers",
+      "presentation": "mounted",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "reverse": {
+          "job": 7,
+          "notify": 25
+        },
+        "changed": {
+          "job": 7,
+          "notify": 25
+        },
+        "retained": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 10,
+            "imports": 10
+          },
+          "callee": {
+            "exports": 10,
+            "imports": 10
+          }
+        },
+        "noted": {
+          "job": 6,
+          "notify": 15
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "holder-numbers-forwarded",
+      "mode": "local",
+      "slot": "holder-numbers",
+      "client_slot": "holder-numbers",
+      "presentation": "forwarded",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "reverse": {
+          "job": 7,
+          "notify": 25
+        },
+        "changed": {
+          "job": 7,
+          "notify": 25
+        },
+        "retained": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 10,
+            "imports": 10
+          },
+          "callee": {
+            "exports": 10,
+            "imports": 10
+          }
+        },
+        "noted": {
+          "job": 6,
+          "notify": 15
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "holder-numbers-socket-local",
+      "mode": "carrier",
+      "slot": "holder-numbers",
+      "client_slot": "holder-numbers",
+      "presentation": "local",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "reverse": {
+          "job": 7,
+          "notify": 25
+        },
+        "changed": {
+          "job": 7,
+          "notify": 25
+        },
+        "retained": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "noted": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      }
+    },
+    {
+      "name": "holder-numbers-socket-mounted",
+      "mode": "carrier",
+      "slot": "holder-numbers",
+      "client_slot": "holder-numbers",
+      "presentation": "mounted",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "reverse": {
+          "job": 7,
+          "notify": 25
+        },
+        "changed": {
+          "job": 7,
+          "notify": 25
+        },
+        "retained": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "noted": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      }
+    },
+    {
+      "name": "holder-numbers-socket-forwarded",
+      "mode": "carrier",
+      "slot": "holder-numbers",
+      "client_slot": "holder-numbers",
+      "presentation": "forwarded",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "reverse": {
+          "job": 7,
+          "notify": 25
+        },
+        "changed": {
+          "job": 7,
+          "notify": 25
+        },
+        "retained": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "noted": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      }
+    },
+    {
+      "name": "holder-numbers-channel-local",
+      "mode": "carrier",
+      "slot": "holder-numbers",
+      "client_slot": "holder-numbers",
+      "presentation": "local",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "reverse": {
+          "job": 7,
+          "notify": 25
+        },
+        "changed": {
+          "job": 7,
+          "notify": 25
+        },
+        "retained": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "noted": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      }
+    },
+    {
+      "name": "holder-numbers-channel-mounted",
+      "mode": "carrier",
+      "slot": "holder-numbers",
+      "client_slot": "holder-numbers",
+      "presentation": "mounted",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "reverse": {
+          "job": 7,
+          "notify": 25
+        },
+        "changed": {
+          "job": 7,
+          "notify": 25
+        },
+        "retained": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "noted": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      }
+    },
+    {
+      "name": "holder-numbers-channel-forwarded",
+      "mode": "carrier",
+      "slot": "holder-numbers",
+      "client_slot": "holder-numbers",
+      "presentation": "forwarded",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "reverse": {
+          "job": 7,
+          "notify": 25
+        },
+        "changed": {
+          "job": 7,
+          "notify": 25
+        },
+        "retained": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "noted": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      }
+    },
+    {
+      "name": "holder-numbers-socket-mounted",
+      "mode": "bridge",
+      "slot": "holder-numbers",
+      "client_slot": "holder-numbers",
+      "presentation": "mounted",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "reverse": {
+          "job": 7,
+          "notify": 25
+        },
+        "changed": {
+          "job": 7,
+          "notify": 25
+        },
+        "retained": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "noted": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "bridge": {
+        "origin": {
+          "exports": 10,
+          "imports": 10
+        },
+        "destination": {
+          "exports": 10,
+          "imports": 10
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "name": "holder-numbers-socket-forwarded",
+      "mode": "bridge",
+      "slot": "holder-numbers",
+      "client_slot": "holder-numbers",
+      "presentation": "forwarded",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "reverse": {
+          "job": 7,
+          "notify": 25
+        },
+        "changed": {
+          "job": 7,
+          "notify": 25
+        },
+        "retained": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": 7,
+          "notify": 25
+        },
+        "noted": {
+          "job": 6,
+          "notify": 15
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "bridge": {
+        "origin": {
+          "exports": 10,
+          "imports": 10
+        },
+        "destination": {
+          "exports": 10,
+          "imports": 10
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "name": "holder-texts-local",
+      "mode": "local",
+      "slot": "holder-texts",
+      "client_slot": "holder-texts",
+      "presentation": "local",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "reverse": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "changed": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "retained": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 10,
+            "imports": 10
+          },
+          "callee": {
+            "exports": 10,
+            "imports": 10
+          }
+        },
+        "noted": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "holder-texts-mounted",
+      "mode": "local",
+      "slot": "holder-texts",
+      "client_slot": "holder-texts",
+      "presentation": "mounted",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "reverse": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "changed": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "retained": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 10,
+            "imports": 10
+          },
+          "callee": {
+            "exports": 10,
+            "imports": 10
+          }
+        },
+        "noted": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "holder-texts-forwarded",
+      "mode": "local",
+      "slot": "holder-texts",
+      "client_slot": "holder-texts",
+      "presentation": "forwarded",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "reverse": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "changed": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "retained": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 10,
+            "imports": 10
+          },
+          "callee": {
+            "exports": 10,
+            "imports": 10
+          }
+        },
+        "noted": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "holder-texts-socket-local",
+      "mode": "carrier",
+      "slot": "holder-texts",
+      "client_slot": "holder-texts",
+      "presentation": "local",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "reverse": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "changed": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "retained": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "noted": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      }
+    },
+    {
+      "name": "holder-texts-socket-mounted",
+      "mode": "carrier",
+      "slot": "holder-texts",
+      "client_slot": "holder-texts",
+      "presentation": "mounted",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "reverse": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "changed": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "retained": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "noted": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      }
+    },
+    {
+      "name": "holder-texts-socket-forwarded",
+      "mode": "carrier",
+      "slot": "holder-texts",
+      "client_slot": "holder-texts",
+      "presentation": "forwarded",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "reverse": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "changed": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "retained": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "noted": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      }
+    },
+    {
+      "name": "holder-texts-channel-local",
+      "mode": "carrier",
+      "slot": "holder-texts",
+      "client_slot": "holder-texts",
+      "presentation": "local",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "reverse": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "changed": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "retained": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "noted": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      }
+    },
+    {
+      "name": "holder-texts-channel-mounted",
+      "mode": "carrier",
+      "slot": "holder-texts",
+      "client_slot": "holder-texts",
+      "presentation": "mounted",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "reverse": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "changed": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "retained": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "noted": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      }
+    },
+    {
+      "name": "holder-texts-channel-forwarded",
+      "mode": "carrier",
+      "slot": "holder-texts",
+      "client_slot": "holder-texts",
+      "presentation": "forwarded",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "reverse": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "changed": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "retained": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "noted": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      }
+    },
+    {
+      "name": "holder-texts-socket-mounted",
+      "mode": "bridge",
+      "slot": "holder-texts",
+      "client_slot": "holder-texts",
+      "presentation": "mounted",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "reverse": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "changed": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "retained": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "noted": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "bridge": {
+        "origin": {
+          "exports": 10,
+          "imports": 10
+        },
+        "destination": {
+          "exports": 10,
+          "imports": 10
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "name": "holder-texts-socket-forwarded",
+      "mode": "bridge",
+      "slot": "holder-texts",
+      "client_slot": "holder-texts",
+      "presentation": "forwarded",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "reverse": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "changed": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "retained": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": {
+          "job": "v:2",
+          "notify": "v:20"
+        },
+        "noted": {
+          "job": "v:1",
+          "notify": "v:10"
+        },
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 10,
+          "imports": 10
+        }
+      },
+      "bridge": {
+        "origin": {
+          "exports": 10,
+          "imports": 10
+        },
+        "destination": {
+          "exports": 10,
+          "imports": 10
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        }
+      }
+    },
+    {
+      "name": "generic-function-integer-function-socket-local",
+      "mode": "identity",
+      "slot": "generic-function",
+      "client_slot": "integer-function",
+      "presentation": "local",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "generic-function-integer-function-socket-mounted",
+      "mode": "identity",
+      "slot": "generic-function",
+      "client_slot": "integer-function",
+      "presentation": "mounted",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "generic-function-integer-function-socket-forwarded",
+      "mode": "identity",
+      "slot": "generic-function",
+      "client_slot": "integer-function",
+      "presentation": "forwarded",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "generic-function-integer-function-channel-local",
+      "mode": "identity",
+      "slot": "generic-function",
+      "client_slot": "integer-function",
+      "presentation": "local",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "generic-function-integer-function-channel-mounted",
+      "mode": "identity",
+      "slot": "generic-function",
+      "client_slot": "integer-function",
+      "presentation": "mounted",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "generic-function-integer-function-channel-forwarded",
+      "mode": "identity",
+      "slot": "generic-function",
+      "client_slot": "integer-function",
+      "presentation": "forwarded",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "integer-function-generic-function-socket-local",
+      "mode": "identity",
+      "slot": "integer-function",
+      "client_slot": "generic-function",
+      "presentation": "local",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "integer-function-generic-function-socket-mounted",
+      "mode": "identity",
+      "slot": "integer-function",
+      "client_slot": "generic-function",
+      "presentation": "mounted",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "integer-function-generic-function-socket-forwarded",
+      "mode": "identity",
+      "slot": "integer-function",
+      "client_slot": "generic-function",
+      "presentation": "forwarded",
+      "carrier": "socket",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 1,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "integer-function-generic-function-channel-local",
+      "mode": "identity",
+      "slot": "integer-function",
+      "client_slot": "generic-function",
+      "presentation": "local",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "integer-function-generic-function-channel-mounted",
+      "mode": "identity",
+      "slot": "integer-function",
+      "client_slot": "generic-function",
+      "presentation": "mounted",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    },
+    {
+      "name": "integer-function-generic-function-channel-forwarded",
+      "mode": "identity",
+      "slot": "integer-function",
+      "client_slot": "generic-function",
+      "presentation": "forwarded",
+      "carrier": "channel",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "retained": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      },
+      "inspect": {
+        "revision": 2,
+        "value": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 1
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "exports": 5,
+          "imports": 5
+        }
+      }
+    }
+  ]
+}

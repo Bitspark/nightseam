@@ -1,0 +1,141 @@
+{
+  "name": "GEN-COMPOSE-BRIDGE one model crosses two real scopes with both generic forms",
+  "layer": "generated",
+  "needs": [
+    "generated"
+  ],
+  "mirror": true,
+  "foreach": {
+    "table": "tables/generic-composition.json",
+    "as": "row",
+    "where": {
+      "mode": "bridge"
+    }
+  },
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "$row.carrier",
+        "presentation": "$row.presentation",
+        "slot": "$row.slot"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "origin"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_bridge",
+      "args": {
+        "origin": "$origin",
+        "slot": "$row.slot",
+        "presentation": "$row.presentation"
+      },
+      "bind": {
+        "handle": "bridge",
+        "url": "url"
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_dial",
+      "args": {
+        "url": "$url",
+        "carrier": "$row.carrier",
+        "presentation": "$row.presentation",
+        "slot": "$row.client_slot"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": "$row.exercise"
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_inspect",
+      "args": {
+        "on": "$server"
+      },
+      "expect": "$row.inspect"
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_bridge_counts",
+      "args": {
+        "on": "$bridge"
+      },
+      "expect": "$row.bridge"
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {}
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_bridge_release",
+      "args": {
+        "on": "$bridge"
+      },
+      "expect": {}
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {}
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_bridge_counts",
+      "args": {
+        "on": "$bridge"
+      },
+      "expect": {
+        "origin": {
+          "exports": 0,
+          "imports": 0
+        },
+        "destination": {
+          "exports": 0,
+          "imports": 0
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      }
+    }
+  ]
+}

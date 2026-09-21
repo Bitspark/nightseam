@@ -126,6 +126,16 @@ func wireScalar(ctx context.Context, presentation, slot string) (any, error) {
 		return wireLocalValues(ctx, presentation, wireFactories())
 	case "nested":
 		return wireLocalValues(ctx, presentation, wireNested())
+	case "generic-function":
+		return wireLocalValues(ctx, presentation, wireGenericFunctions())
+	case "integer-function":
+		return wireLocalValues(ctx, presentation, wireIntegerFunctions())
+	case "generic-factory":
+		return wireLocalValues(ctx, presentation, wireGenericFactories())
+	case "holder-numbers":
+		return wireLocalValues(ctx, presentation, wireHolderNumbers())
+	case "holder-texts":
+		return wireLocalValues(ctx, presentation, wireHolderTexts())
 	}
 	return nil, fmt.Errorf("unknown wire slot %s", slot)
 }
@@ -181,6 +191,13 @@ func wireLocalValues[T any](ctx context.Context, presentation string, values wir
 	if err != nil {
 		return nil, err
 	}
+	var retained T
+	if values.retain {
+		retained, err = access.Methods.Get(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
 	second, err := access.Methods.Put(ctx, cell.PutParams[T]{Value: values.make(2)})
 	if err != nil {
 		return nil, err
@@ -223,6 +240,13 @@ func wireLocalValues[T any](ctx context.Context, presentation string, values wir
 	if err != nil {
 		return nil, err
 	}
+	var retainedValue any
+	if values.retain {
+		retainedValue, err = values.observe(ctx, retained)
+		if err != nil {
+			return nil, err
+		}
+	}
 	counts := func() map[string]any {
 		a, b := wireEmptyCounts(), wireEmptyCounts()
 		if scopeA != nil {
@@ -249,7 +273,11 @@ func wireLocalValues[T any](ctx context.Context, presentation string, values wir
 			return nil, err
 		}
 	}
-	return map[string]any{"revisions": []int64{first, second}, "value": observed, "reverse": reversed, "changed": changedValue, "noted": notedValue, "setup_allocations": baseline, "view_allocations": views.since(baseline), "use_allocations": observer.snapshot().since(views), "counts": before, "released_counts": counts()}, nil
+	result := map[string]any{"revisions": []int64{first, second}, "value": observed, "reverse": reversed, "changed": changedValue, "noted": notedValue, "setup_allocations": baseline, "view_allocations": views.since(baseline), "use_allocations": observer.snapshot().since(views), "counts": before, "released_counts": counts()}
+	if values.retain {
+		result["retained"] = retainedValue
+	}
+	return result, nil
 }
 func (t *testee) wireDispatch(op string, raw map[string]json.RawMessage) (any, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), within(raw))

@@ -295,10 +295,11 @@ each optional: `Cancel` above takes nothing and answers nothing. It is referred
 to by name, like any other type, and **may not be written inline**. This
 grammar and the choice to identify wire contracts by declaration path are
 the two selected design dimensions, as the
-[decision](../decisions/a-callable-is-a-declared-kind.md) explains. It
-declares no `parameters`: generic callable identities would require a shared
-canonical spelling of their applied arguments, which is not part of the
-current contract. This restriction does not apply to generic containers.
+[decision](../decisions/a-callable-is-a-declared-kind.md) explains. It may
+declare `parameters`, filled before export by a closed application such as
+`Function<integer,integer>`. The canonical constructor and ordered arguments
+determine its identity. This completes the historical v0.5.0 deferral; an
+unapplied or anonymous callable remains refused.
 
 An **interface is a record of callable members**, as `ProgressSink` is. Nothing
 about it is a service, a stream, a cell or a topic; those are protocols a
@@ -322,8 +323,10 @@ and through an inline shape. Two edges are deliberately not followed:
 - **`{"ref": "E"}` is never live.** An entity key is a name for a row, not a
   name for a binding; a live entity has a live value and a data key, and the
   two identities stay apart.
-- **A draw through a family parameter stays neutral.** The family supplied to
-  the parameter declares the plain associated type. Its supplied
+- **A draw through a family parameter stays neutral.** The actual family
+  supplied for the parameter declares every required plain associated type.
+  Unrelated families in the declaration world acquire no such obligation. Its
+  supplied
   interpretation determines whether conversion needs an active live context;
   the generic declaration does not import that provider or acquire its tier.
 
