@@ -61,5 +61,5 @@ export type {
   Validator,
 } from './validate.ts';
 
-export { createDispatcher, Dispatcher, SelectedEndpoint } from './dispatcher.ts';
+export { createDispatcher, WireDispatcher, SelectedEndpoint } from './dispatcher.ts';
 export type { HandlerRegistry } from './dispatcher.ts';

@@ -19,7 +19,7 @@ interface Capture {
 /** @internal Owned by one admitted runtime invocation, not a global router ledger. */
 export interface DispatchRoutes {
   retired: boolean;
-  captures: Map<Dispatcher, Map<string, Capture>>;
+  captures: Map<WireDispatcher, Map<string, Capture>>;
 }
 /** @internal Every new carrier admission has a fresh capture lifetime. */
 export function createDispatchRoutes(): DispatchRoutes {
@@ -33,13 +33,15 @@ export function retireDispatchRoutes(routes: DispatchRoutes | undefined): void {
 }
 
 /** One attachment, with explicit exact-before-longest-prefix dispatch. */
-export class Dispatcher implements HandlerRegistry {
+export class WireDispatcher implements HandlerRegistry {
   private readonly exact = new Map<string, Registration>();
   private readonly prefixes = new Map<string, Registration>();
   private ended = false;
   private detach: (() => void) | undefined;
+  private readonly root: Endpoint;
 
-  constructor(private readonly root: Endpoint) {
+  constructor(root: Endpoint) {
+    this.root = root;
     const detach = root.receive({
       message: (path, message) => this.deliver(path, message),
       closed: (code, reason) => this.close(code, reason),
@@ -141,8 +143,8 @@ export class Dispatcher implements HandlerRegistry {
     }
   }
 }
-export function createDispatcher(endpoint: Endpoint): Dispatcher {
-  return new Dispatcher(endpoint);
+export function createDispatcher(endpoint: Endpoint): WireDispatcher {
+  return new WireDispatcher(endpoint);
 }
 
 interface Attachment {
@@ -153,10 +155,12 @@ interface Attachment {
 export class SelectedEndpoint implements Endpoint {
   private ended = false;
   private attachment: Attachment | undefined;
-  constructor(
-    private readonly owner: Dispatcher,
-    private readonly prefix: Path,
-  ) {}
+  private readonly owner: WireDispatcher;
+  private readonly prefix: Path;
+  constructor(owner: WireDispatcher, prefix: Path) {
+    this.owner = owner;
+    this.prefix = prefix;
+  }
   select(path: Path): SelectedEndpoint {
     return this.owner.select([...this.prefix, ...path]);
   }

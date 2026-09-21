@@ -333,10 +333,6 @@ export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint
                   complete(endpoint, call!);
                 }
               },
-              receive: () => {
-                throw new WireError('receiver_exists');
-              },
-              close: () => complete(endpoint, call!),
             },
           };
           call = {

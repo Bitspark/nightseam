@@ -556,7 +556,7 @@ export function emitWire(wire: Wire, path: Path, data: unknown = null, options: 
 }
 
 /** The root's existing serial event dispatcher awaits an async listener. */
-export function onWireEvent(wire: Wire, path: Path, listener: WireEventListener): () => void {
+export function onWireEvent(wire: HandlerRegistry, path: Path, listener: WireEventListener): () => void {
   return registerWire(wire, path, { event: listener });
 }
 
