@@ -259,6 +259,8 @@ version = "0.4.0"
 dependencies = [
  "async-trait",
  "futures-util",
+ "serde",
+ "serde_json",
  "tokio",
  "tokio-tungstenite",
  "tokio-util",
