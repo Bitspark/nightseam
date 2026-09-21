@@ -58,3 +58,13 @@ implemented profile facilities, verified context, generated generic substitution
 or live-reference release. Those require the runtime, generated-consumer and
 ordinary full conformance suites. In particular, delayed replies here are not
 signoff for the public lifecycle requirements of Nightseam #439 and Bitwire #20.
+
+Those live elsewhere in this tree, and they are what #439 delivered: the
+invocation lifecycle is [a vocabulary spoken at the request's own return
+capability](../../docs/runtime/wire.md#the-invocation-lifecycle), held in
+`runtime/go/invocation_test.go` and `invocation_experiment_test.go` and their
+TypeScript twins — two independently authored same-profile endpoint
+integrations and an opaque forwarding wrapper, through public facilities alone
+and with no shared private ledger. The identity discipline the lifecycle
+relies on at a carrier boundary is `conformance/tables/serials.json` and the
+two scenarios that send it.
