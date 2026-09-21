@@ -734,8 +734,11 @@ func RegisterWire(wire HandlerRegistry, path []string, handlers WireHandlers) (f
 			// an early answer to the caller cannot retire an invocation whose
 			// body is still running. A return capability that carries no
 			// lifecycle still gets ordinary addressed delivery.
+			// A bound reached is a refusal; any other refusal means this
+			// return capability carries no lifecycle, and ordinary addressed
+			// delivery goes on without one.
 			body, leaseErr := BeginInvocationBody(message)
-			if leaseErr != nil && !errors.Is(leaseErr, ErrInvocationUnsupported) {
+			if errors.Is(leaseErr, ErrInvocationLimit) {
 				mu.Lock()
 				delete(incoming, key)
 				mu.Unlock()

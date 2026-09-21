@@ -496,11 +496,14 @@ export function registerWire(wire: HandlerRegistry, path: Path, handlers: WireHa
       // early answer to the caller cannot retire an invocation whose body is
       // still running. A return capability that carries no lifecycle still
       // gets ordinary addressed delivery.
+      // A bound reached is a refusal; any other refusal means this return
+      // capability carries no lifecycle, and ordinary addressed delivery goes
+      // on without one.
       let body: { done(): void } | undefined;
       try {
         body = beginInvocationBody(message);
       } catch (error) {
-        if (error instanceof InvocationError && error.code !== 'unsupported') {
+        if (error instanceof InvocationError && error.code === 'limit') {
           calls.delete(frame.id);
           if (!calls.size) incoming.delete(message.return);
           controller.abort();
