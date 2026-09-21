@@ -280,7 +280,7 @@ func (w *peerWire) run() {
 			name, err := duplex.EncodePath(delivered.path)
 			var call *admittedCall
 			if err == nil {
-				call, err = w.peer.beginCallTrace(ctx, name, f.Params, &Trace{Parent: f.Traceparent, State: f.Tracestate})
+				call, err = w.peer.beginCallTrace(ctx, name, f.Params, &Trace{Parent: f.Traceparent, State: f.Tracestate}, true)
 			}
 			if err != nil {
 				cancel()
@@ -304,7 +304,7 @@ func (w *peerWire) run() {
 			name, err := duplex.EncodePath(delivered.path)
 			ctx := w.peer.options.Propagator.Extract(w.peer.Context(), Trace{Parent: f.Traceparent, State: f.Tracestate})
 			if err == nil {
-				err = w.peer.emitTrace(WithMeta(ctx, f.Meta), name, f.Data, &Trace{Parent: f.Traceparent, State: f.Tracestate})
+				err = w.peer.emitTrace(WithMeta(ctx, f.Meta), name, f.Data, &Trace{Parent: f.Traceparent, State: f.Tracestate}, true)
 			}
 			if err != nil {
 				w.peer.fail(err)

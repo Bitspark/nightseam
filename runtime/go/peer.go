@@ -453,12 +453,12 @@ type admittedCall struct {
 // admits frames in its delivery order, then waits for each result separately;
 // starting goroutines before admission would reorder requests and events.
 func (p *Peer) beginCall(ctx context.Context, method string, params any) (*admittedCall, error) {
-	return p.beginCallTrace(ctx, method, params, nil)
+	return p.beginCallTrace(ctx, method, params, nil, false)
 }
 
 // A structured wire frame already carries its trace. Public Call still injects
 // a child; forwarding the existing frame uses these exact members instead.
-func (p *Peer) beginCallTrace(ctx context.Context, method string, params any, carried *Trace) (*admittedCall, error) {
+func (p *Peer) beginCallTrace(ctx context.Context, method string, params any, carried *Trace, immediate bool) (*admittedCall, error) {
 	if ctx == nil || method == "" {
 		return nil, Unpublished(errors.New("duplex call requires context and method"))
 	}
@@ -500,8 +500,8 @@ func (p *Peer) beginCallTrace(ctx context.Context, method string, params any, ca
 	p.mu.Unlock()
 	finish := func() { cancel(); p.mu.Lock(); delete(p.pending, id); p.mu.Unlock() }
 	started := p.requestStarted(id, method, false, trace)
-	if err := p.enqueue(ctx, frame{Version: 1, Kind: "request", ID: id, Method: method, Params: data,
-		Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}); err != nil {
+	if err := p.enqueueFrame(ctx, frame{Version: 1, Kind: "request", ID: id, Method: method, Params: data,
+		Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}, immediate); err != nil {
 		finish()
 		err = Unpublished(err)
 		p.requestEnded(started, id, method, false, trace, err)
@@ -573,10 +573,10 @@ func (p *Peer) cancelRequest(id string, trace Trace) {
 // Emit queues an event. Success means queued for this connection, not persisted
 // or processed by the remote application.
 func (p *Peer) Emit(ctx context.Context, event string, data any) error {
-	return p.emitTrace(ctx, event, data, nil)
+	return p.emitTrace(ctx, event, data, nil, false)
 }
 
-func (p *Peer) emitTrace(ctx context.Context, event string, data any, carried *Trace) error {
+func (p *Peer) emitTrace(ctx context.Context, event string, data any, carried *Trace, immediate bool) error {
 	if ctx == nil || event == "" {
 		return Unpublished(errors.New("duplex event requires context and name"))
 	}
@@ -595,10 +595,14 @@ func (p *Peer) emitTrace(ctx context.Context, event string, data any, carried *T
 	// The application emitted it here; the frame carrying it is sent when the
 	// queue takes it, which is one event of its own and may not happen at all.
 	p.observeEmitted(f)
-	return Unpublished(p.enqueue(ctx, f))
+	return Unpublished(p.enqueueFrame(ctx, f, immediate))
 }
 
 func (p *Peer) enqueue(ctx context.Context, f frame) error {
+	return p.enqueueFrame(ctx, f, false)
+}
+
+func (p *Peer) enqueueFrame(ctx context.Context, f frame, immediate bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -619,9 +623,24 @@ func (p *Peer) enqueue(ctx context.Context, f frame) error {
 		return nil
 	default:
 	}
-	// Admission is one bounded handoff. Waiting for this destination here
-	// would make a composition run at its slowest consumer's pace. The writer
-	// still applies WriteTimeout to accepted frames on the carrier itself.
+	if !immediate {
+		// Public Peer producers pace a transient burst for one write deadline.
+		// Their own cancellation withdraws only this unadmitted frame. Wire
+		// dispatch instead requires an immediate handoff so a composition does
+		// not run at its slowest destination's pace.
+		p.observeBackpressure(len(p.outputs), false, p.options.WriteTimeout)
+		timer := time.NewTimer(p.options.WriteTimeout)
+		defer timer.Stop()
+		select {
+		case p.outputs <- queuedFrame{data: data, frame: f}:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-p.done:
+			return p.Err()
+		case <-timer.C:
+		}
+	}
 	p.observeBackpressure(len(p.outputs), true, p.options.WriteTimeout)
 	p.fail(ErrBackpressure)
 	return ErrBackpressure
