@@ -55,7 +55,7 @@ async function compare(method:string,expected:Outcome,actual:Outcome,equal:Optio
  if(canonical(expected.value)!==canonical(actual.value))throw new Error(method+': direct and round-trip results differ');
 }
 
-export async function pair<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(model: Protocol.ClientModel<A, B>, options: Options, binding_a: FamilyBinding<A>, binding_b: FamilyBinding<B>): Promise<{ model: Protocol.ClientModel<A, B>; close(): void }> {
+export async function pair<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(model: Protocol.ClientModel<A, B>, options: Options, binding_a: FamilyBinding<A, "Envelope">, binding_b: FamilyBinding<B, "Envelope">): Promise<{ model: Protocol.ClientModel<A, B>; close(): void }> {
   const wire = toWire<A, B>(model, options.context ?? {}, binding_a, binding_b);
   let close = once(() => wire.close(1000, ''));
   try {
@@ -75,7 +75,7 @@ const examples: Readonly<Record<string, { raw?: string; reason?: string }>> = {
 /** A fresh documented data witness, validated by the caller's exact value adapter. */
 export function example<T>(name: string, adapter: ValueAdapter<T>): T { const value = Object.prototype.hasOwnProperty.call(examples,name) ? examples[name] : undefined; if (!value) throw new Error('unknown example '+name); if (value.reason || adapter.needsContext) throw new Error('example '+name+' unavailable: '+(value.reason || 'an acquiring adapter needs a native witness')); return adapter.import(undefined, JSON.parse(value.raw!)); }
 /** Exercise every method on two fresh equivalent models; missing evidence is an error. */
-export async function smoke<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(model: Protocol.ClientModel<A, B>, opposite: Protocol.Server<A, B>, options: Options, binding_a: FamilyBinding<A>, binding_b: FamilyBinding<B>): Promise<void> {
+export async function smoke<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(model: Protocol.ClientModel<A, B>, opposite: Protocol.Server<A, B>, options: Options, binding_a: FamilyBinding<A, "Envelope">, binding_b: FamilyBinding<B, "Envelope">): Promise<void> {
   const bindings = {a: binding_a, b: binding_b};
   const inputs = new Map<string,unknown>(); const seen = new Map<string,number>(); let inputError: unknown;
   const observed: Protocol.ClientModel<A, B> = remote => { const value=model(remote);

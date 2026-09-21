@@ -126,8 +126,8 @@ func compare(method string, expected, actual any, expectedErr, actualErr error, 
 }
 
 // Pair presents one fresh model over a frame pipe by default. The returned factory is bound once.
-func Pair[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, model protocol.ClientModel[SEnvelope, SHandle, TEnvelope], options Options) (protocol.ClientModel[SEnvelope, SHandle, TEnvelope], func(), error) {
-	wire, err := adapter.ToWire[SEnvelope, SHandle, TEnvelope](model, options.Context)
+func Pair[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, model protocol.ClientModel[SEnvelope, SHandle, TEnvelope], options Options, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) (protocol.ClientModel[SEnvelope, SHandle, TEnvelope], func(), error) {
+	wire, err := adapter.ToWire[SEnvelope, SHandle, TEnvelope](model, options.Context, adapterSEnvelope, adapterSHandle, adapterTEnvelope)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -149,7 +149,7 @@ func Pair[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtim
 		}
 		_ = wire.Close(1000, "")
 	})
-	complete, unbind, err := adapter.PrepareFromWire[SEnvelope, SHandle, TEnvelope](view, options.RemoteContext)
+	complete, unbind, err := adapter.PrepareFromWire[SEnvelope, SHandle, TEnvelope](view, options.RemoteContext, adapterSEnvelope, adapterSHandle, adapterTEnvelope)
 	if err != nil {
 		close()
 		return nil, nil, err
@@ -195,7 +195,7 @@ type observingMethods[SEnvelope, SHandle, TEnvelope any] struct {
 	check func(string, any) error
 }
 
-func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, model protocol.ClientModel[SEnvelope, SHandle, TEnvelope], opposite protocol.Server[SEnvelope, SHandle, TEnvelope], options Options) error {
+func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, model protocol.ClientModel[SEnvelope, SHandle, TEnvelope], opposite protocol.Server[SEnvelope, SHandle, TEnvelope], options Options, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterTEnvelope runtime.ValueAdapter[TEnvelope]) error {
 	if model == nil {
 		return fmt.Errorf("model factory is required")
 	}
@@ -228,7 +228,7 @@ func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runti
 		}
 		return value, err
 	}
-	paired, stop, err := Pair[SEnvelope, SHandle, TEnvelope](ctx, observed, options)
+	paired, stop, err := Pair[SEnvelope, SHandle, TEnvelope](ctx, observed, options, adapterSEnvelope, adapterSHandle, adapterTEnvelope)
 	if err != nil {
 		return err
 	}

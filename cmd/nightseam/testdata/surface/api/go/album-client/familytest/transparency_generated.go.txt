@@ -2,8 +2,8 @@ func Example[T any](name string) (T, error)
 func Forwarded(_ context.Context, wire duplex.Wire) (duplex.Wire, func(), error)
 func Local(_ context.Context, wire duplex.Wire) (duplex.Wire, func(), error)
 func Mounted(_ context.Context, wire duplex.Wire) (duplex.Wire, func(), error)
-func Pair[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag any, BTag any](ctx context.Context, model protocol.ClientModel[AEnvelope, BEnvelope], options Options) (protocol.ClientModel[AEnvelope, BEnvelope], func(), error)
+func Pair[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag any, BTag any](ctx context.Context, model protocol.ClientModel[AEnvelope, BEnvelope], options Options, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) (protocol.ClientModel[AEnvelope, BEnvelope], func(), error)
 func Pipe(ctx context.Context, wire duplex.Wire) (duplex.Wire, func(), error)
-func Smoke[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag any, BTag any](ctx context.Context, model protocol.ClientModel[AEnvelope, BEnvelope], opposite protocol.Server[AEnvelope, BEnvelope], options Options) error
+func Smoke[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag any, BTag any](ctx context.Context, model protocol.ClientModel[AEnvelope, BEnvelope], opposite protocol.Server[AEnvelope, BEnvelope], options Options, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) error
 type Options struct{Context runtime.AdapterContext; RemoteContext runtime.AdapterContext; Presentation Presentation; Inputs map[string]any; Equal func(string, any, any) error}
 type Presentation func(context.Context, duplex.Wire) (duplex.Wire, func(), error)

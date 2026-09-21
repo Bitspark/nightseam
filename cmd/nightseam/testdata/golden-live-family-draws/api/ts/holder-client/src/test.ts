@@ -4,7 +4,6 @@ import { at, mount, pipe as framePipe, type Wire } from '@nightseam/duplex';
 import { toWire, prepareFromWire } from './index.ts';
 import type * as Protocol from './types.ts';
 import type { AnyFamily, FamilyBinding } from './types.ts';
-import type * as probe from "@example/probe-client";
 
 export type Presentation = (wire: Wire) => { wire: Wire; close(): void } | Promise<{ wire: Wire; close(): void }>;
 export interface Options {
@@ -54,33 +53,33 @@ async function compare(method:string,expected:Outcome,actual:Outcome,equal:Optio
  if(canonical(expected.value)!==canonical(actual.value))throw new Error(method+': direct and round-trip results differ');
 }
 
-export async function pair<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyFamily>(model: Protocol.ClientModel<S, T>, options: Options, binding_s: FamilyBinding<S, "Envelope" | "Handle">, binding_t: FamilyBinding<T, "Envelope">): Promise<{ model: Protocol.ClientModel<S, T>; close(): void }> {
-  const wire = toWire<S, T>(model, options.context ?? {}, binding_s, binding_t);
+export async function pair<S extends AnyFamily & { "Job": unknown; "Progress": unknown } = AnyFamily & { "Job": unknown; "Progress": unknown }>(model: Protocol.ClientModel<S>, options: Options, binding_s: FamilyBinding<S, "Job" | "Progress">): Promise<{ model: Protocol.ClientModel<S>; close(): void }> {
+  const wire = toWire<S>(model, options.context ?? {}, binding_s);
   let close = once(() => wire.close(1000, ''));
   try {
   const view = await (options.presentation ?? pipe)(wire);
   const rootClose = close; close = once(() => { try { view.close(); } finally { rootClose(); } });
-  const prepared = prepareFromWire<S, T>(view.wire, options.remoteContext ?? {}, binding_s, binding_t);
+  const prepared = prepareFromWire<S>(view.wire, options.remoteContext ?? {}, binding_s);
   const viewClose = close; close = once(() => { try { prepared.close(); } finally { viewClose(); } });
   return { model: await prepared.complete(options.callContext), close };
   } catch (error) { close(); throw error; }
 }
 const examples: Readonly<Record<string, { raw?: string; reason?: string }>> = {
-"Both": { raw: "{\"frame\":{\"message\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}},\"back\":{\"channel\":0}},\"echoes\":[{\"heard\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}}}]}", reason: "" },
-"Echo": { raw: "{\"heard\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}}}", reason: "" },
-"Frame": { raw: "{\"message\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}},\"back\":{\"channel\":0}}", reason: "" },
-"Named": { raw: "{\"held\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}}}", reason: "" },
+"Choice": { raw: "", reason: "no compatible concrete family is available for S" },
+"Held": { raw: "", reason: "no compatible concrete family is available for S" },
+"Jobs": { raw: "", reason: "no compatible concrete family is available for S" },
+"Nested": { raw: "", reason: "no compatible concrete family is available for S" },
 };
 /** A fresh documented data witness, validated by the caller's exact value adapter. */
 export function example<T>(name: string, adapter: ValueAdapter<T>): T { const value = Object.prototype.hasOwnProperty.call(examples,name) ? examples[name] : undefined; if (!value) throw new Error('unknown example '+name); if (value.reason || adapter.needsContext) throw new Error('example '+name+' unavailable: '+(value.reason || 'an acquiring adapter needs a native witness')); return adapter.import(undefined, JSON.parse(value.raw!)); }
 /** Exercise every method on two fresh equivalent models; missing evidence is an error. */
-export async function smoke<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyFamily>(model: Protocol.ClientModel<S, T>, opposite: Protocol.Server<S, T>, options: Options, binding_s: FamilyBinding<S, "Envelope" | "Handle">, binding_t: FamilyBinding<T, "Envelope">): Promise<void> {
-  const bindings = {s: binding_s, t: binding_t};
+export async function smoke<S extends AnyFamily & { "Job": unknown; "Progress": unknown } = AnyFamily & { "Job": unknown; "Progress": unknown }>(model: Protocol.ClientModel<S>, opposite: Protocol.Server<S>, options: Options, binding_s: FamilyBinding<S, "Job" | "Progress">): Promise<void> {
+  const bindings = {s: binding_s};
   const inputs = new Map<string,unknown>(); const seen = new Map<string,number>(); let inputError: unknown;
-  const observed: Protocol.ClientModel<S, T> = remote => { const value=model(remote);
+  const observed: Protocol.ClientModel<S> = remote => { const value=model(remote);
   return { ...value, methods: {
   } }; };
-  const prepared = await pair<S, T>(observed, options, binding_s, binding_t);
+  const prepared = await pair<S>(observed, options, binding_s);
   try {
   const remote = prepared.model(opposite); const direct = model(opposite);
   } finally { prepared.close(); }

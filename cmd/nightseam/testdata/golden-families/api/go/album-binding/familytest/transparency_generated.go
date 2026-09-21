@@ -126,8 +126,8 @@ func compare(method string, expected, actual any, expectedErr, actualErr error, 
 }
 
 // Pair presents one fresh model over a frame pipe by default. The returned factory is bound once.
-func Pair[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, model protocol.ServerModel[AEnvelope, BEnvelope], options Options) (protocol.ServerModel[AEnvelope, BEnvelope], func(), error) {
-	wire, err := adapter.ToWire[AEnvelope, BEnvelope](model, options.Context)
+func Pair[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, model protocol.ServerModel[AEnvelope, BEnvelope], options Options, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) (protocol.ServerModel[AEnvelope, BEnvelope], func(), error) {
+	wire, err := adapter.ToWire[AEnvelope, BEnvelope](model, options.Context, adapterAEnvelope, adapterBEnvelope)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -149,7 +149,7 @@ func Pair[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any
 		}
 		_ = wire.Close(1000, "")
 	})
-	complete, unbind, err := adapter.PrepareFromWire[AEnvelope, BEnvelope](view, options.RemoteContext)
+	complete, unbind, err := adapter.PrepareFromWire[AEnvelope, BEnvelope](view, options.RemoteContext, adapterAEnvelope, adapterBEnvelope)
 	if err != nil {
 		close()
 		return nil, nil, err
@@ -202,7 +202,7 @@ func (o observingMethods[AEnvelope, BEnvelope]) Look(ctx context.Context, params
 	}
 	return o.inner.Look(ctx, params)
 }
-func Smoke[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, model protocol.ServerModel[AEnvelope, BEnvelope], opposite protocol.Client[AEnvelope, BEnvelope], options Options) error {
+func Smoke[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, model protocol.ServerModel[AEnvelope, BEnvelope], opposite protocol.Client[AEnvelope, BEnvelope], options Options, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) error {
 	if model == nil {
 		return fmt.Errorf("model factory is required")
 	}
@@ -238,7 +238,7 @@ func Smoke[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag an
 		}
 		return value, err
 	}
-	paired, stop, err := Pair[AEnvelope, BEnvelope](ctx, observed, options)
+	paired, stop, err := Pair[AEnvelope, BEnvelope](ctx, observed, options, adapterAEnvelope, adapterBEnvelope)
 	if err != nil {
 		return err
 	}
@@ -262,12 +262,18 @@ func Smoke[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag an
 				return fmt.Errorf("input look has the wrong native type")
 			}
 		} else {
-			if false {
+			if adapterAEnvelope.NeedsContext {
 				return fmt.Errorf("input look needs a caller-supplied native value")
 			}
 			if err := json.Unmarshal([]byte("{\"held\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}}}"), &input); err != nil {
 				return fmt.Errorf("input look unavailable for this instantiation: %w", err)
 			}
+		}
+		if options.Equal == nil && (adapterAEnvelope.NeedsContext || adapterBEnvelope.NeedsContext) {
+			return fmt.Errorf("look: requires an Equal observer for live values")
+		}
+		if options.Equal == nil && (adapterAEnvelope.NeedsContext) {
+			return fmt.Errorf("look: requires an Equal observer for live values")
 		}
 		mutex.Lock()
 		inputs["look"] = input
