@@ -39,6 +39,7 @@ type Schema struct {
 	imported    map[string]*Schema
 	scope       map[string]argument
 	parameters  []wireParameter
+	drawn       map[string]expression
 }
 
 type argument struct {
@@ -286,7 +287,7 @@ func (s *Schema) Bind(types map[string]any, families map[string]*Schema) *Schema
 		bound.scope[name] = argument{typeExpression: &e}
 		if family, member, qualified := strings.Cut(name, "."); qualified && family != "" && member != "" {
 			if drawn[family] == nil {
-				drawn[family] = &Schema{types: map[string]*wireType{}}
+				drawn[family] = &Schema{types: map[string]*wireType{}, drawn: map[string]expression{}}
 			}
 		}
 	}
@@ -301,6 +302,7 @@ func (s *Schema) Bind(types map[string]any, families map[string]*Schema) *Schema
 		source := *e.schema
 		source.scope = e.scope
 		drawn[family].types[member] = &wireType{Kind: "alias", Type: TypeBinding{Schema: &source, Type: e.value}}
+		drawn[family].drawn[member] = *e
 	}
 	for name, schema := range drawn {
 		bound.scope[name] = argument{family: schema}

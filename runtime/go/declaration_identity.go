@@ -117,7 +117,7 @@ func (b TypeBinding) Declaration() (string, error) {
 type declarationBuilder struct{ active map[*Schema]bool }
 
 func (b *declarationBuilder) family(s *Schema) (declarationGraph, error) {
-	if s == nil || s.declaration == "" {
+	if s == nil {
 		return declarationGraph{}, fmt.Errorf("declaration: expected canonical family provenance")
 	}
 	if b.active[s] {
@@ -125,6 +125,12 @@ func (b *declarationBuilder) family(s *Schema) (declarationGraph, error) {
 	}
 	b.active[s] = true
 	defer delete(b.active, s)
+	if len(s.drawn) != 0 {
+		return b.drawnFamily(s)
+	}
+	if s.declaration == "" {
+		return declarationGraph{}, fmt.Errorf("declaration: expected canonical family provenance")
+	}
 	graph, err := readDeclaration(s.declaration)
 	if err != nil {
 		return graph, err
