@@ -1,6 +1,6 @@
 # The holes in a declaration
 
-A family, a record, a union and an alias may each declare `parameters` —
+A family, a record, an entity, a union, an alias and a callable may each declare `parameters` —
 the holes in it — and a consumer fills them where the generated code is
 used. One mechanism at every level, and a parameter is of one of two
 **sorts**, which `of` names.
@@ -17,8 +17,10 @@ used. One mechanism at every level, and a parameter is of one of two
   ([a family in tiers](families.md#the-files) has the table). A
   type is drawn *through* it, `S.Envelope` — one message of the family bound
   to `S` — `S.Handle` a channel that speaks it, `S.Payload` any record or
-  enum `Payload` of it, which every family that may bind `S` is then held to
-  declare, plainly, checked across the world.
+  enum `Payload` of it. The family actually supplied for `S` must declare
+  every required associated type plainly; unrelated families in the world
+  need not declare those members. Source applications check their selected
+  family, and generated construction checks the supplied runtime binding.
 - **A type parameter** — it has no `of`. It is filled by a **type
   expression** and is written where a type is named: `{"array": "T"}`.
 
@@ -72,7 +74,7 @@ maps each of that type's parameters to what fills it — a **type
 expression** for a type parameter, a **family** for a family parameter, or
 a family parameter visible at the application site, which keeps the result
 generic here. That scope includes the enclosing family's parameters and
-the containing record's, union's or alias's own parameters; inline shapes
+the containing record's, entity's, union's, alias's or callable's own parameters; inline shapes
 and nested applications keep the same scope. A forwarded family parameter
 must guarantee the tier the destination requires, just as a concrete
 family must carry it. A type parameter cannot fill a family slot.

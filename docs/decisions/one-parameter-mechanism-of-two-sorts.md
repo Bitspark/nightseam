@@ -71,3 +71,10 @@ it; and agnosticism, since the sort is stated in the declaration rather
 than inferred by each target.
 
 **Since.** 0.4.0, #57 and #59, landed by #101.
+
+The [#363 B ruling](https://github.com/Bitspark/nightseam/issues/363) extends
+this same parameter and application mechanism to declared callables. The
+closed constructor keeps its ordered arguments and nominal identity under
+[#366](https://github.com/Bitspark/nightseam/issues/366); no call chooses a new
+instantiation. The [combined acceptance findings](../declaration/proof-findings.md#combined-generic-construction-and-retained-values)
+record both supplied callable arguments and complete family interpretations.

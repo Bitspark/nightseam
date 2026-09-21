@@ -287,6 +287,16 @@ shipped is still a composition.
 | --- | --- | --- |
 | declaration identity — `(path, digest)` | primitive exposure, RPC and live | the [canonical declaration](declaration/declaration-identity.md) supplies one revision identity, checked at generated wire interpretation, channel admission and live import before consumer dispatch. A consumer's `describe()` call runs a model handler before checking, and a model-agnostic intermediary cannot supply it for every transferred reference. The exposure carries the digest beside the existing name and refuses differing specified digests with `contract_mismatch`; absence makes no revision claim. Strict equality is [#292's verdict](https://github.com/Bitspark/nightseam/issues/292#issuecomment-5753285816). [#339](https://github.com/Bitspark/nightseam/issues/339) places the connection check at interpretation through an ordinary `identity.check` request, preserving consumer subprotocol selection. Compatibility between distinct revisions remains consumer policy, and declaration identity establishes neither authenticated peer identity nor permission. |
 
+The [#363 B generic composition ruling](https://github.com/Bitspark/nightseam/issues/363)
+uses the existing parameter mechanism and value adapters for closed callable
+applications and plain associated records containing callables. Its
+[combined acceptance](declaration/proof-findings.md#combined-generic-construction-and-retained-values)
+executes both forms through the same access boundary and live ownership
+mechanisms. Neither form introduces another wire frame, scope or authority
+primitive. The synthetic consumer guard witnesses preserve invocation policy;
+exhaustive protected-exposure binding and real authentication remain separate
+deliverables.
+
 ## Prior art
 
 The three levels are not this model's invention: *pure* values and *live*
