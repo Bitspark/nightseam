@@ -116,16 +116,26 @@ fields and constraints, an example value of it and where it is used; the
 two sides with their operations and errors, each operation as the frames
 of the profile carry it — the request, the response, a refusal per error
 the method declares, an event's frame — and how much each side says; the
-parameters a family is generic in. All
-of it comes from the declaration alone, so that no page is ever behind it,
-and the examples are synthesized deterministically — a placeholder string
-is its member's name between angle quotes, `‹text›`, a number its lower
-bound or zero, an enum its first value, a union its first variant by tag,
-a recursion folded to null — so that a page shows the wire without a peer
-having run ([a specification is rendered, not
+parameters a family is generic in. All of that comes from the declaration
+alone, so that no page is ever behind it, and the examples are synthesized
+deterministically — a placeholder string is its member's name between
+angle quotes, `‹text›`, a number its lower bound or zero, an enum its
+first value, a union its first variant by tag, a recursion folded to
+null — so that a page shows the wire without a peer having run ([a
+specification is rendered, not
 written](../decisions/a-specification-is-rendered-not-written.md); [a
 specification has a document, and renderers of
 it](../decisions/a-specification-has-a-document-and-renderers-of-it.md)).
+
+One depth is not the declaration's. Each type and each operation also
+carries what every composed language target says of it — how that language
+spells the type, how it declares it, and how a consumer invokes the
+operation — asked of the target itself and answered by the emitters that
+write its packages, so that a page and the package it documents can never
+spell the same thing differently, and so that the document names no
+language of its own. The Markdown pages carry each answer as a fenced
+block under the target's name, `go` or `typescript`, beside the type or
+the exchange it belongs to; the atlas carries them behind its name lens.
 
 A writer renders the document in one format and is a target by an adapter,
 so that the kernel holds every format the same way — what it owns, where
@@ -202,17 +212,21 @@ those declarations. The reference index names the regeneration command.
 
 `disabled` is the one key the kernel reads: a target named there is
 composed no more, renders nothing, and what it rendered before is left
-alone, its roots being nobody's to walk. Everything under `targets` is a
-section keyed by a target's name, carried raw and read by that target —
-the rule of a family's override file, at the checkout — decoded into the
-target's own config with no member the config lacks, and validated by the
-target; a section keyed by no composed target, a disabled name that is
-none, a member a config lacks or a value a target refuses is a diagnostic
-at its place in the file, which `validate` reports first, as the
-checkout's own, and which refuses `generate`, `check` and `init` before any
-family. What the tool's flags set — `--module`, `--scope`, `--ts-sibling` —
-a section may not set, since those are the tool's to know of the checkout
-it runs in.
+alone, its roots being nobody's to walk. A language target named there
+withdraws its spelling along with its packages, since the specification
+asks the composed targets and no others: the pages a writer renders lose
+that language's blocks, the atlas loses its lens, and `check` reports a
+checked-in page that still carries them as stale. Everything under
+`targets` is a section keyed by a target's name, carried raw and read by
+that target — the rule of a family's override file, at the checkout —
+decoded into the target's own config with no member the config lacks, and
+validated by the target; a section keyed by no composed target, a
+disabled name that is none, a member a config lacks or a value a target
+refuses is a diagnostic at its place in the file, which `validate`
+reports first, as the checkout's own, and which refuses `generate`,
+`check` and `init` before any family. What the tool's flags set —
+`--module`, `--scope`, `--ts-sibling` — a section may not set, since
+those are the tool's to know of the checkout it runs in.
 
 TypeScript places its client and server-binding packages independently.
 `layout` is an object with `client` and `binding` path patterns; `place`
