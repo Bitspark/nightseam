@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Create or reuse milestone and attach explicitly named planning issues
+      - name: Reconcile only the approved milestone, children and acceptance edges
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -39,28 +39,33 @@ jobs:
                   result.extend(rows)
                   if len(rows) < 100: return result
               raise RuntimeError('pagination bound exceeded')
-          matches = [m for m in pages('/milestones?state=all') if m['title'] == '0.7.0']
-          if len(matches) > 1: raise RuntimeError('ambiguous milestone title')
-          description = 'Reusable decentralized authentication and delegated authority. Coordinated by #345. Archon identity mechanisms; locally verified immutable rooted grant chains; finite actions and explicit narrowing/depth; optional half-open expiry; no Logos/Ontos proof engine, revocation/status lookup or mandatory Cloud account. Early contracts and 0.6 integration-feasibility work start now; Go/TypeScript implementations follow accepted packets; real generated-wire, independent-consumer and anonymous-install evidence precede release. #336 owns package boundaries; #337 owns invocation integration. No due date or production rollout is implied.'
-          if matches:
-              milestone = matches[0]
-              if milestone['state'] != 'open': raise RuntimeError('existing 0.7.0 is closed; do not reopen automatically')
-              milestone = api('PATCH', '/milestones/' + str(milestone['number']), {'description': description})
-          else:
-              milestone = api('POST', '/milestones', {'title': '0.7.0', 'state': 'open', 'description': description})
-          issues = {}
-          for number in [345, 336, 337]:
-              issue = api('GET', f'/issues/{number}')
-              if 'pull_request' in issue: raise RuntimeError('expected issue, got pull request')
-              current = issue.get('milestone')
-              if current and current['number'] != milestone['number']: raise RuntimeError(f'issue {number} already belongs to another milestone')
-              issues[number] = api('PATCH', f'/issues/{number}', {'milestone': milestone['number'], 'type': 'Epic' if number == 345 else 'Task'})
-          attached = {row['id'] for row in pages('/issues/345/sub_issues')}
-          for number in [336, 337]:
-              if issues[number]['id'] not in attached:
-                  api('POST', '/issues/345/sub_issues', {'sub_issue_id': issues[number]['id'], 'replace_parent': False})
-          result = {'milestone': milestone['html_url'], 'number': milestone['number'], 'epic': issues[345]['html_url'], 'children': [336, 337], 'changed_source_on_main': False}
+          milestone = api('GET', '/milestones/7')
+          assert milestone['title'] == '0.7.0' and milestone['state'] == 'open'
+          children = [336, 337, 348, 351, 353, 354, 355, 356, 357, 358, 359]
+          blockers = {337: [336, 351, 355], 353: [336, 348, 351], 354: [336, 348, 351], 356: [337, 353, 354, 321, 323], 357: [356], 358: [357, 336], 359: [358]}
+          numbers = sorted(set([345] + children + [n for group in blockers.values() for n in group]))
+          issues = {n: api('GET', f'/issues/{n}') for n in numbers}
+          for n in [345] + children:
+              row = issues[n]
+              if 'pull_request' in row: raise RuntimeError('expected issue')
+              if row.get('milestone') and row['milestone']['number'] != 7: raise RuntimeError(f'issue {n} has another milestone')
+              issues[n] = api('PATCH', f'/issues/{n}', {'milestone': 7, 'type': 'Epic' if n == 345 else 'Task'})
+          attached = {r['id'] for r in pages('/issues/345/sub_issues')}
+          for n in children:
+              if issues[n]['id'] not in attached:
+                  api('POST', '/issues/345/sub_issues', {'sub_issue_id': issues[n]['id'], 'replace_parent': False})
+          for n, dependencies in blockers.items():
+              present = {r['id'] for r in pages(f'/issues/{n}/dependencies/blocked_by')}
+              for dependency in dependencies:
+                  if issues[dependency]['id'] not in present:
+                      api('POST', f'/issues/{n}/dependencies/blocked_by', {'issue_id': issues[dependency]['id']})
+          verified_children = {r['number'] for r in pages('/issues/345/sub_issues')}
+          assert set(children).issubset(verified_children)
+          for n, dependencies in blockers.items():
+              actual = {r['number'] for r in pages(f'/issues/{n}/dependencies/blocked_by')}
+              assert set(dependencies).issubset(actual), (n, actual)
+          result = {'milestone': milestone['html_url'], 'milestone_number': 7, 'epic': 345, 'children': children, 'acceptance_blockers': blockers, 'changed_source_on_main': False}
           print(json.dumps(result, indent=2))
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
-              out.write('## Approved planning metadata\n\n```json\n' + json.dumps(result, indent=2) + '\n```\n')
+              out.write('## Verified approved planning metadata\n\n```json\n' + json.dumps(result, indent=2) + '\n```\n')
           PY
