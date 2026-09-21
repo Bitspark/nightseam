@@ -1,21 +1,23 @@
 /**
  * What the observer makes of each event, stated rather than driven, so that
- * what a backend is read in does not depend on the host: a request is a span,
- * everything else is a span event on the span it belongs to, and an attribute
+ * what a backend is read in does not depend on the host: requests, connections
+ * and application events have spans, other events annotate their enclosing span, and an attribute
  * is one of the event's own scalar fields and nothing else. That a peer emits
  * these events in this order is held by the peer's own suite; what one call
  * through a relay makes of them is held beside this, in `spans.test.ts`.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { SpanKind, SpanStatusCode, type Span, type Tracer } from '@opentelemetry/api';
 import {
   BasicTracerProvider,
+  AlwaysOffSampler,
   InMemorySpanExporter,
   SimpleSpanProcessor,
   type ReadableSpan,
 } from '@opentelemetry/sdk-trace-base';
-import type { ObserverEvent } from '@nightseam/runtime';
+import type { Observer, ObserverEvent } from '@nightseam/runtime';
 import { EVENTS } from './observer.check.ts';
 import { observer } from './observer.ts';
 
@@ -56,6 +58,49 @@ function watching() {
 
 /** One span's events as names, which is what a reader of a trace sees first. */
 const names = (span: ReadableSpan) => span.events.map((event) => event.name);
+
+interface SequenceSpan {
+  name: string;
+  kind: string;
+  start_ms: number;
+  end_ms: number;
+  trace_id?: string;
+  parent_span_id: string;
+  attributes?: Record<string, unknown>;
+  events: { name: string; at_ms: number }[];
+}
+
+const sequences = JSON.parse(
+  readFileSync(new URL('../../../conformance/tables/otel-events.json', import.meta.url), 'utf8'),
+) as { cases: { name: string; events: (Record<string, unknown> & { at_ms: number })[]; spans: SequenceSpan[] }[] };
+
+test('the shared observer fixture has cases', () => assert.ok(sequences.cases.length > 0));
+for (const row of sequences.cases) {
+  test(`shared observer sequence: ${row.name}`, () => {
+    const watch = watching();
+    const origin = Date.parse('2026-09-21T00:00:00Z');
+    for (const { at_ms, ...event } of row.events)
+      watch.tell({ ...event, at: new Date(origin + at_ms) } as ObserverEvent);
+    const spans = watch.spans();
+    assert.equal(spans.length, row.spans.length, spans.map((span) => span.name).join(', '));
+    const milliseconds = ([seconds, nanos]: [number, number]) => seconds * 1000 + nanos / 1e6 - origin;
+    for (const [i, expected] of row.spans.entries()) {
+      const span = spans[i]!;
+      assert.equal(span.name, expected.name);
+      assert.equal(SpanKind[span.kind]!.toLowerCase(), expected.kind);
+      assert.equal(milliseconds(span.startTime), expected.start_ms);
+      assert.equal(milliseconds(span.endTime), expected.end_ms);
+      assert.equal(span.parentSpanContext?.spanId ?? '', expected.parent_span_id);
+      if (expected.trace_id) assert.equal(span.spanContext().traceId, expected.trace_id);
+      for (const [key, value] of Object.entries(expected.attributes ?? {}))
+        assert.deepEqual(span.attributes[key], value, `${span.name}: ${key}`);
+      assert.deepEqual(
+        span.events.map((event) => ({ name: event.name, at_ms: milliseconds(event.time) })),
+        expected.events,
+      );
+    }
+  });
+}
 
 test('an incoming request is a server span and an outgoing one a client span, named for the method', () => {
   const watch = watching();
@@ -141,8 +186,9 @@ test('how a request ended is the span status, and the error code is an attribute
   assert.deepEqual(timeout!.status, { code: SpanStatusCode.ERROR, message: 'request_timeout' });
 });
 
-test('an event names its span by the request it belongs to, or by the trace it carries, or by neither', () => {
+test('an application event keeps its frame parent and never annotates the request instead', () => {
   const watch = watching();
+  watch.tell({ type: 'connection.opened', at, role: 'client' });
   watch.tell({
     type: 'request.started',
     at,
@@ -155,14 +201,11 @@ test('an event names its span by the request it belongs to, or by the trace it c
   watch.tell(
     // By the request: every frame of an exchange says which request it is.
     { type: 'frame.sent', at, kind: 'request', name: 'work.read', bytes: 96, id: 'c:1', trace: TRACE, family: 'work' },
-    // By the trace: an event names no request, and the span it belongs to is
-    // the one the frame's trace names, which is the span just opened.
+    // An application event gets its own moment under the parent its frame names.
     { type: 'event.emitted', at, name: 'work.changed', bytes: 52, trace: watch.of(), family: 'work' },
-    // By neither: what names no request and carries no trace concerns the
-    // whole connection, and is recorded on every span it still has open.
+    // Closing the connection does not add an annotation to the open request.
     { type: 'connection.closed', at, code: 1011, reason: 'Queue full', local: true },
-    // And what names a request, or the trace of a span, this peer does not
-    // have is recorded where that span is, which is not here.
+    // There is no connection left to enclose this unrelated frame.
     { type: 'frame.received', at, kind: 'response', name: 'other.read', bytes: 48, id: 'c:9', family: 'other' },
     {
       type: 'event.delivered',
@@ -184,17 +227,24 @@ test('an event names its span by the request it belongs to, or by the trace it c
     trace: TRACE,
     family: 'work',
   });
-  const [span] = watch.spans();
-  assert.deepEqual(names(span!), ['frame.sent', 'event.emitted', 'connection.closed']);
-  assert.deepEqual(span!.events[2]!.attributes, {
-    'nightseam.code': 1011,
-    'nightseam.reason': 'Queue full',
-    'nightseam.local': true,
+  const [emitted, connection, delivered, span] = watch.spans();
+  assert.deepEqual(names(span!), ['frame.sent']);
+  assert.equal(emitted!.kind, SpanKind.PRODUCER);
+  assert.equal(emitted!.parentSpanContext?.spanId, span!.spanContext().spanId);
+  assert.equal(delivered!.kind, SpanKind.CONSUMER);
+  assert.equal(delivered!.parentSpanContext?.spanId, '0000000000000009');
+  assert.deepEqual(connection!.attributes, {
+    'nightseam.role': 'client',
+    'nightseam.close.code': 1011,
+    'nightseam.close.reason': 'Queue full',
+    'nightseam.close.local': true,
   });
+  assert.deepEqual(connection!.events, []);
 });
 
-test('the tunnel reaches a span by the same two rules as the runtime', () => {
+test('the tunnel reaches the connection span while a request is open', () => {
   const watch = watching();
+  watch.tell({ type: 'connection.opened', at, role: 'server' });
   watch.tell({
     type: 'request.started',
     at,
@@ -205,10 +255,8 @@ test('the tunnel reaches a span by the same two rules as the runtime', () => {
     family: '',
   });
   // A channel's events name no request and carry no trace: they are the
-  // connection's, and are recorded on what it has open, as a close is.
+  // connection's, even while a channel.open request is in flight.
   watch.tell(EVENTS.find((event) => event.type === 'channel.accepted')!);
-  // An event that carries the trace of a frame is recorded where that frame's
-  // span is and nowhere else.
   watch.tell({ type: 'credit.stall', at, family: 'probe', id: 3, waiting: 2 });
   watch.tell({
     type: 'request.ended',
@@ -221,9 +269,11 @@ test('the tunnel reaches a span by the same two rules as the runtime', () => {
     trace: TRACE,
     family: '',
   });
-  const [span] = watch.spans();
-  assert.deepEqual(names(span!), ['channel.accepted', 'credit.stall']);
-  assert.deepEqual(span!.events[1]!.attributes, {
+  watch.tell({ type: 'connection.closed', at, code: 1000, reason: '', local: true });
+  const [span, connection] = watch.spans();
+  assert.deepEqual(names(span!), []);
+  assert.deepEqual(names(connection!), ['channel.accepted', 'credit.stall']);
+  assert.deepEqual(connection!.events[1]!.attributes, {
     'nightseam.family': 'probe',
     'nightseam.id': 3,
     'nightseam.waiting': 2,
@@ -231,8 +281,7 @@ test('the tunnel reaches a span by the same two rules as the runtime', () => {
 });
 
 test('no payload reaches a span: every event of every layer, and a structure smuggled into each', () => {
-  const watch = watching();
-  watch.tell({
+  const started: ObserverEvent = {
     type: 'request.started',
     at,
     id: 'c:1',
@@ -240,32 +289,37 @@ test('no payload reaches a span: every event of every layer, and a structure smu
     incoming: false,
     trace: TRACE,
     family: 'work',
-  });
-  const enclosing = watch.of();
+  };
+  const spans: ReadableSpan[] = [];
   for (const event of EVENTS) {
     // Each event as the layer declares it, and each carrying what no layer
     // declares: a structure is the one shape a payload could arrive in, and
     // it is the shape no attribute is ever written from.
     const smuggled = {
       ...event,
-      trace: enclosing,
       params: { secret: SENTINEL },
       data: [SENTINEL],
     } as unknown as ObserverEvent;
-    watch.tell({ ...event, trace: enclosing } as ObserverEvent, smuggled);
+    for (const told of [event, smuggled]) {
+      const watch = watching();
+      if (told.type !== 'connection.opened') watch.tell({ type: 'connection.opened', at, role: 'client' });
+      if (told.type !== 'request.started') watch.tell(started);
+      watch.tell(told);
+      watch.tell({
+        type: 'request.ended',
+        at,
+        id: 'c:1',
+        method: 'work.read',
+        incoming: false,
+        durationMs: 7,
+        outcome: 'ok',
+        trace: TRACE,
+        family: 'work',
+      });
+      watch.tell({ type: 'connection.closed', at, code: 1000, reason: '', local: true });
+      spans.push(...watch.spans());
+    }
   }
-  watch.tell({
-    type: 'request.ended',
-    at,
-    id: 'c:1',
-    method: 'work.read',
-    incoming: false,
-    durationMs: 7,
-    outcome: 'ok',
-    trace: TRACE,
-    family: 'work',
-  });
-  const spans = watch.spans();
   assert.equal(spans.length > 0, true);
   for (const span of spans) {
     assert.equal(JSON.stringify(span.attributes).includes(SENTINEL), false, span.name);
@@ -278,5 +332,60 @@ test('no payload reaches a span: every event of every layer, and a structure smu
         assert.equal(['string', 'number', 'boolean'].includes(typeof value), true, `${key} is ${typeof value}`);
       }
     }
+  }
+});
+
+test('connection and application event spans obey the supplied tracer sampler', async () => {
+  const exporter = new InMemorySpanExporter();
+  const provider = new BasicTracerProvider({
+    sampler: new AlwaysOffSampler(),
+    spanProcessors: [new SimpleSpanProcessor(exporter)],
+  });
+  try {
+    const told = observer(provider.getTracer('consumer-sampling'));
+    for (const event of EVENTS) told.observe(event);
+    assert.deepEqual(exporter.getFinishedSpans(), []);
+  } finally {
+    await provider.shutdown();
+  }
+});
+
+test('a consumer span processor can observe the next connection while the previous span ends', async () => {
+  const exporter = new InMemorySpanExporter();
+  let told: Observer;
+  let first = true;
+  const reopened = new Date(at.getTime() + 10);
+  const provider = new BasicTracerProvider({
+    spanProcessors: [
+      new SimpleSpanProcessor(exporter),
+      {
+        onStart() {},
+        onEnd() {
+          if (first) {
+            first = false;
+            told.observe({ type: 'connection.opened', at: reopened, role: 'server' });
+          }
+        },
+        async forceFlush() {},
+        async shutdown() {},
+      },
+    ],
+  });
+  try {
+    told = observer(provider.getTracer('consumer-processor'));
+    told.observe({ type: 'connection.opened', at, role: 'client' });
+    told.observe({ type: 'connection.closed', at, code: 1000, reason: '', local: true });
+    told.observe({ type: 'connection.closed', at: reopened, code: 1001, reason: '', local: false });
+    assert.deepEqual(
+      exporter
+        .getFinishedSpans()
+        .map((span) => [span.attributes['nightseam.role'], span.attributes['nightseam.close.code']]),
+      [
+        ['client', 1000],
+        ['server', 1001],
+      ],
+    );
+  } finally {
+    await provider.shutdown();
   }
 });

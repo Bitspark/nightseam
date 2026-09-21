@@ -114,6 +114,9 @@ func (f *file) adapterRecipes(uses []render.Use, failure string) {
 	for _, use := range uses {
 		name := "adapter" + parameterName(use)
 		f.linef("if %s.Export == nil || %s.Import == nil { return %s%s.Errorf(%q) }", name, name, failure, f.std("fmt"), parameterName(use)+": both conversion recipes are required")
+		if use.Type != "" && !model.Carried(use.Type) {
+			f.linef("if err := %s.ValidateDrawnType(%s.Binding, %q, false); err != nil { return %serr }", f.runtime(), name, use.Type, failure)
+		}
 	}
 }
 

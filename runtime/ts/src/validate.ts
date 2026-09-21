@@ -115,6 +115,28 @@ export interface Validator {
 export function validatorMetadata(validator: Validator): Schema {
   return validator[descriptor];
 }
+
+/** Check a supplied associated member before aliases erase its declared kind. */
+export function validateDrawnType(binding: TypeBinding, member: string, requireObject: boolean): void {
+  if (typeof binding.type !== 'string') throw new Error('family binding: a draw requires a plain declared member');
+  const schema = binding.validate[descriptor];
+  if (!schema) throw new Error('family binding: missing drawn declaration');
+  const [target, definition] = named(
+    { schema, value: binding.type, scope: { ...schema.scope } },
+    binding.type,
+    'family binding',
+  );
+  for (const selected of [definition, target.schema.family.types[member]]) {
+    if (!selected) throw new Error('family binding: missing drawn member');
+    if (selected.parameters?.length || freeParameters(target.schema, selected).length)
+      throw new Error('family binding: a draw requires a nongeneric member');
+    if (['record', 'entity', 'union'].includes(selected.kind)) continue;
+    if (selected.kind === 'enum' && !requireObject) continue;
+    throw new Error(
+      'family binding: a draw requires a plain member' + (requireObject ? ' with an object request shape' : ''),
+    );
+  }
+}
 function timestamp(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)(?:\.\d+)?(?:Z|([+-])(\d\d):(\d\d))$/.exec(value);

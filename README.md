@@ -132,10 +132,11 @@ pairing.
 | language | tier | core | generator | tunnel | live | observability | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
+| `java` | 4 | ✓ | — 64 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
 | `python` | 4 | ✓ | — 64 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
 | `typescript` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
 
-Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2; `java`, `swift` at tier 4.
+Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2; `swift` at tier 4.
 <!-- matrix:end -->
 
 The table is the last conformance run, rendered from
