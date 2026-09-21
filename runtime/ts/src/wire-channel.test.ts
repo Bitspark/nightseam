@@ -4,6 +4,7 @@ import { setImmediate as nextTurn } from 'node:timers/promises';
 import { at, encodePath, mount, pipe, type Wire } from '@nightseam/duplex';
 import { Tunnel, type Connection } from '@nightseam/tunnel';
 import { DuplexPeer } from './peer.ts';
+import { createDispatcher } from './dispatcher.ts';
 import { callWire, emitWire, handleWire } from './wire.ts';
 import type { Observer, ObserverEvent } from './observer.ts';
 
@@ -74,7 +75,9 @@ async function channelHarness(t: TestContext) {
     outerCalls++;
     return value;
   });
-  handleWire(siblingServer.wire(), ['echo'], (value) => {
+  const siblingDispatcher = createDispatcher(siblingServer.wire());
+  t.after(() => siblingDispatcher.close());
+  handleWire(siblingDispatcher, ['echo'], (value) => {
     siblingCalls++;
     return value;
   });
@@ -96,7 +99,9 @@ async function destination(t: TestContext, channel: Connection) {
   const peer = new DuplexPeer({ queueCapacity: 2, writeTimeoutMs: 5_000, observer: log });
   t.after(() => peer.close());
   await peer.attach(channel);
-  const wire = at(mount(new Map([['destination', at(peer.wire(), ['events'])]])), ['destination']);
+  const mounted = mount(new Map([['destination', peer.wire()]]));
+  t.after(() => mounted.close());
+  const wire = at(mounted, ['destination', 'events']);
   return { log, peer, wire };
 }
 

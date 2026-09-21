@@ -6,6 +6,7 @@ import { DuplexPeer, DuplexError, UnpublishedError } from './peer.ts';
 import type { ObserverEvent } from './observer.ts';
 import { callWire, forwardWire, handleWire } from './wire.ts';
 import { wirePair } from './wire-pair.ts';
+import { createDispatcher } from './dispatcher.ts';
 
 function heldConnection() {
   const [a, b] = pipe();
@@ -179,7 +180,9 @@ test('a composed wire handoff still refuses a full physical queue immediately an
   assert.equal((refused as DuplexError).code, 'busy');
   assert.equal(destination.status, 'disconnected');
   detach();
-  handleWire(forwarding, ['healthy'], () => 'still open');
+  const dispatcher = createDispatcher(forwarding);
+  t.after(() => dispatcher.close());
+  handleWire(dispatcher, ['healthy'], () => 'still open');
   assert.equal(await callWire(caller, ['healthy']), 'still open');
   assert.equal(held.sent.length, 0);
 });
