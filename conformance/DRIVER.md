@@ -692,4 +692,28 @@ Allocation counters observe cumulative runtime `ConnectionOpened` and tunnel
 
 | op | arguments | answer |
 | --- | --- | --- |
-| `gen.wire_local` | **`presentation`**: `local`, `mounted`, or `forwarded`; `within_ms` | `{"revisions":[1,2],"value":"second","reverse":"second","changed":"second","noted":"first","view_allocations":{"peers":0,"channels":0},"use_allocations":{"peers":0,"channels":0}}` — one scalar model survives direct local access, nested `At(Mount(...))`, or a generic bidirectional forwarder. Both events and the reverse call complete before counters are returned. |
+| `gen.wire_local` | **`presentation`**: `local`, `mounted`, or `forwarded`; `slot`: `string` (default), `unary`, `factory`, or `nested`; `within_ms` | `{"revisions":[1,2],"value","reverse","changed","noted","setup_allocations","view_allocations","use_allocations","counts":{"caller","callee"},"released_counts":{"caller","callee"}}` — both events and the reverse call complete before counts are returned; both explicit roots are released and reach zero before the carriers close. |
+| `gen.wire_serve` | **`slot`**, **`carrier`**: `socket` or `channel`, **`presentation`** | `{"handle","url"}` — one Cell implementation serves the selected value slot through its generated adapter. A channel is acquired as a prepared Wire once. |
+| `gen.wire_dial` | **`url`**, **`slot`**, **`carrier`**, **`presentation`** | `{"handle"}` — the opposite model supplies a typed mirror operation and changed-event receiver. |
+| `gen.wire_exercise` | **`on`**, `within_ms` | `{"revisions":[1,2],"value","reverse","changed","setup_allocations","view_allocations","use_allocations","counts"}` — two state changes followed by a read, a reverse call, both events, and invocation of any returned callable values. |
+| `gen.wire_inspect` | **`on`**, `within_ms` | `{"revision":2,"value","noted","setup_allocations","view_allocations","use_allocations","counts"}` — waits for the noted event and observes the retained value and event value while the scope remains open. |
+| `gen.wire_release` | **`on`**, `within_ms` | `{}` — releases the handle's explicit root owner; the carrier stays open. |
+| `gen.wire_counts` | **`on`**, `within_ms` | `{"exports","imports"}` — current live counts, including retained child lifetimes. |
+| `gen.wire_bridge` | **`origin`** URL, **`slot`**: `factory`, **`presentation`**: `mounted` or `forwarded` | `{"handle","url"}` — derives a model with generated FromWire on the origin scope and passes that same model directly to generated ToWire on an independent destination scope. |
+| `gen.wire_bridge_counts` | **`on`**, `within_ms` | `{"origin":{"exports","imports"},"destination":{"exports","imports"},"setup_allocations","view_allocations","use_allocations"}` — both middle scopes before or after explicit release, without teardown. |
+| `gen.wire_bridge_release` | **`on`**, `within_ms` | `{}` — releases both middle root owners while both physical connections remain open. |
+
+The scalar slot uses `first` and `second`. A unary slot adds one or two and is
+observed at five. A factory slot calls its supplied unary and adds one or two;
+its supplied function adds three. The nested slot is
+`boxes.Page<combinator.Bundle<combinator.Unary>>`, preserving the extra `label`
+member and absent optional `next` while calling both nested functions.
+
+Local live cases explicitly prepare two scope peers before the allocation
+baseline; their ordinary operations still use a local model Wire. Socket cases
+prepare one peer per side. Channel cases prepare an outer peer and one channel
+peer per side. Mounted and forwarded carrier cases preserve the physical
+`outer/inner` path prefix. The scenarios assert literal counts for every scope,
+zero allocation deltas for views and first use, and zero bindings after explicit
+release. The bridge has four physical scopes in total and contains no handwritten
+per-operation or per-slot forwarding wrapper.

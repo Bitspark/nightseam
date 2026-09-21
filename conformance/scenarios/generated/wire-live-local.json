@@ -1,0 +1,520 @@
+{
+  "name": "one generated model retains callable higher order and nested slots through local mounted and forwarded wires",
+  "layer": "generated",
+  "needs": [
+    "generated"
+  ],
+  "mirror": true,
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.wire_local",
+      "args": {
+        "slot": "unary",
+        "presentation": "local"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 5,
+            "imports": 4
+          },
+          "callee": {
+            "exports": 4,
+            "imports": 5
+          }
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_local",
+      "args": {
+        "slot": "unary",
+        "presentation": "mounted"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 5,
+            "imports": 4
+          },
+          "callee": {
+            "exports": 4,
+            "imports": 5
+          }
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_local",
+      "args": {
+        "slot": "unary",
+        "presentation": "forwarded"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "noted": 6,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 5,
+            "imports": 4
+          },
+          "callee": {
+            "exports": 4,
+            "imports": 5
+          }
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_local",
+      "args": {
+        "slot": "factory",
+        "presentation": "local"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "noted": 9,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 20,
+            "imports": 19
+          },
+          "callee": {
+            "exports": 19,
+            "imports": 20
+          }
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_local",
+      "args": {
+        "slot": "factory",
+        "presentation": "mounted"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "noted": 9,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 20,
+            "imports": 19
+          },
+          "callee": {
+            "exports": 19,
+            "imports": 20
+          }
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_local",
+      "args": {
+        "slot": "factory",
+        "presentation": "forwarded"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "noted": 9,
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 20,
+            "imports": 19
+          },
+          "callee": {
+            "exports": 19,
+            "imports": 20
+          }
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_local",
+      "args": {
+        "slot": "nested",
+        "presentation": "local"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "seed": 7,
+          "run": 25,
+          "label": "kept",
+          "next_absent": true
+        },
+        "reverse": {
+          "seed": 7,
+          "run": 25,
+          "label": "kept",
+          "next_absent": true
+        },
+        "changed": {
+          "seed": 7,
+          "run": 25,
+          "label": "kept",
+          "next_absent": true
+        },
+        "noted": {
+          "seed": 6,
+          "run": 15,
+          "label": "kept",
+          "next_absent": true
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 10,
+            "imports": 8
+          },
+          "callee": {
+            "exports": 8,
+            "imports": 10
+          }
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_local",
+      "args": {
+        "slot": "nested",
+        "presentation": "mounted"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "seed": 7,
+          "run": 25,
+          "label": "kept",
+          "next_absent": true
+        },
+        "reverse": {
+          "seed": 7,
+          "run": 25,
+          "label": "kept",
+          "next_absent": true
+        },
+        "changed": {
+          "seed": 7,
+          "run": 25,
+          "label": "kept",
+          "next_absent": true
+        },
+        "noted": {
+          "seed": 6,
+          "run": 15,
+          "label": "kept",
+          "next_absent": true
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 10,
+            "imports": 8
+          },
+          "callee": {
+            "exports": 8,
+            "imports": 10
+          }
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_local",
+      "args": {
+        "slot": "nested",
+        "presentation": "forwarded"
+      },
+      "expect": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": {
+          "seed": 7,
+          "run": 25,
+          "label": "kept",
+          "next_absent": true
+        },
+        "reverse": {
+          "seed": 7,
+          "run": 25,
+          "label": "kept",
+          "next_absent": true
+        },
+        "changed": {
+          "seed": 7,
+          "run": 25,
+          "label": "kept",
+          "next_absent": true
+        },
+        "noted": {
+          "seed": 6,
+          "run": 15,
+          "label": "kept",
+          "next_absent": true
+        },
+        "setup_allocations": {
+          "peers": 2,
+          "channels": 0
+        },
+        "view_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "use_allocations": {
+          "peers": 0,
+          "channels": 0
+        },
+        "counts": {
+          "caller": {
+            "exports": 10,
+            "imports": 8
+          },
+          "callee": {
+            "exports": 8,
+            "imports": 10
+          }
+        },
+        "released_counts": {
+          "caller": {
+            "exports": 0,
+            "imports": 0
+          },
+          "callee": {
+            "exports": 0,
+            "imports": 0
+          }
+        }
+      }
+    }
+  ]
+}

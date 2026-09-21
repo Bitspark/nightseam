@@ -1,0 +1,98 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	cellbinding "example.test/generated/api/go/cell-binding"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/live/go"
+	"github.com/Bitspark/nightseam/runtime/go"
+	"net"
+	"net/http"
+)
+
+type wireBridgeHandle struct {
+	*wireCarrierHandle
+	origin                        *runtime.Peer
+	originScope, destinationScope *live.Scope
+	originViews                   wireAllocations
+}
+
+func (h *wireBridgeHandle) shutdown() {
+	h.wireCarrierHandle.shutdown()
+	if h.origin != nil {
+		_ = h.origin.Close()
+	}
+}
+func (t *testee) wireBridgeDispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), within(raw))
+	defer cancel()
+	if op == "gen.wire_bridge" {
+		h := &wireBridgeHandle{wireCarrierHandle: &wireCarrierHandle{ready: make(chan struct{}), observer: &wireAllocationObserver{}}}
+		presentation := str(raw, "presentation")
+		var err error
+		h.origin, _, err = runtime.Dial(context.Background(), str(raw, "origin"), runtime.DialOptions{Options: runtime.Options{Observer: h.observer, Prepare: func(peer *runtime.Peer) (err error) { h.originScope, err = live.Over(peer, live.Options{}); return }}})
+		if err != nil {
+			return nil, err
+		}
+		before := h.observer.snapshot()
+		selected, cleanup, err := wirePhysicalView(h.origin, presentation, h.observer)
+		if err != nil {
+			h.shutdown()
+			return nil, err
+		}
+		h.originViews = h.observer.snapshot().since(before)
+		go func() { <-h.origin.Done(); cleanup() }()
+		adapter := wireFactories().adapter
+		model, err := cellbinding.FromWire(ctx, selected, runtime.AdapterContext{Options: runtime.Options{Observer: h.observer}, ValueEnvironment: live.ValueEnvironment(h.originScope)}, adapter)
+		if err != nil {
+			h.shutdown()
+			return nil, err
+		}
+		build := func(peer *runtime.Peer) (duplex.Wire, error) {
+			var err error
+			h.destinationScope, err = live.Over(peer, live.Options{})
+			if err != nil {
+				return nil, err
+			}
+			h.side = &wireCarrierSide{}
+			// The exact model returned by the origin adapter is interpreted at the
+			// destination. Generated boundaries translate every nested live reference.
+			return cellbinding.ToWire(model, runtime.AdapterContext{Options: runtime.Options{Observer: h.observer}, ValueEnvironment: live.ValueEnvironment(h.destinationScope)}, adapter)
+		}
+		handler, err := runtime.NewHandler(runtime.ServerOptions{
+			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil }, CheckOrigin: func(*http.Request) bool { return true },
+			Options:   wireCarrierPrepare(runtime.Options{Observer: h.observer}, h.wireCarrierHandle, presentation, build),
+			OnConnect: func(peer *runtime.Peer) { h.mu.Lock(); h.peer = peer; h.mu.Unlock(); h.prepared(nil) },
+		})
+		if err != nil {
+			h.shutdown()
+			return nil, err
+		}
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			h.shutdown()
+			return nil, err
+		}
+		h.http = &http.Server{Handler: handler}
+		go func() { _ = h.http.Serve(listener) }()
+		return map[string]any{"handle": t.mint("wirebridge", h), "url": "ws://" + listener.Addr().String()}, nil
+	}
+	h, err := liveOf[*wireBridgeHandle](t, raw)
+	if err != nil {
+		return nil, err
+	}
+	if err = h.await(ctx); err != nil {
+		return nil, err
+	}
+	switch op {
+	case "gen.wire_bridge_counts":
+		return map[string]any{"origin": ownerCounts(h.originScope), "destination": ownerCounts(h.destinationScope), "setup_allocations": h.baseline, "view_allocations": wireAllocations{h.side.views.Peers + h.originViews.Peers, h.side.views.Channels + h.originViews.Channels}, "use_allocations": h.observer.snapshot().since(h.baseline)}, nil
+	case "gen.wire_bridge_release":
+		if err = h.originScope.Owner().Release(); err != nil {
+			return nil, err
+		}
+		return nil, h.destinationScope.Owner().Release()
+	}
+	return nil, fail("unsupported", "no bridge operation %s", op)
+}

@@ -116,16 +116,47 @@ func wirePresentation(root duplex.Wire, presentation string, options runtime.Opt
 	}
 }
 
-func wireScalar(ctx context.Context, presentation string) (any, error) {
+func wireScalar(ctx context.Context, presentation, slot string) (any, error) {
+	switch slot {
+	case "", "string":
+		return wireLocalValues(ctx, presentation, wireStrings())
+	case "unary":
+		return wireLocalValues(ctx, presentation, wireUnaries())
+	case "factory":
+		return wireLocalValues(ctx, presentation, wireFactories())
+	case "nested":
+		return wireLocalValues(ctx, presentation, wireNested())
+	}
+	return nil, fmt.Errorf("unknown wire slot %s", slot)
+}
+func wireLocalValues[T any](ctx context.Context, presentation string, values wireValues[T]) (any, error) {
 	observer := &wireAllocationObserver{}
 	options := runtime.Options{Observer: observer}
-	environment := live.AdapterContext{AdapterContext: runtime.AdapterContext{Options: options}}
-	implementation := &wireCell[string]{noted: make(chan string, 4)}
-	adapter := live.JSONAdapter[string]()
-	wire, err := cellbinding.ToWire(func(remote cell.Client[string]) (cell.Server[string], error) {
+	environmentA, environmentB := runtime.AdapterContext{Options: options}, runtime.AdapterContext{Options: options}
+	var scopeA, scopeB *live.Scope
+	if values.adapter.NeedsContext {
+		a, b := duplex.Pipe(1 << 20)
+		prepare := func(scope **live.Scope) runtime.Options {
+			return runtime.Options{Observer: observer, Prepare: func(peer *runtime.Peer) (err error) { *scope, err = live.Over(peer, live.Options{}); return }}
+		}
+		pa, err := runtime.NewPeer(context.Background(), a, runtime.ClientRole, prepare(&scopeA))
+		if err != nil {
+			return nil, err
+		}
+		defer pa.Close()
+		pb, err := runtime.NewPeer(context.Background(), b, runtime.ServerRole, prepare(&scopeB))
+		if err != nil {
+			return nil, err
+		}
+		defer pb.Close()
+		environmentA.ValueEnvironment = live.ValueEnvironment(scopeA)
+		environmentB.ValueEnvironment = live.ValueEnvironment(scopeB)
+	}
+	implementation := &wireCell[T]{noted: make(chan T, 4)}
+	wire, err := cellbinding.ToWire(func(remote cell.Client[T]) (cell.Server[T], error) {
 		implementation.remote = remote
-		return cell.Server[string]{Methods: implementation, Events: wireNoted[string]{implementation.noted}}, nil
-	}, environment, adapter)
+		return cell.Server[T]{Methods: implementation, Events: wireNoted[T]{implementation.noted}}, nil
+	}, environmentB, values.adapter)
 	if err != nil {
 		return nil, err
 	}
@@ -136,21 +167,21 @@ func wireScalar(ctx context.Context, presentation string) (any, error) {
 		return nil, err
 	}
 	defer cleanup()
-	model, err := cellbinding.FromWire(ctx, selected, environment, adapter)
+	model, err := cellbinding.FromWire(ctx, selected, environmentA, values.adapter)
 	if err != nil {
 		return nil, err
 	}
-	changed := make(chan string, 4)
-	access, err := model(cell.Client[string]{Methods: wireMirror[string]{}, Events: wireChanged[string]{changed}})
+	changed := make(chan T, 4)
+	access, err := model(cell.Client[T]{Methods: wireMirror[T]{}, Events: wireChanged[T]{changed}})
 	if err != nil {
 		return nil, err
 	}
 	views := observer.snapshot()
-	first, err := access.Methods.Put(ctx, cell.PutParams[string]{Value: "first"})
+	first, err := access.Methods.Put(ctx, cell.PutParams[T]{Value: values.make(1)})
 	if err != nil {
 		return nil, err
 	}
-	second, err := access.Methods.Put(ctx, cell.PutParams[string]{Value: "second"})
+	second, err := access.Methods.Put(ctx, cell.PutParams[T]{Value: values.make(2)})
 	if err != nil {
 		return nil, err
 	}
@@ -158,14 +189,14 @@ func wireScalar(ctx context.Context, presentation string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	reverse, err := access.Methods.RoundTrip(ctx, cell.PutParams[string]{Value: value})
+	reverse, err := access.Methods.RoundTrip(ctx, cell.PutParams[T]{Value: value})
 	if err != nil {
 		return nil, err
 	}
-	if err = access.Events.Noted(ctx, cell.PutParams[string]{Value: "first"}); err != nil {
+	if err = access.Events.Noted(ctx, cell.PutParams[T]{Value: values.make(1)}); err != nil {
 		return nil, err
 	}
-	var change, note string
+	var change, note T
 	select {
 	case change = <-changed:
 	case <-ctx.Done():
@@ -176,14 +207,58 @@ func wireScalar(ctx context.Context, presentation string) (any, error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	return map[string]any{"revisions": []int64{first, second}, "value": value, "reverse": reverse, "changed": change, "noted": note, "view_allocations": views.since(baseline), "use_allocations": observer.snapshot().since(views)}, nil
+	observed, err := values.observe(ctx, value)
+	if err != nil {
+		return nil, err
+	}
+	reversed, err := values.observe(ctx, reverse)
+	if err != nil {
+		return nil, err
+	}
+	changedValue, err := values.observe(ctx, change)
+	if err != nil {
+		return nil, err
+	}
+	notedValue, err := values.observe(ctx, note)
+	if err != nil {
+		return nil, err
+	}
+	counts := func() map[string]any {
+		a, b := wireEmptyCounts(), wireEmptyCounts()
+		if scopeA != nil {
+			a = ownerCounts(scopeA)
+			b = ownerCounts(scopeB)
+		}
+		return map[string]any{"caller": a, "callee": b}
+	}
+	before := counts()
+	if scopeA != nil {
+		if scopeA.Counts().Exports == 0 || scopeB.Counts().Imports == 0 {
+			return nil, fmt.Errorf("live local slot did not acquire bindings")
+		}
+		if err = scopeA.Owner().Release(); err != nil {
+			return nil, err
+		}
+		if err = scopeB.Owner().Release(); err != nil {
+			return nil, err
+		}
+		if err = ownersZero(scopeA, within(nil)); err != nil {
+			return nil, err
+		}
+		if err = ownersZero(scopeB, within(nil)); err != nil {
+			return nil, err
+		}
+	}
+	return map[string]any{"revisions": []int64{first, second}, "value": observed, "reverse": reversed, "changed": changedValue, "noted": notedValue, "setup_allocations": baseline, "view_allocations": views.since(baseline), "use_allocations": observer.snapshot().since(views), "counts": before, "released_counts": counts()}, nil
 }
 func (t *testee) wireDispatch(op string, raw map[string]json.RawMessage) (any, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), within(raw))
 	defer cancel()
 	switch op {
+	case "gen.wire_bridge", "gen.wire_bridge_counts", "gen.wire_bridge_release":
+		return t.wireBridgeDispatch(op, raw)
 	case "gen.wire_local":
-		return wireScalar(ctx, str(raw, "presentation"))
+		return wireScalar(ctx, str(raw, "presentation"), str(raw, "slot"))
 	}
-	return nil, fail("unsupported", "no wire operation %s", op)
+	return t.wireCarrierDispatch(op, raw)
 }
