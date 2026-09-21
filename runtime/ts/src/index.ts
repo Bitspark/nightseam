@@ -19,6 +19,7 @@ export type { Trace, Propagator } from './trace.ts';
 export { webSocketConnection } from '@nightseam/duplex';
 export type { Frame, ConnectionState, ConnectionHandlers, FrameConnection, WebSocketLike } from '@nightseam/duplex';
 export { createValidator } from './validate.ts';
+export { withDeclaration, boundDeclaration, declarationDigest, typeDeclaration } from './declaration_identity.ts';
 export { IDENTITY_METHOD, checkIdentity, identityHandler } from './identity.ts';
 export type { DeclarationIdentity } from './identity.ts';
 export { scalarJSON as validateUnicodeJSON } from './unicode.ts';
