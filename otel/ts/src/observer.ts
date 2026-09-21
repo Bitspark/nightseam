@@ -1,4 +1,5 @@
 import {
+  ROOT_CONTEXT,
   SpanKind,
   SpanStatusCode,
   trace as traceApi,
@@ -6,24 +7,21 @@ import {
   type Span,
   type Tracer,
 } from '@opentelemetry/api';
-import type { Observer, ObserverEvent, Trace } from '@nightseam/runtime';
+import type { Observer, ObserverEvent } from '@nightseam/runtime';
 import { contextOf, mark } from './context.ts';
-import { spanIdOf, wireContext } from './wire.ts';
+import { wireContext } from './wire.ts';
 
 /**
  * The runtime's observer over an OpenTelemetry tracer: a request becomes a
  * span, a server one where the request came in and a client one where it went
- * out, and every other event becomes a span event on the span it belongs to.
+ * out. The connection has its own span from open to close, and an application
+ * event is a zero-duration producer or consumer span under its frame's trace.
  *
  * An observer is a peer's, so one of these belongs to one peer: the spans it
- * has open are that peer's requests, and an event of a layer running over that
- * peer — a tunnel's — is recorded on whichever of them encloses
- * it. An event names its request by the id the profile correlates it
- * under where it has one and by the trace it carries otherwise; an event that
- * names neither — a channel's id is a number and names no request — concerns
- * the whole connection,
- * `connection.closed` with its code among them, and is recorded on every span
- * the connection still has open.
+ * has open are that peer's requests. A frame is recorded on the unique open
+ * request its id names, or on the connection when it names none or is
+ * ambiguous. Other runtime and layer events belong to the connection alone.
+ * Without an enclosing span there is nowhere to record a span event.
  *
  * What a span carries is the event's own fields, under `nightseam.`, and only
  * the ones that are a string, a number or a boolean — never a payload, which
@@ -31,16 +29,54 @@ import { spanIdOf, wireContext } from './wire.ts';
  * shape a payload could arrive in from a layer declared after this adapter.
  */
 export function observer(tracer: Tracer): Observer {
-  /** The peer's open requests, by the id the profile correlates them under. */
+  /** Incoming and outgoing requests can bear the same id. */
   const byRequest = new Map<string, Span>();
-  /** The same spans by their own span id, which is what a frame's trace names. */
-  const bySpan = new Map<string, Span>();
+  const requestKey = (id: string, incoming: boolean) => `${incoming ? 'in' : 'out'}:${id}`;
+  let connection: Span | undefined;
 
   return {
     observe(event: ObserverEvent): void {
       const fields = event as unknown as Record<string, unknown>;
       const at = event.at;
       switch (event.type) {
+        case 'connection.opened':
+          connection = tracer.startSpan(
+            'connection',
+            { kind: SpanKind.INTERNAL, attributes: { 'nightseam.role': event.role }, startTime: at },
+            ROOT_CONTEXT,
+          );
+          return;
+        case 'connection.closed': {
+          const closed = connection;
+          connection = undefined;
+          if (closed) {
+            closed.setAttributes({
+              'nightseam.close.code': event.code,
+              'nightseam.close.reason': event.reason,
+              'nightseam.close.local': event.local,
+            });
+            closed.end(at);
+          }
+          return;
+        }
+        case 'event.emitted':
+        case 'event.delivered': {
+          const span = tracer.startSpan(
+            event.name,
+            {
+              kind: event.type === 'event.emitted' ? SpanKind.PRODUCER : SpanKind.CONSUMER,
+              attributes: {
+                'nightseam.name': event.name,
+                'nightseam.bytes': event.bytes,
+                ...(event.family ? { 'nightseam.family': event.family } : {}),
+              },
+              startTime: at,
+            },
+            wireContext(event.trace),
+          );
+          span.end(at);
+          return;
+        }
         case 'request.started': {
           // Outgoing, the trace was marked by the injection that minted it, so
           // the parent is the span the call was made under; incoming, nothing
@@ -55,16 +91,17 @@ export function observer(tracer: Tracer): Observer {
             },
             parent,
           );
-          byRequest.set(event.id, span);
-          bySpan.set(span.spanContext().spanId, span);
+          byRequest.set(requestKey(event.id, event.incoming), span);
           // What the handler calls is a child of the handler's span: the
           // propagator reads this mark off the request context it is given.
           if (event.incoming && event.trace) mark(event.trace, traceApi.setSpan(parent, span));
           return;
         }
         case 'request.ended': {
-          const span = byRequest.get(event.id);
+          const key = requestKey(event.id, event.incoming);
+          const span = byRequest.get(key);
           if (!span) return;
+          byRequest.delete(key);
           span.setAttributes(attributes(fields));
           span.setStatus(
             event.outcome === 'ok'
@@ -72,32 +109,25 @@ export function observer(tracer: Tracer): Observer {
               : { code: SpanStatusCode.ERROR, message: event.errorCode ?? event.outcome },
           );
           span.end(at);
-          byRequest.delete(event.id);
-          bySpan.delete(span.spanContext().spanId);
           return;
         }
         default: {
-          const recorded = attributes(fields);
-          for (const span of enclosing(fields)) span.addEvent(event.type, recorded, at);
+          const span =
+            event.type === 'frame.sent' || event.type === 'frame.received' ? enclosing(event.id) : connection;
+          span?.addEvent(event.type, attributes(fields), at);
         }
       }
     },
   };
 
-  /** The spans an event belongs to: the one it names, or all of them where it names none. */
-  function enclosing(fields: Record<string, unknown>): Iterable<Span> {
-    // A request id is the profile's, a string; a channel's id is a number and
-    // names no request, which is why what is read here is the string one.
-    const id = typeof fields.id === 'string' ? fields.id : undefined;
-    const named = id === undefined ? undefined : byRequest.get(id);
-    if (named) return [named];
-    const spanId = spanIdOf(fields.trace as Trace | undefined);
-    const traced = spanId ? bySpan.get(spanId) : undefined;
-    if (traced) return [traced];
-    // An event that names a request or a trace this peer has no span for is a
-    // frame of somebody else's span, and is recorded where that span is.
-    if (id !== undefined || fields.trace !== undefined) return [];
-    return byRequest.values();
+  /** A frame belongs to one open request, or to the connection as a whole. */
+  function enclosing(id: string | undefined): Span | undefined {
+    if (id) {
+      const incoming = byRequest.get(requestKey(id, true));
+      const outgoing = byRequest.get(requestKey(id, false));
+      if (Boolean(incoming) !== Boolean(outgoing)) return incoming ?? outgoing;
+    }
+    return connection;
   }
 }
 

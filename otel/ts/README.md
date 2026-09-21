@@ -21,8 +21,8 @@ const peer = new DuplexPeer({ propagator: propagator(), observer: observer(trace
 ```
 
 Every peer takes both: the propagator decides what a frame carries, the
-observer decides what a backend is shown, and a generated client passes them
-through its `dial`, `attach` and `open` like any other peer option.
+observer decides what a backend is shown, and the host supplies both when it
+prepares the peer carrying its generated model.
 
 ## The two
 
@@ -34,13 +34,19 @@ the profile's own form; replace it only to carry a vendor's members beside the
 two standard ones.
 
 `observer(tracer)` opens a span per request — a server span where the request
-came in, a client span where it went out — names it for the method, ends it at
-the outcome, and records everything else as a span event on the span it
-belongs to: the frames of an exchange, an event emitted or delivered, a
-connection closed with its code, and the tunnel's events
-where the peer has the span they concern. An observer belongs to one peer, as
-it does in the runtime, so a tunnel running over that peer
-reaches the same tracer without being given one.
+came in, a client span where it went out — names it for the method and ends it
+at the outcome. It also opens an internal `connection` span from connection
+open to close, recording the close code, reason and side as attributes.
+An application event emitted or delivered becomes a zero-duration producer
+or consumer span under the trace its frame carries, including where there
+is no physical connection or request span.
+
+A frame annotates the unique open request its id names. If there is no such
+request, or incoming and outgoing requests share that id, the frame annotates
+the connection instead. Other runtime and layer events, including
+backpressure and tunnel events, annotate the connection alone. If there is
+no enclosing span, an annotation is dropped. An observer belongs to one peer,
+so its layers reach the same tracer without being given one.
 
 ## What a span carries
 
@@ -52,6 +58,10 @@ observer by any path and so reaches no span; a structure is never written at
 all, which is the one shape one could have arrived in from a layer declared
 after this package. How a request ended is the span's status — `OK`, or
 `ERROR` carrying the error code, or the outcome where there is none.
+Connection closure uses `nightseam.close.code`, `nightseam.close.reason` and
+`nightseam.close.local`; event spans carry `nightseam.name`,
+`nightseam.bytes` and a family when one was supplied. Every span uses the
+consumer's tracer and sampling configuration.
 
 ## What the propagator guarantees
 

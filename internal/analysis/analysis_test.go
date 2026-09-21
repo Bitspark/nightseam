@@ -195,7 +195,7 @@ func TestObjectsOnTheWire(t *testing.T) {
 		`"carrier.Plain"`: true,
 		`"A.Envelope"`:    true,
 		`"A.Handle"`:      true,
-		`"A.Payload"`:     false, // codex declares Payload as an enum
+		`"A.Payload"`:     true, // the actual supplied member must satisfy the object obligation
 		`{"apply":"carrier.Frame","with":{"S":"B"}}`: true,
 		`"string"`:         false,
 		`{"array":"Mine"}`: false,

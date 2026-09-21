@@ -41,6 +41,7 @@ func (c *checker) inherits(t *model.Type, i int, edge model.Inheritance, where s
 	}
 	where.inline = false // inheritance binds a base, not a value's type
 	c.inheritanceArguments(edge, wanted, at, where)
+	c.drawArguments(owner.Generics().Types[inherited.Name], edge.With, at)
 	if kind != model.KindUnion {
 		if owner == c.f {
 			where.edges[t.Name] = append(where.edges[t.Name], inherited.Name)

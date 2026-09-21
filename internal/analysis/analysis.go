@@ -249,6 +249,7 @@ func isRecord(t *model.Type) bool { return t.Kind == model.KindRecord || t.Kind 
 // imported one, a type drawn from a parameter that every member declares
 // as a record, or an application of an imported record.
 func (f *Family) IsObject(e model.TypeExpr) bool {
+	e = f.RequestRoot(e)
 	switch x := e.(type) {
 	case model.Named:
 		t, ok := f.Types[x.Name]
@@ -268,11 +269,8 @@ func (f *Family) IsObject(e model.TypeExpr) bool {
 		if !declared || !parameter.IsFamily() {
 			return false
 		}
-		for _, carrier := range f.Carriers(parameter.Of) {
-			if t, ok := carrier.Types[x.Name]; !ok || !(isRecord(t) || t.Kind == model.KindUnion) {
-				return false
-			}
-		}
+		// The generated boundary checks this object obligation against the
+		// supplied family before constructing a model.
 		return true
 	case model.Apply:
 		t, ok := f.Applied(x)

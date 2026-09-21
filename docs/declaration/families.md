@@ -325,7 +325,8 @@ and through an inline shape. Two edges are deliberately not followed:
   two identities stay apart.
 - **A draw through a family parameter stays neutral.** The actual family
   supplied for the parameter declares every required plain associated type.
-  Unrelated families in the declaration world acquire no such obligation. Its supplied
+  Unrelated families in the declaration world acquire no such obligation. Its
+  supplied
   interpretation determines whether conversion needs an active live context;
   the generic declaration does not import that provider or acquire its tier.
 
@@ -359,6 +360,14 @@ the current operation's ownership batch, so the same interpretation works
 across simultaneous scopes. Missing or mixed-family recipes refuse before
 model construction. Direct alias, callable and generic-member draws remain
 outside the plain associated-type grammar.
+
+Draw requirements follow aliases, applications and forwarded family parameters.
+A concrete supplied family is checked for the members that consumer uses;
+the presence of another family in the checkout does not affect acceptance.
+When a draw is the complete RPC request, including through a local alias, its
+member must additionally be a record, entity or union with an object wire shape.
+An enum can fill an ordinary value position, but fails that request constraint
+before a model is constructed.
 
 ### What a reference carries
 

@@ -217,8 +217,6 @@ func (c *checker) parameters(parameters []model.Parameter, owner string, context
 			c.Addf(parameter.At.Sub("of"), "unknown_role", "Unknown tier %s: a parameter is of a tier a family carries — %s — or of none, which makes it a type parameter.", parameter.Of, strings.Join(model.TierRoles(), ", "))
 		case context >= 0 && context < model.Rank(model.ProtocolFile):
 			c.Addf(parameter.At.Sub("of"), "tier_violation", "A %s declaration is generic in a family of the %s tier; a declaration refers to its own tier or a lower one.", model.TierName(context), parameter.Of)
-		case len(f.Carriers(parameter.Of)) == 0:
-			c.Addf(parameter.At.Sub("of"), "unresolved_type", "No other family carries the %s tier, so a parameter of %s has nothing to bind.", parameter.Of, parameter.Of)
 		}
 	}
 	return parameters
@@ -428,9 +426,8 @@ func familyBoundFills(from, to string) bool {
 }
 
 // drawn holds a draw through a parameter: the parameter is one this
-// declaration has in scope, it is filled by a family — a type has no types
-// of its own to draw — and every family that may fill it declares the type
-// plainly.
+// declaration has in scope and is filled by a family. Member constraints
+// belong to the supplied interpretation, not unrelated families in the world.
 func (c *checker) drawn(x model.Drawn, at diag.Location, where site) {
 	f := c.f
 	parameter, ok := lookup(where.scope, x.Parameter)
@@ -450,24 +447,6 @@ func (c *checker) drawn(x model.Drawn, at diag.Location, where site) {
 	}
 	if model.Carried(x.Name) {
 		return
-	}
-	// A type beyond the ones every family carries must be one every family
-	// that may bind the parameter declares, as a record or an enum of its
-	// own — an alias has no identity for a language to hold it to — and
-	// plainly.
-	for _, name := range sortedKeys(toNames(f.Carriers(parameter.Of))) {
-		other := f.Carriers(parameter.Of)[name]
-		t, declared := other.Types[x.Name]
-		switch {
-		case !declared:
-			c.Addf(at, "unresolved_type", "Type %s of %s: the %s family %s declares no type of that name, and every family that may bind %s must.", x.Name, x.Parameter, parameter.Of, name, x.Parameter)
-		case t.Kind == model.KindAlias:
-			c.Addf(at, "unresolved_type", "Type %s of %s: in the %s family %s it is an alias, and a slot draws a record or an enum.", x.Name, x.Parameter, parameter.Of, name)
-		case t.Kind == model.KindCallable:
-			c.Addf(at, "unresolved_type", "Type %s of %s: in the %s family %s it is a callable; draw a plain record containing the callable instead.", x.Name, x.Parameter, parameter.Of, name)
-		case len(other.Generics().Types[x.Name]) > 0 || len(t.Parameters) > 0:
-			c.Addf(at, "unresolved_type", "Type %s of %s: in the %s family %s it is generic, and a slot draws a plain type.", x.Name, x.Parameter, parameter.Of, name)
-		}
 	}
 }
 
@@ -503,6 +482,11 @@ func (c *checker) apply(x model.Apply, at diag.Location, where site) {
 		}
 	}
 	c.arguments(applied(x), wanted, x.With, at, where)
+	owner := f
+	if x.Family != "" {
+		owner = f.Imported[x.Family]
+	}
+	c.drawArguments(owner.Generics().Types[x.Name], x.With, at)
 	// The applied type is a declaration like any other, so it is of this
 	// declaration's tier or a lower one.
 	rank, in := where.context, f
@@ -783,7 +767,11 @@ func (c *checker) extendedSide(side *model.Side, server bool, label string, oper
 		}
 		for i := range inherited.Methods {
 			m := &inherited.Methods[i]
+			c.drawArguments(append(source.UsesOf(m.Request), source.UsesOf(m.Result)...), bindings, at)
 			signature := [2]model.TypeExpr{f.BindExpression(m.Request, source, bindings), f.BindExpression(m.Result, source, bindings)}
+			if root, drawn := source.RequestRoot(m.Request).(model.Drawn); drawn && !f.IsObject(f.BindExpression(root, source, bindings)) {
+				c.Add(at, "invalid_request", "A supplied drawn method request must be an object.")
+			}
 			if previous, seen := seenMethods[m]; !seen || !reflect.DeepEqual(previous, signature) {
 				operation(calls, m.Name, at)
 				seenMethods[m] = signature
@@ -791,6 +779,7 @@ func (c *checker) extendedSide(side *model.Side, server bool, label string, oper
 		}
 		for i := range inherited.Events {
 			e := &inherited.Events[i]
+			c.drawArguments(source.UsesOf(e.Type), bindings, at)
 			signature := f.BindExpression(e.Type, source, bindings)
 			if previous, seen := seenEvents[e]; !seen || !reflect.DeepEqual(previous, signature) {
 				operation(notifies, e.Name, at)

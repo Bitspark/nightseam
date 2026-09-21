@@ -21,6 +21,7 @@ used. One mechanism at every level, and a parameter is of one of two
   every required associated type plainly; unrelated families in the world
   need not declare those members. Source applications check their selected
   family, and generated construction checks the supplied runtime binding.
+  The generic consumer derives without loading a provider.
 - **A type parameter** — it has no `of`. It is filled by a **type
   expression** and is written where a type is named: `{"array": "T"}`.
 
