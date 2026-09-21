@@ -26,7 +26,7 @@ import {
 } from '@opentelemetry/sdk-trace-base';
 import { pipe } from '@nightseam/duplex';
 import { DuplexPeer } from '@nightseam/runtime';
-import { Tunnel, type Channel } from '@nightseam/tunnel';
+import { Tunnel, type Connection } from '@nightseam/tunnel';
 import {
   Client,
   type Handler,
@@ -70,9 +70,9 @@ async function carried(tracer: Tracer) {
   await Promise.all([near.attach(a), far.attach(b)]);
   const opening = new Tunnel(near, {});
   const accepting = new Tunnel(far, {});
-  const accepted = accepting.accept();
-  const client: Channel = await opening.open('probe');
-  const server: Channel = await accepted;
+  const accepted = accepting.acceptConnection();
+  const client: Connection = await opening.openConnection('probe');
+  const server: Connection = await accepted;
   return {
     client,
     server,

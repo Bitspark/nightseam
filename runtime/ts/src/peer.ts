@@ -72,6 +72,8 @@ export type Dispatcher = (method: string, params: unknown, context: RequestConte
 export type EventListener = (event: string, data: unknown, context: EventContext) => void | Promise<void>;
 /** How a peer is made: its role, its dispatcher, the socket factory, its limits, its propagator, its observer and the family each name belongs to. Every member is optional and takes DUPLEX_DEFAULTS. */
 export interface PeerOptions {
+  /** Installs handlers once after validation, before any connection can read. Must be synchronous. */
+  prepare?: (peer: DuplexPeer) => void;
   role?: 'client' | 'server';
   dispatch?: Dispatcher;
   webSocketFactory?: (url: string, protocols?: string[]) => WebSocketLike;
@@ -188,6 +190,27 @@ export class DuplexPeer {
     this.observer = options.observer;
     this.localPrefix = options.role === 'server' ? 's:' : 'c:';
     this.remotePrefix = options.role === 'server' ? 'c:' : 's:';
+    try {
+      const preparation: unknown = options.prepare?.(this);
+      if (preparation && typeof (preparation as PromiseLike<unknown>).then === 'function') {
+        void Promise.resolve(preparation).catch(() => {});
+        throw new DuplexError('invalid_options', 'prepare must complete synchronously.');
+      }
+    } catch (error) {
+      // Preparation owns no transport yet, but it can already own wire
+      // registrations and scopes. Notify their existing close hooks once.
+      this.handlers.clear();
+      this.listeners.clear();
+      for (const listener of [...this.closedListeners]) {
+        try {
+          listener(asError(error));
+        } catch {
+          /* Cleanup cannot replace the construction error. */
+        }
+      }
+      this.closedListeners.clear();
+      throw error;
+    }
   }
 
   /** Where the peer is now; `connected` is the only status in which a call or an event travels. */

@@ -155,17 +155,17 @@ func watched(t *testing.T, options tunnel.Options) (client, server *tunnel.Tunne
 
 // opening opens a channel from one tunnel and takes it at the other, so that
 // what a test then reads is a channel both sides hold.
-func opening(t *testing.T, ctx context.Context, from, to *tunnel.Tunnel, family string) (opened, accepted *tunnel.Channel) {
+func opening(t *testing.T, ctx context.Context, from, to *tunnel.Tunnel, family string) (opened, accepted *tunnel.Connection) {
 	t.Helper()
-	taken := make(chan *tunnel.Channel, 1)
+	taken := make(chan *tunnel.Connection, 1)
 	go func() {
-		c, err := to.Accept(ctx)
+		c, err := to.AcceptConnection(ctx)
 		if err != nil {
 			t.Error(err)
 		}
 		taken <- c
 	}()
-	opened, err := from.Open(ctx, family)
+	opened, err := from.OpenConnection(ctx, family)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestAChannelIsToldOfOnBothSides(t *testing.T) {
 	defer cancel()
 	opened, inbound := opening(t, ctx, client, server, "probe")
 	for _, exchange := range []struct {
-		from, to *tunnel.Channel
+		from, to *tunnel.Connection
 		data     string
 	}{{opened, inbound, "up " + carried}, {inbound, opened, "down " + carried}} {
 		if err := exchange.from.Send(ctx, duplex.Frame{Kind: duplex.Text, Data: []byte(exchange.data)}); err != nil {
@@ -246,10 +246,10 @@ func TestARefusedOpenIsToldOf(t *testing.T) {
 	client, _, atClient, atServer := watched(t, tunnel.Options{AcceptCapacity: 1})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if _, err := client.Open(ctx, "probe"); err != nil {
+	if _, err := client.OpenConnection(ctx, "probe"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.Open(ctx, "probe"); err == nil {
+	if _, err := client.OpenConnection(ctx, "probe"); err == nil {
 		t.Fatal("the second open was not refused")
 	}
 	refused, ok := heard[tunnel.OpenRefused](atClient)
@@ -261,7 +261,7 @@ func TestARefusedOpenIsToldOf(t *testing.T) {
 		t.Fatalf("the refuser was told %+v, %t", atRefuser, ok)
 	}
 	// An open this side will not make at all is refused here and told of here.
-	if _, err := client.Open(ctx, ""); err == nil {
+	if _, err := client.OpenConnection(ctx, ""); err == nil {
 		t.Fatal("a channel of no family opened")
 	}
 	lines := atClient.lines()

@@ -13,8 +13,8 @@ run('a tunnel channel', async () => {
   const client = new DuplexPeer({ role: 'client' });
   const server = new DuplexPeer({ role: 'server' });
   await Promise.all([client.attach(left), server.attach(right)]);
-  const accepted = new Tunnel(server).accept();
-  const opened = await new Tunnel(client).open('probe');
+  const accepted = new Tunnel(server).acceptConnection();
+  const opened = await new Tunnel(client).openConnection('probe');
   return {
     a: opened,
     b: await accepted,

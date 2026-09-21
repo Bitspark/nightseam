@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { setImmediate as nextTurn } from 'node:timers/promises';
 import { at, encodePath, mount, pipe, type Wire } from '@nightseam/duplex';
-import { Tunnel, type Channel } from '@nightseam/tunnel';
+import { Tunnel, type Connection } from '@nightseam/tunnel';
 import { DuplexPeer } from './peer.ts';
 import { callWire, emitWire, handleWire } from './wire.ts';
 import type { Observer, ObserverEvent } from './observer.ts';
@@ -55,8 +55,8 @@ async function channelHarness(t: TestContext) {
   const client = new Tunnel(outerClient, { window: 1 }),
     server = new Tunnel(outerServer, { window: 1 });
   const open = async () => {
-    const a = await client.open('wire-channel-test');
-    const b = await server.accept();
+    const a = await client.openConnection('wire-channel-test');
+    const b = await server.acceptConnection();
     assert.equal(a.id, b.id);
     return { a, b };
   };
@@ -91,7 +91,7 @@ async function channelHarness(t: TestContext) {
   return { clientLog, serverLog, open, healthy };
 }
 
-async function destination(t: TestContext, channel: Channel) {
+async function destination(t: TestContext, channel: Connection) {
   const log = new ChannelLog();
   const peer = new DuplexPeer({ queueCapacity: 2, writeTimeoutMs: 5_000, observer: log });
   t.after(() => peer.close());
@@ -102,7 +102,7 @@ async function destination(t: TestContext, channel: Channel) {
 
 // The remote listener remains absent: one event spends the channel window,
 // the next waits for credit, and the third fills the bounded peer output.
-async function fill(channel: Channel, wire: Wire, log: ChannelLog, outerLog: ChannelLog) {
+async function fill(channel: Connection, wire: Wire, log: ChannelLog, outerLog: ChannelLog) {
   emitWire(wire, ['item'], 0);
   await log.wait((event) => event.type === 'frame.sent');
   emitWire(wire, ['item'], 1);

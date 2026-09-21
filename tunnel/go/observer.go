@@ -11,7 +11,7 @@ import (
 // tunnel observes through the peer it runs over and takes no observer of its
 // own: what the outer connection does and what the channels over it do reach
 // one observer, in the order they happened. A channel's own peer — one made
-// over a Channel as a duplex.Conn — takes its own observer through its
+// over a Connection as a duplex.Conn — takes its own observer through its
 // options, as a peer over any transport does.
 //
 // Never a payload: what a channel carries is the business of the peers that
@@ -31,7 +31,7 @@ type ChannelOpened struct {
 }
 
 // ChannelAccepted is a channel the other side opened being taken here, by
-// Accept or by Channel. It says no opener: the side that takes a channel is
+// Accept or by Connection. It says no opener: the side that takes a channel is
 // never the side that opened it.
 type ChannelAccepted struct {
 	At     time.Time
@@ -95,8 +95,8 @@ var (
 // how it emits its events without an observer option of its own — the same way
 // the tunnel emits its own, one step further down. It is
 // Tunnel.Peer of the tunnel this channel belongs to, and the twin of
-// Channel.observe in tunnel/ts.
-func (c *Channel) Peer() *runtime.Peer { return c.t.Peer() }
+// Connection.observe in tunnel/ts.
+func (c *Connection) Peer() *runtime.Peer { return c.t.Peer() }
 
 // Every hook point below asks the peer for an observer before it builds
 // anything: a tunnel over a peer given none reads no clock and allocates no
@@ -105,7 +105,7 @@ func (c *Channel) Peer() *runtime.Peer { return c.t.Peer() }
 // observeOpened tells of a channel that came into being, once and by whichever
 // of the open and the take gets there first, and marks it as a channel whose
 // close is the close of something.
-func (t *Tunnel) observeOpened(c *Channel, opener bool) {
+func (t *Tunnel) observeOpened(c *Connection, opener bool) {
 	c.announce.Do(func() {
 		c.opened = true
 		if t.peer.Observer() == nil {
@@ -115,21 +115,21 @@ func (t *Tunnel) observeOpened(c *Channel, opener bool) {
 	})
 }
 
-func (t *Tunnel) observeAccepted(c *Channel) {
+func (t *Tunnel) observeAccepted(c *Connection) {
 	if t.peer.Observer() == nil {
 		return
 	}
 	t.peer.Observe(ChannelAccepted{At: time.Now(), Family: c.Family, ID: c.ID})
 }
 
-func (t *Tunnel) observeClosed(c *Channel, code duplex.Code, reason string) {
+func (t *Tunnel) observeClosed(c *Connection, code duplex.Code, reason string) {
 	if t.peer.Observer() == nil {
 		return
 	}
 	t.peer.Observe(ChannelClosed{At: time.Now(), Family: c.Family, ID: c.ID, Code: int(code), Reason: reason})
 }
 
-func (t *Tunnel) observeStall(c *Channel, waiting int) {
+func (t *Tunnel) observeStall(c *Connection, waiting int) {
 	if t.peer.Observer() == nil {
 		return
 	}

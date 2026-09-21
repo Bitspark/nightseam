@@ -56,20 +56,20 @@ func newWireChannelHarness(t *testing.T) *wireChannelHarness {
 	return h
 }
 
-func (h *wireChannelHarness) open(t *testing.T) (*tunnel.Channel, *tunnel.Channel) {
+func (h *wireChannelHarness) open(t *testing.T) (*tunnel.Connection, *tunnel.Connection) {
 	t.Helper()
-	a, err := h.client.Open(h.ctx, "wire-channel-test")
+	a, err := h.client.OpenConnection(h.ctx, "wire-channel-test")
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := h.server.Accept(h.ctx)
+	b, err := h.server.AcceptConnection(h.ctx)
 	if err != nil || b.ID != a.ID {
 		t.Fatalf("accept = %v, %v; opened %d", b, err, a.ID)
 	}
 	return a, b
 }
 
-func newWireChannelPeer(t *testing.T, ctx context.Context, channel *tunnel.Channel, role ws.Role, options ws.Options) *ws.Peer {
+func newWireChannelPeer(t *testing.T, ctx context.Context, channel *tunnel.Connection, role ws.Role, options ws.Options) *ws.Peer {
 	t.Helper()
 	peer, err := ws.NewPeer(ctx, channel, role, options)
 	if err != nil {
@@ -147,7 +147,7 @@ func wireChannelView(peer *ws.Peer) duplex.Wire {
 // The receiver takes nothing. One frame spends the window, the next blocks
 // the transport on credit, and the last two occupy its bounded output queue.
 // Observer barriers establish each phase without depending on scheduler speed.
-func wireChannelFill(t *testing.T, h *wireChannelHarness, channel *tunnel.Channel, wire duplex.Wire, log *recorder) {
+func wireChannelFill(t *testing.T, h *wireChannelHarness, channel *tunnel.Connection, wire duplex.Wire, log *recorder) {
 	t.Helper()
 	for sequence := range 4 {
 		if err := ws.EmitWire(h.ctx, wire, []string{"item"}, sequence); err != nil {
