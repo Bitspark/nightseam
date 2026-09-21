@@ -2,8 +2,16 @@
  * receive model factories and explicit conversion contexts. */
 import { createServer, type Server } from 'node:http';
 import { WebSocketServer } from 'ws';
-import { DuplexPeer, forwardWire, type AdapterContext, type PeerOptions, type WebSocketLike } from '@nightseam/runtime';
-import type { Wire } from '@nightseam/duplex';
+import {
+  DuplexPeer,
+  createDispatcher,
+  forwardWire,
+  type AdapterContext,
+  type PeerOptions,
+  type WebSocketLike,
+  type WireDispatcher,
+} from '@nightseam/runtime';
+import type { Endpoint } from '@nightseam/duplex';
 import { valueEnvironment, type LiveScope } from '@nightseam/live';
 
 /** One fixture attachment point for adapter options and an explicit live scope. */
@@ -17,17 +25,26 @@ export function adapterContext(scope?: LiveScope, options?: PeerOptions): Adapte
 export class Session<M> {
   readonly peer: DuplexPeer;
   model!: M;
-  private local?: Wire;
+  private local?: Endpoint;
   private detach?: () => void;
+  private routes?: WireDispatcher;
 
   constructor(options: PeerOptions = {}) {
     this.peer = new DuplexPeer(options);
     this.peer.onClose(() => this.release());
   }
 
-  expose(wire: Wire): void {
+  /** The peer root has one owning attachment, so a fixture that both forwards
+   * a model and registers a handler of its own shares that owner. */
+  get dispatcher(): WireDispatcher {
+    return (this.routes ??= createDispatcher(this.peer.wire()));
+  }
+
+  expose(wire: Endpoint): void {
     this.local = wire;
-    this.detach = forwardWire(this.peer.wire(), wire);
+    // The model takes the root route; an exact registration beside it — a
+    // fixture's own operation — wins for its own path.
+    this.detach = forwardWire(this.dispatcher.select([]), wire);
   }
 
   async attach(socket: WebSocketLike): Promise<this> {
@@ -43,6 +60,8 @@ export class Session<M> {
   private release(): void {
     this.detach?.();
     this.detach = undefined;
+    this.routes?.close();
+    this.routes = undefined;
     this.local?.close();
     this.local = undefined;
   }

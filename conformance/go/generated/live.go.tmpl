@@ -129,7 +129,7 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 			CheckOrigin:  func(*http.Request) bool { return true },
 			OnConnect:    func(*runtime.Peer) { close(s.server.attached) },
-		}, func(peer *runtime.Peer) (duplex.Wire, error) {
+		}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
 			environment, err := fixtureLiveContext(peer, runtime.Options{})
 			if err != nil {
 				return nil, err
@@ -155,7 +155,7 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 	case "gen.live_dial":
 		ctx, cancel := context.WithCancel(context.Background())
 		d := &liveDialled{cancel: cancel}
-		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (duplex.Wire, error) {
+		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
 			environment, err := fixtureLiveContext(peer, runtime.Options{})
 			if err != nil {
 				return nil, err

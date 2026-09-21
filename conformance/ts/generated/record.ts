@@ -1,11 +1,11 @@
-import { at, mount, MemoryWireLog, type Wire } from '@nightseam/duplex';
-import { forwardWire, jsonAdapter, wirePair } from '@nightseam/runtime';
+import { mount, MemoryWireLog, type Endpoint } from '@nightseam/duplex';
+import { createDispatcher, forwardWire, jsonAdapter, wirePair } from '@nightseam/runtime';
 import * as client from './api/ts/cell-client/src/index.ts';
 import * as binding from './api/ts/cell-binding/src/index.ts';
 import { Inbox } from './server.ts';
 
 const adapter = () => jsonAdapter<string>({ type: 'string', validate: client.validateWire });
-function destination(values: Inbox<string>): Wire {
+function destination(values: Inbox<string>): Endpoint {
   return binding.toWire(
     () => ({
       methods: { put: () => 0, get: () => '', roundTrip: () => '' },
@@ -24,7 +24,7 @@ export async function recordRead(values: Inbox<unknown>, within: number): Promis
   }
   return result;
 }
-export async function recordExercise(target: Wire, within: number) {
+export async function recordExercise(target: Endpoint, within: number) {
   const originals = new Inbox<string>();
   const primary = destination(originals);
   const recorded = await client.record(primary, new MemoryWireLog(), {}, {}, adapter());
@@ -47,9 +47,15 @@ export async function recordLocal(presentation: string, within: number) {
   let target = root;
   const cleanup: Array<() => void> = [];
   if (presentation !== 'local') {
+    // A receiving view of a mount is a view of one dispatcher that owns the
+    // mount's single attachment; selection alone grants send access only.
     const tree = mount(new Map([['outer', mount(new Map([['leaf', root]]))]]));
-    target = at(tree, ['outer', 'leaf']);
-    cleanup.push(() => tree.close());
+    const dispatch = createDispatcher(tree);
+    target = dispatch.select(['outer', 'leaf']);
+    cleanup.push(
+      () => dispatch.close(),
+      () => tree.close(),
+    );
   }
   if (presentation === 'forwarded') {
     const [left, right] = wirePair();

@@ -348,7 +348,7 @@ func (t *testee) publicationDispatch(op string, raw map[string]json.RawMessage) 
 				return
 			}},
 			OnConnect: func(*runtime.Peer) { close(h.ready) },
-		}, func(peer *runtime.Peer) (duplex.Wire, error) {
+		}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
 			environment, err := fixtureLiveContext(peer, runtime.Options{MaxFrameBytes: 1024})
 			if err != nil {
 				return nil, err
@@ -374,7 +374,7 @@ func (t *testee) publicationDispatch(op string, raw map[string]json.RawMessage) 
 		_, err := fixtureDial(context.Background(), str(raw, "url"), runtime.DialOptions{Options: runtime.Options{MaxFrameBytes: 1024, Prepare: func(peer *runtime.Peer) (err error) {
 			r.scope, err = live.Over(peer, live.Options{MaxExports: 4, MaxImports: 4})
 			return
-		}}}, func(peer *runtime.Peer) (duplex.Wire, error) {
+		}}}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
 			environment, err := fixtureLiveContext(peer, runtime.Options{MaxFrameBytes: 1024})
 			if err != nil {
 				return nil, err

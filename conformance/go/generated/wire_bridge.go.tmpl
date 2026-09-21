@@ -27,7 +27,7 @@ func (h *wireBridgeHandle) shutdown() {
 	}
 }
 
-func wireBridgeFactory(ctx context.Context, origin duplex.Wire, h *wireBridgeHandle, slot string) (fixtureWireFactory, error) {
+func wireBridgeFactory(ctx context.Context, origin duplex.Endpoint, h *wireBridgeHandle, slot string) (fixtureWireFactory, error) {
 	switch slot {
 	case "", "factory":
 		return wireSlotBridge(ctx, origin, h, wireFactories())
@@ -45,12 +45,12 @@ func wireBridgeFactory(ctx context.Context, origin duplex.Wire, h *wireBridgeHan
 	return nil, fmt.Errorf("unknown wire bridge slot %s", slot)
 }
 
-func wireSlotBridge[T any](ctx context.Context, origin duplex.Wire, h *wireBridgeHandle, values wireValues[T]) (fixtureWireFactory, error) {
+func wireSlotBridge[T any](ctx context.Context, origin duplex.Endpoint, h *wireBridgeHandle, values wireValues[T]) (fixtureWireFactory, error) {
 	model, err := cellbinding.FromWire(ctx, origin, runtime.AdapterContext{Options: runtime.Options{Observer: h.observer}, ValueEnvironment: live.ValueEnvironment(h.originScope)}, values.adapter)
 	if err != nil {
 		return nil, err
 	}
-	return func(peer *runtime.Peer) (duplex.Wire, error) {
+	return func(peer *runtime.Peer) (duplex.Endpoint, error) {
 		var err error
 		h.destinationScope, err = live.Over(peer, live.Options{})
 		if err != nil {

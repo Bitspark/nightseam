@@ -8,9 +8,35 @@ import (
 	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 	"net/http"
+	"sync"
 )
 
-type fixtureWireFactory func(*runtime.Peer) (duplex.Wire, error)
+// fixtureDispatchers holds one dispatcher per peer: the peer root has one
+// owning attachment, so a fixture that both forwards a model and registers a
+// handler of its own shares that owner rather than contending for it.
+var fixtureDispatchers sync.Map
+
+func fixtureDispatcher(peer *runtime.Peer) (*runtime.Dispatcher, error) {
+	if held, ok := fixtureDispatchers.Load(peer); ok {
+		return held.(*runtime.Dispatcher), nil
+	}
+	dispatch, err := runtime.NewDispatcher(peer.Wire())
+	if err != nil {
+		return nil, err
+	}
+	if held, loaded := fixtureDispatchers.LoadOrStore(peer, dispatch); loaded {
+		_ = dispatch.Close(1000, "")
+		return held.(*runtime.Dispatcher), nil
+	}
+	go func() {
+		<-peer.Done()
+		fixtureDispatchers.Delete(peer)
+		_ = dispatch.Close(1000, "")
+	}()
+	return dispatch, nil
+}
+
+type fixtureWireFactory func(*runtime.Peer) (duplex.Endpoint, error)
 
 func fixturePrepare(options runtime.Options, build fixtureWireFactory) runtime.Options {
 	prepare := options.Prepare
@@ -24,7 +50,14 @@ func fixturePrepare(options runtime.Options, build fixtureWireFactory) runtime.O
 		if err != nil {
 			return err
 		}
-		detach, err := runtime.ForwardWire(peer.Wire(), wire)
+		dispatch, err := fixtureDispatcher(peer)
+		if err != nil {
+			_ = wire.Close(1000, "fixture assembly failed")
+			return err
+		}
+		// The model takes the root route; an exact registration beside it — a
+		// fixture's own operation — wins for its own path.
+		detach, err := runtime.ForwardWire(dispatch.Select(nil), wire)
 		if err != nil {
 			_ = wire.Close(1000, "fixture assembly failed")
 			return err
