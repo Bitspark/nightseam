@@ -58,7 +58,7 @@ func TestModelsOverAChannel(t *testing.T){
 func TestChannelResolutionInterpretsAHandle(t *testing.T){
  ctx,cancel:=context.WithTimeout(context.Background(),10*time.Second);defer cancel()
  ct,st:=tunnels(t,ctx)
- opened,err:=st.Open(ctx,"probe",runtime.Options{Prepare:prepareTunnelProbe});if err!=nil{t.Fatal(err)}
+ opened,err:=st.Open(ctx,"probe","",runtime.Options{Prepare:prepareTunnelProbe});if err!=nil{t.Fatal(err)}
  handle:=protocol.Handle{Channel:opened.ID}
  channel,ok,err:=ct.Channel(handle.Channel,runtime.Options{});if err!=nil||!ok{t.Fatalf("channel %v: %v",ok,err)}
  defer channel.Close(duplex.CodeNormal,"")

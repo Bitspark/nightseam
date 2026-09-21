@@ -96,13 +96,19 @@ test('schema refuses malformed declaration digests', () => {
 
 test('nested supplied type bindings retain their own declaration scopes', () => {
   const scalar = createValidator({ types: { Count: { kind: 'alias', type: 'integer' } } }, '');
-  const box = createValidator({
-    types: { Box: { kind: 'record', parameters: [{ name: 'T' }], fields: [{ name: 'value', type: 'T' }] } },
-  }, '');
-  const cell = createValidator({
-    parameters: [{ name: 'T' }],
-    types: { Request: { kind: 'record', fields: [{ name: 'value', type: 'T' }] } },
-  }, '');
+  const box = createValidator(
+    {
+      types: { Box: { kind: 'record', parameters: [{ name: 'T' }], fields: [{ name: 'value', type: 'T' }] } },
+    },
+    '',
+  );
+  const cell = createValidator(
+    {
+      parameters: [{ name: 'T' }],
+      types: { Request: { kind: 'record', fields: [{ name: 'value', type: 'T' }] } },
+    },
+    '',
+  );
   const count = { type: 'Count', validate: scalar };
   const slots: Slots = {
     T: { type: 'Box', validate: box, slots: { T: { type: 'Box', validate: box, slots: { T: count } } } },
