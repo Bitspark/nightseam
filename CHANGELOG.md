@@ -32,6 +32,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Python provides bounded Wire recording and independent following over
+  consumer-owned storage, with atomic replay heads, cancellation-safe follower
+  ownership and unchanged opaque message capabilities.
 - Python enters at tier 4 with bounded asyncio frame connections, peers,
   descriptor validation, Wire path views and declaration identity exchange,
   held against Go in both socket roles and by an installed-wheel smoke.
