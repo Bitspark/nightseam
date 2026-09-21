@@ -70,8 +70,6 @@ type Suite struct {
 	places  Places
 	// rendered is where each language's probe rendering lies, once prepared.
 	rendered map[string]string
-	// strict keeps nightly's per-scenario failures independent of tiers.
-	strict bool
 }
 
 // Open reads the scenarios and the recipes of the checkout, holds every
@@ -281,6 +279,9 @@ type scenarioReporter interface {
 
 func (s *Suite) reportOutcome(t scenarioReporter, sc Scenario, a, b, held string, outcome Outcome) {
 	t.Helper()
+	// Nightly mode applies to star and generated pairings too, including
+	// filtered runs: no provisional failure may disappear behind its tier.
+	strict := os.Getenv("NIGHTSEAM_MATRIX") != ""
 	s.Matrix.Record(held, s.Placed[sc.Key()], outcome)
 	if s.Observe != nil {
 		s.Observe(sc, a, b, outcome)
@@ -288,7 +289,7 @@ func (s *Suite) reportOutcome(t scenarioReporter, sc Scenario, a, b, held string
 	if outcome.Skipped != "" {
 		profile := s.Placed[sc.Key()]
 		tier := s.Profiles.Tiers[fmt.Sprint(s.Profiles.Languages[held].Tier)]
-		if s.strict && slices.Contains(tier.Requires, profile) {
+		if strict && slices.Contains(tier.Requires, profile) {
 			t.Fatalf("%s: required %s/%s scenario skipped: %s", sc.File, held, profile, outcome.Skipped)
 			return
 		}
@@ -296,7 +297,7 @@ func (s *Suite) reportOutcome(t scenarioReporter, sc Scenario, a, b, held string
 		return
 	}
 	if outcome.Failed != nil {
-		if s.strict || slices.Contains(s.Matrix.Blocking(s.Profiles), held) {
+		if strict || slices.Contains(s.Matrix.Blocking(s.Profiles), held) {
 			t.Fatalf("%s (a: %s, b: %s)\n%v", sc.File, a, b, outcome.Failed)
 		} else {
 			t.Logf("nonblocking %s/%s failure: %s (a: %s, b: %s)\n%v", held, s.Placed[sc.Key()], sc.File, a, b, outcome.Failed)

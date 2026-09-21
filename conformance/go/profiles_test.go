@@ -52,6 +52,7 @@ func TestATesteeIsHeldToItsTier(t *testing.T) {
 // TestVerdictsFollowTheTierTable: one verdict per onFailure value, from a
 // row with one failure or skip in a required profile, and ok without either.
 func TestVerdictsFollowTheTierTable(t *testing.T) {
+	t.Setenv("NIGHTSEAM_MATRIX", "")
 	p := tiered()
 	m := NewMatrix(p)
 	failed := Outcome{Failed: &Failure{Reason: "x"}}
@@ -135,13 +136,16 @@ func TestVerdictsFollowTheTierTable(t *testing.T) {
 			if c.language == "second" && c.profile == "live" && !strings.Contains(summary, "next minor release") {
 				t.Fatalf("summary lost lag note:\n%s", summary)
 			}
-			// The same nonblocking cell still fails nightly's full matrix.
-			s.strict = true
-			nightly := &verdictReporter{}
-			s.reportOutcome(nightly, sc, "go", c.language, c.language, Outcome{Failed: &Failure{Reason: "fixture refusal"}})
-			if !nightly.failed {
-				t.Fatal("nightly passed a failed scenario")
-			}
+			// Nightly mode also holds star/generated pairings, regardless of
+			// whether TestMatrix itself is selected in this test process.
+			t.Run("nightly", func(t *testing.T) {
+				t.Setenv("NIGHTSEAM_MATRIX", "1")
+				nightly := &verdictReporter{}
+				s.reportOutcome(nightly, sc, "go", c.language, c.language, Outcome{Failed: &Failure{Reason: "fixture refusal"}})
+				if !nightly.failed {
+					t.Fatal("nightly passed a failed star/generated scenario")
+				}
+			})
 		})
 	}
 }
@@ -160,10 +164,11 @@ func (r *verdictReporter) Fatalf(format string, args ...any) {
 func (r *verdictReporter) Logf(format string, args ...any) { r.output += fmt.Sprintf(format, args...) }
 
 func TestNightlyRetainsRequiredSkipFailures(t *testing.T) {
+	t.Setenv("NIGHTSEAM_MATRIX", "1")
 	p := tiered()
 	sc := Scenario{Layer: "peer", Name: "fixture"}
 	for _, profile := range []string{"core", "tunnel"} {
-		s := &Suite{Profiles: p, Matrix: NewMatrix(p), Placed: map[string]string{sc.Key(): profile}, strict: true}
+		s := &Suite{Profiles: p, Matrix: NewMatrix(p), Placed: map[string]string{sc.Key(): profile}}
 		r := &verdictReporter{}
 		s.reportOutcome(r, sc, "third", "fourth", "fourth", Outcome{Skipped: "missing operation"})
 		if r.failed != (profile == "core") {

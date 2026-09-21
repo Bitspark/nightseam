@@ -106,7 +106,6 @@ func TestMatrix(t *testing.T) {
 		t.Skip("the full matrix runs with NIGHTSEAM_MATRIX=1")
 	}
 	s := Open(t)
-	s.strict = true
 	for _, p := range s.Pairings(true) {
 		if p[0] == "go" || p[1] == "go" {
 			continue
