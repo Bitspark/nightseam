@@ -1,9 +1,11 @@
 # How a layer speaks on the wire
 
-Nightseam is a stack: the seam carries frames, the profile correlates them,
-the tunnel multiplexes channels over one peer, and a layer above the tunnel
-speaks over a channel — or over any connection of the seam. Each layer is
-built on the one beneath and speaks it; none knows the ones above. This page says what that means for the one question that comes up
+Nightseam is a stack: the transport carries frames, the profile correlates
+them, and the tunnel multiplexes channels over one peer. A prepared channel,
+a peer and a local endpoint expose the same relative-path
+[Wire](../runtime/wire.md). A layer takes that interface without asking
+what carries it. Each layer speaks the one beneath; none knows the ones
+above. This page says what that means for the question that comes up
 whenever a layer needs to say something new on the wire: **where does it
 go?** It was written after two wrong answers in one day, so that the third
 person to ask reads the test rather than repeating them.
@@ -56,6 +58,16 @@ record, and [`meta` is a header, not a
 member](../decisions/meta-is-a-header-not-a-member.md) the one header's.
 
 ## A layer's own vocabulary
+
+A Wire path is an array of opaque Unicode scalar strings. At a physical
+peer boundary its canonical encoding occupies the existing `method` or
+`event` member: each segment is its UTF-8 byte length, a colon, and the
+segment. Thus `["space", "read"]` becomes `5:space4:read`. Empty segments,
+slashes, dots and different Unicode spellings retain their identities.
+There is no new envelope member and no normalization. Selection and
+mounting transform this routing address; they establish neither resource
+ancestry nor permission. The receiver's verified context is delivered
+beside the frame and is never inferred from its path or metadata.
 
 A layer that speaks on the wire does it as the tunnel does:
 

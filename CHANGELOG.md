@@ -25,6 +25,15 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Relative-path Wires carry profile frames across local bindings, peers and
+  prepared tunnel channels. Selection, mounting and forwarding preserve
+  correlation, cancellation, order and received context without allocating
+  another peer or channel. Bounded local pairs and channel isolation hold
+  stalled and failed destinations to their own carrier.
+- Generated Go and TypeScript model factories convert to and from Wire on
+  each side. Runtime value adapters accept explicit invocation environments,
+  keeping model-only and scalar generic consumers free of live and tunnel
+  dependencies while preserving live ownership and publication batches.
 - The documentation check holds every built-in family's reference to the index
   beside it. The references are a directory per family, which no documented set
   reaches, so a built-in arrived with the page the generator's golden test
@@ -37,6 +46,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Removed
 
+- Generated transport-specific Dial/Attach/Open/Serve/Install and Client/Remote
+  facades; hosts prepare transports and supply a Wire to the generated model
+  adapters. Raw tunnel transport is named Connection; Channel is prepared Wire
+  access.
 - `render.Unrendered` and the `unrendered_form` diagnostic it built. Every
   target renders every form the declaration language settled, so the refusal
   had no caller and the code was the one diagnostic the tree could name and not
