@@ -41,6 +41,11 @@ are one number. Entries are in the words of the commits that landed them.
 - Haskell enters at tier 4 with bounded pipes and WebSockets, the native peer,
   relative-path Wires and strict shared-table validation, held against Go in
   both roles and by an outside source-distribution consumer.
+- Rust enters at tier 4 with bounded pipe and WebSocket connections, the
+  duplex peer, schema validation, declaration identity, and relative-path
+  Wire composition. Its private testee runs the shared core scenarios in
+  both roles against Go; packaged crates are held by an outside WebSocket
+  consumer, with Cargo checks and version lockstep in the release gates.
 - C++20 has a bounded frames connection, pipe and WebSocket transports, the
   peer runtime and descriptor validator, held to the shared core scenarios
   against Go in both roles. Its CMake targets are `Nightseam::duplex` and

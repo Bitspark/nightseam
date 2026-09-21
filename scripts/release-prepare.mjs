@@ -17,6 +17,7 @@ import { join } from "node:path";
 import { gate, matrixFile, missing, profilesFile, readJSON, unrun } from "./matrix.mjs";
 import { copyNotices, dependency, examples, manifestsUnder, modules, packages, requirement, root } from "./packages.mjs";
 import { checkHaskellVersions } from "./haskell-packages.mjs";
+import { rustVersionProblems } from "./rust-packages.mjs";
 
 const flag = name => {
   const at = process.argv.indexOf(name);
@@ -31,6 +32,7 @@ if (!/^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(tag ?? "")) {
 const version = tag.slice(1);
 const problems = [];
 problems.push(...checkHaskellVersions(root, version));
+problems.push(...rustVersionProblems(root, version));
 const pythonProject = readFileSync(join(root, "pyproject.toml"), "utf8").split(/^\[/m).find(section => section.startsWith("project]"));
 const pythonVersion = pythonProject?.match(/^version = "([^"]+)"$/m)?.[1];
 if (pythonVersion !== version) problems.push(`pyproject.toml is ${pythonVersion ?? "missing its project version"}, the tag is ${version}`);

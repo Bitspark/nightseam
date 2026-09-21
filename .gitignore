@@ -6,6 +6,8 @@ node_modules/
 dist/
 */ts/LICENSE
 */ts/NOTICE
+*/rs/LICENSE
+*/rs/NOTICE
 release-notes.md
 conformance/.out/
 conformance/*/.generated/
@@ -15,6 +17,7 @@ secrets/
 dist-newstyle/
 *.hi
 *.o
+target/
 .build/
 .venv/
 __pycache__/
