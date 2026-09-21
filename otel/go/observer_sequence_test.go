@@ -1,10 +1,14 @@
 package otel_test
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
 	"time"
+
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/Bitspark/nightseam/otel/go"
 	"github.com/Bitspark/nightseam/runtime/go"
@@ -19,9 +23,10 @@ func TestSharedObserverSequences(t *testing.T) {
 	}
 	var fixture struct {
 		Cases []struct {
-			Name   string
-			Events []observerSequenceEvent
-			Spans  []struct {
+			Name    string
+			Events  []observerSequenceEvent
+			OnStart []observerSequenceEvent `json:"on_start"`
+			Spans   []struct {
 				Name         string
 				Kind         string
 				StartMS      int64  `json:"start_ms"`
@@ -45,8 +50,24 @@ func TestSharedObserverSequences(t *testing.T) {
 	origin := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
 	for _, row := range fixture.Cases {
 		t.Run(row.Name, func(t *testing.T) {
-			tracer, exporter := exported(t)
-			observer := otel.Observer(tracer)
+			exporter := tracetest.NewInMemoryExporter()
+			var observer runtime.Observer
+			first := true
+			processor := &sequenceStartProcessor{
+				SpanProcessor: sdktrace.NewSimpleSpanProcessor(exporter),
+				start: func() {
+					if !first {
+						return
+					}
+					first = false
+					for _, event := range row.OnStart {
+						observer.Observe(event.observed(t, origin))
+					}
+				},
+			}
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(processor))
+			t.Cleanup(func() { _ = provider.Shutdown(t.Context()) })
+			observer = otel.Observer(provider.Tracer("shared-observer-sequences"))
 			for _, event := range row.Events {
 				observer.Observe(event.observed(t, origin))
 			}
@@ -98,6 +119,43 @@ func TestSharedObserverSequences(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The SDK calls OnStart before the tracer returns the span to the adapter.
+type sequenceStartProcessor struct {
+	sdktrace.SpanProcessor
+	start func()
+}
+
+func (p *sequenceStartProcessor) OnStart(context.Context, sdktrace.ReadWriteSpan) { p.start() }
+
+func TestConnectionClosesFromAnotherGoroutineDuringSpanStart(t *testing.T) {
+	exporter := tracetest.NewInMemoryExporter()
+	var observer runtime.Observer
+	at := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
+	processor := &sequenceStartProcessor{
+		SpanProcessor: sdktrace.NewSimpleSpanProcessor(exporter),
+		start: func() {
+			done := make(chan struct{})
+			go func() {
+				observer.Observe(runtime.ConnectionClosed{At: at.Add(time.Millisecond), Code: 1000})
+				close(done)
+			}()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("the observer held its lock while calling the consumer's tracer")
+			}
+		},
+	}
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(processor))
+	t.Cleanup(func() { _ = provider.Shutdown(t.Context()) })
+	observer = otel.Observer(provider.Tracer("concurrent-connection-close"))
+	observer.Observe(runtime.ConnectionOpened{At: at, Role: runtime.ClientRole})
+	spans := exporter.GetSpans()
+	if len(spans) != 1 || !spans[0].EndTime.Equal(at.Add(time.Millisecond)) {
+		t.Fatalf("the close racing span creation was not retained: %s", spelled(spans))
 	}
 }
 
