@@ -33,11 +33,12 @@ import (
 // A refusal gives the location and the fact about it. Both runtimes read
 // conformance/tables/validator.json, including the same refusal strings.
 type Schema struct {
-	types      map[string]*wireType
-	digest     string
-	imported   map[string]*Schema
-	scope      map[string]argument
-	parameters []wireParameter
+	types       map[string]*wireType
+	digest      string
+	declaration string
+	imported    map[string]*Schema
+	scope       map[string]argument
+	parameters  []wireParameter
 }
 
 type argument struct {

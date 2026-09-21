@@ -71,12 +71,14 @@ export interface AnyFamily {
 export interface FamilyBinding<F extends AnyFamily> {
   readonly name: F['name'];
   readonly validate: Validator;
+  readonly slots?: Slots;
 }
 
 /** A type argument interpreted in the family whose validator is supplied. */
 export interface TypeBinding {
   readonly type: TypeExpression;
   readonly validate: Validator;
+  readonly slots?: Slots;
 }
 
 export type Slots = { readonly [parameter: string]: FamilyBinding<AnyFamily> | TypeBinding };
@@ -103,6 +105,11 @@ interface Resolved extends Expression {
 export interface Validator {
   (type: TypeExpression, value: unknown, location?: string, slots?: Slots): void;
   readonly [descriptor]: Schema;
+}
+
+// Internal declaration provenance access; the public helpers live in declaration_identity.
+export function validatorMetadata(validator: Validator): Schema {
+  return validator[descriptor];
 }
 function timestamp(value: unknown): boolean {
   if (typeof value !== 'string') return false;
