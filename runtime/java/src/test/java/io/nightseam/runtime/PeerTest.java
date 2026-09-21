@@ -16,6 +16,7 @@ public final class PeerTest {
     private static void check(boolean condition,String message) { if(!condition) throw new AssertionError(message); }
     public static void main(String[] args) throws Exception {
         closeOwnership();
+        closeBeforeTransportNotification();
         closeDuringWrite();
         closeFromWriteObservation();
         Path root=Path.of(args[0]); int rows=0;
@@ -95,6 +96,26 @@ public final class PeerTest {
         }
         connection.ended.complete(new CloseInfo(1000,""));
     }
+    private static void closeBeforeTransportNotification() throws Exception {
+        // A transport may wake its read/write waiter after selecting a close
+        // but before it completes the separate closed notification.
+        for (boolean writing:List.of(false,true)) {
+            var connection=new CloseProbe();
+            connection.closeFailure=new CloseException(1000,"remote done");
+            connection.failOnWrite=writing;
+            try (var peer=new Peer(connection,"server",PeerOptions.defaults())) {
+                if (writing) peer.emit("tick",null);
+                else connection.releaseReceive.countDown();
+                var info=peer.closed().get(3,TimeUnit.SECONDS);
+                check(info.equals(new CloseInfo(1000,"remote done")),"transport close became abnormal before notification: "+info);
+                check(!connection.ended.isDone(),"test did not hold the transport notification");
+                check(connection.closes.get()==0 && connection.aborts.get()==0,"known transport close chose another transport action");
+            } finally {
+                connection.releaseReceive.countDown();
+                connection.ended.complete(new CloseInfo(1000,"remote done"));
+            }
+        }
+    }
     private static void closeDuringWrite() throws Exception {
         var connection=new CloseProbe(); connection.holdWrite=true;
         try (var peer=new Peer(connection,"server",PeerOptions.defaults())) {
@@ -136,6 +157,9 @@ public final class PeerTest {
         final CompletableFuture<Void> writeStarted=new CompletableFuture<>();
         final CompletableFuture<Boolean> writeInterrupted=new CompletableFuture<>();
         final java.util.concurrent.CountDownLatch releaseWrite=new java.util.concurrent.CountDownLatch(1);
+        final java.util.concurrent.CountDownLatch releaseReceive=new java.util.concurrent.CountDownLatch(1);
+        CloseException closeFailure;
+        boolean failOnWrite;
         volatile boolean inspect;
         volatile boolean holdWrite;
         volatile int code;
@@ -146,14 +170,16 @@ public final class PeerTest {
                 return super.getNow(fallback);
             }
         };
-        public void send(Frame frame,Duration timeout) throws InterruptedException {
+        public void send(Frame frame,Duration timeout) throws InterruptedException,CloseException {
             sender=Thread.currentThread(); writes.incrementAndGet();
+            if (closeFailure!=null && failOnWrite) throw closeFailure;
             if (!holdWrite) return;
             writeStarted.complete(null);
             try { releaseWrite.await(); writeInterrupted.complete(false); }
             catch (InterruptedException interrupted) { writeInterrupted.complete(true); throw interrupted; }
         }
-        public Frame receive(Duration timeout) throws InterruptedException {
+        public Frame receive(Duration timeout) throws InterruptedException,CloseException {
+            if (closeFailure!=null && !failOnWrite) { releaseReceive.await(); throw closeFailure; }
             new java.util.concurrent.CountDownLatch(1).await(); throw new AssertionError("unreachable");
         }
         public void close(int chosen,String reason) { code=chosen; closes.incrementAndGet(); transportClosed.complete(Thread.currentThread()); }
