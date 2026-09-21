@@ -79,7 +79,7 @@ type Type struct {
 	Kind        string
 	Description string
 	Key         string        // entity: the field that identifies it
-	Parameters  []Parameter   // record, entity, union, alias: the holes in it
+	Parameters  []Parameter   // record, entity, union, alias, callable: the holes in it
 	Extends     []Inheritance // bases with their explicit parameter bindings
 	Open        bool          // record, entity: fields beyond the declared ones are kept
 	Fields      []Field       // record, entity: in wire order, own fields only
