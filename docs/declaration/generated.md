@@ -539,6 +539,85 @@ keeps three cases separate:
 | A callable declaration with its own parameters | Temporarily refused as [`callable_parameters`](../../cmd/nightseam/testdata/invalid/callable-parameters/diagnostics.txt); applied callable identities are not defined by the current contract. This does not rule out future generic callables. |
 | A live type drawn through a family parameter, such as `S.Job` | Separately refused as [`live_draw`](../../cmd/nightseam/testdata/invalid/live-draw/diagnostics.txt); the family-binding contract does not supply its live boundary converter. This is a missing conversion surface, not a consequence of nominal identity or a requirement that all generic containers remain data-only. |
 
+## Testing a consumer family
+
+Every generated model side also has a consumer test helper: the Go subpackage
+`<family>-binding/familytest` or `<family>-client/familytest`, named
+`<family>test`, and the TypeScript subpath `@scope/<family>-binding/test` or
+`@scope/<family>-client/test`. These helpers compose the ordinary model
+adapters. Importing the model itself does not import its test helper or add a
+tunnel dependency.
+
+A data-only family supplies just `Example` in its Go protocol package's
+`familytest` subpackage and `example` at its TypeScript client's `/test`
+subpath; it has no model to pair or smoke-test.
+
+For the server side, `Pair(ctx, model, options, ...adapters)` returns a
+`ServerModel`, an idempotent stop function and an error. TypeScript's
+`await pair(model, options, ...bindings)` returns `{ model, close }`. Bind the
+returned factory once to the ordinary opposite-side implementation. The
+client-side helper mirrors these types. Generic parameters and positional
+bindings are exactly those of the side's `ToWire` / `toWire` adapter,
+including adapters for family draws. Construction failure cleans up the
+helper's carriers and interpretation; stopping detaches and closes them.
+
+`Smoke(ctx, model, opposite, options, ...adapters)` returns an error in Go;
+`await smoke(model, opposite, options, ...bindings)` rejects on failure in
+TypeScript. It constructs two fresh sessions from the supplied model factory,
+one direct and one through `fromWire(toWire(model))`, then calls every method
+once in each. Use a factory that creates independent equivalent state. The
+helper observes each incoming request before the model handles it, compares
+it with the original input, and compares the direct and wire results or
+public errors. The generated operation boundary validates inputs and results.
+A method that never reaches the model fails the check, even if both callers
+observe a cancellation. Reverse methods and event receivers are supplied by
+the ordinary opposite implementation. That implementation is shared by both
+sessions; use a deterministic test double for it.
+
+The inputs come from the document's validated example synthesizer. In Go,
+`Example[protocol.Payload]("Payload")` returns a fresh typed example and an
+error; in TypeScript, `example("Payload", adapterPayload())` returns the
+example validated by that exact adapter. Generic examples use the concrete
+witnesses shown in the document; an incompatible instantiation fails
+validation. An unavailable example retains its synthesis-limit reason. A
+document's illustrative live reference is never fabricated into a native
+callable.
+
+`Options.Inputs` / `options.inputs` overrides method inputs by their declared
+wire names with native values. Use these for another generic instantiation,
+live functions or a declaration for which synthesis finds no witness.
+Missing witnesses fail explicitly. `Equal` / `equal` supplies an observation
+when ordinary data equality cannot decide equivalence, such as invoking a
+returned function with a known argument. It receives the wire method name for
+a result and `<method>.request` for a request. Without that observer, live
+values fail the comparison. Public error code, message and data are compared
+independently. Passing this smoke check is evidence for its chosen examples,
+not a proof for all possible inputs or consumer policy.
+
+The default presentation carries serialized frames over `duplex.Pipe` /
+`pipe`. `Local` / `local`, `Mounted` / `mounted` and `Forwarded` / `forwarded`
+are built-in alternatives. `Options.Presentation` / `options.presentation`
+is the same typed host hook for a socket, prepared tunnel channel, or a
+composition of carrier and view: it receives the model Wire and returns the
+presented Wire with its cleanup. In Go its signature is
+`func(context.Context, duplex.Wire) (duplex.Wire, func(), error)`; TypeScript
+accepts a synchronous or asynchronous `{ wire, close }`. A host installs
+`ForwardWire` / `forwardWire` in peer preparation before frames arrive, and
+owns cleanup of any resources it acquired before reporting failure. The
+consumer fixture in
+[`transparency_test.go`](../../cmd/nightseam/transparency_test.go) exercises
+the same helper over the pipe/socket/channel by direct/mounted/forwarded
+matrix in both languages.
+
+`Context` / `context` configures `toWire`; `RemoteContext` / `remoteContext`
+configures its interpretation. Supply the corresponding value environments
+for live values. Go uses the supplied call context; TypeScript's
+`callContext` also carries cancellation and an optional `valueContext`.
+Owners remain the caller's responsibility: stopping a test presentation is
+not a substitute for explicitly releasing its supplied owners. The helper
+does not allocate an implicit live scope or retain an owner in a value
+adapter.
+
 ## Errors
 
 The public errors reach both languages by name and are the one vocabulary

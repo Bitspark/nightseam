@@ -1,4 +1,4 @@
-package doc
+package examples
 
 import (
 	"regexp/syntax"

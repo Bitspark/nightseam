@@ -81,7 +81,7 @@ func TestTierFilesAreLoadedAndRendered(t *testing.T) {
 	if out, _, err := run(t, root, "validate"); err != nil || out != "1 families; valid\n" {
 		t.Fatalf("validate: %v\n%s", err, out)
 	}
-	if out, _, err := run(t, root, "generate"); err != nil || strings.Count(out, "generated ") != 13 {
+	if out, _, err := run(t, root, "generate"); err != nil || strings.Count(out, "generated ") != 17 {
 		t.Fatalf("generate: %v\n%s", err, out)
 	}
 	client, err := os.ReadFile(filepath.Join(root, "api/go/probe-client/client_generated.go"))

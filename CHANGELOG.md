@@ -29,6 +29,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Generated Go and TypeScript model sides include consumer transparency helpers
+  with validated document examples, pipe pairs and smoke checks of method
+  inputs, results and public errors across local and carrier presentations.
+
 - Generated Go and TypeScript families expose the canonical declaration and its
   SHA-256 digest, covering operations, events, errors and reachable imported
   declarations. Bound arguments retain their own declaration content and scope.
