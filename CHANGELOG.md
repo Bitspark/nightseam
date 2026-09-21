@@ -18,6 +18,8 @@ are one number. Entries are in the words of the commits that landed them.
 - Give each language testee build its own bounded deadline.
 - The generated composition fixture waits for worker completion before
   asserting finished cancellation, preserving the final callback race.
+- Both OpenTelemetry adapters retain connection closes observed from consumer
+  span-start callbacks and preserve a connection reopened by those callbacks.
 - The TypeScript OpenTelemetry adapter retains connection and event-only
   telemetry with the Go reference's connection lifecycle, producer/consumer
   spans and fallback routing, without copying connection events onto requests.
