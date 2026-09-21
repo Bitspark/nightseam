@@ -142,14 +142,15 @@ func goDirectiveOf(file string) (string, error) {
 
 // PrepareGenerated renders proof and probe and lays the language's files for every
 // recipe that has a generated testee, then builds each once. The rendering
-// lands where the recipe says; a recipe without a generated section is
-// left out of the generated layer.
+// lands where the recipe says. Every registered language stays in the run's
+// inventory; absent generated recipes are explicit scenario skips, so a
+// complete core-only run can still write a complete and truthful matrix.
 func (s *Suite) PrepareGenerated(t *testing.T) []string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	var languages []string
-	for _, language := range s.Languages() {
+	languages := s.Languages()
+	for _, language := range languages {
 		recipe := s.Recipes[language]
 		if recipe.Generated == nil {
 			continue
@@ -173,7 +174,6 @@ func (s *Suite) PrepareGenerated(t *testing.T) []string {
 			t.Fatalf("build the %s generated testee: %v", language, err)
 		}
 		s.rendered[language] = places.Rendered
-		languages = append(languages, language)
 	}
 	return languages
 }

@@ -30,7 +30,7 @@ func accessServer[SEnvelope, SHandle any](wire duplex.Wire, environment runtime.
 }
 func (c *serverMethods[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.Carried[SEnvelope, SHandle]) (SEnvelope, error) {
 	var result SEnvelope
-	if c.adapterSEnvelope.NeedsContext || c.adapterSHandle.NeedsContext || c.adapterSEnvelope.NeedsContext {
+	if c.adapterSEnvelope.NeedsContext || c.adapterSHandle.NeedsContext {
 		var err error
 		ctx, err = c.environment.ValueEnvironment.Select(ctx)
 		if err != nil {
@@ -136,7 +136,7 @@ func bindServer[SEnvelope, SHandle any](wire duplex.Wire, lookup func() protocol
 			if implementation.Methods == nil {
 				return nil, fmt.Errorf("model methods are required")
 			}
-			if adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext || adapterSEnvelope.NeedsContext {
+			if adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext {
 				var err error
 				ctx, err = environment.ValueEnvironment.Child(ctx)
 				if err != nil {

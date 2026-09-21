@@ -49,7 +49,7 @@ func (c *serverMethods[SEnvelope, SHandle, TEnvelope]) Named(ctx context.Context
 }
 func (c *serverMethods[SEnvelope, SHandle, TEnvelope]) Relay(ctx context.Context, params TEnvelope) (protocol.Both[SEnvelope, SHandle, TEnvelope], error) {
 	var result protocol.Both[SEnvelope, SHandle, TEnvelope]
-	if c.adapterTEnvelope.NeedsContext || c.adapterSEnvelope.NeedsContext || c.adapterSHandle.NeedsContext || c.adapterTEnvelope.NeedsContext {
+	if c.adapterTEnvelope.NeedsContext || c.adapterSEnvelope.NeedsContext || c.adapterSHandle.NeedsContext {
 		var err error
 		ctx, err = c.environment.ValueEnvironment.Select(ctx)
 		if err != nil {
@@ -204,7 +204,7 @@ func bindServer[SEnvelope, SHandle, TEnvelope any](wire duplex.Wire, lookup func
 			if implementation.Methods == nil {
 				return nil, fmt.Errorf("model methods are required")
 			}
-			if adapterTEnvelope.NeedsContext || adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext || adapterTEnvelope.NeedsContext {
+			if adapterTEnvelope.NeedsContext || adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext {
 				var err error
 				ctx, err = environment.ValueEnvironment.Child(ctx)
 				if err != nil {
