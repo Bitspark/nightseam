@@ -3,8 +3,6 @@ package io.nightseam.runtime;
 import io.nightseam.duplex.CloseInfo;
 import io.nightseam.duplex.Connection;
 import io.nightseam.duplex.Frame;
-import io.nightseam.duplex.Message;
-import io.nightseam.duplex.Receiver;
 import io.nightseam.duplex.Wire;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -18,7 +16,6 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -352,10 +349,10 @@ public final class Peer implements AutoCloseable {
         family(value,name); trace(value,frame); observe(value);
     }
     private void backpressure(int queued,boolean stalled) { observe(map("type","backpressure","queued",queued,"stalled",stalled,"deadline",options.writeTimeout().toNanos())); }
-    private void observe(Map<String,Object> value) {
+    void observe(Map<String,Object> value) {
         if (options.observer()!=null) {
-            value.put("at",System.currentTimeMillis());
-            try { options.observer().accept(value); } catch(Throwable ignored) { /* Observation cannot strand protocol work. */ }
+            var snapshot=new LinkedHashMap<>(value); snapshot.put("at",System.currentTimeMillis());
+            try { options.observer().accept(snapshot); } catch(Throwable ignored) { /* Observation cannot strand protocol work. */ }
         }
     }
     private void family(Map<String,Object> value,String name) { String family=options.families().get(name); if (family!=null && !family.isEmpty()) value.put("family",family); }

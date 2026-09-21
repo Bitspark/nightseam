@@ -25,13 +25,13 @@ A nonpositive byte limit disables the receive limit.
 
 `Pipe.pair(byteLimit, capacity)` holds at most `capacity` messages in each
 direction. `WebSocketTransport.dial(uri, byteLimit, protocols)` opens a
-`ws` or `wss` connection. TLS uses the JDK's trust configuration and HTTPS
+`ws` or `wss` connection. TLS uses the JDK trust configuration and HTTPS
 hostname verification. `WebSocketTransport.listen(byteLimit, protocols)`
 returns a loopback listener with `uri()` and `accept(timeout)`; closing the
 listener leaves previously accepted connections under their caller's ownership.
 Subprotocols are optional RFC tokens, independent of the profile name.
 
-Both WebSocket roles use native RFC 6455 framing over JDK sockets. Java's
+Both WebSocket roles use native RFC 6455 framing over JDK sockets. The Java API
 [`java.net.http.WebSocket.sendClose`](https://docs.oracle.com/en/java/javase/21/docs/api/java.net.http/java/net/http/WebSocket.html#sendClose(int,java.lang.String))
 forbids application sends of codes including 1003 and 1009, which the seam
 must preserve. The native adapter validates upgrade headers, masking,

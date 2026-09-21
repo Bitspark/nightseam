@@ -221,6 +221,8 @@ public final class PeerWireTest {
             wire.receive(List.of("a"), new Receiver(true, (path,message) -> { kinds.add("namespace"); received.add(message); }, null));
             Runnable detach = wire.receive(List.of("a"), exact);
             String name = io.nightseam.duplex.Wires.encodePath(List.of("a"));
+            fails(() -> fixture.peer.handle(name, (context,params) -> params));
+            fails(() -> fixture.peer.onEvent(name, (context,data) -> {}));
             rawSend(fixture.remote, Peer.map("version",1,"kind","request","id",firstId,"method",name,"params",null));
             Message call = take(received); check(take(kinds).equals("exact"), "exact did not outrank namespace");
             check(take(paths).equals(List.of("a")), "callback path changed");

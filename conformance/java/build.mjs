@@ -44,7 +44,7 @@ if (process.argv.includes('--test')) {
   const testArgs = join(out, 'tests.args');
   writeFileSync(testArgs, tests.map(path => JSON.stringify(path.replaceAll('\\', '/'))).join('\n'));
   run('javac', ['--release', '21', '-encoding', 'UTF-8', '-cp', classes, '-d', testClasses, `@${testArgs}`]);
-  for (const name of ['io.nightseam.duplex.SeamTest', 'io.nightseam.runtime.SchemaTest', 'io.nightseam.runtime.PeerTest', 'io.nightseam.runtime.PeerWireTest',
+  for (const name of ['io.nightseam.duplex.SeamTest', 'io.nightseam.runtime.SchemaTest', 'io.nightseam.runtime.PeerTest', 'io.nightseam.runtime.PeerWireTest', 'io.nightseam.runtime.PeerLifecycleTest',
     'io.nightseam.runtime.WirePairTest', 'io.nightseam.conformance.RecordedWireTest']) {
     run('java', ['-ea', '-cp', [classes, testClasses].join(delimiter), name, root]);
   }

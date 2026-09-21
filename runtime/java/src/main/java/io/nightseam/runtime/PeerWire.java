@@ -403,10 +403,7 @@ final class PeerWire implements Wire {
         synchronized (lock) { depth = dataQueued; }
         ending(new CloseInfo(1006, ""));
         Thread.ofVirtual().name("nightseam-peer-wire-failure").start(() -> {
-            if (pressure && options.observer() != null) {
-                try { options.observer().accept(Map.of("type", "backpressure", "queued", depth, "stalled", true, "deadline", options.writeTimeout().toNanos())); }
-                catch (RuntimeException ignored) { }
-            }
+            if (pressure) peer.observe(Map.of("type", "backpressure", "queued", depth, "stalled", true, "deadline", options.writeTimeout().toNanos()));
             peer.fail();
         });
     }

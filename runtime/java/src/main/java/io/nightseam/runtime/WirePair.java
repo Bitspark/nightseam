@@ -327,7 +327,8 @@ public final class WirePair implements AutoCloseable {
 
     private void observe(Map<String,Object> event) {
         if (options.observer() != null) {
-            try { options.observer().accept(event); } catch (Throwable ignored) { }
+            var snapshot=new java.util.LinkedHashMap<>(event); snapshot.put("at",System.currentTimeMillis());
+            try { options.observer().accept(snapshot); } catch (Throwable ignored) { }
         }
     }
 
