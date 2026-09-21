@@ -197,29 +197,31 @@ type pendingResult struct {
 // The connection's receive limit is its maker's to set to MaxFrameBytes;
 // the peer refuses a larger frame it is nonetheless handed.
 type Peer struct {
-	wireOnce      sync.Once
-	wire          *peerWire
-	conn          duplex.Conn
-	ctx           context.Context
-	cancel        context.CancelFunc
-	options       Options
-	prefix        string
-	remotePrefix  string
-	subprotocol   string
-	next          atomic.Uint64
-	done          chan struct{}
-	once          sync.Once
-	mu            sync.Mutex
-	err           error
-	pending       map[string]chan pendingResult
-	incoming      map[string]context.CancelFunc
-	handlers      map[string]Handler
-	eventHandlers map[string]EventHandler
-	listeners     map[uint64]func(context.Context, Event)
-	listenerID    uint64
-	outputs       chan queuedFrame
-	events        chan queuedEvent
-	slots         chan struct{}
+	wireOnce        sync.Once
+	wire            *peerWire
+	conn            duplex.Conn
+	ctx             context.Context
+	cancel          context.CancelFunc
+	options         Options
+	prefix          string
+	remotePrefix    string
+	subprotocol     string
+	next            atomic.Uint64
+	done            chan struct{}
+	once            sync.Once
+	mu              sync.Mutex
+	err             error
+	pending         map[string]chan pendingResult
+	incoming        map[string]context.CancelFunc
+	handlers        map[string]Handler
+	eventHandlers   map[string]EventHandler
+	requestFallback func(string) Handler
+	eventFallback   func(string) EventHandler
+	listeners       map[uint64]func(context.Context, Event)
+	listenerID      uint64
+	outputs         chan queuedFrame
+	events          chan queuedEvent
+	slots           chan struct{}
 }
 
 // NewPeer speaks the profile over any connection of the seam — a pipe, a
@@ -451,6 +453,12 @@ type admittedCall struct {
 // admits frames in its delivery order, then waits for each result separately;
 // starting goroutines before admission would reorder requests and events.
 func (p *Peer) beginCall(ctx context.Context, method string, params any) (*admittedCall, error) {
+	return p.beginCallTrace(ctx, method, params, nil)
+}
+
+// A structured wire frame already carries its trace. Public Call still injects
+// a child; forwarding the existing frame uses these exact members instead.
+func (p *Peer) beginCallTrace(ctx context.Context, method string, params any, carried *Trace) (*admittedCall, error) {
 	if ctx == nil || method == "" {
 		return nil, Unpublished(errors.New("duplex call requires context and method"))
 	}
@@ -467,7 +475,12 @@ func (p *Peer) beginCall(ctx context.Context, method string, params any) (*admit
 	id := p.prefix + strconv.FormatUint(p.next.Add(1), 10)
 	// One trace serves the request and the cancellation that may follow it: a
 	// cancel carries its request's members, not a sibling span of them.
-	trace := p.options.Propagator.Inject(ctx)
+	var trace Trace
+	if carried != nil {
+		trace = *carried
+	} else {
+		trace = p.options.Propagator.Inject(ctx)
+	}
 	reply := make(chan pendingResult, 1)
 	p.mu.Lock()
 	if p.err != nil {
@@ -560,6 +573,10 @@ func (p *Peer) cancelRequest(id string, trace Trace) {
 // Emit queues an event. Success means queued for this connection, not persisted
 // or processed by the remote application.
 func (p *Peer) Emit(ctx context.Context, event string, data any) error {
+	return p.emitTrace(ctx, event, data, nil)
+}
+
+func (p *Peer) emitTrace(ctx context.Context, event string, data any, carried *Trace) error {
 	if ctx == nil || event == "" {
 		return Unpublished(errors.New("duplex event requires context and name"))
 	}
@@ -567,7 +584,12 @@ func (p *Peer) Emit(ctx context.Context, event string, data any) error {
 	if err != nil {
 		return Unpublished(err)
 	}
-	trace := p.options.Propagator.Inject(ctx)
+	var trace Trace
+	if carried != nil {
+		trace = *carried
+	} else {
+		trace = p.options.Propagator.Inject(ctx)
+	}
 	f := frame{Version: 1, Kind: "event", Event: event, Data: encoded,
 		Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}
 	// The application emitted it here; the frame carrying it is sent when the
@@ -756,7 +778,11 @@ func (p *Peer) startRequest(f frame) {
 		return
 	}
 	handler := p.handlers[f.Method]
+	fallback := p.requestFallback
 	p.mu.Unlock()
+	if handler == nil && fallback != nil {
+		handler = fallback(f.Method)
+	}
 	// A response carries its request's trace, whether a handler ran or not.
 	trace := Trace{Parent: f.Traceparent, State: f.Tracestate}
 	// A request this peer refuses for want of a method or of a slot is still a
@@ -875,14 +901,20 @@ func (p *Peer) eventLoop() {
 		case queued := <-p.events:
 			event := queued.event
 			ctx := withIncomingMeta(p.options.Propagator.Extract(p.ctx, queued.trace), queued.meta)
+			ctx = context.WithValue(ctx, wireFrameKey{}, frame{Version: 1, Kind: "event", Event: event.Name, Data: event.Data,
+				Traceparent: queued.trace.Parent, Tracestate: queued.trace.State, Meta: queued.meta})
 			p.observeDelivered(queued)
 			p.mu.Lock()
 			handler := p.eventHandlers[event.Name]
+			fallback := p.eventFallback
 			listeners := make([]func(context.Context, Event), 0, len(p.listeners))
 			for _, l := range p.listeners {
 				listeners = append(listeners, l)
 			}
 			p.mu.Unlock()
+			if handler == nil && fallback != nil {
+				handler = fallback(event.Name)
+			}
 			func() {
 				defer func() {
 					if recover() != nil {

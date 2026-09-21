@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -44,24 +45,32 @@ type peerWire struct {
 	mu         sync.Mutex
 	incoming   map[returnKey]*routedCall
 	receivers  map[string]*wireRegistration
+	namespaces map[string]*wireRegistration
 }
 
 type wireRegistration struct {
 	receiver duplex.Receiver
+	path     []string
 }
 
 type wireFrameKey struct{}
 type wireDispatchContext struct {
-	ctx   context.Context
-	peer  *Peer
-	frame frame
+	ctx           context.Context
+	peer          *Peer
+	frame         frame
+	panic         func(any)
+	maxFrameBytes int64
 }
 
 // Wire selects this peer's root origin. Repeated selection shares the peer,
 // its queues and its carrier lifetime.
 func (p *Peer) Wire() duplex.Wire {
 	p.wireOnce.Do(func() {
-		p.wire = &peerWire{peer: p, wake: make(chan struct{}, 1), incoming: map[returnKey]*routedCall{}, receivers: map[string]*wireRegistration{}}
+		p.wire = &peerWire{peer: p, wake: make(chan struct{}, 1), incoming: map[returnKey]*routedCall{}, receivers: map[string]*wireRegistration{}, namespaces: map[string]*wireRegistration{}}
+		p.mu.Lock()
+		p.requestFallback = p.wire.namespaceHandler
+		p.eventFallback = p.wire.namespaceEvent
+		p.mu.Unlock()
 		go p.wire.run()
 	})
 	return p.wire
@@ -177,7 +186,11 @@ func (w *peerWire) run() {
 		for _, registration := range w.receivers {
 			receivers = append(receivers, registration.receiver)
 		}
+		for _, registration := range w.namespaces {
+			receivers = append(receivers, registration.receiver)
+		}
 		w.receivers = map[string]*wireRegistration{}
+		w.namespaces = map[string]*wireRegistration{}
 		for _, call := range w.incoming {
 			if call.cancel != nil {
 				cancels = append(cancels, call.cancel)
@@ -242,7 +255,7 @@ func (w *peerWire) run() {
 			name, err := duplex.EncodePath(delivered.path)
 			var call *admittedCall
 			if err == nil {
-				call, err = w.peer.beginCall(ctx, name, f.Params)
+				call, err = w.peer.beginCallTrace(ctx, name, f.Params, &Trace{Parent: f.Traceparent, State: f.Tracestate})
 			}
 			if err != nil {
 				cancel()
@@ -266,7 +279,7 @@ func (w *peerWire) run() {
 			name, err := duplex.EncodePath(delivered.path)
 			ctx := w.peer.options.Propagator.Extract(w.peer.Context(), Trace{Parent: f.Traceparent, State: f.Tracestate})
 			if err == nil {
-				err = w.peer.Emit(WithMeta(ctx, f.Meta), name, f.Data)
+				err = w.peer.emitTrace(WithMeta(ctx, f.Meta), name, f.Data, &Trace{Parent: f.Traceparent, State: f.Tracestate})
 			}
 			if err != nil {
 				w.peer.fail(err)
@@ -280,13 +293,17 @@ func (w *peerWire) Receive(path []string, receiver duplex.Receiver) (func(), err
 	if err != nil {
 		return nil, err
 	}
-	if name == "" || receiver.Message == nil {
-		return nil, errors.New("a wire receiver requires a nonempty operation path and callback")
+	if (name == "" && !receiver.Namespace) || receiver.Message == nil {
+		return nil, errors.New("a wire receiver requires a callback and an operation path or namespace")
 	}
-	registration := &wireRegistration{receiver: receiver}
+	registration := &wireRegistration{receiver: receiver, path: append([]string{}, path...)}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if _, exists := w.receivers[name]; exists {
+	registrations := w.receivers
+	if receiver.Namespace {
+		registrations = w.namespaces
+	}
+	if _, exists := registrations[name]; exists {
 		return nil, duplex.ErrReceiverExists
 	}
 	w.peer.mu.Lock()
@@ -294,37 +311,144 @@ func (w *peerWire) Receive(path []string, receiver duplex.Receiver) (func(), err
 	if w.peer.err != nil {
 		return nil, w.peer.err
 	}
-	if w.peer.handlers[name] != nil || w.peer.eventHandlers[name] != nil {
+	if !receiver.Namespace && (w.peer.handlers[name] != nil || w.peer.eventHandlers[name] != nil) {
 		return nil, duplex.ErrReceiverExists
 	}
-	selected := append([]string(nil), path...)
-	w.peer.handlers[name] = func(ctx context.Context, _ *Peer, params json.RawMessage) (any, error) {
-		var result json.RawMessage
-		incoming, _ := ctx.Value(wireFrameKey{}).(frame)
-		dispatch := &wireDispatchContext{ctx: ctx, peer: w.peer, frame: incoming}
-		err := callWire(WithMeta(ctx, MetaFrom(ctx)), &receiverWire{receiver: receiver}, selected, params, &result, dispatch)
-		return result, err
+	if !receiver.Namespace {
+		w.peer.handlers[name] = w.requestReceiver(registration.path, receiver)
+		w.peer.eventHandlers[name] = w.eventReceiver(registration.path, receiver)
 	}
-	w.peer.eventHandlers[name] = func(ctx context.Context, _ *Peer, data json.RawMessage) {
-		trace, _ := TraceOf(ctx)
-		receiver.Message(selected, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: data, Traceparent: trace.Parent, Tracestate: trace.State, Meta: MetaFrom(ctx)}})
-	}
-	w.receivers[name] = registration
+	registrations[name] = registration
 	var once sync.Once
 	return func() {
 		once.Do(func() {
 			w.mu.Lock()
 			defer w.mu.Unlock()
-			if w.receivers[name] != registration {
+			registrations := w.receivers
+			if receiver.Namespace {
+				registrations = w.namespaces
+			}
+			if registrations[name] != registration {
 				return
 			}
-			delete(w.receivers, name)
+			delete(registrations, name)
+			if receiver.Namespace {
+				return
+			}
 			w.peer.mu.Lock()
 			defer w.peer.mu.Unlock()
 			delete(w.peer.handlers, name)
 			delete(w.peer.eventHandlers, name)
 		})
 	}, nil
+}
+
+// Namespace fallback only interprets canonical structured-wire paths. Raw Peer
+// methods and event handlers keep their existing exact-name behavior.
+func (w *peerWire) namespace(name string) ([]string, *wireRegistration) {
+	path, err := duplex.DecodePath(name)
+	if err != nil {
+		return nil, nil
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	var selected *wireRegistration
+	for _, registration := range w.namespaces {
+		prefix := registration.path
+		if len(prefix) <= len(path) && (selected == nil || len(prefix) > len(selected.path)) && slices.Equal(prefix, path[:len(prefix)]) {
+			selected = registration
+		}
+	}
+	return path, selected
+}
+
+func (w *peerWire) namespaceHandler(name string) Handler {
+	path, registration := w.namespace(name)
+	if registration == nil {
+		return nil
+	}
+	return w.requestReceiver(path, registration.receiver)
+}
+
+func (w *peerWire) namespaceEvent(name string) EventHandler {
+	path, registration := w.namespace(name)
+	if registration == nil {
+		return nil
+	}
+	return w.eventReceiver(path, registration.receiver)
+}
+
+func (w *peerWire) requestReceiver(path []string, receiver duplex.Receiver) Handler {
+	return func(ctx context.Context, _ *Peer, params json.RawMessage) (any, error) {
+		var result json.RawMessage
+		incoming, _ := ctx.Value(wireFrameKey{}).(frame)
+		dispatch := &wireDispatchContext{ctx: ctx, peer: w.peer, frame: incoming}
+		// The chosen registration stays with this request. Later detach or
+		// replacement cannot redirect its correlated cancellation.
+		err := callWire(WithMeta(ctx, MetaFrom(ctx)), &receiverWire{receiver: receiver}, append([]string{}, path...), params, &result, dispatch)
+		return result, err
+	}
+}
+
+func (w *peerWire) eventReceiver(path []string, receiver duplex.Receiver) EventHandler {
+	return func(ctx context.Context, _ *Peer, data json.RawMessage) {
+		incoming, _ := ctx.Value(wireFrameKey{}).(frame)
+		receiver.Message(append([]string{}, path...), duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: data, Traceparent: incoming.Traceparent, Tracestate: incoming.Tracestate, Meta: MetaFrom(ctx)}})
+	}
+}
+
+// ForwardWire joins two existing origins without allocating a peer or channel.
+// Detach removes only the forwarding registrations; both wires remain owned by
+// their callers. Each root remains responsible for ending its failed carrier.
+func ForwardWire(inbound, outbound duplex.Wire) (func(), error) {
+	if inbound == nil || outbound == nil {
+		return nil, errors.New("wire forwarding requires two origins")
+	}
+	var mu sync.Mutex
+	var detaches []func()
+	ended := false
+	stop := func() {
+		mu.Lock()
+		if ended {
+			mu.Unlock()
+			return
+		}
+		ended = true
+		owned := detaches
+		detaches = nil
+		mu.Unlock()
+		for _, detach := range owned {
+			detach()
+		}
+	}
+	receiver := func(destination duplex.Wire) duplex.Receiver {
+		return duplex.Receiver{Namespace: true, Closed: func(duplex.Code, string) { stop() }, Message: func(path []string, message duplex.Message) {
+			if err := destination.Send(path, message); err != nil {
+				stop()
+				if message.Frame.Kind == duplex.ProfileRequest {
+					sendWireResponse(message, nil, WithoutUnpublishedProof(err))
+				}
+			}
+		}}
+	}
+	for _, direction := range []struct{ source, destination duplex.Wire }{{inbound, outbound}, {outbound, inbound}} {
+		detach, err := direction.source.Receive(nil, receiver(direction.destination))
+		if err != nil {
+			stop()
+			return nil, err
+		}
+		mu.Lock()
+		active := !ended
+		if active {
+			detaches = append(detaches, detach)
+		}
+		mu.Unlock()
+		if !active {
+			detach()
+			return nil, ErrClosed
+		}
+	}
+	return stop, nil
 }
 
 // receiverWire is used only inside the peer's already asynchronous request
@@ -349,13 +473,18 @@ type replyWire struct {
 	dispatch *wireDispatchContext
 }
 
+func (w *replyWire) wireDispatch() *wireDispatchContext { return w.dispatch }
+
 func (w *replyWire) Send(path []string, message duplex.Message) error {
 	if len(path) != 0 || message.Frame.Kind != duplex.ProfileResponse || message.Frame.ID != w.id {
 		return errors.New("invalid wire response")
 	}
 	var limit int64
 	if w.dispatch != nil {
-		limit = w.dispatch.peer.options.MaxFrameBytes
+		limit = w.dispatch.maxFrameBytes
+		if limit == 0 && w.dispatch.peer != nil {
+			limit = w.dispatch.peer.options.MaxFrameBytes
+		}
 	}
 	if err := validateWireFrame("", message.Frame, limit); err != nil {
 		return err
@@ -424,6 +553,18 @@ func callWire(ctx context.Context, wire duplex.Wire, path []string, params, resu
 // concrete carrier. The runtime supplies cancellation and response routing.
 type WireHandler func(context.Context, json.RawMessage) (any, error)
 
+// WireEventHandler receives an event body beside its carried context.
+type WireEventHandler func(context.Context, json.RawMessage) error
+
+// WireHandlers groups a method and event that share one declared name.
+type WireHandlers struct {
+	Request WireHandler
+	Event   WireEventHandler
+}
+
+// AdapterContext carries runtime options used when constructing model wires.
+type AdapterContext struct{ Options Options }
+
 // EmitWire admits one event at a relative path. The return says only that the
 // destination accepted it; processing and transport remain asynchronous.
 func EmitWire(ctx context.Context, wire duplex.Wire, path []string, data any) error {
@@ -450,6 +591,15 @@ func HandleWire(wire duplex.Wire, path []string, handler WireHandler) (func(), e
 	if wire == nil || handler == nil {
 		return nil, errors.New("a wire handler requires a wire and body")
 	}
+	return RegisterWire(wire, path, WireHandlers{Request: handler})
+}
+
+// RegisterWire installs a single receiver for a declared method, event, or both.
+// The one detach removes the group; an event-only path refuses requests.
+func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(), error) {
+	if wire == nil || (handlers.Request == nil && handlers.Event == nil) {
+		return nil, errors.New("wire registration requires a wire and at least one handler")
+	}
 	var mu sync.Mutex
 	incoming := map[returnKey]context.CancelFunc{}
 	return wire.Receive(path, duplex.Receiver{
@@ -461,6 +611,15 @@ func HandleWire(wire duplex.Wire, path []string, handler WireHandler) (func(), e
 			}
 		},
 		Message: func(_ []string, message duplex.Message) {
+			if message.Frame.Kind == duplex.ProfileEvent {
+				if handlers.Event != nil {
+					ctx := DefaultPropagator.Extract(context.Background(), Trace{Parent: message.Frame.Traceparent, State: message.Frame.Tracestate})
+					if err := invokeWireEvent(withIncomingMeta(ctx, message.Frame.Meta), handlers.Event, message.Frame.Data); err != nil {
+						_ = wire.Close(duplex.CodeProtocolError, "wire event rejected")
+					}
+				}
+				return
+			}
 			key := returnKey{message.Return, message.Frame.ID}
 			if message.Frame.Kind == duplex.ProfileCancel {
 				mu.Lock()
@@ -474,11 +633,15 @@ func HandleWire(wire duplex.Wire, path []string, handler WireHandler) (func(), e
 			if message.Frame.Kind != duplex.ProfileRequest {
 				return
 			}
+			if handlers.Request == nil {
+				sendWireResponse(message, nil, &PublicError{Code: "method_not_found", Message: "Unknown method"})
+				return
+			}
 			var dispatch *wireDispatchContext
 			base := context.Background()
 			if message.Return != nil {
-				if returning, ok := message.Return.Wire.(*replyWire); ok {
-					dispatch = returning.dispatch
+				if returning, ok := message.Return.Wire.(interface{ wireDispatch() *wireDispatchContext }); ok {
+					dispatch = returning.wireDispatch()
 				}
 			}
 			if dispatch != nil {
@@ -497,7 +660,7 @@ func HandleWire(wire duplex.Wire, path []string, handler WireHandler) (func(), e
 			mu.Unlock()
 			go func() {
 				defer func() { cancel(); mu.Lock(); delete(incoming, key); mu.Unlock() }()
-				result, err := invokeWireHandler(ctx, handler, message.Frame.Params, dispatch)
+				result, err := invokeWireHandler(ctx, handlers.Request, message.Frame.Params, dispatch)
 				if err == nil {
 					err = ctx.Err()
 				}
@@ -511,11 +674,24 @@ func HandleWire(wire duplex.Wire, path []string, handler WireHandler) (func(), e
 	})
 }
 
+func invokeWireEvent(ctx context.Context, handler WireEventHandler, data json.RawMessage) (err error) {
+	defer func() {
+		if recover() != nil {
+			err = errors.New("wire event handler panic")
+		}
+	}()
+	return handler(ctx, data)
+}
+
 func invokeWireHandler(ctx context.Context, handler WireHandler, params json.RawMessage, dispatch *wireDispatchContext) (result any, err error) {
 	defer func() {
 		if value := recover(); value != nil {
 			if dispatch != nil {
-				dispatch.peer.observePanic(dispatch.frame, value)
+				if dispatch.panic != nil {
+					dispatch.panic(value)
+				} else if dispatch.peer != nil {
+					dispatch.peer.observePanic(dispatch.frame, value)
+				}
 			}
 			err = errors.New("wire handler panic")
 		}

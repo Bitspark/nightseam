@@ -91,7 +91,13 @@ func wireReservationPeer(t *testing.T) (*Peer, duplex.Wire, *wireReservationProp
 }
 
 func wireReservationMessage(kind duplex.ProfileKind, id string, address *duplex.ReturnAddress) duplex.Message {
-	return duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: kind, ID: id, Params: json.RawMessage(`{}`), Data: json.RawMessage(`null`)}, Return: address}
+	frame := duplex.ProfileFrame{Version: 1, Kind: kind, ID: id}
+	if kind == duplex.ProfileRequest {
+		frame.Params = json.RawMessage(`{}`)
+	} else if kind == duplex.ProfileEvent {
+		frame.Data = json.RawMessage(`null`)
+	}
+	return duplex.Message{Frame: frame, Return: address}
 }
 func wireReservationSend(t *testing.T, wire duplex.Wire, kind duplex.ProfileKind, id string, address *duplex.ReturnAddress) {
 	t.Helper()
