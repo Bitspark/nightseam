@@ -82,6 +82,7 @@ func emitWireAdapter(f *file, side, protocol string) {
 		passing = ", " + strings.Join(pass, ", ")
 	}
 	f.w.Block(fmt.Sprintf("function makeAdapter%s(context: AdapterContext%s) {", decl, binding), "}", func() {
+		f.line("const observer = context.options?.observer;")
 		f.linef("const bindings = { %s };", strings.Join(pass, ", "))
 		f.linef("const slots: Slots = { %s };", strings.Join(values, ", "))
 		if live {
@@ -140,7 +141,7 @@ func (f *file) emitWireProxy(side, args string) {
 			f.w.Block("methods: {", "},", func() {
 				for _, m := range methods {
 					f.w.Block(fmt.Sprintf("async %s(params, context) {", f.plan.operations[m.Name]), "},", func() {
-						f.line("const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta };")
+						f.linef("const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: %s };", quote(f.family.Name))
 						if f.liveNeeded(m.Request, m.Result) {
 							f.line(f.wireOwner(false, m.Request, m.Result))
 							f.linef("const result = await %s;", f.livePublish(m.Request, "params", slots, fmt.Sprintf("callWire(wire, [%s], %%s, options)", quote(m.Name))))
@@ -158,7 +159,7 @@ func (f *file) emitWireProxy(side, args string) {
 			f.w.Block("events: {", "},", func() {
 				for _, e := range events {
 					f.w.Block(fmt.Sprintf("async %s(data, context) {", f.plan.operations[e.Name]), "},", func() {
-						f.line("const options = { context, meta: context?.outgoingMeta };")
+						f.linef("const options = { context, meta: context?.outgoingMeta, observer, family: %s };", quote(f.family.Name))
 						if f.liveNeeded(e.Type) {
 							f.line(f.wireOwner(false, e.Type))
 							f.linef("await %s;", f.livePublish(e.Type, "data", slots, fmt.Sprintf("(async () => { emitWire(wire, [%s], %%s, options); })()", quote(e.Name))))
@@ -202,6 +203,7 @@ func (f *file) emitWireRegistration(side, args string) {
 				m, hasMethod := byMethod[name]
 				e, hasEvent := byEvent[name]
 				f.w.Block(fmt.Sprintf("detach.push(registerWire(wire, [%s], {", quote(name)), "}));", func() {
+					f.linef("observer, family: %s,", quote(f.family.Name))
 					if hasMethod {
 						f.w.Block("request: async (raw, context) => {", "},", func() {
 							f.linef("try { validateWire(%s, raw%s); } catch (error) { throw new DuplexError('invalid_params', String(error)); }", requestExpression(m), slots)
