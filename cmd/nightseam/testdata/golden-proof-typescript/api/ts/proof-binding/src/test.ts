@@ -54,7 +54,7 @@ async function compare(method:string,expected:Outcome,actual:Outcome,equal:Optio
  if(canonical(expected.value)!==canonical(actual.value))throw new Error(method+': direct and round-trip results differ');
 }
 
-export async function pair<S extends AnyFamily = AnyFamily, Item = unknown>(model: Protocol.ServerModel<S, Item>, options: Options, binding_s: FamilyBinding<S>, binding_item: ValueAdapter<Item>): Promise<{ model: Protocol.ServerModel<S, Item>; close(): void }> {
+export async function pair<S extends AnyFamily = AnyFamily, Item = unknown>(model: Protocol.ServerModel<S, Item>, options: Options, binding_s: FamilyBinding<S, "Envelope" | "Handle">, binding_item: ValueAdapter<Item>): Promise<{ model: Protocol.ServerModel<S, Item>; close(): void }> {
   const wire = toWire<S, Item>(model, options.context ?? {}, binding_s, binding_item);
   let close = once(() => wire.close(1000, ''));
   try {
@@ -82,7 +82,7 @@ const examples: Readonly<Record<string, { raw?: string; reason?: string }>> = {
 /** A fresh documented data witness, validated by the caller's exact value adapter. */
 export function example<T>(name: string, adapter: ValueAdapter<T>): T { const value = Object.prototype.hasOwnProperty.call(examples,name) ? examples[name] : undefined; if (!value) throw new Error('unknown example '+name); if (value.reason || adapter.needsContext) throw new Error('example '+name+' unavailable: '+(value.reason || 'an acquiring adapter needs a native witness')); return adapter.import(undefined, JSON.parse(value.raw!)); }
 /** Exercise every method on two fresh equivalent models; missing evidence is an error. */
-export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(model: Protocol.ServerModel<S, Item>, opposite: Protocol.Client<S, Item>, options: Options, binding_s: FamilyBinding<S>, binding_item: ValueAdapter<Item>): Promise<void> {
+export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(model: Protocol.ServerModel<S, Item>, opposite: Protocol.Client<S, Item>, options: Options, binding_s: FamilyBinding<S, "Envelope" | "Handle">, binding_item: ValueAdapter<Item>): Promise<void> {
   const bindings = {s: binding_s, item: binding_item};
   const inputs = new Map<string,unknown>(); const seen = new Map<string,number>(); let inputError: unknown;
   const observed: Protocol.ServerModel<S, Item> = remote => { const value=model(remote);
@@ -175,10 +175,10 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   {
   let input: unknown;
   if (options.inputs && Object.prototype.hasOwnProperty.call(options.inputs,"relay")) { input=options.inputs["relay"]; } else {
-  if ((bindings.item.needsContext)) throw new Error("input relay needs a caller-supplied native value");
+  if ((bindings.s.types["Envelope"].needsContext || bindings.s.types["Handle"].needsContext || bindings.item.needsContext)) throw new Error("input relay needs a caller-supplied native value");
   input = JSON.parse("{\"message\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}},\"back\":{\"channel\":0},\"page\":{\"items\":[\"‹items›\"],\"next\":\"‹next›\"}}");
   }
-  if (!options.equal && ((bindings.item.needsContext))) throw new Error("relay: requires an equal observer for live values");
+  if (!options.equal && ((bindings.s.types["Envelope"].needsContext || bindings.s.types["Handle"].needsContext || bindings.item.needsContext))) throw new Error("relay: requires an equal observer for live values");
   inputs.set("relay",input);
   const before=seen.get("relay")??0;
   const actual = await outcome(() => remote.methods.relay(input as Protocol.Carried<S, Item>, options.callContext as ValueContext<Protocol.Carried<S, Item> | Protocol.Option<Protocol.Envelope>, WireModelContext>));

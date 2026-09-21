@@ -51,13 +51,13 @@ try {
         async () => {
           switch (name) {
             case 'record':
-              return protocol.exportPair(sa.owner(), { first: fn, second: fn });
+              return protocol.exportPairUnchecked(sa.owner(), { first: fn, second: fn });
             case 'union':
-              return protocol.exportChoice(sa.owner(), { kind: 'pair', value: { first: fn, second: fn } });
+              return protocol.exportChoiceUnchecked(sa.owner(), { kind: 'pair', value: { first: fn, second: fn } });
             case 'generic':
-              return protocol.exportGeneric(sa.owner(), [{ item: fn }, { item: fn }]);
+              return protocol.exportGenericUnchecked(sa.owner(), [{ item: fn }, { item: fn }]);
             case 'generic-live':
-              return protocol.exportBound(sa.owner(), { first: fn, last: fn }, (owner, input) =>
+              return protocol.exportBoundUnchecked(sa.owner(), { first: fn, last: fn }, (owner, input) =>
                 protocol.exportCall(owner, input),
               );
             case 'request':
@@ -67,7 +67,7 @@ try {
             case 'validation':
               return check({ first: fn, last: 'bad' as protocol.Flag });
             default:
-              return protocol.exportFailure(sa.owner(), { first: fn, last: cyclic });
+              return protocol.exportFailureUnchecked(sa.owner(), { first: fn, last: cyclic });
           }
         },
         (error: unknown) =>

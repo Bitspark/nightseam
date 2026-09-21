@@ -210,7 +210,7 @@ func callArgument(t *render.Type) string {
 func (f *file) emitLiveConversion(t *render.Type) {
 	name := f.plan.types[t.Name]
 	json := f.std("json")
-	self := name + apply(t.Uses)
+	self := f.spell(model.Named{Name: t.Name})
 	owner := ""
 	if t.IsLive {
 		owner = "owner *" + f.live() + ".Owner, "

@@ -30,6 +30,7 @@ type Family struct {
 	Generic        bool        // whether any type or operation draws on a parameter
 	Parameters     []Parameter // in declaration order
 	Uses           []Use       // the family's, in order: what every entry point is generic in
+	ObjectDraws    []Use       // direct RPC request draws, checked against supplied members
 	Types          []*Type     // in byte order, the injected ones among them
 	Server, Client Side        // the two sides
 	Errors         []Error     // by code

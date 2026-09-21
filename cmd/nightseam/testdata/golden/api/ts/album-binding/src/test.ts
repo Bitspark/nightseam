@@ -55,7 +55,7 @@ async function compare(method:string,expected:Outcome,actual:Outcome,equal:Optio
  if(canonical(expected.value)!==canonical(actual.value))throw new Error(method+': direct and round-trip results differ');
 }
 
-export async function pair<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(model: Protocol.ServerModel<A, B>, options: Options, binding_a: FamilyBinding<A>, binding_b: FamilyBinding<B>): Promise<{ model: Protocol.ServerModel<A, B>; close(): void }> {
+export async function pair<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(model: Protocol.ServerModel<A, B>, options: Options, binding_a: FamilyBinding<A, "Envelope">, binding_b: FamilyBinding<B, "Envelope">): Promise<{ model: Protocol.ServerModel<A, B>; close(): void }> {
   const wire = toWire<A, B>(model, options.context ?? {}, binding_a, binding_b);
   let close = once(() => wire.close(1000, ''));
   try {
@@ -75,7 +75,7 @@ const examples: Readonly<Record<string, { raw?: string; reason?: string }>> = {
 /** A fresh documented data witness, validated by the caller's exact value adapter. */
 export function example<T>(name: string, adapter: ValueAdapter<T>): T { const value = Object.prototype.hasOwnProperty.call(examples,name) ? examples[name] : undefined; if (!value) throw new Error('unknown example '+name); if (value.reason || adapter.needsContext) throw new Error('example '+name+' unavailable: '+(value.reason || 'an acquiring adapter needs a native witness')); return adapter.import(undefined, JSON.parse(value.raw!)); }
 /** Exercise every method on two fresh equivalent models; missing evidence is an error. */
-export async function smoke<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(model: Protocol.ServerModel<A, B>, opposite: Protocol.Client<A, B>, options: Options, binding_a: FamilyBinding<A>, binding_b: FamilyBinding<B>): Promise<void> {
+export async function smoke<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(model: Protocol.ServerModel<A, B>, opposite: Protocol.Client<A, B>, options: Options, binding_a: FamilyBinding<A, "Envelope">, binding_b: FamilyBinding<B, "Envelope">): Promise<void> {
   const bindings = {a: binding_a, b: binding_b};
   const inputs = new Map<string,unknown>(); const seen = new Map<string,number>(); let inputError: unknown;
   const observed: Protocol.ServerModel<A, B> = remote => { const value=model(remote);
@@ -89,15 +89,16 @@ export async function smoke<A extends AnyFamily = AnyFamily, B extends AnyFamily
   {
   let input: unknown;
   if (options.inputs && Object.prototype.hasOwnProperty.call(options.inputs,"look")) { input=options.inputs["look"]; } else {
-  if (false) throw new Error("input look needs a caller-supplied native value");
+  if ((bindings.a.types["Envelope"].needsContext)) throw new Error("input look needs a caller-supplied native value");
   input = JSON.parse("{\"held\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}}}");
   }
+  if (!options.equal && ((bindings.a.types["Envelope"].needsContext) || (bindings.a.types["Envelope"].needsContext || bindings.b.types["Envelope"].needsContext))) throw new Error("look: requires an equal observer for live values");
   inputs.set("look",input);
   const before=seen.get("look")??0;
-  const actual = await outcome(() => remote.methods.look(input as Protocol.Mine<A>, options.callContext as WireModelContext));
+  const actual = await outcome(() => remote.methods.look(input as Protocol.Mine<A>, options.callContext as ValueContext<Protocol.Mine<A> | Protocol.Both<A, B>, WireModelContext>));
   if(inputError!==undefined)throw inputError;
   if((seen.get("look")??0)<=before)throw new Error("look: model was not reached");
-  const expected = await outcome(() => direct.methods.look(input as Protocol.Mine<A>, options.callContext as WireModelContext));
+  const expected = await outcome(() => direct.methods.look(input as Protocol.Mine<A>, options.callContext as ValueContext<Protocol.Mine<A> | Protocol.Both<A, B>, WireModelContext>));
   await compare("look", expected, actual, options.equal);
   }
   } finally { prepared.close(); }

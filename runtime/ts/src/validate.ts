@@ -6,6 +6,7 @@
 // bindings that generated Go codecs also carry in their instantiated types.
 import { scalarValue } from './unicode.ts';
 import { DuplexError } from './error.ts';
+import type { ValueAdapter } from './value-adapter.ts';
 
 /** An expression as the declaration writes it, including unnamed shapes. */
 export type TypeExpression =
@@ -67,12 +68,12 @@ export interface AnyFamily {
   Handle: unknown;
 }
 
-/** A family bound to a parameter, retaining its descriptor for nested applications. */
-export interface FamilyBinding<F extends AnyFamily> {
+/** A family descriptor, with complete recipes for the associated members a consumer uses. */
+export type FamilyBinding<F extends AnyFamily, K extends keyof F = never> = {
   readonly name: F['name'];
   readonly validate: Validator;
   readonly slots?: Slots;
-}
+} & ([K] extends [never] ? {} : { readonly types: { readonly [P in K]: ValueAdapter<F[P]> } });
 
 /** A type argument interpreted in the family whose validator is supplied. */
 export interface TypeBinding {
@@ -111,6 +112,28 @@ export interface Validator {
 // Internal declaration provenance access; the public helpers live in declaration_identity.
 export function validatorMetadata(validator: Validator): Schema {
   return validator[descriptor];
+}
+
+/** Check a supplied associated member before aliases erase its declared kind. */
+export function validateDrawnType(binding: TypeBinding, member: string, requireObject: boolean): void {
+  if (typeof binding.type !== 'string') throw new Error('family binding: a draw requires a plain declared member');
+  const schema = binding.validate[descriptor];
+  if (!schema) throw new Error('family binding: missing drawn declaration');
+  const [target, definition] = named(
+    { schema, value: binding.type, scope: { ...schema.scope } },
+    binding.type,
+    'family binding',
+  );
+  for (const selected of [definition, target.schema.family.types[member]]) {
+    if (!selected) throw new Error('family binding: missing drawn member');
+    if (selected.parameters?.length || freeParameters(target.schema, selected).length)
+      throw new Error('family binding: a draw requires a nongeneric member');
+    if (['record', 'entity', 'union'].includes(selected.kind)) continue;
+    if (selected.kind === 'enum' && !requireObject) continue;
+    throw new Error(
+      'family binding: a draw requires a plain member' + (requireObject ? ' with an object request shape' : ''),
+    );
+  }
 }
 function timestamp(value: unknown): boolean {
   if (typeof value !== 'string') return false;

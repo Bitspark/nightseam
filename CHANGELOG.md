@@ -57,6 +57,15 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Generated Go and TypeScript family parameters supply complete interpretations
+  of plain associated records containing callables. Constructors reject missing
+  or mixed-family converters before model construction, and nested conversions
+  use the active operation's ownership batch without adding live dependencies
+  to generic consumers. TypeScript conversion-only record, union and alias
+  helpers explicitly carry the `Unchecked` suffix.
+  Draw constraints follow the actual supplied family, so generic consumers
+  derive independently of providers and unrelated families. Missing or nonplain
+  members and non-object drawn RPC requests fail before model construction.
 - Haskell enters at tier 4 with bounded pipes and WebSockets, the native peer,
   relative-path Wires and strict shared-table validation, held against Go in
   both roles and by an outside source-distribution consumer.

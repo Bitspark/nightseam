@@ -135,8 +135,8 @@ export const ownersOps: Record<string, (args: Args) => unknown | Promise<unknown
       const retained = worker.importReport(held, refs[0]);
       const batch = d.scope.owner().child();
       try {
-        if (kind === 'fresh') owners.importReports(batch, { first: refs[1], last: refs[2] });
-        else owners.importRepeated(batch, refs);
+        if (kind === 'fresh') owners.importReportsUnchecked(batch, { first: refs[1], last: refs[2] });
+        else owners.importRepeatedUnchecked(batch, refs);
         throw new OwnerFailure('invalid', 'partial import unexpectedly succeeded');
       } catch (error) {
         if (code(error) !== 'too_many_imports') throw error;
@@ -144,7 +144,7 @@ export const ownersOps: Record<string, (args: Args) => unknown | Promise<unknown
       }
       if (batch.counts().imports !== 0 || d.scope.counts().imports !== 1) throw new OwnerFailure('invalid', 'failed batch retained attachments');
       await retained(1);
-      const aliases = owners.importRepeated(batch, [refs[0], refs[0]]);
+      const aliases = owners.importRepeatedUnchecked(batch, [refs[0], refs[0]]);
       if (batch.counts().imports !== 0 || d.scope.counts().imports !== 1) throw new OwnerFailure('invalid', 'repeated alias created an attachment');
       batch.release();
       for (const alias of aliases) await alias(2);

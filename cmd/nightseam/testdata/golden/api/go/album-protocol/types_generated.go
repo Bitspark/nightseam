@@ -6,6 +6,7 @@ import (
 	json "encoding/json"
 	carrierprotocol "example.test/generated/api/go/carrier-protocol"
 	probeprotocol "example.test/generated/api/go/probe-protocol"
+	fmt "fmt"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -462,6 +463,12 @@ func AdapterBorrowed[BEnvelope any](adapterBEnvelope runtime.ValueAdapter[BEnvel
 		Binding:      binding,
 		NeedsContext: adapterBEnvelope.NeedsContext,
 		Export: func(ctx context.Context, value Borrowed[BEnvelope]) (json.RawMessage, error) {
+			if adapterBEnvelope.Export == nil || adapterBEnvelope.Import == nil {
+				return nil, fmt.Errorf("BEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return nil, err
+			}
 			raw, err := ExportBorrowed[BEnvelope](value, func(value BEnvelope) (json.RawMessage, error) { return adapterBEnvelope.Export(ctx, value) }, typeBEnvelope)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -470,6 +477,12 @@ func AdapterBorrowed[BEnvelope any](adapterBEnvelope runtime.ValueAdapter[BEnvel
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Borrowed[BEnvelope], error) {
 			var zero Borrowed[BEnvelope]
+			if adapterBEnvelope.Export == nil || adapterBEnvelope.Import == nil {
+				return zero, fmt.Errorf("BEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return zero, err
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}
@@ -487,6 +500,15 @@ func AdapterBoth[AEnvelope, BEnvelope any](adapterAEnvelope runtime.ValueAdapter
 		Binding:      binding,
 		NeedsContext: adapterAEnvelope.NeedsContext || adapterBEnvelope.NeedsContext,
 		Export: func(ctx context.Context, value Both[AEnvelope, BEnvelope]) (json.RawMessage, error) {
+			if adapterAEnvelope.Export == nil || adapterAEnvelope.Import == nil {
+				return nil, fmt.Errorf("AEnvelope: both conversion recipes are required")
+			}
+			if adapterBEnvelope.Export == nil || adapterBEnvelope.Import == nil {
+				return nil, fmt.Errorf("BEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return nil, err
+			}
 			raw, err := ExportBoth[AEnvelope, BEnvelope](value, func(value AEnvelope) (json.RawMessage, error) { return adapterAEnvelope.Export(ctx, value) }, typeAEnvelope, func(value BEnvelope) (json.RawMessage, error) { return adapterBEnvelope.Export(ctx, value) }, typeBEnvelope)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -495,6 +517,15 @@ func AdapterBoth[AEnvelope, BEnvelope any](adapterAEnvelope runtime.ValueAdapter
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Both[AEnvelope, BEnvelope], error) {
 			var zero Both[AEnvelope, BEnvelope]
+			if adapterAEnvelope.Export == nil || adapterAEnvelope.Import == nil {
+				return zero, fmt.Errorf("AEnvelope: both conversion recipes are required")
+			}
+			if adapterBEnvelope.Export == nil || adapterBEnvelope.Import == nil {
+				return zero, fmt.Errorf("BEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return zero, err
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}
@@ -534,6 +565,12 @@ func AdapterMine[AEnvelope any](adapterAEnvelope runtime.ValueAdapter[AEnvelope]
 		Binding:      binding,
 		NeedsContext: adapterAEnvelope.NeedsContext,
 		Export: func(ctx context.Context, value Mine[AEnvelope]) (json.RawMessage, error) {
+			if adapterAEnvelope.Export == nil || adapterAEnvelope.Import == nil {
+				return nil, fmt.Errorf("AEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return nil, err
+			}
 			raw, err := ExportMine[AEnvelope](value, func(value AEnvelope) (json.RawMessage, error) { return adapterAEnvelope.Export(ctx, value) }, typeAEnvelope)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -542,6 +579,12 @@ func AdapterMine[AEnvelope any](adapterAEnvelope runtime.ValueAdapter[AEnvelope]
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Mine[AEnvelope], error) {
 			var zero Mine[AEnvelope]
+			if adapterAEnvelope.Export == nil || adapterAEnvelope.Import == nil {
+				return zero, fmt.Errorf("AEnvelope: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return zero, err
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}

@@ -1,0 +1,2 @@
+consumer/protocol.json#/types/Invalid/type/with/S: Family worker cannot supply S.Cancel: it does not declare a plain record, entity, enum or union. [invalid_draw]
+error: 1 problems

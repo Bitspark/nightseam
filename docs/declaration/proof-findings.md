@@ -62,7 +62,7 @@ languages; none substitutes a handwritten server protocol adapter.
 
 The forwarding scenario uses generated endpoint bindings in either
 language, with a test-only retain route calling generated
-`ImportToolkit`/`importToolkit`. A Go or TypeScript intermediary runs
+`ImportToolkit`/`importToolkitUnchecked`. A Go or TypeScript intermediary runs
 generated converters across two connections. The retain route remains
 driver plumbing; it is not a new declared operation.
 

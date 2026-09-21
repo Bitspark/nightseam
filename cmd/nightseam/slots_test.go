@@ -250,7 +250,7 @@ func TestPlainClientSpeaksWithPlainServer(t *testing.T) {
  if err != nil || attachment.Connection.Channel != 7 { t.Fatalf("attach %#v %v", attachment, err) }
 }
 func TestGenericClientSpeaksWithGenericServer(t *testing.T) {
- h := wireHandler(t,func()(duplex.Wire,error){return rightbinding.ToWire(rightModel,runtime.AdapterContext{})})
+ h := wireHandler(t,func()(duplex.Wire,error){return rightbinding.ToWire(rightModel,runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H]())})
  server, url := serve(t, h)
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -259,7 +259,7 @@ func TestGenericClientSpeaksWithGenericServer(t *testing.T) {
  var complete func(context.Context)(right.ServerModel[E,H],error)
  var cleanup func()
  peer, _, err := runtime.Dial(ctx,url,runtime.DialOptions{Options:runtime.Options{Prepare:func(peer *runtime.Peer)error{
-  var err error;complete,cleanup,err=rightbinding.PrepareFromWire[E,H](peer.Wire(),runtime.AdapterContext{});return err
+  var err error;complete,cleanup,err=rightbinding.PrepareFromWire[E,H](peer.Wire(),runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H]());return err
  }}})
  if err != nil { t.Fatal(err) }
  defer peer.Close()
@@ -302,14 +302,14 @@ func TestInstantiationValidatesThroughTheFamily(t *testing.T) {
 func TestDistinctDeclarationsRefuseCrossInterpretation(t *testing.T) {
  ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second);defer cancel()
  plain,err:=leftbinding.ToWire(leftModel,runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer plain.Close(duplex.CodeNormal,"")
- generic,err:=rightbinding.ToWire(rightModel,runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer generic.Close(duplex.CodeNormal,"")
+ generic,err:=rightbinding.ToWire(rightModel,runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H]());if err!=nil{t.Fatal(err)};defer generic.Close(duplex.CodeNormal,"")
  _,leftErr:=leftbinding.FromWire(ctx,generic,runtime.AdapterContext{})
- _,rightErr:=rightbinding.FromWire[E,H](ctx,plain,runtime.AdapterContext{})
+ _,rightErr:=rightbinding.FromWire[E,H](ctx,plain,runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H]())
  for _,err:=range []error{leftErr,rightErr}{var public *runtime.PublicError;if !errors.As(err,&public)||public.Code!="contract_mismatch"{t.Fatalf("cross-interpretation: %v",err)}}
 }
 func TestGenericTypeScriptClientSpeaksWithGenericServer(t *testing.T) {
  if _, err := exec.LookPath("node"); err != nil { t.Skip("Node is not installed") }
- h := wireHandler(t,func()(duplex.Wire,error){return rightbinding.ToWire(rightModel,runtime.AdapterContext{})})
+ h := wireHandler(t,func()(duplex.Wire,error){return rightbinding.ToWire(rightModel,runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H]())})
  server, url := serve(t, h)
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -422,7 +422,7 @@ func TestMixedInstantiationDoesNotCompile(t *testing.T) {
 		 probe "example.test/generated/api/go/probe-protocol"
 		 "github.com/Bitspark/nightseam/runtime/go"
 		)
-		var _, _ = rightclient.FromWire[probe.Envelope, string](context.Background(), nil, runtime.AdapterContext{})
+		var _, _ = rightclient.FromWire[probe.Envelope, string](context.Background(), nil, runtime.AdapterContext{}, runtime.JSONAdapter[probe.Envelope](), runtime.JSONAdapter[string]())
 		`))
 			writeFixture(t, directory, "mixed_families_test.go", []byte(`//go:build families
 
@@ -433,7 +433,7 @@ func TestMixedInstantiationDoesNotCompile(t *testing.T) {
 		 probe "example.test/generated/api/go/probe-protocol"
 		 "github.com/Bitspark/nightseam/runtime/go"
 		)
-		var _, _ = rightclient.FromWire[probe.Envelope, runtime.Raw](context.Background(), nil, runtime.AdapterContext{})
+		var _, _ = rightclient.FromWire[probe.Envelope, runtime.Raw](context.Background(), nil, runtime.AdapterContext{}, runtime.JSONAdapter[probe.Envelope](), runtime.JSONAdapter[runtime.Raw]())
 		`))
 			// The compiler reports one inference failure per package, so each case
 			// is its own build.
@@ -456,7 +456,7 @@ func TestMixedInstantiationDoesNotCompile(t *testing.T) {
 		 rightclient "example.test/generated/gen/go/carrier-client"
 		 "github.com/Bitspark/nightseam/runtime/go"
 		)
-		var _ = func() { _, _ = rightclient.FromWire[runtime.Raw, runtime.Raw](context.Background(), nil, runtime.AdapterContext{}) }
+		var _ = func() { _, _ = rightclient.FromWire[runtime.Raw, runtime.Raw](context.Background(), nil, runtime.AdapterContext{}, runtime.JSONAdapter[runtime.Raw](), runtime.JSONAdapter[runtime.Raw]()) }
 		`))
 			command := exec.Command("go", "vet", ".")
 			command.Dir = directory
