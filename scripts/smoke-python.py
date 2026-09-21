@@ -21,8 +21,9 @@ from pathlib import Path
 import sys
 import nightseam.duplex
 import nightseam.runtime
+from nightseam.duplex import at, mount
 from nightseam.duplex.websocket import dial, listen
-from nightseam.runtime import Peer
+from nightseam.runtime import Peer, call_wire, forward_wire, handle_wire, wire_pair
 
 checkout = Path(sys.argv[1]).resolve()
 assert version("nightseam") == sys.argv[2], version("nightseam")
@@ -35,9 +36,16 @@ async def main():
     server = Peer(await listener.accept(), "server")
     server.handle("echo", lambda value, context: value)
     client = Peer(connection)
+    access, binding = wire_pair()
+    handle_wire(binding, ["echo"], lambda value, context: value)
+    detach = forward_wire(server.wire(), access)
     try:
         assert await client.call("echo", {"text": "hello", "nullable": None}) == {"text": "hello", "nullable": None}
+        selected = at(mount({"service": client.wire()}), ["service"])
+        assert await call_wire(selected, ["echo"], {"wire": True}) == {"wire": True}
     finally:
+        detach()
+        access.close()
         await client.close()
         await server.close()
         await listener.close()
@@ -45,7 +53,7 @@ async def bounded():
     async with asyncio.timeout(30):
         await main()
 asyncio.run(bounded())
-print("Python wheel: isolated imports and real WebSocket round trip passed")
+print("Python wheel: isolated imports, peer and composed Wire WebSocket round trips passed")
 """
 
 

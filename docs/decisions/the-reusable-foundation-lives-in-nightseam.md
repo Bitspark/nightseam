@@ -1,14 +1,41 @@
-# The reusable foundation lives in Nightseam
+# Nightseam implements the foundation and adopts the Bitwire contract
+
+**Revised, 2026-09-21.** The earlier blanket rejection of a separate Wire
+contract repository is superseded by the operator's decision in
+[#421](https://github.com/Bitspark/nightseam/issues/421). Nightseam will adopt
+the shared Bitwire contract when ready, as required 0.6.0 delivery. This revises
+contract ownership; it does not claim that adoption has already landed.
 
 **The question.** Where the adopted declaration, typed-access and authority
 mechanisms live, and whether separating their responsibilities requires
 separating their repositories.
 
-**Decided.** Nightseam is the specification and implementation home for its
-declarations, canonical and applied contract identity, native Wire runtime, generated
-language adapters and selected optional rooted-grant authentication profile.
-Internal module boundaries do not require a repository split, a separate
-shared-type project or an external companion project.
+**Decided.** [Bitwire](https://github.com/Bitspark/bitwire) is the selected home
+for the shared Wire access contract, its supporting language declarations,
+composition laws and independent conformance criteria. Nightseam retains its
+runtime implementations, carriers, peers, tunnels, live-reference machinery,
+generator, declaration/type model, canonical and applied contract identity,
+and selected optional rooted-grant authentication profile.
+
+The current Wire definitions remain in Nightseam until the handover is ready.
+The private Bitwire scaffold is not an adopted dependency or evidence of behavioral
+conformance. Before adoption, the common contract and required profile obligations
+must be agreed, versioned artifacts and specifications must be publicly usable
+without private credentials, and shared behavioral cases must exercise Nightseam's
+implementation. The package versions, provenance and Go/TypeScript type migration
+must be explicit. A second runtime or completed Bitlink generator is not required.
+
+[#421](https://github.com/Bitspark/nightseam/issues/421) holds this readiness and
+adoption work in 0.6.0 under [#320](https://github.com/Bitspark/nightseam/issues/320).
+Other lanes may continue against the current interface while the handover is
+prepared. A readiness delay must remain an explicit release dependency, not an
+implicit deferral to another milestone. Updating this page does not complete the
+adoption lane. No finished 0.7.0 authentication dependency is introduced.
+
+This is a shared-contract extraction, not the older proposal to move the entire
+runtime into Bitwire. The existing profile remains `nightseam.duplex/1`. Sharing
+the access interface still requires agreement on operation paths, value encoding,
+contract identity and live-reference rules for adapters to interoperate.
 
 This explicitly admits the reusable authority profile: checking evidence
 against consumer-supplied trust and preserving guards at invocation. It does
@@ -20,19 +47,20 @@ connection; bootstrap composes it, and invocation adapters compose both with
 Wire. Concrete packaging and public dependency provenance are held by
 [#336](https://github.com/Bitspark/nightseam/issues/336).
 
-Wire is Nightseam's native public access contract. Multiple internal
-implementations may satisfy it; none may erase scoped reference state,
-ownership, release barriers or import checks to make the interface smaller.
+Wire remains Nightseam's native public access surface, with its shared contract
+to be adopted from Bitwire. Multiple implementations may satisfy it; none may
+erase scoped reference state, ownership, release barriers or import checks to
+make the interface smaller.
 An abstract send with no result refines bounded admission, not delivery or a
 business result. Correlation remains the peer's responsibility; a `void`
 signature does not remove it or weaken acceptance bounds
 ([#290](https://github.com/Bitspark/nightseam/issues/290)).
 
-The canonical declaration representation is independent of target-language
-output and incidental runtime encoding, inside Nightseam. This requires no
-second backend, universal backend framework or bridge before the current
-implementation can land. Nominal path and structural digest remain distinct;
-neither substitutes for live scope or authority.
+The canonical declaration representation remains independent of target-language
+output and incidental runtime encoding, inside Nightseam. Adopting the access
+contract does not extract the type model or require a second backend, universal
+backend framework or cross-backend bridge. Nominal path and structural digest
+remain distinct; neither substitutes for live scope or authority.
 
 Consumers choose trusted roots, actions, resource meanings, issued authority
 and current policy. The resource owner supplies and enforces these facts at
@@ -56,18 +84,22 @@ the generic baseline in [#365](https://github.com/Bitspark/nightseam/issues/365)
 and optional auth in [#345](https://github.com/Bitspark/nightseam/issues/345).
 The state pages and tested public packages describe what is available now.
 
-**Why.** Splitting the repository would move the boundary without establishing it.
-One public specification and conformance suite keep the languages accountable
-to the same contracts. Optional packages preserve independent adoption;
-explicit responsibility and dependency direction preserve the policy boundary.
-Neither public reuse nor optional packaging admits a general policy framework.
+**Why.** The access contract can be stated and checked independently of a runtime,
+generator or consumer model. Bitwire gives that common boundary one owner and
+versioned definition for Nightseam and other consumers. Its laws and observed
+behavior establish composability; a repository split alone does not. Nightseam's
+implementation and optional packages retain their own responsibilities, and bare
+data/RPC remains independent of auth. No general policy framework is admitted.
 
 **Serves.** [Boundary](../goals/boundary.md), [layering](../goals/layering.md),
 [composability](../goals/composability.md) and
 [agnosticism](../goals/agnosticism.md).
 
-**Since.** The operator's repository-home clarification on 2026-09-21, recorded in
+**Since.** The initial repository-home clarification on 2026-09-21 was recorded in
 [#381](https://github.com/Bitspark/nightseam/issues/381) and
-[#336](https://github.com/Bitspark/nightseam/issues/336). It supersedes the
-external-companion placement proposal without reopening the accepted
-technical verdicts for identity, generic bindings or Wire.
+[#336](https://github.com/Bitspark/nightseam/issues/336). The subsequent operator
+decision in [#421](https://github.com/Bitspark/nightseam/issues/421), documented by
+[#422](https://github.com/Bitspark/nightseam/issues/422), revises the shared Wire
+contract's home while preserving in-Nightseam runtime, declaration/identity,
+generator and optional-auth ownership. Accepted technical verdicts for identity,
+generic bindings and Wire remain in force.
