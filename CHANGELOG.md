@@ -32,6 +32,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Go and TypeScript ship a bounded Wire record/follow composition with
+  consumer-owned storage, an atomic replay-to-live handoff and independent
+  subscriber failure. Opaque messages retain their existing reference scope.
 - Generated Go and TypeScript families expose the canonical declaration and its
   SHA-256 digest, covering operations, events, errors and reachable imported
   declarations. Bound arguments retain their own declaration content and scope.
