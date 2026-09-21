@@ -1,6 +1,8 @@
 package render
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"testing"
@@ -9,7 +11,7 @@ import (
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
 )
 
-func TestWireDigestMatchesExactDescriptorBytes(t *testing.T) {
+func TestValidatorDescriptorBytesRemainStable(t *testing.T) {
 	data, err := os.ReadFile("../../conformance/tables/digests.json")
 	if err != nil {
 		t.Fatal(err)
@@ -36,14 +38,18 @@ func TestWireDigestMatchesExactDescriptorBytes(t *testing.T) {
 			if first.Wire != row.Wire {
 				t.Fatalf("descriptor changed: got %s, want %s", first.Wire, row.Wire)
 			}
-			if first.WireDigest != row.Digest || second.WireDigest != row.Digest {
-				t.Fatalf("digest = %q, repeated = %q, want %q", first.WireDigest, second.WireDigest, row.Digest)
+			descriptorHash := sha256.Sum256([]byte(first.Wire))
+			if hex.EncodeToString(descriptorHash[:]) != row.Digest {
+				t.Fatal("validator descriptor byte fixture changed")
+			}
+			if first.Declaration != second.Declaration || first.WireDigest != second.WireDigest {
+				t.Fatal("declaration identity is not deterministic")
 			}
 		})
 	}
 }
 
-func TestWireDigestChangesOnlyWithTheRenderedDescriptor(t *testing.T) {
+func TestWireDigestIgnoresDocumentationAndDetectsOptionalMembers(t *testing.T) {
 	build := func(source string) *Family {
 		world := analysis.World(modeltest.World(map[string]map[string]string{"same": {"model.json": source}}))
 		return Build(analysis.Resolve(world, "same"))

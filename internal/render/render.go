@@ -39,7 +39,8 @@ type Family struct {
 	References     []string    // families whose generated packages this one's refer to, sorted
 	Carries        []string    // the built-in families the tiers bring, sorted
 	Wire           string      // the wire description of every type, canonical JSON, what a validator reads
-	WireDigest     string      // lower-case hex SHA-256 of Wire's exact UTF-8 bytes
+	Declaration    string      // canonical declaration graph, independent of backend presentation
+	WireDigest     string      // lower-case hex SHA-256 of Declaration's exact UTF-8 bytes
 	overrides      map[string]model.Overrides
 	f              *analysis.Family
 	types          map[string]*Type
@@ -220,7 +221,8 @@ func (b *builder) build(f *analysis.Family) *Family {
 	r.References = f.References()
 	r.Carries = f.Carries
 	r.Wire = wire(f)
-	digest := sha256.Sum256([]byte(r.Wire))
+	r.Declaration = CanonicalDeclaration(f)
+	digest := sha256.Sum256([]byte(r.Declaration))
 	r.WireDigest = hex.EncodeToString(digest[:])
 	for target, raw := range f.Overrides {
 		if raw == nil {

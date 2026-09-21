@@ -1,0 +1,819 @@
+{
+  "cases": [
+    {
+      "name": "method baseline",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"echo\":{\"errors\":[],\"request\":{\"empty\":true},\"result\":{\"primitive\":\"string\"}}},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "999b559abdeffcc21672b936344758ad0818379a97f0f85997993f5ae945ae48",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"echo\":{\"result\":\"string\"}},\"events\":{}}}"
+        }
+      }
+    },
+    {
+      "name": "method result changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"echo\":{\"errors\":[],\"request\":{\"empty\":true},\"result\":{\"primitive\":\"integer\"}}},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "b607ed77dbd452cd158e6b1664174f19c2c2a0c4da047ca88b9ba98a24aba9db",
+      "differentFrom": "method baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"echo\":{\"result\":\"integer\"}},\"events\":{}}}"
+        }
+      }
+    },
+    {
+      "name": "method direction changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"echo\":{\"errors\":[],\"request\":{\"empty\":true},\"result\":{\"primitive\":\"string\"}}},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "a1e28c502406e8bf0657065c71e705cf5c0953c80b5c44b91cc559e72e3a8a9e",
+      "differentFrom": "method baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"client\":{\"methods\":{\"echo\":{\"result\":\"string\"}},\"events\":{}}}"
+        }
+      }
+    },
+    {
+      "name": "method request changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"echo\":{\"errors\":[],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"primitive\":\"string\"}}},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "5640c91c63ac924b120f68d515f498f96ade1822173276e3d6838986df5b3567",
+      "differentFrom": "method baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"echo\":{\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]},\"result\":\"string\"}},\"events\":{}}}"
+        }
+      }
+    },
+    {
+      "name": "method documentation and target names excluded",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"echo\":{\"errors\":[],\"request\":{\"empty\":true},\"result\":{\"primitive\":\"string\"}}},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "999b559abdeffcc21672b936344758ad0818379a97f0f85997993f5ae945ae48",
+      "sameAs": "method baseline",
+      "sources": {
+        "same": {
+          "go.json": "{\"names\":{\"echo\":\"ReadDifferent\"}}",
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\n    \"profile\": \"nightseam.duplex/1\",\n    \"server\": {\n        \"methods\": {\n            \"echo\": {\n                \"result\": \"string\",\n                \"description\": \"A revised comment.\"\n            }\n        },\n        \"events\": {}\n    }\n}",
+          "typescript.json": "{\"names\":{\"echo\":\"readDifferent\"}}"
+        }
+      }
+    },
+    {
+      "name": "method unrelated family excluded",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"echo\":{\"errors\":[],\"request\":{\"empty\":true},\"result\":{\"primitive\":\"string\"}}},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "999b559abdeffcc21672b936344758ad0818379a97f0f85997993f5ae945ae48",
+      "sameAs": "method baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"echo\":{\"result\":\"string\"}},\"events\":{}}}"
+        },
+        "unused": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Other\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"integer\"}]}}}"
+        }
+      }
+    },
+    {
+      "name": "event baseline",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{\"changed\":{\"primitive\":\"string\"}},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "83dc95ca4373643f1032400c7db37300503a8be97d6cc57473165fc50de514bd",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{},\"events\":{\"changed\":{\"type\":\"string\"}}}}"
+        }
+      }
+    },
+    {
+      "name": "event payload changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{\"changed\":{\"primitive\":\"integer\"}},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "de10b5cd8e173dd539adbb169d06ce3e30a27cbf4565d5588b70996fe3d69d13",
+      "differentFrom": "event baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{},\"events\":{\"changed\":{\"type\":\"integer\"}}}}"
+        }
+      }
+    },
+    {
+      "name": "event name changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{\"renamed\":{\"primitive\":\"string\"}},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "68a0e48b97d1596325f0f49485c1554225c21f50a522b07432e8b398f54a1708",
+      "differentFrom": "event baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{},\"events\":{\"renamed\":{\"type\":\"string\"}}}}"
+        }
+      }
+    },
+    {
+      "name": "event direction changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{\"changed\":{\"primitive\":\"string\"}},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "1adb919f887e8c9645fed5927a42b87ae9c27926946dcb4fff005da4f3d07a65",
+      "differentFrom": "event baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"client\":{\"methods\":{},\"events\":{\"changed\":{\"type\":\"string\"}}}}"
+        }
+      }
+    },
+    {
+      "name": "event documentation excluded",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{\"changed\":{\"primitive\":\"string\"}},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "83dc95ca4373643f1032400c7db37300503a8be97d6cc57473165fc50de514bd",
+      "sameAs": "event baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{},\"events\":{\"changed\":{\"type\":\"string\",\"description\":\"Another comment\"}}}}"
+        }
+      }
+    },
+    {
+      "name": "error baseline",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[\"missing\"],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"echo\":{\"errors\":[\"missing\"],\"request\":{\"empty\":true},\"result\":{\"primitive\":\"string\"}}},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "1442e0b837bc2465243f2ac3908e3f4d756b8dbc2b8daf9dfc8724b7c223ce2f",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"echo\":{\"result\":\"string\",\"errors\":[\"missing\"]}},\"events\":{}},\"errors\":{\"missing\":\"A missing thing\"}}"
+        }
+      }
+    },
+    {
+      "name": "error contract changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[\"absent\"],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"echo\":{\"errors\":[\"absent\"],\"request\":{\"empty\":true},\"result\":{\"primitive\":\"string\"}}},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "a003ab6b1f72bcb4e9d14c5fcd312a08976e06e6be8057a045add04a106bf1ce",
+      "differentFrom": "error baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"echo\":{\"result\":\"string\",\"errors\":[\"absent\"]}},\"events\":{}},\"errors\":{\"absent\":\"A missing thing\"}}"
+        }
+      }
+    },
+    {
+      "name": "error documentation excluded",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[\"missing\"],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"echo\":{\"errors\":[\"missing\"],\"request\":{\"empty\":true},\"result\":{\"primitive\":\"string\"}}},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "1442e0b837bc2465243f2ac3908e3f4d756b8dbc2b8daf9dfc8724b7c223ce2f",
+      "sameAs": "error baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"echo\":{\"result\":\"string\",\"errors\":[\"missing\"]}},\"events\":{}},\"errors\":{\"missing\":\"New description\"}}"
+        }
+      }
+    },
+    {
+      "name": "reachable import baseline",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Box\":{\"ref\":\"same/Box\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"echo\":{\"errors\":[],\"request\":{\"ref\":\"same/Box\"},\"result\":{\"ref\":\"same/Box\"}}},\"parameters\":[]},\"same/Box\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"ref\":\"shared/Payload\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"shared/Payload\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "a8ccdcee8051855053e9f66197327d6115099d835b6a12d5d0483231905f13bc",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"imports\":[\"shared\"],\"types\":{\"Box\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"shared.Payload\"}]}}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"echo\":{\"request\":\"Box\",\"result\":\"Box\"}},\"events\":{}}}"
+        },
+        "shared": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]},\"Unselected\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}"
+        }
+      }
+    },
+    {
+      "name": "reachable import changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Box\":{\"ref\":\"same/Box\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"echo\":{\"errors\":[],\"request\":{\"ref\":\"same/Box\"},\"result\":{\"ref\":\"same/Box\"}}},\"parameters\":[]},\"same/Box\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"ref\":\"shared/Payload\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"shared/Payload\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"integer\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "be0c42a3486f97ac19e26b63bb1753dcbd760584550a69f20828da2c971ac5a5",
+      "differentFrom": "reachable import baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"imports\":[\"shared\"],\"types\":{\"Box\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"shared.Payload\"}]}}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"echo\":{\"request\":\"Box\",\"result\":\"Box\"}},\"events\":{}}}"
+        },
+        "shared": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"integer\"}]},\"Unselected\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}"
+        }
+      }
+    },
+    {
+      "name": "unreachable imported declaration excluded",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Box\":{\"ref\":\"same/Box\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"echo\":{\"errors\":[],\"request\":{\"ref\":\"same/Box\"},\"result\":{\"ref\":\"same/Box\"}}},\"parameters\":[]},\"same/Box\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"ref\":\"shared/Payload\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"shared/Payload\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "a8ccdcee8051855053e9f66197327d6115099d835b6a12d5d0483231905f13bc",
+      "sameAs": "reachable import baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"imports\":[\"shared\"],\"types\":{\"Box\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"shared.Payload\"}]}}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"echo\":{\"request\":\"Box\",\"result\":\"Box\"}},\"events\":{}}}"
+        },
+        "shared": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]},\"Unselected\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"integer\"}]}}}"
+        }
+      }
+    },
+    {
+      "name": "reachable import documentation excluded",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Box\":{\"ref\":\"same/Box\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"echo\":{\"errors\":[],\"request\":{\"ref\":\"same/Box\"},\"result\":{\"ref\":\"same/Box\"}}},\"parameters\":[]},\"same/Box\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"ref\":\"shared/Payload\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"shared/Payload\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "a8ccdcee8051855053e9f66197327d6115099d835b6a12d5d0483231905f13bc",
+      "sameAs": "reachable import baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"imports\":[\"shared\"],\"types\":{\"Box\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"shared.Payload\"}]}}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"echo\":{\"request\":\"Box\",\"result\":\"Box\"}},\"events\":{}}}"
+        },
+        "shared": {
+          "model.json": "{\n  \"nightseam\": 2,\n  \"types\": {\n    \"Payload\": {\n      \"kind\": \"record\",\n      \"fields\": [\n        {\n          \"name\": \"value\",\n          \"type\": \"string\",\n          \"description\": \"Field documentation\"\n        }\n      ],\n      \"description\": \"Documentation\"\n    },\n    \"Unselected\": {\n      \"kind\": \"record\",\n      \"fields\": [\n        {\n          \"name\": \"value\",\n          \"type\": \"string\"\n        }\n      ]\n    }\n  }\n}"
+        }
+      }
+    },
+    {
+      "name": "recursive import baseline",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Root\":{\"ref\":\"same/Root\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Root\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"ref\":\"shared/Node\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"shared/Node\":{\"fields\":[{\"name\":\"next\",\"nullable\":false,\"required\":true,\"type\":{\"nullable\":{\"ref\":\"same/Root\"}},\"unique\":false},{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "d8ba7f208e64a649692a87dcd53030577004ef8def154854cdad1cbfaecbfbaf",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"imports\":[\"shared\"],\"types\":{\"Root\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"shared.Node\"}]}}}"
+        },
+        "shared": {
+          "model.json": "{\"nightseam\":2,\"imports\":[\"same\"],\"types\":{\"Node\":{\"kind\":\"record\",\"fields\":[{\"name\":\"next\",\"type\":{\"nullable\":\"same.Root\"}},{\"name\":\"value\",\"type\":\"string\"}]}}}"
+        }
+      }
+    },
+    {
+      "name": "recursive import changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Root\":{\"ref\":\"same/Root\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Root\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"ref\":\"shared/Node\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"shared/Node\":{\"fields\":[{\"name\":\"next\",\"nullable\":false,\"required\":true,\"type\":{\"nullable\":{\"ref\":\"same/Root\"}},\"unique\":false},{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"integer\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "18a71853b3fb526510c1969df80eae3ee3198139f8d4505cdc539ff2e3ba73b2",
+      "differentFrom": "recursive import baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"imports\":[\"shared\"],\"types\":{\"Root\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"shared.Node\"}]}}}"
+        },
+        "shared": {
+          "model.json": "{\"nightseam\":2,\"imports\":[\"same\"],\"types\":{\"Node\":{\"kind\":\"record\",\"fields\":[{\"name\":\"next\",\"type\":{\"nullable\":\"same.Root\"}},{\"name\":\"value\",\"type\":\"integer\"}]}}}"
+        }
+      }
+    },
+    {
+      "name": "recursive import determinism",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Root\":{\"ref\":\"same/Root\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Root\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"ref\":\"shared/Node\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"shared/Node\":{\"fields\":[{\"name\":\"next\",\"nullable\":false,\"required\":true,\"type\":{\"nullable\":{\"ref\":\"same/Root\"}},\"unique\":false},{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "d8ba7f208e64a649692a87dcd53030577004ef8def154854cdad1cbfaecbfbaf",
+      "sameAs": "recursive import baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"imports\":[\"shared\"],\"types\":{\"Root\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"shared.Node\"}]}}}"
+        },
+        "shared": {
+          "model.json": "{\"nightseam\":2,\"imports\":[\"same\"],\"types\":{\"Node\":{\"kind\":\"record\",\"fields\":[{\"name\":\"next\",\"type\":{\"nullable\":\"same.Root\"}},{\"name\":\"value\",\"type\":\"string\"}]}}}"
+        }
+      }
+    },
+    {
+      "name": "record baseline",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "ab672d56e872e8c84a5bdfa67428acd9fa18eb25e0c070fd1ceac0abeec8ab35",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}"
+        }
+      }
+    },
+    {
+      "name": "optional member changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false},{\"name\":\"hint\",\"nullable\":false,\"required\":false,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "ce2017e462e375d9610e9c4de45c74cf79c4b782c9c0491643d7a6ba6a3c1506",
+      "differentFrom": "record baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"},{\"name\":\"hint\",\"type\":\"string\",\"required\":false}]}}}"
+        }
+      }
+    },
+    {
+      "name": "backend empty protocol excluded",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "ab672d56e872e8c84a5bdfa67428acd9fa18eb25e0c070fd1ceac0abeec8ab35",
+      "sameAs": "record baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "record default spelling normalized",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "ab672d56e872e8c84a5bdfa67428acd9fa18eb25e0c070fd1ceac0abeec8ab35",
+      "sameAs": "record baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"open\":false,\"fields\":[{\"name\":\"value\",\"type\":\"string\",\"required\":true,\"nullable\":false,\"unique\":false}]}}}"
+        }
+      }
+    },
+    {
+      "name": "integer exact baseline",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"min\":\"9007199254740992\",\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"integer\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "e8932e972dd4921b304443141772a8b2e3f5e16da18e11e44f70dab61ecaaf8b",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"integer\",\"min\":9007199254740992}]}}}"
+        }
+      }
+    },
+    {
+      "name": "integer beyond double changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"min\":\"9007199254740993\",\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"integer\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "115d789a4dda9c0395b68ab60065800b172b071f3731a3a4342e7c47d6985c08",
+      "differentFrom": "integer exact baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"integer\",\"min\":9007199254740993}]}}}"
+        }
+      }
+    },
+    {
+      "name": "equivalent exact decimal spelling",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"min\":\"9007199254740992\",\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"integer\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "e8932e972dd4921b304443141772a8b2e3f5e16da18e11e44f70dab61ecaaf8b",
+      "sameAs": "integer exact baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"integer\",\"min\":9007199254740992.00e0}]}}}"
+        }
+      }
+    },
+    {
+      "name": "field order baseline",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"name\":\"a\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false},{\"name\":\"b\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"integer\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "8812ffb445cccf41d0ade5aa394001c89cdf0013ce562e5187bce5acdc3c940e",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"a\",\"type\":\"string\"},{\"name\":\"b\",\"type\":\"integer\"}]}}}"
+        }
+      }
+    },
+    {
+      "name": "field order meaningful",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"name\":\"b\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"integer\"},\"unique\":false},{\"name\":\"a\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "0179a783ca1452049218e3328a2df054626315d81600ae3e9826a311a6ba2eb0",
+      "differentFrom": "field order baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"b\",\"type\":\"integer\"},{\"name\":\"a\",\"type\":\"string\"}]}}}"
+        }
+      }
+    },
+    {
+      "name": "unordered enum baseline",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Choice\":{\"ref\":\"same/Choice\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Choice\":{\"kind\":\"enum\",\"parameters\":[],\"values\":[\"a\",\"z\"]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "880f11babdb9c93d861d4174c46240e534752d04ebe2b34eaf2d31f27c4aef39",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Choice\":{\"kind\":\"enum\",\"values\":[\"z\",\"a\"]}}}"
+        }
+      }
+    },
+    {
+      "name": "unordered enum normalized",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Choice\":{\"ref\":\"same/Choice\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Choice\":{\"kind\":\"enum\",\"parameters\":[],\"values\":[\"a\",\"z\"]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "880f11babdb9c93d861d4174c46240e534752d04ebe2b34eaf2d31f27c4aef39",
+      "sameAs": "unordered enum baseline",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Choice\":{\"kind\":\"enum\",\"values\":[\"a\",\"z\"]}}}"
+        }
+      }
+    },
+    {
+      "name": "unicode and escaping",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"literal\":\"A\\u003c\\u003e\\u0026\\u2028\\u2029😀é\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "1263fa7a2224e8c76dc9d25dbff1c306a207e5ada36712aab2d3cd1be32e83cd",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":{\"literal\":\"A\u003c\u003e\u0026\u2028\u2029😀é\"}}]}}}"
+        }
+      }
+    },
+    {
+      "name": "application baseline",
+      "family": "same",
+      "expression": "{\"apply\":\"Function\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}",
+      "declaration": "{\"definitions\":{\"same/Function\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/Function/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/Function/B\"}}},\"root\":{\"apply\":\"same/Function\",\"arguments\":[{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"integer\"},\"version\":1}},{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"string\"},\"version\":1}}]},\"version\":1}",
+      "digest": "7854fd2a1a0bd53c5ab433d67228f6c883e4252821d99f971dad0343cc8d790f",
+      "sources": {
+        "same": {
+          "live.json": "{\"types\":{\"Function\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Alias\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Function\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}},\"Other\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Job\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}",
+          "model.json": "{\"nightseam\":2}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "application reordered object keys",
+      "family": "same",
+      "expression": "{\"with\":{\"B\":\"string\",\"A\":\"integer\"},\"apply\":\"Function\"}",
+      "declaration": "{\"definitions\":{\"same/Function\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/Function/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/Function/B\"}}},\"root\":{\"apply\":\"same/Function\",\"arguments\":[{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"integer\"},\"version\":1}},{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"string\"},\"version\":1}}]},\"version\":1}",
+      "digest": "7854fd2a1a0bd53c5ab433d67228f6c883e4252821d99f971dad0343cc8d790f",
+      "sameAs": "application baseline",
+      "sources": {
+        "same": {
+          "live.json": "{\"types\":{\"Function\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Alias\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Function\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}},\"Other\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Job\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}",
+          "model.json": "{\"nightseam\":2}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "application alias normalized",
+      "family": "same",
+      "expression": "\"Alias\"",
+      "declaration": "{\"definitions\":{\"same/Function\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/Function/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/Function/B\"}}},\"root\":{\"apply\":\"same/Function\",\"arguments\":[{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"integer\"},\"version\":1}},{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"string\"},\"version\":1}}]},\"version\":1}",
+      "digest": "7854fd2a1a0bd53c5ab433d67228f6c883e4252821d99f971dad0343cc8d790f",
+      "sameAs": "application baseline",
+      "sources": {
+        "same": {
+          "live.json": "{\"types\":{\"Function\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Alias\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Function\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}},\"Other\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Job\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}",
+          "model.json": "{\"nightseam\":2}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "application argument order changed",
+      "family": "same",
+      "expression": "{\"apply\":\"Function\",\"with\":{\"A\":\"string\",\"B\":\"integer\"}}",
+      "declaration": "{\"definitions\":{\"same/Function\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/Function/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/Function/B\"}}},\"root\":{\"apply\":\"same/Function\",\"arguments\":[{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"string\"},\"version\":1}},{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"integer\"},\"version\":1}}]},\"version\":1}",
+      "digest": "9b7de5ebddcd4b7f420f110614139506385ab7ffa89948d4ca5f6280af451ba4",
+      "differentFrom": "application baseline",
+      "sources": {
+        "same": {
+          "live.json": "{\"types\":{\"Function\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Alias\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Function\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}},\"Other\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Job\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}",
+          "model.json": "{\"nightseam\":2}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "application nominal constructor changed",
+      "family": "same",
+      "expression": "{\"apply\":\"Other\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}",
+      "declaration": "{\"definitions\":{\"same/Other\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/Other/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/Other/B\"}}},\"root\":{\"apply\":\"same/Other\",\"arguments\":[{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"integer\"},\"version\":1}},{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"string\"},\"version\":1}}]},\"version\":1}",
+      "digest": "5884032306dc522ecc0951af69d50c19d0b59ec5fde04b3dc198aaa679aa474c",
+      "differentFrom": "application baseline",
+      "sources": {
+        "same": {
+          "live.json": "{\"types\":{\"Function\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Alias\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Function\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}},\"Other\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Job\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}",
+          "model.json": "{\"nightseam\":2}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "application argument declaration baseline",
+      "family": "same",
+      "expression": "{\"apply\":\"Function\",\"with\":{\"A\":\"Job\",\"B\":\"string\"}}",
+      "declaration": "{\"definitions\":{\"same/Function\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/Function/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/Function/B\"}}},\"root\":{\"apply\":\"same/Function\",\"arguments\":[{\"graph\":{\"definitions\":{\"same/Job\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same/Job\"},\"version\":1}},{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"string\"},\"version\":1}}]},\"version\":1}",
+      "digest": "0fd003ceb653f4b8b0e0c3c3c42fd2f70e482047aa5c81212008c583e5439109",
+      "sources": {
+        "same": {
+          "live.json": "{\"types\":{\"Function\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Alias\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Function\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}},\"Other\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Job\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}",
+          "model.json": "{\"nightseam\":2}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "application reachable argument changed",
+      "family": "same",
+      "expression": "{\"apply\":\"Function\",\"with\":{\"A\":\"Job\",\"B\":\"string\"}}",
+      "declaration": "{\"definitions\":{\"same/Function\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/Function/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/Function/B\"}}},\"root\":{\"apply\":\"same/Function\",\"arguments\":[{\"graph\":{\"definitions\":{\"same/Job\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"integer\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same/Job\"},\"version\":1}},{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"string\"},\"version\":1}}]},\"version\":1}",
+      "digest": "4da58651e008bc02f251a8da6b2c44e7a92326aeb6b1dbbf57bec249b0edaa3a",
+      "differentFrom": "application argument declaration baseline",
+      "sources": {
+        "same": {
+          "live.json": "{\"types\":{\"Function\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Alias\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Function\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}},\"Other\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Job\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"integer\"}]}}}",
+          "model.json": "{\"nightseam\":2}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "application unrelated constructor excluded",
+      "family": "same",
+      "expression": "{\"apply\":\"Function\",\"with\":{\"A\":\"Job\",\"B\":\"string\"}}",
+      "declaration": "{\"definitions\":{\"same/Function\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/Function/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/Function/B\"}}},\"root\":{\"apply\":\"same/Function\",\"arguments\":[{\"graph\":{\"definitions\":{\"same/Job\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same/Job\"},\"version\":1}},{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"string\"},\"version\":1}}]},\"version\":1}",
+      "digest": "0fd003ceb653f4b8b0e0c3c3c42fd2f70e482047aa5c81212008c583e5439109",
+      "sameAs": "application argument declaration baseline",
+      "sources": {
+        "same": {
+          "live.json": "{\"types\":{\"Function\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Alias\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Function\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}},\"Other\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"integer\"},\"Job\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}",
+          "model.json": "{\"nightseam\":2}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "inheritance baseline",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"base/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"read\":{\"errors\":[],\"request\":{\"empty\":true},\"result\":{\"primitive\":\"string\"}}},\"parameters\":[]},\"base/Parent\":{\"fields\":[{\"name\":\"bound\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"base/Parent/T\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[{\"name\":\"T\",\"of\":\"\"}]},\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Child\":{\"ref\":\"same/Child\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[{\"ref\":\"base/$server\"}],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Child\":{\"extends\":[{\"apply\":\"base/Parent\",\"arguments\":[{\"primitive\":\"integer\"}]}],\"fields\":[{\"name\":\"own\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "44d2c6ea2cdb9053d7b4eba0fc09c565a1197016d4975236e52c0d01ebf48725",
+      "sources": {
+        "base": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Parent\":{\"kind\":\"record\",\"parameters\":[{\"name\":\"T\"}],\"fields\":[{\"name\":\"bound\",\"type\":\"T\"}]}}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"read\":{\"result\":\"string\"}}}}"
+        },
+        "same": {
+          "model.json": "{\"nightseam\":2,\"imports\":[\"base\"],\"types\":{\"Child\":{\"kind\":\"record\",\"extends\":[{\"apply\":\"base.Parent\",\"with\":{\"T\":\"integer\"}}],\"fields\":[{\"name\":\"own\",\"type\":\"string\"}]}}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"extends\":[\"base\"]}}"
+        }
+      }
+    },
+    {
+      "name": "inherited operation changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"base/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"read\":{\"errors\":[],\"request\":{\"empty\":true},\"result\":{\"primitive\":\"integer\"}}},\"parameters\":[]},\"base/Parent\":{\"fields\":[{\"name\":\"bound\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"base/Parent/T\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[{\"name\":\"T\",\"of\":\"\"}]},\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Child\":{\"ref\":\"same/Child\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[{\"ref\":\"base/$server\"}],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Child\":{\"extends\":[{\"apply\":\"base/Parent\",\"arguments\":[{\"primitive\":\"integer\"}]}],\"fields\":[{\"name\":\"own\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "6c4dfc67207c8eba330e82b1e0afbe2c81f36bcbda11950db86f4da63366d31a",
+      "differentFrom": "inheritance baseline",
+      "sources": {
+        "base": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Parent\":{\"kind\":\"record\",\"parameters\":[{\"name\":\"T\"}],\"fields\":[{\"name\":\"bound\",\"type\":\"T\"}]}}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"read\":{\"result\":\"integer\"}}}}"
+        },
+        "same": {
+          "model.json": "{\"nightseam\":2,\"imports\":[\"base\"],\"types\":{\"Child\":{\"kind\":\"record\",\"extends\":[{\"apply\":\"base.Parent\",\"with\":{\"T\":\"integer\"}}],\"fields\":[{\"name\":\"own\",\"type\":\"string\"}]}}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"extends\":[\"base\"]}}"
+        }
+      }
+    },
+    {
+      "name": "inheritance unrelated declaration excluded",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"base/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"read\":{\"errors\":[],\"request\":{\"empty\":true},\"result\":{\"primitive\":\"string\"}}},\"parameters\":[]},\"base/Parent\":{\"fields\":[{\"name\":\"bound\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"base/Parent/T\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[{\"name\":\"T\",\"of\":\"\"}]},\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Child\":{\"ref\":\"same/Child\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[{\"ref\":\"base/$server\"}],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Child\":{\"extends\":[{\"apply\":\"base/Parent\",\"arguments\":[{\"primitive\":\"integer\"}]}],\"fields\":[{\"name\":\"own\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "44d2c6ea2cdb9053d7b4eba0fc09c565a1197016d4975236e52c0d01ebf48725",
+      "sameAs": "inheritance baseline",
+      "sources": {
+        "base": {
+          "model.json": "{\"nightseam\":2,\"types\":{\"Parent\":{\"kind\":\"record\",\"parameters\":[{\"name\":\"T\"}],\"fields\":[{\"name\":\"bound\",\"type\":\"T\"}]},\"Unselected\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"integer\"}]}}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"methods\":{\"read\":{\"result\":\"string\"}}}}"
+        },
+        "same": {
+          "model.json": "{\"nightseam\":2,\"imports\":[\"base\"],\"types\":{\"Child\":{\"kind\":\"record\",\"extends\":[{\"apply\":\"base.Parent\",\"with\":{\"T\":\"integer\"}}],\"fields\":[{\"name\":\"own\",\"type\":\"string\"}]}}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"server\":{\"extends\":[\"base\"]}}"
+        }
+      }
+    },
+    {
+      "name": "live operation baseline",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{\"notice\":{\"primitive\":\"string\"}},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "570a5c17889128a436a7b95e232a522f4746aef803e7a2e8590443aeae7538ed",
+      "sources": {
+        "same": {
+          "live.json": "{\"server\":{\"events\":{\"notice\":{\"type\":\"string\"}}}}",
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "live operation changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{\"notice\":{\"primitive\":\"integer\"}},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "a63dff98649ecb0da964288119d8d79eb85306c9bde6bdbc58c11d148d9f66bd",
+      "differentFrom": "live operation baseline",
+      "sources": {
+        "same": {
+          "live.json": "{\"server\":{\"events\":{\"notice\":{\"type\":\"integer\"}}}}",
+          "model.json": "{\"nightseam\":2,\"types\":{}}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "primitive integer",
+      "family": "same",
+      "expression": "\"integer\"",
+      "declaration": "{\"definitions\":{},\"root\":{\"primitive\":\"integer\"},\"version\":1}",
+      "digest": "559e17f7f7512a3c0e0be04da0fbbc088d43ab657b897efcf46a497d1afd6942",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2}"
+        }
+      }
+    },
+    {
+      "name": "primitive string",
+      "family": "same",
+      "expression": "\"string\"",
+      "declaration": "{\"definitions\":{},\"root\":{\"primitive\":\"string\"},\"version\":1}",
+      "digest": "8947075cd059af2252a0d26e5b770c6d7ab3bc231c4d27f9f87a7615a7758d11",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2}"
+        }
+      }
+    },
+    {
+      "name": "callable template",
+      "family": "same",
+      "expression": "\"Function\"",
+      "declaration": "{\"definitions\":{\"same/Function\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/Function/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/Function/B\"}}},\"root\":{\"ref\":\"same/Function\"},\"version\":1}",
+      "digest": "3a78119ab9b832c0a4e321c7673c62bef32bbb10587719aca3242a70cf3530c6",
+      "sources": {
+        "same": {
+          "live.json": "{\"types\":{\"Function\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Alias\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Function\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}},\"Other\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Job\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}",
+          "model.json": "{\"nightseam\":2}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "callable composed application",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same/Function\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/Function/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/Function/B\"}}},\"root\":{\"apply\":\"same/Function\",\"arguments\":[{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"integer\"},\"version\":1}},{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"string\"},\"version\":1}}]},\"version\":1}",
+      "digest": "7854fd2a1a0bd53c5ab433d67228f6c883e4252821d99f971dad0343cc8d790f",
+      "sameAs": "application baseline",
+      "application": {
+        "template": "callable template",
+        "arguments": [
+          "primitive integer",
+          "primitive string"
+        ]
+      }
+    },
+    {
+      "name": "same named argument first revision",
+      "family": "same",
+      "expression": "\"Job\"",
+      "declaration": "{\"definitions\":{\"same/Job\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same/Job\"},\"version\":1}",
+      "digest": "19b017eba003717612512a3204eceb1bf4499c01124776c187197a507c2936ef",
+      "sources": {
+        "same": {
+          "live.json": "{\"types\":{\"Function\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Alias\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Function\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}},\"Other\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Job\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}",
+          "model.json": "{\"nightseam\":2}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "same named argument second revision",
+      "family": "same",
+      "expression": "\"Job\"",
+      "declaration": "{\"definitions\":{\"same/Job\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"integer\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same/Job\"},\"version\":1}",
+      "digest": "38411dbb64576b30647cee5f8db8319e762957cce25ca4f91a84213a002cff3b",
+      "differentFrom": "same named argument first revision",
+      "sources": {
+        "same": {
+          "live.json": "{\"types\":{\"Function\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Alias\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Function\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}},\"Other\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Job\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"integer\"}]}}}",
+          "model.json": "{\"nightseam\":2}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "same path distinct revisions in separate arguments",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same/Function\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/Function/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/Function/B\"}}},\"root\":{\"apply\":\"same/Function\",\"arguments\":[{\"graph\":{\"definitions\":{\"same/Job\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same/Job\"},\"version\":1}},{\"graph\":{\"definitions\":{\"same/Job\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"integer\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same/Job\"},\"version\":1}}]},\"version\":1}",
+      "digest": "824f777a922ffb257bf8f82a561d35deb03643bb6b8c14de776d8832edde8157",
+      "application": {
+        "template": "callable template",
+        "arguments": [
+          "same named argument first revision",
+          "same named argument second revision"
+        ]
+      }
+    },
+    {
+      "name": "same path distinct revisions argument order changed",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same/Function\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/Function/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/Function/B\"}}},\"root\":{\"apply\":\"same/Function\",\"arguments\":[{\"graph\":{\"definitions\":{\"same/Job\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"integer\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same/Job\"},\"version\":1}},{\"graph\":{\"definitions\":{\"same/Job\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same/Job\"},\"version\":1}}]},\"version\":1}",
+      "digest": "2bca9c00845614fe9949e39336d3eaf55b1e621da02c735c32788c6241fd3469",
+      "differentFrom": "same path distinct revisions in separate arguments",
+      "application": {
+        "template": "callable template",
+        "arguments": [
+          "same named argument second revision",
+          "same named argument first revision"
+        ]
+      }
+    },
+    {
+      "name": "generic family template",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"read\":{\"errors\":[],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/B\"}}},\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "d9d38c23e4d931df1e7982b2aa397a15d25cabb53ebe1ef0187b1ff68c3ae0ad",
+      "sources": {
+        "same": {
+          "model.json": "{\"nightseam\":2}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"server\":{\"methods\":{\"read\":{\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"}}}}"
+        }
+      }
+    },
+    {
+      "name": "bound generic family",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"read\":{\"errors\":[],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/B\"}}},\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}]}},\"root\":{\"apply\":\"same\",\"arguments\":[{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"integer\"},\"version\":1}},{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"string\"},\"version\":1}}]},\"version\":1}",
+      "digest": "4c49ac52760a1c230d4def24a0f01303d250cb6892aacf36bfe35213e5ae4200",
+      "application": {
+        "template": "generic family template",
+        "arguments": [
+          "primitive integer",
+          "primitive string"
+        ]
+      }
+    },
+    {
+      "name": "bound generic family changed arguments",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"read\":{\"errors\":[],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/B\"}}},\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}]}},\"root\":{\"apply\":\"same\",\"arguments\":[{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"string\"},\"version\":1}},{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"integer\"},\"version\":1}}]},\"version\":1}",
+      "digest": "4bbcabd96e9c6559e3429cfbed7c5eb746b6dadadef4ab972c9865d4fb446e26",
+      "differentFrom": "bound generic family",
+      "application": {
+        "template": "generic family template",
+        "arguments": [
+          "primitive string",
+          "primitive integer"
+        ]
+      }
+    },
+    {
+      "name": "argument closure excludes unrelated declarations",
+      "family": "same",
+      "expression": "\"Job\"",
+      "declaration": "{\"definitions\":{\"same/Job\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same/Job\"},\"version\":1}",
+      "digest": "19b017eba003717612512a3204eceb1bf4499c01124776c187197a507c2936ef",
+      "sameAs": "same named argument first revision",
+      "sources": {
+        "same": {
+          "live.json": "{\"types\":{\"Function\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"B\"},\"Alias\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Function\",\"with\":{\"A\":\"integer\",\"B\":\"string\"}}},\"Other\":{\"kind\":\"callable\",\"parameters\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"request\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"A\"}]},\"result\":\"integer\"},\"Job\":{\"kind\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}}}",
+          "model.json": "{\"nightseam\":2}",
+          "protocol.json": "{\"profile\":\"nightseam.duplex/1\"}"
+        }
+      }
+    },
+    {
+      "name": "bound generic family stable argument closure",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"read\":{\"errors\":[],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/B\"}}},\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}]}},\"root\":{\"apply\":\"same\",\"arguments\":[{\"graph\":{\"definitions\":{\"same/Job\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same/Job\"},\"version\":1}},{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"integer\"},\"version\":1}}]},\"version\":1}",
+      "digest": "52b6889729799bbafc0f5aa76cb6c8f57d8db6922978e8d23762ebe84ec2baa7",
+      "application": {
+        "template": "generic family template",
+        "arguments": [
+          "same named argument first revision",
+          "primitive integer"
+        ]
+      }
+    },
+    {
+      "name": "bound generic family unchanged outside argument closure",
+      "family": "same",
+      "declaration": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{\"read\":{\"errors\":[],\"request\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"parameter\":\"same/A\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"result\":{\"parameter\":\"same/B\"}}},\"parameters\":[{\"name\":\"A\",\"of\":\"\"},{\"name\":\"B\",\"of\":\"\"}]}},\"root\":{\"apply\":\"same\",\"arguments\":[{\"graph\":{\"definitions\":{\"same/Job\":{\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same/Job\"},\"version\":1}},{\"graph\":{\"definitions\":{},\"root\":{\"primitive\":\"integer\"},\"version\":1}}]},\"version\":1}",
+      "digest": "52b6889729799bbafc0f5aa76cb6c8f57d8db6922978e8d23762ebe84ec2baa7",
+      "sameAs": "bound generic family stable argument closure",
+      "application": {
+        "template": "generic family template",
+        "arguments": [
+          "argument closure excludes unrelated declarations",
+          "primitive integer"
+        ]
+      }
+    }
+  ]
+}
