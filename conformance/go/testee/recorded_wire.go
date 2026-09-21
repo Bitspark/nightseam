@@ -142,7 +142,7 @@ func newRecordedRoot() *recordedRoot {
 				receiver := r.receivers[key]
 				r.mu.Unlock()
 				if receiver.Message != nil {
-					receiver.Message(nil, entry.message)
+					receiver.Message(append([]string{}, entry.path...), entry.message)
 				}
 			}
 		}
@@ -195,7 +195,11 @@ func presentRecorded(w *recordedWire) (*recordedPresentation, error) {
 	p := &recordedPresentation{root: newRecordedRoot(), end: newRecordedRoot(), values: make(chan int, 32), closed: make(chan int, 4), errors: make(chan error, 4)}
 	destination := duplex.At(duplex.Mount(map[string]duplex.Wire{"out": duplex.At(p.end, []string{"destination"})}), []string{"out"})
 	p.wire = duplex.At(duplex.Mount(map[string]duplex.Wire{"outer": duplex.Mount(map[string]duplex.Wire{"in": duplex.At(p.root, []string{"source"})})}), []string{"outer", "in"})
-	_, err := destination.Receive([]string{"tick"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
+	_, err := destination.Receive([]string{"tick"}, duplex.Receiver{Message: func(path []string, m duplex.Message) {
+		if len(path) != 1 || path[0] != "tick" {
+			p.errors <- fmt.Errorf("recorded destination received path %q", path)
+			return
+		}
 		// A real application callback reenters the store. Calling this under
 		// append exclusion deadlocks and fails the witness's deadline.
 		_ = w.head()
@@ -207,8 +211,8 @@ func presentRecorded(w *recordedWire) (*recordedPresentation, error) {
 		p.values <- value
 	}})
 	if err == nil {
-		_, err = p.wire.Receive([]string{"tick"}, duplex.Receiver{Message: func(_ []string, message duplex.Message) {
-			if err := destination.Send([]string{"tick"}, message); err != nil {
+		_, err = p.wire.Receive([]string{"tick"}, duplex.Receiver{Message: func(path []string, message duplex.Message) {
+			if err := destination.Send(path, message); err != nil {
 				p.errors <- err
 			}
 		}, Closed: func(code duplex.Code, _ string) { _ = w.head(); p.closed <- int(code) }})
