@@ -43,6 +43,13 @@ are one number. Entries are in the words of the commits that landed them.
   they cannot open. The list is of what may be credited and never of what may
   not: a denylist of unpublished names would be the leak itself, committed and
   kept forever.
+- The Bug and Task forms ask for the changelog entry a lane will land — or
+  `None`, and why — and the pull request scope check notes a lane that declared
+  one and did not touch `CHANGELOG.md`. It reports and never refuses, and an
+  issue that declares `None`, or that predates the field, is silent. It asks
+  the issue rather than asking whether the file was edited, because that proxy
+  both fires on lanes with nothing to record and passes a lane that edits the
+  changelog without extending the sentence its change outgrew.
 
 ### Removed
 

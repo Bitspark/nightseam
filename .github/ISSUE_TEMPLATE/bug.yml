@@ -71,6 +71,17 @@ body:
       description: The regression test that will hold the fix, named; write it before the change.
     validations:
       required: true
+  - type: textarea
+    id: changelog
+    attributes:
+      label: Changelog
+      description: |
+        The entry this lands under *Unreleased* in CHANGELOG.md, in the words
+        the commit will use — or "None", and why. The lane that made the change
+        writes it best; a later reader has only the diff. The PR scope check
+        notes a lane that declared an entry and landed none, and never refuses.
+    validations:
+      required: true
   - type: input
     id: provenance
     attributes:
