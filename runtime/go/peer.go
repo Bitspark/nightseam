@@ -830,16 +830,29 @@ func (p *Peer) startRequest(f frame) {
 	p.mu.Lock()
 	p.incoming[f.ID] = cancel
 	p.mu.Unlock()
+	var answered sync.Once
+	respond := func(result any, err error) {
+		answered.Do(func() {
+			p.requestEnded(started, f.ID, f.Method, true, trace, err)
+			p.respond(f.ID, trace, result, err)
+		})
+	}
+	// A receiver deadline settles the response, but cannot retire work that
+	// ignores cancellation. Explicit withdrawal still waits for the body.
+	stopDeadline := context.AfterFunc(ctx, func() {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			respond(nil, ctx.Err())
+		}
+	})
 	go func() {
 		defer func() { cancel(); p.mu.Lock(); delete(p.incoming, f.ID); p.mu.Unlock(); <-p.slots }()
+		defer stopDeadline()
 		result, err := invokeHandler(ctx, p, handler, f)
 		if err == nil && ctx.Err() != nil {
 			err = ctx.Err()
 		}
-		// The request ended when the handler returned; the frame answering it
-		// is sent after, so that the two are observed in the order they happen.
-		p.requestEnded(started, f.ID, f.Method, true, trace, err)
-		p.respond(f.ID, trace, result, err)
+		// Completion answers once, unless the receiver deadline already did.
+		respond(result, err)
 	}()
 }
 

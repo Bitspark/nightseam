@@ -33,6 +33,7 @@ export interface WireDispatchContext {
   context: RequestContext | WireRequestContext;
   panic: (error: unknown) => void;
   maxFrameBytes: number;
+  completion?: { cancelled: boolean };
 }
 // This is a local capability association, never a field a caller can serialize
 // or supply as ambient outgoing metadata. Keep non-enumerable verified values.
@@ -351,6 +352,7 @@ function callWireTraced<T>(
   }
   if (!dispatch && trace) outgoingTraces.set(frame, trace);
   const completion = requestCompletion<T>();
+  if (dispatch) dispatch = { ...dispatch, completion: { cancelled: false } };
   const finish = observeWireRequest(options.observer, options.family, name, false, trace);
   let localOutcome: 'cancelled' | 'timeout' | undefined;
   void completion.promise.then(
@@ -363,7 +365,9 @@ function callWireTraced<T>(
       if (suffix.length || frame.kind !== 'response' || frame.id !== 'c:1')
         throw new DuplexError('invalid_message', 'Invalid wire response.');
       if (completion.settled) throw new WireError('closed');
-      if (frame.error) completion.reject(new DuplexError(frame.error.code, frame.error.message, frame.error.data));
+      if (frame.error?.code === 'cancelled' && dispatch?.context.signal.aborted && dispatch.completion?.cancelled)
+        completion.resolve(undefined as T);
+      else if (frame.error) completion.reject(new DuplexError(frame.error.code, frame.error.message, frame.error.data));
       else completion.resolve(frame.result as T);
     },
     receive: () => {
@@ -499,6 +503,7 @@ export function registerWire(wire: Wire, path: Path, handlers: WireHandlers): ()
         .then(
           (result) => {
             const error = context.signal.aborted ? new DuplexError('cancelled', 'Request was cancelled.') : undefined;
+            if (error && dispatch?.completion) dispatch.completion.cancelled = true;
             const outcome = response(message, result, error);
             finish(outcome, error && outcome === error ? 'cancelled' : undefined);
           },
@@ -506,6 +511,7 @@ export function registerWire(wire: Wire, path: Path, handlers: WireHandlers): ()
             if (!(error instanceof DuplexError)) dispatch?.panic(error);
             // A public handler refusal stays an error even if cancellation
             // raced its completion. Only this helper's withdrawal is local.
+            if (cancelledBeforeHandler && dispatch?.completion) dispatch.completion.cancelled = true;
             const outcome = response(message, undefined, error);
             finish(outcome, cancelledBeforeHandler && outcome === error ? 'cancelled' : 'error');
           },

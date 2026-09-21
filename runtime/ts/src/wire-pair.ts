@@ -246,6 +246,7 @@ export function wirePair(options: PeerOptions = {}): [Wire, Wire] {
         if (!call!.source) propagator.extract(context, traceOf(frame));
         call!.cleanup = setWireContext(call!.returning, {
           context,
+          completion: call!.source?.completion,
           maxFrameBytes: limits.maxFrameBytes,
           panic:
             call!.source?.panic ??

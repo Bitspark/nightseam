@@ -26,43 +26,83 @@ function deferred<T = void>() {
   return { promise, resolve };
 }
 
-for (const mode of ['cancel', 'caller-deadline', 'receiver-deadline']) {
-  test(`wire cancellation retains executing handler budget (${mode})`, async (t) => {
-    const pair = await paired(
-      { maxConcurrentHandlers: 1, requestTimeoutMs: mode === 'receiver-deadline' ? 100 : 5000 },
-      { maxConcurrentHandlers: 1, requestTimeoutMs: 5000 },
-    );
-    t.after(pair.close);
-    const entered = deferred(),
-      cancelled = deferred(),
-      release = deferred();
-    t.after(() => release.resolve());
-    let calls = 0;
-    handleWire(pair.server.wire(), ['hold'], async (_params, context) => {
-      if (++calls === 1) {
-        context.signal.addEventListener('abort', () => cancelled.resolve(), { once: true });
-        entered.resolve();
-        await release.promise;
+for (const mode of ['cancel', 'caller-deadline', 'receiver-deadline', 'public-refusal']) {
+  for (const route of ['wire', 'forwarded', 'peer']) {
+    test(`wire cancellation retains executing handler budget (${mode}/${route})`, async (t) => {
+      const endings: Extract<ObserverEvent, { type: 'request.ended' }>[] = [];
+      const pair = await paired(
+        {
+          maxConcurrentHandlers: 1,
+          requestTimeoutMs: mode === 'receiver-deadline' ? 100 : 5000,
+          observer: {
+            observe: (event) => {
+              if (event.type === 'request.ended' && event.incoming) endings.push(event);
+            },
+          },
+        },
+        { maxConcurrentHandlers: 1, requestTimeoutMs: 5000 },
+      );
+      t.after(pair.close);
+      const entered = deferred(),
+        cancelled = deferred(),
+        release = deferred();
+      t.after(() => release.resolve());
+      let calls = 0;
+      const handler = async (_params: unknown, context: { signal: AbortSignal }) => {
+        if (++calls === 1) {
+          context.signal.addEventListener('abort', () => cancelled.resolve(), { once: true });
+          entered.resolve();
+          await release.promise;
+          if (mode === 'public-refusal') throw new DuplexError('cancelled', 'Application refusal');
+        }
+        return 'finished';
+      };
+      if (route === 'peer') pair.server.handle('hold', handler);
+      else {
+        let model = pair.server.wire();
+        if (route === 'forwarded') {
+          const [left, right] = wirePair();
+          t.after(() => left.close(1000, ''));
+          t.after(forwardWire(pair.server.wire(), left));
+          model = right;
+        }
+        handleWire(model, ['hold'], handler);
       }
-      return 'finished';
+      const call = (options: { signal?: AbortSignal; timeoutMs?: number } = {}) =>
+        route === 'peer'
+          ? pair.client.call('hold', null, options)
+          : callWire(pair.client.wire(), ['hold'], null, options);
+      const controller = new AbortController();
+      const first = call({
+        signal: controller.signal,
+        timeoutMs: mode === 'caller-deadline' ? 100 : 5000,
+      });
+      const result = first.catch((error: unknown) => error);
+      await entered.promise;
+      if (mode === 'cancel' || mode === 'public-refusal') controller.abort();
+      assert.equal(((await result) as DuplexError).code, mode === 'caller-deadline' ? 'request_timeout' : 'cancelled');
+      await cancelled.promise;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      if (mode === 'receiver-deadline') {
+        assert.deepEqual(
+          endings.map(({ outcome, errorCode }) => ({ outcome, errorCode })),
+          [{ outcome: 'timeout', errorCode: 'request_timeout' }],
+        );
+      } else assert.equal(endings.length, 0);
+      await assert.rejects(call(), { code: 'busy' });
+      assert.equal(calls, 1);
+      release.resolve();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const firstEnd = endings.filter((event) => event.id === 'c:1');
+      assert.equal(firstEnd.length, 1);
+      assert.equal(
+        firstEnd[0]!.outcome,
+        mode === 'receiver-deadline' ? 'timeout' : mode === 'public-refusal' ? 'error' : 'cancelled',
+      );
+      assert.equal(firstEnd[0]!.errorCode, mode === 'receiver-deadline' ? 'request_timeout' : 'cancelled');
+      assert.equal(await call(), 'finished');
     });
-    const controller = new AbortController();
-    const first = callWire(pair.client.wire(), ['hold'], null, {
-      signal: controller.signal,
-      timeoutMs: mode === 'caller-deadline' ? 100 : 5000,
-    });
-    const result = first.catch((error: unknown) => error);
-    await entered.promise;
-    if (mode === 'cancel') controller.abort();
-    assert.equal(((await result) as DuplexError).code, mode === 'caller-deadline' ? 'request_timeout' : 'cancelled');
-    await cancelled.promise;
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    await assert.rejects(callWire(pair.client.wire(), ['hold']), { code: 'busy' });
-    assert.equal(calls, 1);
-    release.resolve();
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    assert.equal(await callWire(pair.client.wire(), ['hold']), 'finished');
-  });
+  }
 }
 async function paired(options: PeerOptions = {}, clientOptions: PeerOptions = options) {
   const [left, right] = pipe();
