@@ -7,8 +7,18 @@ from dataclasses import dataclass
 from typing import Literal, NotRequired, Protocol, TypedDict, runtime_checkable
 
 __all__ = [
-    "Path", "ProfileError", "ProfileFrame", "ReturnAddress", "Message", "Receiver", "Wire", "WireError",
-    "encode_path", "decode_path", "at", "mount",
+    "Path",
+    "ProfileError",
+    "ProfileFrame",
+    "ReturnAddress",
+    "Message",
+    "Receiver",
+    "Wire",
+    "WireError",
+    "encode_path",
+    "decode_path",
+    "at",
+    "mount",
 ]
 
 Path = Sequence[str]
@@ -134,7 +144,7 @@ def decode_path(encoded: str) -> list[str]:
         if length > len(data) - offset:
             raise WireError("invalid_path")
         try:
-            path.append(data[offset:offset + length].decode("utf-8"))
+            path.append(data[offset : offset + length].decode("utf-8"))
         except UnicodeDecodeError:
             raise WireError("invalid_path") from None
         offset += length
@@ -152,10 +162,11 @@ class _Selected:
     def receive(self, path: Path, receiver: Receiver) -> Callable[[], None]:
         def delivered(path: Path, message: Message):
             if receiver.message:
-                return receiver.message(path[len(self._prefix):], message)
+                return receiver.message(path[len(self._prefix) :], message)
 
-        return self._root.receive([*self._prefix, *path], Receiver(
-            namespace=receiver.namespace, message=delivered, closed=receiver.closed))
+        return self._root.receive(
+            [*self._prefix, *path], Receiver(namespace=receiver.namespace, message=delivered, closed=receiver.closed)
+        )
 
     def close(self, code: int = 1000, reason: str = "") -> None:
         self._root.close(code, reason)
@@ -225,7 +236,9 @@ class _Mounted:
 
             try:
                 for key in keys:
-                    detach = self.receive([key], Receiver(namespace=True, message=receiver.message, closed=child_closed))
+                    detach = self.receive(
+                        [key], Receiver(namespace=True, message=receiver.message, closed=child_closed)
+                    )
                     if not registration.active:
                         detach()
                         raise WireError("closed")
@@ -246,8 +259,14 @@ class _Mounted:
                 return receiver.message([key, *suffix], message)
 
         try:
-            registration.detach = child.receive(path[1:], Receiver(namespace=receiver.namespace,
-                message=delivered, closed=lambda code, reason: self._remove(registration, (code, reason))))
+            registration.detach = child.receive(
+                path[1:],
+                Receiver(
+                    namespace=receiver.namespace,
+                    message=delivered,
+                    closed=lambda code, reason: self._remove(registration, (code, reason)),
+                ),
+            )
         except BaseException:
             registration.active = False
             self._registrations.pop(registration, None)

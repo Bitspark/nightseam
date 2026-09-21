@@ -52,8 +52,11 @@ class QueuedRoot:
             encoded = encode_path(path)
             receiver = self.receivers.get((False, encoded))
             if receiver is None:
-                candidates = [(len(prefix), item) for (namespace, prefix), item in self.receivers.items()
-                              if namespace and encoded.startswith(prefix)]
+                candidates = [
+                    (len(prefix), item)
+                    for (namespace, prefix), item in self.receivers.items()
+                    if namespace and encoded.startswith(prefix)
+                ]
                 if candidates:
                     receiver = max(candidates, key=lambda item: item[0])[1]
             if receiver and receiver.message:
@@ -67,8 +70,7 @@ class WireTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, code)
 
     def test_path_codec_is_injective_canonical_and_composes(self):
-        paths = [[], [""], ["a", "b"], ["a.b"], ["a/b"], ["a", "b:c"],
-                 ["é", "e\u0301", "😀", "\ufeff", "\0"]]
+        paths = [[], [""], ["a", "b"], ["a.b"], ["a/b"], ["a", "b:c"], ["é", "e\u0301", "😀", "\ufeff", "\0"]]
         encoded_paths = set()
         for path in paths:
             encoded = encode_path(path)
@@ -78,8 +80,19 @@ class WireTests(unittest.TestCase):
             for suffix in paths:
                 self.assertEqual(encode_path(path + suffix), encoded + encode_path(suffix))
         self.assertEqual(encode_path(["a", "😀", ""]), "1:a4:😀0:")
-        for malformed in ["01:a", "00:", "1", ":", "-1:a", "2:a", "1:é", "3:😀",
-                          "99999999999999999999999999999:x", "1:\ud800", "1:\udc00"]:
+        for malformed in [
+            "01:a",
+            "00:",
+            "1",
+            ":",
+            "-1:a",
+            "2:a",
+            "1:é",
+            "3:😀",
+            "99999999999999999999999999999:x",
+            "1:\ud800",
+            "1:\udc00",
+        ]:
             with self.subTest(encoded=ascii(malformed)):
                 self.assert_wire_error("invalid_path", lambda: decode_path(malformed))
         for malformed in ["\ud800", "\udc00", "\ud83d\ude00"]:
@@ -125,8 +138,14 @@ class WireTests(unittest.TestCase):
         left, right = QueuedRoot(), QueuedRoot()
         mounted = mount({"left": at(left, ["private"]), "": right})
         received, closed = [], []
-        detach = mounted.receive([], Receiver(namespace=True,
-            message=lambda path, message: received.append(path), closed=lambda *ending: closed.append(ending)))
+        detach = mounted.receive(
+            [],
+            Receiver(
+                namespace=True,
+                message=lambda path, message: received.append(path),
+                closed=lambda *ending: closed.append(ending),
+            ),
+        )
         message = Message({"version": 1, "kind": "event", "data": None})
         mounted.send(["left", "nested", "call"], message)
         left.drain()
@@ -165,7 +184,9 @@ class WireTests(unittest.TestCase):
         root = QueuedRoot()
         mounted = mount({"service": root})
         kinds = []
-        detach = mounted.receive(["service", "wait"], Receiver(message=lambda path, message: kinds.append(message.frame["kind"])))
+        detach = mounted.receive(
+            ["service", "wait"], Receiver(message=lambda path, message: kinds.append(message.frame["kind"]))
+        )
         accepted = root.receivers[(False, encode_path(["wait"]))]
         accepted.message(["wait"], Message({"version": 1, "kind": "request", "id": "c:1", "params": {}}))
         detach()
@@ -185,7 +206,9 @@ class WireTests(unittest.TestCase):
 
         selected.receive(["call"], Receiver(closed=closing))
         self.assert_wire_error("no_route", lambda: mounted.receive([], Receiver()))
-        self.assert_wire_error("no_route", lambda: mounted.send([], Message({"version": 1, "kind": "event", "data": None})))
+        self.assert_wire_error(
+            "no_route", lambda: mounted.send([], Message({"version": 1, "kind": "event", "data": None}))
+        )
         mounted.close(1000, "mount ended")
         mounted.close(1000, "again")
         self.assertEqual(closed, [(1000, "mount ended")])
@@ -210,7 +233,9 @@ class WireTests(unittest.TestCase):
                 return detach
 
         mounted = mount({"x": Child()})
-        self.assert_wire_error("closed", lambda: mounted.receive(["x", "call"], Receiver(closed=lambda *ending: closed.append(ending))))
+        self.assert_wire_error(
+            "closed", lambda: mounted.receive(["x", "call"], Receiver(closed=lambda *ending: closed.append(ending)))
+        )
         self.assertEqual(root.receivers, {})
         self.assertEqual(root.closes, 0)
         self.assertEqual(closed, [(1000, "done")])

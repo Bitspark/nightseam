@@ -5,6 +5,40 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
+from .wire import (
+    Message,
+    Path,
+    ProfileError,
+    ProfileFrame,
+    Receiver,
+    ReturnAddress,
+    Wire,
+    WireError,
+    at,
+    decode_path,
+    encode_path,
+    mount,
+)
+
+__all__ = [
+    "CloseError",
+    "Frame",
+    "FrameConnection",
+    "pipe",
+    "Message",
+    "Path",
+    "ProfileError",
+    "ProfileFrame",
+    "Receiver",
+    "ReturnAddress",
+    "Wire",
+    "WireError",
+    "at",
+    "decode_path",
+    "encode_path",
+    "mount",
+]
+
 
 @dataclass(frozen=True)
 class Frame:

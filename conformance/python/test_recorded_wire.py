@@ -1,9 +1,9 @@
 import asyncio
 import json
-from pathlib import Path
 import unittest
+from pathlib import Path
 
-from recorded_wire import _Presentation, _RecordedWire, _message, recorded_wire_witness
+from recorded_wire import _message, _Presentation, _RecordedWire, recorded_wire_witness
 
 
 class RecordedWireTests(unittest.IsolatedAsyncioTestCase):

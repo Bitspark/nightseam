@@ -16,6 +16,7 @@ from nightseam.duplex import CloseError, Frame, pipe
 from nightseam.duplex.websocket import dial, listen
 from nightseam.runtime import ABSENT, IDENTITY_METHOD, Options, Peer, PublicError, check_identity, identity_handler
 from nightseam.runtime.json import dumps, loads, raw_members
+from recorded_wire import recorded_wire_witness
 
 
 class DriverError(Exception):
@@ -284,6 +285,8 @@ class Testee:
         if op in ("reset", "bye"):
             await self.reset()
             return {}
+        if op == "peer.recorded_wire_witness":
+            return await recorded_wire_witness(args.get("within_ms", 5000))
         if op in ("conn.listen", "peer.listen"):
             options = args.get("options", {})
             listener = await listen(
