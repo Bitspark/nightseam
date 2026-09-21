@@ -1,5 +1,5 @@
 import { encodePath, WireError } from '@nightseam/duplex';
-import type { Message, Path, Receiver, ReturnAddress, Wire, Endpoint as WireEndpoint } from '@nightseam/duplex';
+import type { Message, Path, Receiver, ReturnAddress, Wire, Endpoint } from '@nightseam/duplex';
 import { Invocation, defaultInvocationLimits } from './invocation.ts';
 import { DUPLEX_DEFAULTS, positiveInteger } from './peer.ts';
 import type { PeerOptions } from './peer.ts';
@@ -43,9 +43,11 @@ interface Delivery {
   call?: LocalCall;
   refusal?: DuplexError;
 }
-interface Endpoint {
-  wire: WireEndpoint;
-  other: Endpoint;
+// One end of a bounded local pair: the Endpoint it presents, what it owes the
+// other end, and the state its own admission keeps.
+interface PairEnd {
+  wire: Endpoint;
+  other: PairEnd;
   queue: Delivery[];
   queued: number;
   retained: number;
@@ -61,7 +63,7 @@ interface Endpoint {
  * receivers on the other. No Peer, transport connection, or request protocol
  * is constructed; the runtime's existing return capability carries responses.
  */
-export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint] {
+export function wirePair(options: PeerOptions = {}): [Endpoint, Endpoint] {
   const limits = { ...DUPLEX_DEFAULTS };
   for (const key of Object.keys(DUPLEX_DEFAULTS) as (keyof typeof DUPLEX_DEFAULTS)[]) {
     if (options[key] !== undefined) {
@@ -71,7 +73,7 @@ export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint
   }
   const propagator = options.propagator ?? defaultPropagator;
   let closed = false;
-  const ends: Endpoint[] = [];
+  const ends: PairEnd[] = [];
   const disconnected = () => new DuplexError('disconnected', 'Connection ended; outcome may be unknown.');
   const observe = (event: ObserverEvent) => {
     try {
@@ -122,7 +124,7 @@ export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint
     }
     end(4011, error.message);
   };
-  const retire = (endpoint: Endpoint, call: LocalCall) => {
+  const retire = (endpoint: PairEnd, call: LocalCall) => {
     if (!call.completed || call.cancelQueued) return;
     const calls = endpoint.calls.get(call.original.return!);
     if (calls?.get(call.id) !== call) return;
@@ -133,7 +135,7 @@ export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint
     call.invocation.settle();
     call.invocation.dispatchDone();
   };
-  const complete = (endpoint: Endpoint, call: LocalCall) => {
+  const complete = (endpoint: PairEnd, call: LocalCall) => {
     if (!call.completed) {
       call.completed = true;
       clearTimeout(call.timer);
@@ -154,7 +156,7 @@ export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint
       else fail(publicError(error));
     }
   };
-  const deliver = async (endpoint: Endpoint) => {
+  const deliver = async (endpoint: PairEnd) => {
     try {
       while (endpoint.queue.length && !closed) {
         const { path, message, call, refusal } = endpoint.queue.shift()!;
@@ -276,14 +278,14 @@ export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint
       if (endpoint.queue.length && !closed) schedule(endpoint);
     }
   };
-  const schedule = (endpoint: Endpoint) => {
+  const schedule = (endpoint: PairEnd) => {
     if (endpoint.draining || closed) return;
     endpoint.draining = true;
     queueMicrotask(() => {
       void deliver(endpoint);
     });
   };
-  const admit = (endpoint: Endpoint, path: Path, original: Message) => {
+  const admit = (endpoint: PairEnd, path: Path, original: Message) => {
     if (closed) throw disconnected();
     const name = encodePath(path),
       frame = profileFrame(original.frame, name, limits.maxFrameBytes);
@@ -385,7 +387,7 @@ export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint
       active: 0,
       draining: false,
       calls: new Map(),
-    } as unknown as Endpoint;
+    } as unknown as PairEnd;
     endpoint.wire = {
       send: (path, message) => admit(endpoint.other, path, message),
       receive: (receiver) => {
