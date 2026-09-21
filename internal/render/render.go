@@ -268,6 +268,13 @@ func (r *Family) IsParameter(name string) bool { return r.f.HasParameter(name) }
 // HasProtocol reports whether the family has a protocol tier.
 func (r *Family) HasProtocol() bool { return r.f.Protocol != nil }
 
+// HasModel reports whether the family has an application model to adapt.
+// Identity is the runtime-owned bootstrap vocabulary used before a model is
+// interpreted; its ordinary declaration still supplies types, schema and spec.
+func (r *Family) HasModel() bool {
+	return r.HasProtocol() && !(r.Builtin && r.Name == "identity")
+}
+
 // UsesOf is what an expression is generic in.
 func (r *Family) UsesOf(e model.TypeExpr) []Use { return r.uses(e, r.f.Parameters()) }
 

@@ -100,7 +100,7 @@ func planFamily(f *render.Family, seen map[*render.Family]bool) (*plan, []diag.D
 		List: diag.List{Family: f.Name},
 	}
 	p.packages.Fix("generated declaration", identTag, identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identWireDigest, identWireDeclaration, identErrors, identIsError)
-	if f.HasProtocol() {
+	if f.HasModel() {
 		p.packages.Fix("generated model declaration", identServer, identClient, identServerMethods, identClientMethods, identServerEvents, identClientEvents, identServerModel, identClientModel)
 	}
 	p.plan()

@@ -16,7 +16,7 @@ func emitClient(f *file)  { f.emitWireAdapter("Client", "Server") }
 func (f *file) adapterContext() string { return f.runtime() + ".AdapterContext" }
 
 func (f *file) emitWireModels() {
-	if !f.family.HasProtocol() {
+	if !f.family.HasModel() {
 		return
 	}
 	decl, args := declare(f.family.Uses), apply(f.family.Uses)

@@ -203,7 +203,8 @@ func (t *target) Check(f *render.Family) []diag.Diagnostic {
 	return diagnostics
 }
 
-// Render emits the four Go files, each through gofmt.
+// Render emits the Go types and validation, plus application-model adapters
+// when the family has a model. Each file passes through gofmt.
 func (t *target) Render(f *render.Family) ([]spi.File, error) {
 	if err := t.config.Validate(); err != nil {
 		return nil, err
@@ -228,7 +229,7 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 	if err := put(protocolDir, "validation_generated.go", t.file(p, f, "protocol", emitValidation)); err != nil {
 		return nil, err
 	}
-	if !f.HasProtocol() {
+	if !f.HasModel() {
 		return files, nil
 	}
 	if err := put(bindingDir, "binding_generated.go", t.file(p, f, "binding", emitBinding)); err != nil {

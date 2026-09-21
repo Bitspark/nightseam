@@ -15,7 +15,7 @@ func (t *target) Scaffold(f *render.Family, dir string) ([]spi.File, error) {
 	if err := t.config.Validate(); err != nil {
 		return nil, err
 	}
-	if len(f.Client.Methods) == 0 && len(f.Server.Events) == 0 {
+	if !f.HasModel() || len(f.Client.Methods) == 0 && len(f.Server.Events) == 0 {
 		return nil, nil
 	}
 	p, diagnostics := newPlan(f)

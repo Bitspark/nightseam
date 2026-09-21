@@ -96,7 +96,7 @@ func emitTypes(f *file) {
 	if fam.Live {
 		f.linef("import { LiveOwner } from %s;", quote(f.config.Live))
 	}
-	if fam.HasProtocol() {
+	if fam.HasModel() {
 		f.linef("import type { WireModelContext } from %s;", quote(f.config.Runtime))
 	}
 	for _, t := range fam.Types {
@@ -114,7 +114,7 @@ func emitTypes(f *file) {
 	f.linef("export interface %s { readonly name: %s; %s }", identFamily, quote(fam.Name), strings.Join(drawn, "; "))
 	f.emitLive()
 	f.emitValueAdapters()
-	if fam.HasProtocol() {
+	if fam.HasModel() {
 		f.emitWireModelTypes()
 	}
 	f.line("")
