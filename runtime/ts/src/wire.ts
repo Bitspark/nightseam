@@ -10,6 +10,7 @@ import type {
   CallOptions,
   DuplexPeer,
   EmitOptions,
+  EventContext,
   EventListener,
   Meta,
   PeerOptions,
@@ -26,6 +27,42 @@ export interface WireDispatchContext {
 // This is a local capability association, never a field a caller can serialize
 // or supply as ambient outgoing metadata. Keep non-enumerable verified values.
 const dispatchContexts = new WeakMap<ReturnAddress, WireDispatchContext>();
+
+interface WireEventDispatchContext {
+  context: EventContext | WireEventContext;
+  panic?: (error: unknown) => void;
+}
+// An event's local context capability has no waiter, id or callable return.
+// Weak ownership lets queued deliveries outlive the source receiver's return.
+const eventContexts = new WeakMap<ReturnAddress, WireEventDispatchContext>();
+const receivedEventTraces = new WeakMap<EventContext, Trace | undefined>();
+/** @internal Preserve the received frame independently of a custom propagator's context. */
+export function setReceivedEventTrace(context: EventContext, trace: Trace | undefined): void {
+  receivedEventTraces.set(context, trace);
+}
+const eventContextCarrier: Wire = Object.freeze({
+  send: () => {
+    throw new DuplexError('invalid_message', 'An event context is not a return address.');
+  },
+  receive: () => {
+    throw new WireError('receiver_exists');
+  },
+  close: () => {},
+});
+/** @internal Inspect only runtime-associated event context, never caller data. */
+export function wireEventContext(message: Message): WireEventDispatchContext | undefined {
+  return message.return ? eventContexts.get(message.return) : undefined;
+}
+/** @internal Carry received event context across local asynchronous composition. */
+export function withWireEventContext(
+  message: Message,
+  context: EventContext | WireEventContext,
+  panic?: (error: unknown) => void,
+): Message {
+  const address: ReturnAddress = { wire: eventContextCarrier };
+  eventContexts.set(address, { context, panic });
+  return { frame: message.frame, return: address };
+}
 
 /** @internal Read the verified context associated with a local return capability. */
 export function wireContext(address: ReturnAddress): WireDispatchContext | undefined {
@@ -337,10 +374,15 @@ export function registerWire(
       const frame = message.frame;
       if (frame.kind === 'event') {
         if (!handlers.event) return;
-        const context: WireEventContext = { wire, ...(frame.meta ? { meta: { ...frame.meta } } : {}) };
-        defaultPropagator.extract(context, traceOf(frame));
+        const dispatch = wireEventContext(message);
+        const context = (dispatch ? Object.create(dispatch.context) : {}) as WireEventContext;
+        Object.defineProperties(context, {
+          wire: { value: wire, enumerable: true },
+          meta: { value: frame.meta ? { ...frame.meta } : undefined, enumerable: true },
+        });
+        if (!dispatch) defaultPropagator.extract(context, traceOf(frame));
         const failed = (error: unknown) => {
-          if (!(error instanceof DuplexError) && message.return) dispatchContexts.get(message.return)?.panic(error);
+          if (!(error instanceof DuplexError)) dispatch?.panic?.(error);
           wire.close(1002, 'wire event rejected');
         };
         try {
@@ -542,16 +584,25 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
     (name) => {
       const found = lookup(name);
       return found
-        ? (_name, data, context) =>
-            found.registration.receiver.message!(found.path, {
-              frame: {
-                version: 1,
-                kind: 'event',
-                data,
-                ...context.trace,
-                ...(context.meta ? { meta: context.meta } : {}),
-              },
-            })
+        ? (_name, data, context) => {
+            const receivedTrace = receivedEventTraces.has(context) ? receivedEventTraces.get(context) : context.trace;
+            return found.registration.receiver.message!(
+              found.path,
+              withWireEventContext(
+                {
+                  frame: {
+                    version: 1,
+                    kind: 'event',
+                    data,
+                    ...receivedTrace,
+                    ...(context.meta ? { meta: context.meta } : {}),
+                  },
+                },
+                context,
+                (error) => options.panic(name, error, receivedTrace),
+              ),
+            );
+          }
         : undefined;
     },
   );

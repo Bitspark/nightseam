@@ -281,6 +281,10 @@ func (w *localWire) run() {
 			continue
 		}
 		if delivery.message.Frame.Kind == duplex.ProfileEvent {
+			if _, associated := eventContextOf(delivery.message); !associated {
+				ctx := w.pair.options.Propagator.Extract(context.Background(), Trace{Parent: delivery.message.Frame.Traceparent, State: delivery.message.Frame.Tracestate})
+				delivery.message = withWireEventContext(delivery.message, ctx)
+			}
 			w.pair.mu.Lock()
 			w.eventTimer = time.AfterFunc(w.pair.options.WriteTimeout, func() {
 				w.pair.mu.Lock()

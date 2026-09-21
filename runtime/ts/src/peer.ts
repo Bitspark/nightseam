@@ -5,7 +5,7 @@ import { webSocketConnection } from '@nightseam/duplex';
 import type { Frame, FrameConnection, WebSocketLike, Wire } from '@nightseam/duplex';
 import { defaultPropagator, traceOf, traced } from './trace.ts';
 import type { Propagator, Trace, TraceContext } from './trace.ts';
-import { peerWire, requestCompletion } from './wire.ts';
+import { peerWire, requestCompletion, setReceivedEventTrace } from './wire.ts';
 import type { Observer, ObserverEvent } from './observer.ts';
 import { scalarJSON } from './unicode.ts';
 
@@ -901,7 +901,8 @@ export class DuplexPeer {
     const wireListener = this.wireEvent?.(event.name);
     if (wireListener) listeners.push(wireListener);
     const context: EventContext = { peer: this };
-    if (event.trace) context.trace = event.trace;
+    setReceivedEventTrace(context, event.trace);
+    this.propagator.extract(context, event.trace);
     if (event.meta) context.meta = event.meta;
     let index = 0;
     const finish = () => {

@@ -5,8 +5,16 @@ import type { PeerOptions } from './peer.ts';
 import { DuplexError } from './error.ts';
 import { defaultPropagator, traceOf } from './trace.ts';
 import type { ObserverEvent } from './observer.ts';
-import { profileFrame, publicError, response, wireContext, setWireContext } from './wire.ts';
-import type { WireDispatchContext, WireRequestContext } from './wire.ts';
+import {
+  profileFrame,
+  publicError,
+  response,
+  wireContext,
+  setWireContext,
+  wireEventContext,
+  withWireEventContext,
+} from './wire.ts';
+import type { WireDispatchContext, WireRequestContext, WireEventContext } from './wire.ts';
 
 interface Registration {
   path: Path;
@@ -181,6 +189,12 @@ export function wirePair(options: PeerOptions = {}): [Wire, Wire] {
         const registration = match(endpoint, path);
         if (frame.kind === 'event') {
           if (registration) {
+            let delivered = message;
+            if (!wireEventContext(message)) {
+              const context: WireEventContext = { wire: endpoint.wire };
+              propagator.extract(context, traceOf(frame));
+              delivered = withWireEventContext(message, context);
+            }
             endpoint.eventTimer = setTimeout(() => {
               observe({
                 type: 'backpressure',
@@ -192,7 +206,7 @@ export function wirePair(options: PeerOptions = {}): [Wire, Wire] {
               fail(new DuplexError('stalled_consumer', 'Local wire event handler deadline exceeded.'));
             }, limits.writeTimeoutMs);
             try {
-              await invoke(registration, path, message);
+              await invoke(registration, path, delivered);
             } catch (error) {
               fail(publicError(error));
             } finally {

@@ -62,6 +62,31 @@ type wireDispatchContext struct {
 	maxFrameBytes int64
 }
 
+// An event has no reply or request lifetime. Its local capability only retains
+// the context already established by the receiving runtime across queued local
+// composition; it is never reconstructed from event data or metadata.
+type wireEventContext struct{ ctx context.Context }
+
+func (*wireEventContext) Send([]string, duplex.Message) error {
+	return errors.New("an event context is not a return address")
+}
+func (*wireEventContext) Receive([]string, duplex.Receiver) (func(), error) {
+	return nil, duplex.ErrReceiverExists
+}
+func (*wireEventContext) Close(duplex.Code, string) error { return nil }
+func eventContextOf(message duplex.Message) (context.Context, bool) {
+	if message.Return != nil {
+		if held, ok := message.Return.Wire.(*wireEventContext); ok {
+			return held.ctx, true
+		}
+	}
+	return nil, false
+}
+func withWireEventContext(message duplex.Message, ctx context.Context) duplex.Message {
+	message.Return = &duplex.ReturnAddress{Wire: &wireEventContext{ctx: ctx}}
+	return message
+}
+
 // Wire selects this peer's root origin. Repeated selection shares the peer,
 // its queues and its carrier lifetime.
 func (p *Peer) Wire() duplex.Wire {
@@ -393,7 +418,7 @@ func (w *peerWire) requestReceiver(path []string, receiver duplex.Receiver) Hand
 func (w *peerWire) eventReceiver(path []string, receiver duplex.Receiver) EventHandler {
 	return func(ctx context.Context, _ *Peer, data json.RawMessage) {
 		incoming, _ := ctx.Value(wireFrameKey{}).(frame)
-		receiver.Message(append([]string{}, path...), duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: data, Traceparent: incoming.Traceparent, Tracestate: incoming.Tracestate, Meta: MetaFrom(ctx)}})
+		receiver.Message(append([]string{}, path...), withWireEventContext(duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: data, Traceparent: incoming.Traceparent, Tracestate: incoming.Tracestate, Meta: MetaFrom(ctx)}}, ctx))
 	}
 }
 
@@ -616,7 +641,10 @@ func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(
 		Message: func(_ []string, message duplex.Message) {
 			if message.Frame.Kind == duplex.ProfileEvent {
 				if handlers.Event != nil {
-					ctx := DefaultPropagator.Extract(context.Background(), Trace{Parent: message.Frame.Traceparent, State: message.Frame.Tracestate})
+					ctx, associated := eventContextOf(message)
+					if !associated {
+						ctx = DefaultPropagator.Extract(context.Background(), Trace{Parent: message.Frame.Traceparent, State: message.Frame.Tracestate})
+					}
 					if err := invokeWireEvent(withIncomingMeta(ctx, message.Frame.Meta), handlers.Event, message.Frame.Data); err != nil {
 						_ = wire.Close(duplex.CodeProtocolError, "wire event rejected")
 					}
