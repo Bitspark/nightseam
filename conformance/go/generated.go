@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Bitspark/nightseam/internal/compose"
 )
@@ -140,8 +139,6 @@ func goDirectiveOf(file string) (string, error) {
 // left out of the generated layer.
 func (s *Suite) PrepareGenerated(t *testing.T) []string {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
 	var languages []string
 	for _, language := range s.Languages() {
 		recipe := s.Recipes[language]
@@ -163,7 +160,9 @@ func (s *Suite) PrepareGenerated(t *testing.T) []string {
 		if err := layGenerated(s.Checkout, from, places.Rendered); err != nil {
 			t.Fatal(err)
 		}
-		if err := recipe.RunBuild(ctx, places, true); err != nil {
+		if err := withBuildDeadline(func(ctx context.Context) error {
+			return recipe.RunBuild(ctx, places, true)
+		}); err != nil {
 			t.Fatalf("build the %s generated testee: %v", language, err)
 		}
 		s.rendered[language] = places.Rendered
