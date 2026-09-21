@@ -132,6 +132,7 @@ pairing.
 | language | tier | core | generator | tunnel | live | observability | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
+| `haskell` | 4 | ✓ | — 64 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
 | `typescript` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
 
 Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2; `java`, `swift` at tier 4.
