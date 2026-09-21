@@ -95,6 +95,8 @@ jobs:
     needs: swift
     if: always()
     runs-on: ubuntu-latest
+    env:
+      NIGHTSEAM_MATRIX_SUMMARY: ${{ github.workspace }}/conformance-summary.md
     steps:
       - name: Require the Swift package gate
         if: needs.swift.result != 'success'
@@ -153,11 +155,23 @@ jobs:
       # than a release.
       - run: pnpm -r build
       - run: pnpm -r test
+      # Hold the committed README to its committed evidence before the new
+      # run writes fresh cells. A provisional cell must be reported without
+      # becoming a second, stricter gate through a changed README count.
+      - run: node scripts/matrix-table.mjs --check
       - run: go test ./...
       # The conformance suite is in go test ./... above; it is run again by
       # name so that a failure of the matrix reads as one, and its
       # matrix.json is kept as the run's artifact.
-      - run: go test ./conformance/go -run 'TestSelf|TestStar|TestGenerated' -count=1
+      - run: go test -v ./conformance/go -run 'TestSelf|TestStar|TestGenerated' -count=1
+      - name: Publish the conformance matrix and provisional cells
+        if: always()
+        run: |
+          if [ -f "$NIGHTSEAM_MATRIX_SUMMARY" ]; then
+            cat "$NIGHTSEAM_MATRIX_SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'The conformance run produced no matrix summary; inspect the setup or test failure above.' >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -168,13 +182,6 @@ jobs:
       # yet, since a gate first exercised by the release it refuses is a gate
       # nobody has run.
       - run: node --test 'scripts/*.test.mjs'
-      # The README's Languages table against the matrix the step above just
-      # wrote, as `nightseam check` holds generated output: a table that
-      # drifted fails the pull request that drifted it. This catches a stale
-      # checked-in matrix.json too — the table is rendered from the committed
-      # file and compared against the regenerated one, so a run that moved a
-      # cell shows up here whether or not the file was committed with it.
-      - run: node scripts/matrix-table.mjs --check
       # Every link in every tracked Markdown page resolves to the tree — a
       # file, a directory, a heading — including the repository's own
       # absolute URLs, which the package READMEs use so as to render on npm.
