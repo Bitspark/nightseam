@@ -29,12 +29,15 @@ through family parameters remain unsupported; the
 [generated surface](docs/declaration/generated.md#generic-boundary-helpers)
 distinguishes those limits.
 
-Nightseam is also the implementation home for the adopted typed-access
-foundation and planned optional rooted-grant authentication. The
+Nightseam implements the typed-access foundation and planned optional rooted-grant
+authentication. It will adopt the shared Wire contract from Bitwire when ready,
+as required [0.6.0 work](https://github.com/Bitspark/nightseam/issues/421); the
+runtime, generator and optional auth remain here. The
 [repository-home decision](docs/decisions/the-reusable-foundation-lives-in-nightseam.md)
-records that direction and its boundary: bare data and RPC remain independent
-of auth, and consumers choose trust and application policy. This is planned
-scope, not a claim that the auth packages are available yet.
+records the handover conditions and ownership: bare data and RPC remain independent
+of auth, and consumers choose trust and application policy. Wire adoption and
+auth delivery are planned work, not claims that those dependencies or packages
+are already available.
 
 ### Declare it
 
