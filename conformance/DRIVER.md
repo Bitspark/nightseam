@@ -702,14 +702,14 @@ Allocation counters observe cumulative runtime `ConnectionOpened` and tunnel
 
 | op | arguments | answer |
 | --- | --- | --- |
-| `gen.wire_local` | **`presentation`**: `local`, `mounted`, or `forwarded`; `slot`: `string` (default), `unary`, `factory`, or `nested`; `within_ms` | `{"revisions":[1,2],"value","reverse","changed","noted","setup_allocations","view_allocations","use_allocations","counts":{"caller","callee"},"released_counts":{"caller","callee"}}` — both events and the reverse call complete before counts are returned; both explicit roots are released and reach zero before the carriers close. |
+| `gen.wire_local` | **`presentation`**: `local`, `mounted`, or `forwarded`; `slot`: a value slot described below (`string` by default); `within_ms` | `{"revisions":[1,2],"value","reverse","changed","noted","setup_allocations","view_allocations","use_allocations","counts":{"caller","callee"},"released_counts":{"caller","callee"}}` — both events and the reverse call complete before counts are returned; both explicit roots are released and reach zero before the carriers close. Generic composition slots also return `retained`. |
 | `gen.wire_serve` | **`slot`**, **`carrier`**: `socket` or `channel`, **`presentation`** | `{"handle","url"}` — one Cell implementation serves the selected value slot through its generated adapter. A channel is acquired as a prepared Wire once. |
 | `gen.wire_dial` | **`url`**, **`slot`**, **`carrier`**, **`presentation`** | `{"handle"}` — the opposite model supplies a typed mirror operation and changed-event receiver. |
 | `gen.wire_exercise` | **`on`**, `within_ms` | `{"revisions":[1,2],"value","reverse","changed","setup_allocations","view_allocations","use_allocations","counts"}` — two state changes followed by a read, a reverse call, both events, and invocation of any returned callable values. |
 | `gen.wire_inspect` | **`on`**, `within_ms` | `{"revision":2,"value","noted","setup_allocations","view_allocations","use_allocations","counts"}` — waits for the noted event and observes the retained value and event value while the scope remains open. |
 | `gen.wire_release` | **`on`**, `within_ms` | `{}` — releases the handle's explicit root owner; the carrier stays open. |
 | `gen.wire_counts` | **`on`**, `within_ms` | `{"exports":0,"imports":0}` once the released scope and its retained child lifetimes reach zero, or timeout. |
-| `gen.wire_bridge` | **`origin`** URL, **`slot`**: `factory`, **`presentation`**: `mounted` or `forwarded` | `{"handle","url"}` — derives a model with generated FromWire on the origin scope and passes that same model directly to generated ToWire on an independent destination scope. |
+| `gen.wire_bridge` | **`origin`** URL, **`slot`**: `factory` or a generic composition slot, **`presentation`**: `mounted` or `forwarded` | `{"handle","url"}` — derives a model with generated FromWire on the origin scope and passes that same model directly to generated ToWire on an independent destination scope. |
 | `gen.wire_bridge_counts` | **`on`**, `within_ms` | `{"origin":{"exports","imports"},"destination":{"exports","imports"},"setup_allocations","view_allocations","use_allocations"}` — both middle scopes before or after explicit release, without teardown. |
 | `gen.wire_bridge_release` | **`on`**, `within_ms` | `{}` — releases both middle root owners while both physical connections remain open. |
 
@@ -727,3 +727,20 @@ peer per side. Mounted and forwarded carrier cases preserve the physical
 zero allocation deltas for views and first use, and zero bindings after explicit
 release. The bridge has four physical scopes in total and contains no handwritten
 per-operation or per-slot forwarding wrapper.
+
+The [generic composition table](tables/generic-composition.json) adds five
+slots: `generic-function`, `integer-function`, `generic-factory`,
+`holder-numbers` and `holder-texts`. The first two interpret the same closed
+`Function<integer,integer>` application through supplied argument recipes and
+a source alias. The factory nests that application in both argument positions.
+The two Holder slots draw `Job` and `Progress` from their selected provider,
+inside a nullable array of maps of tagged unions. Observation checks the empty
+arm and label as well as invoking both nested functions.
+
+These slots save the first `get` result before the second `put`, invoke it
+after the replacement and return its observation as `retained` from
+`gen.wire_local` and `gen.wire_exercise`. The ordinary Cell model is unchanged.
+The table covers local, socket, channel and two-connection bridge construction,
+and source-alias versus supplied-argument identity in both endpoint orders.
+Each row names exact allocations and retained binding counts; explicit release
+must reach zero while the physical carriers remain open.

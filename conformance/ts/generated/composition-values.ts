@@ -24,7 +24,7 @@ export const integerFunctionSlot: CompositionSlot<functions.IntegerFunction> = {
   observe: async value => value(5),
 };
 export const genericFactorySlot: CompositionSlot<functions.Factory> = {
-  adapter: functions.adapterFactory(), retain: true,
+  adapter: functions.adapterFunction(genericFunctionSlot.adapter, genericFunctionSlot.adapter), retain: true,
   make: add => async callback => async value => (await callback(value)) + add,
   observe: async value => {
     let calls = 0;

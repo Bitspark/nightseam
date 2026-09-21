@@ -11,6 +11,21 @@ This is the current lockstep release policy. The 0.5.0 removal of the governed
 session layer is a clean break under [COLLABORATION.md](COLLABORATION.md), not
 a permanent compatibility policy for consumers of future releases.
 
+## 0.6.0 candidate evidence
+
+The 0.6.0 candidate requires the completed
+[#365 generic composition workstream](https://github.com/Bitspark/nightseam/issues/365)
+and its [#370 combined acceptance](https://github.com/Bitspark/nightseam/issues/370).
+The candidate task must name #370 as a native prerequisite. Run
+`go test ./cmd/nightseam -run '^TestGenericComposition'`, the complete
+conformance suite and `node scripts/smoke-packed.mjs` against the actual
+candidate. The packed smoke generates and executes both closed callables and
+two-provider family draws with the installed candidate dependencies, and
+separately installs a scalar generic consumer without the live package.
+The older fixed-callable construction table or a closed design issue alone
+does not supply this evidence. These checks do not version or publish a
+candidate.
+
 ## What is published
 
 - **npm**: every package under `*/ts`, in the `@nightseam` organization,

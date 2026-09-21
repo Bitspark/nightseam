@@ -5,9 +5,8 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync,
 import { dirname, join } from "node:path";
 
 export function holdGenericComposition({ root, consumer: probe, go, pnpm, run, step }) {
-  // A separate declaration world keeps the getting-started family's names
-  // out of generic family-draw validation. This is still the same candidate
-  // install: its manifests and tarballs are copied from the packed probe.
+  // The combined corpus is a separate consumer of the same candidate install:
+  // its manifests and tarballs are copied from the packed probe.
   const consumer = join(dirname(probe), "generic-consumer");
   mkdirSync(consumer, { recursive: true });
   for (const name of ["go.mod", "go.sum", "package.json", "pnpm-workspace.yaml", "tarballs"]) {

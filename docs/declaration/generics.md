@@ -238,3 +238,9 @@ render both into one module and hold them equal: by reflection in Go, by
 `Equals<>` under `tsc` in TypeScript, and on the wire, a plain client
 against a generic server and the reverse. `internal/oracle` is the left
 path of that diagram, test support and nothing a consumer sees.
+
+The [combined acceptance findings](proof-findings.md#combined-generic-construction-and-retained-values)
+hold both generic forms through an unchanged Cell model, independent source
+substitution, real connection scopes and installed consumer packages. The
+failure fixtures check nested rollback and retained values under a mutable
+consumer guard; they do not claim exhaustive authentication coverage.

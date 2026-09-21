@@ -99,8 +99,10 @@ func wireIntegerFunctions() wireValues[functions.IntegerFunction] {
 	}
 }
 func wireGenericFactories() wireValues[functions.Factory] {
+	integer := runtime.JSONAdapter[int64]()
+	unary := functions.AdapterFunction(integer, integer)
 	return wireValues[functions.Factory]{
-		adapter: functions.AdapterFactory(),
+		adapter: functions.AdapterFunction(unary, unary),
 		make: func(add int64) functions.Factory {
 			return func(_ context.Context, fn functions.IntegerFunction) (functions.IntegerFunction, error) {
 				return func(ctx context.Context, n int64) (int64, error) {

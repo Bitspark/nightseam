@@ -88,6 +88,63 @@ binding. The independent `Item` argument remains string on both paths. An
 integer item, malformed family envelope, or malformed handle is refused
 on both paths.
 
+## Combined generic construction and retained values
+
+The [combined corpus](../../conformance/corpora/generic-composition) is the
+acceptance fixture for [#363 B](https://github.com/Bitspark/nightseam/issues/363)
+and [#370](https://github.com/Bitspark/nightseam/issues/370). It declares
+`Function<A,B>`, a source alias `IntegerFunction`, a higher-order `Factory`,
+and `Holder<S>` drawing both `S.Job` and `S.Progress`. The two providers put
+integer and string callable applications inside those associated records.
+An unrelated live declaration need not implement the selected family's
+associated types; the actual supplied family must satisfy every draw.
+
+The [shared table](../../conformance/tables/generic-composition.json) supplies
+five slots to the existing, unchanged `Cell<T>` model. Every row performs a
+put/get, retains the first value, replaces it, reads the second, exercises
+the reverse method and both event facets, and invokes the retained value
+after the supplying calls have returned. Nullable arrays, maps, the empty
+union arm and the progress label are checked during observation. A
+higher-order observation verifies that its supplied callback runs once.
+
+| Evidence | Construction held |
+| --- | --- |
+| [GEN-COMPOSE-LOCAL](../../conformance/scenarios/generated/generic-composition-local.json) | Five slots through local, nested mounted and forwarded model Wires |
+| [GEN-COMPOSE-CARRIERS](../../conformance/scenarios/generated/generic-composition-carriers.json) | The same slots and presentations through real sockets and prepared tunnel channels |
+| [GEN-COMPOSE-BRIDGE](../../conformance/scenarios/generated/generic-composition-bridge.json) | The whole model returned by `FromWire(origin)` is supplied directly to `ToWire(destination)` over two connections and four live scopes |
+| [GEN-ID-ROUTES](../../conformance/scenarios/generated/generic-composition-identity.json) | Source-specialized `IntegerFunction` and supplied `Function<integer,integer>` recipes at opposite ends, in both construction orders |
+| [`TestGenericCompositionIndependentRoutes`](../../cmd/nightseam/generic_composition_acceptance_test.go) | Both targets compile and execute source-substituted `Holder` declarations and the unchanged generic declaration with the two supplied provider recipes |
+| [`TestGenericCompositionFailures`](../../cmd/nightseam/generic_composition_failures_test.go) | A nested failure after fresh acquisition, borrowed and unrelated child survival, concurrent independent scopes, and mutable synthetic guard preservation |
+| [Packed consumer](../../scripts/smoke-generic-composition.mjs) | The installed candidate generator builds both forms outside the workspace; scalar Go and TypeScript consumers have no live dependency |
+
+`TestGenerated` runs every shared row in Go/Go, Go/TypeScript and
+TypeScript/Go, with mirrored roles. The table names the exact binding counts
+before release and expects zero after explicit owner release while carriers
+remain open. Allocation observations distinguish carrier setup from view
+construction and first use; selection adds no peer or channel. The bridge
+contains no per-method or per-slot forwarding implementation.
+
+The independent Holder route substitutes the source model with
+`internal/oracle` before either target resolves or renders it. The generic
+route renders the original declaration and supplies value recipes in the
+consumer. They share parsing, target lowering and runtime mechanisms, but
+not the substitution route or generated native types. Callable aliases
+retain the constructor's nominal origin and ordered arguments while their
+specialized helpers emit their own bodies. A new `OtherFunction` with the
+same signature is the negative nominal control. The paired
+[callable identity table](../../conformance/tables/callable-identities.json)
+additionally covers argument order, nesting, reachable revisions and aliases;
+it does not equate a template identity with an applied one.
+
+The synthetic guard belongs to a consumer exposure and rereads mutable
+policy at each protected effect, including returned callbacks and
+local/self-reference and forwarded values. Revoking one exposure leaves
+another exposure of the same reusable type usable. This proves converter
+plumbing; it does not implement the exhaustive exposure binding of #356,
+authenticate a principal, or validate signatures, expiry or grants. The
+fixtures exercise a finite grammar and do not prove higher-rank polymorphism
+or structural callable identity.
+
 ## Path-derived names are readable and do move
 
 `PartImage`, `RichPartTable`, `PartsRequest`, and `OptionNone` read as the
