@@ -8,6 +8,8 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- The generated composition fixture waits for worker completion before
+  asserting finished cancellation, preserving the final callback race.
 - The TypeScript OpenTelemetry adapter retains connection and event-only
   telemetry with the Go reference's connection lifecycle, producer/consumer
   spans and fallback routing, without copying connection events onto requests.
@@ -47,6 +49,11 @@ are one number. Entries are in the words of the commits that landed them.
   Draw constraints follow the actual supplied family, so generic consumers
   derive independently of providers and unrelated families. Missing or nonplain
   members and non-object drawn RPC requests fail before model construction.
+- Rust enters at tier 4 with bounded pipe and WebSocket connections, the
+  duplex peer, schema validation, declaration identity, and relative-path
+  Wire composition. Its private testee runs the shared core scenarios in
+  both roles against Go; packaged crates are held by an outside WebSocket
+  consumer, with Cargo checks and version lockstep in the release gates.
 - C++20 has a bounded frames connection, pipe and WebSocket transports, the
   peer runtime and descriptor validator, held to the shared core scenarios
   against Go in both roles. Its CMake targets are `Nightseam::duplex` and
@@ -61,6 +68,9 @@ are one number. Entries are in the words of the commits that landed them.
 - Python enters at tier 4 with bounded asyncio frame connections, peers,
   descriptor validation, Wire path views and declaration identity exchange,
   held against Go in both socket roles and by an installed-wheel smoke.
+- Python provides bounded local Wire pairs, relative access over existing peers,
+  request/event registration and forwarding, private context composition, and
+  send-local publication proof while retaining cancelled handlers' work budget.
 - Python provides bounded Wire recording and independent following over
   consumer-owned storage, with atomic replay heads, cancellation-safe follower
   ownership and unchanged opaque message capabilities.
@@ -272,6 +282,10 @@ are one number. Entries are in the words of the commits that landed them.
   invocation results, closure, release, cancellation and reference checks.
 
 ### Changed
+
+- The CI conformance star follows the language tiers' blocking verdicts and
+  reports provisional cells in its matrix and job summary; nightly remains
+  strict about every red cell.
 
 - Callable documentation separates named declarations from nominal wire
   identity and states the limits of native function assignment and contract

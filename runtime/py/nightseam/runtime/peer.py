@@ -79,8 +79,11 @@ class Options:
     propagator: object = field(default_factory=DefaultPropagator)
     observer: object = None
     families: dict = field(default_factory=dict)
+    prepare: object = None
 
     def __post_init__(self):
+        if self.prepare is not None and not callable(self.prepare):
+            raise PublicError("invalid_options", "prepare must be callable")
         for name in (
             "max_concurrent_handlers",
             "max_pending_requests",
@@ -136,7 +139,22 @@ class Peer:
         self._finished = asyncio.Event()
         self._close_info = None
         self._tasks = set()
+        self._wire = None
         self._observe("connection.opened", role=role)
+        if self.options.prepare is not None:
+            try:
+                prepared = self.options.prepare(self)
+                if inspect.isawaitable(prepared):
+                    if inspect.iscoroutine(prepared):
+                        prepared.close()
+                    raise PublicError("invalid_options", "prepare must finish synchronously before reads start")
+            except BaseException:
+                self.connection.abort()
+                self._closed.set()
+                self._finished.set()
+                if self._wire is not None:
+                    self._wire._ended(1006, "preparation failed")
+                raise
         self._spawn(self._writer())
         self._spawn(self._reader())
         self._spawn(self._deliver_events())
@@ -144,6 +162,14 @@ class Peer:
     @property
     def status(self):
         return "disconnected" if self._closed.is_set() else "connected"
+
+    def wire(self):
+        """Return the stable relative-path root over this peer's connection."""
+        if self._wire is None:
+            from .peer_wire import PeerWire
+
+            self._wire = PeerWire(self)
+        return self._wire
 
     def _spawn(self, coroutine):
         task = asyncio.create_task(coroutine)
@@ -224,6 +250,64 @@ class Peer:
         return envelope
 
     async def call(self, method, params=ABSENT, *, timeout_ms=None, context=None, meta=ABSENT):
+        return await self._call(method, params, timeout_ms=timeout_ms, context=context, meta=meta)
+
+    async def _call(
+        self,
+        method,
+        params=ABSENT,
+        *,
+        timeout_ms=None,
+        context=None,
+        meta=ABSENT,
+        trace_override=None,
+        on_admitted=None,
+        immediate=False,
+    ):
+        from .publication import unpublished
+
+        accepted = False
+
+        def admitted():
+            nonlocal accepted
+            accepted = True
+            if on_admitted is not None:
+                on_admitted()
+
+        try:
+            return await self._call_admitting(
+                method,
+                params,
+                timeout_ms=timeout_ms,
+                context=context,
+                meta=meta,
+                trace_override=trace_override,
+                on_admitted=admitted,
+                immediate=immediate,
+            )
+        except asyncio.CancelledError as error:
+            if accepted:
+                raise
+            # asyncio.timeout on Python 3.11/3.12 requires the exact native
+            # cancellation type. Preserve send-local proof as its cause.
+            raise asyncio.CancelledError(*error.args) from unpublished(error)
+        except Exception as error:
+            if accepted:
+                raise
+            raise unpublished(error) from error
+
+    async def _call_admitting(
+        self,
+        method,
+        params=ABSENT,
+        *,
+        timeout_ms=None,
+        context=None,
+        meta=ABSENT,
+        trace_override=None,
+        on_admitted=None,
+        immediate=False,
+    ):
         require_name(method)
         timeout_ms = self.options.request_timeout_ms if timeout_ms is None else timeout_ms
         if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int) or timeout_ms <= 0:
@@ -236,7 +320,9 @@ class Peer:
         if self._next > 9007199254740991:
             raise PublicError("identifier_exhausted", "create a new peer before further calls")
         request_id = self._prefix + str(self._next)
-        trace = self.options.propagator.inject(context or _context.get())
+        trace = (
+            trace_override if trace_override is not None else self.options.propagator.inject(context or _context.get())
+        )
         future = asyncio.get_running_loop().create_future()
         # A shutdown may settle a caller which is still unwinding a send.
         future.add_done_callback(lambda done: None if done.cancelled() else done.exception())
@@ -246,6 +332,8 @@ class Peer:
         def admitted():
             nonlocal accepted
             accepted = True
+            if on_admitted is not None:
+                on_admitted()
 
         self._pending[request_id] = pending
         self._observe(
@@ -264,7 +352,7 @@ class Peer:
                     },
                     meta,
                 )
-                await self._send(envelope, method, accepted=admitted)
+                await self._send(envelope, method, accepted=admitted, immediate=immediate)
                 return await asyncio.shield(future)
         except (TimeoutError, asyncio.CancelledError) as error:
             if self._pending.pop(request_id, None) is not None:
@@ -284,13 +372,58 @@ class Peer:
             raise
 
     async def emit(self, event, data=ABSENT, *, context=None, meta=ABSENT):
+        await self._emit(event, data, context=context, meta=meta)
+
+    async def _emit(self, event, data=ABSENT, *, context=None, meta=ABSENT, trace_override=None, immediate=False):
+        from .publication import unpublished
+
+        accepted = False
+
+        def admitted():
+            nonlocal accepted
+            accepted = True
+
+        try:
+            await self._emit_admitting(
+                event,
+                data,
+                context=context,
+                meta=meta,
+                trace_override=trace_override,
+                on_admitted=admitted,
+                immediate=immediate,
+            )
+        except asyncio.CancelledError as error:
+            if accepted:
+                raise
+            raise asyncio.CancelledError(*error.args) from unpublished(error)
+        except Exception as error:
+            if accepted:
+                raise
+            raise unpublished(error) from error
+
+    async def _emit_admitting(
+        self,
+        event,
+        data=ABSENT,
+        *,
+        context=None,
+        meta=ABSENT,
+        trace_override=None,
+        on_admitted=None,
+        immediate=False,
+    ):
         require_name(event)
-        trace = self.options.propagator.inject(context or _context.get())
+        trace = (
+            trace_override if trace_override is not None else self.options.propagator.inject(context or _context.get())
+        )
         await self._send(
             self._carriage(
                 {"version": 1, "kind": "event", "event": event, "data": None if data is ABSENT else data, **trace}, meta
             ),
             event,
+            accepted=on_admitted,
+            immediate=immediate,
         )
 
     def _cancel_request(self, request_id, trace, method):
@@ -455,7 +588,8 @@ class Peer:
             )
             return
         context = RequestContext(self, request_id, meta=envelope.get("meta", ABSENT), raw=raw)
-        self.options.propagator.extract(context, trace)
+        context._received_trace = dict(trace)
+        self.options.propagator.extract(context, dict(trace))
         entry = _Incoming(method, context, trace)
         self._incoming[request_id] = entry
         self._observe(
@@ -480,6 +614,8 @@ class Peer:
                 await self._respond(request_id, entry, outcome="cancelled")
                 return
             handler = self._handlers.get(entry.method)
+            if handler is None and self._wire is not None:
+                handler = self._wire._handler(entry.method)
             if handler is None:
                 raise PublicError("method_not_found", "unknown method " + entry.method)
             result = handler(params, entry.context)
@@ -550,7 +686,8 @@ class Peer:
                 envelope, raw, size = await self._events.get()
                 name, trace = envelope["event"], self._trace(envelope)
                 context = RequestContext(self, meta=envelope.get("meta", ABSENT), raw=raw)
-                self.options.propagator.extract(context, trace)
+                context._received_trace = dict(trace)
+                self.options.propagator.extract(context, dict(trace))
                 self._observe("event.delivered", name=name, bytes=size, trace=trace, family=self._family(name))
                 token = _context.set(context)
                 try:
@@ -568,6 +705,8 @@ class Peer:
                                     await result
                             except Exception:
                                 pass  # A listener's failure cannot interrupt later events.
+                        if self._wire is not None:
+                            await self._wire._event(name, envelope["data"], context)
                 finally:
                     _context.reset(token)
         except TimeoutError:
@@ -581,6 +720,8 @@ class Peer:
             return
         self._close_info = {"code": code, "reason": reason, "clean": code == 1000}
         self._closed.set()
+        if self._wire is not None:
+            self._wire._ended(code, reason)
         for request_id, entry in list(self._pending.items()):
             self._ended(request_id, entry, False, "error", "disconnected")
             entry.future.set_exception(PublicError("disconnected", "connection ended"))

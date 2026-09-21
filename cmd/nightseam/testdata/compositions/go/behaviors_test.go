@@ -104,6 +104,17 @@ func TestSuppliedCallbackAndReturnedCallable(t *testing.T) {
 	if status.State != "done" || status.Delivered != 4 {
 		t.Fatalf("the job says %#v", status)
 	}
+	// The callback and status become visible before the worker receives the
+	// final acknowledgement. Only its completion channel says it has ended.
+	finished := workers.worker.jobFor("one")
+	if finished == nil {
+		t.Fatal("the worker made no job")
+	}
+	select {
+	case <-finished.done:
+	case <-ctx.Done():
+		t.Fatalf("waiting for worker completion: %v", ctx.Err())
+	}
 	// Cancelling a job that has ended is the application's refusal, by the
 	// code the family declares.
 	if _, err := job.Cancel(ctx); !jobprotocol.IsError(err, jobprotocol.ErrorJobFinished) {
