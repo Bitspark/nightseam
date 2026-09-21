@@ -68,12 +68,13 @@ func (f *file) liveImports() {
 // that declares live types, as values. Both generated modules need them: the
 // one that declares the conversion and the one that calls it.
 func (f *file) liveSiblings() {
+	arguments := f.completeFamilyImports()
 	for _, family := range f.plan.references() {
 		other := f.family.ReferencedFamily(family)
 		if other == nil {
 			continue
 		}
-		needed := other.Live
+		needed := other.Live || arguments[family]
 		for _, t := range other.Types {
 			needed = needed || len(t.Uses) > 0
 		}
@@ -82,6 +83,50 @@ func (f *file) liveSiblings() {
 		}
 		f.linef("import * as %s from %s;", liveAlias(family), quote(f.config.pkg(family)))
 	}
+}
+
+// Complete live helpers receive concrete family dictionaries as values even
+// when that provider has no live declarations or generic conversion helpers.
+// Inspect the expressions whose conversions are emitted, rather than promoting
+// every ordinary type-only dependency to a family-value import.
+func (f *file) completeFamilyImports() map[string]bool {
+	imports := map[string]bool{}
+	visit := func(expression model.TypeExpr) {
+		model.Walk(expression, func(expression model.TypeExpr) bool {
+			if t, arguments := f.family.Conversion(expression); t != nil && t.IsLive {
+				for _, argument := range arguments {
+					if argument.Family != "" {
+						imports[argument.Family] = true
+					}
+				}
+			}
+			return true
+		})
+	}
+	for _, t := range f.family.Types {
+		for _, field := range t.Fields {
+			visit(field.Type)
+		}
+		for _, variant := range t.Variants {
+			visit(variant.Type)
+		}
+		if callable, ok := f.family.CallableView(t); ok {
+			visit(callable.Request)
+			visit(callable.Result)
+		} else {
+			visit(t.Alias)
+		}
+	}
+	for _, side := range []render.Side{f.family.Server, f.family.Client} {
+		for _, method := range side.Methods {
+			visit(method.Request)
+			visit(method.Result)
+		}
+		for _, event := range side.Events {
+			visit(event.Type)
+		}
+	}
+	return imports
 }
 
 // liveAlias is the namespace a referenced family's conversion functions are

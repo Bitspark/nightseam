@@ -21,7 +21,19 @@ import (
 
 func genericCallableWorld() analysis.World {
 	fixtures := map[string]map[string]string{
-		"boxes": {"model.json": `{"nightseam":2,"types":{"Box":{"kind":"record","parameters":[{"name":"T"}],"fields":[{"name":"item","type":"T"}]}}}`},
+		"boxes":    {"model.json": `{"nightseam":2,"types":{"Box":{"kind":"record","parameters":[{"name":"T"}],"fields":[{"name":"item","type":"T"}]}}}`},
+		"provider": {"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(``)},
+		"ordinary": {"model.json": `{"nightseam":2,"types":{"Payload":{"kind":"record","fields":[{"name":"label","type":"string"}]}}}`},
+		"factory": {
+			"model.json":    `{"nightseam":2,"types":{"Job":{"kind":"record","fields":[]}}}`,
+			"protocol.json": modeltest.Protocol(`"parameters":[{"name":"S","of":"protocol"}]`),
+			"live.json":     `{"types":{"Handler":{"kind":"callable","request":"S.Envelope","result":"S.Envelope"}}}`,
+		},
+		"exposure": {
+			"model.json":    `{"nightseam":2,"types":{"Job":{"kind":"record","fields":[]}}}`,
+			"protocol.json": modeltest.Protocol(``),
+			"live.json":     `{"imports":["factory","provider","ordinary"],"types":{"Uses":{"kind":"record","fields":[{"name":"run","type":{"apply":"factory.Handler","with":{"S":"provider"}}},{"name":"tag","type":"ordinary.Payload"}]}}}`,
+		},
 		"worker": {
 			"model.json":    `{"nightseam":2,"types":{"Empty":{"kind":"record","fields":[]}}}`,
 			"protocol.json": modeltest.Protocol(``),
@@ -59,6 +71,27 @@ func genericCallableWorld() analysis.World {
 		world[name] = family
 	}
 	return world
+}
+
+func TestConcreteCallableFamilyArgumentsImportTheirValues(t *testing.T) {
+	world := genericCallableWorld()
+	for _, name := range []string{"exposure", "factory"} {
+		files, err := New(Config{Scope: "@example"}).Render(render.Build(analysis.Resolve(world, name)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var output strings.Builder
+		for _, file := range files {
+			output.Write(file.Data)
+		}
+		got := output.String()
+		if name == "exposure" && !strings.Contains(got, `import * as live_provider from "@example/provider-client"`) {
+			t.Fatal("concrete callable family argument has no value import")
+		}
+		if strings.Contains(got, "import * as live_ordinary") || name == "factory" && strings.Contains(got, "provider-client") {
+			t.Fatal("value imports escaped the concrete callable application")
+		}
+	}
 }
 
 func TestGenericCallableHelpersRetainCompleteRecipes(t *testing.T) {
@@ -170,6 +203,7 @@ import {LiveOwner,liveOver,valueEnvironment} from '@nightseam/live';
 import * as worker from '@example/worker-client/types';
 import * as scoped from '@example/scoped-client/types';
 import * as specialized from '@example/specialized-client/types';
+import * as exposure from '@example/exposure-client/types';
 import {toWire,fromWire} from '@example/worker-binding';
 const number=jsonAdapter<number>({type:'integer',validate:worker.validateWire});
 const text=jsonAdapter<string>({type:'string',validate:worker.validateWire});
@@ -183,6 +217,7 @@ await Promise.all([0,1].map(async index=>{
  const [a,b]=pipe();const pa=new DuplexPeer({role:'client'}),pb=new DuplexPeer({role:'server'});const sa=liveOver(pa),sb=liveOver(pb);await Promise.all([pa.attach(a),pb.attach(b)]);
  try{
   const ownerA=sa.owner(),ownerB=sb.owner();
+  const concrete=exposure.adapterUses();const interpreted=concrete.import(ownerB,concrete.export(ownerA,{run:async value=>value,tag:{label:'data-only provider'}}));assert.equal(typeof interpreted.run,'function');
   const raw=interpretation.export(ownerA,async value=>value+index+1);const fn=interpretation.import(ownerB,raw);assert.equal(await fn(4),5+index);
   const closed=worker.importClosed(ownerB,raw);assert.equal(await closed(4),5+index);const external=specialized.importAppliedClosed(ownerB,raw);assert.equal(await external(4),5+index);const general=worker.importFunction(ownerB,specialized.exportAppliedClosed(ownerA,async value=>value*2),number,number);assert.equal(await general(4),8);
   assert.throws(()=>worker.importFunction(ownerB,raw,text,text),(error:unknown)=>error instanceof DuplexError&&error.code==='contract_mismatch');
