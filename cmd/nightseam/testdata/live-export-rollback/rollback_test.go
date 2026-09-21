@@ -73,9 +73,7 @@ func TestGeneratedLiveExportRollback(t *testing.T) {
 				case "generic":
 					_, err = protocol.ExportGeneric(sa.Owner(), protocol.Generic{{Item: fn}, {Item: fn}})
 				case "generic-live":
-					_, err = protocol.ExportBound(sa.Owner(), protocol.Bound[protocol.Call]{First: fn, Last: fn}, func(owner *live.Owner, input protocol.Call) (json.RawMessage, error) {
-						return protocol.ExportCall(owner, input)
-					}, runtime.TypeBinding{})
+					_, err = protocol.ExportBound(sa.Owner(), protocol.Bound[protocol.Call]{First: fn, Last: fn}, protocol.AdapterCall())
 				case "serialization":
 					_, err = protocol.ExportFailure(sa.Owner(), protocol.Failure{First: fn, Last: json.RawMessage(`{`)})
 				case "request":

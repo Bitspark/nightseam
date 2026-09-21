@@ -64,6 +64,7 @@ func (u *parameterUses) declaration(t *model.Type, scope []model.Parameter) []Us
 		sets = append(sets, u.expression(field.Type, scope))
 	}
 	sets = append(sets, u.expression(t.Alias, scope))
+	sets = append(sets, u.expression(t.Request, scope), u.expression(t.Result, scope))
 	for _, variant := range t.Variants {
 		sets = append(sets, u.expression(variant.Type, scope))
 	}

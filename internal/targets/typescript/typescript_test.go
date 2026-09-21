@@ -145,7 +145,7 @@ func TestRenderPlacesTheClient(t *testing.T) {
 	for _, file := range files {
 		paths = append(paths, file.Path)
 	}
-	if got := strings.Join(paths, " "); got != "api/ts/x-client/src/types.ts api/ts/x-client/src/index.ts api/ts/x-client/package.json api/ts/x-client/tsconfig.json api/ts/x-binding/src/index.ts api/ts/x-binding/package.json api/ts/x-binding/tsconfig.json" {
+	if got := strings.Join(paths, " "); got != "api/ts/x-client/src/types.ts api/ts/x-client/src/index.ts api/ts/x-client/package.json api/ts/x-client/tsconfig.json api/ts/x-client/src/test.ts api/ts/x-binding/src/index.ts api/ts/x-binding/package.json api/ts/x-binding/tsconfig.json api/ts/x-binding/src/test.ts" {
 		t.Fatalf("placed at %s", got)
 	}
 	index := string(files[1].Data)

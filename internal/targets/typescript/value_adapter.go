@@ -28,7 +28,7 @@ func (f *file) emitValueAdapters() {
 		}
 		f.scope = t.Scope
 		self := f.plan.types[t.Name] + apply(t.Uses)
-		var parameters, bindings, live, exports, imports []string
+		var factoryParameters, bindings, live, exports, imports []string
 		if t.IsLive {
 			live = append(live, "true")
 		}
@@ -38,10 +38,10 @@ func (f *file) emitValueAdapters() {
 			parameter, _ := f.parameter(use.Parameter)
 			if !seen[use.Parameter] {
 				if parameter.IsFamily() {
-					parameters = append(parameters, name+": "+familyBindingType(use.Parameter, t.Uses))
+					factoryParameters = append(factoryParameters, name+": "+familyBindingType(use.Parameter, t.Uses))
 					bindings = append(bindings, quote(use.Parameter)+": "+name)
 				} else {
-					parameters = append(parameters, name+": ValueAdapter<"+use.Parameter+">")
+					factoryParameters = append(factoryParameters, name+": ValueAdapter<"+use.Parameter+">")
 					bindings = append(bindings, quote(use.Parameter)+": "+name+".binding")
 					live = append(live, name+".needsContext")
 				}
@@ -65,10 +65,12 @@ func (f *file) emitValueAdapters() {
 		if len(live) == 0 {
 			live = append(live, "false")
 		}
-		f.w.Block(fmt.Sprintf("export function %s%s(%s): ValueAdapter<%s> {", valueAdapterName(f.plan.types[t.Name]), f.declare(t.Uses), strings.Join(parameters, ", "), self), "}", func() {
+		f.w.Block(fmt.Sprintf("export function %s%s(%s): ValueAdapter<%s> {", valueAdapterName(f.plan.types[t.Name]), f.declare(t.Uses), strings.Join(factoryParameters, ", "), self), "}", func() {
 			for _, use := range t.Uses {
 				if use.Type != "" {
 					f.linef("const type_%s_%s = familyTypeAdapter(slot_%s, %s);", use.Parameter, use.Type, use.Parameter, quote(use.Type))
+				} else {
+					f.linef("if (typeof slot_%s.export !== 'function' || typeof slot_%s.import !== 'function') throw new Error('missing complete value interpretation for %s');", use.Parameter, use.Parameter, use.Parameter)
 				}
 			}
 			f.linef("const slots: Slots = { %s };", strings.Join(bindings, ", "))
@@ -100,7 +102,13 @@ func (f *file) emitValueAdapters() {
 								if t.IsLive {
 									args = append([]string{"owner!"}, args...)
 								}
-								args = append(args, converters...)
+								if t.IsLive && len(t.Uses) > 0 {
+									for _, name := range parameters(t.Uses) {
+										args = append(args, "slot_"+name)
+									}
+								} else {
+									args = append(args, converters...)
+								}
 								converted = helper + apply(t.Uses) + "(" + strings.Join(args, ", ") + ")"
 							} else if !export {
 								converted += " as " + self
@@ -185,6 +193,25 @@ func (f *file) operationSlot(e model.TypeExpr) string {
 	return ""
 }
 
+func (f *file) valueSlot(e model.TypeExpr) string {
+	if slot := f.operationSlot(e); slot != "" {
+		return slot
+	}
+	if !f.completeCodecs {
+		return ""
+	}
+	for _, use := range f.codecs {
+		if model.String(useExpression(use)) != model.String(e) {
+			continue
+		}
+		if use.Type != "" {
+			return "slot_" + use.Parameter + ".types[" + quote(use.Type) + "]"
+		}
+		return "slot_" + use.Parameter
+	}
+	return ""
+}
+
 func (f *file) bindingValue(name string) string {
 	if parameter, ok := f.parameter(name); ok && !parameter.IsFamily() {
 		return bindingName(name) + ".binding"
@@ -200,7 +227,7 @@ func (f *file) boundaryLive(e model.TypeExpr) string {
 	if f.family.IsLive(e) {
 		return "true"
 	}
-	if slot := f.operationSlot(e); slot != "" {
+	if slot := f.valueSlot(e); slot != "" {
 		return slot + ".needsContext"
 	}
 	switch x := e.(type) {

@@ -144,8 +144,8 @@ func (c *checker) type_(t *model.Type, name string, context int, scope []model.P
 }
 
 // callable holds the live tier's own kind: it is declared in the live tier
-// and nowhere else, it takes no parameters of its own, and its request and
-// result are ordinary type expressions of its tier or below.
+// and nowhere else, and its request and result are ordinary type expressions
+// of its tier or below. Type arguments are fixed before a callable is exported.
 //
 // The tier rule then does the rest of the work with no machinery of its
 // own. A callable is declared in live.json, so its rank is the live tier's,
@@ -156,9 +156,6 @@ func (c *checker) type_(t *model.Type, name string, context int, scope []model.P
 func (c *checker) callable(t *model.Type, where site) {
 	if t.At.File != model.LiveFile {
 		c.Addf(t.At.Sub("kind"), "callable_tier", "Callable %s is declared in %s; a callable is the live tier's kind and is declared in %s, which is what keeps a value of a lower tier self-contained data.", t.Name, t.At.File, model.LiveFile)
-	}
-	if len(t.Parameters) > 0 {
-		c.Addf(t.At.Sub("parameters", 0), "callable_parameters", "Callable %s declares parameters. Generic callables are not supported yet: the current contract names declarations and does not define identities for applied callable arguments. Use nongeneric callable declarations.", t.Name)
 	}
 	if t.Request != nil {
 		c.expression(t.Request, t.At.Sub("request"), where)

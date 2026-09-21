@@ -49,6 +49,9 @@ createValidator
 withDeclaration
 jsonAdapter
 familyTypeAdapter
+validateDrawnType
+callableIdentity
+DeclarationIdentity
 declarationDigest
 identityHandler
 IDENTITY_METHOD

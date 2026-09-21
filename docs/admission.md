@@ -24,7 +24,11 @@ admits the selected optional rooted-grant authority profile here. Its
 evidence checking and guard preservation are reusable mechanism; consumers
 still choose trust, issued authority and resource policy. This extends the
 admitted scope explicitly, without admitting a general policy or proof engine.
-Admission is not a claim that the implementation has shipped.
+The revised decision also selects Bitwire for the shared Wire contract once
+ready; Nightseam's runtime, declaration model and optional-auth implementation
+remain here. [#421](https://github.com/Bitspark/nightseam/issues/421) holds that
+contract adoption in 0.6.0. Admission is not a claim that either the dependency
+migration or an admitted implementation has shipped.
 
 Three arguments are named here because each was made once and does not
 count. **It already exists**: the present inventory may itself be misplaced,

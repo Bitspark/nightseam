@@ -1,1 +1,0 @@
-{"types": {"Handler": {"kind": "callable", "parameters": [{"name": "T"}], "request": "T"}, "Sink": {"kind": "record", "fields": [{"name": "at", "type": {"apply": "Handler", "with": {"T": "Payload"}}}]}}, "server": {"methods": {"watch": {"request": "Sink", "result": "Payload"}}}}

@@ -156,6 +156,12 @@ func (f *file) conversionCall(e model.TypeExpr, src, dst string, export bool) (s
 		passed = append(passed, "owner")
 	}
 	passed = append(passed, src)
+	if t.IsLive && len(t.Uses) > 0 {
+		for i, argument := range arguments {
+			passed = append(passed, f.completeAdapter(argument.Expression(), fmt.Sprintf("%sAdapter%d", dst, i)))
+		}
+		return call, strings.Join(passed, ", ")
+	}
 	for i, argument := range arguments {
 		expr := argument.Expression()
 		name := fmt.Sprintf("%sConvert%d", dst, i)
@@ -183,6 +189,85 @@ func (f *file) conversionCall(e model.TypeExpr, src, dst string, export bool) (s
 		passed = append(passed, name, binding)
 	}
 	return call, strings.Join(passed, ", ")
+}
+
+func (f *file) completeParameters(t *render.Type) string {
+	var out string
+	for _, use := range t.Uses {
+		name := parameterName(use)
+		out += ", adapter" + name + " " + f.runtime() + ".ValueAdapter[" + name + "]"
+	}
+	return out
+}
+
+func (f *file) completeArguments(t *render.Type) string {
+	var out string
+	for _, use := range t.Uses {
+		out += ", adapter" + parameterName(use)
+	}
+	return out
+}
+
+// A callable retains both recipes, never a directional converter closed over
+// the context that happened to export it. Each nested recipe receives the
+// context of its later invocation, including that invocation's active batch.
+func (f *file) completeAdapter(e model.TypeExpr, name string) string {
+	if codec := f.parameterConverter(e); codec != "" {
+		return f.adapterPrefix + "adapter" + strings.TrimPrefix(codec, "convert")
+	}
+	adapters := f.adapters
+	prefix := f.adapterPrefix
+	f.adapters = true
+	if prefix != "" {
+		for _, use := range f.codecs {
+			parameter := "adapter" + parameterName(use)
+			f.linef("%s%s := %s%s", name, parameter, prefix, parameter)
+		}
+		f.adapterPrefix = name
+	}
+	defer func() { f.adapters, f.adapterPrefix = adapters, prefix }()
+	native := f.spell(e)
+	binding := name + "Binding"
+	f.linef("%s := %s.TypeBinding{Schema: %s, Type: %s.MustTypeExpression(%s)}", binding, f.runtime(), f.boundSchema(f.uses), f.runtime(), expression(e))
+	f.w.Block(fmt.Sprintf("%s := %s.ValueAdapter[%s]{", name, f.runtime(), native), "}", func() {
+		f.linef("Binding: %s, NeedsContext: %s,", binding, f.expressionLive(e))
+		f.w.Block(fmt.Sprintf("Export: func(ctx %s.Context, value %s) (%s.RawMessage, error) {", f.std("context"), native, f.std("json")), "},", func() {
+			if f.family.IsLive(e) {
+				f.nativeOwner("nil, ")
+			}
+			f.liveExpr(e, "value", "converted", true, "nil")
+			f.linef("if err := %s.Schema.ValidateExpressionRaw(%s.Type, converted); err != nil { return nil, err }", binding, binding)
+			f.line("return converted, nil")
+		})
+		f.w.Block(fmt.Sprintf("Import: func(ctx %s.Context, raw %s.RawMessage) (%s, error) {", f.std("context"), f.std("json"), native), "},", func() {
+			f.linef("var zero %s", native)
+			if f.family.IsLive(e) {
+				f.nativeOwner("zero, ")
+			}
+			f.linef("if err := %s.Schema.ValidateExpressionRaw(%s.Type, raw); err != nil { return zero, err }", binding, binding)
+			f.liveExpr(e, "raw", "converted", false, "zero")
+			f.line("return converted, nil")
+		})
+	})
+	return name
+}
+
+// Lower owner-based helpers have no invocation context argument. Their neutral
+// adapter is also the implementation, so the primary adapter route preserves
+// the caller's context while these explicit helpers start from the owner.
+func (f *file) emitCompleteLiveConversion(t *render.Type) {
+	self := f.spell(model.Named{Name: t.Name})
+	for _, export := range []bool{true, false} {
+		name, input, result, value, method := f.plan.exports[t.Name], "v "+self, f.std("json")+".RawMessage", "v", "Export"
+		if !export {
+			name, input, result, value, method = f.plan.imports_[t.Name], "raw "+f.std("json")+".RawMessage", self, "raw", "Import"
+		}
+		f.line("")
+		f.w.Block(fmt.Sprintf("func %s%s(owner *%s.Owner, %s%s) (%s, error) {", name, declare(t.Uses), f.live(), input, f.completeParameters(t), result), "}", func() {
+			f.linef("ctx := %s.WithOwner(%s.Background(), owner)", f.live(), f.std("context"))
+			f.linef("return %s%s%s(%s).%s(ctx, %s)", identAdapter, f.plan.types[t.Name], apply(t.Uses), strings.TrimPrefix(f.completeArguments(t), ", "), method, value)
+		})
+	}
 }
 
 // A concrete native converter already receives its owner parameter. Only a

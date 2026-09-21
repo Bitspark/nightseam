@@ -22,6 +22,7 @@ type file struct {
 	scope             []model.Parameter
 	codecs            []render.Use
 	scopedCodecs      bool
+	completeCodecs    bool
 	operationAdapters bool
 	adapterReceiver   string
 	// conversion is the namespace a live type's generated export/import is
@@ -88,7 +89,7 @@ func (f *file) imports(validators bool) {
 // family's wire description by the runtime.
 func emitTypes(f *file) {
 	p, fam := f.plan, f.family
-	f.linef("import { createValidator, withDeclaration, jsonAdapter, familyTypeAdapter, DuplexError, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
+	f.linef("import { createValidator, withDeclaration, jsonAdapter, familyTypeAdapter, callableIdentity, DuplexError, type DeclarationIdentity, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
 	f.linef("export type { %s, %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots)
 	f.imports(true)
 	f.liveImports()

@@ -433,6 +433,8 @@ func (s *Schema) freeParameters(t *wireType, seen map[*wireType]bool) []wirePara
 				return
 			}
 			if _, inline := v["kind"]; inline {
+				walk(v["request"])
+				walk(v["result"])
 				if items, ok := v["fields"].([]any); ok {
 					for _, item := range items {
 						if field, ok := item.(map[string]any); ok {
@@ -454,6 +456,8 @@ func (s *Schema) freeParameters(t *wireType, seen map[*wireType]bool) []wirePara
 		}
 	}
 	walk(t.Type)
+	walk(t.Request)
+	walk(t.Result)
 	for _, field := range t.Fields {
 		walk(field.Type)
 	}
@@ -790,6 +794,10 @@ func (e expression) validate(value any, location string) error {
 		t := r.definition
 		switch t.Kind {
 		case "callable":
+			identity, err := r.expectedCallableIdentity(e)
+			if err != nil {
+				return err
+			}
 			// A live value on the wire is a reference to one binding: the
 			// binding, opaque here, and the contract it implements. The
 			// contract is **nominal**, so the only reference this position
@@ -804,7 +812,7 @@ func (e expression) validate(value any, location string) error {
 			// runtime's to answer when it imports it.
 			obj, ok := value.(map[string]any)
 			if !ok {
-				return bad("a live reference to " + t.Contract)
+				return bad("a live reference to " + identity.Path)
 			}
 			binding, ok := obj["binding"].(string)
 			if !ok || binding == "" {
@@ -814,8 +822,8 @@ func (e expression) validate(value any, location string) error {
 			if !ok {
 				return fmt.Errorf("%s.contract: a live reference carries the declaration it implements", location)
 			}
-			if contract != t.Contract {
-				return fmt.Errorf("%s.contract: the reference carries %s where %s is expected", location, contract, t.Contract)
+			if contract != identity.Path {
+				return fmt.Errorf("%s.contract: the reference carries %s where %s is expected", location, contract, identity.Path)
 			}
 			digest := ""
 			if value, present := obj["digest"]; present {
@@ -825,8 +833,8 @@ func (e expression) validate(value any, location string) error {
 					return fmt.Errorf("%s.digest: expected lowercase SHA-256 digest", location)
 				}
 			}
-			if digest != "" && r.schema.digest != "" && digest != r.schema.digest {
-				return &PublicError{Code: "contract_mismatch", Message: fmt.Sprintf("%s.digest: the reference to %s carries declaration digest %s where %s is expected", location, t.Contract, digest, r.schema.digest)}
+			if digest != "" && identity.Digest != "" && digest != identity.Digest {
+				return &PublicError{Code: "contract_mismatch", Message: fmt.Sprintf("%s.digest: the reference to %s carries declaration digest %s where %s is expected", location, identity.Path, digest, identity.Digest)}
 			}
 			for _, key := range sortedKeys(obj) {
 				if key != "binding" && key != "contract" && key != "digest" {

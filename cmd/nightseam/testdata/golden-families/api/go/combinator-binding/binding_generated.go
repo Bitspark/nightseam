@@ -116,15 +116,32 @@ func (c *serverMethods) Pack(ctx context.Context, params boxesprotocol.Box[proto
 			}
 			convertedConvert0 := func(input json.RawMessage) (protocol.Bundle[protocol.Count], error) {
 				var zero protocol.Bundle[protocol.Count]
-				convertedConvert0 := func(owner *live.Owner, input json.RawMessage) (protocol.Count, error) {
-					var zero protocol.Count
-					var converted protocol.Count
-					if err := json.Unmarshal(input, &converted); err != nil {
-						return zero, err
-					}
-					return converted, nil
+				convertedAdapter0Binding := runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")}
+				convertedAdapter0 := runtime.ValueAdapter[protocol.Count]{
+					Binding: convertedAdapter0Binding, NeedsContext: false,
+					Export: func(ctx context.Context, value protocol.Count) (json.RawMessage, error) {
+						converted, err := runtime.MarshalJSON(value)
+						if err != nil {
+							return nil, err
+						}
+						if err := convertedAdapter0Binding.Schema.ValidateExpressionRaw(convertedAdapter0Binding.Type, converted); err != nil {
+							return nil, err
+						}
+						return converted, nil
+					},
+					Import: func(ctx context.Context, raw json.RawMessage) (protocol.Count, error) {
+						var zero protocol.Count
+						if err := convertedAdapter0Binding.Schema.ValidateExpressionRaw(convertedAdapter0Binding.Type, raw); err != nil {
+							return zero, err
+						}
+						var converted protocol.Count
+						if err := json.Unmarshal(raw, &converted); err != nil {
+							return zero, err
+						}
+						return converted, nil
+					},
 				}
-				converted, err := protocol.ImportBundle[protocol.Count](owner, input, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")})
+				converted, err := protocol.ImportBundle[protocol.Count](owner, input, convertedAdapter0)
 				if err != nil {
 					return zero, err
 				}
@@ -327,14 +344,32 @@ func bindServer(wire duplex.Wire, lookup func() protocol.Server, environment run
 						return value, fmt.Errorf("a live conversion requires an active owner")
 					}
 					convertedConvert0 := func(input protocol.Bundle[protocol.Count]) (json.RawMessage, error) {
-						convertedConvert0 := func(owner *live.Owner, input protocol.Count) (json.RawMessage, error) {
-							converted, err := runtime.MarshalJSON(input)
-							if err != nil {
-								return nil, err
-							}
-							return converted, nil
+						convertedAdapter0Binding := runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")}
+						convertedAdapter0 := runtime.ValueAdapter[protocol.Count]{
+							Binding: convertedAdapter0Binding, NeedsContext: false,
+							Export: func(ctx context.Context, value protocol.Count) (json.RawMessage, error) {
+								converted, err := runtime.MarshalJSON(value)
+								if err != nil {
+									return nil, err
+								}
+								if err := convertedAdapter0Binding.Schema.ValidateExpressionRaw(convertedAdapter0Binding.Type, converted); err != nil {
+									return nil, err
+								}
+								return converted, nil
+							},
+							Import: func(ctx context.Context, raw json.RawMessage) (protocol.Count, error) {
+								var zero protocol.Count
+								if err := convertedAdapter0Binding.Schema.ValidateExpressionRaw(convertedAdapter0Binding.Type, raw); err != nil {
+									return zero, err
+								}
+								var converted protocol.Count
+								if err := json.Unmarshal(raw, &converted); err != nil {
+									return zero, err
+								}
+								return converted, nil
+							},
 						}
-						converted, err := protocol.ExportBundle[protocol.Count](owner, input, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")})
+						converted, err := protocol.ExportBundle[protocol.Count](owner, input, convertedAdapter0)
 						if err != nil {
 							return nil, err
 						}
