@@ -29,5 +29,9 @@ pinned at one release — and it depends on nothing else beside the runtime
 it composes onto. `TestImportDirection` holds the direction: the root module
 names nothing of Archon and nothing of this module.
 
-This is the module's coordinate under Nightseam's lockstep releases; the
-packages land by their packets.
+The module is released under Nightseam's lockstep versions. Each package is
+held to its table by one test that runs every case — 72, 52 and 35 — and
+beyond the tables by fuzz targets that never panic, by the bounds refused
+before the work they would cost, and by a check that no package reads a
+clock or touches the network: every nonce, id and decision time is an
+argument, and the only state is the store a consumer supplies.

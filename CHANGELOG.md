@@ -64,6 +64,21 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- The Go realization of the optional authority profile, in the nested module
+  `auth/go`: package `grant` — the canonical body and its total decoder, the
+  envelope in `nightseam-grant/1`, the chain evaluation with its refusal
+  codes and hops, inspection without a request, and deterministic issuance
+  with inherit — and package `auth` — the audience grammar held to Archon's
+  own derivation, the connection binding and proof in `nightseam-auth/1`,
+  the challenge and prove exchange as a state machine with one immutable
+  context, the decision at the call, the bootstrap over a consumer's
+  versioned store with the admission law and the recovery of a lost answer,
+  and the exposure binding with its construction refusals, selector
+  rendering, decisions at dispatch and at the effect, export records and
+  per-recipient emission. Each is held to every case of its table — 72, 52
+  and 35 — and beyond them to fuzz targets that never panic, bounds refused
+  before the work they would cost, and a check that no package reads a
+  clock or touches the network.
 - Go and TypeScript access surfaces adopt public Bitwire v0.2.0 through exact
   shared types — send-only `Wire`, receiving and closing `Endpoint`, and the
   named types that go with them — held to its independent composition cases
