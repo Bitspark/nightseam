@@ -555,18 +555,35 @@ func callWire(ctx context.Context, wire duplex.Wire, path []string, params, resu
 	if err != nil {
 		return Unpublished(err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	returning := &replyWire{id: "c:1", reply: make(chan pendingResult, 1), done: make(chan struct{}), dispatch: dispatch}
-	defer returning.Close(duplex.CodeNormal, "")
-	address := &duplex.ReturnAddress{Wire: returning}
-	trace := DefaultPropagator.Inject(ctx)
-	if dispatch != nil {
-		trace = Trace{Parent: dispatch.frame.Traceparent, State: dispatch.frame.Tracestate}
-	}
 	var observation WireCallOptions
 	if len(options) > 0 {
 		observation = options[0]
+	}
+	if observation.RequestTimeout < 0 {
+		return Unpublished(errors.New("wire request timeout must not be negative"))
+	}
+	// A forwarded request already has its carrier's admitted deadline.
+	if dispatch == nil {
+		timeout := observation.RequestTimeout
+		if timeout == 0 {
+			timeout = 30 * time.Second
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	returning := &replyWire{id: "c:1", reply: make(chan pendingResult, 1), done: make(chan struct{}), dispatch: dispatch}
+	defer returning.Close(duplex.CodeNormal, "")
+	address := &duplex.ReturnAddress{Wire: returning}
+	var trace Trace
+	if dispatch != nil {
+		trace = Trace{Parent: dispatch.frame.Traceparent, State: dispatch.frame.Tracestate}
+	} else {
+		propagator := observation.Propagator
+		if propagator == nil {
+			propagator = DefaultPropagator
+		}
+		trace = propagator.Inject(ctx)
 	}
 	finish := observeWireRequest(observation.Observer, observation.Family, name, false, trace)
 	defer func() { finish(err) }()
@@ -620,7 +637,11 @@ func EmitWire(ctx context.Context, wire duplex.Wire, path []string, data any, op
 	if err != nil {
 		return Unpublished(err)
 	}
-	trace := DefaultPropagator.Inject(ctx)
+	propagator := DefaultPropagator
+	if len(options) > 0 && options[0].Propagator != nil {
+		propagator = options[0].Propagator
+	}
+	trace := propagator.Inject(ctx)
 	if len(options) > 0 && options[0].Observer != nil {
 		observeWire(options[0].Observer, EventEmitted{At: time.Now(), Name: name, Bytes: len(encoded), Trace: trace, Family: options[0].Family})
 	}

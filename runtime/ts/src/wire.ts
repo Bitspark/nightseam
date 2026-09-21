@@ -5,7 +5,7 @@ import { carrying, decodeEnvelope, isObject } from './envelope.ts';
 import { scalarJSON } from './unicode.ts';
 import { defaultPropagator, traceOf } from './trace.ts';
 import type { ValueEnvironment } from './value-adapter.ts';
-import type { Trace, TraceContext } from './trace.ts';
+import type { Propagator, Trace, TraceContext } from './trace.ts';
 import type { Observer } from './observer.ts';
 import { observeWire, observeWireRequest } from './wire-observer.ts';
 import type {
@@ -19,6 +19,14 @@ import type {
   RequestContext,
   RequestHandler,
 } from './peer.ts';
+
+// Outgoing propagators may privately associate their trace object with an
+// active consumer context. Keep that identity across local frame snapshots;
+// only the two public trace strings cross a physical connection.
+const outgoingTraces = new WeakMap<ProfileFrame, Trace>();
+function outgoingTrace(frame: ProfileFrame): Trace | undefined {
+  return outgoingTraces.get(frame) ?? traceOf(frame);
+}
 
 /** @internal Received values retained beside a local return capability. */
 export interface WireDispatchContext {
@@ -106,6 +114,7 @@ export interface WireRequestContext extends WireModelContext {
   meta?: Meta;
 }
 export interface WireCallOptions {
+  propagator?: Propagator;
   observer?: Observer;
   family?: string;
   signal?: AbortSignal;
@@ -114,6 +123,7 @@ export interface WireCallOptions {
   meta?: Meta;
 }
 export interface WireEmitOptions {
+  propagator?: Propagator;
   observer?: Observer;
   family?: string;
   context?: TraceContext;
@@ -234,7 +244,10 @@ export function profileFrame(value: ProfileFrame, name: string, maxFrameBytes?: 
   } catch {
     throw new DuplexError('invalid_message', 'Invalid structured profile frame.');
   }
-  return saved as unknown as ProfileFrame;
+  const frame = saved as unknown as ProfileFrame;
+  const associated = outgoingTraces.get(value);
+  if (associated) outgoingTraces.set(frame, associated);
+  return frame;
 }
 
 /** @internal Remove local publication proof from a dispatched refusal. */
@@ -313,7 +326,7 @@ export function callWire<T = unknown>(
   params: unknown = {},
   options: WireCallOptions = {},
 ): Promise<T> {
-  return callWireTraced(wire, path, params, options, defaultPropagator.inject(options.context));
+  return callWireTraced(wire, path, params, options, (options.propagator ?? defaultPropagator).inject(options.context));
 }
 function callWireTraced<T>(
   wire: Wire,
@@ -336,6 +349,7 @@ function callWireTraced<T>(
   } catch (error) {
     return Promise.reject(new UnpublishedError(error));
   }
+  if (!dispatch && trace) outgoingTraces.set(frame, trace);
   const completion = requestCompletion<T>();
   const finish = observeWireRequest(options.observer, options.family, name, false, trace);
   let localOutcome: 'cancelled' | 'timeout' | undefined;
@@ -506,16 +520,18 @@ export function registerWire(wire: Wire, path: Path, handlers: WireHandlers): ()
 export function emitWire(wire: Wire, path: Path, data: unknown = null, options: WireEmitOptions = {}): void {
   try {
     const name = encodePath(path);
+    const trace = (options.propagator ?? defaultPropagator).inject(options.context);
     const frame = snapshot(
-      carrying({ version: 1, kind: 'event', data, ...defaultPropagator.inject(options.context) }, options.meta),
+      carrying({ version: 1, kind: 'event', data, ...trace }, options.meta),
     ) as unknown as ProfileFrame;
+    outgoingTraces.set(frame, trace);
     if (options.observer)
       observeWire(options.observer, {
         type: 'event.emitted',
         at: new Date(),
         name,
         bytes: new TextEncoder().encode(JSON.stringify(frame.kind === 'event' ? frame.data : null)).byteLength,
-        trace: traceOf(frame),
+        trace,
         family: options.family ?? '',
       });
     wire.send(path, { frame });
@@ -719,7 +735,7 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
             {
               meta: frame.meta ? { ...frame.meta } : undefined,
             },
-            traceOf(frame),
+            outgoingTrace(frame),
           )
           .catch((error: unknown) => options.fail(publicError(error)));
         continue;
@@ -733,7 +749,7 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
           signal: call!.controller.signal,
           meta: frame.meta ? { ...frame.meta } : undefined,
         },
-        traceOf(frame),
+        outgoingTrace(frame),
       );
       const finish = (value?: unknown, error?: unknown) => {
         call!.completed = true;

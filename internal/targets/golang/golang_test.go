@@ -199,8 +199,8 @@ func TestWireAdaptersObserveTypedOperations(t *testing.T) {
 	}
 	for _, file := range files[2:] {
 		for _, want := range []string{
-			`runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "x"}`,
-			`runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "x"}`,
+			`runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "x", Propagator: c.environment.Options.Propagator, RequestTimeout: c.environment.Options.RequestTimeout}`,
+			`runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "x", Propagator: c.environment.Options.Propagator}`,
 			`runtime.WireHandlers{Observer: environment.Options.Observer, Family: "x"}`,
 		} {
 			if !strings.Contains(string(file.Data), want) {
