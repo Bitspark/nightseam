@@ -32,9 +32,21 @@ const TRACE = { traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902
  * can put the span id of an open span in the trace of an event, which is what
  * a frame of that exchange would carry.
  */
-function watching() {
+function watching(onStart?: () => void) {
   const exporter = new InMemorySpanExporter();
-  const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] });
+  const provider = new BasicTracerProvider({
+    spanProcessors: [
+      new SimpleSpanProcessor(exporter),
+      {
+        onStart(_span, _parent) {
+          onStart?.();
+        },
+        onEnd() {},
+        async forceFlush() {},
+        async shutdown() {},
+      },
+    ],
+  });
   const under = provider.getTracer('nightseam-otel-test');
   let last = '';
   const tracer: Tracer = {
@@ -72,13 +84,26 @@ interface SequenceSpan {
 
 const sequences = JSON.parse(
   readFileSync(new URL('../../../conformance/tables/otel-events.json', import.meta.url), 'utf8'),
-) as { cases: { name: string; events: (Record<string, unknown> & { at_ms: number })[]; spans: SequenceSpan[] }[] };
+) as {
+  cases: {
+    name: string;
+    events: (Record<string, unknown> & { at_ms: number })[];
+    on_start?: (Record<string, unknown> & { at_ms: number })[];
+    spans: SequenceSpan[];
+  }[];
+};
 
 test('the shared observer fixture has cases', () => assert.ok(sequences.cases.length > 0));
 for (const row of sequences.cases) {
   test(`shared observer sequence: ${row.name}`, () => {
-    const watch = watching();
     const origin = Date.parse('2026-09-21T00:00:00Z');
+    let first = true;
+    const watch = watching(() => {
+      if (!first) return;
+      first = false;
+      for (const { at_ms, ...event } of row.on_start ?? [])
+        watch.tell({ ...event, at: new Date(origin + at_ms) } as ObserverEvent);
+    });
     for (const { at_ms, ...event } of row.events)
       watch.tell({ ...event, at: new Date(origin + at_ms) } as ObserverEvent);
     const spans = watch.spans();
