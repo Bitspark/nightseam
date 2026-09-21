@@ -1,12 +1,13 @@
-// What the documentation check reads as coverage and as the decision form, on
-// pages no tree has — an index that lists all but one of a directory, a page
-// reached only by an absolute URL of this repository, a decision missing its
-// serves, a built-in family whose reference the index beside it never grew a
-// row for — because a check first exercised by the page that slips past it is a
-// check nobody has run.
+// What the documentation check reads as coverage, as the decision form and as
+// an attribution, on pages no tree has — an index that lists all but one of a
+// directory, a page reached only by an absolute URL of this repository, a
+// decision missing its serves, a built-in family whose reference the index
+// beside it never grew a row for, a page crediting a repository a reader
+// cannot open — because a check first exercised by the page that slips past it
+// is a check nobody has run.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { covered, driverInventory, driverOps, duplicated, formless, pagesOf, parts, referencesOf, sets, uncovered, unlisted } from "./docs.mjs";
+import { attributable, covered, driverInventory, driverOps, duplicated, formless, handwritten, pagesOf, parts, referencesOf, sets, unattributable, uncovered, unlisted } from "./docs.mjs";
 
 /** The five parts, as a page in the form spells them. */
 const whole = [
@@ -157,6 +158,48 @@ test("an index listing every built-in satisfies the claim", () => {
     ],
   ]);
   assert.deepEqual(unlisted(pages, references), []);
+});
+
+test("a page crediting a name the documentation does not speak of is refused, once per name", () => {
+  const pages = new Map([
+    ["docs/decisions/a-kind.md", "*A constructor.* Glyph's arrow, then TISL's thing types, then Glyph's arrow again.\n"],
+    ["docs/runtime/peer.md", "Go's peer and TypeScript's, beside the README's table and Node's resolver.\n"],
+  ]);
+  assert.deepEqual(unattributable(pages, ["docs/runtime/peer.md", "docs/decisions/a-kind.md"]), [
+    { page: "docs/decisions/a-kind.md", reason: "credits Glyph, which is not a name this documentation speaks of" },
+    { page: "docs/decisions/a-kind.md", reason: "credits TISL, which is not a name this documentation speaks of" },
+  ]);
+});
+
+test("a typographic apostrophe credits as an ASCII one does", () => {
+  const pages = new Map([["docs/admission.md", "The three levels are TISL’s pure values.\n"]]);
+  assert.deepEqual(unattributable(pages, ["docs/admission.md"]), [
+    { page: "docs/admission.md", reason: "credits TISL, which is not a name this documentation speaks of" },
+  ]);
+});
+
+test("every name the documentation may credit is one a reader can look up", () => {
+  for (const name of attributable) {
+    assert.match(name, /^[A-Z][A-Za-z0-9]+$/, `${name} is not a name a possessive spells`);
+  }
+});
+
+test("the suite's peer letters credit nobody", () => {
+  const pages = new Map([["conformance/DRIVER.md", "A's peer dials, B's accepts, and C's observer sees both.\n"]]);
+  assert.deepEqual(unattributable(pages, ["conformance/DRIVER.md"]), []);
+});
+
+test("the generator's own pages carry no hand's credit", () => {
+  assert.deepEqual(
+    handwritten([
+      "README.md",
+      "cmd/nightseam/testdata/golden-families/api/spec/album/README.md",
+      "docs/admission.md",
+      "examples/probe/api/spec/probe/README.md",
+      "conformance/scenarios/peer/call.json",
+    ]),
+    ["README.md", "docs/admission.md"],
+  );
 });
 
 /** The driver documents operations in the first column of its op tables. */
