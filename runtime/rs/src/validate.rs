@@ -1140,7 +1140,7 @@ fn valid_timestamp(value: &str) -> bool {
     if zone == b"Z" {
         return true;
     }
-    if zone.len() != 6 || ![b'+', b'-'].contains(&zone[0]) || zone[3] != b':' {
+    if zone.len() != 6 || !b"+-".contains(&zone[0]) || zone[3] != b':' {
         return false;
     }
     let (Some(hour), Some(minute)) = (number(&zone[1..3]), number(&zone[4..6])) else {
