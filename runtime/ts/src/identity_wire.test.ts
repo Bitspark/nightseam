@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
-import type { Wire } from '@nightseam/duplex';
+import test, { type TestContext } from 'node:test';
+import type { Endpoint } from '@nightseam/duplex';
 import { IDENTITY_METHOD, identityHandler } from './identity.ts';
 import { prepareIdentity } from './identity_wire.ts';
 import { callWire, handleWire, emitWire, onWireEvent } from './wire.ts';
 import { wirePair } from './wire-pair.ts';
+import { createDispatcher } from './dispatcher.ts';
 
 const expected = { path: 'service', digest: 'a'.repeat(64) };
 function deferred<T = void>() {
@@ -14,11 +15,21 @@ function deferred<T = void>() {
   });
   return { promise, resolve };
 }
-function observing(wire: Wire, observe: (kind: string) => void): Wire {
+function dispatchedPair(t: TestContext, options: Parameters<typeof wirePair>[0] = {}) {
+  const [near, far] = wirePair(options);
+  const nearDispatcher = createDispatcher(near),
+    farDispatcher = createDispatcher(far);
+  t.after(() => near.close());
+  t.after(() => nearDispatcher.close());
+  t.after(() => farDispatcher.close());
+  return { far, nearDispatcher, farDispatcher };
+}
+function observing(wire: Endpoint, observe: (kind: string) => void): Endpoint {
   return {
-    ...wire,
-    receive(path, receiver) {
-      return wire.receive(path, {
+    send: (path, message) => wire.send(path, message),
+    close: (code, reason) => wire.close(code, reason),
+    receive(receiver) {
+      return wire.receive({
         ...receiver,
         message(path, message) {
           observe(message.frame.kind);
@@ -31,13 +42,12 @@ function observing(wire: Wire, observe: (kind: string) => void): Wire {
 
 for (const absent of [false, true])
   test(`identity preparation retains the earliest event through check and binding (${absent ? 'absent' : 'matching'})`, async (t) => {
-    const [near, far] = wirePair();
-    t.after(() => near.close());
-    if (!absent) handleWire(far, [IDENTITY_METHOD], identityHandler(expected));
+    const { far, nearDispatcher, farDispatcher } = dispatchedPair(t);
+    if (!absent) handleWire(farDispatcher, [IDENTITY_METHOD], identityHandler(expected));
     const arrived = deferred(),
       delivered = deferred<number>();
     const preparation = prepareIdentity(
-      observing(near, () => arrived.resolve()),
+      observing(nearDispatcher.select([]), () => arrived.resolve()),
       expected,
     );
     t.after(() => preparation.close());
@@ -56,12 +66,11 @@ for (const absent of [false, true])
   });
 
 test('identity mismatch discards a held event and preserves other users of the carrier', async (t) => {
-  const [near, far] = wirePair();
-  t.after(() => near.close());
-  handleWire(far, [IDENTITY_METHOD], identityHandler({ ...expected, digest: 'b'.repeat(64) }));
+  const { far, nearDispatcher, farDispatcher } = dispatchedPair(t);
+  handleWire(farDispatcher, [IDENTITY_METHOD], identityHandler({ ...expected, digest: 'b'.repeat(64) }));
   const arrived = deferred();
   const preparation = prepareIdentity(
-    observing(near, () => arrived.resolve()),
+    observing(nearDispatcher.select([]), () => arrived.resolve()),
     expected,
   );
   t.after(() => preparation.close());
@@ -69,24 +78,23 @@ test('identity mismatch discards a held event and preserves other users of the c
   onWireEvent(preparation.wire, ['event'], () => {
     effects++;
   });
-  handleWire(near, ['unrelated'], () => 19);
+  handleWire(nearDispatcher, ['unrelated'], () => 19);
   emitWire(far, ['event'], 7);
   await arrived.promise;
   await assert.rejects(preparation.check(), { code: 'contract_mismatch' });
   assert.throws(() => preparation.ready(), { code: 'contract_mismatch' });
   assert.equal(await callWire(far, ['unrelated']), 19);
   assert.equal(effects, 0);
-  assert.doesNotThrow(() => onWireEvent(near, ['event'], () => {}));
+  assert.doesNotThrow(() => onWireEvent(nearDispatcher, ['event'], () => {}));
 });
 
 test('deferred request does not block the root and cancellation never dispatches later', async (t) => {
-  const [near, far] = wirePair();
-  t.after(() => near.close());
-  handleWire(far, [IDENTITY_METHOD], identityHandler(expected));
+  const { far, nearDispatcher, farDispatcher } = dispatchedPair(t);
+  handleWire(farDispatcher, [IDENTITY_METHOD], identityHandler(expected));
   const arrived = deferred(),
     cancelled = deferred();
   const preparation = prepareIdentity(
-    observing(near, (kind) => {
+    observing(nearDispatcher.select([]), (kind) => {
       if (kind === 'request') arrived.resolve();
       if (kind === 'cancel') cancelled.resolve();
     }),
@@ -98,7 +106,7 @@ test('deferred request does not block the root and cancellation never dispatches
     effects++;
     return 11;
   });
-  handleWire(near, ['unrelated'], () => 7);
+  handleWire(nearDispatcher, ['unrelated'], () => 7);
   const controller = new AbortController();
   const first = callWire(far, ['model'], null, { signal: controller.signal }).catch((error: unknown) => error);
   await arrived.promise;
@@ -114,10 +122,9 @@ test('deferred request does not block the root and cancellation never dispatches
 
 for (const checked of [false, true])
   test(`preparation bounds a factory ${checked ? 'never bound' : 'never started'}`, async (t) => {
-    const [near, far] = wirePair();
-    t.after(() => near.close());
-    handleWire(far, [IDENTITY_METHOD], identityHandler(expected));
-    const preparation = prepareIdentity(near, expected, { requestTimeoutMs: 250 });
+    const { far, nearDispatcher, farDispatcher } = dispatchedPair(t);
+    handleWire(farDispatcher, [IDENTITY_METHOD], identityHandler(expected));
+    const preparation = prepareIdentity(nearDispatcher.select([]), expected, { requestTimeoutMs: 250 });
     t.after(() => preparation.close());
     handleWire(preparation.wire, ['model'], () => {
       throw new Error('expired model dispatched');
@@ -125,23 +132,22 @@ for (const checked of [false, true])
     if (checked) await preparation.check();
     await assert.rejects(callWire(far, ['model']), { code: 'cancelled' });
     assert.throws(() => preparation.ready(), { code: 'cancelled' });
-    assert.doesNotThrow(() => handleWire(near, ['model'], () => 1));
-    const replacement = prepareIdentity(near, expected);
+    assert.doesNotThrow(() => handleWire(nearDispatcher, ['model'], () => 1));
+    const replacement = prepareIdentity(nearDispatcher.select([]), expected);
     replacement.close();
   });
 
 test('cancellation and explicit close abandon only their interpretation', async (t) => {
-  const [near, far] = wirePair();
-  t.after(() => near.close());
-  const preparation = prepareIdentity(near, expected);
+  const { far, nearDispatcher } = dispatchedPair(t);
+  const preparation = prepareIdentity(nearDispatcher.select([]), expected);
   t.after(() => preparation.close());
   handleWire(preparation.wire, ['model'], () => {
     throw new Error('cancelled model dispatched');
   });
-  handleWire(near, ['unrelated'], () => 7);
+  handleWire(nearDispatcher, ['unrelated'], () => 7);
   await assert.rejects(preparation.check({ signal: AbortSignal.abort() }), { code: 'cancelled' });
   assert.equal(await callWire(far, ['unrelated']), 7);
-  const second = prepareIdentity(near, expected);
+  const second = prepareIdentity(nearDispatcher.select([]), expected);
   handleWire(second.wire, ['model'], () => 1);
   second.close();
   assert.throws(() => second.ready(), { code: 'disconnected' });
@@ -149,16 +155,15 @@ test('cancellation and explicit close abandon only their interpretation', async 
 });
 
 test('carrier closure releases held events and model requests', async (t) => {
-  const [near, far] = wirePair();
-  t.after(() => near.close());
+  const { far, nearDispatcher } = dispatchedPair(t);
   const arrived = deferred(),
     closed = deferred();
   const preparation = prepareIdentity(
-    observing(near, () => arrived.resolve()),
+    observing(nearDispatcher.select([]), () => arrived.resolve()),
     expected,
   );
 
-  preparation.wire.receive(['event'], {
+  preparation.wire.register(['event'], {
     message: () => {
       throw new Error('closed model dispatched');
     },
@@ -172,12 +177,11 @@ test('carrier closure releases held events and model requests', async (t) => {
 });
 
 test('deferred request budget is bounded separately from the carrier budget', async (t) => {
-  const [near, far] = wirePair({ maxConcurrentHandlers: 8 });
-  t.after(() => near.close());
-  handleWire(far, [IDENTITY_METHOD], identityHandler(expected));
+  const { far, nearDispatcher, farDispatcher } = dispatchedPair(t, { maxConcurrentHandlers: 8 });
+  handleWire(farDispatcher, [IDENTITY_METHOD], identityHandler(expected));
   const arrived = deferred();
   const preparation = prepareIdentity(
-    observing(near, () => arrived.resolve()),
+    observing(nearDispatcher.select([]), () => arrived.resolve()),
     expected,
     { maxConcurrentHandlers: 1 },
   );
@@ -192,10 +196,9 @@ test('deferred request budget is bounded separately from the carrier budget', as
 });
 
 test('readiness cannot precede the check, and check/ready are once only', async (t) => {
-  const [near, far] = wirePair();
-  t.after(() => near.close());
-  handleWire(far, [IDENTITY_METHOD], identityHandler(expected));
-  const preparation = prepareIdentity(near, expected);
+  const { nearDispatcher, farDispatcher } = dispatchedPair(t);
+  handleWire(farDispatcher, [IDENTITY_METHOD], identityHandler(expected));
+  const preparation = prepareIdentity(nearDispatcher.select([]), expected);
   t.after(() => preparation.close());
   assert.throws(() => preparation.ready(), /not been checked/);
   await assert.rejects(callWire(preparation.wire, ['model']), { code: 'busy' });
@@ -206,12 +209,11 @@ test('readiness cannot precede the check, and check/ready are once only', async 
 });
 
 test('identity mismatch refuses an already deferred model request', async (t) => {
-  const [near, far] = wirePair();
-  t.after(() => near.close());
-  handleWire(far, [IDENTITY_METHOD], identityHandler({ ...expected, digest: 'b'.repeat(64) }));
+  const { far, nearDispatcher, farDispatcher } = dispatchedPair(t);
+  handleWire(farDispatcher, [IDENTITY_METHOD], identityHandler({ ...expected, digest: 'b'.repeat(64) }));
   const arrived = deferred();
   const preparation = prepareIdentity(
-    observing(near, () => arrived.resolve()),
+    observing(nearDispatcher.select([]), () => arrived.resolve()),
     expected,
   );
   t.after(() => preparation.close());
@@ -225,33 +227,24 @@ test('identity mismatch refuses an already deferred model request', async (t) =>
 });
 
 test('closing immediately after ready answers each deferred request only once', async (t) => {
-  const [near, far] = wirePair();
-  t.after(() => near.close());
-  handleWire(far, [IDENTITY_METHOD], identityHandler(expected));
+  const { far, nearDispatcher, farDispatcher } = dispatchedPair(t);
+  handleWire(farDispatcher, [IDENTITY_METHOD], identityHandler(expected));
   const arrived = deferred();
-  let responses = 0;
-  const source: Wire = {
-    ...near,
-    receive(path, receiver) {
-      return near.receive(path, {
+  let responseCount = () => 0;
+  const selected = nearDispatcher.select([]);
+  const source: Endpoint = {
+    send: (path, message) => selected.send(path, message),
+    close: (code, reason) => selected.close(code, reason),
+    receive(receiver) {
+      return selected.receive({
         ...receiver,
         message(path, message) {
           if (path[0] === 'model' && message.frame.kind === 'request' && message.return) {
-            const original = message.return;
+            // Spy in place, retaining this runtime-created Message and return
+            // capability with their existing private invocation association.
+            const sending = t.mock.method(message.return.wire, 'send');
+            responseCount = () => sending.mock.callCount();
             arrived.resolve();
-            return receiver.message?.(path, {
-              ...message,
-              return: {
-                wire: {
-                  send(path, response) {
-                    responses++;
-                    original.wire.send(path, response);
-                  },
-                  receive: (path, receiver) => original.wire.receive(path, receiver),
-                  close: (code, reason) => original.wire.close(code, reason),
-                },
-              },
-            });
           }
           return receiver.message?.(path, message);
         },
@@ -269,5 +262,5 @@ test('closing immediately after ready answers each deferred request only once', 
   preparation.close();
   assert.equal(((await pending) as { code: string }).code, 'disconnected');
   await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.equal(responses, 1);
+  assert.equal(responseCount(), 1);
 });
