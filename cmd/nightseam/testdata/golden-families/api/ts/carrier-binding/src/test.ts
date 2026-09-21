@@ -93,7 +93,6 @@ export async function smoke<S extends AnyFamily = AnyFamily>(model: Protocol.Ser
   if (false) throw new Error("input attach needs a caller-supplied native value");
   input = JSON.parse("{\"id\":\"‹id›\"}");
   }
-  if (!options.equal && (false || false)) throw new Error("attach: requires an equal observer for live values");
   inputs.set("attach",input);
   const before=seen.get("attach")??0;
   const actual = await outcome(() => remote.methods.attach(input as Parameters<typeof remote.methods.attach>[0], options.callContext as Parameters<typeof remote.methods.attach>[1]));
@@ -108,7 +107,6 @@ export async function smoke<S extends AnyFamily = AnyFamily>(model: Protocol.Ser
   if (false) throw new Error("input relay needs a caller-supplied native value");
   input = JSON.parse("{\"sequence\":0,\"message\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}}}");
   }
-  if (!options.equal && (false || false)) throw new Error("relay: requires an equal observer for live values");
   inputs.set("relay",input);
   const before=seen.get("relay")??0;
   const actual = await outcome(() => remote.methods.relay(input as Parameters<typeof remote.methods.relay>[0], options.callContext as Parameters<typeof remote.methods.relay>[1]));

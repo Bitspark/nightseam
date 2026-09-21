@@ -264,9 +264,6 @@ func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx c
 			}
 			return fmt.Errorf("input relay unavailable: no compatible concrete family is available for S")
 		}
-		if options.Equal == nil && (false || false) {
-			return fmt.Errorf("relay: requires an Equal observer for live values")
-		}
 		mutex.Lock()
 		inputs["relay"] = input
 		before := seen["relay"]

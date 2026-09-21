@@ -100,7 +100,6 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input describe needs a caller-supplied native value");
   input = JSON.parse("{\"id\":\"‹id›\",\"label\":\"‹label›\"}");
   }
-  if (!options.equal && (false || false)) throw new Error("describe: requires an equal observer for live values");
   inputs.set("describe",input);
   const before=seen.get("describe")??0;
   const actual = await outcome(() => remote.methods.describe(input as Parameters<typeof remote.methods.describe>[0], options.callContext as Parameters<typeof remote.methods.describe>[1]));
@@ -115,7 +114,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (true) throw new Error("input start needs a caller-supplied native value");
   input = JSON.parse("{\"ticket\":{\"id\":\"‹id›\",\"label\":\"‹label›\"},\"progress\":{\"report\":{\"binding\":\"‹binding›\",\"contract\":\"worker/Report\"}},\"watchers\":[{\"binding\":\"‹binding›\",\"contract\":\"worker/Report\"}]}");
   }
-  if (!options.equal && (true || true)) throw new Error("start: requires an equal observer for live values");
+  if (!options.equal) throw new Error("start: requires an equal observer for live values");
   inputs.set("start",input);
   const before=seen.get("start")??0;
   const actual = await outcome(() => remote.methods.start(input as Parameters<typeof remote.methods.start>[0], options.callContext as Parameters<typeof remote.methods.start>[1]));

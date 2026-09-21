@@ -274,9 +274,6 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 	_ = remote
 	_ = direct
 	{
-		if options.Equal == nil && (false) {
-			return fmt.Errorf("name: requires an Equal observer for live values")
-		}
 		mutex.Lock()
 		inputs["name"] = nil
 		before := seen["name"]
@@ -313,7 +310,7 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input pack unavailable for this instantiation: %w", err)
 			}
 		}
-		if options.Equal == nil && (true || true) {
+		if options.Equal == nil {
 			return fmt.Errorf("pack: requires an Equal observer for live values")
 		}
 		mutex.Lock()
@@ -352,7 +349,7 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input toolkit unavailable for this instantiation: %w", err)
 			}
 		}
-		if options.Equal == nil && (true || false) {
+		if options.Equal == nil {
 			return fmt.Errorf("toolkit: requires an Equal observer for live values")
 		}
 		mutex.Lock()

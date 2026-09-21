@@ -92,7 +92,6 @@ export async function smoke<A extends AnyFamily = AnyFamily, B extends AnyFamily
   if (false) throw new Error("input look needs a caller-supplied native value");
   input = JSON.parse("{\"held\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}}}");
   }
-  if (!options.equal && (false || false)) throw new Error("look: requires an equal observer for live values");
   inputs.set("look",input);
   const before=seen.get("look")??0;
   const actual = await outcome(() => remote.methods.look(input as Parameters<typeof remote.methods.look>[0], options.callContext as Parameters<typeof remote.methods.look>[1]));

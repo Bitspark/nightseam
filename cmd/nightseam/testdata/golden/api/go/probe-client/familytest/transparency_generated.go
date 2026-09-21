@@ -273,9 +273,6 @@ func Smoke(ctx context.Context, model protocol.ClientModel, opposite protocol.Se
 				return fmt.Errorf("input reverse unavailable for this instantiation: %w", err)
 			}
 		}
-		if options.Equal == nil && (false || false) {
-			return fmt.Errorf("reverse: requires an Equal observer for live values")
-		}
 		mutex.Lock()
 		inputs["reverse"] = input
 		before := seen["reverse"]

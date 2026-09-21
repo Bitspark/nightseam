@@ -269,9 +269,6 @@ func Smoke[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag an
 				return fmt.Errorf("input look unavailable for this instantiation: %w", err)
 			}
 		}
-		if options.Equal == nil && (false || false) {
-			return fmt.Errorf("look: requires an Equal observer for live values")
-		}
 		mutex.Lock()
 		inputs["look"] = input
 		before := seen["look"]

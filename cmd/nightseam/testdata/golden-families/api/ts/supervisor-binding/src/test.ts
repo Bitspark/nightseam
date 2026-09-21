@@ -94,7 +94,6 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input shift needs a caller-supplied native value");
   input = JSON.parse("{\"name\":\"‹name›\"}");
   }
-  if (!options.equal && (false || false)) throw new Error("shift: requires an equal observer for live values");
   inputs.set("shift",input);
   const before=seen.get("shift")??0;
   const actual = await outcome(() => remote.methods.shift(input as Parameters<typeof remote.methods.shift>[0], options.callContext as Parameters<typeof remote.methods.shift>[1]));
@@ -109,7 +108,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (true) throw new Error("input relieve needs a caller-supplied native value");
   input = JSON.parse("{\"shift\":{\"name\":\"‹name›\"},\"sink\":{\"report\":{\"binding\":\"‹binding›\",\"contract\":\"worker/Report\"}}}");
   }
-  if (!options.equal && (true || false)) throw new Error("relieve: requires an equal observer for live values");
+  if (!options.equal) throw new Error("relieve: requires an equal observer for live values");
   inputs.set("relieve",input);
   const before=seen.get("relieve")??0;
   const actual = await outcome(() => remote.methods.relieve(input as Parameters<typeof remote.methods.relieve>[0], options.callContext as Parameters<typeof remote.methods.relieve>[1]));
@@ -124,7 +123,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (true) throw new Error("input watch needs a caller-supplied native value");
   input = JSON.parse("{\"shift\":{\"name\":\"‹name›\"},\"sink\":{\"report\":{\"binding\":\"‹binding›\",\"contract\":\"worker/Report\"}},\"spares\":[{\"report\":{\"binding\":\"‹binding›\",\"contract\":\"worker/Report\"}}]}");
   }
-  if (!options.equal && (true || true)) throw new Error("watch: requires an equal observer for live values");
+  if (!options.equal) throw new Error("watch: requires an equal observer for live values");
   inputs.set("watch",input);
   const before=seen.get("watch")??0;
   const actual = await outcome(() => remote.methods.watch(input as Parameters<typeof remote.methods.watch>[0], options.callContext as Parameters<typeof remote.methods.watch>[1]));

@@ -284,9 +284,6 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input describe unavailable for this instantiation: %w", err)
 			}
 		}
-		if options.Equal == nil && (false || false) {
-			return fmt.Errorf("describe: requires an Equal observer for live values")
-		}
 		mutex.Lock()
 		inputs["describe"] = input
 		before := seen["describe"]
@@ -323,7 +320,7 @@ func Smoke(ctx context.Context, model protocol.ServerModel, opposite protocol.Cl
 				return fmt.Errorf("input start unavailable for this instantiation: %w", err)
 			}
 		}
-		if options.Equal == nil && (true || true) {
+		if options.Equal == nil {
 			return fmt.Errorf("start: requires an Equal observer for live values")
 		}
 		mutex.Lock()

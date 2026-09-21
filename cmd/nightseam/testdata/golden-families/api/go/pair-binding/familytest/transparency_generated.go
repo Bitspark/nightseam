@@ -276,9 +276,6 @@ func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runti
 				return fmt.Errorf("input named unavailable for this instantiation: %w", err)
 			}
 		}
-		if options.Equal == nil && (false || false) {
-			return fmt.Errorf("named: requires an Equal observer for live values")
-		}
 		mutex.Lock()
 		inputs["named"] = input
 		before := seen["named"]
@@ -314,9 +311,6 @@ func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runti
 			if err := json.Unmarshal([]byte("{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}}"), &input); err != nil {
 				return fmt.Errorf("input relay unavailable for this instantiation: %w", err)
 			}
-		}
-		if options.Equal == nil && (false || false) {
-			return fmt.Errorf("relay: requires an Equal observer for live values")
 		}
 		mutex.Lock()
 		inputs["relay"] = input

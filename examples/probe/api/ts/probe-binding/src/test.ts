@@ -94,7 +94,6 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (false) throw new Error("input echo needs a caller-supplied native value");
   input = JSON.parse("{\"text\":\"‹text›\",\"count\":0}");
   }
-  if (!options.equal && (false || false)) throw new Error("echo: requires an equal observer for live values");
   inputs.set("echo",input);
   const before=seen.get("echo")??0;
   const actual = await outcome(() => remote.methods.echo(input as Parameters<typeof remote.methods.echo>[0], options.callContext as Parameters<typeof remote.methods.echo>[1]));
@@ -109,7 +108,7 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (true) throw new Error("input watch needs a caller-supplied native value");
   input = JSON.parse("{\"label\":\"‹label›\",\"watcher\":{\"notice\":{\"binding\":\"‹binding›\",\"contract\":\"probe/Notice\"}}}");
   }
-  if (!options.equal && (true || true)) throw new Error("watch: requires an equal observer for live values");
+  if (!options.equal) throw new Error("watch: requires an equal observer for live values");
   inputs.set("watch",input);
   const before=seen.get("watch")??0;
   const actual = await outcome(() => remote.methods.watch(input as Parameters<typeof remote.methods.watch>[0], options.callContext as Parameters<typeof remote.methods.watch>[1]));

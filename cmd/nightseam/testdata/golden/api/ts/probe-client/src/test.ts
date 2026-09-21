@@ -94,7 +94,6 @@ export async function smoke(model: Protocol.ClientModel, opposite: Protocol.Serv
   if (false) throw new Error("input reverse needs a caller-supplied native value");
   input = JSON.parse("{\"text\":\"‹text›\",\"count\":0,\"note\":\"‹note›\"}");
   }
-  if (!options.equal && (false || false)) throw new Error("reverse: requires an equal observer for live values");
   inputs.set("reverse",input);
   const before=seen.get("reverse")??0;
   const actual = await outcome(() => remote.methods.reverse(input as Parameters<typeof remote.methods.reverse>[0], options.callContext as Parameters<typeof remote.methods.reverse>[1]));

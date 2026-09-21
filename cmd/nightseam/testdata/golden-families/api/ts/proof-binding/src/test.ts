@@ -109,7 +109,6 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   if (false) throw new Error("input echo needs a caller-supplied native value");
   input = JSON.parse("{\"text\":\"‹text›\",\"count\":0,\"note\":\"‹note›\"}");
   }
-  if (!options.equal && (false || false)) throw new Error("echo: requires an equal observer for live values");
   inputs.set("echo",input);
   const before=seen.get("echo")??0;
   const actual = await outcome(() => remote.methods.echo(input as Parameters<typeof remote.methods.echo>[0], options.callContext as Parameters<typeof remote.methods.echo>[1]));
@@ -123,7 +122,6 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   if (options.inputs && Object.prototype.hasOwnProperty.call(options.inputs,"no_args")) { input=options.inputs["no_args"]; } else {
   input = JSON.parse("{}");
   }
-  if (!options.equal && (false || false)) throw new Error("no_args: requires an equal observer for live values");
   inputs.set("no_args",input);
   const before=seen.get("no_args")??0;
   const actual = await outcome(() => remote.methods.noArgs(input as Parameters<typeof remote.methods.noArgs>[0], options.callContext as Parameters<typeof remote.methods.noArgs>[1]));
@@ -138,7 +136,6 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   if (false) throw new Error("input classify needs a caller-supplied native value");
   input = JSON.parse("{\"type\":\"count\",\"value\":0}");
   }
-  if (!options.equal && (false || false)) throw new Error("classify: requires an equal observer for live values");
   inputs.set("classify",input);
   const before=seen.get("classify")??0;
   const actual = await outcome(() => remote.methods.classify(input as Parameters<typeof remote.methods.classify>[0], options.callContext as Parameters<typeof remote.methods.classify>[1]));
@@ -153,7 +150,6 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   if (false) throw new Error("input classify_rich needs a caller-supplied native value");
   input = JSON.parse("{\"type\":\"count\",\"value\":0}");
   }
-  if (!options.equal && (false || false)) throw new Error("classify_rich: requires an equal observer for live values");
   inputs.set("classify_rich",input);
   const before=seen.get("classify_rich")??0;
   const actual = await outcome(() => remote.methods.classifyRich(input as Parameters<typeof remote.methods.classifyRich>[0], options.callContext as Parameters<typeof remote.methods.classifyRich>[1]));
@@ -168,7 +164,6 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   if (false) throw new Error("input parts needs a caller-supplied native value");
   input = JSON.parse("{\"after\":\"‹after›\"}");
   }
-  if (!options.equal && (false || false)) throw new Error("parts: requires an equal observer for live values");
   inputs.set("parts",input);
   const before=seen.get("parts")??0;
   const actual = await outcome(() => remote.methods.parts(input as Parameters<typeof remote.methods.parts>[0], options.callContext as Parameters<typeof remote.methods.parts>[1]));
@@ -183,7 +178,7 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   if ((bindings.item.needsContext)) throw new Error("input relay needs a caller-supplied native value");
   input = JSON.parse("{\"message\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}},\"back\":{\"channel\":0},\"page\":{\"items\":[\"‹items›\"],\"next\":\"‹next›\"}}");
   }
-  if (!options.equal && ((bindings.item.needsContext) || false)) throw new Error("relay: requires an equal observer for live values");
+  if (!options.equal && ((bindings.item.needsContext))) throw new Error("relay: requires an equal observer for live values");
   inputs.set("relay",input);
   const before=seen.get("relay")??0;
   const actual = await outcome(() => remote.methods.relay(input as Parameters<typeof remote.methods.relay>[0], options.callContext as Parameters<typeof remote.methods.relay>[1]));
