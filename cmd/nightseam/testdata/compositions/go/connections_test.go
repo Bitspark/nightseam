@@ -1,51 +1,45 @@
 package composition_test
 
-// How the proof is wired, in the shape a consumer wires it: one outer
-// WebSocket speaking the worker family, a tunnel over that peer made in
-// Prepare — before the peer reads its first frame — and a scope over the
-// tunnel. Every reference exchanged below is a channel of that tunnel, and
-// every socket here is a real one.
-
+// Each connection assembles its model before the peer reads. Its tunnel and
+// consumer scope belong to that connection; generated adapters receive a Wire.
 import (
 	"context"
+	cellbinding "example.test/generated/api/go/cell-binding"
+	cellprotocol "example.test/generated/api/go/cell-protocol"
+	topicbinding "example.test/generated/api/go/topic-binding"
+	topicprotocol "example.test/generated/api/go/topic-protocol"
+	workerbinding "example.test/generated/api/go/worker-binding"
+	workerprotocol "example.test/generated/api/go/worker-protocol"
+	duplex "github.com/Bitspark/nightseam/duplex/go"
+	runtime "github.com/Bitspark/nightseam/runtime/go"
+	tunnel "github.com/Bitspark/nightseam/tunnel/go"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 	"time"
-
-	cellbinding "example.test/generated/api/go/cell-binding"
-	cellclient "example.test/generated/api/go/cell-client"
-	topicbinding "example.test/generated/api/go/topic-binding"
-	topicclient "example.test/generated/api/go/topic-client"
-	workerbinding "example.test/generated/api/go/worker-binding"
-	workerclient "example.test/generated/api/go/worker-client"
-	runtime "github.com/Bitspark/nightseam/runtime/go"
-	tunnel "github.com/Bitspark/nightseam/tunnel/go"
 )
 
 const settle = 3 * time.Second
 
-// workers is the server: one worker implementation behind a real HTTP server,
-// with a scope per connection. The scope is per connection and not per
-// process because a reference means nothing off the connection that carried
-// it; two clients therefore cannot see, or name, each other's bindings.
-type workers struct {
-	worker *theWorker
-	server *httptest.Server
-}
-
-func serveWorkers(t *testing.T) *workers {
+func serveModel(t *testing.T, build func(*runtime.Peer, *scope) (duplex.Wire, error)) *httptest.Server {
 	t.Helper()
-	worker := newWorker()
-	handler, err := workerbinding.NewHandler(worker, runtime.ServerOptions{
+	handler, err := runtime.NewHandler(runtime.ServerOptions{
 		Options: runtime.Options{Prepare: func(peer *runtime.Peer) error {
 			carrier, err := tunnel.New(peer, tunnel.Options{})
 			if err != nil {
 				return err
 			}
-			worker.attach(peer, newScope(carrier))
+			model, err := build(peer, newScope(carrier))
+			if err != nil {
+				return err
+			}
+			if _, err = runtime.ForwardWire(peer.Wire(), model); err != nil {
+				_ = model.Close(duplex.CodeInternalError, "setup failed")
+				return err
+			}
+			go func() { <-peer.Done(); _ = model.Close(duplex.CodeNormal, "connection ended") }()
 			return nil
 		}},
 		Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
@@ -56,15 +50,50 @@ func serveWorkers(t *testing.T) *workers {
 	}
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
-	return &workers{worker: worker, server: server}
+	return server
 }
 
+// The consumer retains transport lifetime separately from generated methods.
+type workerAccess struct {
+	workerprotocol.ServerMethods
+	peer *runtime.Peer
+}
+
+func (c *workerAccess) Close() error { return c.peer.Close() }
+
+type cellAccess struct {
+	cellprotocol.ServerMethods
+	peer *runtime.Peer
+}
+
+func (c *cellAccess) Close() error { return c.peer.Close() }
+
+type topicAccess struct {
+	topicprotocol.ServerMethods
+	peer *runtime.Peer
+}
+
+func (c *topicAccess) Close() error { return c.peer.Close() }
+
+type workers struct {
+	worker *theWorker
+	server *httptest.Server
+}
+
+func serveWorkers(t *testing.T) *workers {
+	worker := newWorker()
+	server := serveModel(t, func(peer *runtime.Peer, s *scope) (duplex.Wire, error) {
+		worker.attach(peer, s)
+		return workerbinding.ToWire(func(workerprotocol.Client) (workerprotocol.Server, error) {
+			return workerprotocol.Server{Methods: &workerSession{worker, s}, Events: struct{}{}}, nil
+		}, runtime.AdapterContext{})
+	})
+	return &workers{worker: worker, server: server}
+}
 func (w *workers) url() string { return "ws" + strings.TrimPrefix(w.server.URL, "http") }
 
-// caller is a client of the worker family, with its own tunnel and its own
-// scope over one real socket.
 type caller struct {
-	client  *workerclient.Client
+	client  *workerAccess
 	carrier *tunnel.Tunnel
 	scope   *scope
 }
@@ -72,89 +101,73 @@ type caller struct {
 func dialWorkers(t *testing.T, ctx context.Context, w *workers) *caller {
 	t.Helper()
 	var carrier *tunnel.Tunnel
-	client, err := workerclient.Dial(ctx, w.url(), runtime.DialOptions{
-		Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
-			carrier, err = tunnel.New(peer, tunnel.Options{})
+	var access workerprotocol.Server
+	peer, _, err := runtime.Dial(ctx, w.url(), runtime.DialOptions{Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
+		carrier, err = tunnel.New(peer, tunnel.Options{})
+		if err != nil {
 			return err
-		}},
-	}, nil, workerclient.Events{})
+		}
+		factory, err := workerbinding.FromWire(ctx, peer.Wire(), runtime.AdapterContext{})
+		if err != nil {
+			return err
+		}
+		access, err = factory(workerprotocol.Client{Methods: struct{}{}, Events: struct{}{}})
+		return err
+	}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	called := &caller{client: client, carrier: carrier, scope: newScope(carrier)}
-	t.Cleanup(func() { called.scope.close(context.Background()); _ = client.Close() })
+	called := &caller{client: &workerAccess{access.Methods, peer}, carrier: carrier, scope: newScope(carrier)}
+	t.Cleanup(func() { called.scope.close(context.Background()); _ = peer.Close() })
 	return called
 }
-
-// link gives one worker a connection to another, which is what it forwards
-// into. The forwarding worker is an ordinary client of the other, with a
-// tunnel and a scope of its own over that second socket.
-func link(t *testing.T, ctx context.Context, from *workers, to *workers) {
-	t.Helper()
-	var carrier *tunnel.Tunnel
-	client, err := workerclient.Dial(ctx, to.url(), runtime.DialOptions{
-		Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
-			carrier, err = tunnel.New(peer, tunnel.Options{})
-			return err
-		}},
-	}, nil, workerclient.Events{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	from.worker.origin, from.worker.originScope = client, newScope(carrier)
-	t.Cleanup(func() { _ = client.Close() })
+func link(t *testing.T, ctx context.Context, from, to *workers) {
+	called := dialWorkers(t, ctx, to)
+	from.worker.origin, from.worker.originScope = called.client.ServerMethods, called.scope
 }
 
-// cells and topics are the two further compositions, each behind a socket of
-// its own and each with a scope per connection for the same reason the worker
-// has one.
 type cells struct {
 	cell   *theCell
 	server *httptest.Server
 }
 
 func serveCells(t *testing.T) *cells {
-	t.Helper()
 	cell := newCell()
-	handler, err := cellbinding.NewHandler(cell, runtime.ServerOptions{
-		Options: runtime.Options{Prepare: func(peer *runtime.Peer) error {
-			carrier, err := tunnel.New(peer, tunnel.Options{})
-			if err != nil {
-				return err
-			}
-			cell.attach(peer, newScope(carrier))
-			return nil
-		}},
-		Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
-		CheckOrigin:  func(*http.Request) bool { return true },
+	server := serveModel(t, func(peer *runtime.Peer, s *scope) (duplex.Wire, error) {
+		cell.attach(peer, s)
+		return cellbinding.ToWire(func(cellprotocol.Client) (cellprotocol.Server, error) {
+			return cellprotocol.Server{Methods: &cellSession{cell, s}, Events: struct{}{}}, nil
+		}, runtime.AdapterContext{})
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
 	return &cells{cell: cell, server: server}
 }
 
 type cellCaller struct {
-	client *cellclient.Client
+	client *cellAccess
 	scope  *scope
 }
 
 func dialCells(t *testing.T, ctx context.Context, c *cells) *cellCaller {
 	t.Helper()
 	var carrier *tunnel.Tunnel
-	client, err := cellclient.Dial(ctx, "ws"+strings.TrimPrefix(c.server.URL, "http"), runtime.DialOptions{
-		Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
-			carrier, err = tunnel.New(peer, tunnel.Options{})
+	var access cellprotocol.Server
+	peer, _, err := runtime.Dial(ctx, "ws"+strings.TrimPrefix(c.server.URL, "http"), runtime.DialOptions{Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
+		carrier, err = tunnel.New(peer, tunnel.Options{})
+		if err != nil {
 			return err
-		}},
-	}, nil, cellclient.Events{})
+		}
+		factory, err := cellbinding.FromWire(ctx, peer.Wire(), runtime.AdapterContext{})
+		if err != nil {
+			return err
+		}
+		access, err = factory(cellprotocol.Client{Methods: struct{}{}, Events: struct{}{}})
+		return err
+	}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	called := &cellCaller{client: client, scope: newScope(carrier)}
-	t.Cleanup(func() { called.scope.close(context.Background()); _ = client.Close() })
+	called := &cellCaller{client: &cellAccess{access.Methods, peer}, scope: newScope(carrier)}
+	t.Cleanup(func() { called.scope.close(context.Background()); _ = peer.Close() })
 	return called
 }
 
@@ -164,47 +177,42 @@ type topics struct {
 }
 
 func serveTopics(t *testing.T) *topics {
-	t.Helper()
 	topic := newTopic()
-	handler, err := topicbinding.NewHandler(topic, runtime.ServerOptions{
-		Options: runtime.Options{Prepare: func(peer *runtime.Peer) error {
-			carrier, err := tunnel.New(peer, tunnel.Options{})
-			if err != nil {
-				return err
-			}
-			topic.attach(peer, newScope(carrier))
-			return nil
-		}},
-		Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
-		CheckOrigin:  func(*http.Request) bool { return true },
+	server := serveModel(t, func(peer *runtime.Peer, s *scope) (duplex.Wire, error) {
+		topic.attach(peer, s)
+		return topicbinding.ToWire(func(topicprotocol.Client) (topicprotocol.Server, error) {
+			return topicprotocol.Server{Methods: &topicSession{topic, s}, Events: struct{}{}}, nil
+		}, runtime.AdapterContext{})
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
 	return &topics{topic: topic, server: server}
 }
 
 type topicCaller struct {
-	client *topicclient.Client
+	client *topicAccess
 	scope  *scope
 }
 
 func dialTopics(t *testing.T, ctx context.Context, tp *topics) *topicCaller {
 	t.Helper()
 	var carrier *tunnel.Tunnel
-	client, err := topicclient.Dial(ctx, "ws"+strings.TrimPrefix(tp.server.URL, "http"), runtime.DialOptions{
-		Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
-			carrier, err = tunnel.New(peer, tunnel.Options{})
+	var access topicprotocol.Server
+	peer, _, err := runtime.Dial(ctx, "ws"+strings.TrimPrefix(tp.server.URL, "http"), runtime.DialOptions{Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
+		carrier, err = tunnel.New(peer, tunnel.Options{})
+		if err != nil {
 			return err
-		}},
-	}, nil, topicclient.Events{})
+		}
+		factory, err := topicbinding.FromWire(ctx, peer.Wire(), runtime.AdapterContext{})
+		if err != nil {
+			return err
+		}
+		access, err = factory(topicprotocol.Client{Methods: struct{}{}, Events: struct{}{}})
+		return err
+	}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	called := &topicCaller{client: client, scope: newScope(carrier)}
-	t.Cleanup(func() { called.scope.close(context.Background()); _ = client.Close() })
+	called := &topicCaller{client: &topicAccess{access.Methods, peer}, scope: newScope(carrier)}
+	t.Cleanup(func() { called.scope.close(context.Background()); _ = peer.Close() })
 	return called
 }
 

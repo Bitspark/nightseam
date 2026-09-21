@@ -1,5 +1,5 @@
 /** The tunnel under control: channels as connections, lazily read by default. */
-import { Channel, Tunnel, type TunnelOptions } from '@nightseam/tunnel';
+import { Connection, Tunnel, type TunnelOptions } from '@nightseam/tunnel';
 import { DuplexError } from '@nightseam/runtime';
 import { fail, invalid, unsupported, stringOf, withinOf, within, type Args, type Op, type Testee } from './testee.ts';
 import { Conn } from './seam.ts';
@@ -19,8 +19,8 @@ const isTunnel = (object: unknown): object is TunnelOn => object instanceof Tunn
 
 /** A channel under control: a connection whose reader is attached only when asked, so that credit is held back until then. */
 class ChannelConn extends Conn {
-  readonly channel: Channel;
-  constructor(channel: Channel, lazy: boolean) {
+  readonly channel: Connection;
+  constructor(channel: Connection, lazy: boolean) {
     super(channel, undefined, lazy);
     this.channel = channel;
   }
@@ -75,9 +75,9 @@ export function tunnelOps(t: Testee): Record<string, Op> {
       const tn = t.lookup(args.on, isTunnel, 'a tunnel');
       const family = stringOf(args, 'family', true);
       const lazy = lazyChannel(args);
-      let channel: Channel;
+      let channel: Connection;
       try {
-        channel = await within(withinOf(args), tn.tunnel.open(family), 'the open');
+        channel = await within(withinOf(args), tn.tunnel.openConnection(family), 'the open');
       } catch (error) {
         throw tunnelError(error);
       }
@@ -86,9 +86,9 @@ export function tunnelOps(t: Testee): Record<string, Op> {
     'tunnel.accept': async (args) => {
       const tn = t.lookup(args.on, isTunnel, 'a tunnel');
       const lazy = lazyChannel(args);
-      let channel: Channel;
+      let channel: Connection;
       try {
-        channel = await within(withinOf(args), tn.tunnel.accept(), 'the accept');
+        channel = await within(withinOf(args), tn.tunnel.acceptConnection(), 'the accept');
       } catch (error) {
         throw tunnelError(error);
       }

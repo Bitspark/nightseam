@@ -2,6 +2,7 @@
 package workbenchprotocol
 
 import (
+	context "context"
 	json "encoding/json"
 	errors "errors"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
@@ -886,6 +887,638 @@ func (WorkItem) Of() Tag { return Tag{} }
 func (WorkItem) WireType() runtime.TypeBinding {
 	return runtime.TypeBinding{Schema: schema, Type: "WorkItem"}
 }
+
+// AdapterCancelWorkItemParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterCancelWorkItemParams() runtime.ValueAdapter[CancelWorkItemParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "CancelWorkItemParams"}
+	return runtime.ValueAdapter[CancelWorkItemParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value CancelWorkItemParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (CancelWorkItemParams, error) {
+			var zero CancelWorkItemParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (CancelWorkItemParams, error) {
+				var value CancelWorkItemParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterCreateProjectParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterCreateProjectParams() runtime.ValueAdapter[CreateProjectParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "CreateProjectParams"}
+	return runtime.ValueAdapter[CreateProjectParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value CreateProjectParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (CreateProjectParams, error) {
+			var zero CreateProjectParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (CreateProjectParams, error) {
+				var value CreateProjectParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterCreateWorkItemParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterCreateWorkItemParams() runtime.ValueAdapter[CreateWorkItemParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "CreateWorkItemParams"}
+	return runtime.ValueAdapter[CreateWorkItemParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value CreateWorkItemParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (CreateWorkItemParams, error) {
+			var zero CreateWorkItemParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (CreateWorkItemParams, error) {
+				var value CreateWorkItemParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterCriterion composes declaration validation and conversion within the supplied invocation context.
+func AdapterCriterion() runtime.ValueAdapter[Criterion] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Criterion"}
+	return runtime.ValueAdapter[Criterion]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Criterion) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Criterion, error) {
+			var zero Criterion
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Criterion, error) { var value Criterion; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterEvent composes declaration validation and conversion within the supplied invocation context.
+func AdapterEvent() runtime.ValueAdapter[Event] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Event"}
+	return runtime.ValueAdapter[Event]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Event) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Event, error) {
+			var zero Event
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Event, error) { var value Event; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterGetWorkItemParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterGetWorkItemParams() runtime.ValueAdapter[GetWorkItemParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "GetWorkItemParams"}
+	return runtime.ValueAdapter[GetWorkItemParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value GetWorkItemParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (GetWorkItemParams, error) {
+			var zero GetWorkItemParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (GetWorkItemParams, error) {
+				var value GetWorkItemParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterListEventsParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterListEventsParams() runtime.ValueAdapter[ListEventsParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "ListEventsParams"}
+	return runtime.ValueAdapter[ListEventsParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value ListEventsParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (ListEventsParams, error) {
+			var zero ListEventsParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (ListEventsParams, error) {
+				var value ListEventsParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterListProjectsParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterListProjectsParams() runtime.ValueAdapter[ListProjectsParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "ListProjectsParams"}
+	return runtime.ValueAdapter[ListProjectsParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value ListProjectsParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (ListProjectsParams, error) {
+			var zero ListProjectsParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (ListProjectsParams, error) {
+				var value ListProjectsParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterListWorkItemsParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterListWorkItemsParams() runtime.ValueAdapter[ListWorkItemsParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "ListWorkItemsParams"}
+	return runtime.ValueAdapter[ListWorkItemsParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value ListWorkItemsParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (ListWorkItemsParams, error) {
+			var zero ListWorkItemsParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (ListWorkItemsParams, error) {
+				var value ListWorkItemsParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterProject composes declaration validation and conversion within the supplied invocation context.
+func AdapterProject() runtime.ValueAdapter[Project] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Project"}
+	return runtime.ValueAdapter[Project]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Project) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Project, error) {
+			var zero Project
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Project, error) { var value Project; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterPublishSpecificationParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterPublishSpecificationParams() runtime.ValueAdapter[PublishSpecificationParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "PublishSpecificationParams"}
+	return runtime.ValueAdapter[PublishSpecificationParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value PublishSpecificationParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (PublishSpecificationParams, error) {
+			var zero PublishSpecificationParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (PublishSpecificationParams, error) {
+				var value PublishSpecificationParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterReopenWorkItemParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterReopenWorkItemParams() runtime.ValueAdapter[ReopenWorkItemParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "ReopenWorkItemParams"}
+	return runtime.ValueAdapter[ReopenWorkItemParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value ReopenWorkItemParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (ReopenWorkItemParams, error) {
+			var zero ReopenWorkItemParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (ReopenWorkItemParams, error) {
+				var value ReopenWorkItemParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterSetDependenciesParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterSetDependenciesParams() runtime.ValueAdapter[SetDependenciesParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "SetDependenciesParams"}
+	return runtime.ValueAdapter[SetDependenciesParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value SetDependenciesParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (SetDependenciesParams, error) {
+			var zero SetDependenciesParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (SetDependenciesParams, error) {
+				var value SetDependenciesParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterSetStepsParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterSetStepsParams() runtime.ValueAdapter[SetStepsParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "SetStepsParams"}
+	return runtime.ValueAdapter[SetStepsParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value SetStepsParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (SetStepsParams, error) {
+			var zero SetStepsParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (SetStepsParams, error) {
+				var value SetStepsParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterSpecification composes declaration validation and conversion within the supplied invocation context.
+func AdapterSpecification() runtime.ValueAdapter[Specification] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Specification"}
+	return runtime.ValueAdapter[Specification]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Specification) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Specification, error) {
+			var zero Specification
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Specification, error) {
+				var value Specification
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterSpecificationDraft composes declaration validation and conversion within the supplied invocation context.
+func AdapterSpecificationDraft() runtime.ValueAdapter[SpecificationDraft] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "SpecificationDraft"}
+	return runtime.ValueAdapter[SpecificationDraft]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value SpecificationDraft) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (SpecificationDraft, error) {
+			var zero SpecificationDraft
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (SpecificationDraft, error) {
+				var value SpecificationDraft
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterStep composes declaration validation and conversion within the supplied invocation context.
+func AdapterStep() runtime.ValueAdapter[Step] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Step"}
+	return runtime.ValueAdapter[Step]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Step) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Step, error) {
+			var zero Step
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Step, error) { var value Step; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterSubscribeParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterSubscribeParams() runtime.ValueAdapter[SubscribeParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "SubscribeParams"}
+	return runtime.ValueAdapter[SubscribeParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value SubscribeParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (SubscribeParams, error) {
+			var zero SubscribeParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (SubscribeParams, error) {
+				var value SubscribeParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterSubscribeResult composes declaration validation and conversion within the supplied invocation context.
+func AdapterSubscribeResult() runtime.ValueAdapter[SubscribeResult] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "SubscribeResult"}
+	return runtime.ValueAdapter[SubscribeResult]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value SubscribeResult) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (SubscribeResult, error) {
+			var zero SubscribeResult
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (SubscribeResult, error) {
+				var value SubscribeResult
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterUpdateProjectParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterUpdateProjectParams() runtime.ValueAdapter[UpdateProjectParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "UpdateProjectParams"}
+	return runtime.ValueAdapter[UpdateProjectParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value UpdateProjectParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (UpdateProjectParams, error) {
+			var zero UpdateProjectParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (UpdateProjectParams, error) {
+				var value UpdateProjectParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterUpdateWorkItemParams composes declaration validation and conversion within the supplied invocation context.
+func AdapterUpdateWorkItemParams() runtime.ValueAdapter[UpdateWorkItemParams] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "UpdateWorkItemParams"}
+	return runtime.ValueAdapter[UpdateWorkItemParams]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value UpdateWorkItemParams) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (UpdateWorkItemParams, error) {
+			var zero UpdateWorkItemParams
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (UpdateWorkItemParams, error) {
+				var value UpdateWorkItemParams
+				err := json.Unmarshal(raw, &value)
+				return value, err
+			}()
+		},
+	}
+}
+
+// AdapterUser composes declaration validation and conversion within the supplied invocation context.
+func AdapterUser() runtime.ValueAdapter[User] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "User"}
+	return runtime.ValueAdapter[User]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value User) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (User, error) {
+			var zero User
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (User, error) { var value User; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterWorkItem composes declaration validation and conversion within the supplied invocation context.
+func AdapterWorkItem() runtime.ValueAdapter[WorkItem] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "WorkItem"}
+	return runtime.ValueAdapter[WorkItem]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value WorkItem) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (WorkItem, error) {
+			var zero WorkItem
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (WorkItem, error) { var value WorkItem; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+type ServerMethods interface {
+	ListEvents(ctx context.Context, params ListEventsParams) ([]Event, error)
+	Me(ctx context.Context) (User, error)
+	CreateProject(ctx context.Context, params CreateProjectParams) (Project, error)
+	ListProjects(ctx context.Context, params ListProjectsParams) ([]Project, error)
+	UpdateProject(ctx context.Context, params UpdateProjectParams) (Project, error)
+	Subscribe(ctx context.Context, params SubscribeParams) (SubscribeResult, error)
+	CancelWorkItem(ctx context.Context, params CancelWorkItemParams) (WorkItem, error)
+	CreateWorkItem(ctx context.Context, params CreateWorkItemParams) (WorkItem, error)
+	SetDependencies(ctx context.Context, params SetDependenciesParams) (WorkItem, error)
+	GetWorkItem(ctx context.Context, params GetWorkItemParams) (WorkItem, error)
+	ListWorkItems(ctx context.Context, params ListWorkItemsParams) ([]WorkItem, error)
+	PublishSpecification(ctx context.Context, params PublishSpecificationParams) (WorkItem, error)
+	ReopenWorkItem(ctx context.Context, params ReopenWorkItemParams) (WorkItem, error)
+	SetSteps(ctx context.Context, params SetStepsParams) (WorkItem, error)
+	UpdateWorkItem(ctx context.Context, params UpdateWorkItemParams) (WorkItem, error)
+}
+type ServerEvents interface {
+}
+type Server struct {
+	Methods ServerMethods
+	Events  ServerEvents
+}
+type ClientMethods interface {
+}
+type ClientEvents interface {
+	Changed(ctx context.Context, data Event) error
+}
+type Client struct {
+	Methods ClientMethods
+	Events  ClientEvents
+}
+type ServerModel func(Client) (Server, error)
+type ClientModel func(Server) (Client, error)
 
 // The public errors of the family: what a handler returns, as the Code of a *runtime.PublicError, and a caller tells apart with IsError.
 const (

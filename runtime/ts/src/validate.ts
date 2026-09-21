@@ -76,6 +76,7 @@ export interface FamilyBinding<F extends AnyFamily> {
 export interface TypeBinding {
   readonly type: TypeExpression;
   readonly validate: Validator;
+  readonly slots?: Slots;
 }
 
 export type Slots = { readonly [parameter: string]: FamilyBinding<AnyFamily> | TypeBinding };
@@ -625,6 +626,33 @@ function validate(expression: Expression, value: unknown, location: string): voi
 }
 
 /** Creates a validator whose imports retain both values and declaration scope. */
+function boundScope(slots: Slots, active = new Set<Slots>()): Scope {
+  if (active.has(slots)) throw new Error('cyclic type argument bindings');
+  active.add(slots);
+  try {
+    const scope: Scope = Object.create(null) as Scope;
+    for (const [parameter, binding] of Object.entries(slots)) {
+      scalarValue(parameter);
+      if ('type' in binding) {
+        scalarValue(binding.type);
+        checkPatterns(binding.type);
+        scope[parameter] = {
+          type: {
+            schema: binding.validate[descriptor],
+            value: binding.type,
+            scope: boundScope(binding.slots ?? {}, active),
+          },
+        };
+      } else {
+        scope[parameter] = { family: binding.validate[descriptor] };
+      }
+    }
+    return scope;
+  } finally {
+    active.delete(slots);
+  }
+}
+
 export function createValidator(family: WireFamily, imported: Record<string, Validator> = {}): Validator {
   scalarValue(family);
   scalarValue(Object.keys(imported));
@@ -635,16 +663,7 @@ export function createValidator(family: WireFamily, imported: Record<string, Val
     scalarValue(type);
     scalarValue(value);
     checkPatterns(type);
-    const scope: Scope = Object.create(null) as Scope;
-    for (const [parameter, binding] of Object.entries(slots)) {
-      scalarValue(parameter);
-      if ('type' in binding) scalarValue(binding.type);
-      if ('type' in binding) checkPatterns(binding.type);
-      scope[parameter] =
-        'type' in binding
-          ? { type: { schema: binding.validate[descriptor], value: binding.type, scope: {} } }
-          : { family: binding.validate[descriptor] };
-    }
+    const scope = boundScope(slots);
     validate({ schema, value: type, scope }, value, location);
   };
   return Object.assign(validateWire, { [descriptor]: schema });

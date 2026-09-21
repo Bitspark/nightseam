@@ -285,15 +285,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Shift(ctx, params)
+client.Methods.Shift(ctx, params)
 
-func (Handler) Shift(ctx context.Context, remote *binding.Remote, params protocol.Shift) (string, error)
+func (Handler) Shift(ctx context.Context, params protocol.Shift) (string, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.shift(params)
+await server.methods.shift(params)
 ```
 
 ### `relieve` on the wire
@@ -336,15 +336,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Relieve(ctx, params)
+client.Methods.Relieve(ctx, params)
 
-func (Handler) Relieve(ctx context.Context, remote *binding.Remote, params protocol.RelieveRequest) (protocol.Shift, error)
+func (Handler) Relieve(ctx context.Context, params protocol.RelieveRequest) (protocol.Shift, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.relieve(params)
+await server.methods.relieve(params)
 ```
 
 ### `watch` on the wire
@@ -417,15 +417,15 @@ Or refuses with `refused`:
 In `go`:
 
 ```go
-client.Watch(ctx, params)
+client.Methods.Watch(ctx, params)
 
-func (Handler) Watch(ctx context.Context, remote *binding.Remote, params protocol.Watch) (workerprotocol.Job, error)
+func (Handler) Watch(ctx context.Context, params protocol.Watch) (workerprotocol.Job, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.watch(params)
+await server.methods.watch(params)
 ```
 
 ## Errors

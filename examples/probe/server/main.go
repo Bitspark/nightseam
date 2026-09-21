@@ -13,6 +13,8 @@ import (
 
 	binding "example.com/probe/api/go/probe-binding"
 	probe "example.com/probe/api/impl/probe"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/live/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -24,7 +26,23 @@ func main() {
 	// Authentication and the origin policy are the consumer's to decide, and
 	// the runtime refuses a server that decides neither. An example on the
 	// loopback accepts everyone; a deployment does not.
-	handler, err := binding.NewHandler(probe.Handler{}, runtime.ServerOptions{
+	handler, err := runtime.NewHandler(runtime.ServerOptions{
+		Options: runtime.Options{Prepare: func(peer *runtime.Peer) error {
+			scope, err := live.Over(peer, live.Options{})
+			if err != nil {
+				return err
+			}
+			model, err := binding.ToWire(probe.Model, runtime.AdapterContext{ValueEnvironment: live.ValueEnvironment(scope)})
+			if err != nil {
+				return err
+			}
+			if _, err := runtime.ForwardWire(peer.Wire(), model); err != nil {
+				_ = model.Close(duplex.CodeNormal, "binding failed")
+				return err
+			}
+			go func() { <-peer.Done(); _ = model.Close(duplex.CodeNormal, "connection ended") }()
+			return nil
+		}},
 		Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 		CheckOrigin:  func(*http.Request) bool { return true },
 	})

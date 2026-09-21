@@ -668,15 +668,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Echo(ctx, params)
+client.Methods.Echo(ctx, params)
 
-func (Handler[SEnvelope, SHandle, Item]) Echo(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item], params probeprotocol.Payload) (probeprotocol.Payload, error)
+func (Handler[SEnvelope, SHandle, Item]) Echo(ctx context.Context, params probeprotocol.Payload) (probeprotocol.Payload, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.echo(params)
+await server.methods.echo(params)
 ```
 
 ### `no_args` on the wire
@@ -707,15 +707,15 @@ The server answers:
 In `go`:
 
 ```go
-client.NoArgs(ctx)
+client.Methods.NoArgs(ctx)
 
-func (Handler[SEnvelope, SHandle, Item]) NoArgs(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item]) (string, error)
+func (Handler[SEnvelope, SHandle, Item]) NoArgs(ctx context.Context) (string, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.noArgs()
+await server.methods.noArgs({})
 ```
 
 ### `classify` on the wire
@@ -749,15 +749,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Classify(ctx, params)
+client.Methods.Classify(ctx, params)
 
-func (Handler[SEnvelope, SHandle, Item]) Classify(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item], params protocol.Part) (string, error)
+func (Handler[SEnvelope, SHandle, Item]) Classify(ctx context.Context, params protocol.Part) (string, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.classify(params)
+await server.methods.classify(params)
 ```
 
 ### `classify_rich` on the wire
@@ -791,15 +791,15 @@ The server answers:
 In `go`:
 
 ```go
-client.ClassifyRich(ctx, params)
+client.Methods.ClassifyRich(ctx, params)
 
-func (Handler[SEnvelope, SHandle, Item]) ClassifyRich(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item], params protocol.RichPart) (string, error)
+func (Handler[SEnvelope, SHandle, Item]) ClassifyRich(ctx context.Context, params protocol.RichPart) (string, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.classifyRich(params)
+await server.methods.classifyRich(params)
 ```
 
 ### `parts` on the wire
@@ -835,15 +835,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Parts(ctx, params)
+client.Methods.Parts(ctx, params)
 
-func (Handler[SEnvelope, SHandle, Item]) Parts(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item], params protocol.PartsRequest) (protocol.Result[protocol.Parts, string], error)
+func (Handler[SEnvelope, SHandle, Item]) Parts(ctx context.Context, params protocol.PartsRequest) (protocol.Result[protocol.Parts, string], error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.parts(params)
+await server.methods.parts(params)
 ```
 
 ### `relay` on the wire
@@ -905,15 +905,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Relay(ctx, params)
+client.Methods.Relay(ctx, params)
 
-func (Handler[SEnvelope, SHandle, Item]) Relay(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, Item], params protocol.Carried[SEnvelope, SHandle, Item]) (protocol.Option[protocol.Envelope], error)
+func (Handler[SEnvelope, SHandle, Item]) Relay(ctx context.Context, params protocol.Carried[SEnvelope, SHandle, Item]) (protocol.Option[protocol.Envelope], error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.relay(params)
+await server.methods.relay(params)
 ```
 
 ### `changed` on the wire
@@ -936,13 +936,13 @@ The server emits:
 In `go`:
 
 ```go
-remote.EmitChanged(ctx, data)
+remote.Events.Changed(ctx, data)
 ```
 
 In `typescript`:
 
 ```typescript
-client.onChanged(handler)
+changed(data, context)
 ```
 
 ### `part.added` on the wire
@@ -964,13 +964,13 @@ The server emits:
 In `go`:
 
 ```go
-remote.EmitPartAdded(ctx, data)
+remote.Events.PartAdded(ctx, data)
 ```
 
 In `typescript`:
 
 ```typescript
-client.onPartAdded(handler)
+partAdded(data, context)
 ```
 
 ## Errors

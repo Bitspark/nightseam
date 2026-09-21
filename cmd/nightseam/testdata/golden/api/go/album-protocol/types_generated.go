@@ -2,6 +2,7 @@
 package albumprotocol
 
 import (
+	context "context"
 	json "encoding/json"
 	carrierprotocol "example.test/generated/api/go/carrier-protocol"
 	probeprotocol "example.test/generated/api/go/probe-protocol"
@@ -452,3 +453,119 @@ func ImportMine[AEnvelope any](raw json.RawMessage, convertAEnvelope func(json.R
 	}
 	return value, nil
 }
+
+// AdapterBorrowed composes declaration validation and conversion within the supplied invocation context.
+func AdapterBorrowed[BEnvelope any](adapterBEnvelope runtime.ValueAdapter[BEnvelope]) runtime.ValueAdapter[Borrowed[BEnvelope]] {
+	typeBEnvelope := adapterBEnvelope.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"B.Envelope": typeBEnvelope}, nil), Type: "Borrowed"}
+	return runtime.ValueAdapter[Borrowed[BEnvelope]]{
+		Binding:      binding,
+		NeedsContext: adapterBEnvelope.NeedsContext,
+		Export: func(ctx context.Context, value Borrowed[BEnvelope]) (json.RawMessage, error) {
+			raw, err := ExportBorrowed[BEnvelope](value, func(value BEnvelope) (json.RawMessage, error) { return adapterBEnvelope.Export(ctx, value) }, typeBEnvelope)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Borrowed[BEnvelope], error) {
+			var zero Borrowed[BEnvelope]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportBorrowed[BEnvelope](raw, func(value json.RawMessage) (BEnvelope, error) { return adapterBEnvelope.Import(ctx, value) }, typeBEnvelope)
+		},
+	}
+}
+
+// AdapterBoth composes declaration validation and conversion within the supplied invocation context.
+func AdapterBoth[AEnvelope, BEnvelope any](adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) runtime.ValueAdapter[Both[AEnvelope, BEnvelope]] {
+	typeAEnvelope := adapterAEnvelope.Binding
+	typeBEnvelope := adapterBEnvelope.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"A.Envelope": typeAEnvelope, "B.Envelope": typeBEnvelope}, nil), Type: "Both"}
+	return runtime.ValueAdapter[Both[AEnvelope, BEnvelope]]{
+		Binding:      binding,
+		NeedsContext: adapterAEnvelope.NeedsContext || adapterBEnvelope.NeedsContext,
+		Export: func(ctx context.Context, value Both[AEnvelope, BEnvelope]) (json.RawMessage, error) {
+			raw, err := ExportBoth[AEnvelope, BEnvelope](value, func(value AEnvelope) (json.RawMessage, error) { return adapterAEnvelope.Export(ctx, value) }, typeAEnvelope, func(value BEnvelope) (json.RawMessage, error) { return adapterBEnvelope.Export(ctx, value) }, typeBEnvelope)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Both[AEnvelope, BEnvelope], error) {
+			var zero Both[AEnvelope, BEnvelope]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportBoth[AEnvelope, BEnvelope](raw, func(value json.RawMessage) (AEnvelope, error) { return adapterAEnvelope.Import(ctx, value) }, typeAEnvelope, func(value json.RawMessage) (BEnvelope, error) { return adapterBEnvelope.Import(ctx, value) }, typeBEnvelope)
+		},
+	}
+}
+
+// AdapterFixed composes declaration validation and conversion within the supplied invocation context.
+func AdapterFixed() runtime.ValueAdapter[Fixed] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Fixed"}
+	return runtime.ValueAdapter[Fixed]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Fixed) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Fixed, error) {
+			var zero Fixed
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Fixed, error) { var value Fixed; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterMine composes declaration validation and conversion within the supplied invocation context.
+func AdapterMine[AEnvelope any](adapterAEnvelope runtime.ValueAdapter[AEnvelope]) runtime.ValueAdapter[Mine[AEnvelope]] {
+	typeAEnvelope := adapterAEnvelope.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"A.Envelope": typeAEnvelope}, nil), Type: "Mine"}
+	return runtime.ValueAdapter[Mine[AEnvelope]]{
+		Binding:      binding,
+		NeedsContext: adapterAEnvelope.NeedsContext,
+		Export: func(ctx context.Context, value Mine[AEnvelope]) (json.RawMessage, error) {
+			raw, err := ExportMine[AEnvelope](value, func(value AEnvelope) (json.RawMessage, error) { return adapterAEnvelope.Export(ctx, value) }, typeAEnvelope)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Mine[AEnvelope], error) {
+			var zero Mine[AEnvelope]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportMine[AEnvelope](raw, func(value json.RawMessage) (AEnvelope, error) { return adapterAEnvelope.Import(ctx, value) }, typeAEnvelope)
+		},
+	}
+}
+
+type ServerMethods[AEnvelope, BEnvelope any] interface {
+	Look(ctx context.Context, params Mine[AEnvelope]) (Both[AEnvelope, BEnvelope], error)
+}
+type ServerEvents[AEnvelope, BEnvelope any] interface {
+}
+type Server[AEnvelope, BEnvelope any] struct {
+	Methods ServerMethods[AEnvelope, BEnvelope]
+	Events  ServerEvents[AEnvelope, BEnvelope]
+}
+type ClientMethods[AEnvelope, BEnvelope any] interface {
+}
+type ClientEvents[AEnvelope, BEnvelope any] interface {
+}
+type Client[AEnvelope, BEnvelope any] struct {
+	Methods ClientMethods[AEnvelope, BEnvelope]
+	Events  ClientEvents[AEnvelope, BEnvelope]
+}
+type ServerModel[AEnvelope, BEnvelope any] func(Client[AEnvelope, BEnvelope]) (Server[AEnvelope, BEnvelope], error)
+type ClientModel[AEnvelope, BEnvelope any] func(Server[AEnvelope, BEnvelope]) (Client[AEnvelope, BEnvelope], error)

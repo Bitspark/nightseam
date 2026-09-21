@@ -110,7 +110,7 @@ func TestProofMixedDiagramCommutes(t *testing.T) {
 	directory := t.TempDir()
 	renderProofDiagram(t, directory)
 	fixtureModule(t, directory, root)
-	for _, component := range []string{"runtime", "duplex", "tunnel"} {
+	for _, component := range []string{"runtime", "duplex", "tunnel", "live"} {
 		copyFixtureTree(t, filepath.Join(root, component, "ts"), filepath.Join(directory, component, "ts"))
 	}
 	writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))
@@ -119,7 +119,10 @@ func TestProofMixedDiagramCommutes(t *testing.T) {
 	writeFixture(t, directory, "tsconfig.json", data)
 	writeFixture(t, directory, "diagram.ts", []byte(tsProofDiagram))
 	writeFixture(t, directory, "diagram.mjs", []byte(tsProofDiagramValues))
-	writeFixture(t, directory, "loader.mjs", []byte(runtimeLoader))
+	writeFixture(t, directory, "runtime-loader.mjs", []byte(runtimeLoader))
+	// Each route has its own package instance: the generic binding must import
+	// its generic converters, never the independently source-bound artifact.
+	writeFixture(t, directory, "loader.mjs", []byte(proofDiagramLoader))
 	// Reuse the structural comparison already holding the family-only diagram.
 	start := strings.Index(goDiagramFixture, "func same(")
 	end := strings.Index(goDiagramFixture, "func TestInstantiationIsTheLeftPath(")
@@ -141,28 +144,33 @@ import (
  "testing"
  "time"
  left "example.test/generated/api/go/proof-protocol"
- lc "example.test/generated/api/go/proof-client"
  lb "example.test/generated/api/go/proof-binding"
  right "example.test/generated/gen/go/proof-protocol"
- rc "example.test/generated/gen/go/proof-client"
  rb "example.test/generated/gen/go/proof-binding"
  probe "example.test/generated/api/go/probe-protocol"
  "github.com/Bitspark/nightseam/runtime/go"
+ "github.com/Bitspark/nightseam/duplex/go"
 )
 type E=probe.Envelope
 type H=probe.Handle
-type leftServer struct{lb.Handler}
-type rightServer struct{rb.Handler[E,H,string]}
-func (leftServer) Relay(_ context.Context,_ *lb.Remote,p left.Carried)(left.Option[left.Envelope],error){
+type leftServer struct{left.ServerMethods}
+type rightServer struct{right.ServerMethods[E,H,string]}
+func (leftServer) Relay(_ context.Context,p left.Carried)(left.Option[left.Envelope],error){
  data,err:=json.Marshal(p.Message);if err!=nil{return left.Option[left.Envelope]{},err};var value left.Envelope
  if err=json.Unmarshal(data,&value);err!=nil{return left.Option[left.Envelope]{},err}
  return left.Option[left.Envelope]{Some:&left.OptionSomeValue[left.Envelope]{Value:value}},nil
 }
-func (rightServer) Relay(_ context.Context,_ *rb.Remote[E,H,string],p right.Carried[E,H,string])(right.Option[right.Envelope],error){
+func (rightServer) Relay(_ context.Context,p right.Carried[E,H,string])(right.Option[right.Envelope],error){
  data,err:=json.Marshal(p.Message);if err!=nil{return right.Option[right.Envelope]{},err};var value right.Envelope
  if err=json.Unmarshal(data,&value);err!=nil{return right.Option[right.Envelope]{},err}
  return right.Option[right.Envelope]{Some:&right.OptionSomeValue[right.Envelope]{Value:value}},nil
 }
+type discardLeftEvents struct{left.ClientEvents}
+func(discardLeftEvents)PartAdded(context.Context,left.RichPart)error{return nil}
+func(discardLeftEvents)Changed(context.Context,probe.Payload)error{return nil}
+type discardRightEvents struct{right.ClientEvents[E,H,string]}
+func(discardRightEvents)PartAdded(context.Context,right.RichPart)error{return nil}
+func(discardRightEvents)Changed(context.Context,probe.Payload)error{return nil}
 var good=[]byte("{\"message\":{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{}},\"back\":null,\"page\":{\"items\":[\"hello\"],\"next\":null}}")
 func TestMixedStructureAndCodecs(t *testing.T){
  if !same(reflect.TypeOf(left.Carried{}),reflect.TypeOf(right.Carried[E,H,string]{})){t.Fatal("mixed family/type binding changed the structure")}
@@ -175,16 +183,28 @@ func TestMixedStructureAndCodecs(t *testing.T){
  }
 }
 func TestMixedClientsCrossBothPaths(t *testing.T){
- options:=runtime.ServerOptions{Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}}
- leftHandler,err:=lb.NewHandler(leftServer{},options);if err!=nil{t.Fatal(err)}
- rightHandler,err:=rb.NewHandler[E,H,string](rightServer{},options);if err!=nil{t.Fatal(err)}
- ls,rs:=httptest.NewServer(leftHandler),httptest.NewServer(rightHandler);defer ls.Close();defer rs.Close()
+ serve:=func(build func(*runtime.Peer)(duplex.Wire,error))*httptest.Server{
+  options:=runtime.ServerOptions{Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}}
+  options.Options.Prepare=func(peer *runtime.Peer)error{
+   model,err:=build(peer);if err!=nil{return err};if _,err=runtime.ForwardWire(peer.Wire(),model);err!=nil{_ = model.Close(duplex.CodeInternalError,"setup failed");return err}
+   go func(){<-peer.Done();_ = model.Close(duplex.CodeNormal,"")}();return nil
+  }
+  handler,err:=runtime.NewHandler(options);if err!=nil{t.Fatal(err)};return httptest.NewServer(handler)
+ }
+ ls:=serve(func(*runtime.Peer)(duplex.Wire,error){return lb.ToWire(func(left.Client)(left.Server,error){return left.Server{Methods:leftServer{},Events:struct{}{}},nil},runtime.AdapterContext{})})
+ rs:=serve(func(peer *runtime.Peer)(duplex.Wire,error){return rb.ToWire[E,H,string](func(right.Client[E,H,string])(right.Server[E,H,string],error){return right.Server[E,H,string]{Methods:rightServer{},Events:struct{}{}},nil},runtime.AdapterContext{},runtime.JSONAdapter[string]())})
+ defer ls.Close();defer rs.Close()
  leftURL,rightURL:="ws"+strings.TrimPrefix(ls.URL,"http"),"ws"+strings.TrimPrefix(rs.URL,"http")
  ctx,cancel:=context.WithTimeout(context.Background(),15*time.Second);defer cancel()
- l,err:=lc.Dial(ctx,rightURL,runtime.DialOptions{},nil,lc.Events{});if err!=nil{t.Fatal(err)};defer l.Close()
- r,err:=rc.Dial[E,H,string](ctx,leftURL,runtime.DialOptions{},nil,rc.Events[E,H,string]{});if err!=nil{t.Fatal(err)};defer r.Close()
+ var l left.Server;var r right.Server[E,H,string]
+ lpPeer,_,err:=runtime.Dial(ctx,rightURL,runtime.DialOptions{Options:runtime.Options{Prepare:func(peer *runtime.Peer)error{
+  factory,err:=lb.FromWire(ctx,peer.Wire(),runtime.AdapterContext{});if err!=nil{return err};l,err=factory(left.Client{Methods:struct{}{},Events:discardLeftEvents{}});return err
+ }}});if err!=nil{t.Fatal(err)};defer lpPeer.Close()
+ rpPeer,_,err:=runtime.Dial(ctx,leftURL,runtime.DialOptions{Options:runtime.Options{Prepare:func(peer *runtime.Peer)error{
+  factory,err:=rb.FromWire[E,H,string](ctx,peer.Wire(),runtime.AdapterContext{},runtime.JSONAdapter[string]());if err!=nil{return err};r,err=factory(right.Client[E,H,string]{Methods:struct{}{},Events:discardRightEvents{}});return err
+ }}});if err!=nil{t.Fatal(err)};defer rpPeer.Close()
  var lp left.Carried;var rp right.Carried[E,H,string];_ = json.Unmarshal(good,&lp);_ = json.Unmarshal(good,&rp)
- lv,err:=l.Relay(ctx,lp);if err!=nil{t.Fatal(err)};rv,err:=r.Relay(ctx,rp);if err!=nil{t.Fatal(err)}
+ lv,err:=l.Methods.Relay(ctx,lp);if err!=nil{t.Fatal(err)};rv,err:=r.Methods.Relay(ctx,rp);if err!=nil{t.Fatal(err)}
  a,_:=json.Marshal(lv);b,_:=json.Marshal(rv);if string(a)!=string(b){t.Fatalf("left %s right %s",a,b)}
  command:=exec.CommandContext(ctx,"node","--loader","./loader.mjs","diagram.mjs",leftURL,rightURL)
  if output,err:=command.CombinedOutput();err!=nil{t.Fatalf("TypeScript mixed diagram: %v\n%s",err,output)}
@@ -196,9 +216,9 @@ import type * as right from './gen/ts/proof-client/src/index.ts';
 import type * as probe from './api/ts/probe-client/src/index.ts';
 type Equals<A,B>=(<T>()=>T extends A?1:2) extends (<T>()=>T extends B?1:2)?true:false;
 export const carried:Equals<left.Carried,right.Carried<probe.Family,string>>=true;
-export const caller:Equals<left.Caller,right.Caller<probe.Family,string>>=true;
-export const handler:Equals<left.Handler,right.Handler<probe.Family,string>>=true;
-export const events:Equals<left.Events,right.Events<probe.Family,string>>=true;
+export const caller:Equals<left.ServerMethods,right.ServerMethods<probe.Family,string>>=true;
+export const handler:Equals<left.ClientMethods,right.ClientMethods<probe.Family,string>>=true;
+export const events:Equals<left.ClientEvents,right.ClientEvents<probe.Family,string>>=true;
 // @ts-expect-error A type argument does not fill the family parameter.
 type WrongFamily=right.Carried<string,string>;
 // @ts-expect-error The distinct Item argument stays string.
@@ -206,9 +226,12 @@ const wrong: right.Carried<probe.Family,string>={message:{version:1,kind:'event'
 `
 
 const tsProofDiagramValues = `import assert from 'node:assert/strict';
+import {jsonAdapter,DuplexPeer} from '@nightseam/runtime';
 import * as left from './api/ts/proof-client/src/index.ts';
 import * as right from './gen/ts/proof-client/src/index.ts';
 import * as probe from './api/ts/probe-client/src/index.ts';
+import * as leftBinding from './api/ts/proof-binding/src/index.ts';
+import * as rightBinding from './gen/ts/proof-binding/src/index.ts';
 const slots={S:probe.family,Item:{type:'string',validate:probe.validateWire}};
 const good={message:{version:1,kind:'event',event:'changed',data:{}},back:null,page:{items:['hello'],next:null}};
 for(const value of [good,{...good,page:{items:[7]}},{...good,message:{version:1}},{...good,back:{channel:'wrong'}}]){
@@ -219,12 +242,26 @@ for(const value of [good,{...good,page:{items:[7]}},{...good,message:{version:1}
  assert.deepEqual(errors[0],errors[1]);
  assert.equal(errors[0]===null,value===good);
 }
-const plain=await left.Client.dial(process.argv[3],{},undefined,{});
-const generic=await right.Client.dial(process.argv[2],probe.family,slots.Item,{},undefined,{});
+const plainPeer=new DuplexPeer();const genericPeer=new DuplexPeer();
+const reverse={methods:{},events:{changed(){},partAdded(){}}};
+const plain=(await leftBinding.fromWire(plainPeer.wire(),{}))(reverse).methods;
+const generic=(await rightBinding.fromWire(genericPeer.wire(),{},probe.family,jsonAdapter(slots.Item)))(reverse).methods;
+await plainPeer.connect(process.argv[3]);await genericPeer.connect(process.argv[2]);
 try{
  for(const client of [plain,generic]){
   assert.deepEqual(await client.relay(good),{kind:'some',value:good.message});
   await assert.rejects(client.relay({...good,page:{items:[7]}}));
  }
-}finally{plain.close();generic.close();}
+}finally{plainPeer.close();genericPeer.close();}
+`
+
+const proofDiagramLoader = `import {resolve as base} from './runtime-loader.mjs';
+export async function resolve(specifier,context,next){
+ if(specifier.startsWith('@example/proof-')&&context.parentURL?.includes('/gen/ts/')){
+  const name=specifier.slice('@example/'.length);
+  const entry=name.endsWith('/types')?'./gen/ts/'+name.slice(0,-6)+'/src/types.ts':'./gen/ts/'+name+'/src/index.ts';
+  return {url:new URL(entry,import.meta.url).href,shortCircuit:true};
+ }
+ return base(specifier,context,next);
+}
 `

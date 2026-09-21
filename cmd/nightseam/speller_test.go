@@ -87,8 +87,12 @@ func TestLanguageSnippetsComeFromGeneratedCode(t *testing.T) {
 							}
 						}
 						for _, e := range operations.Events {
-							if e.Languages[target.Name()].Invoke.Call == "" {
-								t.Errorf("%s %s event has no call snippet", side, e.Name)
+							invocation := e.Languages[target.Name()].Invoke
+							if invocation == (spi.Invocation{}) {
+								t.Errorf("%s %s event has neither a call nor a handler snippet", side, e.Name)
+							}
+							if invocation.Handle != "" && !strings.Contains(scaffold.String(), invocation.Handle) {
+								t.Errorf("%s %s event handler is absent from init: %s", side, e.Name, invocation.Handle)
 							}
 						}
 					}

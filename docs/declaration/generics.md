@@ -100,9 +100,10 @@ instantiates it:
   with `message: S["Envelope"]` and `last: S["Payload"]`, the bound narrowed
   to `AnyFamily & { "Payload": unknown }` where a type beyond the ones every
   family carries is drawn and the parameter defaulting to that same bound,
-  and one binding argument per parameter,
-  `Client.dial(url, probe.family, codex.family, …)`, whose validators then
-  validate what fills each slot.
+  and one family binding argument per family parameter on `toWire` and
+  `fromWire`. A type parameter instead takes a `ValueAdapter<T>`, carrying its
+  declaration binding and both native/wire conversions. The validators use
+  those bindings to check what fills each slot.
 - Go has none, so a family parameter becomes one type parameter per type
   drawn from it, named for both: `S` drawn at its `Envelope`, `Handle` and
   `Payload` gives `SEnvelope`, `SHandle` and `SPayload`, and a type takes
@@ -110,8 +111,8 @@ instantiates it:
   `Frame[codexprotocol.Envelope]` validates what fills the slot through
   codex's codec; `Frame[runtime.Raw]` passes it through, which is what a
   relay wants. Every record and enum of a protocol package returns the
-  package's `Tag` from `Of`, and `Dial`, `Attach`, `Serve`, `NewHandler` and
-  `Open` hold every type parameter drawn from `S` to `runtime.Of[STag]`, so
+  package's `Tag` from `Of`, and `ToWire` and `FromWire` hold every type
+  parameter drawn from `S` to `runtime.Of[STag]`, so
   an `Envelope` of one family beside a `Handle` of another does not compile.
 
 A type parameter is the plainer case: both languages have one, and a type
@@ -120,6 +121,39 @@ that declares parameters renders as a type with type parameters.
 A type drawn from a family parameter is validated by the binding of the
 family that fills it in TypeScript, and by that family's codec where the
 generic type is instantiated in Go.
+
+## Conversion at a generic operation
+
+Each generated side converts between Wire and the same session-factory model
+type. It renders once for its generic declaration; the consumer supplies the
+slot adapters when constructing `ToWire` / `FromWire` or `toWire` / `fromWire`.
+Changing a slot from scalar data to a declared callable or a nested
+callable-bearing record changes that supplied value adapter, not the model
+implementation or a carrier-specific bridge.
+
+`runtime.ValueAdapter[T]` / `ValueAdapter<T>` retains the type binding,
+conversion in both directions and `NeedsContext` / `needsContext`. Generated
+`AdapterX` / `adapterX` factories compose it through declared containers.
+`runtime.JSONAdapter[T]()` / `jsonAdapter<T>(binding)` validates ordinary data
+without a live dependency or a value environment.
+
+An acquiring adapter receives the current operation's context; it does not
+retain an owner or principal in its factory. `runtime.AdapterContext` supplies
+the conversion environment. For live values this is
+`live.ValueEnvironment(scope)` / `valueEnvironment(scope)`, which selects the
+operation owner and provides child lifetimes and export/import/publication
+batches. A standalone consumer must enclose the entire walk in the matching
+environment batch and pass its active callback context into every adapter.
+The [generated surface](generated.md#value-adapters-and-generic-operations)
+shows both languages and the lower direct conversion helpers.
+
+This covers type arguments containing fixed declared callables, including
+callables that take or return other callables. The grammar still refuses a
+callable declaration's own parameters and live types drawn through a family
+parameter. Those forms are separate work in
+[#368](https://github.com/Bitspark/nightseam/issues/368) and
+[#369](https://github.com/Bitspark/nightseam/issues/369); adapters do not add
+either declaration form implicitly.
 
 ## The diagram commutes
 

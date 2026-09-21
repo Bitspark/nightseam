@@ -14,6 +14,7 @@ import (
 	binding "example.test/generated/api/go/publication-binding"
 	client "example.test/generated/api/go/publication-client"
 	publication "example.test/generated/api/go/publication-protocol"
+	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
@@ -122,35 +123,35 @@ func (r *publicationReceiver) drop() (bool, error) {
 
 type publicationServer struct{ *publicationReceiver }
 
-func (s *publicationServer) Supply(ctx context.Context, _ *binding.Remote, value publication.Supply) (int64, error) {
+func (s *publicationServer) Supply(ctx context.Context, value publication.Supply) (int64, error) {
 	return s.supply(ctx, value)
 }
-func (s *publicationServer) Produce(ctx context.Context, _ *binding.Remote, value publication.Supply) (publication.Callback, error) {
+func (s *publicationServer) Produce(ctx context.Context, value publication.Supply) (publication.Callback, error) {
 	return s.produce(ctx, value)
 }
-func (s *publicationServer) Inspect(context.Context, *binding.Remote) (publication.Counts, error) {
+func (s *publicationServer) Inspect(context.Context) (publication.Counts, error) {
 	return s.inspect()
 }
-func (s *publicationServer) Invoke(ctx context.Context, _ *binding.Remote) (int64, error) {
+func (s *publicationServer) Invoke(ctx context.Context) (int64, error) {
 	return s.invoke(ctx)
 }
-func (s *publicationServer) Drop(context.Context, *binding.Remote) (bool, error) { return s.drop() }
+func (s *publicationServer) Drop(context.Context) (bool, error) { return s.drop() }
 
 type publicationClient struct{ *publicationReceiver }
 
-func (s *publicationClient) SupplyBack(ctx context.Context, _ *client.Client, value publication.Supply) (int64, error) {
+func (s *publicationClient) SupplyBack(ctx context.Context, value publication.Supply) (int64, error) {
 	return s.supply(ctx, value)
 }
-func (s *publicationClient) ProduceBack(ctx context.Context, _ *client.Client, value publication.Supply) (publication.Callback, error) {
+func (s *publicationClient) ProduceBack(ctx context.Context, value publication.Supply) (publication.Callback, error) {
 	return s.produce(ctx, value)
 }
-func (s *publicationClient) InspectBack(context.Context, *client.Client) (publication.Counts, error) {
+func (s *publicationClient) InspectBack(context.Context) (publication.Counts, error) {
 	return s.inspect()
 }
-func (s *publicationClient) InvokeBack(ctx context.Context, _ *client.Client) (int64, error) {
+func (s *publicationClient) InvokeBack(ctx context.Context) (int64, error) {
 	return s.invoke(ctx)
 }
-func (s *publicationClient) DropBack(context.Context, *client.Client) (bool, error) { return s.drop() }
+func (s *publicationClient) DropBack(context.Context) (bool, error) { return s.drop() }
 
 type publicationEndpoint struct {
 	scope   *live.Scope
@@ -340,20 +341,22 @@ func (t *testee) publicationDispatch(op string, raw map[string]json.RawMessage) 
 	case "gen.publication_serve":
 		h := &publicationHandle{ready: make(chan struct{})}
 		r := &publicationReceiver{}
-		handler, err := binding.NewHandler(&publicationServer{r}, runtime.ServerOptions{
+		handler, err := fixtureHandler(runtime.ServerOptions{
 			Authenticate: func(req *http.Request) (context.Context, error) { return req.Context(), nil }, CheckOrigin: func(*http.Request) bool { return true },
 			Options: runtime.Options{MaxFrameBytes: 1024, Prepare: func(peer *runtime.Peer) (err error) {
 				r.scope, err = live.Over(peer, live.Options{MaxExports: 4, MaxImports: 4})
-				if err != nil {
-					return err
-				}
-				return (&binding.Remote{Peer: peer}).OnOfferedBack(r.event)
+				return
 			}},
-			OnConnect: func(peer *runtime.Peer) {
-				remote := &binding.Remote{Peer: peer}
-				h.endpoint = &publicationEndpoint{r.scope, remote.SupplyBack, remote.ProduceBack, remote.EmitOffered, remote.InspectBack, remote.InvokeBack, remote.DropBack, peer.Close}
-				close(h.ready)
-			},
+			OnConnect: func(*runtime.Peer) { close(h.ready) },
+		}, func(peer *runtime.Peer) (duplex.Wire, error) {
+			environment, err := fixtureLiveContext(peer, runtime.Options{MaxFrameBytes: 1024})
+			if err != nil {
+				return nil, err
+			}
+			return binding.ToWire(func(remote publication.Client) (publication.Server, error) {
+				h.endpoint = &publicationEndpoint{r.scope, remote.Methods.SupplyBack, remote.Methods.ProduceBack, remote.Events.Offered, remote.Methods.InspectBack, remote.Methods.InvokeBack, remote.Methods.DropBack, peer.Close}
+				return publication.Server{Methods: &publicationServer{r}, Events: publicationServerEvents{r}}, nil
+			}, environment)
 		})
 		if err != nil {
 			return nil, err
@@ -368,14 +371,22 @@ func (t *testee) publicationDispatch(op string, raw map[string]json.RawMessage) 
 	case "gen.publication_dial":
 		h := &publicationHandle{ready: make(chan struct{})}
 		r := &publicationReceiver{}
-		c, err := client.Dial(context.Background(), str(raw, "url"), runtime.DialOptions{Options: runtime.Options{MaxFrameBytes: 1024, Prepare: func(peer *runtime.Peer) (err error) {
+		_, err := fixtureDial(context.Background(), str(raw, "url"), runtime.DialOptions{Options: runtime.Options{MaxFrameBytes: 1024, Prepare: func(peer *runtime.Peer) (err error) {
 			r.scope, err = live.Over(peer, live.Options{MaxExports: 4, MaxImports: 4})
 			return
-		}}}, &publicationClient{r}, client.Events{Offered: r.event})
+		}}}, func(peer *runtime.Peer) (duplex.Wire, error) {
+			environment, err := fixtureLiveContext(peer, runtime.Options{MaxFrameBytes: 1024})
+			if err != nil {
+				return nil, err
+			}
+			return client.ToWire(func(remote publication.Server) (publication.Client, error) {
+				h.endpoint = &publicationEndpoint{r.scope, remote.Methods.Supply, remote.Methods.Produce, remote.Events.OfferedBack, remote.Methods.Inspect, remote.Methods.Invoke, remote.Methods.Drop, peer.Close}
+				return publication.Client{Methods: &publicationClient{r}, Events: publicationClientEvents{r}}, nil
+			}, environment)
+		})
 		if err != nil {
 			return nil, err
 		}
-		h.endpoint = &publicationEndpoint{r.scope, c.Supply, c.Produce, c.EmitOfferedBack, c.Inspect, c.Invoke, c.Drop, c.Close}
 		close(h.ready)
 		return map[string]any{"handle": t.mint("publicationcl", h)}, nil
 	case "gen.publication_exercise":
@@ -391,4 +402,18 @@ func (t *testee) publicationDispatch(op string, raw map[string]json.RawMessage) 
 		return h.endpoint.exercise(ctx)
 	}
 	return nil, fail("unsupported", "no publication operation %s", op)
+}
+
+type publicationServerEvents struct{ receiver *publicationReceiver }
+
+func (e publicationServerEvents) OfferedBack(ctx context.Context, value publication.Supply) error {
+	e.receiver.event(ctx, value)
+	return nil
+}
+
+type publicationClientEvents struct{ receiver *publicationReceiver }
+
+func (e publicationClientEvents) Offered(ctx context.Context, value publication.Supply) error {
+	e.receiver.event(ctx, value)
+	return nil
 }

@@ -37,10 +37,22 @@ func (Seen) Of() Tag
 func (Seen) WireType() runtime.TypeBinding
 func (Status) Of() Tag
 func (Status) WireType() runtime.TypeBinding
+func AdapterBase() runtime.ValueAdapter[Base]
+func AdapterCarried() runtime.ValueAdapter[Carried]
+func AdapterCounts() runtime.ValueAdapter[Counts]
+func AdapterOpenRecord() runtime.ValueAdapter[OpenRecord]
+func AdapterPayload() runtime.ValueAdapter[Payload]
+func AdapterPayloads() runtime.ValueAdapter[Payloads]
+func AdapterSeen() runtime.ValueAdapter[Seen]
+func AdapterStatus() runtime.ValueAdapter[Status]
 func IsError(err error, code string) bool
 type Base struct{Text string `json:"text"`}
 type Carried struct{Envelope *Envelope; Handle *Handle; None *struct{}}
 type CarriedKind string
+type Client struct{Methods ClientMethods; Events ClientEvents}
+type ClientEvents interface{Changed(ctx context.Context, data Payload) error}
+type ClientMethods interface{Reverse(ctx context.Context, params Payload) (Payload, error)}
+type ClientModel func(Server) (Client, error)
 type Counts map[string]int64
 type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`; Traceparent runtime.Optional[string] `json:"traceparent,omitzero"`; Tracestate runtime.Optional[string] `json:"tracestate,omitzero"`; Meta runtime.Optional[map[string]string] `json:"meta,omitzero"`}
 type Handle struct{Channel int64 `json:"channel"`}
@@ -48,6 +60,10 @@ type OpenRecord struct{ID string `json:"id"`; Note runtime.Optional[string] `jso
 type Payload struct{Text string `json:"text"`; Count int64 `json:"count"`; Note runtime.Optional[runtime.Nullable[string]] `json:"note,omitzero"`}
 type Payloads []Payload
 type Seen struct{At time.Time `json:"at"`; Status Status `json:"status"`; Extra runtime.Optional[any] `json:"extra,omitzero"`; Ratio float64 `json:"ratio"`; Ok bool `json:"ok"`}
+type Server struct{Methods ServerMethods; Events ServerEvents}
+type ServerEvents interface{Noticed(ctx context.Context, data Seen) error}
+type ServerMethods interface{Echo(ctx context.Context, params Payload) (Payload, error); NoArgs(ctx context.Context) (string, error); Seen(ctx context.Context, params Seen) (Payloads, error)}
+type ServerModel func(Client) (Server, error)
 type Status string
 type Tag struct{}
 var Errors = []string{…}

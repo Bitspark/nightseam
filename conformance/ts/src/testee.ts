@@ -10,6 +10,7 @@ import { seamOps } from './seam.ts';
 import { peerOps } from './peer.ts';
 import { tunnelOps } from './tunnel.ts';
 import { liveOps } from './live.ts';
+import { recordedWireWitness } from './recorded-wire.ts';
 
 const DRIVER = 1;
 
@@ -193,6 +194,8 @@ const ops: Record<string, Op> = {
   ...peerOps(testee),
   ...tunnelOps(testee),
   ...liveOps(testee),
+  'peer.recorded_wire_witness': (args) =>
+    within(withinOf(args), recordedWireWitness(withinOf(args)), 'recorded wire witness'),
 };
 
 const serve = async (line: string): Promise<string> => {

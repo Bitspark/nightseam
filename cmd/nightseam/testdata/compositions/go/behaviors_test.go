@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	jobclient "example.test/generated/api/go/job-client"
+	jobbinding "example.test/generated/api/go/job-binding"
 	jobprotocol "example.test/generated/api/go/job-protocol"
 	notesprotocol "example.test/generated/api/go/notes-protocol"
 	workerprotocol "example.test/generated/api/go/worker-protocol"
@@ -281,7 +281,7 @@ func TestRepeatedImportAndRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Peer != second.Peer {
+	if first != second {
 		t.Fatal("two imports of one reference gave two attachments")
 	}
 	if got := called.scope.aliases(started.Job.Channel); got != 2 {
@@ -315,50 +315,47 @@ func TestRepeatedImportAndRelease(t *testing.T) {
 	})
 }
 
-// The obstruction behind the case above, stated as running code so that it is
-// evidence and not an assertion: the generated Open resolves a handle and
-// *attaches a peer*, so importing one reference twice through it makes two
-// peers reading one channel. #202 requires the opposite. It is why the scope
-// keeps the table it keeps, and it is a repair the generated import owes,
-// not a primitive Nightseam is missing.
-func TestGeneratedOpenAttachesOncePerCall(t *testing.T) {
+// Repeated channel acquisition now shares one eagerly prepared Wire. Two
+// scalar interpretations use that same correlation owner and both answer; the
+// consumer table above separately owns aliasing and release.
+func TestGeneratedModelsSharePreparedChannel(t *testing.T) {
 	ctx := testContext(t)
 	workers := serveWorkers(t)
 	called := dialWorkers(t, ctx, workers)
-
 	reference, err := called.scope.exportSink(ctx, newRecorder())
 	if err != nil {
 		t.Fatal(err)
 	}
-	started, err := called.client.Start(ctx, workerprotocol.Start{
-		Ticket: workerprotocol.Ticket{Label: "naive", Steps: 1}, Progress: workerprotocol.Handle{Channel: reference},
-	})
+	started, err := called.client.Start(ctx, workerprotocol.Start{Ticket: workerprotocol.Ticket{Label: "shared", Steps: 1}, Progress: workerprotocol.Handle{Channel: reference}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	handle := jobprotocol.Handle{Channel: started.Job.Channel}
-	one, err := jobclient.Open(ctx, called.carrier, handle, runtime.Options{}, nil, jobclient.Events{})
-	if err != nil {
-		t.Fatal(err)
+	one, ok, err := called.carrier.Channel(started.Job.Channel, runtime.Options{})
+	if err != nil || !ok {
+		t.Fatalf("channel: %v, %v", ok, err)
 	}
-	defer one.Close()
-	two, err := jobclient.Open(ctx, called.carrier, handle, runtime.Options{}, nil, jobclient.Events{})
-	if err != nil {
-		t.Fatal(err)
+	two, ok, err := called.carrier.Channel(started.Job.Channel, runtime.Options{})
+	if err != nil || !ok {
+		t.Fatalf("channel again: %v, %v", ok, err)
 	}
-	defer two.Close()
-	if one.Peer == two.Peer {
-		t.Fatal("generated Open has started sharing one attachment per binding; docs/runtime/compositions.md and the report on #202 need rewriting, which is good news")
+	if one != two {
+		t.Fatal("repeated acquisition made a second channel Wire")
 	}
-	// Both peers read the same channel, which is the defect: whichever reads
-	// a reply first takes it, so neither call is reliable. The scope exists
-	// so that an application never reaches this state.
-	channel, ok := called.carrier.Channel(started.Job.Channel)
-	if !ok {
-		t.Fatal("the job's channel is not on this connection")
+	if one.Family != "job" {
+		t.Fatalf("the channel speaks %q", one.Family)
 	}
-	if channel.Family != "job" {
-		t.Fatalf("the channel speaks %q", channel.Family)
+	for range 2 {
+		factory, err := jobbinding.FromWire(ctx, one, runtime.AdapterContext{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		model, err := factory(jobprotocol.Client{Methods: struct{}{}, Events: struct{}{}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := model.Methods.Status(ctx); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

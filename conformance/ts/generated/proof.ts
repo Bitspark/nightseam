@@ -1,17 +1,18 @@
 import * as proof from './api/ts/proof-client/src/index.ts';
 import * as binding from './api/ts/proof-binding/src/index.ts';
 import * as probe from './api/ts/probe-client/src/index.ts';
-import { validateUnicodeJSON, type TypeExpression } from '@nightseam/runtime';
-import { Served } from './server.ts';
+import { callWire, jsonAdapter, validateUnicodeJSON, type TypeExpression } from '@nightseam/runtime';
+import { Served, Session } from './server.ts';
 
 type Args = Record<string, unknown>;
-type Client = proof.Client<probe.Family, string>;
+type Client = proof.Server<probe.Family, string>;
 export class ProofFailure extends Error {
   readonly code: string;
   constructor(code: string, message: string) { super(message); this.code=code; }
 }
 class Dialled {
-  client!: Client;
+  connection!: Session<Client>;
+  get client(): Client { return this.connection.model; }
   readonly events: proof.RichPart[] = [];
   readonly waiters = new Set<() => void>();
   receive(data: proof.RichPart): void { this.events.push(data); for (const wake of this.waiters) wake(); }
@@ -25,10 +26,10 @@ class Dialled {
   }
 }
 const handles = new Map<string, Dialled>();
-const servers = new Map<string, Served<binding.Remote<probe.Family, string>>>();
+const servers = new Map<string, Served<Session<proof.Client<probe.Family, string>>>>();
 let next = 0;
 export function resetProof(): void {
-  for (const d of handles.values()) d.client.close();
+  for (const d of handles.values()) d.connection.close();
   for (const s of servers.values()) s.shutdown();
   handles.clear();
   servers.clear();
@@ -39,6 +40,7 @@ function lookup(args: Args): Dialled {
   return d;
 }
 const slots = { S: probe.family, Item: {type: 'string', validate: probe.validateWire} } satisfies proof.Slots;
+const itemAdapter = jsonAdapter<string>(slots.Item);
 // These references must compile against the names actually emitted by the target.
 const inlineNames = {
   OptionNone: {} as proof.OptionNone,
@@ -61,7 +63,7 @@ function classify(value: proof.Part): string {
     case 'count': return 'count:' + String(value.value);
   }
 }
-const handler: binding.Handler<probe.Family, string> = {
+const handler: proof.Server<probe.Family, string>['methods'] = {
   echo: params => params,
   noArgs: () => 'proof',
   seen: () => [],
@@ -76,7 +78,14 @@ const handler: binding.Handler<probe.Family, string> = {
 };
 export const proofOps: Record<string, (args: Args) => unknown | Promise<unknown>> = {
   'gen.proof_serve': async () => {
-    const s = await new Served(socket => binding.serve<probe.Family, string>(socket, probe.family, slots.Item, {}, handler, {}).then(peer => new binding.Remote<probe.Family, string>(peer, probe.family, slots.Item))).listen();
+    const s = await new Served(socket => {
+      const connection = new Session<proof.Client<probe.Family, string>>({ role: 'server' });
+      connection.expose(binding.toWire<probe.Family, string>(remote => {
+        connection.model = remote;
+        return { methods: handler, events: {} };
+      }, {}, probe.family, itemAdapter));
+      return connection.attach(socket);
+    }).listen();
     const handle = `proofsrv${++next}`;
     servers.set(handle, s);
     return { handle, url: s.url };
@@ -86,12 +95,17 @@ export const proofOps: Record<string, (args: Args) => unknown | Promise<unknown>
     if (!s) throw new ProofFailure('unknown_handle', String(args.on));
     const remote = await s.remote(typeof args.within_ms === 'number' ? args.within_ms : 5000);
     if (!remote) throw new ProofFailure('timeout', 'no proof client');
-    await remote.emitPartAdded(args.data as proof.RichPart);
+    await remote.model.events.partAdded(args.data as proof.RichPart);
     return {};
   },
   'gen.proof_dial': async args => {
     const d = new Dialled();
-    d.client = await proof.Client.dial<probe.Family,string>(String(args.url), probe.family, slots.Item, {}, undefined, {partAdded:data=>d.receive(data)});
+    d.connection = new Session<Client>();
+    d.connection.expose(proof.toWire<probe.Family, string>(remote => {
+      d.connection.model = remote;
+      return { methods: {}, events: { changed: () => {}, partAdded: data => d.receive(data) } };
+    }, {}, probe.family, itemAdapter));
+    await d.connection.connect(String(args.url));
     const handle = `proofcl${++next}`; handles.set(handle, d); return {handle};
   },
   'gen.proof_names': () => Object.keys(inlineNames).sort(),
@@ -109,12 +123,12 @@ export const proofOps: Record<string, (args: Args) => unknown | Promise<unknown>
     const options = {timeoutMs:typeof args.within_ms === 'number' ? args.within_ms : 5000};
     try {
       let result: unknown;
-      if (args.raw) result = await client.peer.call(String(args.method), args.params, options);
+      if (args.raw) result = await callWire(lookup(args).connection.peer.wire(), [String(args.method)], args.params, options);
       else switch (args.method) {
-        case 'classify': result = await client.classify(args.params as proof.Part, options); break;
-        case 'classify_rich': result = await client.classifyRich(args.params as proof.RichPart, options); break;
-        case 'parts': result = await client.parts(args.params as proof.PartsRequest, options); break;
-        case 'relay': result = await client.relay(args.params as proof.Carried<probe.Family,string>, options); break;
+        case 'classify': result = await client.methods.classify(args.params as proof.Part, options); break;
+        case 'classify_rich': result = await client.methods.classifyRich(args.params as proof.RichPart, options); break;
+        case 'parts': result = await client.methods.parts(args.params as proof.PartsRequest, options); break;
+        case 'relay': result = await client.methods.relay(args.params as proof.Carried<probe.Family,string>, options); break;
         default: throw new ProofFailure('invalid','unknown proof method');
       }
       return {result};

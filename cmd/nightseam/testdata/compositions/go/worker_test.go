@@ -14,13 +14,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	jobbinding "example.test/generated/api/go/job-binding"
 	jobprotocol "example.test/generated/api/go/job-protocol"
-	sinkbinding "example.test/generated/api/go/sink-binding"
-	sinkclient "example.test/generated/api/go/sink-client"
 	sinkprotocol "example.test/generated/api/go/sink-protocol"
-	workerbinding "example.test/generated/api/go/worker-binding"
-	workerclient "example.test/generated/api/go/worker-client"
 	workerprotocol "example.test/generated/api/go/worker-protocol"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 )
@@ -37,14 +32,19 @@ type theWorker struct {
 
 	// origin is the worker this one forwards into, when a test has given it
 	// one, and the scope of the second connection it reaches that worker over.
-	origin      *workerclient.Client
+	origin      workerprotocol.ServerMethods
 	originScope *scope
 	forwarded   *relay
 
 	slows atomic.Int64
 }
 
-var _ workerbinding.Handler = (*theWorker)(nil)
+type workerSession struct {
+	*theWorker
+	here *scope
+}
+
+var _ workerprotocol.ServerMethods = (*workerSession)(nil)
 
 func newWorker() *theWorker { return &theWorker{scopes: map[*runtime.Peer]*scope{}} }
 
@@ -64,24 +64,11 @@ func (w *theWorker) attach(peer *runtime.Peer, s *scope) {
 	}()
 }
 
-func (w *theWorker) scopeOf(peer *runtime.Peer) (*scope, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	s, ok := w.scopes[peer]
-	if !ok {
-		return nil, errScopeClosed
-	}
-	return s, nil
-}
-
 // Start is the whole of #196's example. It resolves the reference it was
 // given, serves a job of its own, answers with that job's reference, and only
 // then — after this call has returned — begins reporting through the sink.
-func (w *theWorker) Start(ctx context.Context, remote *workerbinding.Remote, params workerprotocol.Start) (workerprotocol.Started, error) {
-	here, err := w.scopeOf(remote.Peer)
-	if err != nil {
-		return workerprotocol.Started{}, err
-	}
+func (w *workerSession) Start(ctx context.Context, params workerprotocol.Start) (workerprotocol.Started, error) {
+	here := w.here
 	sink, err := here.importSink(ctx, params.Progress.Channel)
 	if err != nil {
 		return workerprotocol.Started{}, &runtime.PublicError{Code: workerprotocol.ErrorUnknownReference, Message: err.Error()}
@@ -122,11 +109,8 @@ func (w *theWorker) jobFor(label string) *theJob {
 
 // Collect resolves every reference in the message, wherever the language
 // admits one, and says how many resolved and how many were refused.
-func (w *theWorker) Collect(ctx context.Context, remote *workerbinding.Remote, params workerprotocol.Held) (workerprotocol.Counted, error) {
-	here, err := w.scopeOf(remote.Peer)
-	if err != nil {
-		return workerprotocol.Counted{}, err
-	}
+func (w *workerSession) Collect(ctx context.Context, params workerprotocol.Held) (workerprotocol.Counted, error) {
+	here := w.here
 	counted := workerprotocol.Counted{}
 	resolve := func(handle workerprotocol.Handle) {
 		if _, err := here.importSink(ctx, handle.Channel); err != nil {
@@ -157,11 +141,8 @@ func (w *theWorker) Collect(ctx context.Context, remote *workerbinding.Remote, p
 // its own on that second connection, with its own lifetime: releasing it
 // leaves the origin binding alone, and the origin closing reaches it as a
 // failed call rather than as silence.
-func (w *theWorker) Forward(ctx context.Context, remote *workerbinding.Remote, params workerprotocol.Forward) (workerprotocol.Counted, error) {
-	here, err := w.scopeOf(remote.Peer)
-	if err != nil {
-		return workerprotocol.Counted{}, err
-	}
+func (w *workerSession) Forward(ctx context.Context, params workerprotocol.Forward) (workerprotocol.Counted, error) {
+	here := w.here
 	if w.origin == nil || w.originScope == nil {
 		return workerprotocol.Counted{}, &runtime.PublicError{Code: workerprotocol.ErrorNoOrigin, Message: "this worker forwards into nothing"}
 	}
@@ -187,7 +168,7 @@ func (w *theWorker) Forward(ctx context.Context, remote *workerbinding.Remote, p
 // Slow answers nothing until its own call is cancelled, which is how
 // cancelling a call is told apart from releasing a reference and from
 // cancelling the application's job.
-func (w *theWorker) Slow(ctx context.Context, _ *workerbinding.Remote, _ workerprotocol.Ticket) (string, error) {
+func (w *theWorker) Slow(ctx context.Context, _ workerprotocol.Ticket) (string, error) {
 	w.slows.Add(1)
 	<-ctx.Done()
 	return "", ctx.Err()
@@ -197,7 +178,7 @@ func (w *theWorker) Slow(ctx context.Context, _ *workerbinding.Remote, _ workerp
 // connection. It is the whole of explicit forwarding: an implementation like
 // any other, exported into the scope it is to be reachable in.
 type relay struct {
-	to   *sinkbinding.Remote
+	to   sinkprotocol.ClientMethods
 	self int64
 
 	mu      sync.Mutex
@@ -205,9 +186,9 @@ type relay struct {
 	failed  error
 }
 
-var _ sinkclient.Handler = (*relay)(nil)
+var _ sinkprotocol.ClientMethods = (*relay)(nil)
 
-func (r *relay) Report(ctx context.Context, _ *sinkclient.Client, params sinkprotocol.ReportRequest) (int64, error) {
+func (r *relay) Report(ctx context.Context, params sinkprotocol.ReportRequest) (int64, error) {
 	taken, err := r.to.Report(ctx, params)
 	r.mu.Lock()
 	if err != nil {
@@ -222,7 +203,7 @@ func (r *relay) Report(ctx context.Context, _ *sinkclient.Client, params sinkpro
 	return taken, nil
 }
 
-func (r *relay) End(ctx context.Context, _ *sinkclient.Client, params sinkprotocol.Ending) (int64, error) {
+func (r *relay) End(ctx context.Context, params sinkprotocol.Ending) (int64, error) {
 	return r.to.End(ctx, params)
 }
 
@@ -251,7 +232,7 @@ func (r *relay) counts() (int64, error) {
 type theJob struct {
 	label string
 	steps int64
-	sink  *sinkbinding.Remote
+	sink  sinkprotocol.ClientMethods
 	// self is the reference this job was published under, which is what the
 	// forwarding case revokes.
 	self int64
@@ -266,7 +247,7 @@ type theJob struct {
 	ending    string
 }
 
-var _ jobbinding.Handler = (*theJob)(nil)
+var _ jobprotocol.ServerMethods = (*theJob)(nil)
 
 func (j *theJob) run(ctx context.Context) {
 	defer close(j.done)
@@ -345,13 +326,13 @@ func (j *theJob) Ending() string {
 	return j.ending
 }
 
-func (j *theJob) Status(_ context.Context, _ *jobbinding.Remote) (jobprotocol.Status, error) {
+func (j *theJob) Status(_ context.Context) (jobprotocol.Status, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return jobprotocol.Status{State: j.state, Delivered: j.delivered}, nil
 }
 
-func (j *theJob) Cancel(_ context.Context, _ *jobbinding.Remote) (jobprotocol.Cancelled, error) {
+func (j *theJob) Cancel(_ context.Context) (jobprotocol.Cancelled, error) {
 	select {
 	case <-j.done:
 		return jobprotocol.Cancelled{}, &runtime.PublicError{Code: jobprotocol.ErrorJobFinished, Message: fmt.Sprintf("%s had ended", j.label)}

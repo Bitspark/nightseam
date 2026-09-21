@@ -36,7 +36,7 @@ func (t *testee) tunnelOf(r request, name string) (*tunnelOn, error) {
 }
 
 // channelOf is a connection handle that is a tunnel channel.
-func (t *testee) channelOf(r request, name string) (*conn, *tunnel.Channel, error) {
+func (t *testee) channelOf(r request, name string) (*conn, *tunnel.Connection, error) {
 	handle, err := r.mustString(name)
 	if err != nil {
 		return nil, nil, err
@@ -49,7 +49,7 @@ func (t *testee) channelOf(r request, name string) (*conn, *tunnel.Channel, erro
 	if !ok {
 		return nil, nil, invalid("%s is not a connection", handle)
 	}
-	ch, ok := c.Conn.(*tunnel.Channel)
+	ch, ok := c.Conn.(*tunnel.Connection)
 	if !ok {
 		return nil, nil, invalid("%s is not a tunnel channel", handle)
 	}
@@ -124,7 +124,7 @@ func (t *testee) tunnelOps() map[string]func(request) (any, error) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), within)
 			defer cancel()
-			ch, err := tn.Open(ctx, family)
+			ch, err := tn.OpenConnection(ctx, family)
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
 					return nil, fail("timeout", "the open was not answered within %s", within)
@@ -148,7 +148,7 @@ func (t *testee) tunnelOps() map[string]func(request) (any, error) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), within)
 			defer cancel()
-			ch, err := tn.Accept(ctx)
+			ch, err := tn.AcceptConnection(ctx)
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
 					return nil, fail("timeout", "nothing was opened within %s", within)

@@ -2,6 +2,7 @@
 package relayprotocol
 
 import (
+	context "context"
 	json "encoding/json"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 )
@@ -193,3 +194,48 @@ func ImportCarried[SEnvelope, SHandle any](raw json.RawMessage, convertSEnvelope
 	}
 	return value, nil
 }
+
+// AdapterCarried composes declaration validation and conversion within the supplied invocation context.
+func AdapterCarried[SEnvelope, SHandle any](adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle]) runtime.ValueAdapter[Carried[SEnvelope, SHandle]] {
+	typeSEnvelope := adapterSEnvelope.Binding
+	typeSHandle := adapterSHandle.Binding
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"S.Envelope": typeSEnvelope, "S.Handle": typeSHandle}, nil), Type: "Carried"}
+	return runtime.ValueAdapter[Carried[SEnvelope, SHandle]]{
+		Binding:      binding,
+		NeedsContext: adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext,
+		Export: func(ctx context.Context, value Carried[SEnvelope, SHandle]) (json.RawMessage, error) {
+			raw, err := ExportCarried[SEnvelope, SHandle](value, func(value SEnvelope) (json.RawMessage, error) { return adapterSEnvelope.Export(ctx, value) }, typeSEnvelope, func(value SHandle) (json.RawMessage, error) { return adapterSHandle.Export(ctx, value) }, typeSHandle)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Carried[SEnvelope, SHandle], error) {
+			var zero Carried[SEnvelope, SHandle]
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportCarried[SEnvelope, SHandle](raw, func(value json.RawMessage) (SEnvelope, error) { return adapterSEnvelope.Import(ctx, value) }, typeSEnvelope, func(value json.RawMessage) (SHandle, error) { return adapterSHandle.Import(ctx, value) }, typeSHandle)
+		},
+	}
+}
+
+type ServerMethods[SEnvelope, SHandle any] interface {
+	Relay(ctx context.Context, params Carried[SEnvelope, SHandle]) (SEnvelope, error)
+}
+type ServerEvents[SEnvelope, SHandle any] interface {
+}
+type Server[SEnvelope, SHandle any] struct {
+	Methods ServerMethods[SEnvelope, SHandle]
+	Events  ServerEvents[SEnvelope, SHandle]
+}
+type ClientMethods[SEnvelope, SHandle any] interface {
+}
+type ClientEvents[SEnvelope, SHandle any] interface {
+}
+type Client[SEnvelope, SHandle any] struct {
+	Methods ClientMethods[SEnvelope, SHandle]
+	Events  ClientEvents[SEnvelope, SHandle]
+}
+type ServerModel[SEnvelope, SHandle any] func(Client[SEnvelope, SHandle]) (Server[SEnvelope, SHandle], error)
+type ClientModel[SEnvelope, SHandle any] func(Server[SEnvelope, SHandle]) (Client[SEnvelope, SHandle], error)

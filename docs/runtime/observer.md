@@ -41,7 +41,7 @@ What holds of every event, at every layer:
   A channel is opened *for* a family, so a family is the one thing every
   channel event knows. `Options.Families` in Go and
   `PeerOptions.families` in TypeScript label a method or event name with the
-  family it belongs to, which the generated install fills in; a name nobody
+  family it belongs to; a name nobody
   labelled has no family rather than a guessed one.
 
 ## Order
@@ -72,6 +72,36 @@ that fails with frames still queued never observed those sent.
 
 The promise is one peer's. Two peers' observers are two orders, and nothing
 relates them but a trace.
+
+## Model operations over Wire
+
+A generated model can run locally or through a selected or mounted Wire with
+no physical peer belonging to that model. Its adapter context chooses an
+observer through `Options.Observer` / `options.observer`. Generated adapters
+pass that observer and their declared family to the runtime's call, emit and
+registration helpers. Their operation names are canonical relative paths.
+
+At the lower surface, Go `CallWire` and `EmitWire` accept optional final
+`WireCallOptions` and `WireEmitOptions` carrying `Observer` and `Family`;
+`WireHandlers` carries the same fields. TypeScript's corresponding options
+and handlers use `observer` and `family`. These helpers observe request starts
+and endings, event emission and delivery, and handler panics without exposing
+payloads or metadata. A local pair does not add a second request lifecycle.
+
+Each observed helper request has a unique `wire:<monotonic>` id for its
+observation lifetime. Incoming and outgoing helper lifetimes have separate
+ids; each start and ending pair shares its own id, even when concurrent calls
+finish out of order. These are not physical request counters or the logical
+frame id carried beside a return capability. `WireRequestContext.requestId`
+and physical peer `c:` / `s:` ids keep their existing meaning.
+
+Model observation is distinct from physical carrier observation. `FromWire`
+does not replace the observer or labels of an opaque Wire. A physical peer still
+observes its own connection and frames, and the carrier owns backpressure and
+closure. A host may route both to one backend, but they describe different
+boundaries; two collectors make those boundaries explicit in tests. Selecting
+or mounting a Wire adds neither frame events nor a global ordering between
+its independent child roots.
 
 ## Request endings
 

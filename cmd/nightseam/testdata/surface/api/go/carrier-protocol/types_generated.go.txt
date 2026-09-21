@@ -18,6 +18,10 @@ func (Frame[SEnvelope]) WireType() runtime.TypeBinding
 func (Handle) MarshalJSON() ([]byte, error)
 func (Handle) Of() Tag
 func (Handle) WireType() runtime.TypeBinding
+func AdapterAttachParams() runtime.ValueAdapter[AttachParams]
+func AdapterAttachment[SHandle any](adapterSHandle runtime.ValueAdapter[SHandle]) runtime.ValueAdapter[Attachment[SHandle]]
+func AdapterFrame[SEnvelope any](adapterSEnvelope runtime.ValueAdapter[SEnvelope]) runtime.ValueAdapter[Frame[SEnvelope]]
+func AdapterFrames[SEnvelope any](adapterSEnvelope runtime.ValueAdapter[SEnvelope]) runtime.ValueAdapter[Frames[SEnvelope]]
 func ExportAttachment[SHandle any](v Attachment[SHandle], convertSHandle func(SHandle) (json.RawMessage, error), typeSHandle runtime.TypeBinding) (json.RawMessage, error)
 func ExportFrame[SEnvelope any](v Frame[SEnvelope], convertSEnvelope func(SEnvelope) (json.RawMessage, error), typeSEnvelope runtime.TypeBinding) (json.RawMessage, error)
 func ExportFrames[SEnvelope any](v Frames[SEnvelope], convertSEnvelope func(SEnvelope) (json.RawMessage, error), typeSEnvelope runtime.TypeBinding) (json.RawMessage, error)
@@ -26,8 +30,16 @@ func ImportFrame[SEnvelope any](raw json.RawMessage, convertSEnvelope func(json.
 func ImportFrames[SEnvelope any](raw json.RawMessage, convertSEnvelope func(json.RawMessage) (SEnvelope, error), typeSEnvelope runtime.TypeBinding) (Frames[SEnvelope], error)
 type AttachParams struct{ID string `json:"id"`}
 type Attachment[SHandle any] struct{Connection SHandle `json:"connection"`; Last int64 `json:"last"`}
+type ClientEvents[SEnvelope any, SHandle any] interface{FrameRelayed(ctx context.Context, data Frame[SEnvelope]) error}
+type ClientMethods[SEnvelope any, SHandle any] interface{}
+type ClientModel[SEnvelope any, SHandle any] func(Server[SEnvelope, SHandle]) (Client[SEnvelope, SHandle], error)
+type Client[SEnvelope any, SHandle any] struct{Methods ClientMethods[SEnvelope, SHandle]; Events ClientEvents[SEnvelope, SHandle]}
 type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`; Traceparent runtime.Optional[string] `json:"traceparent,omitzero"`; Tracestate runtime.Optional[string] `json:"tracestate,omitzero"`; Meta runtime.Optional[map[string]string] `json:"meta,omitzero"`}
 type Frame[SEnvelope any] struct{Sequence int64 `json:"sequence"`; Message SEnvelope `json:"message"`}
 type Frames[SEnvelope any] []Frame[SEnvelope]
 type Handle struct{Channel int64 `json:"channel"`}
+type ServerEvents[SEnvelope any, SHandle any] interface{}
+type ServerMethods[SEnvelope any, SHandle any] interface{Attach(ctx context.Context, params AttachParams) (Attachment[SHandle], error); Relay(ctx context.Context, params Frame[SEnvelope]) (probeprotocol.Envelope, error)}
+type ServerModel[SEnvelope any, SHandle any] func(Client[SEnvelope, SHandle]) (Server[SEnvelope, SHandle], error)
+type Server[SEnvelope any, SHandle any] struct{Methods ServerMethods[SEnvelope, SHandle]; Events ServerEvents[SEnvelope, SHandle]}
 type Tag struct{}

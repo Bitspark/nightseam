@@ -63,17 +63,17 @@ func multiplex(t *testing.T, observer runtime.Observer) *multiplexed {
 }
 
 // channels is one connected pair of channels of the probe family.
-func (m *multiplexed) channels() (near, far *tunnel.Channel) {
+func (m *multiplexed) channels() (near, far *tunnel.Connection) {
 	m.t.Helper()
-	accepted := make(chan *tunnel.Channel, 1)
+	accepted := make(chan *tunnel.Connection, 1)
 	go func() {
-		channel, err := m.accepting.Accept(m.ctx)
+		channel, err := m.accepting.AcceptConnection(m.ctx)
 		if err != nil {
 			m.t.Error(err)
 		}
 		accepted <- channel
 	}()
-	opened, err := m.opening.Open(m.ctx, "probe")
+	opened, err := m.opening.OpenConnection(m.ctx, "probe")
 	if err != nil {
 		m.t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func (m *multiplexed) channels() (near, far *tunnel.Channel) {
 
 // speaker is a peer over one end of a channel, with this adapter on both
 // hooks.
-func (m *multiplexed) speaker(over *tunnel.Channel, role runtime.Role, tracer trace.Tracer, options runtime.Options) *runtime.Peer {
+func (m *multiplexed) speaker(over *tunnel.Connection, role runtime.Role, tracer trace.Tracer, options runtime.Options) *runtime.Peer {
 	m.t.Helper()
 	options.Observer, options.Propagator = otel.Observer(tracer), otel.Propagator(nil)
 	peer, err := runtime.NewPeer(m.ctx, over, role, options)

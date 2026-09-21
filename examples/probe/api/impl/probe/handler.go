@@ -2,28 +2,32 @@ package probe
 
 import (
 	context "context"
-	binding "example.com/probe/api/go/probe-binding"
 	protocol "example.com/probe/api/go/probe-protocol"
 )
 
 // Handler is the behavior of the probe family's server side: what its
-// binding's binding.Handler declares, one method per operation the server
+// protocol's ServerMethods declares, one method per operation the server
 // implements. Fill the methods in; nightseam wrote this file once and will
 // not touch it again.
-type Handler struct{}
+type Handler struct{ Remote protocol.Client }
 
-var _ binding.Handler = Handler{}
+var _ protocol.ServerMethods = Handler{}
+
+// Model binds one implementation to its opposite-side access for this session.
+func Model(remote protocol.Client) (protocol.Server, error) {
+	return protocol.Server{Methods: Handler{Remote: remote}, Events: struct{}{}}, nil
+}
 
 // Echo: Returns the payload, its text reversed by the caller.
 //
 // Duplex means both ends call: the server tells everyone the payload
 // changed and then calls the client back, inside the request, to have it
 // reversed — typed both ways, with nothing of the envelope written here.
-func (Handler) Echo(ctx context.Context, remote *binding.Remote, params protocol.Payload) (protocol.Payload, error) {
-	if err := remote.EmitChanged(ctx, params); err != nil {
+func (h Handler) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error) {
+	if err := h.Remote.Events.Changed(ctx, params); err != nil {
 		return protocol.Payload{}, err
 	}
-	return remote.Reverse(ctx, params)
+	return h.Remote.Methods.Reverse(ctx, params)
 }
 
 // Watch: Takes a callback and answers a record of callables: a live reference
@@ -40,7 +44,7 @@ func (Handler) Echo(ctx context.Context, remote *binding.Remote, params protocol
 // carried it has long returned. The reference outlives the call, and releasing
 // it, cancelling that call and asking the job to stop are three different
 // things.
-func (Handler) Watch(ctx context.Context, remote *binding.Remote, params protocol.Watch) (protocol.Subscription, error) {
+func (Handler) Watch(ctx context.Context, params protocol.Watch) (protocol.Subscription, error) {
 	notice := params.Watcher.Notice
 	if err := notice(ctx, protocol.Payload{Text: params.Label, Count: 1}); err != nil {
 		return protocol.Subscription{}, err

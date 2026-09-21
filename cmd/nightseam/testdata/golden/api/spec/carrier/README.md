@@ -343,15 +343,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Attach(ctx, params)
+client.Methods.Attach(ctx, params)
 
-func (Handler[SEnvelope, SHandle]) Attach(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle], params protocol.AttachParams) (protocol.Attachment[SHandle], error)
+func (Handler[SEnvelope, SHandle]) Attach(ctx context.Context, params protocol.AttachParams) (protocol.Attachment[SHandle], error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.attach(params)
+await server.methods.attach(params)
 ```
 
 ### `relay` on the wire
@@ -417,15 +417,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Relay(ctx, params)
+client.Methods.Relay(ctx, params)
 
-func (Handler[SEnvelope, SHandle]) Relay(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle], params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)
+func (Handler[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.relay(params)
+await server.methods.relay(params)
 ```
 
 ### `frame.relayed` on the wire
@@ -464,11 +464,11 @@ The server emits:
 In `go`:
 
 ```go
-remote.EmitFrameRelayed(ctx, data)
+remote.Events.FrameRelayed(ctx, data)
 ```
 
 In `typescript`:
 
 ```typescript
-client.onFrameRelayed(handler)
+frameRelayed(data, context)
 ```

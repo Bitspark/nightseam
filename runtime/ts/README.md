@@ -7,7 +7,23 @@ npm install @nightseam/runtime
 The peer of the `nightseam.duplex/1` profile for the browser and Node: JSON
 frames carrying requests, responses, events and cancellations both ways over
 a `FrameConnection` of `@nightseam/duplex`, with no third-party dependency.
-Every client Nightseam generates depends on it; it is also usable on its own.
+Generated models use its structured Wire helpers; it is also usable on its own.
+
+`peer.wire()` exposes the existing peer's relative origin. `wirePair(options)`
+constructs two bounded asynchronous local Wire endpoints without a physical
+peer or serialized frame connection. `callWire`, `emitWire` and `registerWire`
+share profile request, event and cancellation behavior. `forwardWire(left,
+right)` forwards two origins through namespace receivers and returns a detach
+function. Selection and mounting come from `@nightseam/duplex` and allocate no
+peer. The generated per-side `toWire`/`fromWire` pair converts the same complete
+model factory in both directions; the host owns carrier setup and closure.
+
+`AdapterContext` carries runtime options and an optional `valueEnvironment`.
+`ValueAdapter<T>` pairs declaration metadata with both conversions and a
+`needsContext` flag. `jsonAdapter(binding)` handles ordinary data; acquiring
+converters receive their active context from a consumer-supplied environment.
+This package needs no live scope for scalar data. See the
+[generated surface](https://github.com/Bitspark/nightseam/blob/main/docs/declaration/generated.md).
 
 ```ts
 import { DuplexPeer, DuplexError } from '@nightseam/runtime';
@@ -38,7 +54,7 @@ rather than listening twice. Application
 code owns authentication and the authorization of incoming methods. A
 `webSocketFactory` supplies a socket of the platform's own; `attach(connection)`
 takes an externally authenticated socket, or any `FrameConnection` — a
-tunnel channel, an in-memory pipe; `role: 'server'` selects server request
+tunnel raw connection, an in-memory pipe; `role: 'server'` selects server request
 ids. A `DuplexError` is safe to send and crosses the wire with its code,
 message and data; any other exception a handler throws becomes `internal`.
 
@@ -50,10 +66,11 @@ and `params`; `response` has `id` and exactly one of `result` or `error`;
 `event` has `event` and `data`; `cancel` has `id`. Request ids carry the
 initiator's `c:` or `s:` prefix. Errors carry `code`, `message` and optional
 `data`. Every kind may carry W3C `traceparent` and `tracestate`. A malformed
-envelope or a binary frame closes the connection. Parsing uses `JSON.parse`,
-so a duplicate member keeps its last value and number precision beyond
-JavaScript's safe integers is lost before the validator sees it; the Go peer
-rejects both. The profile is described in full in
+envelope or a binary frame closes the connection. The strict frame validator
+rejects duplicate envelope members and malformed Unicode before delivery.
+Generated payload validators enforce declared numeric constraints. A Wire
+path encodes into the existing method or event string; its local return
+capability is never serialized. The profile is described in full in
 [docs/wire/profile.md](https://github.com/Bitspark/nightseam/blob/main/docs/wire/profile.md).
 
 ## Trace context
@@ -116,6 +133,12 @@ the frame's trace — and never a payload. The peer emits and never aggregates,
 chooses no backend, and an observer that throws interrupts no routing.
 `consoleObserver()` writes each event as one line, and takes the four console
 methods and a clock so that a test captures it with four functions.
+
+Wire call, emit and registration helpers accept `observer` and `family`.
+Generated adapters supply their context's observer and declared family; these
+model operation events are separate from a physical peer's frame events and
+do not change an existing carrier's observer. A local pair does not emit a
+second request lifecycle.
 
 A layer running over the peer — `@nightseam/tunnel`, `@nightseam/live`, or
 one of your own — declares its events into `ObserverEvents` and emits them

@@ -12,9 +12,8 @@ import (
 // The identifiers the generated packages declare of themselves, which a
 // family may not: the emitters write these constants and nothing else of
 // their own, so that what is reserved is what is emitted. The ones a
-// generated body declares of itself — the label map install merges — are
-// named here too and reserve nothing, since nothing outside that body can
-// see them.
+// generated body declares of itself reserve nothing, since nothing outside
+// that body can see them.
 const (
 	identTag                   = "Tag"
 	identOf                    = "Of"
@@ -29,38 +28,31 @@ const (
 	identMustTypeExpression    = "MustTypeExpression"
 	identErrors                = "Errors"
 	identIsError               = "IsError"
-	identRemote                = "Remote"
-	identHandler               = "Handler"
-	identEvents                = "Events"
-	identInstall               = "install"
-	identFamilies              = "families"
-	identNewHandler            = "NewHandler"
-	identServe                 = "Serve"
+	identServer                = "Server"
 	identClient                = "Client"
-	identCaller                = "Caller"
-	identDial                  = "Dial"
-	identAttach                = "Attach"
-	identOpen                  = "Open"
-	identPeer                  = "Peer"
-	identClose                 = "Close"
-	identEmit                  = "Emit"
-	identOn                    = "On"
+	identServerMethods         = "ServerMethods"
+	identClientMethods         = "ClientMethods"
+	identServerEvents          = "ServerEvents"
+	identClientEvents          = "ClientEvents"
+	identServerModel           = "ServerModel"
+	identClientModel           = "ClientModel"
+	identToWire                = "ToWire"
+	identFromWire              = "FromWire"
 	identExport                = "Export"
 	identImport                = "Import"
 	identContract              = "Contract"
+	identAdapter               = "Adapter"
 )
 
 // plan is every identifier the rendering of one family declares, resolved
 // from the convention and the override file and held in the namespace it
-// lands in: the protocol package's declarations, the client and remote
-// members, and each record's fields. A protocol type may share a name
-// with an entry point in another package, as the built-in tunnel's Open
-// request does with the client's Open helper.
+// lands in: the protocol package's declarations, each side's method and event
+// facets, and each record's fields. Entry points live in their own packages.
 type plan struct {
 	family     *render.Family
 	packages   *emit.Namespace // declarations in the protocol package
-	client     *emit.Namespace // members of Client
-	remote     *emit.Namespace // members of Remote
+	client     *emit.Namespace // server methods called by the client
+	remote     *emit.Namespace // client methods called by the server
 	types      map[string]string
 	unions     map[string]unionPlan
 	literals   map[string]literalPlan // literal wire value → its Go type and constant
@@ -82,9 +74,9 @@ func Reserved() []string {
 	return []string{
 		identTag, identOf, identWireType, identMarshalJSON, identUnmarshalJSON, identAdditionalFields,
 		identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identErrors, identIsError,
-		identRemote, identHandler, identEvents, identInstall, identNewHandler, identServe,
-		identClient, identCaller, identDial, identAttach, identOpen,
-		identPeer, identClose,
+		identServer, identClient, identServerMethods, identClientMethods,
+		identServerEvents, identClientEvents, identServerModel, identClientModel,
+		identToWire, identFromWire,
 	}
 }
 
@@ -105,9 +97,9 @@ func planFamily(f *render.Family, seen map[*render.Family]bool) (*plan, []diag.D
 		List: diag.List{Family: f.Name},
 	}
 	p.packages.Fix("generated declaration", identTag, identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identErrors, identIsError)
-	p.client.Fix("generated client field", identPeer)
-	p.client.Fix("generated client method", identClose)
-	p.remote.Fix("generated remote field", identPeer)
+	if f.HasProtocol() {
+		p.packages.Fix("generated model declaration", identServer, identClient, identServerMethods, identClientMethods, identServerEvents, identClientEvents, identServerModel, identClientModel)
+	}
 	p.plan()
 	// Imported names retain their source overrides. Check that source's
 	// declarations too, once even when several inheritance paths reach it.
@@ -234,7 +226,7 @@ func (p *plan) plan() {
 	// the tag an entry point takes for each.
 	generated := map[string]string{}
 	entries := emit.NewNamespace("entry-point packages")
-	entries.Fix("generated declaration", identRemote, identHandler, identEvents, identInstall, identNewHandler, identServe, identClient, identCaller, identDial, identAttach, identOpen)
+	entries.Fix("generated declaration", identToWire, identFromWire)
 	for _, use := range f.Uses {
 		p.typeParams[use] = parameterName(use)
 		at := diag.Location{}
@@ -310,15 +302,15 @@ func (p *plan) plan() {
 		name, at := operation(m.Name, m.Origin, m.At, "Method name")
 		p.declare(p.remote, name, at, "method")
 	}
+	clientEvents := emit.NewNamespace("client events")
+	serverEvents := emit.NewNamespace("server events")
 	for _, e := range f.Server.Events {
 		name, at := operation(e.Name, e.Origin, e.At, "Event name")
-		p.declare(p.client, identOn+name, at, "event handler")
-		p.declare(p.remote, identEmit+name, at, "event emitter")
+		p.declare(clientEvents, name, at, "event")
 	}
 	for _, e := range f.Client.Events {
 		name, at := operation(e.Name, e.Origin, e.At, "Event name")
-		p.declare(p.client, identEmit+name, at, "event emitter")
-		p.declare(p.remote, identOn+name, at, "event handler")
+		p.declare(serverEvents, name, at, "event")
 	}
 	// An override that names nothing is the model's to refuse; one whose
 	// value is not an identifier is refused above, where it is resolved.

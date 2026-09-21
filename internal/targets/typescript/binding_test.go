@@ -15,18 +15,45 @@ func TestRenderServerBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var binding, manifest string
+	var binding, types, manifest string
 	for _, file := range files {
 		switch file.Path {
 		case "api/ts/x-binding/src/index.ts":
 			binding = string(file.Data)
 		case "api/ts/x-binding/package.json":
 			manifest = string(file.Data)
+		case "api/ts/x-client/src/types.ts":
+			types = string(file.Data)
 		}
 	}
-	for _, want := range []string{"export interface Handler", "export interface Events", "export class Remote", "export async function serve", "run(params: Protocol.Input, remote: Remote, context: RequestContext)", "async reverse(", "async emitChanged(", "onNoticed(", "role: 'server'"} {
+	for _, want := range []string{
+		"export function toWire(model: Protocol.ServerModel, context: AdapterContext): Wire",
+		"export async function fromWire(wire: Wire, context: AdapterContext): Promise<Protocol.ServerModel>",
+		"const implementation = model(adapter.proxyClient(binding)); adapter.bindServer(binding, implementation)",
+		"adapter.bindClient(wire, remote)", "return adapter.proxyServer(wire)",
+		`if (bound) throw new DuplexError('already_bound'`,
+		`registerWire(wire, ["run"], {`, `registerWire(wire, ["reverse"], {`,
+		"async reverse(params, context)", "async changed(data, context)",
+		"await implementation.events.noticed(raw as Protocol.Input, context)", "event handler for noticed is required",
+	} {
 		if !strings.Contains(binding, want) {
 			t.Errorf("server binding lacks %q:\n%s", want, binding)
+		}
+	}
+	for _, want := range []string{
+		"export interface ServerMethods", "run(params: Input, context?: WireModelContext): Result | Promise<Result>",
+		"export interface ClientMethods", "reverse(params: Input, context?: WireModelContext): Result | Promise<Result>",
+		"export interface ServerEvents", "noticed(data: Input, context?: WireModelContext): void | Promise<void>",
+		"export interface ClientEvents", "changed(data: Result, context?: WireModelContext): void | Promise<void>",
+		"export type ServerModel = (remote: Client) => Server", "export type ClientModel = (remote: Server) => Client",
+	} {
+		if !strings.Contains(types, want) {
+			t.Errorf("shared model types lack %q:\n%s", want, types)
+		}
+	}
+	for _, obsolete := range []string{"export interface Handler", "export class Remote", "export async function serve", "new DuplexPeer", "new Tunnel"} {
+		if strings.Contains(binding, obsolete) {
+			t.Errorf("server adapter retained %q", obsolete)
 		}
 	}
 	for _, want := range []string{`"name":"@example/x-binding"`, `"@example/x-client":"file:../x-client"`} {
@@ -92,16 +119,35 @@ func TestDataFamilyHasNoBinding(t *testing.T) {
 	}
 }
 
-func TestBindingNamesAreChecked(t *testing.T) {
+func TestBindingMethodFacetsAcceptFormerClassMembers(t *testing.T) {
 	for name, protocol := range map[string]string{
-		"then":  `"client":{"methods":{"then":{"result":"string"}}}`,
-		"close": `"client":{"methods":{"close":{"result":"string"}}}`,
-		"event": `"client":{"methods":{"emit_changed":{"result":"string"}}},"server":{"events":{"changed":{"type":"string"}}}`,
+		"then":        `"client":{"methods":{"then":{"result":"string"}}}`,
+		"close":       `"client":{"methods":{"close":{"result":"string"}}}`,
+		"constructor": `"client":{"methods":{"constructor":{"result":"string"}}}`,
+		"event":       `"client":{"methods":{"emit_changed":{"result":"string"}}},"server":{"events":{"changed":{"type":"string"}}}`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			if diagnostics := check(map[string]string{"model.json": fixtureModel, "protocol.json": modeltest.Protocol(protocol)}); len(diagnostics) == 0 {
-				t.Fatal("a collision in Remote was accepted")
+			if diagnostics := check(map[string]string{"model.json": fixtureModel, "protocol.json": modeltest.Protocol(protocol)}); len(diagnostics) != 0 {
+				t.Fatalf("a method facet was confused with a class member or event helper: %v", diagnostics)
 			}
 		})
+	}
+}
+
+func TestEmptySessionModelsRetainBothFacets(t *testing.T) {
+	files, err := New(Config{Scope: "@example"}).Render(family(map[string]string{"model.json": fixtureModel, "protocol.json": modeltest.Protocol("")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	types := string(files[0].Data)
+	for _, side := range []string{"Server", "Client"} {
+		for _, facet := range []string{"Methods", "Events"} {
+			if !strings.Contains(types, "export interface "+side+facet+" {\n}") {
+				t.Errorf("empty %s%s facet was omitted:\n%s", side, facet, types)
+			}
+		}
+		if !strings.Contains(types, "export interface "+side+" { methods: "+side+"Methods; events: "+side+"Events; }") {
+			t.Errorf("empty %s model lost required facets", side)
+		}
 	}
 }

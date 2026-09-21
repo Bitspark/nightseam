@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { pipe } from '@nightseam/duplex';
-import { DuplexPeer, DuplexError } from '@nightseam/runtime';
-import { liveOver, type LiveScope } from '@nightseam/live';
+import { DuplexPeer, DuplexError, handleWire } from '@nightseam/runtime';
+import { liveOver, valueEnvironment, type LiveScope } from '@nightseam/live';
 import * as combinator from './api/ts/combinator-client/src/index.ts';
 import * as owners from './api/ts/owners-client/src/index.ts';
+import { fromWire } from './api/ts/owners-binding/src/index.ts';
 import * as worker from './api/ts/worker-client/src/index.ts';
 
 async function pair(imports: number) {
@@ -28,12 +29,15 @@ for (const path of ['callable', 'operation']) {
         invoke = combinator.importFactory(sb.owner().child(), combinator.exportFactory(sa.owner(), async input => input));
       } else {
         const serverOwner = sa.owner().child();
-        sa.peer.handle('pack', raw => {
+        handleWire(sa.peer.wire(), ['pack'], raw => {
           const input = combinator.importUnary(serverOwner, (raw as {item: unknown}).item);
           return { metadata: { seed: 7 }, run: combinator.exportUnary(serverOwner, input) };
         });
-        const client = new owners.Client(sb.peer, undefined, {});
-        invoke = async (input, options) => (await client.pack({item: input}, options)).run;
+        const model = await fromWire(sb.peer.wire(), {valueEnvironment: valueEnvironment(sb)});
+        const server = model({methods: {}, events: {}});
+        invoke = async (input, options) => (await server.methods.pack(
+          {item: input}, options && {signal: options.signal, valueContext: options.owner},
+        )).run;
       }
       const foreign = sa.owner().child();
       let supplied = foreign, selected = sb.owner();

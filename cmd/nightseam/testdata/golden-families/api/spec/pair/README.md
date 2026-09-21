@@ -426,15 +426,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Named(ctx, params)
+client.Methods.Named(ctx, params)
 
-func (Handler[SEnvelope, SHandle, TEnvelope]) Named(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, TEnvelope], params protocol.Named) (protocol.Named, error)
+func (Handler[SEnvelope, SHandle, TEnvelope]) Named(ctx context.Context, params protocol.Named) (protocol.Named, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.named(params)
+await server.methods.named(params)
 ```
 
 ### `relay` on the wire
@@ -524,15 +524,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Relay(ctx, params)
+client.Methods.Relay(ctx, params)
 
-func (Handler[SEnvelope, SHandle, TEnvelope]) Relay(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle, TEnvelope], params TEnvelope) (protocol.Both[SEnvelope, SHandle, TEnvelope], error)
+func (Handler[SEnvelope, SHandle, TEnvelope]) Relay(ctx context.Context, params TEnvelope) (protocol.Both[SEnvelope, SHandle, TEnvelope], error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.relay(params)
+await server.methods.relay(params)
 ```
 
 ### `echoed` on the wire
@@ -570,11 +570,11 @@ The server emits:
 In `go`:
 
 ```go
-remote.EmitEchoed(ctx, data)
+remote.Events.Echoed(ctx, data)
 ```
 
 In `typescript`:
 
 ```typescript
-client.onEchoed(handler)
+echoed(data, context)
 ```

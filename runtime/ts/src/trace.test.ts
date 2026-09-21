@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DuplexPeer } from './peer.ts';
 import type { RequestContext, WebSocketLike } from './peer.ts';
-import type { Propagator, Trace } from './trace.ts';
+import type { Propagator, Trace, TraceContext } from './trace.ts';
 
 /** The socket of peer.test.ts, with only what a trace assertion needs of it. */
 class Socket extends EventTarget implements WebSocketLike {
@@ -125,7 +125,7 @@ test('a call from a bare context carries a new trace, sampled, one per call', as
 
 test('a custom propagator sees extract and inject, and what it mints travels verbatim', async (t) => {
   const extracted: (Trace | undefined)[] = [];
-  const injected: (RequestContext | undefined)[] = [];
+  const injected: (TraceContext | undefined)[] = [];
   const minted: Trace = { traceparent: `00-${'a'.repeat(32)}-${'b'.repeat(16)}-00`, tracestate: 'custom=1' };
   const propagator: Propagator = {
     extract(context, trace) {

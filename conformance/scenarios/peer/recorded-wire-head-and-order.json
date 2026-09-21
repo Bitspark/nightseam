@@ -1,0 +1,31 @@
+{
+  "name": "a recorded wire takes one head and preserves replay then follow through mounts and forwarding",
+  "layer": "peer",
+  "needs": ["peer"],
+  "steps": [
+    {
+      "on": "a",
+      "op": "peer.recorded_wire_witness",
+      "args": {"within_ms": 5000},
+      "expect": {
+        "cases": [
+          {"cut": "head_before_append", "head": 3, "first": [1, 2, 3, 4, 5, 6], "after_three": [4, 5, 6], "producer_progress": true, "callbacks_outside_append": true},
+          {"cut": "append_before_head", "head": 4, "first": [1, 2, 3, 4, 5, 6], "after_three": [4, 5, 6], "producer_progress": true, "callbacks_outside_append": true}
+        ],
+        "stalled": {"bound": 2, "queued_at_bound": 2, "closed": 1, "close_code": 1008, "healthy": [4, 5, 6, 7], "underneath": [99], "head": 7, "producer_progress": true}
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.recorded_wire_witness",
+      "args": {"within_ms": 5000},
+      "expect": {
+        "cases": [
+          {"cut": "head_before_append", "head": 3, "first": [1, 2, 3, 4, 5, 6], "after_three": [4, 5, 6], "producer_progress": true, "callbacks_outside_append": true},
+          {"cut": "append_before_head", "head": 4, "first": [1, 2, 3, 4, 5, 6], "after_three": [4, 5, 6], "producer_progress": true, "callbacks_outside_append": true}
+        ],
+        "stalled": {"bound": 2, "queued_at_bound": 2, "closed": 1, "close_code": 1008, "healthy": [4, 5, 6, 7], "underneath": [99], "head": 7, "producer_progress": true}
+      }
+    }
+  ]
+}

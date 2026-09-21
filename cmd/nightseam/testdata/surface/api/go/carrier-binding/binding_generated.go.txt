@@ -1,5 +1,5 @@
-func (*Remote[SEnvelope, SHandle]) EmitFrameRelayed(ctx context.Context, data protocol.Frame[SEnvelope]) error
-func NewHandler[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](handler Handler[SEnvelope, SHandle], options runtime.ServerOptions) (http.Handler, error)
-func Serve[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[SEnvelope, SHandle]) (*runtime.Peer, error)
-type Handler[SEnvelope any, SHandle any] interface{Attach(ctx context.Context, remote *Remote[SEnvelope, SHandle], params protocol.AttachParams) (protocol.Attachment[SHandle], error); Relay(ctx context.Context, remote *Remote[SEnvelope, SHandle], params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)}
-type Remote[SEnvelope any, SHandle any] struct{Peer *runtime.Peer}
+func (*clientEvents[SEnvelope, SHandle]) FrameRelayed(ctx context.Context, data protocol.Frame[SEnvelope]) error
+func (*serverMethods[SEnvelope, SHandle]) Attach(ctx context.Context, params protocol.AttachParams) (protocol.Attachment[SHandle], error)
+func (*serverMethods[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)
+func FromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ServerModel[SEnvelope, SHandle], error)
+func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](model protocol.ServerModel[SEnvelope, SHandle], environment runtime.AdapterContext) (duplex.Wire, error)
