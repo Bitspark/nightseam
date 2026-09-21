@@ -88,7 +88,7 @@ export function exportCancel(owner: LiveOwner, value: Cancel): unknown {
     const parent = owner;
     const reference = owner.export(contractCancel, wireDigest, async (request, options) => {
       const owner = parent.child();
-      const context = { ...options, owner };
+      const context = Object.assign(Object.create(options ?? null), { owner });
       await value(context);
       return undefined;
     });
@@ -180,7 +180,7 @@ export function exportRename(owner: LiveOwner, value: Rename): unknown {
     const parent = owner;
     const reference = owner.export(contractRename, wireDigest, async (request, options) => {
       const owner = parent.child();
-      const context = { ...options, owner };
+      const context = Object.assign(Object.create(options ?? null), { owner });
       validateWire("Ticket", request);
       const argument = request as Ticket;
       const result = await value(argument, context);
@@ -209,7 +209,7 @@ export function exportReport(owner: LiveOwner, value: Report): unknown {
     const parent = owner;
     const reference = owner.export(contractReport, wireDigest, async (request, options) => {
       const owner = parent.child();
-      const context = { ...options, owner };
+      const context = Object.assign(Object.create(options ?? null), { owner });
       validateWire("Percent", request);
       const argument = request as Percent;
       await value(argument, context);

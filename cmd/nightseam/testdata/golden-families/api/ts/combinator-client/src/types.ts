@@ -120,7 +120,7 @@ export function exportFactory(owner: LiveOwner, value: Factory): unknown {
     const parent = owner;
     const reference = owner.export(contractFactory, wireDigest, async (request, options) => {
       const owner = parent.child();
-      const context = { ...options, owner };
+      const context = Object.assign(Object.create(options ?? null), { owner });
       validateWire("Unary", request);
       const argument = owner!.importValue((owner) => importUnary(owner, request));
       const result = await value(argument, context);
@@ -149,7 +149,7 @@ export function exportProducer(owner: LiveOwner, value: Producer): unknown {
     const parent = owner;
     const reference = owner.export(contractProducer, wireDigest, async (request, options) => {
       const owner = parent.child();
-      const context = { ...options, owner };
+      const context = Object.assign(Object.create(options ?? null), { owner });
       const result = await value(context);
       return owner!.exportValue((owner) => { const converted = exportUnary(owner, (result) as Unary); validateWire("Unary", converted); return converted; });
     });
@@ -176,7 +176,7 @@ export function exportSink(owner: LiveOwner, value: Sink): unknown {
     const parent = owner;
     const reference = owner.export(contractSink, wireDigest, async (request, options) => {
       const owner = parent.child();
-      const context = { ...options, owner };
+      const context = Object.assign(Object.create(options ?? null), { owner });
       validateWire("Unary", request);
       const argument = owner!.importValue((owner) => importUnary(owner, request));
       await value(argument, context);
@@ -227,7 +227,7 @@ export function exportUnary(owner: LiveOwner, value: Unary): unknown {
     const parent = owner;
     const reference = owner.export(contractUnary, wireDigest, async (request, options) => {
       const owner = parent.child();
-      const context = { ...options, owner };
+      const context = Object.assign(Object.create(options ?? null), { owner });
       validateWire("Count", request);
       const argument = request as Count;
       const result = await value(argument, context);
