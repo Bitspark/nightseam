@@ -75,11 +75,16 @@ same explicit construction order: a
 `DuplexPeer` is made, `handle` and `onEvent` register on it, and `attach` or
 `connect` gives it a connection — handlers first, frames second.
 
-Generated packages bind model sessions through `ToWire`/`FromWire`
-(`toWire`/`fromWire`), independently of carrier construction. Bind the complete
-model, including its reverse methods and events, during preparation before
-attaching a physical carrier. The [generated surface](../declaration/generated.md)
-describes the once-bound factory and explicit adapter context.
+Generated adapters use [wire preparation](wire.md#preparing-an-interpretation)
+to install receivers before reading while checking identity over the live
+carrier. Call `PrepareFromWire` inside Go's `Prepare`, retain its completion
+and cleanup functions, then complete after the peer constructor returns.
+In TypeScript, call `prepareFromWire(peer.wire(), context, ...bindings)`
+before `attach` or `connect`, and await its `complete()` afterwards. Bind
+the returned model factory once to release its deferred requests and events.
+Preparation cleanup leaves the peer's lifetime with the host. Calling the
+combined `FromWire` / `fromWire` after attachment cannot recover an event
+that reached the peer before the generated receivers were installed.
 
 ## Structured Wire access
 

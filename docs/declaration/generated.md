@@ -9,6 +9,49 @@ the same shapes under its own names. [A family in tiers](families.md) is
 the input, [the generator](generator.md) the tool, and the specification
 beside them, `api/spec/<f>/README.md`, is the family's own reference.
 
+## Declaration identity and preparation
+
+Each family emits its canonical declaration and SHA-256 digest:
+`WireDeclaration()` and `WireDigest()` in Go, `wireDeclaration` and `wireDigest`
+in TypeScript. Generated validators retain that declaration alongside the
+descriptor used to validate values. Operations, events and reachable imported
+declarations participate in the digest; documentation and host-language names
+do not. The [canonical declaration](declaration-identity.md) defines the bytes
+and how supplied generic arguments produce a closed application identity.
+
+Both generated sides check that identity where a wire becomes a model.
+`FromWire(ctx, wire, environment, ...bindings)` in Go and
+`await fromWire(wire, context, ...bindings)` in TypeScript complete an ordinary
+`identity.check` request before returning the model factory. `ToWire` / `toWire`
+installs its identity responder before constructing the supplied model.
+Factories only assemble their implementation; application traffic starts
+after binding.
+
+When the host must receive the first frame, prepare before attachment:
+
+| Go | TypeScript |
+| --- | --- |
+| `PrepareFromWire(wire, environment, ...bindings)` returns `complete func(context.Context) (Model, error)`, `cleanup func()` and `error` | `prepareFromWire(wire, context, ...bindings)` returns `{ complete(options?: WireCallOptions): Promise<Model>; close(): void }` |
+| call `complete(ctx)` after the host attaches the carrier | await `prepared.complete(options)` after attachment |
+| bind the returned factory once to its opposite implementation | bind the returned factory once to its opposite implementation |
+
+`Model` denotes the generated side's `ServerModel` or `ClientModel`, with
+its generic arguments where applicable. The exact positional bindings are
+the same as `FromWire` / `fromWire`. Preparation registers deferred model
+receivers synchronously; checking alone does not release them. Binding the
+resolved factory releases delivery, including events received during setup.
+The adapter context's `RequestTimeout` / `requestTimeoutMs` bounds the whole
+preparation through binding. Cleanup detaches this interpretation without
+closing the host's carrier. The [wire lifecycle](../runtime/wire.md#preparing-an-interpretation)
+gives the host ordering and failure behavior.
+
+The identity check compares the nominal path and any digests both sides
+specify. Different nominal paths refuse even when one family extends the
+other. A `method_not_found` response means the remote endpoint carries no
+identity; other errors fail interpretation. A failed check exposes no model
+and invokes none of that interpretation's model handlers. A digest identifies
+a declaration, not a principal or permission.
+
 ## Go: three packages
 
 `api/go/<f>-protocol`, `-binding` and `-client`, each owned wholesale. A
@@ -59,7 +102,8 @@ retain literal constraints, nullness and their declaring family's schema.
 Generic operation adapters take explicit value adapters alongside their type
 arguments; direct boundary helpers take converters and type bindings.
 An extended side includes its base operations with their bound types and
-source naming overrides; a base client can call the extended binding.
+source naming overrides. It retains its own nominal family identity: the
+base family's `FromWire` does not accept that different path implicitly.
 
 The family's public errors are a constant per error, `ErrorNotFound =
 "not_found"`, the list `Errors`, and `IsError(err error, code string) bool`,
@@ -105,13 +149,16 @@ The server adapter exports:
 ```go
 func ToWire(model protocol.ServerModel, environment runtime.AdapterContext) (duplex.Wire, error)
 func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ServerModel, error)
+func PrepareFromWire(wire duplex.Wire, environment runtime.AdapterContext) (func(context.Context) (protocol.ServerModel, error), func(), error)
 ```
 
 `ToWire` constructs a bounded local Wire pair, invokes the factory once with
 the opposite proxy, registers the returned implementation and returns the
 access end. It creates no physical peer or serialized frame connection.
-`FromWire` returns a factory that binds the supplied opposite implementation
-once and returns this side's proxy. A second bind is refused.
+`FromWire` checks identity, then returns a factory that binds the supplied
+opposite implementation once and returns this side's proxy. A second bind
+is refused. `PrepareFromWire` provides synchronous receiver installation
+and a completion function for the exchange after carrier attachment.
 
 Thus `FromWire(ToWire(model))` has the same model type. The host can perform
 that round trip locally, or pass a socket peer's Wire, a prepared tunnel
@@ -125,6 +172,7 @@ The client adapter is the mirror:
 ```go
 func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (duplex.Wire, error)
 func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ClientModel, error)
+func PrepareFromWire(wire duplex.Wire, environment runtime.AdapterContext) (func(context.Context) (protocol.ClientModel, error), func(), error)
 ```
 
 Both packages share the protocol's side and model types. Neither has
@@ -184,6 +232,10 @@ Go omits that parameter. Methods return native values or promises.
 ```ts
 export function toWire(model: ServerModel, context: AdapterContext): Wire;
 export function fromWire(wire: Wire, context: AdapterContext): Promise<ServerModel>;
+export function prepareFromWire(wire: Wire, context: AdapterContext): {
+  complete(options?: WireCallOptions): Promise<ServerModel>;
+  close(): void;
+};
 ```
 
 ### The client package
@@ -191,6 +243,10 @@ export function fromWire(wire: Wire, context: AdapterContext): Promise<ServerMod
 ```ts
 export function toWire(model: ClientModel, context: AdapterContext): Wire;
 export function fromWire(wire: Wire, context: AdapterContext): Promise<ClientModel>;
+export function prepareFromWire(wire: Wire, context: AdapterContext): {
+  complete(options?: WireCallOptions): Promise<ClientModel>;
+  close(): void;
+};
 ```
 
 `toWire` invokes one model factory synchronously and returns its access Wire.
@@ -202,17 +258,19 @@ Reverse methods and incoming events are supplied together in that opposite side.
 The host owns authentication, upgrade, peer preparation and closure. In a
 peer's `Prepare` / `prepare`, it can forward `peer.Wire()` / `peer.wire()`
 to a model's local Wire with `runtime.ForwardWire` / `forwardWire`. Or it can
-interpret that peer Wire with `FromWire` / `fromWire` and bind the opposite
-side before reads start. TypeScript awaits `fromWire` on a constructed peer
-before `attach` or `connect`; its `prepare` hook is synchronous. A tunnel's
-prepared channel has the same Wire
+prepare an interpretation of that peer Wire with `PrepareFromWire` /
+`prepareFromWire` before reads start, complete the identity exchange after
+attachment, and bind the resolved factory. The preparation step is
+synchronous in both languages; waiting for the exchange before a carrier
+can read or write cannot complete. A tunnel's prepared channel has the same Wire
 surface and accepts preparation options at acquisition. Views and mounts
 reuse these roots without allocating another peer.
 
 `runtime.AdapterContext` in Go and `AdapterContext` in TypeScript carry
 `Options` / `options` and an optional `ValueEnvironment` /
-`valueEnvironment`. Options govern a local pair's bounds and the adapters'
-observer. Carrier options remain with the host that constructs the carrier.
+`valueEnvironment`. Options govern a local pair's bounds, identity preparation
+timeout and the adapters' observer. Carrier options remain with the host that
+constructs the carrier.
 
 Every operation validates request, response and event data in both
 directions, including generic slots in their declaring family's scope.

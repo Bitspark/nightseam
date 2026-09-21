@@ -261,7 +261,8 @@ arrived — are [the peer's](../runtime/peer.md#request-metadata).
 ## Declaration identity at interpretation
 
 An adapter checks the declaration it will interpret through an ordinary
-`identity.check` request, before exposing the generated model. The operation
+`identity.check` request, its first request before exposing the generated
+model. The operation
 belongs to the `identity.` layer's reserved vocabulary, declared in its
 [built-in family](../declaration/builtins/identity/README.md). It adds no
 envelope member, WebSocket subprotocol or transport state. The same request
@@ -280,16 +281,32 @@ compares the request with its own declaration before answering with its own
 identity. Different paths, or different specified digests for the same path,
 are `contract_mismatch`, naming the expected declaration. The caller also
 checks the answer. A digest omitted on either side makes no revision claim.
+This is strict identity: extending another family's operations does not
+allow its different nominal path at a `FromWire` / `fromWire` boundary.
+No structural or version-compatibility test substitutes for equality.
 
 An endpoint answering `method_not_found` carries no declaration identity and
 is accepted without comparison. No other error is treated as absence: a
 malformed answer, timeout, cancellation, connection failure or explicit
 refusal fails interpretation. The exchange is bounded by the caller's
 deadline and the normal request timeout, and is never retried. A failed
-check exposes no model and dispatches no model or reverse handler.
+check exposes no model and dispatches no model or reverse handler through
+that interpretation.
+
+[Preparation](../runtime/wire.md#preparing-an-interpretation) installs the
+identity responder and deferred model receivers before a carrier starts
+reading. Completion runs after attachment; the returned factory is then
+bound once before deferred dispatch is released. The whole interval from
+preparation through binding has a timeout, including a preparation never
+completed or a factory never bound. Failure removes the interpretation's
+registrations without closing a borrowed carrier. This lifecycle belongs
+to the adapter and adds no peer state or receive queue.
 
 The digest is over the [canonical declaration](../declaration/declaration-identity.md),
-including operations, events and reachable imported content. Identity says
+including operations, events and reachable imported content. A generic
+interpretation uses the closed application, including its supplied argument
+declarations; the family's template digest does not identify those bindings.
+Identity says
 which declaration and revision, not whether an implementation is truthful or
 authorized. An application's authentication and origin policy still belongs
 to its host, and its subprotocol offer and selection are unchanged. This is

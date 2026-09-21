@@ -58,6 +58,25 @@ tunnel raw connection, an in-memory pipe; `role: 'server'` selects server reques
 ids. A `DuplexError` is safe to send and crosses the wire with its code,
 message and data; any other exception a handler throws becomes `internal`.
 
+Generated models interpret `peer.wire()` through their family's
+`prepareFromWire`. Prepare before `connect` or `attach`, await the returned
+`complete(options?)` after attachment, then bind the returned model factory
+once. The adapter sends a bounded `identity.check` request before exposing
+that factory, and holds early model requests and events until it is bound.
+Different family paths or differing specified declaration digests refuse
+with `contract_mismatch`; only `method_not_found` means the remote endpoint
+carries no identity. The combined `fromWire` is for an already active wire
+and cannot recover earlier events.
+
+The runtime exposes this mechanism as `prepareIdentity(wire, expected,
+options)`, returning `wire`, `check(options?)`, `ready()` and `close()`.
+Its preparation owns its identity responder and model registrations.
+`requestTimeoutMs` bounds setup through binding, including a factory never
+bound; `close()` detaches the interpretation while the host owns the
+carrier. Declaration identity conveys no authentication or permission.
+The [wire lifecycle](https://github.com/Bitspark/nightseam/blob/main/docs/runtime/wire.md#preparing-an-interpretation)
+describes setup and cleanup in both languages.
+
 ## The wire
 
 The endpoint selects the profile; a subprotocol is offered only when `subprotocols` names one, and what the handshake selected is `peer.subprotocol`.
@@ -116,11 +135,21 @@ subscriptions and deduplication are the application's.
 
 ## The validator
 
-`createValidator(description)` builds the wire validator a generated client
+`createValidator(description, digest, imports)` builds the wire validator a generated client
 uses from the family's wire description; both runtimes' validators are held
 to one conformance table. It validates calls, replies, reverse calls and
 events alike, and what fills a slot of a bound family by that family's
 binding.
+
+Generated validators also retain their canonical declaration through
+`withDeclaration`. `declarationDigest(validator, slots)` identifies a closed
+family application, and `typeDeclaration(binding)` retains the supplied
+type's reachable declaration content. Required bindings and their declaration
+metadata must be present; an open template cannot identify a closed generic
+model. The generated `wireDeclaration` and `wireDigest` exports document the
+family's template. The
+[canonical graph](https://github.com/Bitspark/nightseam/blob/main/docs/declaration/declaration-identity.md)
+defines the shared bytes used by Go, TypeScript and browsers.
 
 ## Observing it
 
