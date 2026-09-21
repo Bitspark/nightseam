@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,8 +74,8 @@ func TestGeneratedUnionFamiliesPreservePayloadsAndInheritance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("render %s: %v", name, err)
 		}
-		if len(files) != 2 {
-			t.Fatalf("model-only family %s rendered protocol helpers", name)
+		if len(files) != 3 || !strings.HasSuffix(files[2].Path, "/familytest/examples_generated.go") {
+			t.Fatalf("model-only family %s did not render just types, validation and examples", name)
 		}
 		for _, file := range files {
 			write(file.Path, string(file.Data))
