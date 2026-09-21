@@ -1,0 +1,1512 @@
+{
+  "description": "Vectors for the exposure binding (docs/auth/exposure.md): construction held to the declared surface, the decision at dispatch for each member and route, the decision at the effect with the owner's condition, exported references decided by their export record, and emission decided per recipient. Contexts are subjects with chains from auth-grant.json and auth-boot.json; the envelopes shared with those tables are byte-identical. now is seconds since the Unix epoch, UTC.",
+  "version": "0.1.0",
+  "root": {
+    "domain": "example.test",
+    "key": "root"
+  },
+  "keys": {
+    "alice": {
+      "seed": "0202020202020202020202020202020202020202020202020202020202020202",
+      "pubkey": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
+    },
+    "bob": {
+      "seed": "0303030303030303030303030303030303030303030303030303030303030303",
+      "pubkey": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+    },
+    "carol": {
+      "seed": "0404040404040404040404040404040404040404040404040404040404040404",
+      "pubkey": "ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c"
+    },
+    "mallory": {
+      "seed": "0505050505050505050505050505050505050505050505050505050505050505",
+      "pubkey": "6e7a1cdd29b0b78fd13af4c5598feff4ef2a97166e3ca6f2e4fbfccd80505bf1"
+    },
+    "root": {
+      "seed": "0101010101010101010101010101010101010101010101010101010101010101",
+      "pubkey": "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c"
+    },
+    "service": {
+      "seed": "0808080808080808080808080808080808080808080808080808080808080808",
+      "pubkey": "1398f62c6d1a457c51ba6a4b5f3dbd2f69fca93216218dc8997e416bd17d93ca"
+    }
+  },
+  "envelopes": {
+    "alice_bob": "6172636e01116e696768747365616d2d6772616e742f318139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3944f78460cc17d271e5dc0d854aae850ba2530683673e30f6c0306506a3ced2d8271dc1d111053443fbfa6202c72c4d37a87fa85fe25784bb04a582909202c8e08010c6578616d706c652e74657374ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d101a2231b39dca9e33a7148a1cea798fe2fdd6e3b31734813680b26f0fabd618b9e0001000a70726f6a656374732f3700020004726561640005777269746500010004726561640201000000006b49d200",
+    "bob_carol": "6172636e01116e696768747365616d2d6772616e742f31ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1d6011d56d3cc4f10051822aa2a57eb0c1636876adeb80fc07f41cf24ce762e8cdac37d4a2e128c5ec1b35303c8d3b5a43cf135cac7fcc99b710dc44159dcf802010c6578616d706c652e74657374ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c01bec9e2aa107654ff4c4e0fc6bb84c4eae8641065cc72e80598a149cb6af426c50001001170726f6a656374732f372f6c6564676572000100047265616400000001000000006b49d200",
+    "root_alice": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c6f78fb44bbbb08c0f17de081df55c05c08cda4e5ff95b057ec22735bdcdde4aef6f36d669b4619ff7ad605a10ed5c13bfd97545f2b6e5b291d3a35203b97dc07010c6578616d706c652e746573748139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394000001000870726f6a656374730002000472656164000577726974650002000472656164000577726974650300",
+    "root_service": "6172636e01116e696768747365616d2d6772616e742f318a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c7a8a2f020f426f1b128f4ab08ea65e1d0c6fe3473cc14f50384b6044346a5522a20db7fc41e3149b010e274bc27cb411dcba926dab10c283a8d067d3e2842a03010c6578616d706c652e746573741398f62c6d1a457c51ba6a4b5f3dbd2f69fca93216218dc8997e416bd17d93ca000001000870726f6a65637473000100067265706f727400000000"
+  },
+  "contexts": {
+    "alice": {
+      "subject": "alice",
+      "chain": [
+        "root_alice"
+      ]
+    },
+    "bob": {
+      "subject": "bob",
+      "chain": [
+        "root_alice",
+        "alice_bob"
+      ]
+    },
+    "bob_with_carols_chain": {
+      "subject": "bob",
+      "chain": [
+        "root_alice",
+        "alice_bob",
+        "bob_carol"
+      ]
+    },
+    "carol": {
+      "subject": "carol",
+      "chain": [
+        "root_alice",
+        "alice_bob",
+        "bob_carol"
+      ]
+    },
+    "service": {
+      "subject": "service",
+      "chain": [
+        "root_service"
+      ]
+    }
+  },
+  "surfaces": {
+    "worker": {
+      "family": "worker",
+      "digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "members": [
+        {
+          "key": "callable:JobCancel",
+          "fields": null
+        },
+        {
+          "key": "callable:JobResult",
+          "fields": null
+        },
+        {
+          "key": "callable:JobStatus",
+          "fields": null
+        },
+        {
+          "key": "event:progress",
+          "fields": [
+            "jobId",
+            "percent",
+            "projectId"
+          ]
+        },
+        {
+          "key": "method:list",
+          "fields": [
+            "projectId"
+          ]
+        },
+        {
+          "key": "method:start",
+          "fields": [
+            "document",
+            "projectId"
+          ]
+        }
+      ]
+    },
+    "worker-client": {
+      "family": "worker-client",
+      "digest": "sha256:7979797979797979797979797979797979797979797979797979797979797979",
+      "members": [
+        {
+          "key": "callable:ProgressSink",
+          "fields": [
+            "jobId",
+            "percent"
+          ]
+        }
+      ]
+    }
+  },
+  "policies": {
+    "P": {
+      "family": "worker",
+      "digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "treatments": {
+        "callable:JobCancel": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "{export}"
+        },
+        "callable:JobResult": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "callable:JobStatus": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "event:progress": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "projects/{projectId}"
+        },
+        "method:list": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "projects/{projectId}"
+        },
+        "method:start": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "projects/{projectId}"
+        }
+      }
+    },
+    "P2": {
+      "family": "worker",
+      "digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "treatments": {
+        "callable:JobCancel": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "{export}"
+        },
+        "callable:JobResult": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "callable:JobStatus": {
+          "kind": "public"
+        },
+        "event:progress": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "projects/{projectId}"
+        },
+        "method:list": {
+          "kind": "denied"
+        },
+        "method:start": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "projects/{projectId}"
+        }
+      }
+    },
+    "PC": {
+      "family": "worker-client",
+      "digest": "sha256:7979797979797979797979797979797979797979797979797979797979797979",
+      "treatments": {
+        "callable:ProgressSink": {
+          "kind": "guarded",
+          "action": "report",
+          "scope": "{export}"
+        }
+      }
+    },
+    "P_bad_hole": {
+      "family": "worker",
+      "digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "treatments": {
+        "callable:JobCancel": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "{export}"
+        },
+        "callable:JobResult": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "callable:JobStatus": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "event:progress": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "projects/{projectId}"
+        },
+        "method:list": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "projects/{projectId}"
+        },
+        "method:start": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "projects/{jobId}"
+        }
+      }
+    },
+    "P_export_on_method": {
+      "family": "worker",
+      "digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "treatments": {
+        "callable:JobCancel": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "{export}"
+        },
+        "callable:JobResult": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "callable:JobStatus": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "event:progress": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "projects/{projectId}"
+        },
+        "method:list": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "method:start": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "projects/{projectId}"
+        }
+      }
+    },
+    "P_missing": {
+      "family": "worker",
+      "digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "treatments": {
+        "callable:JobResult": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "callable:JobStatus": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "event:progress": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "projects/{projectId}"
+        },
+        "method:list": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "projects/{projectId}"
+        },
+        "method:start": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "projects/{projectId}"
+        }
+      }
+    },
+    "P_public_with_action": {
+      "family": "worker",
+      "digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "treatments": {
+        "callable:JobCancel": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "{export}"
+        },
+        "callable:JobResult": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "callable:JobStatus": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "event:progress": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "projects/{projectId}"
+        },
+        "method:list": {
+          "kind": "public",
+          "action": "read"
+        },
+        "method:start": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "projects/{projectId}"
+        }
+      }
+    },
+    "P_undeclared": {
+      "family": "worker",
+      "digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "treatments": {
+        "callable:JobCancel": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "{export}"
+        },
+        "callable:JobResult": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "callable:JobStatus": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "event:progress": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "projects/{projectId}"
+        },
+        "method:list": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "projects/{projectId}"
+        },
+        "method:start": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "projects/{projectId}"
+        },
+        "method:stop": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "projects/{projectId}"
+        }
+      }
+    },
+    "P_wrong_digest": {
+      "family": "worker",
+      "digest": "sha256:7878787878787878787878787878787878787878787878787878787878787878",
+      "treatments": {
+        "callable:JobCancel": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "{export}"
+        },
+        "callable:JobResult": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "callable:JobStatus": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "{export}"
+        },
+        "event:progress": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "projects/{projectId}"
+        },
+        "method:list": {
+          "kind": "guarded",
+          "action": "read",
+          "scope": "projects/{projectId}"
+        },
+        "method:start": {
+          "kind": "guarded",
+          "action": "write",
+          "scope": "projects/{projectId}"
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "family": "exposure_bind",
+      "id": "AUTH-EXPOSURE-001",
+      "name": "every member bound: the routes are exactly the declared members",
+      "policy": "P",
+      "routes": [
+        "callable:JobCancel",
+        "callable:JobResult",
+        "callable:JobStatus",
+        "event:progress",
+        "method:list",
+        "method:start"
+      ]
+    },
+    {
+      "family": "exposure_bind",
+      "id": "AUTH-EXPOSURE-002",
+      "name": "a public status and a denied list are valid treatments",
+      "policy": "P2",
+      "routes": [
+        "callable:JobCancel",
+        "callable:JobResult",
+        "callable:JobStatus",
+        "event:progress",
+        "method:list",
+        "method:start"
+      ]
+    },
+    {
+      "family": "exposure_bind",
+      "id": "AUTH-EXPOSURE-003",
+      "name": "a member the policy does not name refuses construction",
+      "policy": "P_missing",
+      "refused": {
+        "code": "auth.member_unbound",
+        "members": [
+          "callable:JobCancel"
+        ]
+      }
+    },
+    {
+      "family": "exposure_bind",
+      "id": "AUTH-EXPOSURE-004",
+      "name": "a policy key the surface does not declare refuses construction",
+      "policy": "P_undeclared",
+      "refused": {
+        "code": "auth.member_undeclared",
+        "members": [
+          "method:stop"
+        ]
+      }
+    },
+    {
+      "family": "exposure_bind",
+      "id": "AUTH-EXPOSURE-005",
+      "name": "a template hole naming no request field refuses construction",
+      "policy": "P_bad_hole",
+      "refused": {
+        "code": "auth.template_invalid",
+        "members": [
+          "method:start"
+        ]
+      }
+    },
+    {
+      "family": "exposure_bind",
+      "id": "AUTH-EXPOSURE-006",
+      "name": "{export} on a method refuses construction: only a callable has an export record",
+      "policy": "P_export_on_method",
+      "refused": {
+        "code": "auth.template_invalid",
+        "members": [
+          "method:list"
+        ]
+      }
+    },
+    {
+      "family": "exposure_bind",
+      "id": "AUTH-EXPOSURE-007",
+      "name": "a public treatment carrying an action refuses construction",
+      "policy": "P_public_with_action",
+      "refused": {
+        "code": "auth.template_invalid",
+        "members": [
+          "method:list"
+        ]
+      }
+    },
+    {
+      "family": "exposure_bind",
+      "id": "AUTH-EXPOSURE-008",
+      "name": "a policy for another declaration digest refuses construction",
+      "policy": "P_wrong_digest",
+      "refused": {
+        "code": "auth.contract_mismatch"
+      }
+    },
+    {
+      "family": "exposure_template",
+      "id": "AUTH-EXPOSURE-009",
+      "name": "a string field fills its hole",
+      "template": "projects/{projectId}",
+      "payload": {
+        "projectId": "7"
+      },
+      "scope": "projects/7"
+    },
+    {
+      "family": "exposure_template",
+      "id": "AUTH-EXPOSURE-010",
+      "name": "an integer fills its hole",
+      "template": "projects/{projectId}",
+      "payload": {
+        "projectId": 7
+      },
+      "scope": "projects/7"
+    },
+    {
+      "family": "exposure_template",
+      "id": "AUTH-EXPOSURE-011",
+      "name": "a constant template needs no payload",
+      "template": "projects",
+      "payload": {},
+      "scope": "projects"
+    },
+    {
+      "family": "exposure_template",
+      "id": "AUTH-EXPOSURE-012",
+      "name": "{export} is the scope recorded at export",
+      "template": "{export}",
+      "payload": {},
+      "export": "projects/7",
+      "scope": "projects/7"
+    },
+    {
+      "family": "exposure_template",
+      "id": "AUTH-EXPOSURE-013",
+      "name": "a missing field is refused",
+      "template": "projects/{projectId}",
+      "payload": {},
+      "refused": true
+    },
+    {
+      "family": "exposure_template",
+      "id": "AUTH-EXPOSURE-014",
+      "name": "a value carrying a separator is refused: no traversal by selector",
+      "template": "projects/{projectId}",
+      "payload": {
+        "projectId": "7/../8"
+      },
+      "refused": true
+    },
+    {
+      "family": "exposure_template",
+      "id": "AUTH-EXPOSURE-015",
+      "name": "an empty value is refused",
+      "template": "projects/{projectId}",
+      "payload": {
+        "projectId": ""
+      },
+      "refused": true
+    },
+    {
+      "family": "exposure_template",
+      "id": "AUTH-EXPOSURE-016",
+      "name": "a non-scalar value is refused",
+      "template": "projects/{projectId}",
+      "payload": {
+        "projectId": [
+          "7"
+        ]
+      },
+      "refused": true
+    },
+    {
+      "family": "exposure_template",
+      "id": "AUTH-EXPOSURE-017",
+      "name": "a control character is refused",
+      "template": "projects/{projectId}",
+      "payload": {
+        "projectId": "7\t"
+      },
+      "refused": true
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-018",
+      "name": "start on the caller's project is admitted at dispatch and at the effect",
+      "holds": "AUTH-EXPOSURE-001, -003",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:start",
+          "route": "registered",
+          "payload": {
+            "document": "d1",
+            "projectId": "7"
+          },
+          "now": 1799990000,
+          "effect_at": 1799990001,
+          "result": {
+            "action": "write",
+            "kind": "guarded",
+            "member": "method:start",
+            "scope": "projects/7",
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+          },
+          "effect": "applied"
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-019",
+      "name": "every route meets the same decision: registered dispatch, a local self-reference, a mount, a forward",
+      "holds": "AUTH-EXPOSURE-005",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:start",
+          "route": "registered",
+          "payload": {
+            "document": "d1",
+            "projectId": "7"
+          },
+          "now": 1799990000,
+          "result": {
+            "action": "write",
+            "kind": "guarded",
+            "member": "method:start",
+            "scope": "projects/7",
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+          }
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:start",
+          "route": "local",
+          "payload": {
+            "document": "d1",
+            "projectId": "7"
+          },
+          "now": 1799990000,
+          "result": {
+            "action": "write",
+            "kind": "guarded",
+            "member": "method:start",
+            "scope": "projects/7",
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+          }
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:start",
+          "route": "mount:admin",
+          "payload": {
+            "document": "d1",
+            "projectId": "7"
+          },
+          "now": 1799990000,
+          "result": {
+            "action": "write",
+            "kind": "guarded",
+            "member": "method:start",
+            "scope": "projects/7",
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+          }
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:start",
+          "route": "forwarded",
+          "payload": {
+            "document": "d1",
+            "projectId": "7"
+          },
+          "now": 1799990000,
+          "result": {
+            "action": "write",
+            "kind": "guarded",
+            "member": "method:start",
+            "scope": "projects/7",
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-020",
+      "name": "a member the surface does not declare is refused before any handler",
+      "holds": "AUTH-EXPOSURE-001",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:stop",
+          "route": "registered",
+          "payload": {
+            "document": "d1",
+            "projectId": "7"
+          },
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.unknown_member"
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-021",
+      "name": "a guarded member with no context is refused, never downgraded",
+      "holds": "AUTH-EXPOSURE-008",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "member": "method:list",
+          "route": "registered",
+          "payload": {
+            "projectId": "7"
+          },
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.unauthenticated"
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-022",
+      "name": "a denied member is refused for everyone; a public member needs no context",
+      "holds": "AUTH-EXPOSURE-001, -008",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P2",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "connection": "alice",
+          "member": "method:list",
+          "route": "registered",
+          "payload": {
+            "projectId": "7"
+          },
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.member_denied"
+          }
+        },
+        {
+          "op": "call",
+          "member": "callable:JobStatus",
+          "route": "registered",
+          "now": 1799990000,
+          "result": {
+            "kind": "public",
+            "member": "callable:JobStatus"
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-023",
+      "name": "a sibling project is not the caller's: projects/7 does not cover projects/70",
+      "holds": "AUTH-EXPOSURE-003",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:list",
+          "route": "registered",
+          "payload": {
+            "projectId": "70"
+          },
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.denied",
+            "grant": {
+              "code": "not_covered",
+              "hop": 1
+            }
+          }
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:list",
+          "route": "registered",
+          "payload": {
+            "projectId": "8"
+          },
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.denied",
+            "grant": {
+              "code": "not_covered",
+              "hop": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-024",
+      "name": "a selector that would traverse is refused before authority is consulted",
+      "holds": "AUTH-EXPOSURE-003",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:list",
+          "route": "registered",
+          "payload": {
+            "projectId": "7/../8"
+          },
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.selector_invalid"
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-025",
+      "name": "a mount prefix or a forwarded route confers nothing: the same call on project 8 is refused on every route",
+      "holds": "AUTH-EXPOSURE-003, -005",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:start",
+          "route": "mount:projects-7",
+          "payload": {
+            "document": "d1",
+            "projectId": "8"
+          },
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.denied",
+            "grant": {
+              "code": "not_covered",
+              "hop": 1
+            }
+          }
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:start",
+          "route": "forwarded",
+          "payload": {
+            "document": "d1",
+            "projectId": "8"
+          },
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.denied",
+            "grant": {
+              "code": "not_covered",
+              "hop": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-026",
+      "name": "authority expires between dispatch and the effect: admitted to start, refused at the effect",
+      "holds": "AUTH-EXPOSURE-004",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:start",
+          "route": "registered",
+          "payload": {
+            "document": "d1",
+            "projectId": "7"
+          },
+          "now": 1799999999,
+          "effect_at": 1800000000,
+          "result": {
+            "action": "write",
+            "kind": "guarded",
+            "member": "method:start",
+            "scope": "projects/7",
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+          },
+          "effect": {
+            "refused": {
+              "code": "auth.denied",
+              "grant": {
+                "code": "expired",
+                "hop": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-027",
+      "name": "the owner's condition changes between dispatch and the effect: refused by the owner, no effect",
+      "holds": "AUTH-EXPOSURE-004",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:start",
+          "route": "registered",
+          "payload": {
+            "document": "d1",
+            "projectId": "7"
+          },
+          "now": 1799990000,
+          "effect_at": 1799990001,
+          "state": {
+            "projects/7": "archived"
+          },
+          "result": {
+            "action": "write",
+            "kind": "guarded",
+            "member": "method:start",
+            "scope": "projects/7",
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+          },
+          "effect": {
+            "refused": {
+              "code": "owner:archived"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-028",
+      "name": "Worker.start, then the returned Job's callables each under their own action, then after expiry with the connection open",
+      "holds": "AUTH-EXPOSURE-006",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:start",
+          "route": "registered",
+          "payload": {
+            "document": "d1",
+            "projectId": "7"
+          },
+          "now": 1799990000,
+          "result": {
+            "action": "write",
+            "kind": "guarded",
+            "member": "method:start",
+            "scope": "projects/7",
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+          }
+        },
+        {
+          "op": "export",
+          "member": "callable:JobStatus",
+          "ref": "job7.status",
+          "scope": "projects/7",
+          "result": "exported"
+        },
+        {
+          "op": "export",
+          "member": "callable:JobResult",
+          "ref": "job7.result",
+          "scope": "projects/7",
+          "result": "exported"
+        },
+        {
+          "op": "export",
+          "member": "callable:JobCancel",
+          "ref": "job7.cancel",
+          "scope": "projects/7",
+          "result": "exported"
+        },
+        {
+          "op": "invoke",
+          "connection": "bob",
+          "ref": "job7.status",
+          "now": 1799990001,
+          "result": {
+            "action": "read",
+            "kind": "guarded",
+            "member": "callable:JobStatus",
+            "scope": "projects/7",
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+          }
+        },
+        {
+          "op": "invoke",
+          "connection": "bob",
+          "ref": "job7.cancel",
+          "now": 1799990002,
+          "effect_at": 1799990002,
+          "result": {
+            "action": "write",
+            "kind": "guarded",
+            "member": "callable:JobCancel",
+            "scope": "projects/7",
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+          },
+          "effect": "applied"
+        },
+        {
+          "op": "invoke",
+          "connection": "bob",
+          "ref": "job7.result",
+          "now": 1800000000,
+          "refused": {
+            "code": "auth.denied",
+            "grant": {
+              "code": "expired",
+              "hop": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-029",
+      "name": "a returned callable is decided for whoever invokes it: carol may not read bob's job, may not cancel it",
+      "holds": "AUTH-EXPOSURE-006, -002",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:start",
+          "route": "registered",
+          "payload": {
+            "document": "d1",
+            "projectId": "7"
+          },
+          "now": 1799990000,
+          "result": {
+            "action": "write",
+            "kind": "guarded",
+            "member": "method:start",
+            "scope": "projects/7",
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+          }
+        },
+        {
+          "op": "export",
+          "member": "callable:JobStatus",
+          "ref": "job7.status",
+          "scope": "projects/7",
+          "result": "exported"
+        },
+        {
+          "op": "export",
+          "member": "callable:JobCancel",
+          "ref": "job7.cancel",
+          "scope": "projects/7",
+          "result": "exported"
+        },
+        {
+          "op": "invoke",
+          "connection": "carol",
+          "ref": "job7.status",
+          "now": 1799990001,
+          "refused": {
+            "code": "auth.denied",
+            "grant": {
+              "code": "not_covered",
+              "hop": 2
+            }
+          }
+        },
+        {
+          "op": "invoke",
+          "connection": "carol",
+          "ref": "job7.cancel",
+          "now": 1799990001,
+          "refused": {
+            "code": "auth.denied",
+            "grant": {
+              "code": "not_covered",
+              "hop": 1
+            }
+          }
+        },
+        {
+          "op": "invoke",
+          "connection": "alice",
+          "ref": "job7.status",
+          "now": 1799990001,
+          "result": {
+            "action": "read",
+            "kind": "guarded",
+            "member": "callable:JobStatus",
+            "scope": "projects/7",
+            "subject": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-030",
+      "name": "a reference this exposure did not export is unknown to it: a type round trip cannot manufacture one",
+      "holds": "AUTH-EXPOSURE-002, -005",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "invoke",
+          "connection": "bob",
+          "ref": "job9.status",
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.reference_unknown"
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-031",
+      "name": "two exposures of one unchanged declaration: the same caller, the same member, different decisions",
+      "holds": "AUTH-EXPOSURE-002",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "export",
+          "member": "callable:JobStatus",
+          "ref": "job7.status",
+          "scope": "projects/7",
+          "result": "exported"
+        },
+        {
+          "op": "invoke",
+          "connection": "carol",
+          "ref": "job7.status",
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.denied",
+            "grant": {
+              "code": "not_covered",
+              "hop": 2
+            }
+          }
+        },
+        {
+          "op": "bind",
+          "policy": "P2",
+          "result": "bound"
+        },
+        {
+          "op": "export",
+          "member": "callable:JobStatus",
+          "ref": "job7.status",
+          "scope": "projects/7",
+          "result": "exported"
+        },
+        {
+          "op": "invoke",
+          "connection": "carol",
+          "ref": "job7.status",
+          "now": 1799990000,
+          "result": {
+            "kind": "public",
+            "member": "callable:JobStatus",
+            "subject": "ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c"
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-032",
+      "name": "an event is a disclosure decided per recipient at emission; a refused recipient is not told",
+      "holds": "AUTH-EXPOSURE-006",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "emit",
+          "member": "event:progress",
+          "payload": {
+            "jobId": "j1",
+            "percent": 50,
+            "projectId": "7"
+          },
+          "recipients": [
+            "bob",
+            "carol",
+            "alice"
+          ],
+          "now": 1799990000,
+          "result": {
+            "alice": "delivered",
+            "bob": "delivered",
+            "carol": {
+              "dropped": {
+                "code": "auth.denied",
+                "grant": {
+                  "code": "not_covered",
+                  "hop": 2
+                }
+              }
+            }
+          }
+        },
+        {
+          "op": "emit",
+          "member": "event:progress",
+          "payload": {
+            "jobId": "j1",
+            "percent": 100,
+            "projectId": "7"
+          },
+          "recipients": [
+            "bob",
+            "carol",
+            "alice"
+          ],
+          "now": 1800000000,
+          "result": {
+            "alice": "delivered",
+            "bob": {
+              "dropped": {
+                "code": "auth.denied",
+                "grant": {
+                  "code": "expired",
+                  "hop": 1
+                }
+              }
+            },
+            "carol": {
+              "dropped": {
+                "code": "auth.denied",
+                "grant": {
+                  "code": "expired",
+                  "hop": 1
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-033",
+      "name": "a broker acts as itself: copied metadata names nobody, and the decision is the broker's own",
+      "holds": "AUTH-EXPOSURE-007",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:list",
+          "route": "forwarded",
+          "payload": {
+            "projectId": "7"
+          },
+          "meta": {
+            "represented": "carol"
+          },
+          "now": 1799990000,
+          "result": {
+            "action": "read",
+            "kind": "guarded",
+            "member": "method:list",
+            "scope": "projects/7",
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+          }
+        },
+        {
+          "op": "call",
+          "connection": "bob",
+          "member": "method:list",
+          "route": "forwarded",
+          "payload": {
+            "projectId": "7"
+          },
+          "now": 1799990000,
+          "result": {
+            "action": "read",
+            "kind": "guarded",
+            "member": "method:list",
+            "scope": "projects/7",
+            "subject": "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-034",
+      "name": "a broker presenting the represented caller's chain is refused whether or not it would cover: the chain does not end at the broker",
+      "holds": "AUTH-EXPOSURE-007",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "P",
+          "result": "bound"
+        },
+        {
+          "op": "call",
+          "connection": "bob_with_carols_chain",
+          "member": "method:list",
+          "route": "forwarded",
+          "payload": {
+            "projectId": "7"
+          },
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.subject_mismatch"
+          }
+        },
+        {
+          "op": "export",
+          "member": "callable:JobStatus",
+          "ref": "ledger.status",
+          "scope": "projects/7/ledger",
+          "result": "exported"
+        },
+        {
+          "op": "invoke",
+          "connection": "bob_with_carols_chain",
+          "ref": "ledger.status",
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.subject_mismatch"
+          }
+        }
+      ]
+    },
+    {
+      "family": "exposure",
+      "id": "AUTH-EXPOSURE-035",
+      "name": "a reverse call meets the guard of the side that owns it: the service reports progress into a client's sink under the client's exposure",
+      "holds": "AUTH-EXPOSURE-005",
+      "steps": [
+        {
+          "op": "bind",
+          "policy": "PC",
+          "result": "bound"
+        },
+        {
+          "op": "export",
+          "member": "callable:ProgressSink",
+          "ref": "sink.report",
+          "scope": "projects/7",
+          "result": "exported"
+        },
+        {
+          "op": "invoke",
+          "connection": "service",
+          "payload": {
+            "jobId": "j1",
+            "percent": 50
+          },
+          "ref": "sink.report",
+          "now": 1799990000,
+          "result": {
+            "action": "report",
+            "kind": "guarded",
+            "member": "callable:ProgressSink",
+            "scope": "projects/7",
+            "subject": "1398f62c6d1a457c51ba6a4b5f3dbd2f69fca93216218dc8997e416bd17d93ca"
+          }
+        },
+        {
+          "op": "invoke",
+          "connection": "bob",
+          "payload": {
+            "jobId": "j1",
+            "percent": 50
+          },
+          "ref": "sink.report",
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.denied",
+            "grant": {
+              "code": "not_covered",
+              "hop": 0
+            }
+          }
+        },
+        {
+          "op": "invoke",
+          "payload": {
+            "jobId": "j1",
+            "percent": 50
+          },
+          "ref": "sink.report",
+          "now": 1799990000,
+          "refused": {
+            "code": "auth.unauthenticated"
+          }
+        }
+      ]
+    }
+  ]
+}

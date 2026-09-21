@@ -64,6 +64,16 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- The exposure packet of the optional authority profile: a policy of one
+  treatment per declared member — guarded with an action and a scope
+  template, public, or denied — bound whole to the declared surface or
+  refused with every gap named, the request as a selector and never as
+  authority, a decision at dispatch and again at the owner's effect,
+  exported callables decided by their export record, emissions decided per
+  recipient, the broker decided as itself, and a table of 35 cases held to
+  the eight named acceptance cases — specified before either adapter is
+  written. The connection packet now states the order of the decision at the
+  call: structure, identity, coverage.
 - The authenticated-connection packet of the optional authority profile: the
   audience a connection binds to and never sends, the possession proof in
   `nightseam-auth/1`, the `auth.challenge` / `auth.prove` exchange and the

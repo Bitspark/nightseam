@@ -109,6 +109,7 @@ implementations are held to.
 | --- | --- |
 | [grant.md](auth/grant.md) | the grant: an Archon envelope in the `nightseam-grant/1` domain around a canonical body — subject, parent digest, scope, actions, delegable, depth, validity — the chain, the order it is held in and each refusal, issuance and inherit, the bounds, the interface both verifiers export, and the table of 72 cases |
 | [connection.md](auth/connection.md) | the authenticated connection: the audience a connection binds to and never sends, the possession proof in `nightseam-auth/1`, `auth.challenge` and `auth.prove` and the one immutable context they make, the decision at every protected call and expiry at use, the bootstrap over Archon's login scheme — its tagged terms, the law that admits an answer, the recoverable state machine — forwarding as a grant and nothing else, the interface, and the table of 52 cases |
+| [exposure.md](auth/exposure.md) | the exposure: one protected instance of a declared surface and its policy — a treatment per member, guarded, public or denied — bound whole to the surface at construction or not at all, the target a request names as a selector and never as authority, the decision at dispatch and the decision again at the owner's effect, what an exported callable carries, an emission decided per recipient, the broker as itself, the interface, and the table of 35 cases held to the eight named acceptance cases |
 
 ## Why it is this way — `decisions/`
 
