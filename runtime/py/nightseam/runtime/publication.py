@@ -15,8 +15,14 @@ class UnpublishedError(PublicError):
         super().__init__(code, message, getattr(cause, "data", ABSENT))
 
 
+class _UnpublishedCancellation(UnpublishedError, asyncio.CancelledError):
+    """Retain asyncio's cancellation protocol beside local admission proof."""
+
+
 def unpublished(error):
     """Only call at an admission boundary that can prove this send was refused."""
+    if isinstance(error, asyncio.CancelledError):
+        return _UnpublishedCancellation(error)
     return None if error is None else UnpublishedError(error)
 
 
