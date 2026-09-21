@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { pipe } from '@nightseam/duplex';
 import { DuplexError, DuplexPeer, UnpublishedError, createValidator, jsonAdapter } from '@nightseam/runtime';
-import { LiveOwner, liveOver, valueEnvironment, type Reference } from './index.ts';
+import { LiveOwner, liveOver, valueEnvironment, type Invoke, type Reference } from './index.ts';
 
 async function pair() {
   const [a, b] = pipe();
@@ -37,27 +37,32 @@ test('environment selection preserves active batches and nested child rollback',
     return raw;
   });
   const failure = new Error('later field failed');
-  assert.throws(
-    () =>
-      env.export(selected, (outer) => {
-        assert.equal(env.select(outer), outer, 'selection lost the active batch view');
-        env.export(outer, (inner) =>
-          owner(inner)
-            .export('test/Call', async (raw) => raw)
-            .toJSON(),
-        );
-        const child = env.child(outer);
-        env.export(child, (inner) =>
-          owner(inner)
-            .export('test/Call', async (raw) => raw)
-            .toJSON(),
-        );
-        assert.deepEqual(p.a.counts(), { exports: 3, imports: 0 });
-        throw failure;
-      }),
-    (error) => error === failure,
-  );
-  assert.deepEqual(p.a.counts(), { exports: 1, imports: 0 });
+  for (const boundary of ['export', 'import'] as const) {
+    const aliases: Invoke[] = [];
+    const acquire = (context: unknown) => {
+      const reference = owner(context).export('test/Call', async (raw) => raw);
+      aliases.push(selected.import(reference, 'test/Call'));
+      return reference.toJSON();
+    };
+    assert.throws(
+      () =>
+        env[boundary](selected, (outer) => {
+          assert.equal(env.select(outer), outer, 'selection lost the active batch view');
+          env.import(outer, acquire);
+          const child = env.child(outer);
+          env.export(child, acquire);
+          assert.deepEqual(p.a.counts(), { exports: 3, imports: 0 });
+          throw failure;
+        }),
+      (error) => error === failure,
+    );
+    assert.deepEqual(p.a.counts(), { exports: 1, imports: 0 });
+    for (const alias of aliases)
+      await assert.rejects(
+        alias(null),
+        (error: unknown) => error instanceof DuplexError && error.code === 'reference_released',
+      );
+  }
   assert.equal(await selected.import(prior, 'test/Call')(7), 7);
   assert.equal(callbacks, 1);
   assert.deepEqual(
@@ -226,6 +231,18 @@ test('released selected owners stay terminal while new operations select a fresh
   for (const context of [first, env.child(first)]) {
     assert.throws(
       () => env.export(context, () => ({})),
+      (error: unknown) => error instanceof DuplexError && error.code === 'reference_released',
+    );
+    assert.throws(
+      () => env.import(context, () => assert.fail('released import dispatched')),
+      (error: unknown) => error instanceof DuplexError && error.code === 'reference_released',
+    );
+    await assert.rejects(
+      env.publish(
+        context,
+        () => assert.fail('released conversion dispatched'),
+        async () => assert.fail('released publication dispatched'),
+      ),
       (error: unknown) => error instanceof DuplexError && error.code === 'reference_released',
     );
   }
