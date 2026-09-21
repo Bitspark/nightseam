@@ -128,6 +128,7 @@ func emitTypes(f *file) {
 	}
 	f.uses = f.family.Uses
 	f.emitLive()
+	f.emitValueAdapters()
 	// The public errors the family declares: a handler returns one as a
 	// *runtime.PublicError, a caller tells them apart by code.
 	if len(f.family.Errors) > 0 {

@@ -82,6 +82,7 @@ import (
  probeclient "example.test/proof/api/go/probe-client"
  duplex "github.com/Bitspark/nightseam/duplex/go"
  runtime "github.com/Bitspark/nightseam/runtime/go"
+ live "github.com/Bitspark/nightseam/live/go"
 )
 type server struct{binding.Handler[probe.Envelope,probe.Handle,string]}
 func (server) Echo(ctx context.Context,remote *binding.Remote[probe.Envelope,probe.Handle,string],p probe.Payload)(probe.Payload,error) {
@@ -98,9 +99,9 @@ func (reverse) Reverse(_ context.Context,_ *probeclient.Client,p probe.Payload)(
 func TestMixedParametersAndInheritedOperations(t *testing.T) {
  ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second); defer cancel()
  near,far:=duplex.Pipe(1<<20)
- peer,err:=binding.Serve[probe.Envelope,probe.Handle,string](ctx,far,runtime.Options{},server{}); if err!=nil { t.Fatal(err) }; defer peer.Close()
+ peer,err:=binding.Serve[probe.Envelope,probe.Handle,string](ctx,far,runtime.Options{},server{},live.JSONAdapter[string]()); if err!=nil { t.Fatal(err) }; defer peer.Close()
  events:=make(chan probe.Payload,1)
- c,err:=client.Attach[probe.Envelope,probe.Handle,string](ctx,near,runtime.Options{},nil,client.Events[probe.Envelope,probe.Handle,string]{Changed:func(_ context.Context,p probe.Payload){events<-p}}); if err!=nil { t.Fatal(err) }; defer c.Close()
+ c,err:=client.Attach[probe.Envelope,probe.Handle,string](ctx,near,runtime.Options{},nil,client.Events[probe.Envelope,probe.Handle,string]{Changed:func(_ context.Context,p probe.Payload){events<-p}},live.JSONAdapter[string]()); if err!=nil { t.Fatal(err) }; defer c.Close()
  echo,err:=c.Echo(ctx,probe.Payload{Text:"hello"}); if err!=nil || echo.Text!="hello" { t.Fatalf("echo: %#v %v",echo,err) }
  select {case event:=<-events: if event.Text!="hello" { t.Fatal(event) }; case <-ctx.Done(): t.Fatal(ctx.Err())}
  result,err:=c.Parts(ctx,protocol.PartsRequest{}); if err!=nil || result.Ok==nil || result.Ok.Value.Items[0].Count.Value!=3 { t.Fatalf("parts: %#v %v",result,err) }
@@ -110,7 +111,7 @@ func TestMixedParametersAndInheritedOperations(t *testing.T) {
 func TestBaseClientSpeaksExtendedBinding(t *testing.T) {
  ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second); defer cancel()
  near,far:=duplex.Pipe(1<<20)
- peer,err:=binding.Serve[probe.Envelope,probe.Handle,string](ctx,far,runtime.Options{},server{}); if err!=nil { t.Fatal(err) }; defer peer.Close()
+ peer,err:=binding.Serve[probe.Envelope,probe.Handle,string](ctx,far,runtime.Options{},server{},live.JSONAdapter[string]()); if err!=nil { t.Fatal(err) }; defer peer.Close()
  c,err:=probeclient.Attach(ctx,near,runtime.Options{},reverse{},probeclient.Events{}); if err!=nil { t.Fatal(err) }; defer c.Close()
  result,err:=c.Echo(ctx,probe.Payload{Text:"base"}); if err!=nil || result.Text!="base" { t.Fatalf("base client: %#v %v",result,err) }
 }

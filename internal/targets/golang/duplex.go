@@ -14,11 +14,12 @@ import (
 // slots; the entry points hold every type drawn from one parameter to one
 // family's Tag, so that they cannot be bound to different families.
 func emitBinding(f *file) {
+	f.operationAdapters()
 	p, fam := f.plan, f.family
 	decl, args, open := declare(fam.Uses), apply(fam.Uses), f.entry(fam.Uses)
 	runtime, ctx := f.runtime(), f.std("context")
 	f.linef("// %s provides typed calls back to the connected client.", identRemote)
-	f.linef("type %s%s struct{ %s *%s.Peer }", identRemote, decl, identPeer, runtime)
+	f.linef("type %s%s struct{ %s *%s.Peer%s }", identRemote, decl, identPeer, runtime, f.slotFields())
 	f.w.Block(fmt.Sprintf("type %s%s interface {", identHandler, decl), "}", func() {
 		for _, m := range fam.Server.Methods {
 			if m.Description != "" {
@@ -34,12 +35,12 @@ func emitBinding(f *file) {
 	// with, beside whatever the caller registered, and labels every name of
 	// the family with it; NewHandler and Serve share it.
 	f.linef("// %s registers the family's methods on the options a peer is made with and labels its names with the family.", identInstall)
-	f.w.Block(fmt.Sprintf("func %s%s(handler %s%s, options *%s.Options) error {", identInstall, decl, identHandler, args, runtime), "}", func() {
+	f.w.Block(fmt.Sprintf("func %s%s(handler %s%s, options *%s.Options%s) error {", identInstall, decl, identHandler, args, runtime, f.slotParameters()), "}", func() {
 		f.linef("if handler == nil { return %s.Errorf(\"handler is required\") }", f.std("fmt"))
 		f.linef("handlers := map[string]%s.Handler{}", runtime)
 		f.line("for name, existing := range options.Handlers { handlers[name] = existing }")
 		for _, m := range fam.Server.Methods {
-			f.registration(m, "handler", "&"+identRemote+args+"{"+identPeer+": peer}")
+			f.registration(m, "handler", "&"+identRemote+args+"{"+identPeer+": peer"+f.slotValues()+"}")
 		}
 		f.line("options.Handlers = handlers")
 		f.labels()
@@ -47,9 +48,9 @@ func emitBinding(f *file) {
 		f.line("return nil")
 	})
 	f.linef("// %s serves the family at a WebSocket endpoint; it requires explicit authentication and origin policy through options.", identNewHandler)
-	f.linef("func %s%s(handler %s%s, options %s.ServerOptions) (%s.Handler, error) { if err := %s%s(handler, &options.Options); err != nil { return nil, err }; return %s.NewHandler(options) }", identNewHandler, open, identHandler, args, runtime, f.std("http"), identInstall, args, runtime)
+	f.linef("func %s%s(handler %s%s, options %s.ServerOptions%s) (%s.Handler, error) { if err := %s%s(handler, &options.Options%s); err != nil { return nil, err }; return %s.NewHandler(options) }", identNewHandler, open, identHandler, args, runtime, f.slotParameters(), f.std("http"), identInstall, args, f.slotArguments(), runtime)
 	f.linef("// %s serves the family over a connection of the seam — a tunnel channel, a pipe, an accepted socket — as the server side of it; the peer is the caller's to close.", identServe)
-	f.linef("func %s%s(ctx %s.Context, conn %s.Conn, options %s.Options, handler %s%s) (*%s.Peer, error) { if err := %s%s(handler, &options); err != nil { return nil, err }; return %s.NewPeer(ctx, conn, %s.ServerRole, options) }", identServe, open, ctx, f.seam(), runtime, identHandler, args, runtime, identInstall, args, runtime, runtime)
+	f.linef("func %s%s(ctx %s.Context, conn %s.Conn, options %s.Options, handler %s%s%s) (*%s.Peer, error) { if err := %s%s(handler, &options%s); err != nil { return nil, err }; return %s.NewPeer(ctx, conn, %s.ServerRole, options) }", identServe, open, ctx, f.seam(), runtime, identHandler, args, f.slotParameters(), runtime, identInstall, args, f.slotArguments(), runtime, runtime)
 	f.events(identRemote+args, fam.Client.Events, fam.Server.Events)
 }
 
@@ -58,11 +59,12 @@ func emitBinding(f *file) {
 // tunnel, the typed calls, and the Handler interface for calls the server
 // makes back. Those of a generic family are generic as the binding's are.
 func emitClient(f *file) {
+	f.operationAdapters()
 	p, fam := f.plan, f.family
 	decl, args, open := declare(fam.Uses), apply(fam.Uses), f.entry(fam.Uses)
 	runtime, ctx := f.runtime(), f.std("context")
-	clientValue := "&" + identClient + args + "{" + identPeer + ": peer}"
-	f.linef("type %s%s struct{ %s *%s.Peer }", identClient, decl, identPeer, runtime)
+	clientValue := "&" + identClient + args + "{" + identPeer + ": peer" + f.slotValues() + "}"
+	f.linef("type %s%s struct{ %s *%s.Peer%s }", identClient, decl, identPeer, runtime, f.slotFields())
 	f.linef("// %s installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.", identEvents)
 	f.w.Block(fmt.Sprintf("type %s%s struct {", identEvents, decl), "}", func() {
 		for _, e := range fam.Server.Events {
@@ -94,7 +96,7 @@ func emitClient(f *file) {
 	// made with and labels every name of the family with it; Dial and Attach
 	// share it.
 	f.linef("// %s registers the reverse-call handlers on the options a peer is made with and labels its names with the family.", identInstall)
-	f.w.Block(fmt.Sprintf("func %s%s(handler %s%s, events %s%s, options *%s.Options) error {", identInstall, decl, identHandler, args, identEvents, args, runtime), "}", func() {
+	f.w.Block(fmt.Sprintf("func %s%s(handler %s%s, events %s%s, options *%s.Options%s) error {", identInstall, decl, identHandler, args, identEvents, args, runtime, f.slotParameters()), "}", func() {
 		if len(fam.Client.Methods) > 0 {
 			f.linef("if handler == nil { return %s.Errorf(\"reverse-call handler is required\") }", f.std("fmt"))
 		}
@@ -107,18 +109,18 @@ func emitClient(f *file) {
 		f.labels()
 		f.line("prepare := options.Prepare")
 		f.w.Block(fmt.Sprintf("options.Prepare = func(peer *%s.Peer) error {", runtime), "}", func() {
-			if fam.Live {
+			if fam.Live || f.adapters {
 				f.line("if prepare != nil { if err := prepare(peer); err != nil { return err } }")
 			}
 			f.liveOver()
 			if len(fam.Server.Events) > 0 {
-				f.linef("client := &%s%s{%s: peer}", identClient, args, identPeer)
+				f.linef("client := &%s%s{%s: peer%s}", identClient, args, identPeer, f.slotValues())
 			}
 			for _, e := range fam.Server.Events {
 				name := p.operations[e.Name]
 				f.linef("if events.%s != nil { if err := client.%s%s(events.%s); err != nil { return err } }", name, identOn, name, name)
 			}
-			if !fam.Live {
+			if !fam.Live && !f.adapters {
 				f.line("if prepare != nil { return prepare(peer) }")
 			}
 			f.line("return nil")
@@ -126,24 +128,24 @@ func emitClient(f *file) {
 		f.line("return nil")
 	})
 	f.linef("// %s connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.", identDial)
-	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, url string, options %s.DialOptions, handler %s%s, events %s%s) (*%s%s, error) {", identDial, open, ctx, runtime, identHandler, args, identEvents, args, identClient, args), "}", func() {
-		f.linef("if err := %s%s(handler, events, &options.Options); err != nil { return nil, err }", identInstall, args)
+	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, url string, options %s.DialOptions, handler %s%s, events %s%s%s) (*%s%s, error) {", identDial, open, ctx, runtime, identHandler, args, identEvents, args, f.slotParameters(), identClient, args), "}", func() {
+		f.linef("if err := %s%s(handler, events, &options.Options%s); err != nil { return nil, err }", identInstall, args, f.slotArguments())
 		f.linef("peer, response, err := %s.Dial(ctx, url, options)", runtime)
 		f.line("if err != nil { if response != nil && response.Body != nil { _ = response.Body.Close() }; return nil, err }")
 		f.linef("return %s, nil", clientValue)
 	})
 	f.linef("// %s speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.", identAttach)
-	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, conn %s.Conn, options %s.Options, handler %s%s, events %s%s) (*%s%s, error) {", identAttach, open, ctx, f.seam(), runtime, identHandler, args, identEvents, args, identClient, args), "}", func() {
-		f.linef("if err := %s%s(handler, events, &options); err != nil { return nil, err }", identInstall, args)
+	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, conn %s.Conn, options %s.Options, handler %s%s, events %s%s%s) (*%s%s, error) {", identAttach, open, ctx, f.seam(), runtime, identHandler, args, identEvents, args, f.slotParameters(), identClient, args), "}", func() {
+		f.linef("if err := %s%s(handler, events, &options%s); err != nil { return nil, err }", identInstall, args, f.slotArguments())
 		f.linef("peer, err := %s.NewPeer(ctx, conn, %s.ClientRole, options)", runtime, runtime)
 		f.line("if err != nil { return nil, err }")
 		f.linef("return %s, nil", clientValue)
 	})
 	f.linef("// %s resolves a handle to the channel it names on a tunnel and speaks the family over it.", identOpen)
-	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, t *%s.Tunnel, handle %sHandle, options %s.Options, handler %s%s, events %s%s) (*%s%s, error) {", identOpen, open, ctx, f.tunnel(), f.proto(), runtime, identHandler, args, identEvents, args, identClient, args), "}", func() {
+	f.w.Block(fmt.Sprintf("func %s%s(ctx %s.Context, t *%s.Tunnel, handle %sHandle, options %s.Options, handler %s%s, events %s%s%s) (*%s%s, error) {", identOpen, open, ctx, f.tunnel(), f.proto(), runtime, identHandler, args, identEvents, args, f.slotParameters(), identClient, args), "}", func() {
 		f.line("channel, ok := t.Channel(handle.Channel)")
 		f.linef("if !ok { return nil, %s.Errorf(\"no channel %%d on the connection\", handle.Channel) }", f.std("fmt"))
-		f.linef("return %s%s(ctx, channel, options, handler, events)", identAttach, args)
+		f.linef("return %s%s(ctx, channel, options, handler, events%s)", identAttach, args, f.slotArguments())
 	})
 	f.linef("func (c *%s%s) %s() error { return c.%s.Close() }", identClient, args, identClose, identPeer)
 	for _, m := range fam.Server.Methods {
@@ -159,13 +161,21 @@ func (f *file) registration(m render.Method, handler, remote string) {
 	f.linef("if _, exists := handlers[%q]; exists { return %s.Errorf(\"duplicate handler %%s\", %q) }", m.Name, f.std("fmt"), m.Name)
 	f.w.Block(fmt.Sprintf("handlers[%q] = func(ctx %s.Context, peer *%s.Peer, raw %s.RawMessage) (any, error) {", m.Name, f.std("context"), runtime, json), "}", func() {
 		params := ""
-		if (m.Request != nil && f.family.IsLive(m.Request)) || f.family.IsLive(m.Result) {
+		if f.adapters && (f.needsConversion(m.Request) || f.needsConversion(m.Result)) {
+			f.linef("var owner *%s.Owner", f.live())
+			f.w.Block("if "+liveOr(f.expressionLive(m.Request), f.expressionLive(m.Result))+" {", "}", func() {
+				f.linef("scope, ok := %s.ScopeOf(peer)", f.live())
+				f.linef("if !ok { return nil, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", runtime, f.live())
+				f.line("owner = scope.Owner().Child()")
+				f.linef("ctx = %s.WithOwner(ctx, owner)", f.live())
+			})
+		} else if (m.Request != nil && f.family.IsLive(m.Request)) || f.family.IsLive(m.Result) {
 			f.linef("scope, ok := %s.ScopeOf(peer)", f.live())
 			f.linef("if !ok { return nil, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", runtime, f.live())
 			f.line("owner := scope.Owner().Child()")
 			f.linef("ctx = %s.WithOwner(ctx, owner)", f.live())
 		}
-		if m.Request != nil && f.family.IsLive(m.Request) {
+		if m.Request != nil && f.needsConversion(m.Request) {
 			// A live request is imported rather than unmarshalled: the
 			// handler is given native functions, and never a reference.
 			f.liveBoundary(m.Request, "raw", "params", false)
@@ -183,7 +193,7 @@ func (f *file) registration(m render.Method, handler, remote string) {
 		// is what a short declaration needs.
 		f.linef("result, err := %s.%s(ctx, %s%s)", handler, p.operations[m.Name], remote, params)
 		f.line("if err != nil { return nil, err }")
-		if f.family.IsLive(m.Result) {
+		if f.needsConversion(m.Result) {
 			f.liveBoundary(m.Result, "result", "sent", true)
 			f.line("return sent, err")
 			return
@@ -229,6 +239,9 @@ func operations(fam *render.Family) []string {
 // caller renders the typed call of one method a peer sends: validate the
 // params, call, validate and decode the result.
 func (f *file) caller(m render.Method, receiver string) {
+	previous := f.adapterPrefix
+	f.adapterPrefix = "c."
+	defer func() { f.adapterPrefix = previous }()
 	p, json := f.plan, f.std("json")
 	result := f.spell(m.Result)
 	if m.Description != "" {
@@ -236,15 +249,23 @@ func (f *file) caller(m render.Method, receiver string) {
 	}
 	f.w.Block(fmt.Sprintf("func (c *%s) %s(ctx %s.Context%s) (%s, error) {", receiver, p.operations[m.Name], f.std("context"), f.request(m), result), "}", func() {
 		f.linef("var result %s", result)
-		live := (m.Request != nil && f.family.IsLive(m.Request)) || f.family.IsLive(m.Result)
+		live := f.needsConversion(m.Request) || f.needsConversion(m.Result)
 		argument := argument(m)
-		if live {
+		if live && f.adapters {
+			f.linef("var owner *%s.Owner", f.live())
+			f.w.Block("if "+liveOr(f.expressionLive(m.Request), f.expressionLive(m.Result))+" {", "}", func() {
+				f.linef("scope, ok := %s.ScopeOf(c.%s)", f.live(), identPeer)
+				f.linef("if !ok { return result, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", f.runtime(), f.live())
+				f.linef("current, exists := %s.OwnerOf(ctx)", f.live())
+				f.line("owner = current; if !exists || owner.Scope() != scope { owner = scope.Owner() }")
+			})
+		} else if live {
 			f.linef("scope, ok := %s.ScopeOf(c.%s)", f.live(), identPeer)
 			f.linef("if !ok { return result, &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", f.runtime(), f.live())
 			f.linef("owner, ok := %s.OwnerOf(ctx)", f.live())
 			f.line("if !ok || owner.Scope() != scope { owner = scope.Owner() }")
 		}
-		if m.Request != nil && f.family.IsLive(m.Request) {
+		if m.Request != nil && f.needsConversion(m.Request) {
 			f.publishBoundary(m.Request, "params", "raw", func() {
 				f.linef("var raw %s.RawMessage", json)
 				f.linef("err := c.%s.Call(ctx, %q, sent, &raw)", identPeer, m.Name)
@@ -258,7 +279,7 @@ func (f *file) caller(m render.Method, receiver string) {
 			f.linef("var raw %s.RawMessage", json)
 			f.linef("if err := c.%s.Call(ctx, %q, %s, &raw); err != nil { return result, err }", identPeer, m.Name, argument)
 		}
-		if f.family.IsLive(m.Result) {
+		if f.needsConversion(m.Result) {
 			f.liveBoundary(m.Result, "raw", "received", false)
 			f.line("return received, err")
 			return
@@ -272,15 +293,29 @@ func (f *file) caller(m render.Method, receiver string) {
 // events renders, on a receiver, the emitters of the events it sends and
 // the handlers of the events it receives.
 func (f *file) events(receiver string, received, sent []render.Event) {
+	previous := f.adapterPrefix
+	f.adapterPrefix = "c."
+	defer func() { f.adapterPrefix = previous }()
 	p := f.plan
 	for _, e := range sent {
 		ctx := f.std("context")
-		if f.family.IsLive(e.Type) {
+		if f.needsConversion(e.Type) {
 			f.w.Block(fmt.Sprintf("func (c *%s) %s%s(ctx %s.Context, data %s) error {", receiver, identEmit, p.operations[e.Name], ctx, f.spell(e.Type)), "}", func() {
+				if f.adapters {
+					f.linef("var owner *%s.Owner", f.live())
+					f.line("if " + f.expressionLive(e.Type) + " {")
+				}
 				f.linef("scope, ok := %s.ScopeOf(c.%s)", f.live(), identPeer)
 				f.linef("if !ok { return &%s.PublicError{Code: %s.ErrorScopeClosed, Message: \"the connection carries no live scope\"} }", f.runtime(), f.live())
-				f.linef("owner, ok := %s.OwnerOf(ctx)", f.live())
+				if f.adapters {
+					f.linef("owner, ok = %s.OwnerOf(ctx)", f.live())
+				} else {
+					f.linef("owner, ok := %s.OwnerOf(ctx)", f.live())
+				}
 				f.line("if !ok || owner.Scope() != scope { owner = scope.Owner() }")
+				if f.adapters {
+					f.line("}")
+				}
 				f.publishBoundary(e.Type, "data", "_", func() {
 					f.linef("return nil, c.%s.Emit(ctx, %q, sent)", identPeer, e.Name)
 				})
@@ -305,11 +340,22 @@ func (f *file) events(receiver string, received, sent []render.Event) {
 // user callbacks, retaining the payload's declaring family.
 func (f *file) eventHandler(e render.Event, callback func()) {
 	f.w.Block(fmt.Sprintf("return c.%s.HandleEvent(%q, func(ctx %s.Context, peer *%s.Peer, raw %s.RawMessage) {", identPeer, e.Name, f.std("context"), f.runtime(), f.std("json")), "})", func() {
-		if f.family.IsLive(e.Type) {
+		if f.needsConversion(e.Type) {
+			if f.adapters {
+				f.linef("var owner *%s.Owner", f.live())
+				f.line("if " + f.expressionLive(e.Type) + " {")
+			}
 			f.linef("scope, ok := %s.ScopeOf(peer)", f.live())
 			f.line("if !ok { _ = peer.Close(); return }")
-			f.line("owner := scope.Owner().Child()")
+			if f.adapters {
+				f.line("owner = scope.Owner().Child()")
+			} else {
+				f.line("owner := scope.Owner().Child()")
+			}
 			f.linef("ctx = %s.WithOwner(ctx, owner)", f.live())
+			if f.adapters {
+				f.line("}")
+			}
 			f.liveBoundary(e.Type, "raw", "data", false)
 			f.line("if err != nil { _ = peer.Close(); return }")
 			callback()
@@ -328,7 +374,7 @@ func (f *file) eventHandler(e render.Event, callback func()) {
 // there. A family with no live tier installs nothing, which is what keeps an
 // ordinary data or RPC checkout free of the live package.
 func (f *file) liveScope(inner func()) {
-	if !f.family.Live {
+	if !f.family.Live && !f.adapters {
 		if inner != nil {
 			inner()
 		}
@@ -348,8 +394,14 @@ func (f *file) liveScope(inner func()) {
 // liveOver is the one statement that makes the scope, written inside a
 // Prepare the caller already had.
 func (f *file) liveOver() {
-	if !f.family.Live {
+	if !f.family.Live && !f.adapters {
 		return
 	}
+	if !f.family.Live {
+		f.line("if " + f.scopeLive() + " {")
+	}
 	f.linef("if _, ok := %s.ScopeOf(peer); !ok { if _, err := %s.Over(peer, %s.Options{}); err != nil { return err } }", f.live(), f.live(), f.live())
+	if !f.family.Live {
+		f.line("}")
+	}
 }

@@ -29,6 +29,9 @@ func (f *file) boundSchema(uses []render.Use) string {
 		for _, codec := range f.codecs {
 			if codec == use {
 				value = "type" + parameterName(use)
+				if f.adapters {
+					value = f.adapterPrefix + "adapter" + parameterName(use) + ".Binding"
+				}
 			}
 		}
 		bindings = append(bindings, fmt.Sprintf("%q: %s", name, value))

@@ -48,6 +48,7 @@ const (
 	identExport                = "Export"
 	identImport                = "Import"
 	identContract              = "Contract"
+	identAdapter               = "Adapter"
 )
 
 // plan is every identifier the rendering of one family declares, resolved
