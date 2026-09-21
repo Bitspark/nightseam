@@ -1,17 +1,17 @@
 # A callable is a declared kind, and its identity is its declaration
 
 **The question.** The live tier needed a way to say "a value here is
-something the other side can call". Two shapes were on the table, both with
-prior art in the sibling projects this model is drawn from, and the choice
-involved two dimensions: where a callable is written in the grammar, and how
-its wire contract is identified.
+something the other side can call". Two shapes were on the table, each with
+prior art behind it, and the choice involved two dimensions: where a callable
+is written in the grammar, and how its wire contract is identified.
 
-*A constructor.* Glyph's arrow: a callable is a type *expression*,
+*A constructor.* The arrow: a callable is a type *expression*,
 `Callable<Percent, Unit>`, written wherever a type is named, and a service is
 a product of arrows. Nothing is declared; the shape is the type.
 
-*A kind.* TISL's thing types: a callable is a *declaration*, named among the
-family's types, and a value type refers to it. There is no anonymous callable.
+*A kind.* The declared thing type: a callable is a *declaration*, named among
+the family's types, and a value type refers to it. There is no anonymous
+callable.
 
 **Decided.** Named callable declarations and nominal wire identity, by the
 operator on 2026-09-19 — [#201's

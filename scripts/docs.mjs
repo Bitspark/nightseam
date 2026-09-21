@@ -39,6 +39,21 @@
 //     so a testee written from that document can run the scenarios. A row no
 //     scenario drives is only a note: it may precede the scenario that uses it.
 //
+//   - **Credit.** A possessive proper noun names one of the things this
+//     documentation speaks of. A page crediting anything else tells a reader
+//     about a repository they cannot open, which this repository decided not
+//     to do: `b7cbe5d` cut the release scaffolding under "the repository
+//     self-contained, no other repository named in it", and `b705fa3` swept
+//     the neighbour surveys out "before this one is made public", since they
+//     carried "the architecture of code that is not published, which a public
+//     repository would hand to anyone who cloned it". Four credits stood in
+//     pages that sweep did not reach and outlived it — a decision page giving
+//     its two rejected shapes as two siblings', the admission table's prior
+//     art, a tiers page deferring to a generator nobody can read. The list is
+//     of what may be credited and never of what may not: a denylist of
+//     unpublished names would be the leak itself, committed, grepped and kept
+//     forever.
+//
 // What it does not hold is prose: which sets exist, what an index row says
 // about a page and in what order the rows stand stays editorial. A page
 // missing from the directory it is indexed under is links.mjs's to refuse,
@@ -69,6 +84,74 @@ export const builtins = { directory: "docs/declaration/builtins", index: "docs/d
 
 /** The five parts decisions/README.md says every decision page has. */
 export const parts = ["The question", "Decided", "Why", "Serves", "Since"];
+
+/**
+ * What a page may credit: the languages, runtimes, registries and standards
+ * this documentation speaks of, each one a reader can look up. It is derived
+ * from the tree rather than imagined for it — these are the possessives the
+ * pages already carry — so a name arriving here is a lane saying out loud
+ * that a new thing is now spoken of, which is the point of the row.
+ */
+export const attributable = new Set([
+  "CI",
+  "ECMAScript",
+  "GitHub",
+  "Go",
+  "JavaScript",
+  "Nightseam",
+  "Node",
+  "PR",
+  "Python",
+  "RE2",
+  "README",
+  "TypeScript",
+]);
+
+/** The directories whose Markdown a target renders, where no hand writes. */
+export const rendered = ["cmd/nightseam/testdata/", "examples/probe/api/"];
+
+/**
+ * The Markdown a hand wrote: every tracked page outside the generator's own
+ * output. The credit claim reads all of it and not the documented sets alone,
+ * since the pages a reader meets first — the README, COLLABORATION, a
+ * package's own README on npm — are the ones no set covers.
+ */
+export function handwritten(paths) {
+  return [...paths]
+    .filter(path => path.endsWith(".md"))
+    .filter(path => !rendered.some(prefix => path.startsWith(prefix)))
+    .sort();
+}
+
+// These words followed by 's contract is, has or us; they credit no name.
+const contractions = new Set(["He", "She", "It", "That", "Here", "There", "What", "Who", "Where", "When", "Why", "How", "Let"]);
+
+/**
+ * A page crediting a name outside `attributable`, once per name however often
+ * the page uses it. A possessive is the attributive form — it says what
+ * another party chose and that this repository listened — which is why the
+ * claim holds it and not every capitalized word: a rule refusing those would
+ * refuse the first word of most sentences.
+ *
+ * A single capital is not a name and is skipped: the suite calls its peers A,
+ * B and C, and `A's scope` credits nobody, since the letter names nothing
+ * outside the scenario that binds it.
+ */
+export function unattributable(pages, paths) {
+  const problems = [];
+  for (const path of handwritten(paths)) {
+    const markdown = pages.get(path);
+    if (markdown === undefined) continue;
+    const credited = new Set();
+    for (const [, name] of markdown.matchAll(/\b([A-Z][A-Za-z0-9]+)['’]s\b/g)) {
+      if (!attributable.has(name) && !contractions.has(name)) credited.add(name);
+    }
+    for (const name of [...credited].sort()) {
+      problems.push({ page: path, reason: `credits ${name}, which is not a name this documentation speaks of` });
+    }
+  }
+  return problems;
+}
 
 /**
  * Every tree path an index links to, resolved against the index's own
@@ -268,9 +351,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const tracked = new Set(
     execFileSync("git", ["ls-files", "-z", "docs", driverPath, "conformance/scenarios"], { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean),
   );
+  const credited = handwritten(
+    execFileSync("git", ["ls-files", "-z", "*.md"], { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean),
+  );
   const pages = new Map();
   const scenarios = new Map();
-  for (const path of tracked) {
+  for (const path of new Set([...tracked, ...credited])) {
     try {
       if (path.endsWith(".md")) pages.set(path, decodeMarkdown(readFileSync(join(root, path)), path));
       else if (path.endsWith(".json") && path.startsWith("conformance/scenarios/")) {
@@ -287,6 +373,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     ...duplicated(pages, tracked),
     ...unlisted(pages, tracked),
     ...formless(pages, tracked),
+    ...unattributable(pages, credited),
     ...inventory.problems,
   ];
   for (const { page, reason } of problems) console.error(`${page}: ${reason}`);
@@ -298,6 +385,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const counted = sets.reduce((total, { directory }) => total + pagesOf(directory, tracked).length, 0);
   const references = referencesOf(builtins.directory, tracked).length;
   console.log(
-    `${counted} pages in ${sets.length} sets and ${references} built-in references are indexed, every decision carries its five parts, and every scenario op has a driver row`,
+    `${counted} pages in ${sets.length} sets and ${references} built-in references are indexed, every decision carries its five parts, every scenario op has a driver row, and ${credited.length} pages credit only what this documentation speaks of`,
   );
 }

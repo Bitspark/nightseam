@@ -257,13 +257,13 @@ shipped is still a composition.
 
 ## Prior art
 
-The three levels are TISL's *pure* values and *live* things and Mark's
-`isPure` / `isWire` / live views, in which a callable inside a value is
-registered on send and rebuilt as a proxy on receive; a data value needs no
-binding to be read, a reference's representation is data while what it
-represents is not. Adopted: the distinction, the ownership rule that a
-handler receives a typed value and a validator rejects rather than repairs,
-and the concrete callback, returned-interface and higher-order scenarios.
-Not adopted, by the rows above: the inventory of kinds around them, access
-inheritance, and a durable space that would make every reference outlive
-its connection.
+The three levels are not this model's invention: *pure* values and *live*
+things, and the `isPure` / `isWire` / live views in which a callable inside a
+value is registered on send and rebuilt as a proxy on receive, were drawn
+before it; a data value needs no binding to be read, a reference's
+representation is data while what it represents is not. Adopted: the
+distinction, the ownership rule that a handler receives a typed value and a
+validator rejects rather than repairs, and the concrete callback,
+returned-interface and higher-order scenarios. Not adopted, by the rows
+above: the inventory of kinds around them, access inheritance, and a durable
+space that would make every reference outlive its connection.

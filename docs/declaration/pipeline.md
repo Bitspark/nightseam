@@ -69,3 +69,10 @@ The atlas's pure JavaScript builders run under `node --test` in the full
 tier, including the real proof family's document. Its Go tests hold the
 embedded JSON, escaping and config; the corpus goldens hold the whole HTML
 page. The browser layer only applies those views and handles navigation.
+The page is one `text/template` execution over the embedded template,
+stylesheet and modules, so the template escapes nothing and every field
+put through it escapes its own: the title through `html.EscapeString`, and
+the document through `encoding/json`, which escapes every `<` — including
+one inside a `RawMessage` — so that no declaration can close the script
+element that carries it. A field added there answers the same question
+before it is added.
