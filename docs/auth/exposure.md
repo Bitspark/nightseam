@@ -102,9 +102,10 @@ constructs nothing on refusal:
 | `auth.template_invalid` | a hole names no field of its member; `{export}` on a method or event; an action or scope on a `public` or `denied` treatment; a control character |
 
 Each refusal names every member it is about, so one construction reports
-every gap. **Omission never creates a usable partial exposure**: a new
-member is a construction failure, not a public route. An explicit `denied`
-is valid and deliberate.
+every gap of its kind; where gaps of several kinds coexist, the first kind
+in the table above is reported with all its members. **Omission never
+creates a usable partial exposure**: a new member is a construction
+failure, not a public route. An explicit `denied` is valid and deliberate.
 
 A constructed binding's **routes** are exactly the declared members, each
 once. Registered dispatch, a local self-reference, a reverse call, a returned
@@ -166,14 +167,16 @@ A decision at dispatch is a pre-filter. What admits the **effect** — the
 write, the disclosure, the emission — is the same decision re-made at the
 owner's boundary, at the effect's own time, inside the owner's transaction:
 
-1. for a guarded member, `Call` again with the effect time — so authority
+1. for a guarded member, the decision's subject held to the context's
+   (`auth.subject_mismatch` — a decision made under another connection is
+   nobody's here), then `Call` again with the effect time — so authority
    that expired between dispatch and effect refuses the effect
    (`auth.denied` / `expired`), with the connection still open and nothing
    revoked;
 2. then the owner's own condition over the resolved target — the predicate
    only the owner can evaluate: the project exists, is not archived, is in a
-   state that permits `write` — refused with the owner's own code, and no
-   effect.
+   state that permits `write` — refused with the owner's own reason under
+   the prefix `owner:`, and no effect.
 
 The recheck boundary is the owner's transaction or lock, wherever it draws
 it; the packet says only that the check and the effect meet there, so that a
@@ -188,7 +191,9 @@ new decision.
 When a handler returns a value holding callables — a `Job` with `status`,
 `result` and `cancel` — the owner **exports** each reference under the
 callable's member and the scope it assigns: `Export(ref, "callable:JobStatus",
-"projects/7")`. The export record is what the reference *is* to this
+"projects/7")`. A record is written once: exporting the same reference
+under the same member and scope again is nothing, and under another is
+refused — a record is never rewritten. The export record is what the reference *is* to this
 exposure; an invocation is decided against it, with `{export}` rendering to
 the recorded scope, under **the invoking connection's** context, at the
 invocation's time. So:

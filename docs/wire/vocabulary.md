@@ -72,7 +72,8 @@ beside the frame and is never inferred from its path or metadata.
 A layer that speaks on the wire does it as the tunnel does:
 
 - **A reserved prefix**, one per layer: `channel.` for the tunnel, `live.`
-  for the live layer and `identity.` for declaration agreement at interpretation.
+  for the live layer, `identity.` for declaration agreement at interpretation
+  and `auth.` for [the authenticated connection](../auth/connection.md).
   The namespace is the layer's, so that it is never
   contested, and a layer that takes one is what makes the generator refuse a
   consumer's operation under it. Each target also holds its own identifiers

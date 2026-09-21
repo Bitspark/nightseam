@@ -96,10 +96,10 @@ table holds both.
 ## The exchange
 
 Two requests of the profile, under the reserved prefix **`auth.`**, in the
-vocabulary of a built-in family `auth` declared under
-`internal/model/builtin/` when the layer lands — as `live.` and `channel.`
-are — with the peer dispatching them by name and knowing nothing of what
-they mean. Bare Nightseam has no `auth.` handlers installed and refuses the
+vocabulary of [the built-in family `auth`](../declaration/builtins/auth/README.md)
+declared under `internal/model/builtin/` — as `live.` and `channel.` are —
+with the peer dispatching them by name and knowing nothing of what they
+mean. Bare Nightseam has no `auth.` handlers installed and refuses the
 requests as any unknown method; a family may not declare an operation under
 the prefix.
 
@@ -128,15 +128,19 @@ nonce** — one attempt per challenge:
    code and hop, nothing more;
 4. the chain's leaf subject is not `subject` → `auth.subject_mismatch`
    — a chain is usable by the key it was issued to and by no one else;
-5. otherwise the context is made and the answer is
-   `{"validity": "unbounded" | {"expires_at": n}}`, the chain's effective
-   validity.
+5. otherwise the context is made and the answer is `{"expires_at": n}` for a
+   chain whose effective validity is finite, and `{}` for one that is
+   unbounded — the declared `Proved`, whose one member is present exactly
+   when there is an expiry.
 
 Once a context exists, both requests are refused `auth.established`: a
 context is immutable, and a change of subject is a new connection. On a
 connection with no audience both are refused `auth.unsupported`. A malformed
-parameter — a nonce or key of the wrong size, a chain that is not a list of
-hex envelopes — is `auth.malformed`.
+parameter — a nonce, key or proof of the wrong size, a chain that is not a
+list of hex envelopes — is `auth.malformed`, decided after those two and
+before the numbered outcomes; a malformed prove is not an attempt and
+consumes no nonce. The context's `since` is the decision time the proof
+was accepted at, and 0 where an unbounded chain needed none.
 
 A protected operation called before a context exists is refused
 `auth.unauthenticated`. That is a refusal, not a fallback: an operation is
@@ -231,9 +235,13 @@ the server holds it to:
    server's time plus `valid_for` plus 60 seconds of issuer clock skew. An
    unbounded leaf is refused. A login always bounds.
 
-A refusal is `invalid_grant` with the grant code and hop. The server never
-signs: **credential admission cannot mint a grant** — it can only admit one
-the principal already had the authority to issue.
+A refusal is `invalid_grant`, with the grant code and hop where a grant
+rule refused — steps 2, 4 and 5, where the leaf's delegables outside the
+requested ones is `widened_actions` and the checks run in the order
+listed — and without one where the proof or the leaf's subject did (steps
+1 and 3). The server never signs: **credential admission cannot mint a
+grant** — it can only admit one the principal already had the authority
+to issue.
 
 ### The state
 
@@ -246,11 +254,15 @@ compares on every transition:
 | `answered` | `answer` — principal, possession and authority stored, `retained_to = now + 300` | first verified `collect` → `collected`; `retained_to` reached → gone |
 | `collected` | `collect` | `retained_to` reached → gone |
 
-`read` answers only a pending record. `answer` on a record that is not
-pending is `invalid_request` (one issued result; HTTP 409); on a version
+`read` answers only a pending record: a gone one is `expired_token`, an
+answered or collected one `invalid_request`. `answer` on a record that is
+not pending is `invalid_request` (one issued result; HTTP 409); on a version
 that is not the one read, `invalid_request` and the caller re-reads — that
 is the compare-and-set, and it is what two replicas answering the same login
-resolve by. `collect` verifies the collect proof first (`invalid_grant`
+resolve by. The version counts the record's transitions — begun, answered,
+collected — and is the version a gone record's id continues from when it
+is begun again; the pacing reference a verified poll moves is stored
+without moving it. `collect` verifies the collect proof first (`invalid_grant`
 otherwise), then paces: a poll sooner than 5 seconds after the last
 *verified* poll is `slow_down` without moving the reference time, so an
 eager client is delayed and a stranger's polls delay nobody. A verified
@@ -273,8 +285,9 @@ protocol replay state is not a revocation database: nothing here revokes,
 and expiry of a login record says nothing about the grant it delivered.
 
 Before authentication the service does bounded work: at most 4096 live
-records (`slow_down` beyond), one id begun once while live, no protected
-dispatch on any of it. The issuer's outage after it has answered changes
+records (`slow_down` beyond, which is why the store says how many it
+holds), one id begun once while live, no protected dispatch on any of it.
+`sweep` answers the ids it dropped. The issuer's outage after it has answered changes
 nothing — the answer is stored, and the grant it carries verifies with the
 issuer offline.
 
@@ -323,7 +336,8 @@ type Terms struct { Actions, Delegable, Scope []string; Depth uint8 }
 func ParseTerms(entries []string) (Terms, error)
 func RenderTerms(t Terms, withDepth bool) []string
 type Record struct { /* version, state, request, terms, times, answer */ }
-type Store interface { Get(id []byte) (Record, bool); Put(r Record, expectVersion int) bool; Sweep(now uint64) }
+type Answer struct { Principal [32]byte; Possession []byte; Authority [][]byte }
+type Store interface { Get(id []byte) (Record, bool); Put(r Record, expectVersion int) bool; Sweep(now uint64) [][]byte; Count() int }
 type Service struct { Root grant.Root; Audience string; Store Store }
 func (s *Service) Begin(now uint64, id, nonce, browser []byte, scope []string, validFor uint32) (Record, LoginCode)
 func (s *Service) Read(now uint64, id []byte) (Record, LoginCode)

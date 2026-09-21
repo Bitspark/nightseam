@@ -9,6 +9,7 @@
  * connection; emissions decided per recipient. Pure over its arguments, the
  * export records the only state, held by the binding that made them.
  */
+import { equal } from './bytes.ts';
 import { call, type Context, type Refusal as ConnectionRefusal } from './connection.ts';
 import * as grant from './grant.ts';
 
@@ -198,6 +199,10 @@ export class Binding {
     condition?: Condition,
   ): Refusal | undefined {
     if (decision.kind === 'guarded') {
+      // The decision is the context's: one made under another connection is nobody's here.
+      if (ctx === undefined) return { code: 'auth.unauthenticated' };
+      if (decision.subject === undefined || !equal(decision.subject, ctx.subject))
+        return { code: 'auth.subject_mismatch' };
       const again = call(root, ctx, { domain: root.domain, action: decision.action!, scope: decision.scope! }, now);
       if ('code' in again) return again;
     }
@@ -208,11 +213,17 @@ export class Binding {
     return undefined;
   }
 
-  /** Records what a callable reference is to this exposure: which callable member, at which scope. */
+  /**
+   * Records what a callable reference is to this exposure: which callable
+   * member, at which scope. Recording the same again is nothing; recording
+   * a reference as something else is refused — a record is not rewritten.
+   */
   export(ref: string, member: string, scope: string): boolean {
     const m = this.#members.get(member);
-    if (m === undefined || !member.startsWith('callable:')) return false;
+    if (ref === '' || m === undefined || !member.startsWith('callable:')) return false;
     if (scope === '' || hasControl(scope) || scope.length > grant.MAX_ENTRY_BYTES) return false;
+    const existing = this.#exports.get(ref);
+    if (existing !== undefined && (existing.member !== member || existing.scope !== scope)) return false;
     this.#exports.set(ref, { member, scope });
     return true;
   }

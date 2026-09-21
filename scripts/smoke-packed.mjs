@@ -28,7 +28,7 @@ import { connect, createServer } from "node:net";
 import { setTimeout as after } from "node:timers/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { examples, packages, root } from "./packages.mjs";
+import { examples, packages, registryPolicy, root } from "./packages.mjs";
 import { holdTarball } from "./tarball.mjs";
 import { prepareGoRehearsal } from "./rehearsal.mjs";
 import { holdProbeExchange } from "./probe-exchange.mjs";
@@ -102,6 +102,7 @@ async function smoke() {
   const consumer = join(scratch, "consumer");
   step(`copying ${examples[0]} to a consumer outside the workspace`);
   cpSync(join(root, examples[0]), consumer, { recursive: true, filter: source => !/[\\/](node_modules|dist)$/.test(source) });
+  registryPolicy(consumer);
   mkdirSync(join(consumer, "tarballs"));
   for (const file of Object.values(packed)) cpSync(join(tarballs, file), join(consumer, "tarballs", file));
   // The example depends on the two packages a generated client needs, and a

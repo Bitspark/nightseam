@@ -140,14 +140,15 @@ export class Connection {
   prove(subject: Uint8Array, proof: Uint8Array, chain: Uint8Array[], now: grant.Time): Context | Refusal {
     if (this.audience === undefined) return { code: 'auth.unsupported' };
     if (this.#context !== undefined) return { code: 'auth.established' };
+    // A malformed prove is not an attempt: it consumes no nonce.
     if (
       !(subject instanceof Uint8Array) ||
       subject.length !== 32 ||
       !(proof instanceof Uint8Array) ||
+      proof.length !== 64 ||
       !Array.isArray(chain) ||
       !chain.every((e) => e instanceof Uint8Array)
     ) {
-      this.#pending = undefined;
       return { code: 'auth.malformed' };
     }
     const nonce = this.#pending;
@@ -387,7 +388,7 @@ export class Service {
     return this.store.get(id)!;
   }
 
-  /** Answers only a pending record. */
+  /** Answers only a pending record: a gone one is `expired_token`, an answered or collected one `invalid_request`. */
   read(now: bigint, id: Uint8Array): Record | LoginRefusal {
     const r = this.store.get(id);
     if (r === undefined || isGone(r, now)) return { code: 'expired_token' };

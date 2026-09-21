@@ -196,10 +196,16 @@ importers:
       '@bitspark/archon-sdk':
         specifier: ^0.7.0
         version: 0.7.0
+      '@nightseam/runtime':
+        specifier: workspace:*
+        version: link:../../runtime/ts
       '@noble/hashes':
         specifier: ^2.2.0
         version: 2.4.0
     devDependencies:
+      '@nightseam/duplex':
+        specifier: workspace:*
+        version: link:../../duplex/ts
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

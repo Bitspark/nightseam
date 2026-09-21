@@ -22,7 +22,7 @@ import (
 	"github.com/Bitspark/nightseam/internal/model"
 )
 
-//go:embed duplex/*.json tunnel/*.json live/*.json identity/*.json
+//go:embed duplex/*.json tunnel/*.json live/*.json identity/*.json auth/*.json
 var files embed.FS
 
 // Prefix marks a built-in's tier file apart from a consumer's.

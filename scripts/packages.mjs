@@ -69,6 +69,19 @@ export function copyRegistryConsumer(source, destination) {
   // the copy stops pnpm from installing or changing that ancestor project.
   const workspace = join(destination, "pnpm-workspace.yaml");
   if (!existsSync(workspace)) writeFileSync(workspace, "packages: []\n");
+  registryPolicy(destination);
+}
+
+/**
+ * The checkout's registry policy, given to a consumer built outside it: the
+ * public dependencies of the published packages resolve from the public
+ * registry there as they do here, whatever scoped registry a developer's own
+ * configuration names — an anonymous install, which is what CI and every
+ * outsider does, reaches no other.
+ */
+export function registryPolicy(destination) {
+  const policy = join(root, ".npmrc");
+  if (existsSync(policy)) copyFileSync(policy, join(destination, ".npmrc"));
 }
 
 /**
