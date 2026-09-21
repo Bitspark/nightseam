@@ -15,7 +15,8 @@
   },
   "languages": {
     "go": {"tier": 1, "reference": true},
-    "typescript": {"tier": 1}
+    "typescript": {"tier": 1},
+    "rust": {"tier": 4}
   },
   "planned": {
     "python": 2, "rust": 2, "cpp": 2, "haskell": 2,
