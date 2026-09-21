@@ -135,7 +135,7 @@ func (c *serverMethods[SJob, SProgress]) Exchange(ctx context.Context, params pr
 	}()
 	return received, err
 }
-func bindServer[SJob, SProgress any](wire duplex.Wire, lookup func() protocol.Server[SJob, SProgress], environment runtime.AdapterContext, adapterSJob runtime.ValueAdapter[SJob], adapterSProgress runtime.ValueAdapter[SProgress]) error {
+func bindServer[SJob, SProgress any](wire runtime.HandlerRegistry, lookup func() protocol.Server[SJob, SProgress], environment runtime.AdapterContext, adapterSJob runtime.ValueAdapter[SJob], adapterSProgress runtime.ValueAdapter[SProgress]) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -275,7 +275,7 @@ type clientEvents[SJob, SProgress any] struct {
 func accessClient[SJob, SProgress any](wire duplex.Wire, environment runtime.AdapterContext, adapterSJob runtime.ValueAdapter[SJob], adapterSProgress runtime.ValueAdapter[SProgress]) protocol.Client[SJob, SProgress] {
 	return protocol.Client[SJob, SProgress]{Methods: &clientMethods[SJob, SProgress]{wire: wire, environment: environment, adapterSJob: adapterSJob, adapterSProgress: adapterSProgress}, Events: &clientEvents[SJob, SProgress]{wire: wire, environment: environment, adapterSJob: adapterSJob, adapterSProgress: adapterSProgress}}
 }
-func bindClient[SJob, SProgress any](wire duplex.Wire, lookup func() protocol.Client[SJob, SProgress], environment runtime.AdapterContext, adapterSJob runtime.ValueAdapter[SJob], adapterSProgress runtime.ValueAdapter[SProgress]) error {
+func bindClient[SJob, SProgress any](wire runtime.HandlerRegistry, lookup func() protocol.Client[SJob, SProgress], environment runtime.AdapterContext, adapterSJob runtime.ValueAdapter[SJob], adapterSProgress runtime.ValueAdapter[SProgress]) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -307,8 +307,8 @@ func normalizeContext[SJob, SProgress any](environment runtime.AdapterContext, a
 	return environment, nil
 }
 
-// ToWire binds one model factory and returns its access wire.
-func ToWire[SJob runtime.Of[STag], SProgress runtime.Of[STag], STag any](model protocol.ServerModel[SJob, SProgress], environment runtime.AdapterContext, adapterSJob runtime.ValueAdapter[SJob], adapterSProgress runtime.ValueAdapter[SProgress]) (duplex.Wire, error) {
+// ToWire binds one model factory and returns its owned access endpoint.
+func ToWire[SJob runtime.Of[STag], SProgress runtime.Of[STag], STag any](model protocol.ServerModel[SJob, SProgress], environment runtime.AdapterContext, adapterSJob runtime.ValueAdapter[SJob], adapterSProgress runtime.ValueAdapter[SProgress]) (duplex.Endpoint, error) {
 	if model == nil {
 		return nil, fmt.Errorf("model factory is required")
 	}
@@ -337,7 +337,11 @@ func ToWire[SJob runtime.Of[STag], SProgress runtime.Of[STag], STag any](model p
 			_ = access.Close(duplex.CodeInternalError, "model construction failed")
 		}
 	}()
-	if _, err := registerIdentity(binding, identity); err != nil {
+	dispatcher, err := runtime.NewDispatcher(binding)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := registerIdentity(dispatcher, identity); err != nil {
 		return nil, err
 	}
 	implementation, err := model(accessClient[SJob, SProgress](binding, environment, adapterSJob, adapterSProgress))
@@ -347,7 +351,7 @@ func ToWire[SJob runtime.Of[STag], SProgress runtime.Of[STag], STag any](model p
 	if implementation.Methods == nil {
 		return nil, fmt.Errorf("Server methods are required")
 	}
-	if err := bindServer[SJob, SProgress](binding, func() protocol.Server[SJob, SProgress] { return implementation }, environment, adapterSJob, adapterSProgress); err != nil {
+	if err := bindServer[SJob, SProgress](dispatcher, func() protocol.Server[SJob, SProgress] { return implementation }, environment, adapterSJob, adapterSProgress); err != nil {
 		return nil, err
 	}
 	complete = true
@@ -360,7 +364,7 @@ func declarationIdentity[SJob, SProgress any](adapterSJob runtime.ValueAdapter[S
 	}
 	return runtime.DeclarationIdentity{Path: "holder", Digest: digest}, nil
 }
-func registerIdentity(wire duplex.Wire, identity runtime.DeclarationIdentity) (func(), error) {
+func registerIdentity(wire runtime.HandlerRegistry, identity runtime.DeclarationIdentity) (func(), error) {
 	handler, err := runtime.IdentityHandler(identity)
 	if err != nil {
 		return nil, err
@@ -372,7 +376,7 @@ func registerIdentity(wire duplex.Wire, identity runtime.DeclarationIdentity) (f
 // Complete checks identity and returns a factory that may be bound once. Both steps
 // must finish within environment.Options.RequestTimeout. Cleanup detaches this
 // interpretation's registrations, including after success, and never closes the wire.
-func PrepareFromWire[SJob runtime.Of[STag], SProgress runtime.Of[STag], STag any](wire duplex.Wire, environment runtime.AdapterContext, adapterSJob runtime.ValueAdapter[SJob], adapterSProgress runtime.ValueAdapter[SProgress]) (complete func(context.Context) (protocol.ServerModel[SJob, SProgress], error), cleanup func(), err error) {
+func PrepareFromWire[SJob runtime.Of[STag], SProgress runtime.Of[STag], STag any](wire duplex.Endpoint, environment runtime.AdapterContext, adapterSJob runtime.ValueAdapter[SJob], adapterSProgress runtime.ValueAdapter[SProgress]) (complete func(context.Context) (protocol.ServerModel[SJob, SProgress], error), cleanup func(), err error) {
 	if wire == nil {
 		return nil, nil, fmt.Errorf("wire is required")
 	}
@@ -426,7 +430,7 @@ func PrepareFromWire[SJob runtime.Of[STag], SProgress runtime.Of[STag], STag any
 
 // FromWire checks identity and returns a factory that may be bound once.
 // Use PrepareFromWire before attachment when incoming delivery can begin immediately.
-func FromWire[SJob runtime.Of[STag], SProgress runtime.Of[STag], STag any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext, adapterSJob runtime.ValueAdapter[SJob], adapterSProgress runtime.ValueAdapter[SProgress]) (protocol.ServerModel[SJob, SProgress], error) {
+func FromWire[SJob runtime.Of[STag], SProgress runtime.Of[STag], STag any](ctx context.Context, wire duplex.Endpoint, environment runtime.AdapterContext, adapterSJob runtime.ValueAdapter[SJob], adapterSProgress runtime.ValueAdapter[SProgress]) (protocol.ServerModel[SJob, SProgress], error) {
 	complete, cleanup, err := PrepareFromWire[SJob, SProgress](wire, environment, adapterSJob, adapterSProgress)
 	if err != nil {
 		return nil, err
@@ -466,7 +470,7 @@ func (r *Recorder[SJob, SProgress]) Follow(ctx context.Context, after uint64, ta
 
 // Record checks a prepared origin before exposing typed event append. Setup
 // failure detaches this interpretation and leaves the borrowed target usable.
-func Record[SJob runtime.Of[STag], SProgress runtime.Of[STag], STag any](ctx context.Context, target duplex.Wire, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext, adapterSJob runtime.ValueAdapter[SJob], adapterSProgress runtime.ValueAdapter[SProgress]) (*Recorder[SJob, SProgress], error) {
+func Record[SJob runtime.Of[STag], SProgress runtime.Of[STag], STag any](ctx context.Context, target duplex.Endpoint, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext, adapterSJob runtime.ValueAdapter[SJob], adapterSProgress runtime.ValueAdapter[SProgress]) (*Recorder[SJob, SProgress], error) {
 	environment, err := normalizeContext[SJob, SProgress](environment, adapterSJob, adapterSProgress)
 	if err != nil {
 		return nil, err

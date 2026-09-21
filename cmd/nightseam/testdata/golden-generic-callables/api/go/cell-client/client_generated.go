@@ -131,7 +131,7 @@ func (c *serverMethods[T]) Replace(ctx context.Context, params protocol.Put[T]) 
 	}
 	return result, nil
 }
-func bindServer[T any](wire duplex.Wire, lookup func() protocol.Server[T], environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) error {
+func bindServer[T any](wire runtime.HandlerRegistry, lookup func() protocol.Server[T], environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -285,7 +285,7 @@ type clientEvents[T any] struct {
 func accessClient[T any](wire duplex.Wire, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) protocol.Client[T] {
 	return protocol.Client[T]{Methods: &clientMethods[T]{wire: wire, environment: environment, adapterT: adapterT}, Events: &clientEvents[T]{wire: wire, environment: environment, adapterT: adapterT}}
 }
-func bindClient[T any](wire duplex.Wire, lookup func() protocol.Client[T], environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) error {
+func bindClient[T any](wire runtime.HandlerRegistry, lookup func() protocol.Client[T], environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -308,8 +308,8 @@ func normalizeContext[T any](environment runtime.AdapterContext, adapterT runtim
 	return environment, nil
 }
 
-// ToWire binds one model factory and returns its access wire.
-func ToWire[T any](model protocol.ClientModel[T], environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (duplex.Wire, error) {
+// ToWire binds one model factory and returns its owned access endpoint.
+func ToWire[T any](model protocol.ClientModel[T], environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (duplex.Endpoint, error) {
 	if model == nil {
 		return nil, fmt.Errorf("model factory is required")
 	}
@@ -339,14 +339,18 @@ func ToWire[T any](model protocol.ClientModel[T], environment runtime.AdapterCon
 			_ = access.Close(duplex.CodeInternalError, "model construction failed")
 		}
 	}()
-	if _, err := registerIdentity(binding, identity); err != nil {
+	dispatcher, err := runtime.NewDispatcher(binding)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := registerIdentity(dispatcher, identity); err != nil {
 		return nil, err
 	}
 	implementation, err := model(accessServer[T](binding, environment, adapterT))
 	if err != nil {
 		return nil, err
 	}
-	if err := bindClient[T](binding, func() protocol.Client[T] { return implementation }, environment, adapterT); err != nil {
+	if err := bindClient[T](dispatcher, func() protocol.Client[T] { return implementation }, environment, adapterT); err != nil {
 		return nil, err
 	}
 	complete = true
@@ -359,7 +363,7 @@ func declarationIdentity[T any](adapterT runtime.ValueAdapter[T]) (runtime.Decla
 	}
 	return runtime.DeclarationIdentity{Path: "cell", Digest: digest}, nil
 }
-func registerIdentity(wire duplex.Wire, identity runtime.DeclarationIdentity) (func(), error) {
+func registerIdentity(wire runtime.HandlerRegistry, identity runtime.DeclarationIdentity) (func(), error) {
 	handler, err := runtime.IdentityHandler(identity)
 	if err != nil {
 		return nil, err
@@ -371,7 +375,7 @@ func registerIdentity(wire duplex.Wire, identity runtime.DeclarationIdentity) (f
 // Complete checks identity and returns a factory that may be bound once. Both steps
 // must finish within environment.Options.RequestTimeout. Cleanup detaches this
 // interpretation's registrations, including after success, and never closes the wire.
-func PrepareFromWire[T any](wire duplex.Wire, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (complete func(context.Context) (protocol.ClientModel[T], error), cleanup func(), err error) {
+func PrepareFromWire[T any](wire duplex.Endpoint, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (complete func(context.Context) (protocol.ClientModel[T], error), cleanup func(), err error) {
 	if wire == nil {
 		return nil, nil, fmt.Errorf("wire is required")
 	}
@@ -429,7 +433,7 @@ func PrepareFromWire[T any](wire duplex.Wire, environment runtime.AdapterContext
 
 // FromWire checks identity and returns a factory that may be bound once.
 // Use PrepareFromWire before attachment when incoming delivery can begin immediately.
-func FromWire[T any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (protocol.ClientModel[T], error) {
+func FromWire[T any](ctx context.Context, wire duplex.Endpoint, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (protocol.ClientModel[T], error) {
 	complete, cleanup, err := PrepareFromWire[T](wire, environment, adapterT)
 	if err != nil {
 		return nil, err
@@ -469,7 +473,7 @@ func (r *Recorder[T]) Follow(ctx context.Context, after uint64, target duplex.Wi
 
 // Record checks a prepared origin before exposing typed event append. Setup
 // failure detaches this interpretation and leaves the borrowed target usable.
-func Record[T any](ctx context.Context, target duplex.Wire, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (*Recorder[T], error) {
+func Record[T any](ctx context.Context, target duplex.Endpoint, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (*Recorder[T], error) {
 	environment, err := normalizeContext[T](environment, adapterT)
 	if err != nil {
 		return nil, err

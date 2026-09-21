@@ -32,6 +32,9 @@ RecordedWire
 checkIdentity
 DuplexError
 Wire
+Endpoint
+HandlerRegistry
+createDispatcher
 WireModelContext
 WireCallOptions
 AdapterContext
