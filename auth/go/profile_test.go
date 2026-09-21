@@ -324,6 +324,9 @@ func TestExposureEdges(t *testing.T) {
 	if refusal := binding.Effect(root, decision, nil, at, nil); refusal == nil || refusal.Code != auth.Unauthenticated {
 		t.Fatalf("an effect with no context: %s", describeRefusal(refusal))
 	}
+	if scope, err := auth.Render("projects	/{projectId}", map[string]any{"projectId": "7"}, ""); err == nil {
+		t.Fatalf("a template with a control character rendered %q", scope)
+	}
 	routes := binding.Routes()
 	routes[0] = "changed"
 	if binding.Routes()[0] == "changed" {

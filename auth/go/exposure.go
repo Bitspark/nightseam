@@ -309,6 +309,9 @@ func render(parts []part, payload map[string]any, export string) (string, error)
 	if b.Len() == 0 {
 		return "", errors.New("auth: the template renders an empty scope")
 	}
+	if err := text(b.String()); err != nil {
+		return "", fmt.Errorf("auth: the rendered scope %w", err)
+	}
 	return b.String(), nil
 }
 
