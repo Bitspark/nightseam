@@ -168,7 +168,7 @@ func (f *file) conversionCall(e model.TypeExpr, src, dst string, export bool) (s
 			parameters = "owner *" + f.live() + ".Owner, " + parameters
 		}
 		f.w.Block(fmt.Sprintf("%s := func(%s) (%s, error) {", name, parameters, to), "}", func() {
-			if t.IsLive && f.adapters {
+			if t.IsLive && f.adapters && f.usesSlotContext(expr) {
 				f.linef("ctx := %s.WithOwner(ctx, owner)", f.live())
 			}
 			fail := "nil"
@@ -183,4 +183,28 @@ func (f *file) conversionCall(e model.TypeExpr, src, dst string, export bool) (s
 		passed = append(passed, name, binding)
 	}
 	return call, strings.Join(passed, ", ")
+}
+
+// A concrete native converter already receives its owner parameter. Only a
+// nested slot adapter also needs that active view in the neutral context.
+func (f *file) usesSlotContext(e model.TypeExpr) bool {
+	if f.parameterConverter(e) != "" {
+		return true
+	}
+	switch x := e.(type) {
+	case model.Array:
+		return f.usesSlotContext(x.Elem)
+	case model.Map:
+		return f.usesSlotContext(x.Elem)
+	case model.Nullable:
+		return f.usesSlotContext(x.Elem)
+	}
+	if t, arguments := f.family.Conversion(e); t != nil {
+		for _, argument := range arguments {
+			if f.usesSlotContext(argument.Expression()) {
+				return true
+			}
+		}
+	}
+	return false
 }

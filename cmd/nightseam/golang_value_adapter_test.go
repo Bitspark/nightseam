@@ -32,6 +32,9 @@ func TestGeneratedGoValueAdapters(t *testing.T) {
 			contextA, contextB = "runtime.AdapterContext{ValueEnvironment:live.ValueEnvironment(sa)}", "runtime.AdapterContext{ValueEnvironment:live.ValueEnvironment(sb)}"
 		}
 		program := strings.NewReplacer("CONTEXTA", contextA, "CONTEXTB", contextB, "FAMILY", family, "NAME", slot.name, "TYPE", slot.goType, "ADAPTER", slot.adapter, "VALUE", slot.value, "OBSERVE", slot.observe, "LIVE", fmt.Sprint(slot.live)).Replace(goBoundAdapterProgram)
+		if !slot.live {
+			program = strings.ReplaceAll(program, "\n \"github.com/Bitspark/nightseam/live/go\"", "")
+		}
 		writeFixture(t, directory, family+"_test.go", []byte(program))
 	}
 	if out, errs, err := run(t, directory, "generate"); err != nil {
