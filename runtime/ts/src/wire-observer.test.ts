@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { encodePath } from '@nightseam/duplex';
-import type { Wire } from '@nightseam/duplex';
+import type { Endpoint, Wire } from '@nightseam/duplex';
+import { createDispatcher } from './dispatcher.ts';
 import { DuplexError } from './error.ts';
 import type { Observer, ObserverEvent } from './observer.ts';
 import { callWire, emitWire, registerWire } from './wire.ts';
 import { wirePair } from './wire-pair.ts';
 
-const opaque = (wire: Wire): Wire => ({ send: wire.send, receive: wire.receive, close: wire.close });
+const opaque = (wire: Endpoint): Endpoint => ({ send: wire.send, receive: wire.receive, close: wire.close });
 const deferred = () => {
   let resolve!: () => void;
   return { promise: new Promise<void>((done) => (resolve = done)), resolve: () => resolve() };
@@ -18,6 +19,7 @@ test('wire helper observations label opaque model operations without adding tran
     events: ObserverEvent[] = [];
   const observer: Observer = { observe: (event) => events.push(event) };
   const [left, right] = wirePair({ observer: { observe: (event) => carrier.push(event) } });
+  const dispatcher = createDispatcher(opaque(right));
   try {
     const delivered = deferred(),
       ended = deferred();
@@ -27,7 +29,7 @@ test('wire helper observations label opaque model operations without adding tran
         if (event.type === 'request.ended' && event.incoming) ended.resolve();
       },
     };
-    registerWire(opaque(right), ['member.with.dot'], {
+    registerWire(dispatcher, ['member.with.dot'], {
       observer: named,
       family: 'probe',
       request: (params) => params,
@@ -65,12 +67,14 @@ test('wire helper observations label opaque model operations without adding tran
     assert.ok(!JSON.stringify(events).includes('secret'));
     assert.deepEqual(carrier, []);
   } finally {
+    dispatcher.close();
     left.close();
   }
 });
 
 test('wire helper completion distinguishes a local cancellation from a same-code refusal exactly once', async () => {
   const [left, right] = wirePair();
+  const dispatcher = createDispatcher(right);
   const events: ObserverEvent[] = [],
     started = deferred(),
     ended = deferred();
@@ -81,7 +85,7 @@ test('wire helper completion distinguishes a local cancellation from a same-code
     },
   };
   try {
-    registerWire(right, ['wait'], {
+    registerWire(dispatcher, ['wait'], {
       observer,
       family: 'probe',
       request: (_params, context) =>
@@ -109,7 +113,7 @@ test('wire helper completion distinguishes a local cancellation from a same-code
     const localEnds = events.filter((event) => event.type === 'request.ended');
     assert.equal(localEnds.length, 2);
     assert.ok(localEnds.every((event) => event.outcome === 'cancelled' && event.errorCode === 'cancelled'));
-    registerWire(right, ['refuse'], {
+    registerWire(dispatcher, ['refuse'], {
       request: () => {
         throw new DuplexError('cancelled', 'Application refusal.');
       },
@@ -119,6 +123,7 @@ test('wire helper completion distinguishes a local cancellation from a same-code
     assert.equal(last.outcome, 'error');
     assert.equal(last.errorCode, 'cancelled');
   } finally {
+    dispatcher.close();
     left.close();
   }
 });
@@ -127,6 +132,7 @@ test('wire helper observers cannot break traffic or duplicate the root panic rep
   const transport: ObserverEvent[] = [],
     model: ObserverEvent[] = [];
   const [left, right] = wirePair({ observer: { observe: (event) => transport.push(event) } });
+  const dispatcher = createDispatcher(right);
   const observer: Observer = {
     observe: (event) => {
       model.push(event);
@@ -134,7 +140,7 @@ test('wire helper observers cannot break traffic or duplicate the root panic rep
     },
   };
   try {
-    registerWire(right, ['panic'], {
+    registerWire(dispatcher, ['panic'], {
       observer,
       family: 'probe',
       request: () => {
@@ -147,12 +153,14 @@ test('wire helper observers cannot break traffic or duplicate the root panic rep
     assert.equal(model.filter((event) => event.type === 'request.started').length, 2);
     assert.equal(model.filter((event) => event.type === 'request.ended').length, 2);
   } finally {
+    dispatcher.close();
     left.close();
   }
 });
 
 test('wire handler refusal remains an error when cancellation raced its return', async () => {
   const [left, right] = wirePair();
+  const dispatcher = createDispatcher(right);
   const events: ObserverEvent[] = [],
     started = deferred(),
     ended = deferred();
@@ -163,7 +171,7 @@ test('wire handler refusal remains an error when cancellation raced its return',
     },
   };
   try {
-    registerWire(right, ['refuse'], {
+    registerWire(dispatcher, ['refuse'], {
       observer,
       request: (_params, context) =>
         new Promise((_resolve, reject) => {
@@ -184,12 +192,14 @@ test('wire handler refusal remains an error when cancellation raced its return',
     assert.equal(incoming.outcome, 'error');
     assert.equal(incoming.errorCode, 'cancelled');
   } finally {
+    dispatcher.close();
     left.close();
   }
 });
 
 test('concurrent model lifetimes have distinct observer identities without changing frame request IDs', async () => {
   const [left, right] = wirePair();
+  const dispatcher = createDispatcher(right);
   const first = deferred(),
     second = deferred(),
     arrived = deferred();
@@ -210,7 +220,7 @@ test('concurrent model lifetimes have distinct observer identities without chang
     },
   };
   try {
-    registerWire(right, ['hold'], {
+    registerWire(dispatcher, ['hold'], {
       observer,
       request: async (value, context) => {
         frameIds.push(context.requestId);
@@ -237,6 +247,7 @@ test('concurrent model lifetimes have distinct observer identities without chang
   } finally {
     first.resolve();
     second.resolve();
+    dispatcher.close();
     left.close();
   }
 });
@@ -245,6 +256,7 @@ test('incoming model observation reports the bounded refusal selected for an une
   for (const kind of ['oversized result', 'oversized public refusal', 'unencodable result']) {
     await t.test(kind, async () => {
       const [left, right] = wirePair({ maxFrameBytes: 512 });
+      const dispatcher = createDispatcher(right);
       const ended = deferred();
       let incoming: ObserverEvent | undefined;
       const observer: Observer = {
@@ -256,7 +268,7 @@ test('incoming model observation reports the bounded refusal selected for an une
         },
       };
       try {
-        registerWire(right, ['response'], {
+        registerWire(dispatcher, ['response'], {
           observer,
           family: 'probe',
           request: () => {
@@ -270,6 +282,7 @@ test('incoming model observation reports the bounded refusal selected for an une
         assert.equal(incoming.outcome, 'error');
         assert.equal(incoming.errorCode, 'internal');
       } finally {
+        dispatcher.close();
         left.close();
       }
     });
