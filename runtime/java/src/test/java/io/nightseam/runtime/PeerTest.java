@@ -15,6 +15,7 @@ public final class PeerTest {
     private static final Duration BOUND=Duration.ofSeconds(3);
     private static void check(boolean condition,String message) { if(!condition) throw new AssertionError(message); }
     public static void main(String[] args) throws Exception {
+        closeOwnership();
         Path root=Path.of(args[0]); int rows=0;
         var table=Json.object(Json.parse(Files.readAllBytes(root.resolve("conformance/tables/frames.json"))));
         for(Object item:Json.array(table.get("rows"))) {
@@ -63,6 +64,52 @@ public final class PeerTest {
             check(peer.closed().get(3,TimeUnit.SECONDS).code()==4011,"malformed profile frame close");
         }
         System.out.println("Java peer: "+rows+" frame rows, cancellation, presence, reverse context, identity and relative paths passed");
+    }
+    private static void closeOwnership() throws Exception {
+        // Closing observers may reenter the peer before the first caller has
+        // reached the transport. Only the terminal winner chooses its action.
+        var connection=new CloseProbe();
+        var current=new java.util.concurrent.atomic.AtomicReference<Peer>();
+        var defaults=PeerOptions.defaults();
+        var options=new PeerOptions(defaults.maxConcurrentHandlers(),defaults.maxPendingRequests(),defaults.queueCapacity(),
+            defaults.maxFrameBytes(),defaults.requestTimeout(),defaults.writeTimeout(),Map.of(),event -> {
+                if (event.get("type").equals("connection.closed")) { current.get().end(1001,"reentered"); current.get().fail(); }
+            });
+        try (var peer=new Peer(connection,"server",options)) {
+            current.set(peer); peer.close();
+            check(connection.closes.get()==1 && connection.code==1000,"reentry changed the selected transport close");
+            check(connection.aborts.get()==0,"reentry aborted graceful close");
+        }
+        // Hold failure between its transport observation and terminal CAS,
+        // then let an explicit close win. The loser must never abort it.
+        connection=new CloseProbe(); connection.inspect=true;
+        try (var peer=new Peer(connection,"server",defaults)) {
+            var failure=CompletableFuture.runAsync(peer::fail);
+            connection.inspected.get(3,TimeUnit.SECONDS);
+            try { peer.close(); } finally { connection.resume.complete(null); }
+            failure.get(3,TimeUnit.SECONDS);
+            check(connection.closes.get()==1 && connection.aborts.get()==0,"losing failure aborted graceful close");
+        }
+    }
+    private static final class CloseProbe implements Connection {
+        final java.util.concurrent.atomic.AtomicInteger closes=new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.atomic.AtomicInteger aborts=new java.util.concurrent.atomic.AtomicInteger();
+        final CompletableFuture<Void> inspected=new CompletableFuture<>(), resume=new CompletableFuture<>();
+        volatile boolean inspect;
+        volatile int code;
+        final CompletableFuture<CloseInfo> ended=new CompletableFuture<>() {
+            @Override public CloseInfo getNow(CloseInfo fallback) {
+                if (inspect) { inspected.complete(null); resume.join(); }
+                return super.getNow(fallback);
+            }
+        };
+        public void send(Frame frame,Duration timeout) {}
+        public Frame receive(Duration timeout) throws InterruptedException {
+            new java.util.concurrent.CountDownLatch(1).await(); throw new AssertionError("unreachable");
+        }
+        public void close(int chosen,String reason) { code=chosen; closes.incrementAndGet(); }
+        public void abort() { aborts.incrementAndGet(); }
+        public CompletableFuture<CloseInfo> closed() { return ended; }
     }
     private static void peerWireRoundTrip(Peer server,Peer client) throws Exception {
         List<String> path=List.of("a/b","", "😀", "read");

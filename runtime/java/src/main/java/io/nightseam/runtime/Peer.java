@@ -303,14 +303,15 @@ public final class Peer implements AutoCloseable {
             throw new PublicError("contract_mismatch","The declaration identity differs");
     }
     @Override public void close() { end(1000,""); }
-    void end(int code,String reason) { finish(new CloseInfo(code,reason),true); connection.close(code,reason); }
+    void end(int code,String reason) { if (finish(new CloseInfo(code,reason),true)) connection.close(code,reason); }
     void fail() {
+        if (ended.get()) return;
         CloseInfo known=connection.closed().getNow(null);
-        if (known==null) { finish(new CloseInfo(1006,""),true); connection.abort(); }
+        if (known==null) { if (finish(new CloseInfo(1006,""),true)) connection.abort(); }
         else finish(known,false);
     }
-    private void finish(CloseInfo info,boolean local) {
-        if (!ended.compareAndSet(false,true)) return;
+    private boolean finish(CloseInfo info,boolean local) {
+        if (!ended.compareAndSet(false,true)) return false;
         for (Call call:pending.values()) call.complete(null,new PublicError("disconnected","Connection closed"),false);
         for (RequestContext context:incoming.values()) context.cancel();
         deadlines.shutdownNow();
@@ -318,6 +319,7 @@ public final class Peer implements AutoCloseable {
         var observation=map("type","connection.closed","code",info.code(),"local",local);
         if (!info.reason().isEmpty()) observation.put("reason",info.reason());
         observe(observation); if(wire!=null) wire.ending(info); closed.complete(info);
+        return true;
     }
     private void requestStarted(Map<String,Object> frame,boolean inbound) {
         if(options.observer()==null) return;
