@@ -1,0 +1,250 @@
+package recording_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	foreignBinding "example.test/generated/api/go/foreign-binding"
+	foreignClient "example.test/generated/api/go/foreign-client"
+	foreignProtocol "example.test/generated/api/go/foreign-protocol"
+	binding "example.test/generated/api/go/history-binding"
+	client "example.test/generated/api/go/history-client"
+	protocol "example.test/generated/api/go/history-protocol"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/runtime/go"
+	"os"
+	"sync"
+	"testing"
+	"time"
+)
+
+type destination struct{ values chan int64 }
+
+func isCode(err error, code string) bool {
+	var public *runtime.PublicError
+	return errors.As(err, &public) && public.Code == code
+}
+func (d destination) Tick(_ context.Context, value protocol.Payload) error {
+	d.values <- value.Value
+	return nil
+}
+
+type foreignDestination struct{ values chan int64 }
+
+func (d foreignDestination) Tick(_ context.Context, value foreignProtocol.Payload) error {
+	d.values <- value.Value
+	return nil
+}
+
+type reverse struct{ values chan string }
+
+func (r reverse) Subscribe(_ context.Context, s protocol.Subscription) (int64, error) {
+	return s.After, nil
+}
+func (r reverse) Tick(_ context.Context, value string) error { r.values <- value; return nil }
+func next[T comparable](t *testing.T, ctx context.Context, values <-chan T, want T) {
+	t.Helper()
+	select {
+	case value := <-values:
+		if value != want {
+			t.Fatalf("got %v want %v", value, want)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+}
+func target(t *testing.T) (duplex.Wire, chan int64) {
+	t.Helper()
+	values := make(chan int64, 16)
+	wire, err := client.ToWire(func(protocol.Server) (protocol.Client, error) {
+		return protocol.Client{Events: destination{values}}, nil
+	}, runtime.AdapterContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { wire.Close(1000, "done") })
+	return wire, values
+}
+func TestTypedRecordFollow(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	wire, values := target(t)
+	store := duplex.NewMemoryWireLog()
+	recorded, err := binding.Record(ctx, wire, store, duplex.RecordOptions{}, runtime.AdapterContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer recorded.Close(1000, "done")
+	for _, value := range []int64{1, 2} {
+		if err := recorded.Append(ctx, binding.RecordedTick{Data: protocol.Payload{Value: value}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	head, err := recorded.Head(ctx)
+	if err != nil || head != 2 {
+		t.Fatalf("head %d %v", head, err)
+	}
+	next(t, ctx, values, int64(1))
+	next(t, ctx, values, int64(2))
+	second, followed := target(t)
+	follower, err := recorded.Follow(ctx, 1, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer follower.Close()
+	if follower.Head != 2 {
+		t.Fatal(follower.Head)
+	}
+	next(t, ctx, followed, int64(2))
+	if err := recorded.Append(ctx, binding.RecordedTick{Data: protocol.Payload{Value: 3}}); err != nil {
+		t.Fatal(err)
+	}
+	next(t, ctx, values, int64(3))
+	next(t, ctx, followed, int64(3))
+	if err := recorded.Append(ctx, nil); err == nil {
+		t.Fatal("nil union accepted")
+	}
+	// Same event spelling in the opposite direction keeps its distinct type.
+	reversed := make(chan string, 2)
+	back, err := binding.ToWire(func(protocol.Client) (protocol.Server, error) {
+		r := reverse{reversed}
+		return protocol.Server{Methods: r, Events: r}, nil
+	}, runtime.AdapterContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer back.Close(1000, "done")
+	backRecord, err := client.Record(ctx, back, duplex.NewMemoryWireLog(), duplex.RecordOptions{}, runtime.AdapterContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer backRecord.Close(1000, "done")
+	if err := backRecord.Append(ctx, client.RecordedTick{Data: "reverse"}); err != nil {
+		t.Fatal(err)
+	}
+	next(t, ctx, reversed, "reverse")
+}
+func TestIdentityBeforeHistoryAndFailedSetupCleanup(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	values := make(chan int64, 4)
+	foreign, err := foreignClient.ToWire(func(foreignProtocol.Server) (foreignProtocol.Client, error) {
+		return foreignProtocol.Client{Events: foreignDestination{values}}, nil
+	}, runtime.AdapterContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer foreign.Close(1000, "done")
+	store := duplex.NewMemoryWireLog()
+	if _, err := binding.Record(ctx, foreign, store, duplex.RecordOptions{}, runtime.AdapterContext{}); !isCode(err, "contract_mismatch") {
+		t.Fatalf("record mismatch: %v", err)
+	}
+	if head, err := store.Head(ctx); err != nil || head != 0 {
+		t.Fatalf("setup touched history %d %v", head, err)
+	}
+	wire, _ := target(t)
+	recorded, err := binding.Record(ctx, wire, store, duplex.RecordOptions{}, runtime.AdapterContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer recorded.Close(1000, "done")
+	recorded.Append(ctx, binding.RecordedTick{Data: protocol.Payload{Value: 1}})
+	if _, err := recorded.Follow(ctx, 0, foreign); !isCode(err, "contract_mismatch") {
+		t.Fatalf("follow mismatch: %v", err)
+	}
+	select {
+	case <-values:
+		t.Fatal("mismatch ran an event handler")
+	default:
+	}
+	// Neither rejected interpretation kept a registration or closed the target.
+	accepted, err := foreignBinding.Record(ctx, foreign, duplex.NewMemoryWireLog(), duplex.RecordOptions{}, runtime.AdapterContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer accepted.Close(1000, "done")
+	if err := accepted.Append(ctx, foreignBinding.RecordedTick{Data: foreignProtocol.Payload{Value: 9}}); err != nil {
+		t.Fatal(err)
+	}
+	next(t, ctx, values, int64(9))
+}
+
+type heldLog struct {
+	*duplex.MemoryWireLog
+	entered, release chan struct{}
+	once             sync.Once
+}
+
+func (l *heldLog) Read(ctx context.Context, sequence uint64) (duplex.WireRecord, error) {
+	l.once.Do(func() { close(l.entered) })
+	select {
+	case <-l.release:
+		return l.MemoryWireLog.Read(ctx, sequence)
+	case <-ctx.Done():
+		return duplex.WireRecord{}, ctx.Err()
+	}
+}
+func TestGeneratedAtomicHeadTable(t *testing.T) {
+	var table struct {
+		Cases []struct {
+			Name                     string
+			Before, During, Expected []int64
+			After, Head              uint64
+		}
+	}
+	data, err := os.ReadFile("recorded-wire.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &table); err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range table.Cases {
+		t.Run(row.Name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			wire, _ := target(t)
+			store := &heldLog{MemoryWireLog: duplex.NewMemoryWireLog(), entered: make(chan struct{}), release: make(chan struct{})}
+			recorded, err := binding.Record(ctx, wire, store, duplex.RecordOptions{MaxQueuedMessages: 8}, runtime.AdapterContext{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer recorded.Close(1000, "done")
+			appendValue := func(value int64) {
+				t.Helper()
+				if err := recorded.Append(ctx, binding.RecordedTick{Data: protocol.Payload{Value: value}}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, value := range row.Before {
+				appendValue(value)
+			}
+			subscriber, values := target(t)
+			follower, err := recorded.Follow(ctx, row.After, subscriber)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer follower.Close()
+			if follower.Head != row.Head {
+				t.Fatal(follower.Head)
+			}
+			select {
+			case <-store.entered:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			for _, value := range row.During {
+				appendValue(value)
+			}
+			if head, err := recorded.Head(ctx); err != nil || head != uint64(len(row.Before)+len(row.During)) {
+				t.Fatalf("producer did not advance: %d %v", head, err)
+			}
+			close(store.release)
+			for _, value := range row.Expected {
+				next(t, ctx, values, value)
+			}
+			appendValue(99)
+			next(t, ctx, values, int64(99))
+		})
+	}
+}

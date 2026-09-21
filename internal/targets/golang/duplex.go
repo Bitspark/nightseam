@@ -96,6 +96,7 @@ func (f *file) emitWireAdapter(side, opposite string) {
 		f.line("complete = true; return access, nil")
 	})
 	f.emitWireIdentity(side, opposite)
+	f.emitRecordedEvents(side, opposite)
 }
 
 // Declaration identity failures retain their public refusal through validation.

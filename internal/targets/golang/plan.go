@@ -80,6 +80,7 @@ func Reserved() []string {
 		identServer, identClient, identServerMethods, identClientMethods,
 		identServerEvents, identClientEvents, identServerModel, identClientModel,
 		identToWire, identFromWire, identPrepareFromWire,
+		"Record", "Recorder", "RecordedEvent",
 	}
 }
 
@@ -104,6 +105,7 @@ func planFamily(f *render.Family, seen map[*render.Family]bool) (*plan, []diag.D
 		p.packages.Fix("generated model declaration", identServer, identClient, identServerMethods, identClientMethods, identServerEvents, identClientEvents, identServerModel, identClientModel)
 	}
 	p.plan()
+	p.planRecordedEvents()
 	// Imported names retain their source overrides. Check that source's
 	// declarations too, once even when several inheritance paths reach it.
 	for _, name := range f.References {

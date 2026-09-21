@@ -34,7 +34,7 @@ const (
 // either name would shadow them.
 var imported = []string{"DuplexError", "Wire", "WireModelContext", "WireCallOptions", "AdapterContext", "LiveOwner", "ValueAdapter", "ValueContext", "ValueOptions", "callWire", "emitWire", "registerWire", "wirePair", "encodePath", "conversion", "createValidator", "withDeclaration", "declarationDigest", "identityHandler", "IDENTITY_METHOD", "prepareIdentity", "TypeExpression", "WireFamily"}
 var globals = []string{"Array", "Record", "Promise", "Set", "Error", "String", "Object"}
-var modelNames = []string{"Server", "Client", "ServerMethods", "ClientMethods", "ServerEvents", "ClientEvents", "ServerModel", "ClientModel", "toWire", "fromWire", "prepareFromWire", "makeAdapter"}
+var modelNames = []string{"Server", "Client", "ServerMethods", "ClientMethods", "ServerEvents", "ClientEvents", "ServerModel", "ClientModel", "toWire", "fromWire", "prepareFromWire", "makeAdapter", "RecordedEvent", "Recorder", "record", "recordWire", "WireLog", "RecordOptions", "RecordedWire", "checkIdentity"}
 
 // Inherited Object members must not satisfy a declared event accidentally.
 // A consumer supplies each event deliberately, including ignored no-ops.
