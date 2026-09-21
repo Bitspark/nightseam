@@ -219,6 +219,8 @@ The profile: `runtime/go`'s `Peer`, `@nightseam/runtime`'s `DuplexPeer`.
 | `peer.dial` | **`url`**, `options`, `subprotocols` | `{"handle", "subprotocol"}` the client peer, connected |
 | `peer.over` | **`on`** connection or channel, **`role`** `"client"`\|`"server"`, `options` | `{"handle"}` a peer speaking the profile over that connection |
 | `peer.handle` | **`on`**, **`method`**, **`behavior`** | `{}` — registers a canned handler, see below |
+| `peer.identity` | **`on`**, **`path`**, `digest` | `{}` — installs the runtime's ordinary `identity.check` handler for this declaration |
+| `peer.check_identity` | **`on`**, **`path`**, `digest`, `within_ms` | `{}` — performs the bounded identity exchange, accepting `method_not_found` as an endpoint carrying no digest; other errors retain their codes |
 | `peer.on_event` | **`on`**, **`name`**, `behavior` | `{}` — how an event is taken: `record` (default), `block`, `panic` |
 | `peer.call` | **`on`**, **`method`**, `params`, `timeout_ms`, `meta` | `{"handle"}` a call, in flight |
 | `call.await` | **`on`**, `within_ms` | `{"result": …}` or `{"error": {"code", "message", "data"}}` |

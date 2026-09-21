@@ -60,7 +60,8 @@ member](../decisions/meta-is-a-header-not-a-member.md) the one header's.
 A layer that speaks on the wire does it as the tunnel does:
 
 - **A reserved prefix**, one per layer: `channel.` for the tunnel, `live.`
-  for the live layer. The namespace is the layer's, so that it is never
+  for the live layer and `identity.` for declaration agreement at interpretation.
+  The namespace is the layer's, so that it is never
   contested, and a layer that takes one is what makes the generator refuse a
   consumer's operation under it. Each target also holds its own identifiers
   under `cmd/nightseam/testdata/reserved`.

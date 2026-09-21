@@ -86,10 +86,14 @@ values.
 The contract-evolution decision reserved here was made in
 [#292](https://github.com/Bitspark/nightseam/issues/292#issuecomment-5753285816):
 declaration identity is `(path, digest)`, strict. The generator derives the
-SHA-256 digest from the family's rendered wire description and supplies it
+SHA-256 digest from the family's canonical declaration and supplies it
 through `WireDigest()` in Go and `wireDigest` in TypeScript. Moving or renaming
 a callable still changes its nominal contract; retaining its path while the
-rendered description changes now produces a different digest. If the reference
+canonical declaration changes now produces a different digest. Its exact
+[coverage and byte grammar](../declaration/declaration-identity.md) include
+ordinary operations, events and reachable imported content, as
+[#343](https://github.com/Bitspark/nightseam/issues/343) requires; the local
+validator schema alone does not identify those revisions. If the reference
 and its expected declaration both specify digests and those digests differ,
 import refuses `contract_mismatch` before allocating an attachment or invoking
 an implementation. An absent digest makes no revision claim.

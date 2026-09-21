@@ -302,6 +302,52 @@ func (t *testee) peerOps() map[string]func(request) (any, error) {
 			}
 			return map[string]any{"handle": t.mint("p", t.adopt(p, rec, cancel))}, nil
 		},
+		"peer.identity": func(r request) (any, error) {
+			p, err := t.peerOf(r, "on")
+			if err != nil {
+				return nil, err
+			}
+			path, err := r.mustString("path")
+			if err != nil {
+				return nil, err
+			}
+			digest, err := r.string("digest")
+			if err != nil {
+				return nil, err
+			}
+			handler, err := runtime.IdentityHandler(runtime.DeclarationIdentity{Path: path, Digest: digest})
+			if err != nil {
+				return nil, callError(err, p)
+			}
+			if err := p.Handle(runtime.IdentityMethod, handler); err != nil {
+				return nil, invalid("%v", err)
+			}
+			return nil, nil
+		},
+		"peer.check_identity": func(r request) (any, error) {
+			p, err := t.peerOf(r, "on")
+			if err != nil {
+				return nil, err
+			}
+			path, err := r.mustString("path")
+			if err != nil {
+				return nil, err
+			}
+			digest, err := r.string("digest")
+			if err != nil {
+				return nil, err
+			}
+			within, err := r.within()
+			if err != nil {
+				return nil, err
+			}
+			ctx, cancel := context.WithTimeout(p.Context(), within)
+			defer cancel()
+			if err := runtime.CheckIdentity(ctx, p.Call, runtime.DeclarationIdentity{Path: path, Digest: digest}); err != nil {
+				return nil, callError(err, p)
+			}
+			return nil, nil
+		},
 		"peer.handle": func(r request) (any, error) {
 			p, err := t.peerOf(r, "on")
 			if err != nil {
