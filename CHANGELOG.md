@@ -6,6 +6,12 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Fixed
+
+- The TypeScript OpenTelemetry adapter retains connection and event-only
+  telemetry with the Go reference's connection lifecycle, producer/consumer
+  spans and fallback routing, without copying connection events onto requests.
+
 ### Clarified
 
 - The profile documentation names 4011 for a binary frame rejected by the
