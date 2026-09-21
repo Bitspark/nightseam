@@ -2,7 +2,8 @@
 
 The Rust core consists of two public Cargo crates:
 [`nightseam-duplex`](../../duplex/rs) for ordered frames over bounded pipes
-and WebSockets, and [`nightseam`](../../runtime/rs) for the duplex peer.
+and WebSockets plus relative-path Wire views, and [`nightseam`](../../runtime/rs)
+for the duplex peer, schema validator and queued Wire endpoints.
 The peer depends on the connection seam and is independent of the chosen
 transport. Both run on Tokio; WebSockets use tokio-tungstenite.
 
@@ -30,6 +31,26 @@ connection from `ws::dial` or `ws::Listener`. Register a handler with
 receives cancellation and incoming metadata in its `Context`; metadata is
 forwarded only when explicitly supplied. `Payload::Absent` represents a
 missing value, while `Payload::from_value` can represent JSON null.
+
+`Schema::new` reads the family descriptor with its declaration digest and
+imported schemas. `Schema::bind` supplies explicit type and family arguments;
+`validate_raw` and `validate_expression_raw` check JSON bytes without rounding
+numeric tokens or accepting malformed Unicode before validation.
+
+`Peer::wire()` and `wire_pair` expose the same relative-path access. Use
+`at` and `mount` from `nightseam-duplex` for views, and `call_wire`,
+`emit_wire`, `handle_wire` and `forward_wire` from `nightseam` for operations
+and composition. Selection allocates no additional peer or queue. Detach
+removes registrations; it preserves the return and cancellation path of
+already admitted calls. A cancelled handler keeps its active-work capacity
+until it returns. `Peer::identity` and `Peer::check_identity` perform the
+ordinary `identity.check` exchange before model interpretation.
+
+`PublicError::is_unpublished` distinguishes a proven refusal before admission
+from a failure after possible publication. The marker stays local to that
+operation: it is omitted from JSON and removed from handler and admitted
+Wire outcomes. An error code alone is not evidence for rolling back an
+acquired value.
 
 The [packaged consumer](../../scripts/rust-consumer.rs) is a complete
 executable example: it listens on loopback, connects a WebSocket client,
