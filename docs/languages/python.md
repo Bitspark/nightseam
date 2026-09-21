@@ -107,8 +107,9 @@ begin asynchronous traffic after Peer construction returns.
 
 `UnpublishedError` identifies a particular call or emit refused before queue
 admission. It permits rollback of that unsent attempt. A received refusal or a
-carrier failure after admission carries no such proof. Cancellation before
-admission retains both this marker and native `asyncio.CancelledError` behavior.
+carrier failure after admission carries no such proof. Task cancellation before
+admission raises native `asyncio.CancelledError` with an `UnpublishedError` as its
+`__cause__`, preserving `asyncio.timeout` and task cancellation behavior.
 
 ## Recording and following
 

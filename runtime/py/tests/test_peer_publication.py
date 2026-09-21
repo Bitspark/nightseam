@@ -4,9 +4,27 @@ import unittest
 from nightseam.duplex import pipe
 from nightseam.runtime import Options, Peer, PublicError
 from nightseam.runtime.publication import UnpublishedError
+from test_peer import GatedConnection
 
 
 class PeerPublicationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_external_deadline_translates_unadmitted_call_and_emit_cancellation(self):
+        connection = GatedConnection()
+        peer = Peer(connection, options=Options(queue_capacity=1, write_timeout_ms=1000))
+        self.addAsyncCleanup(peer.close)
+        await peer.emit("active")
+        await connection.sending.wait()
+        await peer.emit("queued")
+        for operation in (lambda: peer.call("unsent"), lambda: peer.emit("unsent")):
+            with self.assertRaises(TimeoutError) as timeout:
+                async with asyncio.timeout(0.02):
+                    await operation()
+            self.assertIs(type(timeout.exception.__cause__), asyncio.CancelledError)
+            self.assertIsInstance(timeout.exception.__cause__.__cause__, UnpublishedError)
+            self.assertEqual(peer.status, "connected")
+            self.assertEqual(peer._pending, {})
+        connection.release.set()
+
     async def peers(self, options=None):
         a, b = pipe()
         client, server = Peer(a, options=options), Peer(b, "server")
@@ -42,7 +60,8 @@ class PeerPublicationTests(unittest.IsolatedAsyncioTestCase):
         call.cancel()
         with self.assertRaises(asyncio.CancelledError) as cancelled:
             await call
-        self.assertIsInstance(cancelled.exception, UnpublishedError)
+        self.assertIs(type(cancelled.exception), asyncio.CancelledError)
+        self.assertIsInstance(cancelled.exception.__cause__, UnpublishedError)
         self.assertTrue(call.cancelled())
         self.assertEqual(peer.status, "connected")
 

@@ -288,7 +288,9 @@ class Peer:
         except asyncio.CancelledError as error:
             if accepted:
                 raise
-            raise unpublished(error) from error
+            # asyncio.timeout on Python 3.11/3.12 requires the exact native
+            # cancellation type. Preserve send-local proof as its cause.
+            raise asyncio.CancelledError(*error.args) from unpublished(error)
         except Exception as error:
             if accepted:
                 raise
@@ -394,7 +396,7 @@ class Peer:
         except asyncio.CancelledError as error:
             if accepted:
                 raise
-            raise unpublished(error) from error
+            raise asyncio.CancelledError(*error.args) from unpublished(error)
         except Exception as error:
             if accepted:
                 raise
