@@ -1,0 +1,9 @@
+{
+  "nightseam": 2,
+  "types": {
+    "StartRequest": {"kind": "record", "fields": [{"name": "projectId", "type": "string"}]},
+    "ListRequest": {"kind": "record", "fields": [{"name": "projectId", "type": "string"}]},
+    "Listing": {"kind": "record", "fields": [{"name": "count", "type": "integer"}]},
+    "Progress": {"kind": "record", "fields": [{"name": "projectId", "type": "string"}, {"name": "percent", "type": "integer"}]}
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "list": {
+        "request": "ListRequest",
+        "result": "Listing"
+      },
+      "whoami": {
+        "result": "string"
+      }
+    },
+    "events": {
+      "progress": {
+        "type": "Progress"
+      }
+    }
+  },
+  "client": {
+    "methods": {
+      "notify": {
+        "request": "Progress",
+        "result": "boolean"
+      }
+    }
+  },
+  "errors": {
+    "archived": "The project is archived; the owner refuses the effect."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "types": {
+    "Op": {"kind": "callable", "parameters": [{"name": "A"}, {"name": "B"}], "request": "A", "result": "B"},
+    "Closed": {"kind": "alias", "type": {"apply": "Op", "with": {"A": "string", "B": "string"}}}
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [{"name": "S", "of": "live"}],
+  "types": {
+    "Held": {"kind": "record", "fields": [{"name": "job", "type": "S.Job"}, {"name": "others", "type": {"array": "S.Job"}}]}
+  },
+  "server": {"methods": {"exchange": {"request": "Held", "result": "Held"}}}
+}

@@ -98,6 +98,16 @@ are one number. Entries are in the words of the commits that landed them.
   any identity layer, and its place in CI, the release, the registry round
   trip and the dependency updates. The identity layer is Archon, pinned at
   one release; the packages land by their packets.
+- The AUTH-SEAM witness: an ordinary consumer guards the generated access
+  surface with a synthetic connection context — a policy of one treatment
+  per member derived from the generated declaration, bound whole or refused,
+  decided at dispatch and again at the owner's effect on the context the
+  runtime delivers beside the frame — over real Go↔TypeScript sockets, a
+  local pipe, a directly accessed model wire, a tunnel channel, a server
+  prefix and a client mount, a live family draw, a closed generic callable in
+  a generic container, per-recipient emissions and a replayed log. Six
+  cases, no auth in the base wire, no change to the runtime; the one
+  obstruction it found is recorded and fixed separately.
 - The exposure packet of the optional authority profile: a policy of one
   treatment per declared member — guarded with an action and a scope
   template, public, or denied — bound whole to the declared surface or
