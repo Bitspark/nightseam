@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 )
 
 type wireCarrierSide struct {
@@ -283,7 +284,7 @@ func (t *testee) wireCarrierDispatch(op string, raw map[string]json.RawMessage) 
 	case "gen.wire_release":
 		return nil, h.side.release()
 	case "gen.wire_counts":
-		return h.side.counts(), nil
+		return wireAwaitZero(ctx, h.side.counts)
 	}
 	return nil, fail("unsupported", "no wire carrier operation %s", op)
 }
@@ -339,4 +340,20 @@ func wirePhysicalView(peer *runtime.Peer, presentation string, observer *wireAll
 		return nil, nil, fmt.Errorf("unknown presentation %s", presentation)
 	}
 	return selected, cleanup, nil
+}
+
+func wireAwaitZero(ctx context.Context, read func() map[string]int) (map[string]int, error) {
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		counts := read()
+		if counts["exports"] == 0 && counts["imports"] == 0 {
+			return counts, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }

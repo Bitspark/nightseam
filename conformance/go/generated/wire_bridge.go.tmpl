@@ -13,6 +13,7 @@ import (
 
 type wireBridgeHandle struct {
 	*wireCarrierHandle
+	released                      bool
 	origin                        *runtime.Peer
 	originScope, destinationScope *live.Scope
 	originViews                   wireAllocations
@@ -87,12 +88,22 @@ func (t *testee) wireBridgeDispatch(op string, raw map[string]json.RawMessage) (
 	}
 	switch op {
 	case "gen.wire_bridge_counts":
+		if h.released {
+			if _, err = wireAwaitZero(ctx, func() map[string]int { return ownerCounts(h.originScope) }); err != nil {
+				return nil, err
+			}
+			if _, err = wireAwaitZero(ctx, func() map[string]int { return ownerCounts(h.destinationScope) }); err != nil {
+				return nil, err
+			}
+		}
 		return map[string]any{"origin": ownerCounts(h.originScope), "destination": ownerCounts(h.destinationScope), "setup_allocations": h.baseline, "view_allocations": wireAllocations{h.side.views.Peers + h.originViews.Peers, h.side.views.Channels + h.originViews.Channels}, "use_allocations": h.observer.snapshot().since(h.baseline)}, nil
 	case "gen.wire_bridge_release":
 		if err = h.originScope.Owner().Release(); err != nil {
 			return nil, err
 		}
-		return nil, h.destinationScope.Owner().Release()
+		err = h.destinationScope.Owner().Release()
+		h.released = err == nil
+		return nil, err
 	}
 	return nil, fail("unsupported", "no bridge operation %s", op)
 }

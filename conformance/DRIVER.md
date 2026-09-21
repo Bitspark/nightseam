@@ -698,7 +698,7 @@ Allocation counters observe cumulative runtime `ConnectionOpened` and tunnel
 | `gen.wire_exercise` | **`on`**, `within_ms` | `{"revisions":[1,2],"value","reverse","changed","setup_allocations","view_allocations","use_allocations","counts"}` — two state changes followed by a read, a reverse call, both events, and invocation of any returned callable values. |
 | `gen.wire_inspect` | **`on`**, `within_ms` | `{"revision":2,"value","noted","setup_allocations","view_allocations","use_allocations","counts"}` — waits for the noted event and observes the retained value and event value while the scope remains open. |
 | `gen.wire_release` | **`on`**, `within_ms` | `{}` — releases the handle's explicit root owner; the carrier stays open. |
-| `gen.wire_counts` | **`on`**, `within_ms` | `{"exports","imports"}` — current live counts, including retained child lifetimes. |
+| `gen.wire_counts` | **`on`**, `within_ms` | `{"exports":0,"imports":0}` once the released scope and its retained child lifetimes reach zero, or timeout. |
 | `gen.wire_bridge` | **`origin`** URL, **`slot`**: `factory`, **`presentation`**: `mounted` or `forwarded` | `{"handle","url"}` — derives a model with generated FromWire on the origin scope and passes that same model directly to generated ToWire on an independent destination scope. |
 | `gen.wire_bridge_counts` | **`on`**, `within_ms` | `{"origin":{"exports","imports"},"destination":{"exports","imports"},"setup_allocations","view_allocations","use_allocations"}` — both middle scopes before or after explicit release, without teardown. |
 | `gen.wire_bridge_release` | **`on`**, `within_ms` | `{}` — releases both middle root owners while both physical connections remain open. |
