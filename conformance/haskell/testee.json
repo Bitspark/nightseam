@@ -1,0 +1,8 @@
+{
+  "language": "haskell",
+  "toolchains": ["stack"],
+  "build": [{
+    "argv": ["stack", "--stack-yaml", "{self}/stack.yaml", "build", "nightseam-conformance", "--copy-bins", "--local-bin-path", "{out}/haskell-bin"]
+  }],
+  "run": {"argv": ["{out}/haskell-bin/nightseam-haskell-testee{exe}"]}
+}
