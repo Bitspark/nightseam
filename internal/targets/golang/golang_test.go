@@ -192,6 +192,24 @@ func TestToWireLabelsEveryNameWithItsFamily(t *testing.T) {
 	}
 }
 
+func TestWireAdaptersObserveTypedOperations(t *testing.T) {
+	files, err := New(Config{Module: "example.test/m"}).Render(bothSides())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range files[2:] {
+		for _, want := range []string{
+			`runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "x"}`,
+			`runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "x"}`,
+			`runtime.WireHandlers{Observer: environment.Options.Observer, Family: "x"}`,
+		} {
+			if !strings.Contains(string(file.Data), want) {
+				t.Errorf("%s does not supply typed observation: %s", file.Path, want)
+			}
+		}
+	}
+}
+
 // TestReservedNamesAreWhatTheTargetEmits: every identifier the generated
 // packages declare of themselves is reserved, and nothing else is.
 func TestReservedNamesAreWhatTheTargetEmits(t *testing.T) {

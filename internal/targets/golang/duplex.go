@@ -164,7 +164,7 @@ func (f *file) wireCaller(m render.Method, receiver string) {
 		if m.Request != nil && f.needsConversion(m.Request) {
 			f.publishBoundary(m.Request, "params", "raw", func() {
 				f.linef("var raw %s.RawMessage", json)
-				f.linef("err := %s.CallWire(ctx,c.wire,[]string{%q},sent,&raw)", f.runtime(), m.Name)
+				f.linef("err := %s.CallWire(ctx,c.wire,[]string{%q},sent,&raw,%s.WireCallOptions{Observer:c.environment.Options.Observer,Family:%q})", f.runtime(), m.Name, f.runtime(), f.family.Name)
 				f.line("return raw,err")
 			})
 			f.line("if err != nil { return result,err }")
@@ -173,7 +173,7 @@ func (f *file) wireCaller(m render.Method, receiver string) {
 				f.linef("if err := %s.ValidateValue(%sMustTypeExpression(%s),params); err != nil {return result,err}", f.boundSchema(f.uses), f.proto(), expression(m.Request))
 			}
 			f.linef("var raw %s.RawMessage", json)
-			f.linef("if err := %s.CallWire(ctx,c.wire,[]string{%q},%s,&raw); err != nil {return result,err}", f.runtime(), m.Name, argument(m))
+			f.linef("if err := %s.CallWire(ctx,c.wire,[]string{%q},%s,&raw,%s.WireCallOptions{Observer:c.environment.Options.Observer,Family:%q}); err != nil {return result,err}", f.runtime(), m.Name, argument(m), f.runtime(), f.family.Name)
 		}
 		if f.needsConversion(m.Result) {
 			f.liveBoundary(m.Result, "raw", "received", false)
@@ -192,12 +192,14 @@ func (f *file) wireEmitter(e render.Event, receiver string) {
 	f.w.Block(fmt.Sprintf("func(c *%s) %s(ctx %s.Context,data %s) error {", receiver, f.plan.operations[e.Name], f.std("context"), f.spell(e.Type)), "}", func() {
 		f.wireOwner([]model.TypeExpr{e.Type}, false, "c.", "")
 		if f.needsConversion(e.Type) {
-			f.publishBoundary(e.Type, "data", "_", func() { f.linef("return nil,%s.EmitWire(ctx,c.wire,[]string{%q},sent)", f.runtime(), e.Name) })
+			f.publishBoundary(e.Type, "data", "_", func() {
+				f.linef("return nil,%s.EmitWire(ctx,c.wire,[]string{%q},sent,%s.WireEmitOptions{Observer:c.environment.Options.Observer,Family:%q})", f.runtime(), e.Name, f.runtime(), f.family.Name)
+			})
 			f.line("return err")
 			return
 		}
 		f.linef("if err := %s.ValidateValue(%sMustTypeExpression(%s),data);err!=nil{return err}", f.boundSchema(f.uses), f.proto(), expression(e.Type))
-		f.linef("return %s.EmitWire(ctx,c.wire,[]string{%q},data)", f.runtime(), e.Name)
+		f.linef("return %s.EmitWire(ctx,c.wire,[]string{%q},data,%s.WireEmitOptions{Observer:c.environment.Options.Observer,Family:%q})", f.runtime(), e.Name, f.runtime(), f.family.Name)
 	})
 }
 
@@ -224,7 +226,7 @@ func (f *file) wireRegistration(side string, methods []render.Method, events []r
 		sort.Strings(names)
 		for _, name := range names {
 			f.w.Block("{", "}", func() {
-				f.linef("handlers := %s.WireHandlers{}", rt)
+				f.linef("handlers := %s.WireHandlers{Observer:environment.Options.Observer,Family:%q}", rt, f.family.Name)
 				for _, m := range methods {
 					if m.Name == name {
 						f.wireRequest(m)
