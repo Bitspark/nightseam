@@ -21,7 +21,6 @@ func TestBuildProcessHelper(t *testing.T) {
 	}
 	dir := os.Getenv("NIGHTSEAM_BUILD_PROCESS_DIRECTORY")
 	if mode == "child" {
-		_ = os.WriteFile(filepath.Join(dir, "child"), []byte(strconv.Itoa(os.Getpid())), 0o600)
 		until := time.Now().Add(6 * time.Second)
 		for n := 0; time.Now().Before(until); n++ {
 			_ = os.WriteFile(filepath.Join(dir, "work"), []byte(strconv.Itoa(n)), 0o600)
@@ -67,37 +66,18 @@ func TestBuildProcessHelper(t *testing.T) {
 	os.Exit(10)
 }
 
-func processRecipe(t *testing.T, mode string) (Recipe, string, func()) {
+func processRecipe(t *testing.T, mode string) (Recipe, string) {
 	t.Helper()
 	executable, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	childStopped := false
-	t.Cleanup(func() {
-		if childStopped {
-			return
-		}
-		// Baseline failures must not strand their fixture. Only this helper's
-		// recorded PID is eligible, and the child has its own short fallback.
-		data, err := os.ReadFile(filepath.Join(dir, "child"))
-		if err == nil {
-			pid, err := strconv.Atoi(string(data))
-			if err != nil || pid <= 1 {
-				return
-			}
-			if process, err := os.FindProcess(pid); err == nil {
-				_ = process.Kill()
-				_ = process.Release()
-			}
-		}
-	})
 	return Recipe{Language: "process-test", Build: []Command{{
 		Argv: []string{executable, "-test.run=^TestBuildProcessHelper$", "--", "space and λ"},
 		Cwd:  dir,
 		Env:  map[string]string{"NIGHTSEAM_BUILD_PROCESS_HELPER": mode, "NIGHTSEAM_BUILD_PROCESS_DIRECTORY": dir},
-	}}}, dir, func() { childStopped = true }
+	}}}, dir
 }
 
 func TestBuildProcessesEndTogether(t *testing.T) {
@@ -107,7 +87,7 @@ func TestBuildProcessesEndTogether(t *testing.T) {
 			if mode == "cancel" || mode == "deadline" {
 				helper = "parent"
 			}
-			recipe, dir, stopped := processRecipe(t, helper)
+			recipe, dir := processRecipe(t, helper)
 			if mode == "failed-parent" {
 				next := recipe.Build[0]
 				next.Env = map[string]string{"NIGHTSEAM_BUILD_PROCESS_HELPER": "success", "NIGHTSEAM_BUILD_PROCESS_DIRECTORY": dir}
@@ -161,7 +141,6 @@ func TestBuildProcessesEndTogether(t *testing.T) {
 			if string(before) != string(after) {
 				t.Fatal("build descendant is still working after RunBuild returned")
 			}
-			stopped()
 			if mode == "failed-parent" {
 				if _, err := os.Stat(filepath.Join(dir, "success")); !os.IsNotExist(err) {
 					t.Fatal("a failed recipe ran a later build command")
@@ -172,7 +151,7 @@ func TestBuildProcessesEndTogether(t *testing.T) {
 }
 
 func TestBuildProcessSuccess(t *testing.T) {
-	recipe, dir, _ := processRecipe(t, "success")
+	recipe, dir := processRecipe(t, "success")
 	if err := recipe.RunBuild(context.Background(), Places{}, false); err != nil {
 		t.Fatal(err)
 	}

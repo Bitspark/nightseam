@@ -62,9 +62,9 @@ func runOwnedBuild(ctx context.Context, cmd *exec.Cmd, output *os.File) error {
 	if err := attributes.Update(windows.PROC_THREAD_ATTRIBUTE_HANDLE_LIST, unsafe.Pointer(&inherited[0]), uintptr(len(inherited))*unsafe.Sizeof(inherited[0])); err != nil {
 		return err
 	}
-	path := cmd.Path
-	if !filepath.IsAbs(path) && cmd.Dir != "" {
-		path = filepath.Join(cmd.Dir, path)
+	path, err := windowsBuildExecutable(cmd.Path, cmd.Dir)
+	if err != nil {
+		return err
 	}
 	application, err := windows.UTF16PtrFromString(path)
 	if err != nil {
@@ -130,4 +130,34 @@ func runOwnedBuild(ctx context.Context, cmd *exec.Cmd, output *os.File) error {
 		return errors.Join(fmt.Errorf("exit status %d", status), cleanup)
 	}
 	return errors.Join(ctx.Err(), cleanup)
+}
+
+// CreateProcess with lpApplicationName does not add PATHEXT. Resolve it before
+// launch, including paths relative to the command's directory and drive.
+func windowsBuildExecutable(path, dir string) (string, error) {
+	if path == "" {
+		return "", errors.New("empty build executable")
+	}
+	if dir != "" && !filepath.IsAbs(path) {
+		absoluteDir, err := windows.FullPath(dir)
+		if err != nil {
+			return "", err
+		}
+		volume := filepath.VolumeName(path)
+		switch {
+		case volume == "" && os.IsPathSeparator(path[0]):
+			path = filepath.VolumeName(absoluteDir) + path
+		case volume == "":
+			path = filepath.Join(absoluteDir, path)
+		case len(path) == len(volume):
+			return "", errors.New("build executable is only a volume")
+		case strings.EqualFold(volume, filepath.VolumeName(absoluteDir)):
+			path = filepath.Join(absoluteDir, path[len(volume):])
+		}
+	}
+	path, err := windows.FullPath(path)
+	if err != nil {
+		return "", err
+	}
+	return exec.LookPath(path)
 }
