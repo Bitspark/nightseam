@@ -8,6 +8,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Conformance build commands own their process trees and stop descendants on
+  cancellation or parent exit, retaining failure output without an unbounded
+  wait for inherited output pipes.
 - The generated composition fixture waits for worker completion before
   asserting finished cancellation, preserving the final callback race.
 - The TypeScript OpenTelemetry adapter retains connection and event-only

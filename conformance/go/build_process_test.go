@@ -101,6 +101,11 @@ func TestBuildProcessesEndTogether(t *testing.T) {
 				helper = "parent"
 			}
 			recipe, dir := processRecipe(t, helper)
+			if mode == "failed-parent" {
+				next := recipe.Build[0]
+				next.Env = map[string]string{"NIGHTSEAM_BUILD_PROCESS_HELPER": "success", "NIGHTSEAM_BUILD_PROCESS_DIRECTORY": dir}
+				recipe.Build = append(recipe.Build, next)
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 			finished := make(chan error, 1)
@@ -148,6 +153,11 @@ func TestBuildProcessesEndTogether(t *testing.T) {
 			after, _ := os.ReadFile(filepath.Join(dir, "work"))
 			if string(before) != string(after) {
 				t.Fatal("build descendant is still working after RunBuild returned")
+			}
+			if mode == "failed-parent" {
+				if _, err := os.Stat(filepath.Join(dir, "success")); !os.IsNotExist(err) {
+					t.Fatal("a failed recipe ran a later build command")
+				}
 			}
 		})
 	}
