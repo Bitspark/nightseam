@@ -60,6 +60,8 @@ hold these four lines, whole.
 
 `pnpm check` type-checks the client and the generated package against the
 declarations the published packages ship.
+The example links its own generated `@probe/probe-client` package locally,
+so the binding's value converters resolve at runtime as well as during checking.
 
 Use the example from a published release tag: the development branch may
 already require a version that is not on the registries. From a clone of
