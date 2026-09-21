@@ -24,7 +24,7 @@ admits the selected optional rooted-grant authority profile here. Its
 evidence checking and guard preservation are reusable mechanism; consumers
 still choose trust, issued authority and resource policy. This extends the
 admitted scope explicitly, without admitting a general policy or proof engine.
-The shared Wire contract is adopted from public Bitwire v0.1.0;
+The shared Wire contract is adopted from public Bitwire v0.2.0;
 Nightseam's runtime, declaration model and optional-auth implementation remain
 here. [#421](https://github.com/Bitspark/nightseam/issues/421) holds the paired
 type migration and behavioral evidence. Admission of the optional authority

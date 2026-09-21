@@ -160,10 +160,16 @@ the same native signatures whether called directly or through a Wire.
 The server adapter exports:
 
 ```go
-func ToWire(model protocol.ServerModel, environment runtime.AdapterContext) (duplex.Wire, error)
-func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ServerModel, error)
-func PrepareFromWire(wire duplex.Wire, environment runtime.AdapterContext) (func(context.Context) (protocol.ServerModel, error), func(), error)
+func ToWire(model protocol.ServerModel, environment runtime.AdapterContext) (duplex.Endpoint, error)
+func FromWire(ctx context.Context, wire duplex.Endpoint, environment runtime.AdapterContext) (protocol.ServerModel, error)
+func PrepareFromWire(wire duplex.Endpoint, environment runtime.AdapterContext) (func(context.Context) (protocol.ServerModel, error), func(), error)
 ```
+
+These take an `Endpoint` because they attach: the binding owns the dispatcher
+it composes over that endpoint, and its disposal detaches only what it
+installed, leaving the borrowed endpoint usable ([relative-path
+wires](../runtime/wire.md#the-dispatcher)). A caller that only sends passes a
+`Wire`.
 
 `ToWire` constructs a bounded local Wire pair, invokes the factory once with
 the opposite proxy, registers the returned implementation and returns the

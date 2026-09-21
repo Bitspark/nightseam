@@ -33,9 +33,9 @@ transport is available separately as `Connection`; one channel cannot be
 claimed by both presentations.
 
 The underlying definitions are public
-[Bitwire v0.1.0](https://github.com/Bitspark/bitwire/releases/tag/v0.1.0):
+[Bitwire v0.2.0](https://github.com/Bitspark/bitwire/releases/tag/v0.2.0):
 Go imports `github.com/Bitspark/bitwire/wire/go` from module
-`github.com/Bitspark/bitwire@v0.1.0`; TypeScript imports `@bitspark/bitwire@0.1.0`.
+`github.com/Bitspark/bitwire@v0.2.0`; TypeScript imports `@bitspark/bitwire@0.2.0`.
 Nightseam's duplex package deliberately aliases/re-exports the same types,
 including Go's close `Code`. Existing generated references therefore use the
 shared nominal contract directly, without a second definition or wrapper.

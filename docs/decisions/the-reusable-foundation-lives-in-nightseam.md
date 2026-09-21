@@ -3,7 +3,7 @@
 **Revised, 2026-09-21.** The earlier blanket rejection of a separate Wire
 contract repository is superseded by the operator's decision in
 [#421](https://github.com/Bitspark/nightseam/issues/421). Nightseam adopts the
-public Bitwire v0.1.0 contract as required 0.6.0 delivery. The
+public Bitwire v0.2.0 contract as required 0.6.0 delivery. The
 [adoption evidence](../../conformance/bitwire/README.md) records exact public
 coordinates, provenance, paired types and executable behavioral coverage.
 
@@ -18,8 +18,13 @@ runtime implementations, carriers, peers, tunnels, live-reference machinery,
 generator, declaration/type model, canonical and applied contract identity,
 and selected optional rooted-grant authentication profile.
 
-The public handover is Bitwire v0.1.0 at revision
-`9f45a2e0e9dc576db34237e5ad3aaaa0266a276b`, maintained by Bitspark under Apache-2.0.
+The public handover is Bitwire v0.2.0 at revision
+`616a2fc5e3a0972f67f40331a9d9ca102bc9698d`, maintained by Bitspark under Apache-2.0.
+Its 0.2 delivery separates addressed delivery from dispatch: send-only `Wire`,
+receiving and closing `Endpoint`, and no registration policy in the primitive.
+Nightseam's realization of that, and of the public invocation lifecycle it
+requires, is [an invocation is a
+Wire](an-invocation-is-a-wire-and-routing-is-composed-above-it.md).
 Nightseam aliases the Go types and re-exports the TypeScript declarations, with
 no independent duplicate contract. The common contract's published behavioral
 cases exercise the migrated runtimes; Nightseam's full suite retains profile,
