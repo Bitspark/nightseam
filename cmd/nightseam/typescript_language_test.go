@@ -141,15 +141,17 @@ const tsInheritanceTypes = `
 import * as base from '@example/base-client';
 import * as child from '@example/child-client';
 import * as fixed from '@example/fixed-client';
+import * as childBinding from '@example/child-binding';
+import * as fixedBinding from '@example/fixed-binding';
 import * as probe from '@example/probe-client';
 import * as catalog from '@example/catalog-client';
 type Equals<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 const packet: Equals<base.Packet<probe.Family,string>,fixed.Packet> = true;
 const forwarded: Equals<child.Forward<probe.Family,string>,fixed.Packet> = true;
 const inherited: Equals<Omit<child.Inherited<probe.Family,string>,'note'>,fixed.Packet> = true;
-const caller: Equals<child.Caller<probe.Family,string>,fixed.Caller> = true;
-const handler: Equals<child.Handler<probe.Family,string>,fixed.Handler> = true;
-const events: Equals<child.Events<probe.Family,string>,fixed.Events> = true;
+const caller: Equals<child.ServerMethods<probe.Family,string>,fixed.ServerMethods> = true;
+const handler: Equals<child.ClientMethods<probe.Family,string>,fixed.ClientMethods> = true;
+const events: Equals<child.ClientEvents<probe.Family,string>,fixed.ClientEvents> = true;
 const nested: child.FixedLiteral = {value:{value:['ok',null]}};
 const result: catalog.Outcome<string> = {tag:'some',body:{item:'text',owner:'entry'}};
 const empty: catalog.Outcome<string> = {tag:'none'};
@@ -164,17 +166,19 @@ const badEmpty: catalog.Outcome<string> = {tag:'none',body:{}};
 
 const tsInheritanceValues = `
 import assert from 'node:assert/strict';
-import {handler as scaffolded} from './handlers/child/handler.ts';
+import {model as scaffolded} from './handlers/child/handler.ts';
 import * as child from '@example/child-client';
 import * as fixed from '@example/fixed-client';
+import * as childBinding from '@example/child-binding';
+import * as fixedBinding from '@example/fixed-binding';
 import * as probe from '@example/probe-client';
-import {DuplexPeer} from '@nightseam/runtime';
+import {DuplexPeer, handleWire, emitWire, callWire, onWireEvent} from '@nightseam/runtime';
 import {jsonAdapter} from '@nightseam/live';
 import {pipe} from '@nightseam/duplex';
 const binding = {type:'string', validate:probe.validateWire};
 const slots = {F:probe.family,Value:binding};
 const value = {message:{version:1,kind:'event',event:'changed',data:{}},handle:null,values:{first:['hello',null]}};
-await assert.rejects(scaffolded.reverse(value,{}), /reverse is not implemented/);
+await assert.rejects(scaffolded({methods:{},events:{}}).methods.reverse(value,{}), /reverse is not implemented/);
 child.validateWire('Inherited',{...value,note:'extended'},'$',slots);
 assert.throws(() => child.validateWire('Inherited',{...value,note:'wrong'},'$',slots));
 assert.throws(() => child.validateWire('Inherited',{...value,note:'extended',values:{first:[1]}},'$',slots));
@@ -188,28 +192,30 @@ assert.throws(() => child.validateWire('FixedLiteral',{value:{value:['wrong']}})
 for (const kind of ['forwarded','fixed']) {
  const server = new DuplexPeer({role:'server'});
  let requests = 0;
- server.handle('read', data => {requests++;return {tag:'some',body:{item:data.values.first[0],owner:'entry'}};});
+ handleWire(server.wire(), ['read'], data => {requests++;return {tag:'some',body:{item:data.values.first[0],owner:'entry'}};});
  const [near,far] = pipe();
  await server.attach(far);
  let event, report;
  const updated = new Promise(resolve => {event=resolve;});
  const reported = new Promise(resolve => {report=resolve;});
- server.onEvent('report', report);
+ onWireEvent(server.wire(), ['report'], report);
  const reverse = {reverse: data => data};
- const client = kind === 'forwarded'
-  ? await child.Client.attach(near,probe.family,jsonAdapter(binding),{},reverse,{updated:event})
-  : await fixed.Client.attach(near,{},reverse,{updated:event});
+ const peer = new DuplexPeer(); await peer.attach(near);
+ const model = kind === 'forwarded'
+  ? await childBinding.fromWire(peer.wire(),{},probe.family,jsonAdapter(binding))
+  : await fixedBinding.fromWire(peer.wire(),{});
+ const client = model({methods:reverse,events:{updated:event}});
  try {
-  assert.deepEqual(await client.fetch(value),{tag:'some',body:{item:'hello',owner:'entry'}});
-  await assert.rejects(client.fetch({...value,values:{first:[1]}}));
+  assert.deepEqual(await client.methods.fetch(value),{tag:'some',body:{item:'hello',owner:'entry'}});
+  await assert.rejects(client.methods.fetch({...value,values:{first:[1]}}));
   assert.equal(requests,1,'invalid values must be rejected before sending');
-  await server.emit('changed',value);
+  await emitWire(server.wire(),['changed'],value);
   assert.deepEqual(await updated,value);
-  await client.emitReport(value);
+  await client.events.report(value);
   assert.deepEqual(await reported,value);
-  assert.deepEqual(await server.call('reverse',value),value);
-  await assert.rejects(server.call('reverse',{...value,values:{first:[1]}}),{code:'invalid_params'});
- } finally {client.close();server.close();}
+  assert.deepEqual(await callWire(server.wire(),['reverse'],value),value);
+  await assert.rejects(callWire(server.wire(),['reverse'],{...value,values:{first:[1]}}),{code:'invalid_params'});
+ } finally {peer.close();server.close();}
 }
 `
 
@@ -270,16 +276,17 @@ func TestTypeScriptLocalFamilyParametersAndDrawnNames(t *testing.T) {
 		`)},
 	}))
 	typescriptLanguageFixture(t, world, `
-import {Client, type Drawn, type Filled, type Local, type Inline} from '@example/carrier-client';
+import type {Drawn, Filled, Local, Inline} from '@example/carrier-client';
+import {fromWire} from '@example/carrier-binding';
 import * as probe from '@example/probe-client';
-import {DuplexPeer} from '@nightseam/runtime';
+import {DuplexPeer, handleWire, emitWire, callWire, onWireEvent} from '@nightseam/runtime';
 import {jsonAdapter} from '@nightseam/live';
 const drawn: Drawn<probe.Family> = {payload:{text:'hello'}};
 const defaultDrawn: Drawn = drawn;
 const value: Filled<probe.Family,string> = {message:{version:1,kind:'event',event:'changed',data:{}},handle:{channel:1},value:['hello',null]};
 const local: Local<probe.Family,string> = {...value,value:'hello'};
 const inline: Inline<string> = {choices:[{kind:'some',value:'hello'},{kind:'none'}]};
-const client = new Client<probe.Family,string>(new DuplexPeer(),probe.family,jsonAdapter<string>({type:'string',validate:probe.validateWire}),undefined,{});
+const factory = fromWire<probe.Family,string>(new DuplexPeer().wire(),{},probe.family,jsonAdapter<string>({type:'string',validate:probe.validateWire}));
 // @ts-expect-error The type-local family slot cannot bind a string.
 type BadFamily = Local<string,string>;
 // @ts-expect-error The inline union captures its enclosing type parameter.
@@ -300,7 +307,8 @@ assert.throws(() => validateWire({apply:'Inline',with:{T:'string'}},{choices:[{k
 }
 
 const tsLanguageProofTypes = `
-import {Client, type Carried, type Option, type Page, type Part, type RichPart} from '@example/proof-client';
+import type {Carried, Option, Page, Part, RichPart} from '@example/proof-client';
+import {fromWire} from '@example/proof-binding';
 import * as probe from '@example/probe-client';
 import {DuplexPeer, type TypeBinding} from '@nightseam/runtime';
 import {jsonAdapter} from '@nightseam/live';
@@ -311,7 +319,7 @@ const none: Option<string> = {kind:'none', value:{}};
 const table: RichPart = {type:'table', value:{rows:['hello', null]}};
 const carried: Carried<probe.Family, string> = {message:{version:1,kind:'event',event:'changed',data:{}},back:null,page:{items:['hello']}};
 const textBinding: TypeBinding = {type:'string', validate:probe.validateWire};
-const client = new Client<probe.Family, string>(new DuplexPeer(), probe.family, jsonAdapter<string>(textBinding), undefined, {});
+const factory = fromWire<probe.Family, string>(new DuplexPeer().wire(), {}, probe.family, jsonAdapter<string>(textBinding));
 // @ts-expect-error An empty record payload remains present.
 const missing: Option<string> = {kind:'none'};
 // @ts-expect-error An empty record payload is an object, never a scalar.
@@ -328,9 +336,10 @@ type NotAFamily = Carried<string, string>;
 
 const tsLanguageProofValues = `
 import assert from 'node:assert/strict';
-import {Client, validateWire} from '@example/proof-client';
+import {validateWire} from '@example/proof-client';
+import {fromWire} from '@example/proof-binding';
 import * as probe from '@example/probe-client';
-import {DuplexPeer} from '@nightseam/runtime';
+import {DuplexPeer, handleWire, emitWire, callWire, onWireEvent} from '@nightseam/runtime';
 import {jsonAdapter} from '@nightseam/live';
 import {pipe} from '@nightseam/duplex';
 const slots = {S:probe.family, Item:{type:'string',validate:probe.validateWire}};
@@ -354,19 +363,19 @@ for (const value of [{type:'text',body:'hello'},{type:'text',value:{type:'other'
 assert.throws(() => validateWire('Part', {type:'table',value:{rows:[]}}));
 assert.throws(() => validateWire({apply:'Option',with:{T:'string'}},{kind:'none'}));
 const server = new DuplexPeer({role:'server'});
-server.handle('relay', data => ({kind:'some',value:data.message}));
+handleWire(server.wire(),['relay'], data => ({kind:'some',value:data.message}));
 const [near,far] = pipe();
 await server.attach(far);
-const client = await Client.attach(near, probe.family, jsonAdapter(slots.Item), {}, undefined, {});
+const peer = new DuplexPeer(); await peer.attach(near);
+let receive;
+const received = new Promise(resolve => {receive=resolve;});
+const client = (await fromWire(peer.wire(), {}, probe.family, jsonAdapter(slots.Item)))({methods:{},events:{changed:()=>{},partAdded:receive}});
 try {
  const data = {message:{version:1,kind:'event',event:'changed',data:{}},back:null,page:{items:['hello']}};
- assert.deepEqual(await client.relay(data), {kind:'some',value:data.message});
- await assert.rejects(client.relay({...data,page:{items:[1]}}));
- await assert.rejects(client.relay({...data,message:{version:1}}));
- let receive;
- const received = new Promise(resolve => {receive=resolve;});
- client.onPartAdded(receive);
- await server.emit('part.added',part);
+ assert.deepEqual(await client.methods.relay(data), {kind:'some',value:data.message});
+ await assert.rejects(client.methods.relay({...data,page:{items:[1]}}));
+ await assert.rejects(client.methods.relay({...data,message:{version:1}}));
+ emitWire(server.wire(),['part.added'],part);
  assert.deepEqual(await received,part);
-} finally {client.close();server.close();}
+} finally {peer.close();server.close();}
 `
