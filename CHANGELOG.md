@@ -8,6 +8,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Conformance build commands own their process trees and stop descendants on
+  cancellation or parent exit, retaining failure output without an unbounded
+  wait for inherited output pipes.
 - The Java WebSocket transport finishes its bounded close handshake before
   publishing closure, and the peer's terminal winner owns the transport action.
 - Give each language testee build its own bounded deadline.
