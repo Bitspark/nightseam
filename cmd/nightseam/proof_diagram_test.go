@@ -110,7 +110,7 @@ func TestProofMixedDiagramCommutes(t *testing.T) {
 	directory := t.TempDir()
 	renderProofDiagram(t, directory)
 	fixtureModule(t, directory, root)
-	for _, component := range []string{"runtime", "duplex", "tunnel"} {
+	for _, component := range []string{"runtime", "duplex", "tunnel", "live"} {
 		copyFixtureTree(t, filepath.Join(root, component, "ts"), filepath.Join(directory, component, "ts"))
 	}
 	writeFixture(t, directory, "package.json", []byte(`{"type":"module"}`))
@@ -148,6 +148,7 @@ import (
  rb "example.test/generated/gen/go/proof-binding"
  probe "example.test/generated/api/go/probe-protocol"
  "github.com/Bitspark/nightseam/runtime/go"
+ "github.com/Bitspark/nightseam/live/go"
 )
 type E=probe.Envelope
 type H=probe.Handle
@@ -177,12 +178,12 @@ func TestMixedStructureAndCodecs(t *testing.T){
 func TestMixedClientsCrossBothPaths(t *testing.T){
  options:=runtime.ServerOptions{Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}}
  leftHandler,err:=lb.NewHandler(leftServer{},options);if err!=nil{t.Fatal(err)}
- rightHandler,err:=rb.NewHandler[E,H,string](rightServer{},options);if err!=nil{t.Fatal(err)}
+ rightHandler,err:=rb.NewHandler[E,H,string](rightServer{},options,live.JSONAdapter[string]());if err!=nil{t.Fatal(err)}
  ls,rs:=httptest.NewServer(leftHandler),httptest.NewServer(rightHandler);defer ls.Close();defer rs.Close()
  leftURL,rightURL:="ws"+strings.TrimPrefix(ls.URL,"http"),"ws"+strings.TrimPrefix(rs.URL,"http")
  ctx,cancel:=context.WithTimeout(context.Background(),15*time.Second);defer cancel()
  l,err:=lc.Dial(ctx,rightURL,runtime.DialOptions{},nil,lc.Events{});if err!=nil{t.Fatal(err)};defer l.Close()
- r,err:=rc.Dial[E,H,string](ctx,leftURL,runtime.DialOptions{},nil,rc.Events[E,H,string]{});if err!=nil{t.Fatal(err)};defer r.Close()
+ r,err:=rc.Dial[E,H,string](ctx,leftURL,runtime.DialOptions{},nil,rc.Events[E,H,string]{},live.JSONAdapter[string]());if err!=nil{t.Fatal(err)};defer r.Close()
  var lp left.Carried;var rp right.Carried[E,H,string];_ = json.Unmarshal(good,&lp);_ = json.Unmarshal(good,&rp)
  lv,err:=l.Relay(ctx,lp);if err!=nil{t.Fatal(err)};rv,err:=r.Relay(ctx,rp);if err!=nil{t.Fatal(err)}
  a,_:=json.Marshal(lv);b,_:=json.Marshal(rv);if string(a)!=string(b){t.Fatalf("left %s right %s",a,b)}
@@ -206,6 +207,7 @@ const wrong: right.Carried<probe.Family,string>={message:{version:1,kind:'event'
 `
 
 const tsProofDiagramValues = `import assert from 'node:assert/strict';
+import {jsonAdapter} from '@nightseam/live';
 import * as left from './api/ts/proof-client/src/index.ts';
 import * as right from './gen/ts/proof-client/src/index.ts';
 import * as probe from './api/ts/probe-client/src/index.ts';
@@ -220,7 +222,7 @@ for(const value of [good,{...good,page:{items:[7]}},{...good,message:{version:1}
  assert.equal(errors[0]===null,value===good);
 }
 const plain=await left.Client.dial(process.argv[3],{},undefined,{});
-const generic=await right.Client.dial(process.argv[2],probe.family,slots.Item,{},undefined,{});
+const generic=await right.Client.dial(process.argv[2],probe.family,jsonAdapter(slots.Item),{},undefined,{});
 try{
  for(const client of [plain,generic]){
   assert.deepEqual(await client.relay(good),{kind:'some',value:good.message});

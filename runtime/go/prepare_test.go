@@ -53,7 +53,7 @@ func TestATunnelInstalledInPrepareMeetsTheFirstChannelOpen(t *testing.T) {
 			cancel()
 			t.Fatalf("iteration %d: tunnel: %v", i, err)
 		}
-		channel, err := carrier.Open(ctx, "probe", "")
+		channel, err := carrier.OpenConnection(ctx, "probe", "")
 		if err != nil {
 			var public *ws.PublicError
 			if errors.As(err, &public) {

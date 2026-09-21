@@ -233,6 +233,17 @@ The profile: `runtime/go`'s `Peer`, `@nightseam/runtime`'s `DuplexPeer`.
 | `peer.observed` | **`on`**, `trace` (bool), `drain` (bool, default true) | `[event, …]` what the observer was told, normalized, see below |
 | `peer.close` | **`on`** | `{}` |
 | `peer.await_close` | **`on`**, `within_ms` | `{"clean": bool, "code": int}` — the code the connection ended under and whether it was a close somebody chose |
+| `peer.recorded_wire_witness` | `within_ms` | `{"cases", "stalled"}` — test-only recorded-wire head, replay/follow order, bounded handoff and carrier isolation observations |
+
+`peer/recorded-wire-head-and-order.json` holds an in-memory test composition,
+not a production record/follow API. In both attach-before-append and
+append-before-attach interleavings, a barrier pauses replay after its first
+message while the producer appends into the bounded handoff. A fence through
+the same nested mounts and opaque-frame forward hop establishes the complete
+delivery sequence. Application callbacks reenter the append store. A stalled
+subscriber fills its two-message handoff and closes only its mounted carrier;
+a healthy follower and the underneath root remain usable. All barriers and
+observations finish before fixture teardown; no sleep establishes correctness.
 
 `meta` on `peer.call` and `peer.emit` is the profile's carriage the frame
 takes: an object whose every value is a string, absent by default. A testee

@@ -1,8 +1,9 @@
 /**
  * Channels multiplexed over one peer of the nightseam.duplex/1 profile: a
  * third transport beneath the seam, after the WebSocket and the pipe. Either
- * side opens a channel; each channel is a FrameConnection, and a peer of any
- * family runs over it unchanged. The outer peer sees four operations of the
+ * side opens a prepared Wire Channel. Its raw Connection is a FrameConnection,
+ * acquired separately for frame consumers. A Channel owns one peer before
+ * it is selected or mounted. The outer peer sees four operations of the
  * profile's own — channel.open, a request; channel.frame, channel.credit and
  * channel.close, events — and never what a channel carries.
  *
@@ -13,8 +14,17 @@
  * the client of the outer connection and even for its server, and is what a
  * handle names: {"channel": 12} in a family's message.
  */
-import { positiveInteger, DuplexError, type DuplexPeer, type ObserverEvent } from '@nightseam/runtime';
-import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from '@nightseam/duplex';
+import { positiveInteger, DuplexError, DuplexPeer, type PeerOptions, type ObserverEvent } from '@nightseam/runtime';
+import type {
+  ConnectionHandlers,
+  ConnectionState,
+  Frame,
+  FrameConnection,
+  Message,
+  Path,
+  Receiver,
+  Wire,
+} from '@nightseam/duplex';
 import { NO_STATUS } from '@nightseam/duplex';
 
 /**
@@ -66,7 +76,7 @@ export interface TunnelOptions {
 }
 
 interface Acceptor {
-  resolve: (channel: Channel) => void;
+  resolve: (channel: Connection) => void;
   reject: (error: DuplexError) => void;
 }
 
@@ -76,8 +86,8 @@ export class Tunnel {
   private readonly options: Required<TunnelOptions>;
   private next: number;
   private readonly parity: number;
-  private readonly table = new Map<number, Channel>();
-  private readonly pending: Channel[] = [];
+  private readonly table = new Map<number, Connection>();
+  private readonly pending: Connection[] = [];
   private readonly acceptors: Acceptor[] = [];
   private closed = false;
 
@@ -108,8 +118,48 @@ export class Tunnel {
     return this.options;
   }
 
+  /** Opens a prepared wire; preparation installs handlers before its first frame. */
+  async open(family: string, digest: string, options: PeerOptions = {}): Promise<Channel> {
+    return (await this.openConnectionRaw(family, digest)).asWire(options);
+  }
+
+  /** Takes the next incoming connection as a prepared wire. */
+  async accept(options: PeerOptions = {}): Promise<Channel> {
+    return (await this.acceptConnectionRaw()).asWire(options);
+  }
+
+  /** First acquisition owns the options; later lookups return the same wire. */
+  async channel(id: number, options: PeerOptions = {}): Promise<Channel | undefined> {
+    return this.connectionRaw(id)?.asWire(options);
+  }
+
+  /** Opens raw frame transport without starting a profile reader. */
+  async openConnection(family: string, digest: string): Promise<Connection> {
+    const connection = await this.openConnectionRaw(family, digest);
+    if (!connection.asRaw()) throw presentationError();
+    return connection;
+  }
+
+  /** Takes raw transport, retaining its consumer-controlled credit. */
+  async acceptConnection(): Promise<Connection> {
+    const connection = await this.acceptConnectionRaw();
+    if (!connection.asRaw()) throw presentationError();
+    return connection;
+  }
+
+  /** Resolves only raw transport; an acquired wire already owns its reader. */
+  connection(id: number): Connection | undefined {
+    const connection = this.connectionRaw(id);
+    return connection?.asRaw() ? connection : undefined;
+  }
+
+  /** @internal The opener owns the client request-id prefix inside this connection. */
+  channelRole(id: number): 'client' | 'server' {
+    return id % 2 === this.parity ? 'client' : 'server';
+  }
+
   /** Opens a channel to the other side, saying what family it speaks; resolves once the other side accepted it. */
-  async open(family: string, digest: string): Promise<Channel> {
+  private async openConnectionRaw(family: string, digest: string): Promise<Connection> {
     if (typeof family !== 'string' || family === '') {
       this.refused('', 'a channel is opened for a family');
       throw new DuplexError(CHANNEL_INVALID, 'A channel is opened for a family.');
@@ -120,7 +170,7 @@ export class Tunnel {
     }
     const id = this.next;
     this.next += 2;
-    const channel = new Channel(this, id, family, digest, 0);
+    const channel = new Connection(this, id, family, digest, 0);
     this.table.set(id, channel);
     let result: unknown;
     try {
@@ -151,7 +201,7 @@ export class Tunnel {
   }
 
   /** The next channel the other side opened that nobody here has taken yet, by accept or by channel. */
-  accept(): Promise<Channel> {
+  private acceptConnectionRaw(): Promise<Connection> {
     const next = this.pending.shift();
     if (next) {
       this.accepted(next);
@@ -165,7 +215,7 @@ export class Tunnel {
   }
 
   /** Resolves an id to the channel it names, whichever side opened it; a channel the other side opened counts as taken. */
-  channel(id: number): Channel | undefined {
+  private connectionRaw(id: number): Connection | undefined {
     const channel = this.table.get(id);
     if (channel) {
       const at = this.pending.indexOf(channel);
@@ -202,7 +252,7 @@ export class Tunnel {
   }
 
   /** A channel the other side opened, taken here rather than left pending. */
-  private accepted(channel: Channel): void {
+  private accepted(channel: Connection): void {
     this.observe({ type: 'channel.accepted', at: new Date(), family: channel.family, id: channel.id });
   }
 
@@ -243,13 +293,13 @@ export class Tunnel {
     }
     if (this.table.has(p.channel)) {
       this.refused(p.family, `channel ${p.channel} is open`);
-      throw new DuplexError(CHANNEL_EXISTS, `Channel ${p.channel} is open.`);
+      throw new DuplexError(CHANNEL_EXISTS, `Connection ${p.channel} is open.`);
     }
     if (this.acceptors.length === 0 && this.pending.length >= this.options.acceptCapacity) {
       this.refused(p.family, 'no room for a channel nobody has accepted');
       throw new DuplexError(CHANNEL_REFUSED, 'No room for a channel nobody has accepted.');
     }
-    const channel = new Channel(this, p.channel, p.family, digest, p.window);
+    const channel = new Connection(this, p.channel, p.family, digest, p.window);
     this.table.set(p.channel, channel);
     this.observe({ type: 'channel.opened', at: new Date(), family: p.family, id: p.channel, opener: false });
     const acceptor = this.acceptors.shift();
@@ -335,7 +385,7 @@ export class Tunnel {
  * beyond the other side's window waits in the channel, and buffered counts
  * what waits, so a peer above paces on it as on any connection.
  */
-export class Channel implements FrameConnection {
+export class Connection implements FrameConnection {
   /** The channel identifier on the outer connection. */
   readonly id: number;
   /** The family named by the opener. */
@@ -351,6 +401,33 @@ export class Channel implements FrameConnection {
   private heldClose?: { code: number; reason: string };
   private readonly listeners = new Set<ConnectionHandlers>();
   private current: ConnectionState = 'open';
+  private raw = false;
+  private channel?: Promise<Channel>;
+
+  /** @internal A raw consumer and a wire peer cannot both own this reader. */
+  asRaw(): boolean {
+    if (this.channel) return false;
+    this.raw = true;
+    return true;
+  }
+
+  /** @internal Creates the peer during acquisition, never during selection. */
+  asWire(options: PeerOptions): Promise<Channel> {
+    if (this.raw) return Promise.reject(presentationError());
+    return (this.channel ??= Promise.resolve().then(async () => {
+      let peer: DuplexPeer | undefined;
+      try {
+        peer = new DuplexPeer({ ...options, role: this.tunnel.channelRole(this.id) });
+        const wire = peer.wire();
+        await peer.attach(this);
+        return new Channel(this.id, this.family, this.digest, wire);
+      } catch (error) {
+        peer?.close();
+        this.close(1002, 'channel preparation failed');
+        throw error;
+      }
+    }));
+  }
 
   /** @internal */
   constructor(tunnel: Tunnel, id: number, family: string, digest: string, credit: number) {
@@ -372,7 +449,7 @@ export class Channel implements FrameConnection {
 
   /** Sends a frame, or queues it until credit arrives; a closed channel refuses with disconnected. */
   send(frame: Frame): void {
-    if (this.current !== 'open') throw new DuplexError('disconnected', 'Channel is not open.');
+    if (this.current !== 'open') throw new DuplexError('disconnected', 'Connection is not open.');
     if (this.credit > 0) {
       this.credit--;
       this.transmit(frame);
@@ -530,6 +607,35 @@ export class Channel implements FrameConnection {
     for (const handlers of [...this.listeners]) handlers.close?.(code, reason);
     this.listeners.clear();
   }
+}
+
+/** A prepared structured wire on one tunnel connection, with one eagerly acquired peer. */
+export class Channel implements Wire {
+  readonly id: number;
+  readonly family: string;
+  /** The declaration digest named by the opener, or empty when unspecified. */
+  readonly digest: string;
+  private readonly wire: Wire;
+  /** @internal Acquisition owns its peer and the underlying transport. */
+  constructor(id: number, family: string, digest: string, wire: Wire) {
+    this.id = id;
+    this.family = family;
+    this.digest = digest;
+    this.wire = wire;
+  }
+  send(path: Path, message: Message): void {
+    this.wire.send(path, message);
+  }
+  receive(path: Path, receiver: Receiver): () => void {
+    return this.wire.receive(path, receiver);
+  }
+  close(code = 1000, reason = ''): void {
+    this.wire.close(code, reason);
+  }
+}
+
+function presentationError(): DuplexError {
+  return new DuplexError(CHANNEL_INVALID, 'A connection already has a reader presentation.');
 }
 
 function encodeBase64(data: ArrayBuffer | Uint8Array): string {

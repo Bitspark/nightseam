@@ -99,25 +99,19 @@ func delayedWritePair(t *testing.T, control *delayedWriteControl, serverOptions,
 	return client, remote
 }
 
-func TestOutboundQueueDrainsReplayBeyondCapacity(t *testing.T) {
+func TestOutboundQueueDeliversAcceptedPrefixInOrder(t *testing.T) {
 	for _, capacity := range []int{2, 8} {
 		t.Run(fmt.Sprintf("capacity_%d", capacity), func(t *testing.T) {
-			const replayCount = 512
-			received := make(chan int, replayCount)
-			decodeErrors := make(chan error, replayCount)
-			control := &delayedWriteControl{delay: time.Millisecond, started: make(chan struct{})}
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			allowWrites := func() { releaseOnce.Do(func() { close(release) }) }
+			defer allowWrites()
+			received := make(chan int, capacity+1)
+			control := &delayedWriteControl{started: make(chan struct{}), gate: release}
 			client, server := delayedWritePair(t, control, ws.Options{
 				QueueCapacity: capacity,
-				WriteTimeout:  2 * time.Second,
+				WriteTimeout:  5 * time.Second,
 				Handlers: map[string]ws.Handler{
-					"replay": func(ctx context.Context, peer *ws.Peer, _ json.RawMessage) (any, error) {
-						for sequence := range replayCount {
-							if err := peer.Emit(ctx, "replay.item", sequence); err != nil {
-								return nil, err
-							}
-						}
-						return replayCount, nil
-					},
 					"echo": func(_ context.Context, _ *ws.Peer, data json.RawMessage) (any, error) {
 						return data, nil
 					},
@@ -126,50 +120,50 @@ func TestOutboundQueueDrainsReplayBeyondCapacity(t *testing.T) {
 				"replay.item": func(_ context.Context, _ *ws.Peer, data json.RawMessage) {
 					var sequence int
 					if err := json.Unmarshal(data, &sequence); err != nil {
-						decodeErrors <- err
-						return
+						t.Error(err)
+						sequence = -1
 					}
 					received <- sequence
 				},
 			}})
-			var count int
-			if err := client.Call(context.Background(), "replay", nil, &count); err != nil {
-				t.Fatalf("healthy replay exceeding queue capacity failed: %v", err)
+			if err := server.Emit(context.Background(), "replay.item", 0); err != nil {
+				t.Fatal(err)
 			}
-			if count != replayCount {
-				t.Fatalf("replay result = %d, want %d", count, replayCount)
-			}
-			for want := range replayCount {
-				if got := receive(t, received); got != want {
-					t.Fatalf("replay sequence = %d, want %d", got, want)
+			// Hold the transport's current write, then fill precisely the bounded
+			// handoff. Each successful emit has been accepted without a reader.
+			receive(t, control.started)
+			for sequence := 1; sequence <= capacity; sequence++ {
+				if err := server.Emit(context.Background(), "replay.item", sequence); err != nil {
+					t.Fatalf("accepted prefix item %d: %v", sequence, err)
 				}
 			}
-			select {
-			case err := <-decodeErrors:
-				t.Fatalf("invalid replay payload: %v", err)
-			default:
+			allowWrites()
+			for want := range capacity + 1 {
+				if got := receive(t, received); got != want {
+					t.Fatalf("accepted sequence = %d, want %d", got, want)
+				}
 			}
 			var echo string
 			if err := client.Call(context.Background(), "echo", "still connected", &echo); err != nil || echo != "still connected" {
-				t.Fatalf("echo after replay = %q, error=%v", echo, err)
+				t.Fatalf("echo after accepted prefix = %q, error=%v", echo, err)
 			}
 			if client.Err() != nil || server.Err() != nil {
-				t.Fatalf("healthy replay disconnected peers: client=%v server=%v", client.Err(), server.Err())
+				t.Fatalf("accepted prefix disconnected peers: client=%v server=%v", client.Err(), server.Err())
 			}
 		})
 	}
 }
 
-func TestOutboundQueueCancellationDoesNotDisconnect(t *testing.T) {
+func TestOutboundQueuePreCancelledSendDoesNotDisconnect(t *testing.T) {
 	release := make(chan struct{})
 	var releaseOnce sync.Once
 	allowWrites := func() { releaseOnce.Do(func() { close(release) }) }
 	defer allowWrites()
-	control := &delayedWriteControl{delay: 50 * time.Millisecond, started: make(chan struct{}), gate: release}
+	control := &delayedWriteControl{started: make(chan struct{}), gate: release}
 	received := make(chan int, 4)
 	client, server := delayedWritePair(t, control, ws.Options{
 		QueueCapacity: 2,
-		WriteTimeout:  time.Second,
+		WriteTimeout:  5 * time.Second,
 		Handlers: map[string]ws.Handler{
 			"echo": func(_ context.Context, _ *ws.Peer, data json.RawMessage) (any, error) { return data, nil },
 		},
@@ -186,7 +180,7 @@ func TestOutboundQueueCancellationDoesNotDisconnect(t *testing.T) {
 	if err := server.Emit(context.Background(), "progress", 0); err != nil {
 		t.Fatal(err)
 	}
-	// Hold the first real write until the deadline assertion is complete. This
+	// Hold the first real write until the cancellation assertion is complete. This
 	// guarantees the two queued frames cannot drain, even on a heavily loaded host.
 	receive(t, control.started)
 	for _, value := range []int{1, 2} {
@@ -194,14 +188,14 @@ func TestOutboundQueueCancellationDoesNotDisconnect(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
-	defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 	err := server.Emit(ctx, "progress", 999)
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("full-queue caller cancellation = %v, want deadline exceeded", err)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("pre-cancelled send = %v, want context canceled", err)
 	}
 	if client.Err() != nil || server.Err() != nil {
-		t.Fatalf("caller deadline disconnected peers: client=%v server=%v", client.Err(), server.Err())
+		t.Fatalf("unadmitted cancellation disconnected peers: client=%v server=%v", client.Err(), server.Err())
 	}
 	allowWrites()
 	for want := range 3 {

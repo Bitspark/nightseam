@@ -29,7 +29,7 @@ func (f *file) bindingType(name string) string {
 	if parameter.IsFamily() {
 		return identFamilyBinding + "<" + name + ">"
 	}
-	return identTypeBinding
+	return "ValueAdapter<" + name + ">"
 }
 
 // Type parameters admit a value type; family parameters expose associated

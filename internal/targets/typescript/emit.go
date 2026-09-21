@@ -14,14 +14,16 @@ import (
 // file is one TypeScript file being emitted, and the prefix a type of the
 // family is spelled with: none in types.ts, Protocol. in index.ts.
 type file struct {
-	plan         *plan
-	family       *render.Family
-	config       Config
-	w            *emit.Writer
-	prefix       string
-	scope        []model.Parameter
-	codecs       []render.Use
-	scopedCodecs bool
+	plan              *plan
+	family            *render.Family
+	config            Config
+	w                 *emit.Writer
+	prefix            string
+	scope             []model.Parameter
+	codecs            []render.Use
+	scopedCodecs      bool
+	operationAdapters bool
+	adapterReceiver   string
 	// conversion is the namespace a live type's generated export/import is
 	// called through: none in types.ts, which declares them, and the
 	// re-exported module in index.ts, which only calls them.
@@ -86,10 +88,17 @@ func (f *file) imports(validators bool) {
 // family's wire description by the runtime.
 func emitTypes(f *file) {
 	p, fam := f.plan, f.family
-	f.linef("import { createValidator, withDeclaration, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
+	f.linef("import { createValidator, withDeclaration, DuplexError, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
 	f.linef("export type { %s, %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots)
 	f.imports(true)
 	f.liveImports()
+	f.linef("import type { ValueAdapter, ValueContext } from %s;", quote(f.config.Runtime))
+	if fam.Live {
+		f.linef("import { LiveOwner } from %s;", quote(f.config.Live))
+	}
+	if fam.HasProtocol() {
+		f.linef("import type { WireModelContext } from %s;", quote(f.config.Runtime))
+	}
 	for _, t := range fam.Types {
 		f.emitType(t)
 	}
@@ -104,16 +113,20 @@ func emitTypes(f *file) {
 	f.line("/** The family: its name and the wire types a slot of it draws on. */")
 	f.linef("export interface %s { readonly name: %s; %s }", identFamily, quote(fam.Name), strings.Join(drawn, "; "))
 	f.emitLive()
+	f.emitValueAdapters()
+	if fam.HasProtocol() {
+		f.emitWireModelTypes()
+	}
 	f.line("")
 	f.linef("const contractTypes = %s as unknown as WireFamily;", fam.Wire)
+	f.line("/** Canonical language-neutral declaration bytes, the input to wireDigest. */")
+	f.linef("export const %s = %s;", identWireDeclaration, quote(fam.Declaration))
+	f.line("/** SHA-256 of the canonical full declaration's exact UTF-8 bytes. */")
+	f.linef("export const %s = %s;", identWireDigest, quote(fam.WireDigest))
 	var validators []string
 	for _, family := range fam.References {
 		validators = append(validators, quote(family)+": validate_"+alias(family))
 	}
-	f.line("/** The family's canonical wire-visible declaration, including reachable imported contracts. */")
-	f.linef("export const %s = %s;", identWireDeclaration, quote(fam.Declaration))
-	f.linef("/** The SHA-256 digest of the exact UTF-8 bytes of %s. */", identWireDeclaration)
-	f.linef("export const %s = %s;", identWireDigest, quote(fam.WireDigest))
 	f.line("/** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */")
 	f.linef("export const %s = withDeclaration(createValidator(contractTypes, %s, { %s }), %s);", identValidateWire, identWireDigest, strings.Join(validators, ", "), identWireDeclaration)
 	f.line("/** This family bound: its name and its validator, to fill a family slot in another family's client. */")
@@ -202,188 +215,8 @@ func requestExpression(m render.Method) string {
 	return expression(m.Request)
 }
 
-// emitClient renders src/index.ts: the handler of what the server sends,
-// the caller side as an interface, the public errors as data, and the client
-// class with dial, attach and open.
-func emitClient(f *file) {
-	p, fam := f.plan, f.family
-	f.scope = familyScope(fam)
-	f.conversion = "conversion."
-	decl, args := f.declare(fam.Uses), apply(fam.Uses)
-	names := parameters(fam.Uses)
-	// slots is the argument every validation of a generic client passes:
-	// the families bound to the parameters, which validate what fills a slot.
-	slots, binding, pass := "", "", ""
-	if fam.Generic {
-		bind, give := make([]string, len(names)), make([]string, len(names))
-		for i, name := range names {
-			bind[i] = bindingName(name) + ": " + f.bindingType(name)
-			give[i] = bindingName(name)
-		}
-		slots = ", '$', this." + identSlotsField
-		binding = strings.Join(bind, ", ") + ", "
-		pass = strings.Join(give, ", ") + ", "
-	}
-	f.linef("import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection } from %s;", quote(f.config.Runtime))
-	f.linef("import type { Tunnel } from %s;", quote(f.config.Tunnel))
-	f.linef("import { %s } from './types.ts';", identValidateWire)
-	if fam.Live {
-		f.linef("import { liveOver, scopeOf, type LiveOwner } from %s;", quote(f.config.Live))
-		f.line("import * as conversion from './types.ts';")
-		f.liveSiblings()
-	}
-	if fam.Generic {
-		bindings := []string{identAnyFamily, identFamilyBinding, identTypeBinding, identSlots}
-		f.linef("import type { %s } from './types.ts';", strings.Join(bindings, ", "))
-	}
-	f.linef("import type * as %s from './types.ts';", identProtocol)
-	f.imports(false)
-	f.line("export * from './types.ts';")
-	f.line("export { DuplexError };")
-	f.line("/** Typed event handlers installed before the client reads its first frame. Omitted fields leave events unhandled. */")
-	f.w.Block(fmt.Sprintf("export interface %s%s {", identEvents, decl), "}", func() {
-		for _, e := range fam.Server.Events {
-			context := "EventContext"
-			if f.liveNeeded(e.Type) {
-				context += " & { owner: LiveOwner }"
-			}
-			f.linef("%s?: (data: %s, context: %s) => void | Promise<void>;", p.operations[e.Name], f.spell(e.Type), context)
-		}
-	})
-	f.w.Block(fmt.Sprintf("export interface %s%s {", identHandler, decl), "}", func() {
-		for _, m := range fam.Client.Methods {
-			if m.Description != "" {
-				f.linef("/** %s */", comment(m.Description))
-			}
-			context := "RequestContext"
-			if f.liveNeeded(m.Request, m.Result) {
-				context += " & { owner: LiveOwner }"
-			}
-			f.linef("%s(params: %s, context: %s): %s | Promise<%s>;", p.operations[m.Name], f.request(m), context, f.spell(m.Result), f.spell(m.Result))
-		}
-	})
-	// The protocol's caller side as an interface, which the client class
-	// implements; a consumer may stand another implementation in its place.
-	f.w.Block(fmt.Sprintf("export interface %s%s {", identCaller, decl), "}", func() {
-		for _, m := range fam.Server.Methods {
-			f.linef("%s(%s): Promise<%s>;", p.operations[m.Name], f.parameters(m), f.spell(m.Result))
-		}
-	})
-	// The public errors the family declares: what a DuplexError's code may
-	// be, by name.
-	if len(fam.Errors) > 0 {
-		var members []string
-		for _, e := range fam.Errors {
-			member := ""
-			if e.Description != "" {
-				member = "/** " + comment(e.Description) + " */ "
-			}
-			members = append(members, member+p.errors[e.Code]+": "+quote(e.Code))
-		}
-		f.line("/** The public errors of the family: what the code of a DuplexError a call rejects with may be. */")
-		f.linef("export const %s = { %s } as const;", identErrors, strings.Join(members, ", "))
-		f.line("/** One of the family's public error codes. */")
-		f.linef("export type %s = (typeof %s)[keyof typeof %s];", identErrorCode, identErrors, identErrors)
-	}
-	f.w.Block(fmt.Sprintf("export class %s%s implements %s%s {", identClient, decl, identCaller, args), "}", func() {
-		f.linef("readonly %s: DuplexPeer;", identPeer)
-		var made []string
-		if fam.Generic {
-			for _, name := range names {
-				f.linef("/** The argument bound to %s validates values in its declaration scope. */", name)
-				f.linef("readonly %s: %s;", bindingName(name), f.bindingType(name))
-				made = append(made, quote(name)+": "+bindingName(name))
-			}
-			f.linef("readonly %s: %s;", identSlotsField, identSlots)
-		}
-		f.w.Block(fmt.Sprintf("%s(peer: DuplexPeer, %shandler: %s%s | undefined, events: %s%s) {", identConstructor, binding, identHandler, args, identEvents, args), "}", func() {
-			f.linef("this.%s = peer;", identPeer)
-			if fam.Generic {
-				for _, name := range names {
-					f.linef("this.%s = %s;", bindingName(name), bindingName(name))
-				}
-				f.linef("this.%s = { %s };", identSlotsField, strings.Join(made, ", "))
-			}
-			if fam.Live {
-				f.line("/** The live layer is made over the peer before it reads, as a tunnel is: a peer already reading would refuse the first live.invoke. */")
-				f.line("if (!scopeOf(peer)) liveOver(peer, {});")
-			}
-			for _, m := range fam.Client.Methods {
-				f.line("if (!handler) throw new Error('reverse-call handler is required');")
-				if f.liveNeeded(m.Request, m.Result) {
-					f.linef("peer.handle(%s, async (raw, context) => { %s try { %s(%s, raw%s); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const params = %s; const result = await handler.%s(params as %s, ownedContext); return %s; });",
-						quote(m.Name), f.liveOwner(true), identValidateWire, requestExpression(m), slots,
-						f.liveConversion(m.Request, "raw", false), p.operations[m.Name], f.request(m),
-						f.liveExport(m.Result, "result", slots))
-					continue
-				}
-				f.linef("peer.handle(%s, async (params, context) => { try { %s(%s, params%s); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, context); %s(%s, result%s); return result; });", quote(m.Name), identValidateWire, requestExpression(m), slots, p.operations[m.Name], f.request(m), identValidateWire, expression(m.Result), slots)
-			}
-			for _, e := range fam.Server.Events {
-				f.linef("if (events.%s) this.%s%s(events.%s);", p.operations[e.Name], identOn, upperFirst(p.operations[e.Name]), p.operations[e.Name])
-			}
-		})
-		f.line("/** Connects to a WebSocket endpoint and speaks the family over it. */")
-		f.linef("static async dial%s(url: string, %soptions: PeerOptions, handler: %s%s | undefined, events: %s%s): Promise<%s%s> { const peer = new DuplexPeer(%s); const client = new %s%s(peer, %shandler, events); await peer.connect(url); return client; }", decl, binding, identHandler, args, identEvents, args, identClient, args, labelled(fam), identClient, args, pass)
-		f.line("/** Speaks the family over a connection of the seam — a tunnel channel, a pipe, an open socket — as the client side of it. */")
-		f.linef("static async attach%s(connection: FrameConnection, %soptions: PeerOptions, handler: %s%s | undefined, events: %s%s): Promise<%s%s> { const peer = new DuplexPeer(%s); const client = new %s%s(peer, %shandler, events); await peer.attach(connection); return client; }", decl, binding, identHandler, args, identEvents, args, identClient, args, labelled(fam), identClient, args, pass)
-		f.line("/** Resolves a handle to the channel it names on a tunnel and speaks the family over it. */")
-		f.linef("static async open%s(tunnel: Tunnel, handle: %sHandle, %soptions: PeerOptions, handler: %s%s | undefined, events: %s%s): Promise<%s%s> { const channel = tunnel.channel(handle.channel); if (!channel) throw new Error('no channel ' + handle.channel + ' on the connection'); return %s.attach%s(channel, %soptions, handler, events); }", decl, f.prefix, binding, identHandler, args, identEvents, args, identClient, args, identClient, args, pass)
-		f.linef("%s(): void { this.%s.close(); }", identClose, identPeer)
-		for _, m := range fam.Server.Methods {
-			initial := ""
-			if m.Request == nil {
-				initial = "const params = {}; "
-			}
-			if m.Description != "" {
-				f.linef("/** %s */", comment(m.Description))
-			}
-			if f.liveNeeded(m.Request, m.Result) {
-				f.linef("async %s(%s): Promise<%s> { %s%s const result = await %s; %s(%s, result%s); return %s; }",
-					p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, f.liveOwner(false),
-					f.livePublish(m.Request, "params", slots, fmt.Sprintf("this.%s.call<unknown>(%s, %%s, options)", identPeer, quote(m.Name))),
-					identValidateWire, expression(m.Result), slots,
-					f.liveConversion(m.Result, "result", false))
-				continue
-			}
-			f.linef("async %s(%s): Promise<%s> { %s%s(%s, params%s); const result = await this.%s.call<%s>(%s, params, options); %s(%s, result%s); return result; }", p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, identValidateWire, requestExpression(m), slots, identPeer, f.spell(m.Result), quote(m.Name), identValidateWire, expression(m.Result), slots)
-		}
-		for _, e := range fam.Client.Events {
-			if f.liveNeeded(e.Type) {
-				f.linef("async %s%s(data: %s, options?: EmitOptions & { owner?: LiveOwner }): Promise<void> { %s await %s; }",
-					identEmit, upperFirst(p.operations[e.Name]), f.spell(e.Type), f.liveOwner(false),
-					f.livePublish(e.Type, "data", slots, fmt.Sprintf("this.%s.emit(%s, %%s, options)", identPeer, quote(e.Name))))
-				continue
-			}
-			f.linef("async %s%s(data: %s, options?: EmitOptions): Promise<void> { %s(%s, data%s); await this.%s.emit(%s, data, options); }", identEmit, upperFirst(p.operations[e.Name]), f.spell(e.Type), identValidateWire, expression(e.Type), slots, identPeer, quote(e.Name))
-		}
-		for _, e := range fam.Server.Events {
-			data := f.spell(e.Type)
-			if f.liveNeeded(e.Type) {
-				f.linef("%s%s(handler: (data: %s, context: EventContext & { owner: LiveOwner }) => void | Promise<void>): () => void { return this.%s.onEvent(%s, (raw, context) => { %s try { %s(%s, raw%s); } catch(error) { this.%s.close(); throw error; } return handler(%s, ownedContext); }); }",
-					identOn, upperFirst(p.operations[e.Name]), data, identPeer, quote(e.Name), f.liveOwner(true),
-					identValidateWire, expression(e.Type), slots, identPeer, f.liveConversion(e.Type, "raw", false))
-				continue
-			}
-			f.linef("%s%s(handler: (data: %s, context: EventContext) => void | Promise<void>): () => void { return this.%s.onEvent(%s, (data, context) => { try { %s(%s, data%s); } catch(error) { this.%s.close(); throw error; } return handler(data as %s, context); }); }", identOn, upperFirst(p.operations[e.Name]), data, identPeer, quote(e.Name), identValidateWire, expression(e.Type), slots, identPeer, data)
-		}
-	})
-}
-
-// labelled is the options a peer of the family is made with: the caller's,
-// carrying the family label of every method and event of the family — both
-// sides, whichever side this peer is — beside whatever the caller labelled.
-// An observer then says which family a name belongs to without parsing it.
-// It is spelled where the peer is made, so that nothing of it is declared
-// at the module and a family may name what it likes. open makes no peer of
-// its own; it resolves the handle and attaches.
-func labelled(fam *render.Family) string {
-	labels := []string{"...options.families"}
-	for _, name := range operations(fam) {
-		labels = append(labels, quote(name)+": "+quote(fam.Name))
-	}
-	return "{ ...options, families: { " + strings.Join(labels, ", ") + " } }"
-}
+// emitClient renders the adapter of the client model, sharing the side types.
+func emitClient(f *file) { emitWireAdapter(f, "Client", "'./types.ts'") }
 
 // operations is every method and event name a family declares, each side's
 // methods before each side's events, in the order the sides hold them.
@@ -407,19 +240,6 @@ func operations(fam *render.Family) []string {
 		appendName(e.Name)
 	}
 	return names
-}
-
-// parameters is a method's signature: its params, when it takes any, and
-// the call's options.
-func (f *file) parameters(m render.Method) string {
-	options := "options?: CallOptions"
-	if f.liveNeeded(m.Request, m.Result) {
-		options += " & { owner?: LiveOwner }"
-	}
-	if m.Request == nil {
-		return options
-	}
-	return "params: " + f.request(m) + ", " + options
 }
 
 // list renders names as a JSON array, an absent list as an empty one.

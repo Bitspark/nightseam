@@ -655,6 +655,33 @@ function validate(expression: Expression, value: unknown, location: string): voi
   }
 }
 
+function boundScope(slots: Slots, active = new Set<Slots>()): Scope {
+  if (active.has(slots)) throw new Error('cyclic type argument bindings');
+  active.add(slots);
+  try {
+    const scope: Scope = Object.create(null) as Scope;
+    for (const [parameter, binding] of Object.entries(slots)) {
+      scalarValue(parameter);
+      if ('type' in binding) {
+        scalarValue(binding.type);
+        checkPatterns(binding.type);
+        scope[parameter] = {
+          type: {
+            schema: binding.validate[descriptor],
+            value: binding.type,
+            scope: boundScope(binding.slots ?? {}, active),
+          },
+        };
+      } else {
+        scope[parameter] = { family: binding.validate[descriptor] };
+      }
+    }
+    return scope;
+  } finally {
+    active.delete(slots);
+  }
+}
+
 function validDeclarationDigest(digest: string): boolean {
   return digest === '' || /^[0-9a-f]{64}$/.test(digest);
 }
@@ -677,16 +704,7 @@ export function createValidator(
     scalarValue(type);
     scalarValue(value);
     checkPatterns(type);
-    const scope: Scope = Object.create(null) as Scope;
-    for (const [parameter, binding] of Object.entries(slots)) {
-      scalarValue(parameter);
-      if ('type' in binding) scalarValue(binding.type);
-      if ('type' in binding) checkPatterns(binding.type);
-      scope[parameter] =
-        'type' in binding
-          ? { type: { schema: binding.validate[descriptor], value: binding.type, scope: {} } }
-          : { family: binding.validate[descriptor] };
-    }
+    const scope = boundScope(slots);
     validate({ schema, value: type, scope }, value, location);
   };
   return Object.assign(validateWire, { [descriptor]: schema });

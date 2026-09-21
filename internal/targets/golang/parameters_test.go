@@ -22,7 +22,7 @@ func TestTypeParametersDoNotRequireFamilyTags(t *testing.T) {
 		if strings.Contains(string(file.Data), "runtime.Of[TTag]") {
 			t.Fatal("a type parameter acquired a family constraint")
 		}
-		if strings.HasSuffix(file.Path, "client_generated.go") && !strings.Contains(string(file.Data), "func Dial[T any]") {
+		if strings.HasSuffix(file.Path, "client_generated.go") && !strings.Contains(string(file.Data), "func ToWire[T any]") {
 			t.Fatalf("type-only entry signature is missing: %s", file.Data)
 		}
 	}
@@ -60,7 +60,7 @@ func TestMixedParametersConstrainOnlyFamilyDraws(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, file := range files {
-		if strings.HasSuffix(file.Path, "client_generated.go") && !strings.Contains(string(file.Data), "func Dial[T any, SEnvelope runtime.Of[STag], STag any]") {
+		if strings.HasSuffix(file.Path, "client_generated.go") && !strings.Contains(string(file.Data), "func ToWire[T any, SEnvelope runtime.Of[STag], STag any]") {
 			t.Fatalf("mixed entry signature is missing: %s", file.Data)
 		}
 	}

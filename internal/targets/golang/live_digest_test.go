@@ -46,11 +46,12 @@ func TestIncomingValidationPreservesContractMismatch(t *testing.T) {
 			continue
 		}
 		source := string(file.Data)
-		if got := strings.Count(source, `public.Code == "contract_mismatch"`); got != 3 {
-			t.Errorf("%s preserves %d validation/import/decode refusals, want 3", file.Path, got)
+		// Each package now contains both sides' model adapters.
+		if got := strings.Count(source, `public.Code == "contract_mismatch"`); got != 6 {
+			t.Errorf("%s preserves %d validation/import/decode refusals, want 6", file.Path, got)
 		}
-		if got := strings.Count(source, `Code: "invalid_params"`); got != 3 {
-			t.Errorf("%s keeps %d ordinary invalid-parameter paths, want 3", file.Path, got)
+		if got := strings.Count(source, `Code: "invalid_params"`); got != 6 {
+			t.Errorf("%s keeps %d ordinary invalid-parameter paths, want 6", file.Path, got)
 		}
 	}
 }

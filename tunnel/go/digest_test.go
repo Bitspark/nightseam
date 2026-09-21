@@ -18,7 +18,7 @@ func TestChannelDigestRefusedBeforeAdmission(t *testing.T) {
 	contracts["probe"] = second // Configuration is captured, not consumer-owned mutable state.
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	if channel, err := client.Open(ctx, "probe", second); err == nil || channel != nil {
+	if channel, err := client.OpenConnection(ctx, "probe", second); err == nil || channel != nil {
 		t.Fatalf("different declaration admitted: %v, %v", channel, err)
 	} else {
 		var public *runtime.PublicError
@@ -26,11 +26,11 @@ func TestChannelDigestRefusedBeforeAdmission(t *testing.T) {
 			t.Fatalf("wrong identity refusal: %v", err)
 		}
 	}
-	opened, err := client.Open(ctx, "probe", first)
+	opened, err := client.OpenConnection(ctx, "probe", first)
 	if err != nil {
 		t.Fatal(err)
 	}
-	accepted, err := server.Accept(ctx)
+	accepted, err := server.AcceptConnection(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,11 +45,11 @@ func TestChannelDigestAbsenceAndMalformedValues(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	for _, row := range []struct{ family, digest string }{{"probe", ""}, {"untyped", digest}} {
-		opened, err := client.Open(ctx, row.family, row.digest)
+		opened, err := client.OpenConnection(ctx, row.family, row.digest)
 		if err != nil {
 			t.Fatal(err)
 		}
-		accepted, err := server.Accept(ctx)
+		accepted, err := server.AcceptConnection(ctx)
 		if err != nil || accepted.Digest != row.digest || accepted.ID != opened.ID {
 			t.Fatalf("absent identity: %+v %v", accepted, err)
 		}

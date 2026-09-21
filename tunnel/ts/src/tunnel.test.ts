@@ -4,7 +4,7 @@ import { DuplexPeer, DuplexError } from '@nightseam/runtime';
 import type { ObserverEvent } from '@nightseam/runtime';
 import { pipe } from '@nightseam/duplex';
 import type { Frame } from '@nightseam/duplex';
-import { Tunnel, type Channel, type TunnelOptions } from './index.ts';
+import { Tunnel, type Connection, type TunnelOptions } from './index.ts';
 
 /** The five a tunnel adds to the runtime's ten, which is how they are told apart here. */
 const TUNNEL_EVENTS = new Set(['channel.opened', 'channel.accepted', 'channel.closed', 'credit.stall', 'open.refused']);
@@ -20,12 +20,12 @@ test('a different channel digest is refused before admission and configuration i
   });
   contracts.probe = second;
   await assert.rejects(
-    ct.open('probe', second),
+    ct.openConnection('probe', second),
     (error: unknown) =>
       error instanceof DuplexError && error.code === 'contract_mismatch' && error.message.includes('probe'),
   );
-  const opened = await ct.open('probe', first);
-  const accepted = await st.accept();
+  const opened = await ct.openConnection('probe', first);
+  const accepted = await st.acceptConnection();
   assert.equal(opened.digest, first);
   assert.equal(accepted.digest, first);
   assert.equal(accepted.id, opened.id);
@@ -42,8 +42,8 @@ test('a channel permits an absent digest but refuses malformed present digest me
     ['probe', ''],
     ['untyped', digest],
   ] as const) {
-    const opened = await ct.open(family, revision);
-    const accepted = await st.accept();
+    const opened = await ct.openConnection(family, revision);
+    const accepted = await st.acceptConnection();
     assert.equal(accepted.digest, revision);
     assert.equal(accepted.id, opened.id);
   }
@@ -65,7 +65,7 @@ test('a send on a closed channel is a coded disconnection', async (t) => {
   assert.throws(() => channel.send({ kind: 'text', data: 'late' }), {
     name: 'DuplexError',
     code: 'disconnected',
-    message: 'Channel is not open.',
+    message: 'Connection is not open.',
   });
 });
 
@@ -106,14 +106,14 @@ async function tunnels(options: TunnelOptions = {}) {
 }
 
 /** One channel opened by the client and accepted by the server. */
-async function pair(ct: Tunnel, st: Tunnel, family = 'probe'): Promise<[Channel, Channel]> {
-  const accepted = st.accept();
-  const opened = await ct.open(family, '');
+async function pair(ct: Tunnel, st: Tunnel, family = 'probe'): Promise<[Connection, Connection]> {
+  const accepted = st.acceptConnection();
+  const opened = await ct.openConnection(family, '');
   return [opened, await accepted];
 }
 
 /** The frames a connection delivers, and a promise of the next one not yet taken. */
-function collect(channel: Channel) {
+function collect(channel: Connection) {
   const frames: Frame[] = [];
   const waiters: ((frame: Frame) => void)[] = [];
   let taken = 0;
@@ -150,8 +150,8 @@ test('a channel opens, carries frames both ways in order, text and binary, and a
   assert.equal(opened.id % 2, 1);
   assert.equal(accepted.id, opened.id);
   assert.equal(accepted.family, 'probe');
-  assert.equal(st.channel(opened.id), accepted);
-  assert.equal(ct.channel(opened.id), opened);
+  assert.equal(st.connection(opened.id), accepted);
+  assert.equal(ct.connection(opened.id), opened);
   const atServer = collect(accepted);
   const atClient = collect(opened);
   opened.send({ kind: 'text', data: 'one' });
@@ -178,7 +178,7 @@ test('either side opens, and ids never collide', async () => {
   const fromServer = await pair(st, ct, 'codex');
   assert.equal(fromClient[0].id % 2, 1);
   assert.equal(fromServer[0].id % 2, 0);
-  assert.equal(ct.channel(fromServer[0].id), fromServer[1]);
+  assert.equal(ct.connection(fromServer[0].id), fromServer[1]);
 });
 
 test('a close carries its code and reason across, after what was sent before it', async () => {
@@ -194,7 +194,7 @@ test('a close carries its code and reason across, after what was sent before it'
   assert.equal(accepted.state, 'closed');
   assert.equal(opened.state, 'closed');
   assert.throws(() => opened.send({ kind: 'text', data: 'late' }));
-  assert.equal(st.channel(opened.id), undefined);
+  assert.equal(st.connection(opened.id), undefined);
 });
 
 test('credit paces the sender: beyond the window a frame waits in the channel until the receiver takes one', async () => {
@@ -231,13 +231,13 @@ test('a frame over the limit is refused, and the channel with it', async () => {
 
 test('an open beyond the accept capacity is refused, and the tunnel stands', async () => {
   const { ct } = await tunnels({ acceptCapacity: 1 });
-  await ct.open('probe', '');
+  await ct.openConnection('probe', '');
   await assert.rejects(
-    ct.open('probe', ''),
+    ct.openConnection('probe', ''),
     (error: unknown) => error instanceof DuplexError && error.code === 'channel_refused',
   );
   await assert.rejects(
-    ct.open('', ''),
+    ct.openConnection('', ''),
     (error: unknown) => error instanceof DuplexError && error.code === 'channel_invalid',
   );
 });
@@ -269,7 +269,7 @@ test('the connection carrying the channels closing ends every channel with going
   const atClient = collect(opened);
   const atServer = collect(accepted);
   const rejected = assert.rejects(
-    st.accept(),
+    st.acceptConnection(),
     (error: unknown) => error instanceof DuplexError && error.code === 'disconnected',
   );
   server.close();
@@ -403,13 +403,13 @@ test('a send beyond the window stalls, and the stall says which channel and how 
 
 test('an open that becomes no channel is refused where it was refused and where it was asked', async () => {
   const { ct, seenByClient, seenByServer } = await tunnels({ acceptCapacity: 1 });
-  await ct.open('probe', '');
+  await ct.openConnection('probe', '');
   await assert.rejects(
-    ct.open('codex', ''),
+    ct.openConnection('codex', ''),
     (error: unknown) => error instanceof DuplexError && error.code === 'channel_refused',
   );
   await assert.rejects(
-    ct.open('', ''),
+    ct.openConnection('', ''),
     (error: unknown) => error instanceof DuplexError && error.code === 'channel_invalid',
   );
   // The side that refused it says why in its own words; the side that asked

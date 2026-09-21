@@ -12,8 +12,8 @@ import (
 	"github.com/Bitspark/nightseam/internal/spi"
 )
 
-// Scaffold writes the server's handler: a type implementing the binding
-// package's Handler with every method returning an unimplemented error,
+// Scaffold writes the server's handler: a type implementing the shared
+// protocol's ServerMethods with every method returning an unimplemented error,
 // for the consumer to fill in. A generic family's handler is generic in
 // the same type parameters. A model-only family has no handler to implement.
 func (t *target) Scaffold(f *render.Family, dir string) ([]spi.File, error) {
@@ -28,18 +28,18 @@ func (t *target) Scaffold(f *render.Family, dir string) ([]spi.File, error) {
 		return nil, fmt.Errorf("the family does not pass the Go target's check: %s", diagnostics[0])
 	}
 	ctx := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("\t"), imports: &emit.Imports{}, prefix: "protocol.", uses: f.Uses}
-	binding := ctx.use("binding", t.config.Module+"/"+expand(t.config.layout(f.Name).Binding, f.Name))
+	protocol := strings.TrimSuffix(ctx.proto(), ".")
 	decl, args := declare(f.Uses), apply(f.Uses)
 	ctx.linef("// Handler is the behavior of the %s family's server side: what its", f.Name)
-	ctx.linef("// binding's %s.Handler%s declares, one method per operation the server", binding, args)
+	ctx.linef("// protocol's %s.ServerMethods%s declares, one method per operation the server", protocol, args)
 	ctx.line("// implements. Fill the methods in; nightseam wrote this file once and will")
 	ctx.line("// not touch it again.")
 	ctx.linef("type Handler%s struct{}", decl)
 	ctx.line("")
 	if f.Generic {
-		ctx.linef("func _%s() { var _ %s.Handler%s = Handler%s{} }", decl, binding, args, args)
+		ctx.linef("func _%s() { var _ %s.ServerMethods%s = Handler%s{} }", decl, protocol, args, args)
 	} else {
-		ctx.linef("var _ %s.Handler = Handler{}", binding)
+		ctx.linef("var _ %s.ServerMethods = Handler{}", protocol)
 	}
 	for _, m := range f.Server.Methods {
 		ctx.line("")
@@ -47,7 +47,7 @@ func (t *target) Scaffold(f *render.Family, dir string) ([]spi.File, error) {
 			ctx.linef("// %s: %s", p.operations[m.Name], m.Description)
 		}
 		result := ctx.spell(m.Result)
-		ctx.w.Block(fmt.Sprintf("func (Handler%s) %s(ctx %s.Context, remote *%s.Remote%s%s) (%s, error) {", args, p.operations[m.Name], ctx.std("context"), binding, args, ctx.request(m), result), "}", func() {
+		ctx.w.Block(fmt.Sprintf("func (Handler%s) %s(ctx %s.Context%s) (%s, error) {", args, p.operations[m.Name], ctx.std("context"), ctx.request(m), result), "}", func() {
 			ctx.linef("var result %s", result)
 			ctx.linef("return result, &%s.PublicError{Code: \"unimplemented\", Message: %q}", ctx.runtime(), m.Name+" is not implemented")
 		})

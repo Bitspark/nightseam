@@ -43,19 +43,19 @@ func peers(t *testing.T, options tunnel.Options) (client, server *tunnel.Tunnel)
 }
 
 // pair opens one channel from the client and accepts it at the server.
-func pair(t *testing.T, client, server *tunnel.Tunnel) (opened, accepted *tunnel.Channel) {
+func pair(t *testing.T, client, server *tunnel.Tunnel) (opened, accepted *tunnel.Connection) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	done := make(chan *tunnel.Channel, 1)
+	done := make(chan *tunnel.Connection, 1)
 	go func() {
-		c, err := server.Accept(ctx)
+		c, err := server.AcceptConnection(ctx)
 		if err != nil {
 			t.Error(err)
 		}
 		done <- c
 	}()
-	opened, err := client.Open(ctx, "probe", "")
+	opened, err := client.OpenConnection(ctx, "probe", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestChannelIsAConn(t *testing.T) {
 func TestChannelIsAConnOverWebSocket(t *testing.T) {
 	duplextest.Run(t, func(t *testing.T, limit int64) (duplex.Conn, duplex.Conn) {
 		options := tunnel.Options{MaxFrameBytes: limit}
-		accepted := make(chan *tunnel.Channel, 1)
+		accepted := make(chan *tunnel.Connection, 1)
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var tn *tunnel.Tunnel
 			peer, err := runtime.Accept(w, r, runtime.ServerOptions{
@@ -94,7 +94,7 @@ func TestChannelIsAConnOverWebSocket(t *testing.T) {
 			if err != nil {
 				return
 			}
-			c, err := tn.Accept(peer.Context())
+			c, err := tn.AcceptConnection(peer.Context())
 			if err != nil {
 				return
 			}
@@ -116,7 +116,7 @@ func TestChannelIsAConnOverWebSocket(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { peer.Close() })
-		opened, err := tn.Open(ctx, "probe", "")
+		opened, err := tn.OpenConnection(ctx, "probe", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -136,27 +136,27 @@ func TestBothSidesOpen(t *testing.T) {
 	client, server := peers(t, tunnel.Options{})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	fromClient, err := client.Open(ctx, "probe", "")
+	fromClient, err := client.OpenConnection(ctx, "probe", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	fromServer, err := server.Open(ctx, "codex", "")
+	fromServer, err := server.OpenConnection(ctx, "codex", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if fromClient.ID%2 != 1 || fromServer.ID%2 != 0 {
 		t.Fatalf("ids %d and %d are not the openers' parities", fromClient.ID, fromServer.ID)
 	}
-	atServer, ok := server.Channel(fromClient.ID)
+	atServer, ok := server.Connection(fromClient.ID)
 	if !ok || atServer.Family != "probe" {
 		t.Fatalf("the server resolved %+v", atServer)
 	}
-	atClient, ok := client.Channel(fromServer.ID)
+	atClient, ok := client.Connection(fromServer.ID)
 	if !ok || atClient.Family != "codex" {
 		t.Fatalf("the client resolved %+v", atClient)
 	}
 	short, stop := context.WithTimeout(ctx, 200*time.Millisecond)
-	if c, err := server.Accept(short); err == nil {
+	if c, err := server.AcceptConnection(short); err == nil {
 		t.Fatalf("a resolved channel was accepted again: %d", c.ID)
 	}
 	stop()
@@ -166,7 +166,7 @@ func TestBothSidesOpen(t *testing.T) {
 	if frame, err := atClient.Receive(ctx); err != nil || string(frame.Data) != "down" {
 		t.Fatalf("received %q, %v", frame.Data, err)
 	}
-	if _, ok := client.Channel(99); ok {
+	if _, ok := client.Connection(99); ok {
 		t.Fatal("an unknown id resolved")
 	}
 }
@@ -179,7 +179,7 @@ func TestOuterCloseEndsEveryChannel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	server.Peer().Close()
-	for _, c := range []*tunnel.Channel{a, b} {
+	for _, c := range []*tunnel.Connection{a, b} {
 		_, err := c.Receive(ctx)
 		var closed *duplex.CloseError
 		if !errors.As(err, &closed) || closed.Code != duplex.CodeGoingAway {
@@ -274,15 +274,15 @@ func TestOpenIsRefusedWhenNobodyAccepts(t *testing.T) {
 	client, _ := peers(t, tunnel.Options{AcceptCapacity: 1})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if _, err := client.Open(ctx, "probe", ""); err != nil {
+	if _, err := client.OpenConnection(ctx, "probe", ""); err != nil {
 		t.Fatal(err)
 	}
-	_, err := client.Open(ctx, "probe", "")
+	_, err := client.OpenConnection(ctx, "probe", "")
 	var public *runtime.PublicError
 	if !errors.As(err, &public) || public.Code != tunnel.ErrorRefused {
 		t.Fatalf("the second open: %v", err)
 	}
-	if _, err := client.Open(ctx, "", ""); err == nil {
+	if _, err := client.OpenConnection(ctx, "", ""); err == nil {
 		t.Fatal("a channel of no family opened")
 	}
 }

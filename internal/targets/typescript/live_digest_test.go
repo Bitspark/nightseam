@@ -46,11 +46,12 @@ func TestIncomingValidationPreservesContractMismatch(t *testing.T) {
 			continue
 		}
 		source := string(file.Data)
-		if got := strings.Count(source, "if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error;"); got != 2 {
-			t.Errorf("%s preserves %d incoming refusals, want 2", file.Path, got)
+		// Each package now contains both sides' model adapters.
+		if got := strings.Count(source, "if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error;"); got != 4 {
+			t.Errorf("%s preserves %d incoming refusals, want 4", file.Path, got)
 		}
-		if got := strings.Count(source, "throw new DuplexError('invalid_params', String(error));"); got != 2 {
-			t.Errorf("%s keeps %d ordinary invalid-parameter paths, want 2", file.Path, got)
+		if got := strings.Count(source, "throw new DuplexError('invalid_params', String(error));"); got != 4 {
+			t.Errorf("%s keeps %d ordinary invalid-parameter paths, want 4", file.Path, got)
 		}
 	}
 }

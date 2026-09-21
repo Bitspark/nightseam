@@ -12,6 +12,18 @@ import (
 // establishes whether the payload could have reached the other side.
 func (f *file) publishBoundary(e model.TypeExpr, src, dst string, publish func()) {
 	json := f.std("json")
+	if f.adapters {
+		f.w.Block(fmt.Sprintf("%s, err := func() (%s.RawMessage, error) {", dst, json), "}()", func() {
+			f.w.Block(fmt.Sprintf("build := func(owner *%s.Owner) (%s.RawMessage, error) {", f.live(), json), "}", func() {
+				f.liveBoundary(e, src, "sent", true)
+				f.line("return sent, err")
+			})
+			f.w.Block(fmt.Sprintf("publish := func(sent %s.RawMessage) (%s.RawMessage, error) {", json, json), "}", publish)
+			f.linef("if %s { return owner.PublishValue(build, publish) }", f.expressionLive(e))
+			f.line("sent, err := build(owner); if err != nil { return nil, err }; return publish(sent)")
+		})
+		return
+	}
 	f.w.Block(fmt.Sprintf("%s, err := owner.PublishValue(", dst), ")", func() {
 		f.w.Block(fmt.Sprintf("func(owner *%s.Owner) (%s.RawMessage, error) {", f.live(), json), "},", func() {
 			f.liveBoundary(e, src, "sent", true)
@@ -25,6 +37,10 @@ func (f *file) publishBoundary(e model.TypeExpr, src, dst string, publish func()
 // anonymous containers and applications) use the same recursive conversion.
 func (f *file) liveBoundary(e model.TypeExpr, src, dst string, export bool) {
 	result := f.spell(e)
+	if f.adapters && f.needsConversion(e) {
+		f.adapterBoundary(e, src, dst, export)
+		return
+	}
 	// Ordinary data needs no lifetime. In particular, releasing an owner is
 	// a barrier to new acquisitions, not a cancellation of a dispatched call
 	// that is returning a scalar or record without live positions.

@@ -3,144 +3,251 @@ package typescript
 import (
 	"fmt"
 	"strings"
+
+	"github.com/Bitspark/nightseam/internal/model"
+	"github.com/Bitspark/nightseam/internal/render"
 )
 
-// emitBinding supplies the served role over an already accepted connection.
-// Endpoint authentication and HTTP upgrade belong to the host. Protocol types
-// and live conversions are shared with the client, not generated a second time.
-func emitBinding(f *file) {
-	p, fam := f.plan, f.family
+func emitBinding(f *file) { emitWireAdapter(f, "Server", quote(f.config.pkg(f.family.Name)+"/types")) }
+
+// Both directions use one session-factory model. Methods and notifications
+// occupy separate facets, even when their declaration names are identical.
+func (f *file) emitWireModelTypes() {
+	f.scope = familyScope(f.family)
+	f.operationAdapters = true
+	decl, args := f.declare(f.family.Uses), apply(f.family.Uses)
+	for _, side := range []string{"Server", "Client"} {
+		methods, events := f.wireSide(side)
+		f.w.Block(fmt.Sprintf("export interface %sMethods%s {", side, decl), "}", func() {
+			for _, m := range methods {
+				f.linef("%s(params: %s, context?: %s): %s | Promise<%s>;", f.plan.operations[m.Name], f.request(m), f.lifetimeType("WireModelContext", "ValueContext", m.Request, m.Result), f.spell(m.Result), f.spell(m.Result))
+			}
+		})
+		f.w.Block(fmt.Sprintf("export interface %sEvents%s {", side, decl), "}", func() {
+			for _, e := range events {
+				f.linef("%s(data: %s, context?: %s): void | Promise<void>;", f.plan.operations[e.Name], f.spell(e.Type), f.lifetimeType("WireModelContext", "ValueContext", e.Type))
+			}
+		})
+		f.linef("export interface %s%s { methods: %sMethods%s; events: %sEvents%s; }", side, decl, side, args, side, args)
+	}
+	f.linef("export type ServerModel%s = (remote: Client%s) => Server%s;", decl, args, args)
+	f.linef("export type ClientModel%s = (remote: Server%s) => Client%s;", decl, args, args)
+	f.operationAdapters = false
+}
+
+// A side implements its own requests and receives the opposite side's events.
+func (f *file) wireSide(side string) ([]render.Method, []render.Event) {
+	if side == "Server" {
+		return f.family.Server.Methods, f.family.Client.Events
+	}
+	return f.family.Client.Methods, f.family.Server.Events
+}
+
+func emitWireAdapter(f *file, side, protocol string) {
+	fam := f.family
 	f.scope = familyScope(fam)
+	f.operationAdapters = true
+	f.adapterReceiver = "bindings."
 	f.conversion = "conversion."
 	decl, args := f.declare(fam.Uses), apply(fam.Uses)
-	names := parameters(fam.Uses)
-	var bind, give, made []string
-	for _, name := range names {
-		bind = append(bind, bindingName(name)+": "+f.bindingType(name))
-		give = append(give, bindingName(name))
-		made = append(made, quote(name)+": "+bindingName(name))
+	opposite := "Client"
+	if side == "Client" {
+		opposite = "Server"
 	}
-	binding, pass, slots := "", "", ""
-	if fam.Generic {
-		binding = strings.Join(bind, ", ") + ", "
-		pass = strings.Join(give, ", ") + ", "
-		slots = ", '$', this." + identSlotsField
-	}
-	protocol := quote(f.config.pkg(fam.Name) + "/types")
-	f.linef("import { DuplexPeer, DuplexError, type PeerOptions, type CallOptions, type EmitOptions, type RequestContext, type EventContext, type FrameConnection, type WebSocketLike } from %s;", quote(f.config.Runtime))
-	f.linef("import { %s } from %s;", identValidateWire, protocol)
-	f.linef("import type * as %s from %s;", identProtocol, protocol)
-	if fam.Generic {
-		f.linef("import type { AnyFamily, FamilyBinding, TypeBinding, Slots } from %s;", protocol)
-	}
+	live := fam.Live || familyValueSlots(fam)
+	f.linef("import { DuplexError, callWire, emitWire, registerWire, wirePair, type WireModelContext } from %s;", quote(f.config.Runtime))
+	f.line("import { encodePath, type Wire } from '@nightseam/duplex';")
+	f.linef("import type { AdapterContext, ValueAdapter, ValueContext } from %s;", quote(f.config.Runtime))
 	if fam.Live {
-		f.linef("import { liveOver, scopeOf, type LiveOwner } from %s;", quote(f.config.Live))
-		f.linef("import * as conversion from %s;", protocol)
-		f.liveSiblings()
+		f.linef("import type { LiveOwner } from %s;", quote(f.config.Live))
 	}
+	f.linef("import { validateWire } from %s;", protocol)
+	f.linef("import type * as Protocol from %s;", protocol)
+	f.linef("import type { AnyFamily, FamilyBinding, Slots } from %s;", protocol)
+	f.linef("import * as conversion from %s;", protocol)
+	f.liveSiblings()
 	f.imports(false)
 	f.linef("export * from %s;", protocol)
 	f.line("export { DuplexError };")
-	f.line("/** Typed handlers for the declaration's server side. */")
-	f.w.Block(fmt.Sprintf("export interface Handler%s {", decl), "}", func() {
-		for _, m := range fam.Server.Methods {
-			context := "RequestContext"
-			if f.liveNeeded(m.Request, m.Result) {
-				context += " & { owner: LiveOwner }"
-			}
-			f.linef("%s(params: %s, remote: Remote%s, context: %s): %s | Promise<%s>;", p.operations[m.Name], f.request(m), args, context, f.spell(m.Result), f.spell(m.Result))
+	f.line("export type { AdapterContext };")
+	var bind, pass, values []string
+	for _, name := range parameters(fam.Uses) {
+		bind = append(bind, bindingName(name)+": "+f.bindingType(name))
+		pass = append(pass, bindingName(name))
+		values = append(values, quote(name)+": "+f.bindingValue(name))
+	}
+	binding, passing := "", ""
+	if len(bind) > 0 {
+		binding = ", " + strings.Join(bind, ", ")
+		passing = ", " + strings.Join(pass, ", ")
+	}
+	f.w.Block(fmt.Sprintf("function makeAdapter%s(context: AdapterContext%s) {", decl, binding), "}", func() {
+		f.linef("const bindings = { %s };", strings.Join(pass, ", "))
+		f.linef("const slots: Slots = { %s };", strings.Join(values, ", "))
+		if live {
+			f.line("const environment = context.valueEnvironment;")
+			f.linef("if ((%s) && !environment) throw new DuplexError('scope_closed', 'model adaptation requires an explicit value environment');", f.familyLiveCondition())
 		}
+		for _, name := range []string{"Server", "Client"} {
+			f.emitWireProxy(name, args)
+			f.emitWireRegistration(name, args)
+		}
+		f.line("return { proxyServer, proxyClient, bindServer, bindClient };")
 	})
-	f.line("/** Client-originated event listeners installed before the connection reads its first frame. */")
-	f.w.Block(fmt.Sprintf("export interface Events%s {", decl), "}", func() {
-		for _, e := range fam.Client.Events {
-			context := "EventContext"
-			if f.liveNeeded(e.Type) {
-				context += " & { owner: LiveOwner }"
-			}
-			f.linef("%s?: (data: %s, context: %s) => void | Promise<void>;", p.operations[e.Name], f.spell(e.Type), context)
+	f.line("/** Exposes one model session at a new local wire origin. */")
+	f.w.Block(fmt.Sprintf("export function toWire%s(model: Protocol.%sModel%s, context: AdapterContext%s): Wire {", decl, side, args, binding), "}", func() {
+		f.linef("const adapter = makeAdapter%s(context%s);", args, passing)
+		labels := []string{"...context.options?.families"}
+		for _, name := range operations(fam) {
+			labels = append(labels, "[encodePath(["+quote(name)+"])]: "+quote(fam.Name))
 		}
+		f.linef("const [access, binding] = wirePair({ ...context.options, families: { %s } });", strings.Join(labels, ", "))
+		f.linef("try { const implementation = model(adapter.proxy%s(binding)); adapter.bind%s(binding, implementation); return access; } catch (error) { access.close(); throw error; }", opposite, side)
 	})
-	f.line("/** Typed reverse calls and events for one connected client. */")
-	f.w.Block(fmt.Sprintf("export class Remote%s {", decl), "}", func() {
-		f.line("readonly peer: DuplexPeer;")
-		if fam.Generic {
-			for _, name := range names {
-				f.linef("readonly %s: %s;", bindingName(name), f.bindingType(name))
-			}
-			f.line("readonly slots: Slots;")
+	f.line("/** Interprets a wire as the same model factory; the resulting session binds once. */")
+	f.w.Block(fmt.Sprintf("export async function fromWire%s(wire: Wire, context: AdapterContext%s): Promise<Protocol.%sModel%s> {", decl, binding, side, args), "}", func() {
+		f.linef("const adapter = makeAdapter%s(context%s);", args, passing)
+		f.line("let bound = false;")
+		f.w.Block("return remote => {", "};", func() {
+			f.line("if (bound) throw new DuplexError('already_bound', 'model already bound');")
+			f.line("bound = true;")
+			f.linef("adapter.bind%s(wire, remote);", opposite)
+			f.linef("return adapter.proxy%s(wire);", side)
+		})
+	})
+	if len(fam.Errors) > 0 {
+		var members []string
+		for _, e := range fam.Errors {
+			members = append(members, f.plan.errors[e.Code]+": "+quote(e.Code))
 		}
-		constructorBinding := strings.TrimSuffix(binding, ", ")
-		if constructorBinding != "" {
-			constructorBinding = ", " + constructorBinding
-		}
-		f.w.Block(fmt.Sprintf("constructor(peer: DuplexPeer%s) {", constructorBinding), "}", func() {
-			f.line("this.peer = peer;")
-			if fam.Generic {
-				for _, name := range names {
-					f.linef("this.%s = %s;", bindingName(name), bindingName(name))
+		f.linef("export const errors = { %s } as const;", strings.Join(members, ", "))
+		f.line("export type ErrorCode = (typeof errors)[keyof typeof errors];")
+	}
+}
+
+func (f *file) wireSlots() string {
+	if f.family.Generic {
+		return ", '$', slots"
+	}
+	return ""
+}
+
+func (f *file) emitWireProxy(side, args string) {
+	methods, events := f.wireSide(side)
+	slots := f.wireSlots()
+	f.w.Block(fmt.Sprintf("function proxy%s(wire: Wire): Protocol.%s%s {", side, side, args), "}", func() {
+		f.w.Block("return {", "};", func() {
+			f.w.Block("methods: {", "},", func() {
+				for _, m := range methods {
+					f.w.Block(fmt.Sprintf("async %s(params, context) {", f.plan.operations[m.Name]), "},", func() {
+						f.line("const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta };")
+						if f.liveNeeded(m.Request, m.Result) {
+							f.line(f.wireOwner(false, m.Request, m.Result))
+							f.linef("const result = await %s;", f.livePublish(m.Request, "params", slots, fmt.Sprintf("callWire(wire, [%s], %%s, options)", quote(m.Name))))
+							f.linef("validateWire(%s, result%s);", expression(m.Result), slots)
+							f.linef("return %s;", f.liveConversion(m.Result, "result", false))
+						} else {
+							f.linef("validateWire(%s, params%s);", requestExpression(m), slots)
+							f.linef("const result = await callWire<%s>(wire, [%s], params, options);", f.spell(m.Result), quote(m.Name))
+							f.linef("validateWire(%s, result%s);", expression(m.Result), slots)
+							f.line("return result;")
+						}
+					})
 				}
-				f.linef("this.slots = { %s };", strings.Join(made, ", "))
+			})
+			f.w.Block("events: {", "},", func() {
+				for _, e := range events {
+					f.w.Block(fmt.Sprintf("async %s(data, context) {", f.plan.operations[e.Name]), "},", func() {
+						f.line("const options = { context, meta: context?.outgoingMeta };")
+						if f.liveNeeded(e.Type) {
+							f.line(f.wireOwner(false, e.Type))
+							f.linef("await %s;", f.livePublish(e.Type, "data", slots, fmt.Sprintf("(async () => { emitWire(wire, [%s], %%s, options); })()", quote(e.Name))))
+						} else {
+							f.linef("validateWire(%s, data%s);", expression(e.Type), slots)
+							f.linef("emitWire(wire, [%s], data, options);", quote(e.Name))
+						}
+					})
+				}
+			})
+		})
+	})
+}
+
+func (f *file) emitWireRegistration(side, args string) {
+	methods, events := f.wireSide(side)
+	slots := f.wireSlots()
+	var names []string
+	byMethod, byEvent := map[string]render.Method{}, map[string]render.Event{}
+	for _, m := range methods {
+		names = append(names, m.Name)
+		byMethod[m.Name] = m
+	}
+	for _, e := range events {
+		if _, ok := byMethod[e.Name]; !ok {
+			names = append(names, e.Name)
+		}
+		byEvent[e.Name] = e
+	}
+	f.w.Block(fmt.Sprintf("function bind%s(wire: Wire, implementation: Protocol.%s%s): void {", side, side, args), "}", func() {
+		f.line("if (!implementation?.methods || !implementation.events) throw new Error('model methods and events are required');")
+		for _, m := range methods {
+			f.linef("if (typeof implementation.methods.%s !== 'function') throw new Error(%s);", f.plan.operations[m.Name], quote("handler for "+m.Name+" is required"))
+		}
+		for _, e := range events {
+			f.linef("if (typeof implementation.events.%s !== 'function') throw new Error(%s);", f.plan.operations[e.Name], quote("event handler for "+e.Name+" is required"))
+		}
+		f.line("const detach: Array<() => void> = [];")
+		f.w.Block("try {", "} catch (error) { for (const remove of detach.reverse()) remove(); throw error; }", func() {
+			for _, name := range names {
+				m, hasMethod := byMethod[name]
+				e, hasEvent := byEvent[name]
+				f.w.Block(fmt.Sprintf("detach.push(registerWire(wire, [%s], {", quote(name)), "}));", func() {
+					if hasMethod {
+						f.w.Block("request: async (raw, context) => {", "},", func() {
+							f.linef("try { validateWire(%s, raw%s); } catch (error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); }", requestExpression(m), slots)
+							ctx := "context"
+							if f.liveNeeded(m.Request, m.Result) {
+								f.line(f.wireOwner(true, m.Request, m.Result))
+								ctx = "ownedContext"
+							}
+							f.linef("const params = %s;", f.liveConversion(m.Request, "raw", false))
+							f.linef("const result = await implementation.methods.%s(params as %s, %s);", f.plan.operations[m.Name], f.request(m), ctx)
+							f.linef("return %s;", f.liveExport(m.Result, "result", slots))
+						})
+					}
+					if hasEvent {
+						f.w.Block("event: async (raw, context) => {", "},", func() {
+							f.linef("try { validateWire(%s, raw%s); } catch (error) { wire.close(); throw error; }", expression(e.Type), slots)
+							ctx := "context"
+							if f.liveNeeded(e.Type) {
+								f.line(f.wireOwner(true, e.Type))
+								ctx = "ownedContext"
+							}
+							f.linef("await implementation.events.%s(%s, %s);", f.plan.operations[e.Name], f.liveConversion(e.Type, "raw", false), ctx)
+						})
+					}
+				})
 			}
 		})
-		f.line("close(): void { this.peer.close(); }")
-		for _, m := range fam.Client.Methods {
-			initial := ""
-			if m.Request == nil {
-				initial = "const params = {}; "
-			}
-			if f.liveNeeded(m.Request, m.Result) {
-				f.linef("async %s(%s): Promise<%s> { %s%s const result = await %s; validateWire(%s, result%s); return %s; }", p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, f.liveOwner(false), f.livePublish(m.Request, "params", slots, fmt.Sprintf("this.peer.call<unknown>(%s, %%s, options)", quote(m.Name))), expression(m.Result), slots, f.liveConversion(m.Result, "result", false))
-			} else {
-				f.linef("async %s(%s): Promise<%s> { %svalidateWire(%s, params%s); const result = await this.peer.call<%s>(%s, params, options); validateWire(%s, result%s); return result; }", p.operations[m.Name], f.parameters(m), f.spell(m.Result), initial, requestExpression(m), slots, f.spell(m.Result), quote(m.Name), expression(m.Result), slots)
-			}
-		}
-		for _, e := range fam.Server.Events {
-			if f.liveNeeded(e.Type) {
-				f.linef("async emit%s(data: %s, options?: EmitOptions & { owner?: LiveOwner }): Promise<void> { %s await %s; }", upperFirst(p.operations[e.Name]), f.spell(e.Type), f.liveOwner(false), f.livePublish(e.Type, "data", slots, fmt.Sprintf("this.peer.emit(%s, %%s, options)", quote(e.Name))))
-			} else {
-				f.linef("async emit%s(data: %s, options?: EmitOptions): Promise<void> { validateWire(%s, data%s); await this.peer.emit(%s, data, options); }", upperFirst(p.operations[e.Name]), f.spell(e.Type), expression(e.Type), slots, quote(e.Name))
-			}
-		}
-		for _, e := range fam.Client.Events {
-			if f.liveNeeded(e.Type) {
-				f.linef("on%s(handler: (data: %s, context: EventContext & { owner: LiveOwner }) => void | Promise<void>): () => void { return this.peer.onEvent(%s, (raw, context) => { %s try { validateWire(%s, raw%s); } catch(error) { this.peer.close(); throw error; } return handler(%s, ownedContext); }); }", upperFirst(p.operations[e.Name]), f.spell(e.Type), quote(e.Name), f.liveOwner(true), expression(e.Type), slots, f.liveConversion(e.Type, "raw", false))
-			} else {
-				f.linef("on%s(handler: (data: %s, context: EventContext) => void | Promise<void>): () => void { return this.peer.onEvent(%s, (data, context) => { try { validateWire(%s, data%s); } catch(error) { this.peer.close(); throw error; } return handler(data as %s, context); }); }", upperFirst(p.operations[e.Name]), f.spell(e.Type), quote(e.Name), expression(e.Type), slots, f.spell(e.Type))
-			}
-		}
 	})
-	f.line("/** Installs the typed binding before a host-configured peer starts reading. An existing live scope is preserved. */")
-	f.w.Block(fmt.Sprintf("export function install%s(peer: DuplexPeer, %shandler: Handler%s, events: Events%s = {}): Remote%s {", decl, binding, args, args, args), "}", func() {
-		f.line("if (!handler) throw new Error('handler is required');")
-		for _, m := range fam.Server.Methods {
-			f.linef("if (typeof handler.%s !== 'function') throw new Error(%s);", p.operations[m.Name], quote("handler for "+m.Name+" is required"))
+}
+
+// The environment supplies lifetime explicitly. Context inheritance preserves
+// consumer-owned, non-enumerable verified values beside incoming dispatch.
+func (f *file) wireOwner(incoming bool, parts ...model.TypeExpr) string {
+	var lives []string
+	for _, part := range parts {
+		if value := f.boundaryLive(part); value != "false" {
+			lives = append(lives, value)
 		}
-		remoteArgs := strings.TrimSuffix(pass, ", ")
-		if remoteArgs != "" {
-			remoteArgs = ", " + remoteArgs
-		}
-		f.linef("const remote = new Remote%s(peer%s);", args, remoteArgs)
-		if fam.Live {
-			f.line("if (!scopeOf(peer)) liveOver(peer, {});")
-		}
-		serveSlots := strings.ReplaceAll(slots, "this.", "remote.")
-		serveOwner := strings.ReplaceAll(f.liveOwner(true), "this.", "remote.")
-		for _, m := range fam.Server.Methods {
-			if f.liveNeeded(m.Request, m.Result) {
-				f.linef("peer.handle(%s, async (raw, context) => { %s try { validateWire(%s, raw%s); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const params = %s; const result = await handler.%s(params as %s, remote, ownedContext); return %s; });", quote(m.Name), serveOwner, requestExpression(m), serveSlots, f.liveConversion(m.Request, "raw", false), p.operations[m.Name], f.request(m), f.liveExport(m.Result, "result", serveSlots))
-			} else {
-				f.linef("peer.handle(%s, async (params, context) => { try { validateWire(%s, params%s); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const result = await handler.%s(params as %s, remote, context); validateWire(%s, result%s); return result; });", quote(m.Name), requestExpression(m), serveSlots, p.operations[m.Name], f.request(m), expression(m.Result), serveSlots)
-			}
-		}
-		for _, e := range fam.Client.Events {
-			f.linef("if (events.%s) remote.on%s(events.%s);", p.operations[e.Name], upperFirst(p.operations[e.Name]), p.operations[e.Name])
-		}
-		f.line("return remote;")
-	})
-	f.line("/** Serves an externally authenticated accepted connection. The returned peer is the caller's to close. */")
-	f.w.Block(fmt.Sprintf("export async function serve%s(connection: FrameConnection | WebSocketLike, %soptions: PeerOptions, handler: Handler%s, events: Events%s = {}): Promise<DuplexPeer> {", decl, binding, args, args), "}", func() {
-		f.linef("const peer = new DuplexPeer({ ...%s, role: 'server' });", labelled(fam))
-		f.linef("try { install%s(peer, %shandler, events); await peer.attach(connection); return peer; } catch (error) { peer.close(); throw error; }", args, pass)
-	})
+	}
+	condition := "false"
+	if len(lives) > 0 {
+		condition = "(" + strings.Join(lives, " || ") + ")"
+	}
+	if incoming {
+		typ := f.lifetimeType("WireModelContext", "ValueContext", parts...)
+		return "const owner = " + condition + " ? environment!.child(undefined) : undefined; const ownedContext = Object.create(context) as " + typ + "; if (owner !== undefined) Object.defineProperty(ownedContext, 'valueContext', { value: owner, enumerable: true });"
+	}
+	return "const owner = " + condition + " ? environment!.select((context as {valueContext?: unknown} | undefined)?.valueContext) : undefined;"
 }

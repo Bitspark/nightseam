@@ -84,7 +84,7 @@ func (t *target) Invoke(f *render.Family, side, op string) spi.Invocation {
 		if m.Request != nil {
 			args += ", params"
 		}
-		out := spi.Invocation{Call: caller + "." + p.operations[op] + "(" + args + ")"}
+		out := spi.Invocation{Call: caller + ".Methods." + p.operations[op] + "(" + args + ")"}
 		if side == "server" {
 			stubs, err := t.Scaffold(f, "impl")
 			if err != nil {
@@ -108,7 +108,7 @@ func (t *target) Invoke(f *render.Family, side, op string) spi.Invocation {
 	}
 	for _, e := range operations.Events {
 		if e.Name == op {
-			return spi.Invocation{Call: sender + "." + identEmit + p.operations[op] + "(ctx, data)"}
+			return spi.Invocation{Call: sender + ".Events." + p.operations[op] + "(ctx, data)"}
 		}
 	}
 	return spi.Invocation{}
