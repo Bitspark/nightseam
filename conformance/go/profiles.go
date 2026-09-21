@@ -245,6 +245,12 @@ func NewMatrix(p *Profiles) *Matrix {
 	return m
 }
 
+// recordAbsent marks a language's row absent: the testee of that kind —
+// runtime or generated — would not build, and the reason is what the build
+// said. It is the row's own state and not a cell's, since a testee that
+// does not exist is not a scenario that failed; the row is made even where
+// nothing else recorded one, so that every reader of the matrix sees the
+// language rather than a gap.
 func (m *Matrix) recordAbsent(language, kind, reason string) {
 	if m.rows[language] == nil {
 		m.rows[language] = map[string]*profileCell{}
@@ -281,7 +287,10 @@ func (m *Matrix) Record(language, profile string, o Outcome) {
 // cell of a required profile passed without skips or failures; else what the tier's
 // onFailure says — blocking, which stops a release; provisional, which
 // marks the language in the notes; blocking-next, a tier 2 language's
-// second failing release. A language of no tier is never blocking.
+// second failing release. A row the run marked absent — a testee that would
+// not build — reads the same way, whatever the cells beside it say, since a
+// green cell cannot stand for a testee nobody could build. A language of no
+// tier is never blocking.
 func (m *Matrix) Verdict(p *Profiles, language string) string {
 	l, ok := p.Languages[language]
 	if !ok {
@@ -324,8 +333,11 @@ type languageReport struct {
 	Tier    int                    `json:"tier,omitempty"`
 	Verdict string                 `json:"verdict"`
 	Cells   map[string]profileCell `json:"cells"`
-	State   string                 `json:"state,omitempty"`
-	Reasons map[string]string      `json:"reasons,omitempty"`
+	// State is "absent" where a testee of the row would not build, and
+	// Reasons is what each such build said, by kind: runtime, generated. A
+	// row that held every testee carries neither.
+	State   string            `json:"state,omitempty"`
+	Reasons map[string]string `json:"reasons,omitempty"`
 }
 
 // Write renders the matrix as JSON to file, rows and profiles sorted, so

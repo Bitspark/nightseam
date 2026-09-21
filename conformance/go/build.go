@@ -18,9 +18,14 @@ func withBuildDeadline(build func(context.Context) error) error {
 	return build(ctx)
 }
 
-// buildTestee records build failures before applying the tier gate. An absent
-// testee skips its scenarios; unrelated pairings still run, including when
-// this build has already made the required or nightly job fail.
+// buildTestee builds one testee — a language's runtime testee, or the
+// generated one beside it — and reports whether it stands. A build that
+// fails is the language's own outcome, not the run's: the row is recorded
+// absent with what the build said, the scenarios that need that testee are
+// skipped, and every other pairing of the star carries on. What it costs
+// the job is the tier's to say, as docs/languages/tiers.md has it: a tier
+// that stops for a red cell stops for an absent testee, and under
+// NIGHTSEAM_MATRIX every tier does, since the nightly run is the picture.
 func (s *Suite) buildTestee(t *testing.T, recipe Recipe, places Places, generated bool) bool {
 	t.Helper()
 	err := withBuildDeadline(func(ctx context.Context) error { return recipe.RunBuild(ctx, places, generated) })
@@ -49,6 +54,10 @@ func (s *Suite) buildTestee(t *testing.T, recipe Recipe, places Places, generate
 	return false
 }
 
+// buildUnavailable is why a language can take no part in a pairing, or ""
+// where it can: the testee the pairing would run is absent. A generated
+// pairing needs both testees, since the rendering is laid and built only
+// over a runtime that stands; an ordinary one needs the runtime alone.
 func (s *Suite) buildUnavailable(language string, generated bool) string {
 	for _, kind := range []string{"runtime", "generated"} {
 		if kind == "generated" && !generated {

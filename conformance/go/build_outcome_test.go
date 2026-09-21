@@ -122,83 +122,93 @@ func TestBuildOutcomeHelper(t *testing.T) {
 }
 
 func TestBuildOutcomesFollowTheTierTable(t *testing.T) {
+	// One tier of each disposition the build path distinguishes — tier 1 and
+	// tier 2 stop the job, tier 4 ships provisional — and the nightly run,
+	// where a provisional tier is held to the strict one. Tier 3 parts from
+	// tier 4 in what it requires and not in what a failed build does, and
+	// TestVerdictsFollowTheTierTable holds the verdict at every tier for none
+	// of the time this costs: a case here is a suite in a process of its own,
+	// and this is the fast tier.
 	for _, stage := range []string{"runtime", "generated"} {
-		for _, tier := range []int{1, 2, 3, 4} {
-			for _, strict := range []bool{false, true} {
-				t.Run(fmt.Sprintf("%s/tier%d/nightly%v", stage, tier, strict), func(t *testing.T) {
-					dir := t.TempDir()
-					executable, err := os.Executable()
-					if err != nil {
-						t.Fatal(err)
+		for _, c := range []struct {
+			tier   int
+			strict bool
+		}{{1, false}, {2, false}, {4, false}, {4, true}} {
+			tier, strict := c.tier, c.strict
+			t.Run(fmt.Sprintf("%s/tier%d/nightly%v", stage, tier, strict), func(t *testing.T) {
+				t.Parallel()
+				dir := t.TempDir()
+				executable, err := os.Executable()
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				defer cancel()
+				cmd := exec.CommandContext(ctx, executable, "-test.run=^TestBuildOutcomeHelper$", "-test.v")
+				nightly := ""
+				if strict {
+					nightly = "1"
+				}
+				cmd.Env = append(os.Environ(), "NIGHTSEAM_BUILD_OUTCOME_HELPER=suite", "NIGHTSEAM_BUILD_STAGE="+stage,
+					"NIGHTSEAM_BUILD_TIER="+strconv.Itoa(tier), "NIGHTSEAM_BUILD_OUTPUT="+dir, "NIGHTSEAM_MATRIX="+nightly)
+				output, err := cmd.CombinedOutput()
+				blocking := tier <= 2
+				if (err != nil) != (blocking || strict) {
+					t.Fatalf("star exit: %v, want failure=%v\n%s", err, blocking || strict, output)
+				}
+				data, err := os.ReadFile(filepath.Join(dir, "matrix.json"))
+				if err != nil {
+					t.Fatalf("matrix: %v\n%s", err, output)
+				}
+				var report Report
+				if err := json.Unmarshal(data, &report); err != nil {
+					t.Fatal(err)
+				}
+				row := report.Languages["broken"]
+				want := "provisional"
+				if blocking {
+					want = "blocking"
+				}
+				if row.State != "absent" || row.Verdict != want || !strings.Contains(row.Reasons[stage], "fixture compiler refused") || !strings.Contains(row.Reasons[stage], "exit status 1") {
+					t.Fatalf("build absence lost: %s", data)
+				}
+				if strings.Contains(row.Reasons[stage], "build progress 0\n") {
+					t.Fatal("build diagnostic did not retain only its bounded last lines")
+				}
+				for _, profile := range []string{"core", "generator"} {
+					if cell := report.Languages["healthy"].Cells[profile]; cell.Passed != 2 || cell.Skipped != 0 || cell.Failed != 0 {
+						t.Fatalf("remaining pairing did not run: healthy/%s=%+v\n%s", profile, cell, output)
 					}
-					ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-					defer cancel()
-					cmd := exec.CommandContext(ctx, executable, "-test.run=^TestBuildOutcomeHelper$", "-test.v")
-					nightly := ""
-					if strict {
-						nightly = "1"
+					cell := row.Cells[profile]
+					if stage == "runtime" || profile == "generator" {
+						if cell.Passed != 0 || cell.Skipped != 2 || cell.Failed != 0 {
+							t.Fatalf("unavailable scenarios were not skipped: %s=%+v", profile, cell)
+						}
+					} else if cell.Passed != 2 || cell.Skipped != 0 || cell.Failed != 0 {
+						t.Fatalf("generated build failure hid runtime coverage: %+v", cell)
 					}
+				}
+				summary, err := os.ReadFile(filepath.Join(dir, "summary.md"))
+				if err != nil || !strings.Contains(string(summary), "absent") || !strings.Contains(string(summary), "fixture compiler refused") || !strings.Contains(string(summary), want) {
+					t.Fatalf("summary lost build absence: %v\n%s", err, summary)
+				}
+				if tier == 4 && !strict {
+					// Reuse the output paths, as CI's next run does, but a new
+					// process and matrix. A repaired build must replace absence.
+					cmd = exec.CommandContext(ctx, executable, "-test.run=^TestBuildOutcomeHelper$")
 					cmd.Env = append(os.Environ(), "NIGHTSEAM_BUILD_OUTCOME_HELPER=suite", "NIGHTSEAM_BUILD_STAGE="+stage,
-						"NIGHTSEAM_BUILD_TIER="+strconv.Itoa(tier), "NIGHTSEAM_BUILD_OUTPUT="+dir, "NIGHTSEAM_MATRIX="+nightly)
-					output, err := cmd.CombinedOutput()
-					blocking := tier <= 2
-					if (err != nil) != (blocking || strict) {
-						t.Fatalf("star exit: %v, want failure=%v\n%s", err, blocking || strict, output)
+						"NIGHTSEAM_BUILD_TIER=4", "NIGHTSEAM_BUILD_OUTPUT="+dir, "NIGHTSEAM_MATRIX=", "NIGHTSEAM_BUILD_RECOVERED=1")
+					if output, err := cmd.CombinedOutput(); err != nil {
+						t.Fatalf("recovered star: %v\n%s", err, output)
 					}
-					data, err := os.ReadFile(filepath.Join(dir, "matrix.json"))
-					if err != nil {
-						t.Fatalf("matrix: %v\n%s", err, output)
-					}
-					var report Report
-					if err := json.Unmarshal(data, &report); err != nil {
-						t.Fatal(err)
-					}
-					row := report.Languages["broken"]
-					want := "provisional"
-					if blocking {
-						want = "blocking"
-					}
-					if row.State != "absent" || row.Verdict != want || !strings.Contains(row.Reasons[stage], "fixture compiler refused") || !strings.Contains(row.Reasons[stage], "exit status 1") {
-						t.Fatalf("build absence lost: %s", data)
-					}
-					if strings.Contains(row.Reasons[stage], "build progress 0\n") {
-						t.Fatal("build diagnostic did not retain only its bounded last lines")
-					}
-					for _, profile := range []string{"core", "generator"} {
-						if cell := report.Languages["healthy"].Cells[profile]; cell.Passed != 2 || cell.Skipped != 0 || cell.Failed != 0 {
-							t.Fatalf("remaining pairing did not run: healthy/%s=%+v\n%s", profile, cell, output)
-						}
-						cell := row.Cells[profile]
-						if stage == "runtime" || profile == "generator" {
-							if cell.Passed != 0 || cell.Skipped != 2 || cell.Failed != 0 {
-								t.Fatalf("unavailable scenarios were not skipped: %s=%+v", profile, cell)
-							}
-						} else if cell.Passed != 2 || cell.Skipped != 0 || cell.Failed != 0 {
-							t.Fatalf("generated build failure hid runtime coverage: %+v", cell)
+					for _, file := range []string{"matrix.json", "summary.md"} {
+						data, err := os.ReadFile(filepath.Join(dir, file))
+						if err != nil || strings.Contains(string(data), "fixture compiler refused") || strings.Contains(string(data), "absent") {
+							t.Fatalf("repaired run retained stale absence in %s: %v\n%s", file, err, data)
 						}
 					}
-					summary, err := os.ReadFile(filepath.Join(dir, "summary.md"))
-					if err != nil || !strings.Contains(string(summary), "absent") || !strings.Contains(string(summary), "fixture compiler refused") || !strings.Contains(string(summary), want) {
-						t.Fatalf("summary lost build absence: %v\n%s", err, summary)
-					}
-					if tier == 4 && !strict {
-						// Reuse the output paths, as CI's next run does, but a new
-						// process and matrix. A repaired build must replace absence.
-						cmd = exec.CommandContext(ctx, executable, "-test.run=^TestBuildOutcomeHelper$")
-						cmd.Env = append(os.Environ(), "NIGHTSEAM_BUILD_OUTCOME_HELPER=suite", "NIGHTSEAM_BUILD_STAGE="+stage,
-							"NIGHTSEAM_BUILD_TIER=4", "NIGHTSEAM_BUILD_OUTPUT="+dir, "NIGHTSEAM_MATRIX=", "NIGHTSEAM_BUILD_RECOVERED=1")
-						if output, err := cmd.CombinedOutput(); err != nil {
-							t.Fatalf("recovered star: %v\n%s", err, output)
-						}
-						for _, file := range []string{"matrix.json", "summary.md"} {
-							data, err := os.ReadFile(filepath.Join(dir, file))
-							if err != nil || strings.Contains(string(data), "fixture compiler refused") || strings.Contains(string(data), "absent") {
-								t.Fatalf("repaired run retained stale absence in %s: %v\n%s", file, err, data)
-							}
-						}
-					}
-				})
-			}
+				}
+			})
 		}
 	}
 }

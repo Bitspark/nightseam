@@ -77,7 +77,10 @@ type Suite struct {
 // Open reads the scenarios and the recipes of the checkout, holds every
 // recipe's toolchains to the path, and builds every testee once. Under
 // -short it skips, since a testee is a process; without, a toolchain that
-// is missing fails, as every fixture of this repository does.
+// is missing fails, as every fixture of this repository does. A testee that
+// will not build is the language's own outcome and not the run's: absent,
+// with its scenarios skipped and the star carrying on, except where the
+// tier stops for it — buildTestee has that rule.
 func Open(t *testing.T) *Suite {
 	t.Helper()
 	if testing.Short() {
@@ -138,6 +141,10 @@ func Open(t *testing.T) *Suite {
 	return s
 }
 
+// buildRuntime builds each language's runtime testee, in the order the star
+// holds them. A missing toolchain is the checkout's own failure and stops
+// here; a build that runs and fails is the language's, and buildTestee says
+// what the tier makes of it.
 func (s *Suite) buildRuntime(t *testing.T) {
 	t.Helper()
 	for _, language := range s.Languages() {
