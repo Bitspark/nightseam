@@ -44,7 +44,7 @@ func Observer(tracer trace.Tracer) runtime.Observer {
 type observer struct {
 	tracer     trace.Tracer
 	mu         sync.Mutex
-	connection trace.Span
+	connection *connectionSpan
 	requests   map[requestKey]*opened
 }
 
@@ -52,6 +52,14 @@ type observer struct {
 // not a comparable value in every implementation, so the registry withdraws the
 // one it published and never one that merely looks like it.
 type opened struct{ span trace.Span }
+
+// A connection is published before entering the consumer's tracer, whose
+// synchronous start callback may close it and open the next one. Both fields
+// are protected by the observer's mutex; calls into spans stay outside it.
+type connectionSpan struct {
+	span   trace.Span
+	closed *runtime.ConnectionClosed
+}
 
 // requestKey names one request of the connection this observer watches: an id
 // is minted per connection and per direction, and the runtime refuses a second
@@ -66,24 +74,34 @@ type requestKey struct {
 func (o *observer) Observe(event runtime.ObserverEvent) {
 	switch e := event.(type) {
 	case runtime.ConnectionOpened:
+		opening := &connectionSpan{}
+		o.mu.Lock()
+		o.connection = opening
+		o.mu.Unlock()
 		_, span := o.tracer.Start(context.Background(), "connection",
 			trace.WithTimestamp(e.At), trace.WithSpanKind(trace.SpanKindInternal),
 			trace.WithAttributes(attribute.String("nightseam.role", string(e.Role))))
 		o.mu.Lock()
-		o.connection = span
+		opening.span = span
+		closed := opening.closed
 		o.mu.Unlock()
+		if closed != nil {
+			endConnection(span, *closed)
+		}
 	case runtime.ConnectionClosed:
 		o.mu.Lock()
-		span := o.connection
+		closed := o.connection
 		o.connection = nil
+		var span trace.Span
+		if closed != nil {
+			closed.closed = &e
+			span = closed.span
+		}
 		o.mu.Unlock()
 		if span == nil {
 			return
 		}
-		span.SetAttributes(attribute.Int("nightseam.close.code", e.Code),
-			attribute.String("nightseam.close.reason", e.Reason),
-			attribute.Bool("nightseam.close.local", e.Local))
-		span.End(trace.WithTimestamp(e.At))
+		endConnection(span, e)
 	case runtime.RequestStarted:
 		kind := trace.SpanKindClient
 		if e.Incoming {
@@ -160,6 +178,13 @@ func (o *observer) Observe(event runtime.ObserverEvent) {
 	}
 }
 
+func endConnection(span trace.Span, closed runtime.ConnectionClosed) {
+	span.SetAttributes(attribute.Int("nightseam.close.code", closed.Code),
+		attribute.String("nightseam.close.reason", closed.Reason),
+		attribute.Bool("nightseam.close.local", closed.Local))
+	span.End(trace.WithTimestamp(closed.At))
+}
+
 // moment is an event of the profile as a span of no duration: it happened at
 // one instant and the peer measures nothing across it, so what it says is the
 // trace it belongs to, its name, its size and its family.
@@ -176,7 +201,10 @@ func (o *observer) moment(t runtime.Trace, name string, kind trace.SpanKind, at 
 // observer told of no connection records none, there being nowhere to put it.
 func (o *observer) record(id string, at time.Time, name string, attributes []attribute.KeyValue) {
 	o.mu.Lock()
-	span := o.connection
+	var span trace.Span
+	if o.connection != nil {
+		span = o.connection.span
+	}
 	if id != "" {
 		outgoing, raised := o.requests[requestKey{id: id}]
 		incoming, served := o.requests[requestKey{id: id, incoming: true}]

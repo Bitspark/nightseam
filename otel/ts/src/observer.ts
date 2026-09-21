@@ -11,6 +11,12 @@ import type { Observer, ObserverEvent } from '@nightseam/runtime';
 import { contextOf, mark } from './context.ts';
 import { wireContext } from './wire.ts';
 
+type ConnectionClosed = Extract<ObserverEvent, { type: 'connection.closed' }>;
+interface ConnectionSpan {
+  span?: Span;
+  closed?: ConnectionClosed;
+}
+
 /**
  * The runtime's observer over an OpenTelemetry tracer: a request becomes a
  * span, a server one where the request came in and a client one where it went
@@ -32,30 +38,33 @@ export function observer(tracer: Tracer): Observer {
   /** Incoming and outgoing requests can bear the same id. */
   const byRequest = new Map<string, Span>();
   const requestKey = (id: string, incoming: boolean) => `${incoming ? 'in' : 'out'}:${id}`;
-  let connection: Span | undefined;
+  let connection: ConnectionSpan | undefined;
 
   return {
     observe(event: ObserverEvent): void {
       const fields = event as unknown as Record<string, unknown>;
       const at = event.at;
       switch (event.type) {
-        case 'connection.opened':
-          connection = tracer.startSpan(
+        case 'connection.opened': {
+          // A consumer's synchronous start callback can close this connection
+          // and open the next one before the tracer returns this span.
+          const opening: ConnectionSpan = {};
+          connection = opening;
+          const span = tracer.startSpan(
             'connection',
             { kind: SpanKind.INTERNAL, attributes: { 'nightseam.role': event.role }, startTime: at },
             ROOT_CONTEXT,
           );
+          opening.span = span;
+          if (opening.closed) endConnection(span, opening.closed);
           return;
+        }
         case 'connection.closed': {
           const closed = connection;
           connection = undefined;
           if (closed) {
-            closed.setAttributes({
-              'nightseam.close.code': event.code,
-              'nightseam.close.reason': event.reason,
-              'nightseam.close.local': event.local,
-            });
-            closed.end(at);
+            closed.closed = event;
+            if (closed.span) endConnection(closed.span, event);
           }
           return;
         }
@@ -113,7 +122,7 @@ export function observer(tracer: Tracer): Observer {
         }
         default: {
           const span =
-            event.type === 'frame.sent' || event.type === 'frame.received' ? enclosing(event.id) : connection;
+            event.type === 'frame.sent' || event.type === 'frame.received' ? enclosing(event.id) : connection?.span;
           span?.addEvent(event.type, attributes(fields), at);
         }
       }
@@ -127,8 +136,17 @@ export function observer(tracer: Tracer): Observer {
       const outgoing = byRequest.get(requestKey(id, false));
       if (Boolean(incoming) !== Boolean(outgoing)) return incoming ?? outgoing;
     }
-    return connection;
+    return connection?.span;
   }
+}
+
+function endConnection(span: Span, event: ConnectionClosed): void {
+  span.setAttributes({
+    'nightseam.close.code': event.code,
+    'nightseam.close.reason': event.reason,
+    'nightseam.close.local': event.local,
+  });
+  span.end(event.at);
 }
 
 /**
