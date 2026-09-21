@@ -300,7 +300,15 @@ class _Endpoint:
     def schedule(self):
         if not self.draining and not self.pair.closed:
             self.draining = True
-            self.pair.spawn(self.drain())
+            # create_task may execute immediately under an eager factory.
+            # Admission must never run a receiver on the sender's stack.
+            self.pair.loop.call_soon(self.start)
+
+    def start(self):
+        if self.pair.closed:
+            self.draining = False
+            return
+        self.pair.spawn(self.drain())
 
     def panic(self, path, frame, error):
         self.pair.observe(

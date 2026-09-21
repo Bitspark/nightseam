@@ -66,6 +66,35 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(actual.frame["data"], {"nested": ["before"]})
         self.assertEqual(actual.frame["meta"], {"name": "before"})
 
+    @unittest.skipUnless(hasattr(asyncio, "eager_task_factory"), "eager task factories require Python 3.12")
+    async def test_eager_task_factory_cannot_dispatch_on_the_senders_stack(self):
+        loop = asyncio.get_running_loop()
+        previous = loop.get_task_factory()
+        left, right = self.pair()
+        seen = []
+        delivered = asyncio.Event()
+
+        def receiver(path, message):
+            seen.append(message.frame["kind"])
+            if message.frame["kind"] == "request":
+                respond(message, "received asynchronously")
+            else:
+                delivered.set()
+
+        right.receive([], Receiver(namespace=True, message=receiver))
+        sink = Sink()
+        loop.set_task_factory(asyncio.eager_task_factory)
+        try:
+            request(left, ReturnAddress(sink))
+            self.assertEqual(seen, [])
+            emit(left)
+            self.assertEqual(seen, [])
+            await asyncio.wait_for(delivered.wait(), 1)
+            self.assertEqual(seen, ["request", "event"])
+            self.assertEqual((await sink.reply())["result"], "received asynchronously")
+        finally:
+            loop.set_task_factory(previous)
+
     async def test_same_identifier_from_distinct_capabilities_has_independent_calls(self):
         left, right = self.pair()
         held = asyncio.Queue()
