@@ -1,11 +1,38 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"reflect"
 	"testing"
+	"time"
+
+	"github.com/Bitspark/nightseam/duplex/go"
 )
+
+func TestRecordedRootDeliversRootRelativePath(t *testing.T) {
+	root := newRecordedRoot()
+	defer root.Close(duplex.CodeNormal, "done")
+	delivered := make(chan []string, 1)
+	want := []string{"source", "tick"}
+	_, err := root.Receive(want, duplex.Receiver{Message: func(path []string, _ duplex.Message) { delivered <- path }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Send(want, recordedMessage(1)); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	got, err := recordedWait(ctx, delivered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("delivered path %q; want %q", got, want)
+	}
+}
 
 // The shared scenario, not a second language-specific oracle, owns the verdict.
 func TestRecordedWireHeadAndOrder(t *testing.T) {

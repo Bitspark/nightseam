@@ -537,17 +537,18 @@ func (w *replyWire) Close(duplex.Code, string) error { w.once.Do(func() { close(
 
 // CallWire calls a relative operation through the peer's request primitive.
 // Its local return address is independent of every other call's identifier.
-func CallWire(ctx context.Context, wire duplex.Wire, path []string, params, result any) error {
-	return callWire(ctx, wire, path, params, result, nil)
+func CallWire(ctx context.Context, wire duplex.Wire, path []string, params, result any, options ...WireCallOptions) error {
+	return callWire(ctx, wire, path, params, result, nil, options...)
 }
-func callWire(ctx context.Context, wire duplex.Wire, path []string, params, result any, dispatch *wireDispatchContext) error {
+func callWire(ctx context.Context, wire duplex.Wire, path []string, params, result any, dispatch *wireDispatchContext, options ...WireCallOptions) (err error) {
 	if ctx == nil || wire == nil {
 		return Unpublished(errors.New("a wire call requires a context and wire"))
 	}
 	if err := ctx.Err(); err != nil {
 		return Unpublished(err)
 	}
-	if _, err := duplex.EncodePath(path); err != nil {
+	name, err := duplex.EncodePath(path)
+	if err != nil {
 		return Unpublished(errors.New("a wire call requires a valid operation path"))
 	}
 	encoded, err := MarshalJSON(params)
@@ -563,11 +564,18 @@ func callWire(ctx context.Context, wire duplex.Wire, path []string, params, resu
 	if dispatch != nil {
 		trace = Trace{Parent: dispatch.frame.Traceparent, State: dispatch.frame.Tracestate}
 	}
+	var observation WireCallOptions
+	if len(options) > 0 {
+		observation = options[0]
+	}
+	finish := observeWireRequest(observation.Observer, observation.Family, returning.id, name, false, trace)
+	defer func() { finish(err) }()
 	request := duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: returning.id, Params: encoded, Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}, Return: address}
 	if err := wire.Send(path, request); err != nil {
 		return Unpublished(err)
 	}
 	cancelRemote, err := awaitReply(ctx, returning.reply, returning.done, func() error { return ErrClosed }, result)
+	finish(err)
 	if cancelRemote {
 		_ = wire.Send(path, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileCancel, ID: returning.id, Traceparent: trace.Parent, Tracestate: trace.State}, Return: address})
 	}
@@ -583,8 +591,10 @@ type WireEventHandler func(context.Context, json.RawMessage) error
 
 // WireHandlers groups a method and event that share one declared name.
 type WireHandlers struct {
-	Request WireHandler
-	Event   WireEventHandler
+	Request  WireHandler
+	Event    WireEventHandler
+	Observer Observer
+	Family   string
 }
 
 // AdapterContext carries runtime options used when constructing model wires.
@@ -595,14 +605,15 @@ type AdapterContext struct {
 
 // EmitWire admits one event at a relative path. The return says only that the
 // destination accepted it; processing and transport remain asynchronous.
-func EmitWire(ctx context.Context, wire duplex.Wire, path []string, data any) error {
+func EmitWire(ctx context.Context, wire duplex.Wire, path []string, data any, options ...WireEmitOptions) error {
 	if ctx == nil || wire == nil {
 		return Unpublished(errors.New("a wire event requires a context and wire"))
 	}
 	if err := ctx.Err(); err != nil {
 		return Unpublished(err)
 	}
-	if _, err := duplex.EncodePath(path); err != nil {
+	name, err := duplex.EncodePath(path)
+	if err != nil {
 		return Unpublished(errors.New("a wire event requires a valid operation path"))
 	}
 	encoded, err := MarshalJSON(data)
@@ -610,6 +621,9 @@ func EmitWire(ctx context.Context, wire duplex.Wire, path []string, data any) er
 		return Unpublished(err)
 	}
 	trace := DefaultPropagator.Inject(ctx)
+	if len(options) > 0 && options[0].Observer != nil {
+		observeWire(options[0].Observer, EventEmitted{At: time.Now(), Name: name, Bytes: len(encoded), Trace: trace, Family: options[0].Family})
+	}
 	return Unpublished(wire.Send(path, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: encoded, Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}}))
 }
 
@@ -628,6 +642,10 @@ func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(
 	if wire == nil || (handlers.Request == nil && handlers.Event == nil) {
 		return nil, errors.New("wire registration requires a wire and at least one handler")
 	}
+	name, err := duplex.EncodePath(path)
+	if err != nil {
+		return nil, err
+	}
 	var mu sync.Mutex
 	incoming := map[returnKey]context.CancelFunc{}
 	return wire.Receive(path, duplex.Receiver{
@@ -641,6 +659,10 @@ func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(
 		Message: func(_ []string, message duplex.Message) {
 			if message.Frame.Kind == duplex.ProfileEvent {
 				if handlers.Event != nil {
+					if handlers.Observer != nil {
+						observeWire(handlers.Observer, EventDelivered{At: time.Now(), Name: name, Bytes: len(message.Frame.Data),
+							Trace: Trace{Parent: message.Frame.Traceparent, State: message.Frame.Tracestate}, Family: handlers.Family})
+					}
 					ctx, associated := eventContextOf(message)
 					if !associated {
 						ctx = DefaultPropagator.Extract(context.Background(), Trace{Parent: message.Frame.Traceparent, State: message.Frame.Tracestate})
@@ -664,8 +686,12 @@ func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(
 			if message.Frame.Kind != duplex.ProfileRequest {
 				return
 			}
+			finish := observeWireRequest(handlers.Observer, handlers.Family, message.Frame.ID, name, true,
+				Trace{Parent: message.Frame.Traceparent, State: message.Frame.Tracestate})
 			if handlers.Request == nil {
-				sendWireResponse(message, nil, &PublicError{Code: "method_not_found", Message: "Unknown method"})
+				err := &PublicError{Code: "method_not_found", Message: "Unknown method"}
+				finish(err)
+				sendWireResponse(message, nil, err)
 				return
 			}
 			var dispatch *wireDispatchContext
@@ -684,7 +710,9 @@ func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(
 			if incoming[key] != nil {
 				mu.Unlock()
 				cancel()
-				sendWireResponse(message, nil, &PublicError{Code: "invalid_message", Message: "Duplicate active request identifier"})
+				err := &PublicError{Code: "invalid_message", Message: "Duplicate active request identifier"}
+				finish(err)
+				sendWireResponse(message, nil, err)
 				return
 			}
 			incoming[key] = cancel
@@ -699,6 +727,7 @@ func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(
 				if err == nil {
 					err = marshalErr
 				}
+				finish(err)
 				sendWireResponse(message, data, WithoutUnpublishedProof(err))
 			}()
 		},

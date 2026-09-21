@@ -135,7 +135,7 @@ class RecordedRoot implements Wire {
       this.scheduled = false;
       while (!this.closed && this.queue.length) {
         const entry = this.queue.shift()!;
-        this.receivers.get(encodePath(entry.path))?.message?.([], entry.message);
+        this.receivers.get(encodePath(entry.path))?.message?.([...entry.path], entry.message);
       }
     });
   }
@@ -169,8 +169,9 @@ class Presentation {
     const destination = at(mount(new Map([['out', at(this.end, ['destination'])]])), ['out']);
     this.wire = at(mount(new Map([['outer', mount(new Map([['in', at(this.root, ['source'])]]))]])), ['outer', 'in']);
     destination.receive(['tick'], {
-      message: (_path, message) => {
+      message: (path, message) => {
         try {
+          if (path.length !== 1 || path[0] !== 'tick') throw new Error('recorded destination received wrong path');
           store.head(); // Real application reentry, outside append exclusion.
           if (message.frame.kind !== 'event' || typeof message.frame.data !== 'number')
             throw new Error('expected event');
@@ -182,9 +183,9 @@ class Presentation {
       },
     });
     this.wire.receive(['tick'], {
-      message: (_path, message) => {
+      message: (path, message) => {
         try {
-          destination.send(['tick'], message);
+          destination.send(path, message);
         } catch (error) {
           this.failure = error;
           this.values.put(0);

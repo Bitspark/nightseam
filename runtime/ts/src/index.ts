@@ -26,6 +26,7 @@ export type {
   WireEmitOptions,
   WireEventContext,
   WireHandler,
+  WireHandlers,
   WireEventListener,
 } from './wire.ts';
 export { webSocketConnection } from '@nightseam/duplex';
