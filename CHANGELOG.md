@@ -90,6 +90,19 @@ are one number. Entries are in the words of the commits that landed them.
   a malformed frame does. Reservation and publication share the outgoing
   queue's one ordering gate, a sender that would wrap refuses first, and every
   carrier bridge mints its own serials and maps the replies back.
+- `@nightseam/auth`, the TypeScript verifier of the optional authority
+  profile: `grant` — the canonical body, the Archon envelope in
+  `nightseam-grant/1`, the chain held to a request and to nothing, issuance
+  under the issuer's own chain — `connection` — the audience grammar as one
+  definition with Archon's, the binding and the possession proof, the
+  challenge and prove exchange as a pure state machine, the decision at the
+  call, the terms and the login service over a versioned store — and
+  `exposure` — a policy bound whole to a surface or refused with every gap
+  named, the request rendered as a selector, the decision at dispatch and at
+  the owner's effect, exported references and per-recipient emissions. Each
+  module is its own entry point and loads no transport; every case of the
+  three tables — 72, 52 and 35 — is reproduced by a test that loads the
+  table as data.
 - The coordinates of the optional authority profile: `auth/go`, a nested Go
   module at `github.com/Bitspark/nightseam/auth/go` released by a tag of its
   own beside the root module's, and `@nightseam/auth`, a package of the

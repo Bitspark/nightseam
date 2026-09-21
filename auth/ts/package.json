@@ -1,7 +1,7 @@
 {
   "name": "@nightseam/auth",
   "version": "0.5.0",
-  "description": "The optional authority profile for Nightseam: the rooted, attenuating grant, the authenticated connection and its bootstrap, and the exposure that binds a policy to a generated surface — held to the shared tables, with Archon as the identity layer.",
+  "description": "The optional authority profile for Nightseam: the rooted, attenuating grant, the authenticated connection and its bootstrap, and the exposure that binds a policy to a generated surface \u2014 held to the shared tables, with Archon as the identity layer.",
   "license": "Apache-2.0",
   "author": "Bitspark",
   "repository": {
@@ -19,7 +19,12 @@
     "archon"
   ],
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./grant": "./src/grant.ts",
+    "./connection": "./src/connection.ts",
+    "./exposure": "./src/exposure.ts"
+  },
   "types": "./src/index.ts",
   "sideEffects": false,
   "files": [
@@ -41,8 +46,28 @@
         "import": "./dist/index.js",
         "default": "./dist/index.js"
       },
+      "./grant": {
+        "types": "./dist/grant.d.ts",
+        "import": "./dist/grant.js",
+        "default": "./dist/grant.js"
+      },
+      "./connection": {
+        "types": "./dist/connection.d.ts",
+        "import": "./dist/connection.js",
+        "default": "./dist/connection.js"
+      },
+      "./exposure": {
+        "types": "./dist/exposure.d.ts",
+        "import": "./dist/exposure.js",
+        "default": "./dist/exposure.js"
+      },
       "./package.json": "./package.json"
     }
+  },
+  "dependencies": {
+    "@bitspark/archon": ">=0.5.0 <1.0.0",
+    "@bitspark/archon-sdk": ">=0.5.0 <1.0.0",
+    "@noble/hashes": "^2.2.0"
   },
   "devDependencies": {
     "typescript": "^7.0.2"
@@ -50,6 +75,6 @@
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "check": "tsc -p tsconfig.check.json",
-    "test": "node --experimental-strip-types --test --test-timeout=10000 src/dependencies.test.ts"
+    "test": "node --experimental-strip-types --test --test-timeout=20000 src/grant.test.ts src/connection.test.ts src/exposure.test.ts src/dependencies.test.ts"
   }
 }

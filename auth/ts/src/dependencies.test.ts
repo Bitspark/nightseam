@@ -72,9 +72,13 @@ test('the components carry no identity layer, and this package is the only one t
 
 test('this package depends on Archon and on the components it composes onto, and on nothing else', () => {
   const manifest = JSON.parse(readFileSync(path.join(here, 'package.json'), 'utf8'));
+  // Archon, the components the profile composes onto, and the one hash the
+  // grant's digest is — SHA-256, which Archon's TypeScript core does not
+  // export and the platform offers only asynchronously.
   const allowed = new Set([
     '@bitspark/archon',
     '@bitspark/archon-sdk',
+    '@noble/hashes',
     '@nightseam/runtime',
     '@nightseam/duplex',
     '@nightseam/live',

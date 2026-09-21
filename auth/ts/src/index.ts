@@ -13,9 +13,11 @@
  * identity layer: a consumer that adopts no authority profile installs
  * nothing for one. Its identity layer is Archon — `@bitspark/archon` for the
  * Ed25519 floor and the envelope, `@bitspark/archon-sdk` for possession and
- * login — and it depends on nothing else beside the runtime it composes
- * onto. The pure modules load no transport, in a browser or anywhere.
- *
- * This is the package's coordinate; the modules land by their packets.
+ * login — and beside it only the SHA-256 the grant's digest is, which Archon
+ * does not export. Every module is pure and loads no transport, in a browser
+ * or anywhere; each is also its own entry point, `@nightseam/auth/grant`,
+ * `@nightseam/auth/connection`, `@nightseam/auth/exposure`.
  */
-export const profile = 'nightseam-auth' as const;
+export * as grant from './grant.ts';
+export * as connection from './connection.ts';
+export * as exposure from './exposure.ts';
