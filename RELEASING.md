@@ -108,8 +108,8 @@ that names another commit.
    `go test ./...`,
    `pnpm format:check && pnpm -r check && pnpm -r build && pnpm -r test`,
    `node scripts/matrix-table.mjs --check`, and `go vet ./... && go test ./...` in
-   each nested Go module — `otel/go` — which the root module's `./...` does
-   not enter. The conformance suite runs with the full tier and writes
+   each nested Go module — `otel/go`, `auth/go` — which the root module's
+   `./...` does not enter. The conformance suite runs with the full tier and writes
    `conformance/matrix.json`; commit it with whatever moved it, since the
    release is weighed against the matrix the tag carries. *What a release
    refuses*, below, says what a red cell does. Also run the script tests
@@ -139,14 +139,14 @@ that names another commit.
    each nested one, the root module's first:
    `git tag v0.5.0 <release-commit>` and `git push origin v0.5.0`, then
    `git tag otel/go/v0.5.0 <release-commit>` and
-   `git push origin otel/go/v0.5.0`. The order is
-   not a formality. A nested module requires the root module at the release's
-   own number, so `go get github.com/Bitspark/nightseam/otel/go@v0.5.0`
+   `git push origin otel/go/v0.5.0`, and the same for `auth/go/v0.5.0`. The
+   order is not a formality. A nested module requires the root module at the
+   release's own number, so `go get github.com/Bitspark/nightseam/otel/go@v0.5.0`
    resolves only once `v0.5.0` is there to be fetched — the `replace` that
    makes the requirement resolve in this checkout is the repository's own and
-   a consumer ignores a dependency's replace, getting what is required. The
-   second tag is what that `go get` names, and it publishes nothing of its
-   own.
+   a consumer ignores a dependency's replace, getting what is required. A
+   nested module's tag is what that `go get` names, and it publishes nothing
+   of its own.
 4. The `release` workflow runs on `v*`, which is the first tag and not the
    second: it checks the versions and the conformance matrix against the tag,
    installs, runs both tiers and each nested module's, builds, checks what
@@ -330,7 +330,10 @@ is the same thing written for the consumer.
   ask for it, which is why it is a module of its own. The round trip `go
   get`s it into a module of its own for the same reason: nothing the example
   does would resolve the second tag, and the second tag is the step that
-  depends on the first already being fetchable.
+  depends on the first already being fetchable. The authority profile,
+  `go get github.com/Bitspark/nightseam/auth/go@v0.5.0`, is the same shape
+  with Archon in place of OpenTelemetry, and the round trip `go get`s it the
+  same way.
 - npm: the generated clients depend on `@nightseam/runtime` and
   `@nightseam/tunnel` at the version the generator that rendered them
   carries, and on `@nightseam/live` when their family has a live tier. The

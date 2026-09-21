@@ -4,10 +4,11 @@
 # per ecosystem per month rather than arriving one at a time.
 #
 # A gomod entry covers the module in one directory and does not enter a nested
-# one, so every Go module is named here: the root module, and otel/go, the
-# OpenTelemetry adapter, which is a module of its own precisely because it
-# carries what the root module may not — the requirements that would go
-# unoffered are exactly the ones this repository does not otherwise have.
+# one, so every Go module is named here: the root module, and each nested
+# module — otel/go, the OpenTelemetry adapter, and auth/go, the authority
+# profile — which is a module of its own precisely because it carries what
+# the root module may not — the requirements that would go unoffered are
+# exactly the ones this repository does not otherwise have.
 # Dependabot runs nothing, so the list cannot be derived the way
 # scripts/packages.mjs derives the others; TestEveryGoModuleIsOfferedUpdates
 # holds it to the modules on disk instead.
@@ -27,6 +28,14 @@ updates:
       interval: monthly
     groups:
       otel-go:
+        patterns: ["*"]
+
+  - package-ecosystem: gomod
+    directory: /auth/go
+    schedule:
+      interval: monthly
+    groups:
+      auth-go:
         patterns: ["*"]
 
   # The npm entry is the workspace's: pnpm-workspace.yaml makes every */ts a

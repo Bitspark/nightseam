@@ -188,6 +188,12 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
+  auth/ts:
+    devDependencies:
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
   conformance/ts:
     dependencies:
       '@bitspark/bitwire':
