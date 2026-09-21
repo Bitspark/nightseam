@@ -1,0 +1,20 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "auth.challenge": {"description": "Mints a nonce and keeps it as this connection's one pending challenge; refused once a context exists, and on a connection with no audience.", "result": "Challenged", "errors": ["unsupported", "established"]},
+      "auth.prove": {"description": "Consumes the pending challenge and, in order, holds the possession proof, the chain and its leaf to the claimed subject; makes the connection's one immutable context.", "request": "Prove", "result": "Proved", "errors": ["unsupported", "established", "malformed", "no_challenge", "possession_invalid", "chain_refused", "subject_mismatch"]}
+    }
+  },
+  "errors": {
+    "unsupported": "The connection has no audience — a pipe — and cannot run the exchange.",
+    "established": "The connection already has a context; a context is immutable, and a different subject is a different connection.",
+    "malformed": "A nonce or key of the wrong size, or a chain that is not a list of hexadecimal envelopes.",
+    "no_challenge": "No challenge is pending on this connection; one attempt per challenge.",
+    "possession_invalid": "The possession proof does not verify under the subject for this connection's audience and nonce.",
+    "chain_refused": "The chain does not hold under the server's root at its decision time; carries the grant code and hop.",
+    "subject_mismatch": "The chain's leaf is not the claimed subject; a chain is usable by the key it was issued to and by no one else.",
+    "unauthenticated": "A protected operation was called before the connection had a context.",
+    "denied": "The connection's chain does not cover the operation's action at its scope, at this time."
+  }
+}

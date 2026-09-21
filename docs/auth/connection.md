@@ -96,10 +96,10 @@ table holds both.
 ## The exchange
 
 Two requests of the profile, under the reserved prefix **`auth.`**, in the
-vocabulary of a built-in family `auth` declared under
-`internal/model/builtin/` when the layer lands — as `live.` and `channel.`
-are — with the peer dispatching them by name and knowing nothing of what
-they mean. Bare Nightseam has no `auth.` handlers installed and refuses the
+vocabulary of [the built-in family `auth`](../declaration/builtins/auth/README.md)
+declared under `internal/model/builtin/` — as `live.` and `channel.` are —
+with the peer dispatching them by name and knowing nothing of what they
+mean. Bare Nightseam has no `auth.` handlers installed and refuses the
 requests as any unknown method; a family may not declare an operation under
 the prefix.
 
@@ -128,9 +128,10 @@ nonce** — one attempt per challenge:
    code and hop, nothing more;
 4. the chain's leaf subject is not `subject` → `auth.subject_mismatch`
    — a chain is usable by the key it was issued to and by no one else;
-5. otherwise the context is made and the answer is
-   `{"validity": "unbounded" | {"expires_at": n}}`, the chain's effective
-   validity.
+5. otherwise the context is made and the answer is `{"expires_at": n}` for a
+   chain whose effective validity is finite, and `{}` for one that is
+   unbounded — the declared `Proved`, whose one member is present exactly
+   when there is an expiry.
 
 Once a context exists, both requests are refused `auth.established`: a
 context is immutable, and a change of subject is a new connection. On a

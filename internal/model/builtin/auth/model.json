@@ -1,0 +1,28 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Challenged": {
+      "kind": "record",
+      "description": "What a challenge answers: the nonce the server minted for this connection, kept as its one pending challenge; a second challenge replaces the first.",
+      "fields": [
+        {"name": "nonce", "description": "32 bytes of the server's entropy as 64 lowercase hexadecimal characters, one per challenge.", "type": "string"}
+      ]
+    },
+    "Prove": {
+      "kind": "record",
+      "description": "The client's proof over the pending challenge: the key it claims, its possession of that key bound to this connection's audience and nonce, and the chain of grants ending at that key.",
+      "fields": [
+        {"name": "subject", "description": "The key the client claims, as ed25519: followed by 64 lowercase hexadecimal characters.", "type": "string"},
+        {"name": "possession", "description": "The possession proof in nightseam-auth/1 over the nonce and the connection binding, 128 lowercase hexadecimal characters.", "type": "string"},
+        {"name": "chain", "description": "The grant envelopes, root first, each as lowercase hexadecimal; it must hold under the server's root and end at the subject.", "type": {"array": "string"}}
+      ]
+    },
+    "Proved": {
+      "kind": "record",
+      "description": "What a proof answers once the context is made: the chain's effective validity, finite or unbounded.",
+      "fields": [
+        {"name": "expires_at", "description": "The earliest finite expiry along the chain, in seconds since the Unix epoch, UTC; absent when the whole chain is unbounded.", "type": "integer", "required": false}
+      ]
+    }
+  }
+}
