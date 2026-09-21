@@ -22,6 +22,9 @@ func (f *file) liveExport(e model.TypeExpr, src, slots string) string {
 		return plain
 	}
 	owned := fmt.Sprintf("owner!.exportValue((owner) => { const converted = %s; %s(%s, converted%s); return converted; })", f.liveConversion(e, src, true), identValidateWire, validation, slots)
+	if f.operationAdapters {
+		owned = fmt.Sprintf("environment!.export(owner, (owner) => { const converted = %s; %s(%s, converted%s); return converted; })", f.liveConversion(e, src, true), identValidateWire, validation, slots)
+	}
 	if live != "true" {
 		return "(" + live + " ? " + owned + " : " + plain + ")"
 	}
@@ -35,6 +38,9 @@ func (f *file) livePublish(e model.TypeExpr, src, slots, send string) string {
 		return fmt.Sprintf(send, value)
 	}
 	owned := fmt.Sprintf("owner!.publishValue(owner => %s, sent => %s)", value, fmt.Sprintf(send, "sent"))
+	if f.operationAdapters {
+		owned = fmt.Sprintf("environment!.publish(owner, owner => %s, sent => %s)", value, fmt.Sprintf(send, "sent"))
+	}
 	if live != "true" {
 		return "(" + live + " ? " + owned + " : " + fmt.Sprintf(send, value) + ")"
 	}
@@ -113,7 +119,11 @@ func (f *file) conversionCall(e model.TypeExpr, src string, export bool) string 
 	t, arguments := f.family.Conversion(e)
 	passed := []string{}
 	if t.IsLive {
-		passed = append(passed, "owner")
+		owner := "owner"
+		if f.operationAdapters {
+			owner = "owner as LiveOwner"
+		}
+		passed = append(passed, owner)
 	}
 	if export {
 		src = "(" + src + ") as " + f.spell(e)

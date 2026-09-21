@@ -416,6 +416,9 @@ func (f *file) liveConversion(e model.TypeExpr, src string, export bool) string 
 			return converted
 		}
 		imported := "owner!.importValue((owner) => " + converted + ")"
+		if f.operationAdapters {
+			imported = "environment!.import(owner, (owner) => " + converted + ")"
+		}
 		if live != "true" {
 			return "(" + live + " ? " + imported + " : " + converted + ")"
 		}

@@ -30,7 +30,7 @@ const (
 // imported are the names the generated module imports from its runtimes;
 // globals are the ones of the language it uses. A type of
 // either name would shadow them.
-var imported = []string{"DuplexError", "Wire", "WireModelContext", "AdapterContext", "LiveOwner", "ValueAdapter", "ValueContext", "ValueOptions", "callWire", "emitWire", "registerWire", "wirePair", "conversion", "createValidator", "TypeExpression", "WireFamily"}
+var imported = []string{"DuplexError", "Wire", "WireModelContext", "AdapterContext", "LiveOwner", "ValueAdapter", "ValueContext", "ValueOptions", "callWire", "emitWire", "registerWire", "wirePair", "encodePath", "conversion", "createValidator", "TypeExpression", "WireFamily"}
 var globals = []string{"Array", "Record", "Promise", "Set", "Error", "String", "Object"}
 var modelNames = []string{"Server", "Client", "ServerMethods", "ClientMethods", "ServerEvents", "ClientEvents", "ServerModel", "ClientModel", "toWire", "fromWire", "makeAdapter"}
 
@@ -134,7 +134,7 @@ func (p *plan) plan() {
 	// A parameter becomes a type parameter of the generated declarations;
 	// its binding is an argument retained by the adapter closure.
 	bindings := emit.NewNamespace("adapter arguments")
-	bindings.Fix("generated adapter local", "context", "bindings", "slots", "scope", "defaultOwner", "proxyServer", "proxyClient", "bindServer", "bindClient", "wire", "model", "adapter", "access", "binding", "bound")
+	bindings.Fix("generated adapter local", "context", "bindings", "slots", "environment", "proxyServer", "proxyClient", "bindServer", "bindClient", "wire", "model", "adapter", "access", "binding", "bound")
 	for _, parameter := range f.Parameters {
 		if what, taken := p.module.Reserved(parameter.Name); taken {
 			p.Addf(parameter.At.Sub("name"), "generated_name_collision", "Generated type parameter %s collides with the %s.", parameter.Name, what)

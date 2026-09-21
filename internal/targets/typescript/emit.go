@@ -92,7 +92,10 @@ func emitTypes(f *file) {
 	f.linef("export type { %s, %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots)
 	f.imports(true)
 	f.liveImports()
-	f.linef("import type { LiveOwner, ValueAdapter, ValueContext } from %s;", quote(f.config.Live))
+	f.linef("import type { ValueAdapter, ValueContext } from %s;", quote(f.config.Runtime))
+	if fam.Live {
+		f.linef("import { LiveOwner } from %s;", quote(f.config.Live))
+	}
 	if fam.HasProtocol() {
 		f.linef("import type { WireModelContext } from %s;", quote(f.config.Runtime))
 	}

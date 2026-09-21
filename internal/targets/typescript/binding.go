@@ -56,11 +56,10 @@ func emitWireAdapter(f *file, side, protocol string) {
 	}
 	live := fam.Live || familyValueSlots(fam)
 	f.linef("import { DuplexError, callWire, emitWire, registerWire, wirePair, type WireModelContext } from %s;", quote(f.config.Runtime))
-	f.line("import type { Wire } from '@nightseam/duplex';")
-	if live {
-		f.linef("import type { AdapterContext, LiveOwner, ValueAdapter, ValueContext } from %s;", quote(f.config.Live))
-	} else {
-		f.linef("import type { AdapterContext } from %s;", quote(f.config.Runtime))
+	f.line("import { encodePath, type Wire } from '@nightseam/duplex';")
+	f.linef("import type { AdapterContext, ValueAdapter, ValueContext } from %s;", quote(f.config.Runtime))
+	if fam.Live {
+		f.linef("import type { LiveOwner } from %s;", quote(f.config.Live))
 	}
 	f.linef("import { validateWire } from %s;", protocol)
 	f.linef("import type * as Protocol from %s;", protocol)
@@ -86,9 +85,8 @@ func emitWireAdapter(f *file, side, protocol string) {
 		f.linef("const bindings = { %s };", strings.Join(pass, ", "))
 		f.linef("const slots: Slots = { %s };", strings.Join(values, ", "))
 		if live {
-			f.line("const scope = context.scope ?? context.owner?.scope;")
-			f.linef("if ((%s) && !scope) throw new DuplexError('scope_closed', 'live model adaptation requires an explicit scope');", f.familyLiveCondition())
-			f.line("const defaultOwner = context.owner?.scope === scope ? context.owner : undefined;")
+			f.line("const environment = context.valueEnvironment;")
+			f.linef("if ((%s) && !environment) throw new DuplexError('scope_closed', 'model adaptation requires an explicit value environment');", f.familyLiveCondition())
 		}
 		for _, name := range []string{"Server", "Client"} {
 			f.emitWireProxy(name, args)
@@ -101,7 +99,7 @@ func emitWireAdapter(f *file, side, protocol string) {
 		f.linef("const adapter = makeAdapter%s(context%s);", args, passing)
 		labels := []string{"...context.options?.families"}
 		for _, name := range operations(fam) {
-			labels = append(labels, quote(name)+": "+quote(fam.Name))
+			labels = append(labels, "[encodePath(["+quote(name)+"])]: "+quote(fam.Name))
 		}
 		f.linef("const [access, binding] = wirePair({ ...context.options, families: { %s } });", strings.Join(labels, ", "))
 		f.linef("try { const implementation = model(adapter.proxy%s(binding)); adapter.bind%s(binding, implementation); return access; } catch (error) { access.close(); throw error; }", opposite, side)
@@ -249,7 +247,7 @@ func (f *file) wireOwner(incoming bool, parts ...model.TypeExpr) string {
 	}
 	if incoming {
 		typ := f.lifetimeType("WireModelContext", "ValueContext", parts...)
-		return "const owner = " + condition + " ? (defaultOwner ?? scope!.owner()).child() : undefined; const ownedContext = Object.create(context) as " + typ + "; if (owner) Object.defineProperty(ownedContext, 'owner', { value: owner, enumerable: true });"
+		return "const owner = " + condition + " ? environment!.child(undefined) : undefined; const ownedContext = Object.create(context) as " + typ + "; if (owner !== undefined) Object.defineProperty(ownedContext, 'valueContext', { value: owner, enumerable: true });"
 	}
-	return "const selectedOwner = (context as {owner?: LiveOwner} | undefined)?.owner; const owner = " + condition + " ? (selectedOwner?.scope === scope ? selectedOwner : defaultOwner ?? scope!.owner()) : undefined;"
+	return "const owner = " + condition + " ? environment!.select((context as {valueContext?: unknown} | undefined)?.valueContext) : undefined;"
 }

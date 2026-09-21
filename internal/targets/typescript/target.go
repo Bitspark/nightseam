@@ -274,20 +274,13 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 	emitTypes(types)
 	client := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("  "), prefix: "Protocol."}
 	protocol := slices.Contains(f.Files, model.ProtocolFile)
-	dependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion, t.config.Live: t.config.RuntimeVersion}
+	dependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion}
+	if f.Live {
+		dependencies[t.config.Live] = t.config.RuntimeVersion
+	}
 	if protocol {
 		emitClient(client)
 		dependencies["@nightseam/duplex"] = t.config.RuntimeVersion
-		if f.Live || familyValueSlots(f) {
-			// A family with a live tier renders a module that imports the live
-			// layer, so the package declares it. Everywhere the generated
-			// output has run so far it resolved by where the package happens
-			// to sit — up out of the workspace here, out into a consumer's own
-			// node_modules there — which is resolution by directory layout
-			// rather than by declaration, and the one thing the packed smoke
-			// exists to refuse.
-			dependencies[t.config.Live] = t.config.RuntimeVersion
-		}
 	} else {
 		client.line("export * from './types.ts';")
 	}
@@ -317,7 +310,7 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 			return nil, fmt.Errorf("locate binding protocol: %w", err)
 		}
 		bindingDependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion, "@nightseam/duplex": t.config.RuntimeVersion, t.config.pkg(f.Name): clientDependency}
-		if f.Live || familyValueSlots(f) {
+		if f.Live {
 			bindingDependencies[t.config.Live] = t.config.RuntimeVersion
 		}
 		for _, family := range p.references() {

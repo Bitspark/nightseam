@@ -43,7 +43,7 @@ const tsEmptyLiveRequestsFixture = `import {pipe} from '@nightseam/duplex';
 import {DuplexPeer, DuplexError, callWire, forwardWire} from '@nightseam/runtime';
 import {toWire, fromWire} from '@example/service-binding';
 import type {Client} from '@example/service-client/types';
-import {liveOver} from '@nightseam/live';
+import {liveOver, valueEnvironment} from '@nightseam/live';
 
 function check(value: unknown, message: string): asserts value { if (!value) throw new Error(message); }
 async function refuses(call: Promise<unknown>, code: string) {
@@ -55,7 +55,7 @@ async function refuses(call: Promise<unknown>, code: string) {
 }
 const options = {signal: AbortSignal.timeout(5000)};
 const [near, far] = pipe();
-const peer = new DuplexPeer(), clientPeer = new DuplexPeer();
+const peer = new DuplexPeer({role:'server'}), clientPeer = new DuplexPeer({role:'client'});
 const scopes = [liveOver(clientPeer), liveOver(peer)];
 let remote!: Client;
 const modelWire = toWire(client => {
@@ -64,9 +64,9 @@ const modelWire = toWire(client => {
   check(Object.keys(params).length === 0, 'served request was not empty');
   return async (value: number) => value + 1;
  }}, events: {}};
-}, {scope: scopes[1]});
+}, {valueEnvironment: valueEnvironment(scopes[1])});
 const detach = forwardWire(peer.wire(), modelWire);
-const client = (await fromWire(clientPeer.wire(), {scope: scopes[0]}))({methods: {reverse(params) {
+const client = (await fromWire(clientPeer.wire(), {valueEnvironment: valueEnvironment(scopes[0])}))({methods: {reverse(params) {
   check(Object.keys(params).length === 0, 'reverse request was not empty');
   return async value => value + 2;
 }}, events: {}});
@@ -75,7 +75,7 @@ try {
  for (const side of [0, 1] as const) {
   const scope = scopes[side];
   const owner = scope.owner().child();
-  const callback = side === 0 ? await client.methods.create({}, {...options, owner}) : await remote.methods.reverse({}, {...options, owner});
+  const callback = side === 0 ? await client.methods.create({}, {...options, valueContext: owner}) : await remote.methods.reverse({}, {...options, valueContext: owner});
   check(owner.counts().imports === 1 && owner.counts().exports === 0, 'result did not belong to the selected owner');
   check(await callback(40, options) === 41 + side, 'returned callback was not callable');
   owner.release();

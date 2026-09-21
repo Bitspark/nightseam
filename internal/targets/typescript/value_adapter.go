@@ -48,7 +48,7 @@ func (f *file) emitValueAdapters() {
 				} else {
 					parameters = append(parameters, name+": ValueAdapter<"+use.Parameter+">")
 					bindings = append(bindings, quote(use.Parameter)+": "+name+".binding")
-					live = append(live, name+".live")
+					live = append(live, name+".needsContext")
 				}
 				seen[use.Parameter] = true
 			}
@@ -71,20 +71,27 @@ func (f *file) emitValueAdapters() {
 		f.w.Block(fmt.Sprintf("export function %s%s(%s): ValueAdapter<%s> {", valueAdapterName(f.plan.types[t.Name]), f.declare(t.Uses), strings.Join(parameters, ", "), self), "}", func() {
 			f.linef("const slots: Slots = { %s };", strings.Join(bindings, ", "))
 			f.linef("const binding: TypeBinding = { type: %s, validate: validateWire, slots };", quote(t.Name))
-			f.linef("const live = %s;", strings.Join(live, " || "))
-			f.w.Block("return { binding, live,", "};", func() {
+			f.linef("const needsContext = %s;", strings.Join(live, " || "))
+			f.w.Block("return { binding, needsContext,", "};", func() {
 				for _, export := range []bool{true, false} {
 					method, source, returns, converters, helper := "export", "value", "unknown", exports, f.plan.exports[t.Name]
 					input := "value: " + self
 					if !export {
 						method, source, returns, converters, helper, input = "import", "raw", self, imports, f.plan.imports_[t.Name], "raw: unknown"
 					}
-					f.w.Block(fmt.Sprintf("%s(owner: LiveOwner | undefined, %s): %s {", method, input, returns), "},", func() {
-						f.line("if (live && !owner) throw new DuplexError('scope_closed', 'live conversion requires an owner');")
+					f.w.Block(fmt.Sprintf("%s(context: unknown, %s): %s {", method, input, returns), "},", func() {
+						f.line("if (needsContext && context === undefined) throw new DuplexError('scope_closed', 'conversion requires a value context');")
+						if t.IsLive {
+							f.line("if (!(context instanceof LiveOwner)) throw new DuplexError('scope_closed', 'live conversion requires an owner');")
+						}
 						if !export {
 							f.line("binding.validate(binding.type, raw, '$', slots);")
 						}
-						f.w.Block(fmt.Sprintf("const convert = (owner: LiveOwner | undefined): %s => {", returns), "};", func() {
+						ownerType := "unknown"
+						if t.IsLive {
+							ownerType = "LiveOwner"
+						}
+						f.w.Block(fmt.Sprintf("const convert = (owner: %s): %s => {", ownerType, returns), "};", func() {
 							converted := source
 							if helper != "" {
 								args := []string{source}
@@ -102,7 +109,11 @@ func (f *file) emitValueAdapters() {
 							}
 							f.line("return converted;")
 						})
-						f.linef("return live ? owner!.%sValue(convert) : convert(owner);", method)
+						if t.IsLive {
+							f.linef("return context.%sValue(convert);", method)
+						} else {
+							f.line("return convert(context);")
+						}
 					})
 				}
 			})
@@ -114,9 +125,9 @@ func (f *file) lifetimeType(base, helper string, parts ...model.TypeExpr) string
 	for _, part := range parts {
 		if part != nil && f.family.IsLive(part) {
 			if helper == "ValueContext" {
-				return base + " & { owner: LiveOwner }"
+				return base + " & { valueContext: unknown }"
 			}
-			return base + " & { owner?: LiveOwner }"
+			return base + " & { valueContext?: unknown }"
 		}
 	}
 	if !f.liveNeeded(parts...) {
@@ -138,7 +149,7 @@ func (f *file) familyLiveCondition() string {
 	var parts []string
 	for _, name := range parameters(f.family.Uses) {
 		if parameter, ok := f.parameter(name); ok && !parameter.IsFamily() {
-			parts = append(parts, bindingName(name)+".live")
+			parts = append(parts, bindingName(name)+".needsContext")
 		}
 	}
 	if len(parts) == 0 {
@@ -179,7 +190,7 @@ func (f *file) boundaryLive(e model.TypeExpr) string {
 		return "true"
 	}
 	if slot := f.operationSlot(e); slot != "" {
-		return slot + ".live"
+		return slot + ".needsContext"
 	}
 	switch x := e.(type) {
 	case model.Array:
