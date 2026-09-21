@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Nightseam browser identity exchange</title>
+<style>
+  body { max-width: 72rem; margin: 2rem auto; padding: 0 1rem; font: 16px/1.5 system-ui, sans-serif; }
+  pre { padding: 1rem; background: #f2f4f8; overflow: auto; }
+</style>
+<h1 id="status">Running native-browser identity exchange</h1>
+<p>Ordinary identity.check calls over the browser's native WebSocket. Consumer subprotocol choices remain unchanged.</p>
+<pre id="results">Waiting for all eight cases.</pre>
+<script type="importmap">
+{"imports":{"@nightseam/runtime":"/runtime/ts/src/index.js","@nightseam/duplex":"/duplex/ts/src/index.js"}}
+</script>
+<script type="module" src="/cmd/nightseam/testdata/identity-browser/browser.js"></script>
+</html>
