@@ -44,11 +44,17 @@ Component tests and the private driver default to off when Nightseam is a
 subdirectory. `NIGHTSEAM_BUILD_TESTS` and `NIGHTSEAM_BUILD_CONFORMANCE` select
 them explicitly. No C++ registry package is published by the core lane.
 
+[`cmake/consumer`](../../cmake/consumer) is a small standalone consumer that
+checks this default and calls a peer through the public target. It can be
+configured with `-DNIGHTSEAM_SOURCE=/path/to/nightseam`; the source package
+needs the root `CMakeLists.txt`, `cmake`, `duplex/cpp` and `runtime/cpp`.
+
 Public headers are under `nightseam/runtime`. `Value`, `parse_value` and
 `stringify` preserve numeric lexemes until `Schema` checks their admitted
 domain. `Peer` correlates calls in either direction and provides cancellation,
 deadlines, ordered events, metadata and trace propagation over a framed
 connection. Its observer contains names, sizes and lifecycle facts only.
+Numeric validation is independent of the host's numeric locale.
 
 The normative behavior remains the shared [wire profile](../../docs/wire/profile.md)
 and [validator tables](../../conformance/tables/validator.json).
