@@ -1,0 +1,11 @@
+func (observingMethods[SEnvelope, SHandle]) Attach(ctx context.Context, params protocol.AttachParams) (protocol.Attachment[SHandle], error)
+func (observingMethods[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)
+func Example[T any](name string) (T, error)
+func Forwarded(_ context.Context, wire duplex.Wire) (duplex.Wire, func(), error)
+func Local(_ context.Context, wire duplex.Wire) (duplex.Wire, func(), error)
+func Mounted(_ context.Context, wire duplex.Wire) (duplex.Wire, func(), error)
+func Pair[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, model protocol.ServerModel[SEnvelope, SHandle], options Options, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle]) (protocol.ServerModel[SEnvelope, SHandle], func(), error)
+func Pipe(ctx context.Context, wire duplex.Wire) (duplex.Wire, func(), error)
+func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, model protocol.ServerModel[SEnvelope, SHandle], opposite protocol.Client[SEnvelope, SHandle], options Options, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle]) error
+type Options struct{Context runtime.AdapterContext; RemoteContext runtime.AdapterContext; Presentation Presentation; Inputs map[string]any; Equal func(string, any, any) error}
+type Presentation func(context.Context, duplex.Wire) (duplex.Wire, func(), error)

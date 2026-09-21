@@ -144,8 +144,8 @@ func (c *checker) type_(t *model.Type, name string, context int, scope []model.P
 }
 
 // callable holds the live tier's own kind: it is declared in the live tier
-// and nowhere else, it takes no parameters of its own, and its request and
-// result are ordinary type expressions of its tier or below.
+// and nowhere else, and its request and result are ordinary type expressions
+// of its tier or below. Type arguments are fixed before a callable is exported.
 //
 // The tier rule then does the rest of the work with no machinery of its
 // own. A callable is declared in live.json, so its rank is the live tier's,
@@ -156,9 +156,6 @@ func (c *checker) type_(t *model.Type, name string, context int, scope []model.P
 func (c *checker) callable(t *model.Type, where site) {
 	if t.At.File != model.LiveFile {
 		c.Addf(t.At.Sub("kind"), "callable_tier", "Callable %s is declared in %s; a callable is the live tier's kind and is declared in %s, which is what keeps a value of a lower tier self-contained data.", t.Name, t.At.File, model.LiveFile)
-	}
-	if len(t.Parameters) > 0 {
-		c.Addf(t.At.Sub("parameters", 0), "callable_parameters", "Callable %s declares parameters. Generic callables are not supported yet: the current contract names declarations and does not define identities for applied callable arguments. Use nongeneric callable declarations.", t.Name)
 	}
 	if t.Request != nil {
 		c.expression(t.Request, t.At.Sub("request"), where)
@@ -220,8 +217,6 @@ func (c *checker) parameters(parameters []model.Parameter, owner string, context
 			c.Addf(parameter.At.Sub("of"), "unknown_role", "Unknown tier %s: a parameter is of a tier a family carries — %s — or of none, which makes it a type parameter.", parameter.Of, strings.Join(model.TierRoles(), ", "))
 		case context >= 0 && context < model.Rank(model.ProtocolFile):
 			c.Addf(parameter.At.Sub("of"), "tier_violation", "A %s declaration is generic in a family of the %s tier; a declaration refers to its own tier or a lower one.", model.TierName(context), parameter.Of)
-		case len(f.Carriers(parameter.Of)) == 0:
-			c.Addf(parameter.At.Sub("of"), "unresolved_type", "No other family carries the %s tier, so a parameter of %s has nothing to bind.", parameter.Of, parameter.Of)
 		}
 	}
 	return parameters
@@ -431,9 +426,8 @@ func familyBoundFills(from, to string) bool {
 }
 
 // drawn holds a draw through a parameter: the parameter is one this
-// declaration has in scope, it is filled by a family — a type has no types
-// of its own to draw — and every family that may fill it declares the type
-// plainly.
+// declaration has in scope and is filled by a family. Member constraints
+// belong to the supplied interpretation, not unrelated families in the world.
 func (c *checker) drawn(x model.Drawn, at diag.Location, where site) {
 	f := c.f
 	parameter, ok := lookup(where.scope, x.Parameter)
@@ -451,25 +445,8 @@ func (c *checker) drawn(x model.Drawn, at diag.Location, where site) {
 		c.Addf(at, "unresolved_parameter", "Unknown parameter %s: nothing in scope declares a parameter of that name.", x.Parameter)
 		return
 	}
-	c.liveDraw(x, at)
 	if model.Carried(x.Name) {
 		return
-	}
-	// A type beyond the ones every family carries must be one every family
-	// that may bind the parameter declares, as a record or an enum of its
-	// own — an alias has no identity for a language to hold it to — and
-	// plainly.
-	for _, name := range sortedKeys(toNames(f.Carriers(parameter.Of))) {
-		other := f.Carriers(parameter.Of)[name]
-		t, declared := other.Types[x.Name]
-		switch {
-		case !declared:
-			c.Addf(at, "unresolved_type", "Type %s of %s: the %s family %s declares no type of that name, and every family that may bind %s must.", x.Name, x.Parameter, parameter.Of, name, x.Parameter)
-		case t.Kind == model.KindAlias:
-			c.Addf(at, "unresolved_type", "Type %s of %s: in the %s family %s it is an alias, and a slot draws a record or an enum.", x.Name, x.Parameter, parameter.Of, name)
-		case len(other.Generics().Types[x.Name]) > 0 || len(t.Parameters) > 0:
-			c.Addf(at, "unresolved_type", "Type %s of %s: in the %s family %s it is generic, and a slot draws a plain type.", x.Name, x.Parameter, parameter.Of, name)
-		}
 	}
 }
 
@@ -505,6 +482,11 @@ func (c *checker) apply(x model.Apply, at diag.Location, where site) {
 		}
 	}
 	c.arguments(applied(x), wanted, x.With, at, where)
+	owner := f
+	if x.Family != "" {
+		owner = f.Imported[x.Family]
+	}
+	c.drawArguments(owner.Generics().Types[x.Name], x.With, at)
 	// The applied type is a declaration like any other, so it is of this
 	// declaration's tier or a lower one.
 	rank, in := where.context, f
@@ -586,29 +568,6 @@ func lookup(parameters []model.Parameter, name string) (model.Parameter, bool) {
 		}
 	}
 	return model.Parameter{}, false
-}
-
-// liveDraw refuses drawing a live type through a family parameter. Every
-// family that may bind the parameter declares the drawn type, so whether it
-// is live is known here — and a live one has no conversion at the boundary,
-// since what fills the parameter is the consumer's to choose.
-func (c *checker) liveDraw(x model.Drawn, at diag.Location) {
-	parameter, ok := c.f.Parameter(x.Parameter)
-	if !ok || !parameter.IsFamily() {
-		return
-	}
-	carriers := c.f.Carriers(parameter.Of)
-	names := make([]string, 0, len(carriers))
-	for name := range carriers {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		if carriers[name].IsLiveType(x.Name) {
-			c.Addf(at, "live_draw", "%s.%s draws %s from %s, which carries a callable; the current family-binding contract supplies no live boundary converter for that draw. Use an explicitly named live type in %s instead.", x.Parameter, x.Name, x.Name, name, model.LiveFile)
-			return
-		}
-	}
 }
 
 func (c *checker) tierViolation(at diag.Location, context int, name, file string) {
@@ -808,7 +767,11 @@ func (c *checker) extendedSide(side *model.Side, server bool, label string, oper
 		}
 		for i := range inherited.Methods {
 			m := &inherited.Methods[i]
+			c.drawArguments(append(source.UsesOf(m.Request), source.UsesOf(m.Result)...), bindings, at)
 			signature := [2]model.TypeExpr{f.BindExpression(m.Request, source, bindings), f.BindExpression(m.Result, source, bindings)}
+			if root, drawn := source.RequestRoot(m.Request).(model.Drawn); drawn && !f.IsObject(f.BindExpression(root, source, bindings)) {
+				c.Add(at, "invalid_request", "A supplied drawn method request must be an object.")
+			}
 			if previous, seen := seenMethods[m]; !seen || !reflect.DeepEqual(previous, signature) {
 				operation(calls, m.Name, at)
 				seenMethods[m] = signature
@@ -816,6 +779,7 @@ func (c *checker) extendedSide(side *model.Side, server bool, label string, oper
 		}
 		for i := range inherited.Events {
 			e := &inherited.Events[i]
+			c.drawArguments(source.UsesOf(e.Type), bindings, at)
 			signature := f.BindExpression(e.Type, source, bindings)
 			if previous, seen := seenEvents[e]; !seen || !reflect.DeepEqual(previous, signature) {
 				operation(notifies, e.Name, at)

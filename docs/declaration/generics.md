@@ -1,6 +1,6 @@
 # The holes in a declaration
 
-A family, a record, a union and an alias may each declare `parameters` —
+A family, a record, an entity, a union, an alias and a callable may each declare `parameters` —
 the holes in it — and a consumer fills them where the generated code is
 used. One mechanism at every level, and a parameter is of one of two
 **sorts**, which `of` names.
@@ -17,8 +17,11 @@ used. One mechanism at every level, and a parameter is of one of two
   ([a family in tiers](families.md#the-files) has the table). A
   type is drawn *through* it, `S.Envelope` — one message of the family bound
   to `S` — `S.Handle` a channel that speaks it, `S.Payload` any record or
-  enum `Payload` of it, which every family that may bind `S` is then held to
-  declare, plainly, checked across the world.
+  enum `Payload` of it. The family actually supplied for `S` must declare
+  every required associated type plainly; unrelated families in the world
+  need not declare those members. Source applications check their selected
+  family, and generated construction checks the supplied runtime binding.
+  The generic consumer derives without loading a provider.
 - **A type parameter** — it has no `of`. It is filled by a **type
   expression** and is written where a type is named: `{"array": "T"}`.
 
@@ -72,7 +75,7 @@ maps each of that type's parameters to what fills it — a **type
 expression** for a type parameter, a **family** for a family parameter, or
 a family parameter visible at the application site, which keeps the result
 generic here. That scope includes the enclosing family's parameters and
-the containing record's, union's or alias's own parameters; inline shapes
+the containing record's, entity's, union's, alias's or callable's own parameters; inline shapes
 and nested applications keep the same scope. A forwarded family parameter
 must guarantee the tier the destination requires, just as a concrete
 family must carry it. A type parameter cannot fill a family slot.
@@ -100,8 +103,11 @@ instantiates it:
   with `message: S["Envelope"]` and `last: S["Payload"]`, the bound narrowed
   to `AnyFamily & { "Payload": unknown }` where a type beyond the ones every
   family carries is drawn and the parameter defaulting to that same bound,
-  and one family binding argument per family parameter on `toWire` and
-  `fromWire`. A type parameter instead takes a `ValueAdapter<T>`, carrying its
+  and one `FamilyBinding<S, K>` argument per family parameter on `toWire` and
+  `fromWire`, where `K` is the set of associated types that consumer uses.
+  Its `types` dictionary supplies a `ValueAdapter<S[P]>` for every `P` in `K`.
+  The generated provider's `family` value carries these recipes for its closed
+  members. A type parameter instead takes a `ValueAdapter<T>`, carrying its
   declaration binding and both native/wire conversions. The validators use
   those bindings to check what fills each slot.
 - Go has none, so a family parameter becomes one type parameter per type
@@ -114,13 +120,17 @@ instantiates it:
   package's `Tag` from `Of`, and `ToWire` and `FromWire` hold every type
   parameter drawn from `S` to `runtime.Of[STag]`, so
   an `Envelope` of one family beside a `Handle` of another does not compile.
+  Each drawn type also takes a `runtime.ValueAdapter[T]` argument, including
+  carried envelopes and handles. `runtime.JSONAdapter[T]()` supplies ordinary
+  data; a provider's generated `AdapterJob()` supplies a live record.
 
 A type parameter is the plainer case: both languages have one, and a type
 that declares parameters renders as a type with type parameters.
 
-A type drawn from a family parameter is validated by the binding of the
-family that fills it in TypeScript, and by that family's codec where the
-generic type is instantiated in Go.
+A type drawn from a family parameter receives its declaration, validation and
+both conversions together. Construction checks that all supplied members
+belong to one complete bound family interpretation, including its revision.
+A missing recipe or a mismatched member fails before the model factory runs.
 
 ## Conversion at a generic operation
 
@@ -147,13 +157,43 @@ environment batch and pass its active callback context into every adapter.
 The [generated surface](generated.md#value-adapters-and-generic-operations)
 shows both languages and the lower direct conversion helpers.
 
-This covers type arguments containing fixed declared callables, including
-callables that take or return other callables. The grammar still refuses a
-callable declaration's own parameters and live types drawn through a family
-parameter. Those forms are separate work in
-[#368](https://github.com/Bitspark/nightseam/issues/368) and
-[#369](https://github.com/Bitspark/nightseam/issues/369); adapters do not add
-either declaration form implicitly.
+This covers type arguments containing fixed declared callables and plain
+associated records containing them, including callables that take or return
+other callables. A generic operation drawing `S.Job` remains in
+`protocol.json`: its supplied interpretation decides whether a live context is
+needed. Its generated package imports neither a concrete provider nor live.
+Direct draws of aliases, callable declarations and generic members remain
+refused; a plain associated record can contain a callable.
+
+## Declared callable applications
+
+A callable declares its type parameters in `live.json` and uses the ordinary
+application syntax to fix them before export:
+
+```json
+"Function": {"kind":"callable","parameters":[{"name":"A"},{"name":"B"}],
+             "request":"A","result":"B"},
+"IntToText": {"kind":"alias","type":{"apply":"Function",
+              "with":{"A":"integer","B":"string"}}}
+```
+
+Its native type is `Function[A, B]` in Go and `Function<A, B>` in TypeScript.
+`AdapterFunction(a, b)` / `adapterFunction(a, b)` composes complete value
+adapters for its arguments. Either argument may itself be a closed callable
+application or a container containing one. An exported implementation imports
+its request and exports its result; an imported proxy does the reverse, so
+both recipes are required even by a helper used initially in only one direction.
+
+The closed alias above has the same nominal application as those supplied
+adapters. Its generated conversion body is specialized directly from the
+source signature and does not delegate to the generic callable helper. Neither
+route invents a new callable constructor. A separately declared callable with
+an identical signature remains a different contract.
+
+Call arguments do not choose type arguments. Anonymous callables, higher-rank
+polymorphism and unfilled applications remain outside this grammar. A returned
+callable may outlive the call that supplied it, within its owner's lifetime;
+each later invocation supplies its own context and acquisition batch.
 
 ## Identity of a bound application
 
@@ -183,6 +223,15 @@ so supplying bindings at runtime produces the same identity in either
 language. Identity grants no authority and performs no compatibility
 negotiation between distinct declarations.
 
+`CallableIdentity(binding)` / `callableIdentity(binding)` selects a closed
+callable's printable path and digest from that same graph. An applied path
+includes its ordered arguments, such as `worker/Function<integer,string>`;
+reversing those arguments changes the path even when a reference omits its
+optional digest. Its digest covers the selected application and reachable
+argument content. A nongeneric declared callable retains its declaring
+family's digest. Pure aliases preserve both identities. The exact spellings
+are held by the shared [callable identity fixtures](../../conformance/tables/callable-identities.json).
+
 ## The diagram commutes
 
 The two ways to a concrete package — binding the parameters into the
@@ -192,3 +241,9 @@ render both into one module and hold them equal: by reflection in Go, by
 `Equals<>` under `tsc` in TypeScript, and on the wire, a plain client
 against a generic server and the reverse. `internal/oracle` is the left
 path of that diagram, test support and nothing a consumer sees.
+
+The [combined acceptance findings](proof-findings.md#combined-generic-construction-and-retained-values)
+hold both generic forms through an unchanged Cell model, independent source
+substitution, real connection scopes and installed consumer packages. The
+failure fixtures check nested rollback and retained values under a mutable
+consumer guard; they do not claim exhaustive authentication coverage.

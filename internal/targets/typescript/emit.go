@@ -22,6 +22,7 @@ type file struct {
 	scope             []model.Parameter
 	codecs            []render.Use
 	scopedCodecs      bool
+	completeCodecs    bool
 	operationAdapters bool
 	adapterReceiver   string
 	// conversion is the namespace a live type's generated export/import is
@@ -88,7 +89,7 @@ func (f *file) imports(validators bool) {
 // family's wire description by the runtime.
 func emitTypes(f *file) {
 	p, fam := f.plan, f.family
-	f.linef("import { createValidator, withDeclaration, DuplexError, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
+	f.linef("import { createValidator, withDeclaration, jsonAdapter, familyTypeAdapter, callableIdentity, DuplexError, type DeclarationIdentity, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
 	f.linef("export type { %s, %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots)
 	f.imports(true)
 	f.liveImports()
@@ -129,8 +130,19 @@ func emitTypes(f *file) {
 	}
 	f.line("/** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */")
 	f.linef("export const %s = withDeclaration(createValidator(contractTypes, %s, { %s }), %s);", identValidateWire, identWireDigest, strings.Join(validators, ", "), identWireDeclaration)
-	f.line("/** This family bound: its name and its validator, to fill a family slot in another family's client. */")
-	f.linef("export const %s = { name: %s, validate: %s } as const;", identFamilyValue, quote(fam.Name), identValidateWire)
+	f.line("/** This family's declaration and reusable interpretations, with no operation context or owner. */")
+	var adapters []string
+	for _, t := range fam.Types {
+		if len(t.Uses) != 0 {
+			continue
+		}
+		adapter := valueAdapterName(p.types[t.Name]) + "()"
+		if t.Carried {
+			adapter = fmt.Sprintf("jsonAdapter<%s>({ type: %s, validate: %s })", p.types[t.Name], quote(t.Name), identValidateWire)
+		}
+		adapters = append(adapters, quote(t.Name)+": "+adapter)
+	}
+	f.linef("export const %s = { name: %s, validate: %s, types: { %s } } as const;", identFamilyValue, quote(fam.Name), identValidateWire, strings.Join(adapters, ", "))
 }
 
 // emitType is the declaration shared by package generation and documents.

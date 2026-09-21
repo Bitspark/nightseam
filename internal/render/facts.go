@@ -106,6 +106,16 @@ func (r *Family) complete() {
 		r.Server = r.resolvedSide(true)
 		r.Client = r.resolvedSide(false)
 		r.Errors = r.resolvedErrors()
+		for _, side := range []Side{r.Server, r.Client} {
+			for _, method := range side.Methods {
+				if draw, ok := r.f.RequestRoot(method.Request).(model.Drawn); ok {
+					use := Use{Parameter: draw.Parameter, Type: draw.Name}
+					if !slices.Contains(r.ObjectDraws, use) {
+						r.ObjectDraws = append(r.ObjectDraws, use)
+					}
+				}
+			}
+		}
 	}
 	r.Live = r.f.Live != nil
 	r.Callables = r.f.Callables()
@@ -170,6 +180,8 @@ func (r *Family) surfaceReferences() {
 			visit(field.Type)
 		}
 		visit(t.Alias)
+		visit(t.Request)
+		visit(t.Result)
 		for _, base := range t.Bases {
 			add(base.Type.Origin.Family)
 			arguments(base.Type.Arguments)

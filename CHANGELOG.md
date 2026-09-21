@@ -56,6 +56,35 @@ are one number. Entries are in the words of the commits that landed them.
 - Go and TypeScript access surfaces adopt public Bitwire v0.1.0 through exact
   shared types, held to its independent composition cases locally and over
   WebSockets while Nightseam retains runtime and scoped-reference behavior.
+- Combined Go and TypeScript acceptance exercises closed callable applications
+  and two-provider family draws through one Cell model across local Wires,
+  sockets, channels and two-connection forwarding. Independent specialization,
+  nested rollback, retained values and installed consumer fixtures hold the
+  same constructions beyond the generator's own rendering tests.
+- Declared Go and TypeScript callables accept fixed type arguments, including
+  nested callables and live values. Complete adapters compose both conversion
+  directions under each invocation's context. Applied names and digests retain
+  nominal origin and argument revisions; source aliases emit independent
+  specialized conversion bodies with the same identity.
+- Go and TypeScript ship a bounded Wire record/follow composition with
+  consumer-owned storage, an atomic replay-to-live handoff and independent
+  subscriber failure. Opaque messages retain their existing reference scope.
+- Generated Go and TypeScript side packages derive typed outgoing event unions
+  and record/follow helpers. Closed declaration identity is checked before
+  history setup or replay; ordinary event conversion preserves live-reference
+  scope and owner lifetime without retaining or rebinding callables.
+- Generated Go and TypeScript family parameters supply complete interpretations
+  of plain associated records containing callables. Constructors reject missing
+  or mixed-family converters before model construction, and nested conversions
+  use the active operation's ownership batch without adding live dependencies
+  to generic consumers. TypeScript conversion-only record, union and alias
+  helpers explicitly carry the `Unchecked` suffix.
+  Draw constraints follow the actual supplied family, so generic consumers
+  derive independently of providers and unrelated families. Missing or nonplain
+  members and non-object drawn RPC requests fail before model construction.
+- Generated Go and TypeScript model sides include consumer transparency helpers
+  with validated document examples, pipe pairs and smoke checks of method
+  inputs, results and public errors across local and carrier presentations.
 - Haskell enters at tier 4 with bounded pipes and WebSockets, the native peer,
   relative-path Wires and strict shared-table validation, held against Go in
   both roles and by an outside source-distribution consumer.
@@ -84,9 +113,6 @@ are one number. Entries are in the words of the commits that landed them.
 - Python provides bounded Wire recording and independent following over
   consumer-owned storage, with atomic replay heads, cancellation-safe follower
   ownership and unchanged opaque message capabilities.
-- Go and TypeScript ship a bounded Wire record/follow composition with
-  consumer-owned storage, an atomic replay-to-live handoff and independent
-  subscriber failure. Opaque messages retain their existing reference scope.
 - Generated Go and TypeScript families expose the canonical declaration and its
   SHA-256 digest, covering operations, events, errors and reachable imported
   declarations. Bound arguments retain their own declaration content and scope.

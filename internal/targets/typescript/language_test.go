@@ -153,7 +153,7 @@ func TestMixedAdaptersBindTypesAndFamiliesInTheirRuntimeSlots(t *testing.T) {
 			continue
 		}
 		index := string(file.Data)
-		for _, want := range []string{`context: AdapterContext, s: FamilyBinding<S>, item: ValueAdapter<Item>`, `const bindings = { s, item };`, `const slots: Slots = { "S": s, "Item": item.binding };`, `validateWire("Mixed", result, '$', slots)`, `makeAdapter<S, Item>(context, s, item)`} {
+		for _, want := range []string{`context: AdapterContext, s: FamilyBinding<S, "Envelope">, item: ValueAdapter<Item>`, `const bindings = { s, item };`, `const slots: Slots = { "S": s, "Item": item.binding };`, `validateWire("Mixed", result, '$', slots)`, `makeAdapter<S, Item>(context, s, item)`} {
 			if !strings.Contains(index, want) {
 				t.Errorf("%s lacks %s:\n%s", file.Path, want, index)
 			}

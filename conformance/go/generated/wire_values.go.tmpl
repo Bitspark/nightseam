@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	boxes "example.test/generated/api/go/boxes-protocol"
 	combinator "example.test/generated/api/go/combinator-protocol"
+	functions "example.test/generated/api/go/functions-protocol"
+	holder "example.test/generated/api/go/holder-protocol"
+	numbers "example.test/generated/api/go/numbers-protocol"
+	texts "example.test/generated/api/go/texts-protocol"
 	"fmt"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
@@ -13,6 +17,7 @@ type wireValues[T any] struct {
 	adapter runtime.ValueAdapter[T]
 	make    func(int64) T
 	observe func(context.Context, T) (any, error)
+	retain  bool
 }
 
 func wireStrings() wireValues[string] {
@@ -21,12 +26,12 @@ func wireStrings() wireValues[string] {
 			return "first"
 		}
 		return "second"
-	}, func(_ context.Context, v string) (any, error) { return v, nil }}
+	}, func(_ context.Context, v string) (any, error) { return v, nil }, false}
 }
 func wireUnaries() wireValues[combinator.Unary] {
 	return wireValues[combinator.Unary]{combinator.AdapterUnary(), func(add int64) combinator.Unary {
 		return func(_ context.Context, n int64) (int64, error) { return n + add, nil }
-	}, func(ctx context.Context, fn combinator.Unary) (any, error) { return fn(ctx, 5) }}
+	}, func(ctx context.Context, fn combinator.Unary) (any, error) { return fn(ctx, 5) }, false}
 }
 func wireFactories() wireValues[combinator.Factory] {
 	return wireValues[combinator.Factory]{combinator.AdapterFactory(), func(add int64) combinator.Factory {
@@ -39,7 +44,7 @@ func wireFactories() wireValues[combinator.Factory] {
 			return nil, err
 		}
 		return inner(ctx, 5)
-	}}
+	}, false}
 }
 func wireNested() wireValues[boxes.Page[combinator.Bundle[combinator.Unary]]] {
 	return wireValues[boxes.Page[combinator.Bundle[combinator.Unary]]]{
@@ -66,5 +71,148 @@ func wireNested() wireValues[boxes.Page[combinator.Bundle[combinator.Unary]]] {
 			}
 			return map[string]any{"seed": seed, "run": run, "label": label, "next_absent": !page.Next.Present}, nil
 		},
+	}
+}
+
+// The generic declaration and its source alias have separate generated
+// conversion bodies. Supplying either recipe to this unchanged Cell exercises
+// the same nominal Function<integer, integer> application by independent routes.
+func wireGenericFunctions() wireValues[functions.Function[int64, int64]] {
+	integer := runtime.JSONAdapter[int64]()
+	return wireValues[functions.Function[int64, int64]]{
+		adapter: functions.AdapterFunction(integer, integer),
+		make: func(add int64) functions.Function[int64, int64] {
+			return func(_ context.Context, n int64) (int64, error) { return n + add, nil }
+		},
+		observe: func(ctx context.Context, fn functions.Function[int64, int64]) (any, error) { return fn(ctx, 5) },
+		retain:  true,
+	}
+}
+func wireIntegerFunctions() wireValues[functions.IntegerFunction] {
+	return wireValues[functions.IntegerFunction]{
+		adapter: functions.AdapterIntegerFunction(),
+		make: func(add int64) functions.IntegerFunction {
+			return func(_ context.Context, n int64) (int64, error) { return n + add, nil }
+		},
+		observe: func(ctx context.Context, fn functions.IntegerFunction) (any, error) { return fn(ctx, 5) },
+		retain:  true,
+	}
+}
+func wireGenericFactories() wireValues[functions.Factory] {
+	integer := runtime.JSONAdapter[int64]()
+	unary := functions.AdapterFunction(integer, integer)
+	return wireValues[functions.Factory]{
+		adapter: functions.AdapterFunction(unary, unary),
+		make: func(add int64) functions.Factory {
+			return func(_ context.Context, fn functions.IntegerFunction) (functions.IntegerFunction, error) {
+				return func(ctx context.Context, n int64) (int64, error) {
+					value, err := fn(ctx, n)
+					return value + add, err
+				}, nil
+			}
+		},
+		observe: func(ctx context.Context, fn functions.Factory) (any, error) {
+			calls := 0
+			inner, err := fn(ctx, func(_ context.Context, n int64) (int64, error) { calls++; return n + 3, nil })
+			if err != nil {
+				return nil, err
+			}
+			value, err := inner(ctx, 5)
+			if err != nil {
+				return nil, err
+			}
+			if calls != 1 {
+				return nil, fmt.Errorf("generic factory invoked callback %d times, want one", calls)
+			}
+			return value, nil
+		},
+		retain: true,
+	}
+}
+
+func wireHolderBatch[J, P any](value holder.Value[J, P]) holder.Batch[J, P] {
+	return holder.Batch[J, P]{
+		runtime.Null[map[string]holder.Choice[J, P]](),
+		runtime.NonNull(map[string]holder.Choice[J, P]{
+			"kept":  {Value: &value},
+			"empty": {Empty: &struct{}{}},
+		}),
+	}
+}
+func wireHolderValue[J, P any](batch holder.Batch[J, P]) (holder.Value[J, P], error) {
+	var zero holder.Value[J, P]
+	if len(batch) != 2 || !batch[0].Null || batch[1].Null || len(batch[1].Value) != 2 {
+		return zero, fmt.Errorf("generic holder lost nullable array or map structure")
+	}
+	held, empty := batch[1].Value["kept"], batch[1].Value["empty"]
+	if held.Kind() != holder.ChoiceKindValue || empty.Kind() != holder.ChoiceKindEmpty {
+		return zero, fmt.Errorf("generic holder lost value or empty union arm")
+	}
+	return *held.Value, nil
+}
+func wireHolderNumbers() wireValues[holder.Batch[numbers.Job, numbers.Progress]] {
+	return wireValues[holder.Batch[numbers.Job, numbers.Progress]]{
+		adapter: holder.AdapterBatch(numbers.AdapterJob(), numbers.AdapterProgress()),
+		make: func(add int64) holder.Batch[numbers.Job, numbers.Progress] {
+			fn := wireGenericFunctions().make
+			return wireHolderBatch(holder.Value[numbers.Job, numbers.Progress]{
+				Job:      numbers.Job{Run: fn(add)},
+				Progress: numbers.Progress{Label: "kept", Notify: numbers.Job{Run: fn(10 * add)}},
+			})
+		},
+		observe: func(ctx context.Context, batch holder.Batch[numbers.Job, numbers.Progress]) (any, error) {
+			value, err := wireHolderValue(batch)
+			if err != nil {
+				return nil, err
+			}
+			if value.Progress.Label != "kept" {
+				return nil, fmt.Errorf("generic holder lost progress label")
+			}
+			job, err := value.Job.Run(ctx, 5)
+			if err != nil {
+				return nil, err
+			}
+			notify, err := value.Progress.Notify.Run(ctx, 5)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"job": job, "notify": notify}, nil
+		},
+		retain: true,
+	}
+}
+func wireHolderTexts() wireValues[holder.Batch[texts.Job, texts.Progress]] {
+	return wireValues[holder.Batch[texts.Job, texts.Progress]]{
+		adapter: holder.AdapterBatch(texts.AdapterJob(), texts.AdapterProgress()),
+		make: func(add int64) holder.Batch[texts.Job, texts.Progress] {
+			fn := func(suffix int64) functions.Function[string, string] {
+				return func(_ context.Context, prefix string) (string, error) {
+					return fmt.Sprintf("%s%d", prefix, suffix), nil
+				}
+			}
+			return wireHolderBatch(holder.Value[texts.Job, texts.Progress]{
+				Job:      texts.Job{Run: fn(add)},
+				Progress: texts.Progress{Label: "kept", Notify: texts.Job{Run: fn(10 * add)}},
+			})
+		},
+		observe: func(ctx context.Context, batch holder.Batch[texts.Job, texts.Progress]) (any, error) {
+			value, err := wireHolderValue(batch)
+			if err != nil {
+				return nil, err
+			}
+			if value.Progress.Label != "kept" {
+				return nil, fmt.Errorf("generic holder lost progress label")
+			}
+			job, err := value.Job.Run(ctx, "v:")
+			if err != nil {
+				return nil, err
+			}
+			notify, err := value.Progress.Notify.Run(ctx, "v:")
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"job": job, "notify": notify}, nil
+		},
+		retain: true,
 	}
 }

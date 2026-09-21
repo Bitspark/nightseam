@@ -71,7 +71,13 @@ func (f *file) emitWireAdapter(side, opposite string) {
 		f.wireRegistration(name, methods, events)
 	}
 	f.w.Block(fmt.Sprintf("func normalizeContext%s(environment %s%s) (%s, error) {", decl, contextType, f.slotParameters(), contextType), "}", func() {
-		f.linef("if %s && environment.ValueEnvironment == nil { return environment, %s.Errorf(\"a context-dependent adapter requires a value environment\") }", f.scopeLive(), f.std("fmt"))
+		f.adapterRecipes(f.slotUses(), "environment, ")
+		for _, use := range f.family.ObjectDraws {
+			if !model.Carried(use.Type) {
+				f.linef("if err := %s.ValidateDrawnType(adapter%s.Binding, %q, true); err != nil { return environment, err }", rt, parameterName(use), use.Type)
+			}
+		}
+		f.linef("if (%s) && environment.ValueEnvironment == nil { return environment, %s.Errorf(\"a context-dependent adapter requires a value environment\") }", f.scopeLive(), f.std("fmt"))
 
 		f.line("return environment, nil")
 	})
@@ -96,6 +102,7 @@ func (f *file) emitWireAdapter(side, opposite string) {
 		f.line("complete = true; return access, nil")
 	})
 	f.emitWireIdentity(side, opposite)
+	f.emitRecordedEvents(side, opposite)
 }
 
 // Declaration identity failures retain their public refusal through validation.

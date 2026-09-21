@@ -38,6 +38,8 @@ func (r *Family) Apply(a model.Apply, scope []model.Parameter) (*Type, bool) {
 	}
 	out.Fields, out.Own = fields(t.Fields), fields(t.Own)
 	out.Alias = r.substitute(t.Alias, owner, a.With, scope)
+	out.Request = r.substitute(t.Request, owner, a.With, scope)
+	out.Result = r.substitute(t.Result, owner, a.With, scope)
 	out.Variants = slices.Clone(t.Variants)
 	for i := range out.Variants {
 		out.Variants[i].Type = r.substitute(t.Variants[i].Type, owner, a.With, scope)
@@ -72,6 +74,7 @@ func (r *Family) Apply(a model.Apply, scope []model.Parameter) (*Type, bool) {
 		sets = append(sets, r.uses(field.Type, scope))
 	}
 	sets = append(sets, r.uses(out.Alias, scope))
+	sets = append(sets, r.uses(out.Request, scope), r.uses(out.Result, scope))
 	for _, variant := range out.Variants {
 		sets = append(sets, r.uses(variant.Type, scope))
 	}

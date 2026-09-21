@@ -200,97 +200,14 @@ func (ToolkitRequest) WireType() runtime.TypeBinding {
 	return runtime.TypeBinding{Schema: schema, Type: runtime.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"seed\",\"type\":\"Count\",\"required\":true}]}")}
 }
 
-// ExportBundle writes Bundle using the supplied conversion for each type argument.
-func ExportBundle[T any](owner *live.Owner, v Bundle[T], convertT func(*live.Owner, T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error) {
-	if owner == nil {
-		return nil, fmt.Errorf("Bundle: a live value is exported into an owner")
-	}
-	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		wire := map[string]json.RawMessage{}
-		var metadataMember json.RawMessage
-		metadataMemberConvertedConvert0 := func(input T) (json.RawMessage, error) {
-			converted, err := convertT(owner, input)
-			if err != nil {
-				return nil, err
-			}
-			return converted, nil
-		}
-		metadataMemberConverted, err := ExportBundleMetadata[T](v.Metadata, metadataMemberConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: runtime.MustTypeExpression("\"T\"")})
-		if err != nil {
-			return nil, err
-		}
-		metadataMember = metadataMemberConverted
-		wire["metadata"] = metadataMember
-		var runMember json.RawMessage
-		runMemberConverted, err := ExportUnary(owner, v.Run)
-		if err != nil {
-			return nil, err
-		}
-		runMember = runMemberConverted
-		wire["run"] = runMember
-		data, err := runtime.MarshalObject([]string{"metadata", "run"}, wire)
-		if err != nil {
-			return nil, err
-		}
-		if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw("Bundle", data); err != nil {
-			return nil, err
-		}
-		return data, nil
-	})
+func ExportBundle[T any](owner *live.Owner, v Bundle[T], adapterT runtime.ValueAdapter[T]) (json.RawMessage, error) {
+	ctx := live.WithOwner(context.Background(), owner)
+	return AdapterBundle[T](adapterT).Export(ctx, v)
 }
 
-// ImportBundle reads Bundle using the supplied conversion for each type argument.
-func ImportBundle[T any](owner *live.Owner, raw json.RawMessage, convertT func(*live.Owner, json.RawMessage) (T, error), typeT runtime.TypeBinding) (Bundle[T], error) {
-	var value Bundle[T]
-	if owner == nil {
-		return value, fmt.Errorf("Bundle: a live value is imported into an owner")
-	}
-	err := owner.ImportValue(func(owner *live.Owner) error {
-		converted, err := func() (Bundle[T], error) {
-			var value Bundle[T]
-			if err := schema.Bind(map[string]any{"T": typeT}, nil).ValidateExpressionRaw("Bundle", raw); err != nil {
-				return value, err
-			}
-			var wire map[string]json.RawMessage
-			if err := json.Unmarshal(raw, &wire); err != nil {
-				return value, err
-			}
-			if member, present := wire["metadata"]; present {
-				var held BundleMetadata[T]
-				heldConvertedConvert0 := func(input json.RawMessage) (T, error) {
-					var zero T
-					converted, err := convertT(owner, input)
-					if err != nil {
-						return zero, err
-					}
-					return converted, nil
-				}
-				heldConverted, err := ImportBundleMetadata[T](member, heldConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: runtime.MustTypeExpression("\"T\"")})
-				if err != nil {
-					return value, err
-				}
-				held = heldConverted
-				value.Metadata = held
-			}
-			if member, present := wire["run"]; present {
-				var held Unary
-				heldConverted, err := ImportUnary(owner, member)
-				if err != nil {
-					return value, err
-				}
-				held = heldConverted
-				value.Run = held
-			}
-			return value, nil
-		}()
-		value = converted
-		return err
-	})
-	if err != nil {
-		var zero Bundle[T]
-		return zero, err
-	}
-	return value, nil
+func ImportBundle[T any](owner *live.Owner, raw json.RawMessage, adapterT runtime.ValueAdapter[T]) (Bundle[T], error) {
+	ctx := live.WithOwner(context.Background(), owner)
+	return AdapterBundle[T](adapterT).Import(ctx, raw)
 }
 
 // ExportBundleMetadata writes BundleMetadata using the supplied conversion for each type argument.
@@ -884,12 +801,14 @@ func ImportUnary(owner *live.Owner, raw json.RawMessage) (Unary, error) {
 
 // AdapterBundle composes declaration validation and conversion within the supplied invocation context.
 func AdapterBundle[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[Bundle[T]] {
-	typeT := adapterT.Binding
-	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": typeT}, nil), Type: "Bundle"}
+	binding := runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": adapterT.Binding}, nil), Type: "Bundle"}
 	return runtime.ValueAdapter[Bundle[T]]{
 		Binding:      binding,
 		NeedsContext: true,
 		Export: func(ctx context.Context, value Bundle[T]) (json.RawMessage, error) {
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return nil, fmt.Errorf("T: both conversion recipes are required")
+			}
 			if ctx == nil {
 				return nil, fmt.Errorf("a live conversion requires an active owner")
 			}
@@ -897,16 +816,46 @@ func AdapterBundle[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter
 			if !ok || owner == nil {
 				return nil, fmt.Errorf("a live conversion requires an active owner")
 			}
-			raw, err := ExportBundle[T](owner, value, func(owner *live.Owner, value T) (json.RawMessage, error) {
-				return adapterT.Export(live.WithOwner(ctx, owner), value)
-			}, typeT)
-			if err == nil {
-				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
-			}
-			return raw, err
+			return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
+				ctx = live.WithOwner(ctx, owner)
+				v := value
+				wire := map[string]json.RawMessage{}
+				var metadataMember json.RawMessage
+				metadataMemberConvertedConvert0 := func(input T) (json.RawMessage, error) {
+					converted, err := adapterT.Export(ctx, input)
+					if err != nil {
+						return nil, err
+					}
+					return converted, nil
+				}
+				metadataMemberConverted, err := ExportBundleMetadata[T](v.Metadata, metadataMemberConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": adapterT.Binding}, nil), Type: runtime.MustTypeExpression("\"T\"")})
+				if err != nil {
+					return nil, err
+				}
+				metadataMember = metadataMemberConverted
+				wire["metadata"] = metadataMember
+				var runMember json.RawMessage
+				runMemberConverted, err := ExportUnary(owner, v.Run)
+				if err != nil {
+					return nil, err
+				}
+				runMember = runMemberConverted
+				wire["run"] = runMember
+				data, err := runtime.MarshalObject([]string{"metadata", "run"}, wire)
+				if err != nil {
+					return nil, err
+				}
+				if err := schema.Bind(map[string]any{"T": adapterT.Binding}, nil).ValidateExpressionRaw("Bundle", data); err != nil {
+					return nil, err
+				}
+				return data, nil
+			})
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Bundle[T], error) {
 			var zero Bundle[T]
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return zero, fmt.Errorf("T: both conversion recipes are required")
+			}
 			if ctx == nil {
 				return zero, fmt.Errorf("a live conversion requires an active owner")
 			}
@@ -914,12 +863,55 @@ func AdapterBundle[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter
 			if !ok || owner == nil {
 				return zero, fmt.Errorf("a live conversion requires an active owner")
 			}
-			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+			var value Bundle[T]
+			err := owner.ImportValue(func(owner *live.Owner) error {
+				ctx = live.WithOwner(ctx, owner)
+				converted, err := func() (Bundle[T], error) {
+					var value Bundle[T]
+					if err := schema.Bind(map[string]any{"T": adapterT.Binding}, nil).ValidateExpressionRaw("Bundle", raw); err != nil {
+						return value, err
+					}
+					var wire map[string]json.RawMessage
+					if err := json.Unmarshal(raw, &wire); err != nil {
+						return value, err
+					}
+					if member, present := wire["metadata"]; present {
+						var held BundleMetadata[T]
+						heldConvertedConvert0 := func(input json.RawMessage) (T, error) {
+							var zero T
+							converted, err := adapterT.Import(ctx, input)
+							if err != nil {
+								return zero, err
+							}
+							return converted, nil
+						}
+						heldConverted, err := ImportBundleMetadata[T](member, heldConvertedConvert0, runtime.TypeBinding{Schema: schema.Bind(map[string]any{"T": adapterT.Binding}, nil), Type: runtime.MustTypeExpression("\"T\"")})
+						if err != nil {
+							return value, err
+						}
+						held = heldConverted
+						value.Metadata = held
+					}
+					if member, present := wire["run"]; present {
+						var held Unary
+						heldConverted, err := ImportUnary(owner, member)
+						if err != nil {
+							return value, err
+						}
+						held = heldConverted
+						value.Run = held
+					}
+					return value, nil
+				}()
+				if err == nil {
+					value = converted
+				}
+				return err
+			})
+			if err != nil {
 				return zero, err
 			}
-			return ImportBundle[T](owner, raw, func(owner *live.Owner, value json.RawMessage) (T, error) {
-				return adapterT.Import(live.WithOwner(ctx, owner), value)
-			}, typeT)
+			return value, nil
 		},
 	}
 }
@@ -932,6 +924,9 @@ func AdapterBundleMetadata[T any](adapterT runtime.ValueAdapter[T]) runtime.Valu
 		Binding:      binding,
 		NeedsContext: adapterT.NeedsContext,
 		Export: func(ctx context.Context, value BundleMetadata[T]) (json.RawMessage, error) {
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return nil, fmt.Errorf("T: both conversion recipes are required")
+			}
 			raw, err := ExportBundleMetadata[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -940,6 +935,9 @@ func AdapterBundleMetadata[T any](adapterT runtime.ValueAdapter[T]) runtime.Valu
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (BundleMetadata[T], error) {
 			var zero BundleMetadata[T]
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return zero, fmt.Errorf("T: both conversion recipes are required")
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}

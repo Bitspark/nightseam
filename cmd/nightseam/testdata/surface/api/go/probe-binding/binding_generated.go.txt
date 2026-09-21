@@ -1,3 +1,5 @@
+func (*Recorder) Append(ctx context.Context, event RecordedEvent) error
+func (*Recorder) Follow(ctx context.Context, after uint64, target duplex.Wire) (*duplex.Follower, error)
 func (*clientEvents) Changed(ctx context.Context, data protocol.Payload) error
 func (*clientMethods) Reverse(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
 func (*serverEvents) Noticed(ctx context.Context, data protocol.Seen) error
@@ -6,4 +8,8 @@ func (*serverMethods) NoArgs(ctx context.Context) (string, error)
 func (*serverMethods) Seen(ctx context.Context, params protocol.Seen) (protocol.Payloads, error)
 func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ServerModel, error)
 func PrepareFromWire(wire duplex.Wire, environment runtime.AdapterContext) (complete func(context.Context) (protocol.ServerModel, error), cleanup func(), err error)
+func Record(ctx context.Context, target duplex.Wire, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext) (*Recorder, error)
 func ToWire(model protocol.ServerModel, environment runtime.AdapterContext) (duplex.Wire, error)
+type RecordedChanged struct{Data protocol.Payload}
+type RecordedEvent interface{recordedEvent()}
+type Recorder struct{}

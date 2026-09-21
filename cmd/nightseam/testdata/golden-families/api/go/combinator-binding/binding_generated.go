@@ -116,15 +116,32 @@ func (c *serverMethods) Pack(ctx context.Context, params boxesprotocol.Box[proto
 			}
 			convertedConvert0 := func(input json.RawMessage) (protocol.Bundle[protocol.Count], error) {
 				var zero protocol.Bundle[protocol.Count]
-				convertedConvert0 := func(owner *live.Owner, input json.RawMessage) (protocol.Count, error) {
-					var zero protocol.Count
-					var converted protocol.Count
-					if err := json.Unmarshal(input, &converted); err != nil {
-						return zero, err
-					}
-					return converted, nil
+				convertedAdapter0Binding := runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")}
+				convertedAdapter0 := runtime.ValueAdapter[protocol.Count]{
+					Binding: convertedAdapter0Binding, NeedsContext: false,
+					Export: func(ctx context.Context, value protocol.Count) (json.RawMessage, error) {
+						converted, err := runtime.MarshalJSON(value)
+						if err != nil {
+							return nil, err
+						}
+						if err := convertedAdapter0Binding.Schema.ValidateExpressionRaw(convertedAdapter0Binding.Type, converted); err != nil {
+							return nil, err
+						}
+						return converted, nil
+					},
+					Import: func(ctx context.Context, raw json.RawMessage) (protocol.Count, error) {
+						var zero protocol.Count
+						if err := convertedAdapter0Binding.Schema.ValidateExpressionRaw(convertedAdapter0Binding.Type, raw); err != nil {
+							return zero, err
+						}
+						var converted protocol.Count
+						if err := json.Unmarshal(raw, &converted); err != nil {
+							return zero, err
+						}
+						return converted, nil
+					},
 				}
-				converted, err := protocol.ImportBundle[protocol.Count](owner, input, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")})
+				converted, err := protocol.ImportBundle[protocol.Count](owner, input, convertedAdapter0)
 				if err != nil {
 					return zero, err
 				}
@@ -327,14 +344,32 @@ func bindServer(wire duplex.Wire, lookup func() protocol.Server, environment run
 						return value, fmt.Errorf("a live conversion requires an active owner")
 					}
 					convertedConvert0 := func(input protocol.Bundle[protocol.Count]) (json.RawMessage, error) {
-						convertedConvert0 := func(owner *live.Owner, input protocol.Count) (json.RawMessage, error) {
-							converted, err := runtime.MarshalJSON(input)
-							if err != nil {
-								return nil, err
-							}
-							return converted, nil
+						convertedAdapter0Binding := runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")}
+						convertedAdapter0 := runtime.ValueAdapter[protocol.Count]{
+							Binding: convertedAdapter0Binding, NeedsContext: false,
+							Export: func(ctx context.Context, value protocol.Count) (json.RawMessage, error) {
+								converted, err := runtime.MarshalJSON(value)
+								if err != nil {
+									return nil, err
+								}
+								if err := convertedAdapter0Binding.Schema.ValidateExpressionRaw(convertedAdapter0Binding.Type, converted); err != nil {
+									return nil, err
+								}
+								return converted, nil
+							},
+							Import: func(ctx context.Context, raw json.RawMessage) (protocol.Count, error) {
+								var zero protocol.Count
+								if err := convertedAdapter0Binding.Schema.ValidateExpressionRaw(convertedAdapter0Binding.Type, raw); err != nil {
+									return zero, err
+								}
+								var converted protocol.Count
+								if err := json.Unmarshal(raw, &converted); err != nil {
+									return zero, err
+								}
+								return converted, nil
+							},
 						}
-						converted, err := protocol.ExportBundle[protocol.Count](owner, input, convertedConvert0, runtime.TypeBinding{Schema: protocol.WireSchema(), Type: runtime.MustTypeExpression("\"Count\"")})
+						converted, err := protocol.ExportBundle[protocol.Count](owner, input, convertedAdapter0)
 						if err != nil {
 							return nil, err
 						}
@@ -461,7 +496,7 @@ func bindClient(wire duplex.Wire, lookup func() protocol.Client, environment run
 	return nil
 }
 func normalizeContext(environment runtime.AdapterContext) (runtime.AdapterContext, error) {
-	if true && environment.ValueEnvironment == nil {
+	if (true) && environment.ValueEnvironment == nil {
 		return environment, fmt.Errorf("a context-dependent adapter requires a value environment")
 	}
 	return environment, nil
@@ -599,4 +634,67 @@ func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.Adapter
 		return nil, err
 	}
 	return model, nil
+}
+
+// RecordedEvent is the closed union of this side's outgoing event payloads.
+type RecordedEvent interface{ recordedEvent() }
+
+// Recorder records converted messages without retaining or rebinding their live values.
+type Recorder struct {
+	*duplex.RecordedWire
+	events   protocol.ClientEvents
+	identity runtime.DeclarationIdentity
+	options  runtime.Options
+}
+
+func (r *Recorder) Append(ctx context.Context, event RecordedEvent) error {
+	return fmt.Errorf("this side declares no outgoing events")
+}
+
+// Follow checks the subscriber's declaration before registering any replay.
+func (r *Recorder) Follow(ctx context.Context, after uint64, target duplex.Wire) (*duplex.Follower, error) {
+	if err := runtime.CheckIdentity(ctx, func(ctx context.Context, method string, params, result any) error {
+		return runtime.CallWire(ctx, target, []string{method}, params, result, runtime.WireCallOptions{RequestTimeout: r.options.RequestTimeout, Observer: r.options.Observer, Propagator: r.options.Propagator})
+	}, r.identity); err != nil {
+		return nil, err
+	}
+	return r.RecordedWire.Follow(ctx, after, target)
+}
+
+// Record checks a prepared origin before exposing typed event append. Setup
+// failure detaches this interpretation and leaves the borrowed target usable.
+func Record(ctx context.Context, target duplex.Wire, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext) (*Recorder, error) {
+	environment, err := normalizeContext(environment)
+	if err != nil {
+		return nil, err
+	}
+	identity, err := declarationIdentity()
+	if err != nil {
+		return nil, err
+	}
+	preparation, err := runtime.PrepareIdentity(target, identity, environment.Options)
+	if err != nil {
+		return nil, err
+	}
+	if err := preparation.Check(ctx); err != nil {
+		preparation.Close()
+		return nil, err
+	}
+	if err := preparation.Ready(); err != nil {
+		preparation.Close()
+		return nil, err
+	}
+	onClose := options.OnClose
+	options.OnClose = func(err error) {
+		preparation.Close()
+		if onClose != nil {
+			onClose(err)
+		}
+	}
+	wire, err := duplex.Record(ctx, preparation.Wire(), log, options)
+	if err != nil {
+		preparation.Close()
+		return nil, err
+	}
+	return &Recorder{RecordedWire: wire, events: accessClient(wire, environment).Events, identity: identity, options: environment.Options}, nil
 }

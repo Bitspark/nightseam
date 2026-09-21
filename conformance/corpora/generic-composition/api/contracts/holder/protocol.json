@@ -1,0 +1,22 @@
+{
+  "profile":"nightseam.duplex/1",
+  "parameters":[{"name":"S","of":"live"}],
+  "types": {
+    "Value": {"kind":"record","fields":[{"name":"job","type":"S.Job"},{"name":"progress","type":"S.Progress"}]},
+    "Choice": {"kind":"union","tag":"kind","value":"value","variants":{"empty":{"empty":true},"value":"Value"}},
+    "Batch": {"kind":"alias","type":{"array":{"nullable":{"map":"Choice"}}}},
+    "EchoParams": {"kind":"record","fields":[{"name":"values","type":"Batch"}]}
+  },
+  "server": {
+    "methods": {
+      "put":{"request":"Value","result":"integer"},
+      "get":{"result":"Value"},
+      "echo":{"request":"EchoParams","result":"Batch"}
+    },
+    "events":{"changed":{"type":"Value"}}
+  },
+  "client": {
+    "methods":{"mirror":{"request":"Value","result":"Value"}},
+    "events":{"noted":{"type":"Value"}}
+  }
+}

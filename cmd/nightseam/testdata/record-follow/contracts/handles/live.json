@@ -1,0 +1,1 @@
+{"types":{"Mapper":{"kind":"callable","parameters":[{"name":"A"},{"name":"B"}],"request":"A","result":"B"},"Callback":{"kind":"alias","type":{"apply":"Mapper","with":{"A":"integer","B":"integer"}}},"Box":{"kind":"record","fields":[{"name":"invoke","type":"Callback"}]}},"server":{"events":{"handle":{"type":"Callback"}}}}

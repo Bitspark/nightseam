@@ -295,10 +295,11 @@ each optional: `Cancel` above takes nothing and answers nothing. It is referred
 to by name, like any other type, and **may not be written inline**. This
 grammar and the choice to identify wire contracts by declaration path are
 the two selected design dimensions, as the
-[decision](../decisions/a-callable-is-a-declared-kind.md) explains. It
-declares no `parameters`: generic callable identities would require a shared
-canonical spelling of their applied arguments, which is not part of the
-current contract. This restriction does not apply to generic containers.
+[decision](../decisions/a-callable-is-a-declared-kind.md) explains. It may
+declare `parameters`, filled before export by a closed application such as
+`Function<integer,integer>`. The canonical constructor and ordered arguments
+determine its identity. This completes the historical v0.5.0 deferral; an
+unapplied or anonymous callable remains refused.
 
 An **interface is a record of callable members**, as `ProgressSink` is. Nothing
 about it is a service, a stream, a cell or a topic; those are protocols a
@@ -322,9 +323,12 @@ and through an inline shape. Two edges are deliberately not followed:
 - **`{"ref": "E"}` is never live.** An entity key is a name for a row, not a
   name for a binding; a live entity has a live value and a data key, and the
   two identities stay apart.
-- **A draw through a family parameter is decided where it is written.** Every
-  family that may bind the parameter declares the drawn type, so a draw that
-  would be live is refused there, naming the family that makes it so.
+- **A draw through a family parameter stays neutral.** The actual family
+  supplied for the parameter declares every required plain associated type.
+  Unrelated families in the declaration world acquire no such obligation. Its
+  supplied
+  interpretation determines whether conversion needs an active live context;
+  the generic declaration does not import that provider or acquire its tier.
 
 Then the direction rule every tier shares does the rest of the work with no
 machinery of its own: a callable is declared in `live.json`, so it ranks with
@@ -347,9 +351,23 @@ aliases and nested applications, including imported containers. The generic
 container itself has no live dependency; its caller supplies the scope-aware
 conversion for each live argument. `Page<Payload>` remains ordinary data.
 
-A **live type drawn through a family parameter** remains refused: what fills
-that family parameter is the consumer's to choose, and its boundary conversion
-is not supplied by the family-binding contract.
+A **plain associated record containing live values** can be drawn through a
+family parameter. A protocol operation using `S.Job` receives the provider's
+complete interpretation: declaration identity, validation and both converters.
+Go takes one value adapter per drawn type; TypeScript takes a family binding
+whose `types` dictionary supplies the required members. Each conversion uses
+the current operation's ownership batch, so the same interpretation works
+across simultaneous scopes. Missing or mixed-family recipes refuse before
+model construction. Direct alias, callable and generic-member draws remain
+outside the plain associated-type grammar.
+
+Draw requirements follow aliases, applications and forwarded family parameters.
+A concrete supplied family is checked for the members that consumer uses;
+the presence of another family in the checkout does not affect acceptance.
+When a draw is the complete RPC request, including through a local alias, its
+member must additionally be a record, entity or union with an object wire shape.
+An enum can fill an ordinary value position, but fails that request constraint
+before a model is constructed.
 
 ### What a reference carries
 

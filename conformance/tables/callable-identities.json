@@ -1,0 +1,545 @@
+{
+  "description": "GEN-ID callable paths select normalized declaration roots. Sources name independent canonical graph fixtures in declaration-digests.json; supplied slots retain their own source scopes.",
+  "families": {
+    "captured": {
+      "wire": {
+        "parameters": [
+          {
+            "name": "T"
+          }
+        ],
+        "types": {
+          "Callback": {
+            "kind": "callable",
+            "contract": "captured/Callback",
+            "request": "T",
+            "result": "T"
+          },
+          "Plain": {
+            "kind": "callable",
+            "contract": "captured/Plain",
+            "request": "integer"
+          },
+          "PlainAlias": {
+            "kind": "alias",
+            "type": "Plain"
+          },
+          "Envelope": {
+            "kind": "record",
+            "fields": []
+          },
+          "Handle": {
+            "kind": "record",
+            "fields": []
+          },
+          "Entity": {
+            "kind": "entity",
+            "key": "id",
+            "fields": [
+              {
+                "name": "id",
+                "type": "integer",
+                "required": true
+              }
+            ]
+          }
+        }
+      },
+      "declaration": {
+        "definitions": {
+          "captured": {
+            "kind": "family",
+            "parameters": [
+              {
+                "name": "T",
+                "of": ""
+              }
+            ],
+            "types": {
+              "Callback": {
+                "ref": "captured/Callback"
+              },
+              "Plain": {
+                "ref": "captured/Plain"
+              },
+              "PlainAlias": {
+                "ref": "captured/Plain"
+              },
+              "Entity": {
+                "ref": "captured/Entity"
+              }
+            },
+            "server": {
+              "ref": "captured/$server"
+            },
+            "client": {
+              "ref": "captured/$client"
+            },
+            "errors": []
+          },
+          "captured/$server": {
+            "kind": "side",
+            "direction": "server",
+            "parameters": [
+              {
+                "name": "T",
+                "of": ""
+              }
+            ],
+            "extends": [],
+            "methods": {},
+            "events": {}
+          },
+          "captured/$client": {
+            "kind": "side",
+            "direction": "client",
+            "parameters": [
+              {
+                "name": "T",
+                "of": ""
+              }
+            ],
+            "extends": [],
+            "methods": {},
+            "events": {}
+          },
+          "captured/Callback": {
+            "kind": "callable",
+            "parameters": [],
+            "captures": [
+              {
+                "name": "T",
+                "of": ""
+              }
+            ],
+            "request": {
+              "parameter": "captured/T"
+            },
+            "result": {
+              "parameter": "captured/T"
+            },
+            "errors": []
+          },
+          "captured/Plain": {
+            "kind": "callable",
+            "parameters": [],
+            "request": {
+              "primitive": "integer"
+            },
+            "result": {
+              "empty": true
+            },
+            "errors": []
+          },
+          "captured/Entity": {
+            "kind": "entity",
+            "parameters": [],
+            "open": false,
+            "key": "id",
+            "fields": [
+              {
+                "name": "id",
+                "type": {
+                  "primitive": "integer"
+                },
+                "required": true,
+                "nullable": false,
+                "unique": false
+              }
+            ]
+          }
+        },
+        "root": {
+          "ref": "captured"
+        },
+        "version": 1
+      }
+    },
+    "consumer": {
+      "imports": [
+        "captured"
+      ],
+      "wire": {
+        "types": {
+          "Alias": {
+            "kind": "alias",
+            "type": "captured.PlainAlias"
+          },
+          "Closed": {
+            "kind": "alias",
+            "type": {
+              "apply": "captured.Callback",
+              "with": {
+                "T": "string"
+              }
+            }
+          }
+        }
+      },
+      "declaration": {
+        "definitions": {
+          "consumer": {
+            "kind": "family",
+            "parameters": [],
+            "types": {
+              "Alias": {
+                "ref": "captured/Plain"
+              },
+              "Closed": {
+                "apply": "captured/Callback",
+                "arguments": [
+                  {
+                    "primitive": "string"
+                  }
+                ]
+              }
+            },
+            "server": {
+              "ref": "consumer/$server"
+            },
+            "client": {
+              "ref": "consumer/$client"
+            },
+            "errors": []
+          },
+          "consumer/$server": {
+            "kind": "side",
+            "direction": "server",
+            "parameters": [],
+            "extends": [],
+            "methods": {},
+            "events": {}
+          },
+          "consumer/$client": {
+            "kind": "side",
+            "direction": "client",
+            "parameters": [],
+            "extends": [],
+            "methods": {},
+            "events": {}
+          },
+          "captured/Plain": {
+            "kind": "callable",
+            "parameters": [],
+            "request": {
+              "primitive": "integer"
+            },
+            "result": {
+              "empty": true
+            },
+            "errors": []
+          },
+          "captured/Callback": {
+            "kind": "callable",
+            "parameters": [],
+            "captures": [
+              {
+                "name": "T",
+                "of": ""
+              }
+            ],
+            "request": {
+              "parameter": "captured/T"
+            },
+            "result": {
+              "parameter": "captured/T"
+            },
+            "errors": []
+          }
+        },
+        "root": {
+          "ref": "consumer"
+        },
+        "version": 1
+      }
+    },
+    "drawn": {
+      "wire": {
+        "parameters": [
+          {
+            "name": "S",
+            "of": "live"
+          }
+        ],
+        "types": {
+          "Callback": {
+            "kind": "callable",
+            "contract": "drawn/Callback",
+            "request": "S.Entity",
+            "result": "S.Entity"
+          }
+        }
+      },
+      "declaration": {
+        "definitions": {
+          "drawn": {
+            "kind": "family",
+            "parameters": [
+              {
+                "name": "S",
+                "of": "live"
+              }
+            ],
+            "types": {
+              "Callback": {
+                "ref": "drawn/Callback"
+              }
+            },
+            "server": {
+              "ref": "drawn/$server"
+            },
+            "client": {
+              "ref": "drawn/$client"
+            },
+            "errors": []
+          },
+          "drawn/$server": {
+            "kind": "side",
+            "direction": "server",
+            "parameters": [
+              {
+                "name": "S",
+                "of": "live"
+              }
+            ],
+            "extends": [],
+            "methods": {},
+            "events": {}
+          },
+          "drawn/$client": {
+            "kind": "side",
+            "direction": "client",
+            "parameters": [
+              {
+                "name": "S",
+                "of": "live"
+              }
+            ],
+            "extends": [],
+            "methods": {},
+            "events": {}
+          },
+          "drawn/Callback": {
+            "kind": "callable",
+            "parameters": [],
+            "captures": [
+              {
+                "name": "S",
+                "of": "live"
+              }
+            ],
+            "request": {
+              "draw": {
+                "parameter": "drawn/S"
+              },
+              "name": "Entity"
+            },
+            "result": {
+              "draw": {
+                "parameter": "drawn/S"
+              },
+              "name": "Entity"
+            },
+            "errors": []
+          }
+        },
+        "root": {
+          "ref": "drawn"
+        },
+        "version": 1
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "GEN-ID-APPLICATION",
+      "source": "application baseline",
+      "path": "same/Function<integer,string>",
+      "digest": "7854fd2a1a0bd53c5ab433d67228f6c883e4252821d99f971dad0343cc8d790f"
+    },
+    {
+      "id": "GEN-ID-OBJECT-ORDER",
+      "source": "application reordered object keys",
+      "path": "same/Function<integer,string>",
+      "digest": "7854fd2a1a0bd53c5ab433d67228f6c883e4252821d99f971dad0343cc8d790f"
+    },
+    {
+      "id": "GEN-ID-ALIAS",
+      "source": "application alias normalized",
+      "path": "same/Function<integer,string>",
+      "digest": "7854fd2a1a0bd53c5ab433d67228f6c883e4252821d99f971dad0343cc8d790f"
+    },
+    {
+      "id": "GEN-ID-ARGUMENT-ORDER",
+      "source": "application argument order changed",
+      "path": "same/Function<string,integer>",
+      "digest": "9b7de5ebddcd4b7f420f110614139506385ab7ffa89948d4ca5f6280af451ba4"
+    },
+    {
+      "id": "GEN-ID-NOMINAL-CONSTRUCTOR",
+      "source": "application nominal constructor changed",
+      "path": "same/Other<integer,string>",
+      "digest": "5884032306dc522ecc0951af69d50c19d0b59ec5fde04b3dc198aaa679aa474c"
+    },
+    {
+      "id": "GEN-ID-ARGUMENT-REVISION",
+      "source": "application argument declaration baseline",
+      "path": "same/Function<same/Job,string>",
+      "digest": "0fd003ceb653f4b8b0e0c3c3c42fd2f70e482047aa5c81212008c583e5439109"
+    },
+    {
+      "id": "GEN-ID-ARGUMENT-REVISION-CHANGED",
+      "source": "application reachable argument changed",
+      "path": "same/Function<same/Job,string>",
+      "digest": "4da58651e008bc02f251a8da6b2c44e7a92326aeb6b1dbbf57bec249b0edaa3a"
+    },
+    {
+      "id": "GEN-ID-UNREACHABLE",
+      "source": "application unrelated constructor excluded",
+      "path": "same/Function<same/Job,string>",
+      "digest": "0fd003ceb653f4b8b0e0c3c3c42fd2f70e482047aa5c81212008c583e5439109"
+    },
+    {
+      "id": "GEN-ID-TEMPLATE",
+      "source": "callable template",
+      "error": "missing required binding A"
+    },
+    {
+      "id": "GEN-ID-PARTIAL",
+      "source": "callable template",
+      "slots": {
+        "A": {
+          "type": "integer"
+        }
+      },
+      "error": "missing required binding B"
+    },
+    {
+      "id": "GEN-ID-SUPPLIED",
+      "source": "callable template",
+      "slots": {
+        "A": {
+          "type": "integer"
+        },
+        "B": {
+          "type": "string"
+        }
+      },
+      "path": "same/Function<integer,string>",
+      "digest": "7854fd2a1a0bd53c5ab433d67228f6c883e4252821d99f971dad0343cc8d790f"
+    },
+    {
+      "id": "GEN-ID-NESTED",
+      "source": "callable template",
+      "slots": {
+        "A": {
+          "type": {
+            "apply": "Function",
+            "with": {
+              "A": "integer",
+              "B": "string"
+            }
+          }
+        },
+        "B": {
+          "type": {
+            "array": {
+              "map": {
+                "nullable": "Job"
+              }
+            }
+          }
+        }
+      },
+      "path": "same/Function<same/Function<integer,string>,[{same/Job?}]>"
+    },
+    {
+      "id": "GEN-ID-LITERAL",
+      "source": "callable template",
+      "slots": {
+        "A": {
+          "type": {
+            "literal": "x<>&\"\\\n "
+          }
+        },
+        "B": {
+          "type": {
+            "empty": true
+          }
+        }
+      },
+      "path": "same/Function<\"x\\u003c\\u003e\\u0026\\\"\\\\\\n\\u2028\",()>"
+    },
+    {
+      "id": "GEN-ID-PROJECTION",
+      "source": "callable template",
+      "slots": {
+        "A": {
+          "source": "carried projection baseline",
+          "type": "Envelope"
+        },
+        "B": {
+          "source": "carried projection baseline",
+          "type": "Handle"
+        }
+      },
+      "path": "same/Function<same/Envelope,same/Handle>"
+    },
+    {
+      "id": "GEN-ID-INLINE",
+      "source": "callable template",
+      "slots": {
+        "A": {
+          "type": {
+            "kind": "record",
+            "fields": [
+              {
+                "name": "value",
+                "type": "integer",
+                "required": true
+              }
+            ]
+          }
+        },
+        "B": {
+          "type": "json"
+        }
+      },
+      "path": "same/Function<shape({\"fields\":[{\"name\":\"value\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"integer\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}),json>"
+    },
+    {
+      "id": "GEN-ID-SCOPED-REVISIONS",
+      "source": "callable template",
+      "slots": {
+        "A": {
+          "source": "same named argument first revision",
+          "type": "Job"
+        },
+        "B": {
+          "source": "same named argument second revision",
+          "type": "Job"
+        }
+      },
+      "path": "same/Function<same/Job,same/Job>"
+    },
+    {
+      "id": "GEN-ID-NONCALLABLE",
+      "source": "same named argument first revision",
+      "error": "expected callable declaration"
+    },
+    {
+      "id": "GEN-ID-RECURSIVE",
+      "source": "callable template",
+      "slots": {
+        "A": {
+          "source": "recursive import baseline",
+          "type": "Root"
+        },
+        "B": {
+          "type": "integer"
+        }
+      },
+      "path": "same/Function<same/Root,integer>"
+    }
+  ]
+}

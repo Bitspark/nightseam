@@ -115,6 +115,9 @@ func emitTypes(f *file) {
 			f.linef("func (%s) %s() %s { return %s{} }", name, identOf, identTag, identTag)
 			f.emitWireType(t)
 		case "alias":
+			if _, slot := slotAlias(f.family, t); slot {
+				continue
+			}
 			f.line("")
 			if t.Description != "" {
 				f.linef("// %s: %s", name, t.Description)

@@ -3,6 +3,40 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { createValidator, type Validator, type WireFamily, type TypeExpression, type Slots } from './validate.ts';
 import { DuplexError } from './error.ts';
+import { validateDrawnType } from './validate.ts';
+
+test('draw obligations check the original supplied member and direct request shape', () => {
+  const validate = createValidator(
+    {
+      parameters: [{ name: 'S', of: 'live' }],
+      types: {
+        Job: { kind: 'record', fields: [] },
+        Choice: { kind: 'enum', values: ['one'] },
+        Alias: { kind: 'alias', type: 'Job' },
+        Call: { kind: 'callable', request: 'integer' },
+        Generic: { kind: 'record', parameters: [{ name: 'T' }], fields: [] },
+        Captured: { kind: 'record', fields: [{ name: 'job', type: 'S.Job' }] },
+      },
+    },
+    '',
+  );
+  for (const [type, object, valid] of [
+    ['Job', false, true],
+    ['Job', true, true],
+    ['Choice', false, true],
+    ['Choice', true, false],
+    ['Alias', false, false],
+    ['Call', false, false],
+    ['Generic', false, false],
+    ['Captured', false, false],
+    ['Missing', false, false],
+  ] as const) {
+    const check = () => validateDrawnType({ type, validate }, type, object);
+    if (valid) assert.doesNotThrow(check, type);
+    else assert.throws(check, /family binding/, type);
+  }
+  assert.throws(() => validateDrawnType({ type: 'Job', validate }, 'Alias', false), /plain member/);
+});
 
 test('declaration digests survive imported and bound validation', () => {
   const table = JSON.parse(

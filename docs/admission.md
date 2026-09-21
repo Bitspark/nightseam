@@ -240,7 +240,7 @@ records the retained live responsibilities as well as what composes.
 | `at`, selecting a relative origin | composition, shipped | prefix a segment array and translate delivered paths back to the selected origin. No peer, channel or queue is allocated, including on first use. Opaque strings need no namespace or authority interpretation. |
 | `mount`, routing among child Wires | composition, shipped | choose a child by one segment, preserving the same frame and return capability. The mount owns registrations, borrows children and does not close them when it ends. |
 | forwarding a Wire | composition, shipped | register a namespace in each direction and pass messages through the other's Send. Existing roots own admission and correlation. Crossing live scopes still uses generated value converters; raw forwarding does not rewrite hidden references. |
-| the head and follow of a recorded Wire | composition, shipped | [record/follow](runtime/record.md) stores admitted opaque messages in order and atomically registers a subscriber with its replay boundary. A bounded append worker and separate replay workers isolate slow storage and subscribers. Consumers supply storage; existing reference scopes and lifetimes are preserved. The generated family event helpers remain a separate delivery under #291. |
+| the head and follow of a recorded Wire | composition, shipped | [record/follow](runtime/record.md) stores admitted opaque messages in order and atomically registers a subscriber with its replay boundary. A bounded append worker and separate replay workers isolate slow storage and subscribers. Consumers supply storage; existing reference scopes and lifetimes are preserved. Generated per-side event unions use the existing validation, conversion and identity adapters before admitting native event payloads or replay. |
 | a live binding presented at `[binding]` | composition, demonstrated | checked import supplies an invocation at one opaque path segment. The nonce, expected contract, active owner and release ledger remain live responsibilities. Wire.Close terminates carrier work; owner release preserves already admitted results and revokes later invocation, so one cannot replace the other. |
 
 ### The data level
@@ -290,6 +290,16 @@ shipped is still a composition.
 | concept | class | the argument |
 | --- | --- | --- |
 | declaration identity — `(path, digest)` | primitive exposure, RPC and live | the [canonical declaration](declaration/declaration-identity.md) supplies one revision identity, checked at generated wire interpretation, channel admission and live import before consumer dispatch. A consumer's `describe()` call runs a model handler before checking, and a model-agnostic intermediary cannot supply it for every transferred reference. The exposure carries the digest beside the existing name and refuses differing specified digests with `contract_mismatch`; absence makes no revision claim. Strict equality is [#292's verdict](https://github.com/Bitspark/nightseam/issues/292#issuecomment-5753285816). [#339](https://github.com/Bitspark/nightseam/issues/339) places the connection check at interpretation through an ordinary `identity.check` request, preserving consumer subprotocol selection. Compatibility between distinct revisions remains consumer policy, and declaration identity establishes neither authenticated peer identity nor permission. |
+
+The [#363 B generic composition ruling](https://github.com/Bitspark/nightseam/issues/363)
+uses the existing parameter mechanism and value adapters for closed callable
+applications and plain associated records containing callables. Its
+[combined acceptance](declaration/proof-findings.md#combined-generic-construction-and-retained-values)
+executes both forms through the same access boundary and live ownership
+mechanisms. Neither form introduces another wire frame, scope or authority
+primitive. The synthetic consumer guard witnesses preserve invocation policy;
+exhaustive protected-exposure binding and real authentication remain separate
+deliverables.
 
 ## Prior art
 
