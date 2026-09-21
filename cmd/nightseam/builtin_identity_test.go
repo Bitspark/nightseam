@@ -15,7 +15,10 @@ import (
 )
 
 func builtinIdentityWorld() analysis.World {
-	world := analysis.World(builtin.Families())
+	world := analysis.World{}
+	for name, family := range builtin.Families() {
+		world[name] = family
+	}
 	world["consumer"] = modeltest.Family("consumer", map[string]string{
 		"model.json":    `{"nightseam":2,"types":{"Input":{"kind":"record","fields":[{"name":"value","type":"integer"}]}}}`,
 		"protocol.json": modeltest.Protocol(`"server":{"methods":{"echo":{"request":"Input","result":"integer"}}},"client":{"methods":{"echo":{"request":"Input","result":"integer"}}}`),
