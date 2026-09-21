@@ -338,19 +338,48 @@ export interface PeerWireOptions {
   close: (code: number, reason: string) => void;
 }
 
+interface RoutedCall {
+  address: ReturnAddress;
+  id: string;
+  controller: AbortController;
+  completed: boolean;
+  cancelQueued: boolean;
+  cancelled: boolean;
+}
+interface RoutedDelivery {
+  path: Path;
+  message: Message;
+  call?: RoutedCall;
+  refusal?: DuplexError;
+}
+
 /** @internal One bridge per peer; selection never constructs another. */
 export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
-  const queued: { path: Path; message: Message }[] = [];
-  const incoming = new Map<ReturnAddress, Map<string, AbortController>>();
+  const queued: RoutedDelivery[] = [];
+  const incoming = new Map<ReturnAddress, Map<string, RoutedCall>>();
   const receivers = new Map<string, { receiver: Receiver; detach: () => void }>();
-  let active = 0,
+  let retained = 0,
+    dataQueued = 0,
     scheduled = false,
     ended = false;
   const endError = () => new DuplexError('disconnected', 'Connection ended; outcome may be unknown.');
+  const retire = (call: RoutedCall) => {
+    // A completed call still owns a queued control slot. Reusing its budget
+    // early would let fast completions accumulate unbounded stale cancels.
+    if (!call.completed || call.cancelQueued) return;
+    const calls = incoming.get(call.address);
+    if (calls?.get(call.id) !== call) return;
+    calls.delete(call.id);
+    if (!calls.size) incoming.delete(call.address);
+    retained--;
+  };
   peer.onClose(() => {
     ended = true;
     for (const delivery of queued.splice(0)) response(delivery.message, undefined, endError());
-    for (const calls of incoming.values()) for (const controller of calls.values()) controller.abort();
+    for (const calls of incoming.values()) for (const call of calls.values()) call.controller.abort();
+    incoming.clear();
+    retained = 0;
+    dataQueued = 0;
     const ending = [...receivers.values()];
     for (const { detach } of ending) detach();
     for (const { receiver } of ending) {
@@ -364,10 +393,18 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
   const drain = () => {
     scheduled = false;
     while (queued.length && !ended) {
-      const { path, message } = queued.shift()!;
+      const { path, message, call, refusal } = queued.shift()!;
       const frame = message.frame;
       if (frame.kind === 'cancel') {
-        incoming.get(message.return!)?.get(frame.id)?.abort();
+        call!.cancelQueued = false;
+        call!.cancelled = true;
+        if (!call!.completed) call!.controller.abort();
+        retire(call!);
+        continue;
+      }
+      dataQueued--;
+      if (refusal) {
+        response(message, undefined, refusal);
         continue;
       }
       const name = encodePath(path);
@@ -382,38 +419,21 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
         continue;
       }
       if (frame.kind !== 'request') continue;
-      let calls = incoming.get(message.return!);
-      if (calls?.has(frame.id) || active >= options.maxPendingRequests) {
-        response(
-          message,
-          undefined,
-          new DuplexError(calls?.has(frame.id) ? 'invalid_message' : 'busy', 'Outstanding wire call refused.'),
-        );
-        continue;
-      }
-      if (!calls) {
-        calls = new Map();
-        incoming.set(message.return!, calls);
-      }
-      const controller = new AbortController();
-      calls.set(frame.id, controller);
-      active++;
       // Peer.call allocates the carrier id and enqueues before it returns.
       const pending = peer.call(name, frame.params, {
-        signal: controller.signal,
+        signal: call!.controller.signal,
         context: { trace: traceOf(frame) },
         meta: frame.meta ? { ...frame.meta } : undefined,
       });
-      void pending
-        .then(
-          (value) => response(message, value),
-          (error: unknown) => response(message, undefined, error),
-        )
-        .finally(() => {
-          calls!.delete(frame.id);
-          active--;
-          if (!calls!.size) incoming.delete(message.return!);
-        });
+      const finish = (value?: unknown, error?: unknown) => {
+        call!.completed = true;
+        retire(call!);
+        response(message, value, error);
+      };
+      void pending.then(
+        (value) => finish(value),
+        (error: unknown) => finish(undefined, error),
+      );
     }
   };
   const wire: Wire = {
@@ -427,14 +447,53 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
         throw new DuplexError('invalid_message', 'A wire request or cancellation requires a return address.');
       if (frame.kind !== 'request' && frame.kind !== 'event' && frame.kind !== 'cancel')
         throw new DuplexError('invalid_message', "A response is sent to its request's return address.");
+      let call: RoutedCall | undefined;
+      if (frame.kind === 'cancel') {
+        call = incoming.get(message.return!)?.get(frame.id);
+        // Cancellation belongs to an already admitted request. Its one control
+        // reservation is bounded by the existing pending-request budget.
+        if (!call || call.completed || call.cancelQueued || call.cancelled) return;
+      }
       const saved = snapshot(frame);
-      if (queued.length >= options.queueCapacity) {
+      if (ended || peer.status !== 'connected') throw endError();
+      if (frame.kind !== 'cancel' && dataQueued >= options.queueCapacity) {
         const error = new DuplexError('busy', 'Output consumer is stalled; queue limit reached.');
-        options.pressure(queued.length);
+        options.pressure(dataQueued);
         options.fail(error);
         throw error;
       }
-      queued.push({ path: [...path], message: { frame: saved, return: message.return } });
+      let refusal: DuplexError | undefined;
+      if (frame.kind === 'cancel') call!.cancelQueued = true;
+      else {
+        dataQueued++;
+        if (frame.kind === 'request') {
+          let calls = incoming.get(message.return!);
+          if (calls?.has(frame.id) || retained >= options.maxPendingRequests) {
+            refusal = new DuplexError(
+              calls?.has(frame.id) ? 'invalid_message' : 'busy',
+              'Outstanding wire call refused.',
+            );
+          } else {
+            if (!calls) {
+              calls = new Map();
+              incoming.set(message.return!, calls);
+            }
+            call = {
+              address: message.return!,
+              id: frame.id,
+              controller: new AbortController(),
+              completed: false,
+              cancelQueued: false,
+              cancelled: false,
+            };
+            calls.set(frame.id, call);
+            retained++;
+          }
+        }
+      }
+      // Data and reserved control entries share one FIFO. A cancel cannot jump
+      // ahead of an earlier event, request, or cancellation on this wire.
+      queued.push({ path: [...path], message: { frame: saved, return: message.return }, call, refusal });
       if (!scheduled) {
         scheduled = true;
         queueMicrotask(drain);

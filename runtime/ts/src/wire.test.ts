@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { at, mount, pipe, type Wire, type Message, type Frame, type FrameConnection } from '@nightseam/duplex';
+import {
+  at,
+  mount,
+  pipe,
+  type Wire,
+  type Message,
+  type Frame,
+  type FrameConnection,
+  type ReturnAddress,
+  type ConnectionHandlers,
+} from '@nightseam/duplex';
 import { DuplexPeer, DuplexError, UnpublishedError } from './peer.ts';
 import type { PeerOptions } from './peer.ts';
 import { callWire, handleWire, emitWire, onWireEvent } from './wire.ts';
@@ -307,4 +317,96 @@ test('wire handlers inherit verified receive context and keep peer panic observa
   await assert.rejects(callWire(pair.client.wire(), ['panic']), { code: 'internal' });
   assert.equal(inherited, 'authenticated');
   assert.equal(observed.filter((event) => event.type === 'handler.panic').length, 1);
+});
+
+test('wire cancellation reserves bounded admission behind a full data queue', async (t) => {
+  const pair = await paired({ queueCapacity: 1 });
+  t.after(pair.close);
+  const started = deferred(),
+    cancelled = deferred();
+  handleWire(pair.server.wire(), ['held'], async (_value, context) => {
+    context.signal.addEventListener('abort', () => cancelled.resolve(), { once: true });
+    started.resolve();
+    await cancelled.promise;
+    return null;
+  });
+  const controller = new AbortController();
+  let request: Message | undefined;
+  const root = pair.client.wire();
+  const selected: Wire = {
+    send: (path, message) => {
+      if (message.frame.kind === 'request') request = message;
+      root.send(path, message);
+    },
+    receive: (path, receiver) => root.receive(path, receiver),
+    close: (code, reason) => root.close(code, reason),
+  };
+  const result = callWire(selected, ['held'], {}, { signal: controller.signal }).catch((error: unknown) => error);
+  await started.promise;
+  emitWire(root, ['fills-root'], null);
+  controller.abort();
+  assert.equal(pair.client.status, 'connected', 'cancel closed a full data queue');
+  const cancel: Message = { frame: { version: 1, kind: 'cancel', id: 'c:1' }, return: request!.return };
+  for (let i = 0; i < 20; i++) root.send(['held'], cancel);
+  root.send(['unknown'], { ...cancel, return: { wire: root } });
+  assert.equal(((await result) as DuplexError).code, 'cancelled');
+  await cancelled.promise;
+  assert.equal(pair.client.status, 'connected');
+  assert.deepEqual(
+    pair.frames.map((frame) => frame.kind),
+    ['request', 'event', 'cancel'],
+  );
+});
+
+test('completed calls retain their budget until a reserved cancellation is drained', async (t) => {
+  const listeners = new Set<ConnectionHandlers>(),
+    sent: { id: string; kind: string }[] = [];
+  const connection: FrameConnection = {
+    state: 'open',
+    buffered: 0,
+    send: (frame) => {
+      if (frame.kind === 'text') sent.push(JSON.parse(frame.data));
+    },
+    close: () => {},
+    listen: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+  const peer = new DuplexPeer({ queueCapacity: 1, maxPendingRequests: 1 });
+  await peer.attach(connection);
+  t.after(() => peer.close());
+  const root = peer.wire(),
+    second = deferred<Message>();
+  const returning = (onResponse: (message: Message) => void): ReturnAddress => ({
+    wire: {
+      send: (_path, message) => onResponse(message),
+      receive: () => () => {},
+      close: () => {},
+    },
+  });
+  const secondAddress = returning((message) => second.resolve(message));
+  const firstAddress = returning(() => {
+    // The response resolves before the root's queued cancellation runs. That
+    // stale control still occupies its original request's bounded reservation.
+    root.send(['second'], { frame: { version: 1, kind: 'request', id: 'c:1', params: null }, return: secondAddress });
+  });
+  root.send(['first'], { frame: { version: 1, kind: 'request', id: 'c:1', params: null }, return: firstAddress });
+  await Promise.resolve();
+  assert.equal(sent.length, 1);
+  for (const listener of listeners)
+    listener.frame?.({
+      kind: 'text',
+      data: JSON.stringify({ version: 1, kind: 'response', id: sent[0]!.id, result: null }),
+    });
+  root.send(['first'], { frame: { version: 1, kind: 'cancel', id: 'c:1' }, return: firstAddress });
+  const refused = await second.promise;
+  assert.equal(refused.frame.kind, 'response');
+  assert.equal('error' in refused.frame && refused.frame.error?.code, 'busy');
+  assert.equal(sent.length, 1, 'a stale cancellation or a call over budget reached the carrier');
+  root.send(['third'], { frame: { version: 1, kind: 'request', id: 'c:1', params: null }, return: secondAddress });
+  await Promise.resolve();
+  assert.equal(sent.length, 2, 'drained control did not release its request reservation');
 });
