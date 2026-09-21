@@ -1,0 +1,6 @@
+{
+  "language": "java",
+  "toolchains": ["java", "javac", "jar"],
+  "build": [{"argv": ["node", "{self}/build.mjs", "{out}/java", "--test"]}],
+  "run": {"argv": ["java", "-cp", "{out}/java/classes", "io.nightseam.conformance.Testee"]}
+}

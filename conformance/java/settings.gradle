@@ -1,0 +1,4 @@
+rootProject.name = 'nightseam-java'
+include 'duplex', 'runtime'
+project(':duplex').projectDir = file('../../duplex/java')
+project(':runtime').projectDir = file('../../runtime/java')
