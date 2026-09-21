@@ -12,6 +12,8 @@ export function holdGenericComposition({ root, consumer: probe, go, pnpm, run, s
   for (const name of ["go.mod", "go.sum", "package.json", "pnpm-workspace.yaml", "tarballs"]) {
     cpSync(join(probe, name), join(consumer, name), { recursive: true });
   }
+  // The registry policy the probe copy was given travels with it.
+  if (existsSync(join(probe, ".npmrc"))) cpSync(join(probe, ".npmrc"), join(consumer, ".npmrc"));
   const corpus = join(root, "conformance", "corpora", "generic-composition");
   cpSync(join(corpus, "api", "contracts"), join(consumer, "api", "contracts"), { recursive: true });
   cpSync(join(corpus, "smoke", "live"), join(consumer, "generic-smoke"), { recursive: true });
@@ -93,6 +95,7 @@ export function holdGenericComposition({ root, consumer: probe, go, pnpm, run, s
   for (const name of ["pnpm-workspace.yaml", "tarballs", "generic-data-smoke", "api/ts/compose-cell-client", "api/ts/compose-cell-binding"]) {
     cpSync(join(consumer, name), join(dataConsumer, name), { recursive: true });
   }
+  if (existsSync(join(consumer, ".npmrc"))) cpSync(join(consumer, ".npmrc"), join(dataConsumer, ".npmrc"));
   const dataManifest = { name: "generic-data-smoke", private: true, type: "module", devDependencies: manifest.devDependencies, dependencies: Object.fromEntries(Object.entries(manifest.dependencies).filter(([name]) => allowed.has(name))) };
   writeFileSync(join(dataConsumer, "package.json"), JSON.stringify(dataManifest, null, 2) + "\n");
   writeFileSync(join(dataConsumer, "tsconfig.json"), JSON.stringify({ compilerOptions, include: ["generic-data-smoke/*.ts"] }, null, 2) + "\n");
