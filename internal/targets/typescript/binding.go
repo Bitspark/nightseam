@@ -55,7 +55,7 @@ func emitWireAdapter(f *file, side, protocol string) {
 		opposite = "Server"
 	}
 	live := fam.Live || familyValueSlots(fam)
-	f.linef("import { DuplexError, callWire, emitWire, registerWire, wirePair, declarationDigest, familyTypeAdapter, identityHandler, IDENTITY_METHOD, prepareIdentity, type WireModelContext, type WireCallOptions } from %s;", quote(f.config.Runtime))
+	f.linef("import { DuplexError, callWire, emitWire, registerWire, wirePair, declarationDigest, familyTypeAdapter, jsonAdapter, identityHandler, IDENTITY_METHOD, prepareIdentity, type WireModelContext, type WireCallOptions } from %s;", quote(f.config.Runtime))
 	f.line("import { encodePath, type Wire } from '@nightseam/duplex';")
 	f.linef("import type { AdapterContext, ValueAdapter, ValueContext } from %s;", quote(f.config.Runtime))
 	if fam.Live {

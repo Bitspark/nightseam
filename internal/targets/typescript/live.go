@@ -39,15 +39,16 @@ func (p *plan) planLive() {
 			continue
 		}
 		name := p.types[t.Name]
+		_, callable := f.CallableView(t)
 		p.exports[t.Name] = "export" + name
 		p.imports_[t.Name] = "import" + name
-		if t.Kind != model.KindCallable {
+		if !callable {
 			p.exports[t.Name] += "Unchecked"
 			p.imports_[t.Name] += "Unchecked"
 		}
 		p.declare(p.module, p.exports[t.Name], t.At, "live export function")
 		p.declare(p.module, p.imports_[t.Name], t.At, "live import function")
-		if t.Kind == model.KindCallable {
+		if callable {
 			p.contracts[t.Name] = "contract" + name
 			p.declare(p.module, p.contracts[t.Name], t.At, "callable contract constant")
 		}
@@ -97,14 +98,17 @@ func (f *file) emitLive() {
 		f.scope = t.Scope
 		f.codecs = t.Uses
 		f.scopedCodecs = t.IsLive
-		if t.Kind == model.KindCallable {
-			f.emitCallable(t)
+		f.completeCodecs = t.IsLive && len(t.Uses) > 0
+		if callable, ok := f.family.CallableView(t); ok {
+			f.completeCodecs = len(t.Uses) > 0 || t.Kind == model.KindAlias
+			f.emitCallable(callable)
 			continue
 		}
 		f.emitLiveConversion(t)
 	}
 	f.codecs = nil
 	f.scopedCodecs = false
+	f.completeCodecs = false
 }
 
 // emitCallable renders one callable: the function type a consumer writes and
@@ -116,13 +120,17 @@ func (f *file) emitCallableType(t *render.Type) {
 		f.linef("/** %s */", comment(t.Description))
 	}
 	f.line("/** A value of it is one implementation, called across the seam; each is its own binding, with its own lifetime. */")
-	f.linef("export type %s = (%s) => Promise<%s>;", name, f.callableParams(t), f.callableResult(t))
+	f.linef("export type %s%s = (%s) => Promise<%s>;", name, f.declare(t.Uses), f.callableParams(t), f.callableResult(t))
 }
 
 // emitCallable renders what the boundary needs beside the type: the identity
 // a reference to it carries, and the two halves of the conversion. The type
 // itself is emitted with the family's other types, in their order.
 func (f *file) emitCallable(t *render.Type) {
+	if len(t.Uses) > 0 || t.Declaration.Kind == model.KindAlias {
+		f.emitGenericCallable(t)
+		return
+	}
 	p := f.plan
 	name := p.types[t.Name]
 	f.linef("/** The declaration a reference to %s carries. It is nominal: a reference is usable exactly where this callable is expected. */", name)
@@ -217,6 +225,9 @@ func (f *file) emitLiveConversion(t *render.Type) {
 		f.linef("/** Writes %s as it travels: each callable in it becomes a binding of the owner, and the reference that names it takes its place. */", name)
 	}
 	f.w.Block(fmt.Sprintf("export function %s%s(%svalue: %s%s): unknown {", p.exports[t.Name], f.declare(t.Uses), owner, self, f.converterParameters(t, true)), "}", func() {
+		if f.completeCodecs {
+			f.emitCompleteSlots(t.Uses)
+		}
 		if t.IsLive {
 			f.w.Block("return owner.exportValue((owner) => {", "});", func() {
 				f.liveBody(t, true)
@@ -232,6 +243,9 @@ func (f *file) emitLiveConversion(t *render.Type) {
 	}
 	f.line("/** Conversion only: validation belongs to the value adapter or its caller. */")
 	f.w.Block(fmt.Sprintf("export function %s%s(%sraw: unknown%s): %s {", p.imports_[t.Name], f.declare(t.Uses), owner, f.converterParameters(t, false), self), "}", func() {
+		if f.completeCodecs {
+			f.emitCompleteSlots(t.Uses)
+		}
 		if t.IsLive {
 			f.w.Block("return owner.importValue((owner) => {", "});", func() {
 				f.liveBody(t, false)
@@ -308,7 +322,7 @@ func (f *file) liveField(field render.Field, export bool) {
 // it is already the value the wire wants, and copying it would only risk
 // changing it.
 func (f *file) liveExpr(e model.TypeExpr, src string, export bool) string {
-	if slot := f.operationSlot(e); slot != "" {
+	if slot := f.valueSlot(e); slot != "" {
 		method := "import"
 		if export {
 			method = "export"
@@ -372,8 +386,10 @@ func (f *file) liveCall(e model.TypeExpr, export bool) string {
 		prefix = "import"
 	}
 	suffix := ""
-	if t, _ := f.family.Conversion(e); t != nil && t.Kind != model.KindCallable {
-		suffix = "Unchecked"
+	if t, _ := f.family.Conversion(e); t != nil {
+		if _, callable := source.CallableView(t); !callable {
+			suffix = "Unchecked"
+		}
 	}
 	return liveAlias(family) + "." + prefix + naming.UpperCamel(name) + suffix
 }
