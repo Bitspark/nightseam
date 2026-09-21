@@ -1,2 +1,2 @@
-carrier/protocol.json#/types/Holder/fields/0/type: S.Job draws Job from worker, which carries a callable; the current family-binding contract supplies no live boundary converter for that draw. Use an explicitly named live type in live.json instead. [live_draw]
+carrier/protocol.json#/types/Holder/fields/0/type: Type Cancel of S: in the live family worker it is a callable; draw a plain record containing the callable instead. [unresolved_type]
 error: 1 problems

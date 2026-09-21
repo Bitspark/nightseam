@@ -890,6 +890,9 @@ func AdapterBundle[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter
 		Binding:      binding,
 		NeedsContext: true,
 		Export: func(ctx context.Context, value Bundle[T]) (json.RawMessage, error) {
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return nil, fmt.Errorf("T: both conversion recipes are required")
+			}
 			if ctx == nil {
 				return nil, fmt.Errorf("a live conversion requires an active owner")
 			}
@@ -907,6 +910,9 @@ func AdapterBundle[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Bundle[T], error) {
 			var zero Bundle[T]
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return zero, fmt.Errorf("T: both conversion recipes are required")
+			}
 			if ctx == nil {
 				return zero, fmt.Errorf("a live conversion requires an active owner")
 			}
@@ -932,6 +938,9 @@ func AdapterBundleMetadata[T any](adapterT runtime.ValueAdapter[T]) runtime.Valu
 		Binding:      binding,
 		NeedsContext: adapterT.NeedsContext,
 		Export: func(ctx context.Context, value BundleMetadata[T]) (json.RawMessage, error) {
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return nil, fmt.Errorf("T: both conversion recipes are required")
+			}
 			raw, err := ExportBundleMetadata[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -940,6 +949,9 @@ func AdapterBundleMetadata[T any](adapterT runtime.ValueAdapter[T]) runtime.Valu
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (BundleMetadata[T], error) {
 			var zero BundleMetadata[T]
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return zero, fmt.Errorf("T: both conversion recipes are required")
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}
