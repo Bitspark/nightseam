@@ -9,7 +9,7 @@ import (
 
 	boxes "example.test/generated/api/go/boxes-protocol"
 	combinator "example.test/generated/api/go/combinator-protocol"
-	ownerclient "example.test/generated/api/go/owners-client"
+	ownerbinding "example.test/generated/api/go/owners-binding"
 	owners "example.test/generated/api/go/owners-protocol"
 	worker "example.test/generated/api/go/worker-protocol"
 	"github.com/Bitspark/nightseam/duplex/go"
@@ -244,9 +244,9 @@ func TestGeneratedOwnerSelectionIsConnectionLocal(t *testing.T) {
 					}
 				} else {
 					// The fixture's server uses generated converters. The call under
-					// test uses the ordinary generated client and its owner selection.
+					// test uses the generated Wire proxy and its owner selection.
 					serverOwner := sa.Owner().Child()
-					if err := sa.Peer().Handle("pack", func(_ context.Context, _ *runtime.Peer, raw json.RawMessage) (any, error) {
+					detach, err := runtime.HandleWire(sa.Peer().Wire(), []string{"pack"}, func(_ context.Context, raw json.RawMessage) (any, error) {
 						var value struct {
 							Item json.RawMessage `json:"item"`
 						}
@@ -262,12 +262,21 @@ func TestGeneratedOwnerSelectionIsConnectionLocal(t *testing.T) {
 							return nil, err
 						}
 						return map[string]any{"metadata": map[string]any{"seed": 7}, "run": run}, nil
-					}); err != nil {
+					})
+					if err != nil {
 						t.Fatal(err)
 					}
-					client := &ownerclient.Client{Peer: sb.Peer()}
+					t.Cleanup(detach)
+					model, err := ownerbinding.FromWire(context.Background(), sb.Peer().Wire(), live.AdapterContext{Scope: sb})
+					if err != nil {
+						t.Fatal(err)
+					}
+					server, err := model(owners.Client{Methods: struct{}{}, Events: struct{}{}})
+					if err != nil {
+						t.Fatal(err)
+					}
 					invoke = func(ctx context.Context, input combinator.Unary) (combinator.Unary, error) {
-						bundle, err := client.Pack(ctx, boxes.Box[combinator.Unary]{Item: input})
+						bundle, err := server.Methods.Pack(ctx, boxes.Box[combinator.Unary]{Item: input})
 						return bundle.Run, err
 					}
 				}
