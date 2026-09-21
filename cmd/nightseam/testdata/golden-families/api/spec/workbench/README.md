@@ -1321,15 +1321,15 @@ The server answers:
 In `go`:
 
 ```go
-client.ListEvents(ctx, params)
+client.Methods.ListEvents(ctx, params)
 
-func (Handler) ListEvents(ctx context.Context, remote *binding.Remote, params protocol.ListEventsParams) ([]protocol.Event, error)
+func (Handler) ListEvents(ctx context.Context, params protocol.ListEventsParams) ([]protocol.Event, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.listEvents(params)
+await server.methods.listEvents(params)
 ```
 
 ### `me` on the wire
@@ -1364,15 +1364,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Me(ctx)
+client.Methods.Me(ctx)
 
-func (Handler) Me(ctx context.Context, remote *binding.Remote) (protocol.User, error)
+func (Handler) Me(ctx context.Context) (protocol.User, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.me()
+await server.methods.me({})
 ```
 
 ### `projects.create` on the wire
@@ -1416,15 +1416,15 @@ The server answers:
 In `go`:
 
 ```go
-client.CreateProject(ctx, params)
+client.Methods.CreateProject(ctx, params)
 
-func (Handler) CreateProject(ctx context.Context, remote *binding.Remote, params protocol.CreateProjectParams) (protocol.Project, error)
+func (Handler) CreateProject(ctx context.Context, params protocol.CreateProjectParams) (protocol.Project, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.createProject(params)
+await server.methods.createProject(params)
 ```
 
 ### `projects.list` on the wire
@@ -1466,15 +1466,15 @@ The server answers:
 In `go`:
 
 ```go
-client.ListProjects(ctx, params)
+client.Methods.ListProjects(ctx, params)
 
-func (Handler) ListProjects(ctx context.Context, remote *binding.Remote, params protocol.ListProjectsParams) ([]protocol.Project, error)
+func (Handler) ListProjects(ctx context.Context, params protocol.ListProjectsParams) ([]protocol.Project, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.listProjects(params)
+await server.methods.listProjects(params)
 ```
 
 ### `projects.update` on the wire
@@ -1520,15 +1520,15 @@ The server answers:
 In `go`:
 
 ```go
-client.UpdateProject(ctx, params)
+client.Methods.UpdateProject(ctx, params)
 
-func (Handler) UpdateProject(ctx context.Context, remote *binding.Remote, params protocol.UpdateProjectParams) (protocol.Project, error)
+func (Handler) UpdateProject(ctx context.Context, params protocol.UpdateProjectParams) (protocol.Project, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.updateProject(params)
+await server.methods.updateProject(params)
 ```
 
 ### `subscribe` on the wire
@@ -1564,15 +1564,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Subscribe(ctx, params)
+client.Methods.Subscribe(ctx, params)
 
-func (Handler) Subscribe(ctx context.Context, remote *binding.Remote, params protocol.SubscribeParams) (protocol.SubscribeResult, error)
+func (Handler) Subscribe(ctx context.Context, params protocol.SubscribeParams) (protocol.SubscribeResult, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.subscribe(params)
+await server.methods.subscribe(params)
 ```
 
 ### `work.cancel` on the wire
@@ -1666,15 +1666,15 @@ The server answers:
 In `go`:
 
 ```go
-client.CancelWorkItem(ctx, params)
+client.Methods.CancelWorkItem(ctx, params)
 
-func (Handler) CancelWorkItem(ctx context.Context, remote *binding.Remote, params protocol.CancelWorkItemParams) (protocol.WorkItem, error)
+func (Handler) CancelWorkItem(ctx context.Context, params protocol.CancelWorkItemParams) (protocol.WorkItem, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.cancelWorkItem(params)
+await server.methods.cancelWorkItem(params)
 ```
 
 ### `work.create` on the wire
@@ -1782,15 +1782,15 @@ The server answers:
 In `go`:
 
 ```go
-client.CreateWorkItem(ctx, params)
+client.Methods.CreateWorkItem(ctx, params)
 
-func (Handler) CreateWorkItem(ctx context.Context, remote *binding.Remote, params protocol.CreateWorkItemParams) (protocol.WorkItem, error)
+func (Handler) CreateWorkItem(ctx context.Context, params protocol.CreateWorkItemParams) (protocol.WorkItem, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.createWorkItem(params)
+await server.methods.createWorkItem(params)
 ```
 
 ### `work.dependencies` on the wire
@@ -1886,15 +1886,15 @@ The server answers:
 In `go`:
 
 ```go
-client.SetDependencies(ctx, params)
+client.Methods.SetDependencies(ctx, params)
 
-func (Handler) SetDependencies(ctx context.Context, remote *binding.Remote, params protocol.SetDependenciesParams) (protocol.WorkItem, error)
+func (Handler) SetDependencies(ctx context.Context, params protocol.SetDependenciesParams) (protocol.WorkItem, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.setDependencies(params)
+await server.methods.setDependencies(params)
 ```
 
 ### `work.get` on the wire
@@ -1986,15 +1986,15 @@ The server answers:
 In `go`:
 
 ```go
-client.GetWorkItem(ctx, params)
+client.Methods.GetWorkItem(ctx, params)
 
-func (Handler) GetWorkItem(ctx context.Context, remote *binding.Remote, params protocol.GetWorkItemParams) (protocol.WorkItem, error)
+func (Handler) GetWorkItem(ctx context.Context, params protocol.GetWorkItemParams) (protocol.WorkItem, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.getWorkItem(params)
+await server.methods.getWorkItem(params)
 ```
 
 ### `work.list` on the wire
@@ -2089,15 +2089,15 @@ The server answers:
 In `go`:
 
 ```go
-client.ListWorkItems(ctx, params)
+client.Methods.ListWorkItems(ctx, params)
 
-func (Handler) ListWorkItems(ctx context.Context, remote *binding.Remote, params protocol.ListWorkItemsParams) ([]protocol.WorkItem, error)
+func (Handler) ListWorkItems(ctx context.Context, params protocol.ListWorkItemsParams) ([]protocol.WorkItem, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.listWorkItems(params)
+await server.methods.listWorkItems(params)
 ```
 
 ### `work.publish` on the wire
@@ -2190,15 +2190,15 @@ The server answers:
 In `go`:
 
 ```go
-client.PublishSpecification(ctx, params)
+client.Methods.PublishSpecification(ctx, params)
 
-func (Handler) PublishSpecification(ctx context.Context, remote *binding.Remote, params protocol.PublishSpecificationParams) (protocol.WorkItem, error)
+func (Handler) PublishSpecification(ctx context.Context, params protocol.PublishSpecificationParams) (protocol.WorkItem, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.publishSpecification(params)
+await server.methods.publishSpecification(params)
 ```
 
 ### `work.reopen` on the wire
@@ -2292,15 +2292,15 @@ The server answers:
 In `go`:
 
 ```go
-client.ReopenWorkItem(ctx, params)
+client.Methods.ReopenWorkItem(ctx, params)
 
-func (Handler) ReopenWorkItem(ctx context.Context, remote *binding.Remote, params protocol.ReopenWorkItemParams) (protocol.WorkItem, error)
+func (Handler) ReopenWorkItem(ctx context.Context, params protocol.ReopenWorkItemParams) (protocol.WorkItem, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.reopenWorkItem(params)
+await server.methods.reopenWorkItem(params)
 ```
 
 ### `work.steps` on the wire
@@ -2403,15 +2403,15 @@ The server answers:
 In `go`:
 
 ```go
-client.SetSteps(ctx, params)
+client.Methods.SetSteps(ctx, params)
 
-func (Handler) SetSteps(ctx context.Context, remote *binding.Remote, params protocol.SetStepsParams) (protocol.WorkItem, error)
+func (Handler) SetSteps(ctx context.Context, params protocol.SetStepsParams) (protocol.WorkItem, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.setSteps(params)
+await server.methods.setSteps(params)
 ```
 
 ### `work.update` on the wire
@@ -2520,15 +2520,15 @@ The server answers:
 In `go`:
 
 ```go
-client.UpdateWorkItem(ctx, params)
+client.Methods.UpdateWorkItem(ctx, params)
 
-func (Handler) UpdateWorkItem(ctx context.Context, remote *binding.Remote, params protocol.UpdateWorkItemParams) (protocol.WorkItem, error)
+func (Handler) UpdateWorkItem(ctx context.Context, params protocol.UpdateWorkItemParams) (protocol.WorkItem, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.updateWorkItem(params)
+await server.methods.updateWorkItem(params)
 ```
 
 ### `workbench.changed` on the wire
@@ -2555,13 +2555,13 @@ The server emits:
 In `go`:
 
 ```go
-remote.EmitChanged(ctx, data)
+remote.Events.Changed(ctx, data)
 ```
 
 In `typescript`:
 
 ```typescript
-client.onChanged(handler)
+changed(data, context)
 ```
 
 ## Errors

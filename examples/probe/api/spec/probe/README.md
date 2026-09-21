@@ -377,15 +377,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Echo(ctx, params)
+client.Methods.Echo(ctx, params)
 
-func (Handler) Echo(ctx context.Context, remote *binding.Remote, params protocol.Payload) (protocol.Payload, error)
+func (Handler) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.echo(params)
+await server.methods.echo(params)
 ```
 
 ### `watch` on the wire
@@ -443,15 +443,15 @@ Or refuses with `denied`:
 In `go`:
 
 ```go
-client.Watch(ctx, params)
+client.Methods.Watch(ctx, params)
 
-func (Handler) Watch(ctx context.Context, remote *binding.Remote, params protocol.Watch) (protocol.Subscription, error)
+func (Handler) Watch(ctx context.Context, params protocol.Watch) (protocol.Subscription, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.watch(params)
+await server.methods.watch(params)
 ```
 
 ### `changed` on the wire
@@ -473,13 +473,13 @@ The server emits:
 In `go`:
 
 ```go
-remote.EmitChanged(ctx, data)
+remote.Events.Changed(ctx, data)
 ```
 
 In `typescript`:
 
 ```typescript
-client.onChanged(handler)
+changed(data, context)
 ```
 
 ## Client side
@@ -524,7 +524,7 @@ The client answers:
 In `go`:
 
 ```go
-remote.Reverse(ctx, params)
+remote.Methods.Reverse(ctx, params)
 ```
 
 In `typescript`:

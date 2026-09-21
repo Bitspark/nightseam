@@ -2,6 +2,7 @@
 package ledgerprotocol
 
 import (
+	context "context"
 	json "encoding/json"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 	time "time"
@@ -158,3 +159,68 @@ func (Transfer) Of() Tag { return Tag{} }
 func (Transfer) WireType() runtime.TypeBinding {
 	return runtime.TypeBinding{Schema: schema, Type: "Transfer"}
 }
+
+// AdapterAccount composes declaration validation and conversion within the supplied invocation context.
+func AdapterAccount() runtime.ValueAdapter[Account] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Account"}
+	return runtime.ValueAdapter[Account]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Account) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Account, error) {
+			var zero Account
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Account, error) { var value Account; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterTransfer composes declaration validation and conversion within the supplied invocation context.
+func AdapterTransfer() runtime.ValueAdapter[Transfer] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Transfer"}
+	return runtime.ValueAdapter[Transfer]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Transfer) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Transfer, error) {
+			var zero Transfer
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Transfer, error) { var value Transfer; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+type ServerMethods interface {
+}
+type ServerEvents interface {
+}
+type Server struct {
+	Methods ServerMethods
+	Events  ServerEvents
+}
+type ClientMethods interface {
+}
+type ClientEvents interface {
+}
+type Client struct {
+	Methods ClientMethods
+	Events  ClientEvents
+}
+type ServerModel func(Client) (Server, error)
+type ClientModel func(Server) (Client, error)

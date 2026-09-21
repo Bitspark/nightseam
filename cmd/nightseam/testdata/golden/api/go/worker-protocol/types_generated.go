@@ -990,6 +990,445 @@ func ImportWatchers(owner *live.Owner, raw json.RawMessage) (Watchers, error) {
 	return value, nil
 }
 
+// AdapterCancel composes declaration validation and conversion within the supplied invocation context.
+func AdapterCancel() runtime.ValueAdapter[Cancel] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Cancel"}
+	return runtime.ValueAdapter[Cancel]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Cancel) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportCancel(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Cancel, error) {
+			var zero Cancel
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportCancel(owner, raw)
+		},
+	}
+}
+
+// AdapterJob composes declaration validation and conversion within the supplied invocation context.
+func AdapterJob() runtime.ValueAdapter[Job] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Job"}
+	return runtime.ValueAdapter[Job]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Job) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportJob(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Job, error) {
+			var zero Job
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportJob(owner, raw)
+		},
+	}
+}
+
+// AdapterOutcome composes declaration validation and conversion within the supplied invocation context.
+func AdapterOutcome() runtime.ValueAdapter[Outcome] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Outcome"}
+	return runtime.ValueAdapter[Outcome]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Outcome) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportOutcome(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Outcome, error) {
+			var zero Outcome
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportOutcome(owner, raw)
+		},
+	}
+}
+
+// AdapterPercent composes declaration validation and conversion within the supplied invocation context.
+func AdapterPercent() runtime.ValueAdapter[Percent] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Percent"}
+	return runtime.ValueAdapter[Percent]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Percent) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Percent, error) {
+			var zero Percent
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Percent, error) { var value Percent; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterProgressSink composes declaration validation and conversion within the supplied invocation context.
+func AdapterProgressSink() runtime.ValueAdapter[ProgressSink] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "ProgressSink"}
+	return runtime.ValueAdapter[ProgressSink]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value ProgressSink) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportProgressSink(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (ProgressSink, error) {
+			var zero ProgressSink
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportProgressSink(owner, raw)
+		},
+	}
+}
+
+// AdapterRename composes declaration validation and conversion within the supplied invocation context.
+func AdapterRename() runtime.ValueAdapter[Rename] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Rename"}
+	return runtime.ValueAdapter[Rename]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Rename) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportRename(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Rename, error) {
+			var zero Rename
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportRename(owner, raw)
+		},
+	}
+}
+
+// AdapterReport composes declaration validation and conversion within the supplied invocation context.
+func AdapterReport() runtime.ValueAdapter[Report] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Report"}
+	return runtime.ValueAdapter[Report]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Report) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportReport(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Report, error) {
+			var zero Report
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportReport(owner, raw)
+		},
+	}
+}
+
+// AdapterSinks composes declaration validation and conversion within the supplied invocation context.
+func AdapterSinks() runtime.ValueAdapter[Sinks] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Sinks"}
+	return runtime.ValueAdapter[Sinks]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Sinks) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportSinks(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Sinks, error) {
+			var zero Sinks
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportSinks(owner, raw)
+		},
+	}
+}
+
+// AdapterStart composes declaration validation and conversion within the supplied invocation context.
+func AdapterStart() runtime.ValueAdapter[Start] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Start"}
+	return runtime.ValueAdapter[Start]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Start) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportStart(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Start, error) {
+			var zero Start
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportStart(owner, raw)
+		},
+	}
+}
+
+// AdapterSupervise composes declaration validation and conversion within the supplied invocation context.
+func AdapterSupervise() runtime.ValueAdapter[Supervise] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Supervise"}
+	return runtime.ValueAdapter[Supervise]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Supervise) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportSupervise(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Supervise, error) {
+			var zero Supervise
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportSupervise(owner, raw)
+		},
+	}
+}
+
+// AdapterTicket composes declaration validation and conversion within the supplied invocation context.
+func AdapterTicket() runtime.ValueAdapter[Ticket] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Ticket"}
+	return runtime.ValueAdapter[Ticket]{
+		Binding:      binding,
+		NeedsContext: false,
+		Export: func(ctx context.Context, value Ticket) (json.RawMessage, error) {
+			raw, err := runtime.MarshalJSON(value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Ticket, error) {
+			var zero Ticket
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return func() (Ticket, error) { var value Ticket; err := json.Unmarshal(raw, &value); return value, err }()
+		},
+	}
+}
+
+// AdapterWatchers composes declaration validation and conversion within the supplied invocation context.
+func AdapterWatchers() runtime.ValueAdapter[Watchers] {
+	binding := runtime.TypeBinding{Schema: schema, Type: "Watchers"}
+	return runtime.ValueAdapter[Watchers]{
+		Binding:      binding,
+		NeedsContext: true,
+		Export: func(ctx context.Context, value Watchers) (json.RawMessage, error) {
+			if ctx == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return nil, fmt.Errorf("a live conversion requires an active owner")
+			}
+			raw, err := ExportWatchers(owner, value)
+			if err == nil {
+				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
+			}
+			return raw, err
+		},
+		Import: func(ctx context.Context, raw json.RawMessage) (Watchers, error) {
+			var zero Watchers
+			if ctx == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			owner, ok := live.OwnerOf(ctx)
+			if !ok || owner == nil {
+				return zero, fmt.Errorf("a live conversion requires an active owner")
+			}
+			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
+				return zero, err
+			}
+			return ImportWatchers(owner, raw)
+		},
+	}
+}
+
+type ServerMethods interface {
+	Describe(ctx context.Context, params Ticket) (string, error)
+	Start(ctx context.Context, params Start) (Job, error)
+}
+type ServerEvents interface {
+}
+type Server struct {
+	Methods ServerMethods
+	Events  ServerEvents
+}
+type ClientMethods interface {
+	Supervise(ctx context.Context, params Supervise) (Outcome, error)
+}
+type ClientEvents interface {
+	Settled(ctx context.Context, data Outcome) error
+}
+type Client struct {
+	Methods ClientMethods
+	Events  ClientEvents
+}
+type ServerModel func(Client) (Server, error)
+type ClientModel func(Server) (Client, error)
+
 // The public errors of the family: what a handler returns, as the Code of a *runtime.PublicError, and a caller tells apart with IsError.
 const (
 	// ErrorDenied: The caller is denied.

@@ -460,15 +460,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Name(ctx)
+client.Methods.Name(ctx)
 
-func (Handler) Name(ctx context.Context, remote *binding.Remote) (string, error)
+func (Handler) Name(ctx context.Context) (string, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.name()
+await server.methods.name({})
 ```
 
 ### `pack` on the wire
@@ -513,15 +513,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Pack(ctx, params)
+client.Methods.Pack(ctx, params)
 
-func (Handler) Pack(ctx context.Context, remote *binding.Remote, params boxesprotocol.Box[protocol.Unary]) (boxesprotocol.Batch[protocol.Bundle[protocol.Count]], error)
+func (Handler) Pack(ctx context.Context, params boxesprotocol.Box[protocol.Unary]) (boxesprotocol.Batch[protocol.Bundle[protocol.Count]], error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.pack(params)
+await server.methods.pack(params)
 ```
 
 ### `toolkit` on the wire
@@ -581,15 +581,15 @@ Or refuses with `refused`:
 In `go`:
 
 ```go
-client.Toolkit(ctx, params)
+client.Methods.Toolkit(ctx, params)
 
-func (Handler) Toolkit(ctx context.Context, remote *binding.Remote, params protocol.ToolkitRequest) (protocol.Toolkit, error)
+func (Handler) Toolkit(ctx context.Context, params protocol.ToolkitRequest) (protocol.Toolkit, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.toolkit(params)
+await server.methods.toolkit(params)
 ```
 
 ## Errors

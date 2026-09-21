@@ -464,15 +464,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Echo(ctx, params)
+client.Methods.Echo(ctx, params)
 
-func (Handler) Echo(ctx context.Context, remote *binding.Remote, params protocol.Payload) (protocol.Payload, error)
+func (Handler) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.echo(params)
+await server.methods.echo(params)
 ```
 
 ### `no_args` on the wire
@@ -503,15 +503,15 @@ The server answers:
 In `go`:
 
 ```go
-client.NoArgs(ctx)
+client.Methods.NoArgs(ctx)
 
-func (Handler) NoArgs(ctx context.Context, remote *binding.Remote) (string, error)
+func (Handler) NoArgs(ctx context.Context) (string, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.noArgs()
+await server.methods.noArgs({})
 ```
 
 ### `seen` on the wire
@@ -554,15 +554,15 @@ The server answers:
 In `go`:
 
 ```go
-client.Seen(ctx, params)
+client.Methods.Seen(ctx, params)
 
-func (Handler) Seen(ctx context.Context, remote *binding.Remote, params protocol.Seen) (protocol.Payloads, error)
+func (Handler) Seen(ctx context.Context, params protocol.Seen) (protocol.Payloads, error)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.seen(params)
+await server.methods.seen(params)
 ```
 
 ### `changed` on the wire
@@ -585,13 +585,13 @@ The server emits:
 In `go`:
 
 ```go
-remote.EmitChanged(ctx, data)
+remote.Events.Changed(ctx, data)
 ```
 
 In `typescript`:
 
 ```typescript
-client.onChanged(handler)
+changed(data, context)
 ```
 
 ## Client side
@@ -642,7 +642,7 @@ The client answers:
 In `go`:
 
 ```go
-remote.Reverse(ctx, params)
+remote.Methods.Reverse(ctx, params)
 ```
 
 In `typescript`:
@@ -673,13 +673,13 @@ The client emits:
 In `go`:
 
 ```go
-client.EmitNoticed(ctx, data)
+client.Events.Noticed(ctx, data)
 ```
 
 In `typescript`:
 
 ```typescript
-await client.emitNoticed(data)
+await server.events.noticed(data)
 ```
 
 ## Errors

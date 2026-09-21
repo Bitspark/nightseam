@@ -8,92 +8,28 @@ import (
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
-	tunnel "github.com/Bitspark/nightseam/tunnel/go"
+	atomic "sync/atomic"
 )
 
-type Client[AEnvelope, BEnvelope any] struct{ Peer *runtime.Peer }
-
-// Events installs typed event handlers before the client reads its first frame; nil fields leave events unhandled.
-type Events[AEnvelope, BEnvelope any] struct {
+type serverMethods[AEnvelope, BEnvelope any] struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
 }
-type Handler[AEnvelope, BEnvelope any] interface {
-}
-
-// Caller is the protocol's caller side: every operation a client sends. Client implements it.
-type Caller[AEnvelope, BEnvelope any] interface {
-	Look(ctx context.Context, params protocol.Mine[AEnvelope]) (protocol.Both[AEnvelope, BEnvelope], error)
+type serverEvents[AEnvelope, BEnvelope any] struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
 }
 
-func _[AEnvelope, BEnvelope any]() {
-	var _ Caller[AEnvelope, BEnvelope] = (*Client[AEnvelope, BEnvelope])(nil)
+func accessServer[AEnvelope, BEnvelope any](wire duplex.Wire, environment runtime.AdapterContext) protocol.Server[AEnvelope, BEnvelope] {
+	return protocol.Server[AEnvelope, BEnvelope]{Methods: &serverMethods[AEnvelope, BEnvelope]{wire: wire, environment: environment}, Events: &serverEvents[AEnvelope, BEnvelope]{wire: wire, environment: environment}}
 }
-
-// install registers the reverse-call handlers on the options a peer is made with and labels its names with the family.
-func install[AEnvelope, BEnvelope any](handler Handler[AEnvelope, BEnvelope], events Events[AEnvelope, BEnvelope], options *runtime.Options) error {
-	handlers := map[string]runtime.Handler{}
-	for name, existing := range options.Handlers {
-		handlers[name] = existing
-	}
-	options.Handlers = handlers
-	families := map[string]string{}
-	for name, existing := range options.Families {
-		families[name] = existing
-	}
-	families["look"] = "album"
-	options.Families = families
-	prepare := options.Prepare
-	options.Prepare = func(peer *runtime.Peer) error {
-		if prepare != nil {
-			return prepare(peer)
-		}
-		return nil
-	}
-	return nil
-}
-
-// Dial connects to a WebSocket endpoint after installing reverse-call handlers. No request is retried.
-func Dial[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, url string, options runtime.DialOptions, handler Handler[AEnvelope, BEnvelope], events Events[AEnvelope, BEnvelope]) (*Client[AEnvelope, BEnvelope], error) {
-	if err := install[AEnvelope, BEnvelope](handler, events, &options.Options); err != nil {
-		return nil, err
-	}
-	peer, response, err := runtime.Dial(ctx, url, options)
-	if err != nil {
-		if response != nil && response.Body != nil {
-			_ = response.Body.Close()
-		}
-		return nil, err
-	}
-	return &Client[AEnvelope, BEnvelope]{Peer: peer}, nil
-}
-
-// Attach speaks the family over a connection of the seam — a tunnel channel, a pipe, a dialled socket — as the client side of it, after installing reverse-call handlers.
-func Attach[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler[AEnvelope, BEnvelope], events Events[AEnvelope, BEnvelope]) (*Client[AEnvelope, BEnvelope], error) {
-	if err := install[AEnvelope, BEnvelope](handler, events, &options); err != nil {
-		return nil, err
-	}
-	peer, err := runtime.NewPeer(ctx, conn, runtime.ClientRole, options)
-	if err != nil {
-		return nil, err
-	}
-	return &Client[AEnvelope, BEnvelope]{Peer: peer}, nil
-}
-
-// Open resolves a handle to the channel it names on a tunnel and speaks the family over it.
-func Open[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler[AEnvelope, BEnvelope], events Events[AEnvelope, BEnvelope]) (*Client[AEnvelope, BEnvelope], error) {
-	channel, ok := t.Channel(handle.Channel)
-	if !ok {
-		return nil, fmt.Errorf("no channel %d on the connection", handle.Channel)
-	}
-	return Attach[AEnvelope, BEnvelope](ctx, channel, options, handler, events)
-}
-func (c *Client[AEnvelope, BEnvelope]) Close() error { return c.Peer.Close() }
-func (c *Client[AEnvelope, BEnvelope]) Look(ctx context.Context, params protocol.Mine[AEnvelope]) (protocol.Both[AEnvelope, BEnvelope], error) {
+func (c *serverMethods[AEnvelope, BEnvelope]) Look(ctx context.Context, params protocol.Mine[AEnvelope]) (protocol.Both[AEnvelope, BEnvelope], error) {
 	var result protocol.Both[AEnvelope, BEnvelope]
 	if err := protocol.WireSchema().Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Mine\""), params); err != nil {
 		return result, err
 	}
 	var raw json.RawMessage
-	if err := c.Peer.Call(ctx, "look", params, &raw); err != nil {
+	if err := runtime.CallWire(ctx, c.wire, []string{"look"}, params, &raw, runtime.WireCallOptions{Observer: c.environment.Options.Observer, Family: "album"}); err != nil {
 		return result, err
 	}
 	if err := protocol.WireSchema().Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Both\""), raw); err != nil {
@@ -103,4 +39,143 @@ func (c *Client[AEnvelope, BEnvelope]) Look(ctx context.Context, params protocol
 		return result, err
 	}
 	return result, nil
+}
+func bindServer[AEnvelope, BEnvelope any](wire duplex.Wire, implementation protocol.Server[AEnvelope, BEnvelope], environment runtime.AdapterContext) error {
+	if implementation.Methods == nil {
+		return fmt.Errorf("Server methods are required")
+	}
+	var detach []func()
+	complete := false
+	defer func() {
+		if !complete {
+			for _, off := range detach {
+				off()
+			}
+		}
+	}()
+	{
+		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "album"}
+		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			if err := protocol.WireSchema().Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Mine\""), raw); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			var params protocol.Mine[AEnvelope]
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
+			}
+			result, err := implementation.Methods.Look(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			if err = protocol.WireSchema().Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateValue(protocol.MustTypeExpression("\"Both\""), result); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		if handlers.Request != nil || handlers.Event != nil {
+			off, err := runtime.RegisterWire(wire, []string{"look"}, handlers)
+			if err != nil {
+				return err
+			}
+			detach = append(detach, off)
+		}
+	}
+	complete = true
+	return nil
+}
+
+type clientMethods[AEnvelope, BEnvelope any] struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
+}
+type clientEvents[AEnvelope, BEnvelope any] struct {
+	wire        duplex.Wire
+	environment runtime.AdapterContext
+}
+
+func accessClient[AEnvelope, BEnvelope any](wire duplex.Wire, environment runtime.AdapterContext) protocol.Client[AEnvelope, BEnvelope] {
+	return protocol.Client[AEnvelope, BEnvelope]{Methods: &clientMethods[AEnvelope, BEnvelope]{wire: wire, environment: environment}, Events: &clientEvents[AEnvelope, BEnvelope]{wire: wire, environment: environment}}
+}
+func bindClient[AEnvelope, BEnvelope any](wire duplex.Wire, implementation protocol.Client[AEnvelope, BEnvelope], environment runtime.AdapterContext) error {
+	var detach []func()
+	complete := false
+	defer func() {
+		if !complete {
+			for _, off := range detach {
+				off()
+			}
+		}
+	}()
+	complete = true
+	return nil
+}
+func normalizeContext[AEnvelope, BEnvelope any](environment runtime.AdapterContext) (runtime.AdapterContext, error) {
+	if false && environment.ValueEnvironment == nil {
+		return environment, fmt.Errorf("a context-dependent adapter requires a value environment")
+	}
+	return environment, nil
+}
+
+// ToWire binds one model factory and returns its access wire.
+func ToWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](model protocol.ClientModel[AEnvelope, BEnvelope], environment runtime.AdapterContext) (duplex.Wire, error) {
+	if model == nil {
+		return nil, fmt.Errorf("model factory is required")
+	}
+	environment, err := normalizeContext[AEnvelope, BEnvelope](environment)
+	if err != nil {
+		return nil, err
+	}
+	options := environment.Options
+	families := map[string]string{}
+	for name, existing := range options.Families {
+		families[name] = existing
+	}
+	families["4:look"] = "album"
+	options.Families = families
+	access, binding, err := runtime.NewWirePair(options)
+	if err != nil {
+		return nil, err
+	}
+	complete := false
+	defer func() {
+		if !complete {
+			_ = access.Close(duplex.CodeInternalError, "model construction failed")
+		}
+	}()
+	implementation, err := model(accessServer[AEnvelope, BEnvelope](binding, environment))
+	if err != nil {
+		return nil, err
+	}
+	if err := bindClient[AEnvelope, BEnvelope](binding, implementation, environment); err != nil {
+		return nil, err
+	}
+	complete = true
+	return access, nil
+}
+
+// FromWire interprets a wire as a factory that may be bound once.
+func FromWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ClientModel[AEnvelope, BEnvelope], error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if wire == nil {
+		return nil, fmt.Errorf("wire is required")
+	}
+	environment, err := normalizeContext[AEnvelope, BEnvelope](environment)
+	if err != nil {
+		return nil, err
+	}
+	var bound atomic.Bool
+	return func(implementation protocol.Server[AEnvelope, BEnvelope]) (protocol.Client[AEnvelope, BEnvelope], error) {
+		if !bound.CompareAndSwap(false, true) {
+			return protocol.Client[AEnvelope, BEnvelope]{}, fmt.Errorf("model factory is already bound")
+		}
+		if err := bindServer[AEnvelope, BEnvelope](wire, implementation, environment); err != nil {
+			return protocol.Client[AEnvelope, BEnvelope]{}, err
+		}
+		return accessClient[AEnvelope, BEnvelope](wire, environment), nil
+	}, nil
 }
