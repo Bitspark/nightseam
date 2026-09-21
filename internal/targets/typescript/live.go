@@ -129,6 +129,7 @@ func (f *file) emitCallable(t *render.Type) {
 	f.linef("export const %s = %s;", p.contracts[t.Name], quote(t.Contract))
 	f.linef("/** Makes a binding of a local %s and answers the reference that names it. */", name)
 	f.w.Block(fmt.Sprintf("export function %s(owner: LiveOwner, value: %s): unknown {", p.exports[t.Name], name), "}", func() {
+		f.line("if (typeof value !== 'function') throw new TypeError('callable implementation must be a function');")
 		f.w.Block("return owner.exportValue((owner) => {", "});", func() {
 			f.line("const parent = owner;")
 			f.w.Block(fmt.Sprintf("const reference = owner.export(%s, %s, async (request, options) => {", p.contracts[t.Name], identWireDigest), "});", func() {
