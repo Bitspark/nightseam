@@ -17,13 +17,22 @@ and an atomic replay-to-live handoff, with a bounded writer per subscriber.
 | responsibility | Go | TypeScript |
 | --- | --- | --- |
 | send a frame at a relative path | `Wire.Send(path, message) error` | `wire.send(path, message): void` |
-| register a receiver and obtain an idempotent detach | `Wire.Receive(path, receiver)` | `wire.receive(path, receiver)` |
-| end the endpoint | `Wire.Close(code, reason)` | `wire.close(code, reason)` |
-| select an origin | `duplex.At(wire, path)` | `at(wire, path)` |
-| mount children by one segment | `duplex.Mount(map[string]duplex.Wire)` | `mount(ReadonlyMap<string, Wire>)` |
+| take an endpoint's one owning attachment | `Endpoint.Receive(receiver) (func(), error)` | `endpoint.receive(receiver): () => void` |
+| end the endpoint | `Endpoint.Close(code, reason) error` | `endpoint.close(code?, reason?)` |
+| own one attachment and route above it | `runtime.NewDispatcher(endpoint, options…)` | `createDispatcher(endpoint, options?)` |
+| register a handler at a path | `Dispatcher.Register` / `RegisterPrefix` | `dispatcher.register` / `registerPrefix` |
+| take a receiving view of that owner | `Dispatcher.Select(path)` | `dispatcher.select(path)` |
+| select an origin, send only | `duplex.At(wire, path)` | `at(wire, path)` |
+| mount children by one segment | `duplex.Mount(map[string]duplex.Endpoint)` | `mount(ReadonlyMap<string, Endpoint>)` |
 | create a bounded local pair | `runtime.NewWirePair(options)` | `wirePair(options)` |
 | use an existing peer | `peer.Wire()` | `peer.wire()` |
 | forward both directions | `runtime.ForwardWire(left, right)` | `forwardWire(left, right)` |
+
+`Wire` grants send access and nothing else; `Endpoint` adds the one owning
+attachment and closure. A value that only needs to send takes `Wire`, and
+`Endpoint` is required only where attachment or closure is genuinely needed —
+a generated binding's disposal owns the attachment it created, never a
+borrowed endpoint.
 
 The duplex component presents the shared Bitwire types and implements path views. Runtime supplies
 local endpoints, peer access and the request/event helpers used by generated
