@@ -15,6 +15,14 @@ diagnostic referring to one cannot be mistaken for a file in the consumer's
 a built-in family](../../decisions/a-tier-is-a-built-in-family.md) explains
 the relationship.
 
+`identity` is bootstrap vocabulary implemented by the runtime. Its generated
+surface includes types, validation and canonical declaration metadata, together
+with this specification; it has no application-model adapters. The runtime owns
+the `identity.check` receiver that every other generated family adapter uses
+before interpreting a Wire. This avoids recursively constructing a model to
+check the declaration needed to construct that model
+([#382](https://github.com/Bitspark/nightseam/issues/382)).
+
 The fast Go test tier checks these documents against the embedded
 declarations. Regenerate them after changing a built-in or the spec target:
 

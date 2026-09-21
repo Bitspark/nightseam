@@ -11,6 +11,12 @@ beside them, `api/spec/<f>/README.md`, is the family's own reference.
 
 ## Declaration identity and preparation
 
+The `identity` builtin describes the runtime's bootstrap exchange. It emits
+types, validation and canonical declaration metadata, but no application-model
+adapters; the runtime owns its receiver. The preparation below applies to all
+other generated protocol families, including other builtins
+([builtin references](builtins/README.md)).
+
 Each family emits its canonical declaration and SHA-256 digest:
 `WireDeclaration()` and `WireDigest()` in Go, `wireDeclaration` and `wireDigest`
 in TypeScript. Generated validators retain that declaration alongside the
