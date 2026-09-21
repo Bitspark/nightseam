@@ -9,8 +9,21 @@ import (
 
 // The union stays native; the existing outgoing event adapter owns validation
 // and conversion before the raw recorder admits its opaque Wire message.
-func emitRecordedEvents(f *file, side, opposite, decl, args, binding, passing string) {
+func emitRecordedEvents(f *file, side, opposite, decl, args string) {
 	_, events := f.wireSide(opposite)
+	// Keep the new record formals separate from valid family bindings such
+	// as Target, Log and Setup; makeAdapter retains their original keys.
+	var bind, pass []string
+	for _, name := range parameters(f.family.Uses) {
+		argument := "binding_" + bindingName(name)
+		bind = append(bind, argument+": "+f.bindingType(name))
+		pass = append(pass, argument)
+	}
+	binding, passing := "", ""
+	if len(bind) > 0 {
+		binding = ", " + strings.Join(bind, ", ")
+		passing = ", " + strings.Join(pass, ", ")
+	}
 	f.line("import { record as recordWire, type WireLog, type RecordOptions, type RecordedWire } from '@nightseam/duplex';")
 	f.linef("import { checkIdentity } from %s;", quote(f.config.Runtime))
 	var variants []string

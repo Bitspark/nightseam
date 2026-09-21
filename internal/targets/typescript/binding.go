@@ -119,7 +119,7 @@ func emitWireAdapter(f *file, side, protocol string) {
 		f.line("return { options, identity, proxyServer, proxyClient, validateServer, validateClient, bindServer, bindClient };")
 	})
 	emitWireIdentity(f, side, opposite, decl, args, binding, passing)
-	emitRecordedEvents(f, side, opposite, decl, args, binding, passing)
+	emitRecordedEvents(f, side, opposite, decl, args)
 	if len(fam.Errors) > 0 {
 		var members []string
 		for _, e := range fam.Errors {
