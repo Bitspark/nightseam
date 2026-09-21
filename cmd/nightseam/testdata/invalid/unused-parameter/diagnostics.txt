@@ -1,3 +1,2 @@
 x/protocol.json#/parameters/0/name: Parameter S is declared and nothing names it: no slot, and no application of an imported type. [unused_parameter]
-x/protocol.json#/parameters/0/of: No other family carries the protocol tier, so a parameter of protocol has nothing to bind. [unresolved_type]
-error: 2 problems
+error: 1 problems
