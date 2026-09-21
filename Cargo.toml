@@ -1,0 +1,19 @@
+[workspace]
+members = ["duplex/rs", "runtime/rs", "conformance/rust"]
+resolver = "3"
+
+[workspace.package]
+version = "0.5.0"
+edition = "2024"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/Bitspark/nightseam"
+
+[workspace.dependencies]
+async-trait = "0.1.89"
+futures-util = { version = "0.3.31", features = ["sink"] }
+tokio = { version = "1.47", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+tokio-util = "0.7.16"
+tokio-tungstenite = { version = "0.29", features = ["rustls-tls-native-roots"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] }

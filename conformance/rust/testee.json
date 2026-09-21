@@ -1,0 +1,8 @@
+{
+  "language": "rust",
+  "toolchains": ["cargo"],
+  "build": [
+    {"argv": ["cargo", "build", "--locked", "--package", "nightseam-testee", "--target-dir", "{out}/rust"], "cwd": "{checkout}"}
+  ],
+  "run": {"argv": ["{out}/rust/debug/nightseam-testee{exe}"], "cwd": "{checkout}"}
+}
