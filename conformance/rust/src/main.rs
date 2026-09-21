@@ -484,10 +484,16 @@ impl Driver {
                 if let Some(meta) = r.get("meta")? {
                     ctx = ctx.with_meta(meta);
                 }
-                let call =
-                    self.peer(r)?
-                        .peer
-                        .call_with(ctx, &r.string("method")?, r.payload("params")?);
+                let params = r.payload("params")?;
+                let params = if params.is_absent() {
+                    Payload::from_json("null").unwrap()
+                } else {
+                    params
+                };
+                let call = self
+                    .peer(r)?
+                    .peer
+                    .call_with(ctx, &r.string("method")?, params);
                 Ok(json!({"handle":self.mint(Object::Call(call))}))
             }
             "call.await" => match self.call(r)?.result().await {
@@ -715,6 +721,52 @@ mod tests {
             serde_json::from_str(r#"{"id":1,"op":"peer.call","params":{"n":1e3}}"#).unwrap();
         assert_eq!(r.payload("params").unwrap().raw(), Some(r#"{"n":1e3}"#));
         assert!(r.payload("data").unwrap().is_absent());
+    }
+    async fn request(driver: &mut Driver, input: Value) -> Result<Value> {
+        let request = serde_json::from_str::<Request>(&input.to_string()).unwrap();
+        timeout(Duration::from_secs(2), driver.serve(&request))
+            .await
+            .unwrap()
+    }
+    #[tokio::test]
+    async fn public_error_is_a_completed_call_and_reset_releases_the_peer() {
+        let mut driver = Driver::default();
+        let (client, server) = pipe(1 << 20);
+        let client = Peer::over(client, Role::Client, Options::default()).unwrap();
+        let server = Peer::over(server, Role::Server, Options::default()).unwrap();
+        let observer = server.clone();
+        let c = driver.mint(Object::Peer(ControlledPeer::new(client)));
+        let s = driver.mint(Object::Peer(ControlledPeer::new(server)));
+        request(&mut driver, json!({"id":1,"op":"peer.handle","on":s,"method":"deny","behavior":{"kind":"fail","code":"denied","message":"No access","data":{"reason":"policy"}}})).await.unwrap();
+        let call = request(
+            &mut driver,
+            json!({"id":2,"op":"peer.call","on":c,"method":"deny","params":null}),
+        )
+        .await
+        .unwrap();
+        let answer = request(
+            &mut driver,
+            json!({"id":3,"op":"call.await","on":call["handle"]}),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            answer,
+            json!({"error":{"code":"denied","message":"No access","data":{"reason":"policy"}}})
+        );
+        request(&mut driver, json!({"id":4,"op":"reset"}))
+            .await
+            .unwrap();
+        assert!(driver.objects.is_empty());
+        timeout(Duration::from_secs(1), observer.wait_closed())
+            .await
+            .unwrap();
+    }
+    #[test]
+    fn behavior_keeps_explicit_null_distinct_from_absence() {
+        let b: Behavior = serde_json::from_str(r#"{"kind":"reverse","params":null}"#).unwrap();
+        assert_eq!(b.params.raw(), Some("null"));
+        assert!(b.value.is_absent());
     }
     #[tokio::test]
     async fn inbox_keeps_unmatched_entries() {
