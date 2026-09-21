@@ -71,7 +71,7 @@ public final class Json {
         if (value == null) { out.append("null"); return; }
         if (value instanceof String text) { quote(text, out); return; }
         if (value instanceof Boolean) { out.append(value); return; }
-        if (value instanceof BigDecimal || value instanceof BigInteger || value instanceof Byte
+        if (value instanceof RawNumber || value instanceof BigDecimal || value instanceof BigInteger || value instanceof Byte
             || value instanceof Short || value instanceof Integer || value instanceof Long) {
             out.append(value); return;
         }
@@ -133,6 +133,18 @@ public final class Json {
         @Override public String toString() { return token; }
     }
 
+    /** JSON permits exponents beyond BigDecimal's scale range; forwarding retains their exact tokens. */
+    private static final class RawNumber extends Number {
+        private static final long serialVersionUID = 1L;
+        private final String token;
+        RawNumber(String token) { this.token = token; }
+        @Override public String toString() { return token; }
+        @Override public double doubleValue() { return Double.parseDouble(token); }
+        @Override public float floatValue() { return Float.parseFloat(token); }
+        @Override public int intValue() { return (int) doubleValue(); }
+        @Override public long longValue() { return (long) doubleValue(); }
+    }
+
     private static final class Parser {
         private final String text;
         private final boolean envelope;
@@ -189,8 +201,9 @@ public final class Json {
                 if (!take('+')) take('-');
                 int before = pos; digits(); if (before == pos) throw error("expected exponent digits");
             }
-            try { return new Decimal(text.substring(start, pos)); }
-            catch (NumberFormatException e) { throw error("JSON number exponent exceeds decimal range"); }
+            String token = text.substring(start, pos);
+            try { return new Decimal(token); }
+            catch (NumberFormatException e) { return new RawNumber(token); }
         }
         private String string() {
             require('"'); StringBuilder out = new StringBuilder();

@@ -108,6 +108,24 @@ public final class SchemaTest {
         schema.validate("integer", Json.parse("1.000000000000000000000000000000000000"));
         equal(refusal(() -> schema.validate("number", Json.parse("1e400"))), "$: expected finite number", "huge decimal remains visible to validator");
         equal(refusal(() -> schema.validate("json", Json.parse("{\"n\":1e400}"))), "$.n: expected finite JSON number", "finite JSON recursively");
+        for (String token : List.of("1e999999999999", "-1e-999999999999", "0e999999999999", "-0.000e-999999999999")) {
+            Object number = Json.parse(token);
+            check(number instanceof Number, "arbitrary exponent keeps numeric representation");
+            equal(Json.stringify(number), token, "arbitrary exponent round trip");
+            equal(Json.stringify(Json.parseEnvelope("{\"params\":[" + token + "]}")), "{\"params\":[" + token + "]}", "arbitrary exponent payload forwarding");
+        }
+        Object overflow = Json.parse("1e999999999999"), underflow = Json.parse("-1e-999999999999");
+        equal(refusal(() -> schema.validate("number", overflow)), "$: expected finite number", "arbitrary exponent overflow number");
+        equal(refusal(() -> schema.validate("integer", overflow)), "$: expected finite number", "arbitrary exponent overflow integer");
+        equal(refusal(() -> schema.validate("json", overflow)), "$: expected finite JSON number", "arbitrary exponent overflow JSON");
+        schema.validate("number", underflow);
+        schema.validate("json", underflow);
+        equal(refusal(() -> schema.validate("integer", underflow)), "$: expected JavaScript-safe integer", "underflow cannot turn a fraction into an integer");
+        schema.validate("integer", Json.parse("0e999999999999"));
+        schema.validate("integer", Json.parse("-0.000e-999999999999"));
+        equal(((Number) underflow).intValue(), 0, "explicit integer conversion of raw number");
+        equal(((Number) overflow).longValue(), Long.MAX_VALUE, "explicit long conversion of raw number");
+        equal(((Number) overflow).floatValue(), Float.POSITIVE_INFINITY, "explicit float conversion of raw number");
         List<Object> cycle = new ArrayList<>(); cycle.add(cycle);
         check(refusal(() -> Json.stringify(cycle)) != null, "cyclic JSON encoding");
         equal(refusal(() -> schema.validate("json", cycle)), "$[0]: expected acyclic JSON", "cyclic JSON validation");

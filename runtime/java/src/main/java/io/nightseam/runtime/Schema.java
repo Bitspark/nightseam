@@ -445,7 +445,13 @@ public final class Schema {
         try {
             BigDecimal decimal = number instanceof BigDecimal d ? d : new BigDecimal(number.toString());
             return decimal.abs().compareTo(MAX_SAFE_INTEGER) <= 0 && decimal.stripTrailingZeros().scale() <= 0;
-        } catch (NumberFormatException | ArithmeticException ex) { return false; }
+        } catch (NumberFormatException | ArithmeticException ex) {
+            // A zero mantissa is an integer even with an exponent outside BigDecimal's
+            // range. Every nonzero value at that magnitude is too large or fractional.
+            String token = number.toString();
+            int exponent = Math.max(token.indexOf('e'), token.indexOf('E'));
+            return exponent >= 0 && token.substring(0, exponent).matches("-?0(?:\\.0+)?");
+        }
     }
 
     private static final Pattern TIMESTAMP = Pattern.compile("^(\\d{4})-(\\d\\d)-(\\d\\d)T(\\d\\d):(\\d\\d):(\\d\\d)(?:[.,]\\d+)?(?:Z|[+-](\\d\\d):(\\d\\d))$");
