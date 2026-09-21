@@ -1,0 +1,7 @@
+{
+  "imports":["functions"],
+  "types": {
+    "Job": {"kind":"record","fields":[{"name":"run","type":{"apply":"functions.Function","with":{"A":"string","B":"string"}}}]},
+    "Progress": {"kind":"record","fields":[{"name":"label","type":"string"},{"name":"notify","type":"Job"}]}
+  }
+}
