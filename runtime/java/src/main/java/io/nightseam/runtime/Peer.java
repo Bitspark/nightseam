@@ -1,5 +1,6 @@
 package io.nightseam.runtime;
 
+import io.nightseam.duplex.CloseException;
 import io.nightseam.duplex.CloseInfo;
 import io.nightseam.duplex.Connection;
 import io.nightseam.duplex.Frame;
@@ -188,7 +189,7 @@ public final class Peer implements AutoCloseable {
                 if (ended.get()) return;
                 connection.send(new Frame("text",value.bytes()),options.writeTimeout());
             }
-        } catch (Exception e) { if (!ended.get()) fail(); }
+        } catch (Exception e) { fail(e); }
     }
     private void readLoop() {
         try {
@@ -219,7 +220,7 @@ public final class Peer implements AutoCloseable {
                     default -> throw new AssertionError();
                 }
             }
-        } catch (Exception e) { if (!ended.get()) fail(); }
+        } catch (Exception e) { fail(e); }
     }
     private void startRequest(Map<String,Object> frame) {
         String id=(String)frame.get("id"), name=(String)frame.get("method");
@@ -315,6 +316,12 @@ public final class Peer implements AutoCloseable {
         CloseInfo known=connection.closed().getNow(null);
         if (known==null) { if (finish(new CloseInfo(1006,""),true)) connection.abort(); }
         else finish(known,false);
+    }
+    private void fail(Exception failure) {
+        // Receive/send can observe the chosen close before the transport's
+        // separate completion notification. Its exception is already final.
+        if (failure instanceof CloseException close) finish(new CloseInfo(close.code(),close.reason()),false);
+        else fail();
     }
     private boolean finish(CloseInfo info,boolean local) {
         if (!ended.compareAndSet(false,true)) return false;
