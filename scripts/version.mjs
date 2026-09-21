@@ -14,6 +14,15 @@ if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version ?? "")) {
   console.error("usage: node scripts/version.mjs <major.minor.patch>");
   process.exit(2);
 }
+const python = join(root, "pyproject.toml");
+const pythonSource = readFileSync(python, "utf8");
+const project = pythonSource.split(/^\[/m).find(section => section.startsWith("project]"));
+const pythonVersion = /^version = "[^"]+"$/m;
+if (!project || !pythonVersion.test(project)) {
+  console.error("project version not found in pyproject.toml");
+  process.exit(1);
+}
+writeFileSync(python, pythonSource.replace(project, project.replace(pythonVersion, `version = "${version}"`)));
 for (const directory of packages) {
   const file = join(root, directory, "package.json");
   const manifest = JSON.parse(readFileSync(file, "utf8"));
@@ -61,4 +70,4 @@ for (const example of examples) {
     if (moved !== manifest) writeFileSync(path, moved);
   }
 }
-console.log(`version ${version}: ${packages.join(", ")}, DefaultRuntimeVersion, ${modules.join(", ")}${examples.length ? ", " + examples.join(", ") : ""}`);
+console.log(`version ${version}: ${packages.join(", ")}, pyproject.toml, DefaultRuntimeVersion, ${modules.join(", ")}${examples.length ? ", " + examples.join(", ") : ""}`);

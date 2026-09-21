@@ -36,6 +36,13 @@ are one number. Entries are in the words of the commits that landed them.
   and record/follow helpers. Closed declaration identity is checked before
   history setup or replay; ordinary event conversion preserves live-reference
   scope and owner lifetime without retaining or rebinding callables.
+- Java 21 joins at tier 4 with native framed connections, bounded pipes and
+  WebSockets, a symmetric peer, exact JSON/schema validation, relative-path
+  Wires and declaration identity. The shared core suite holds both Java/Go
+  roles; native tests and an isolated jar consumer hold the artifacts.
+- Python enters at tier 4 with bounded asyncio frame connections, peers,
+  descriptor validation, Wire path views and declaration identity exchange,
+  held against Go in both socket roles and by an installed-wheel smoke.
 - Go and TypeScript ship a bounded Wire record/follow composition with
   consumer-owned storage, an atomic replay-to-live handoff and independent
   subscriber failure. Opaque messages retain their existing reference scope.
