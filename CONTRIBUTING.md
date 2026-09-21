@@ -13,8 +13,8 @@ In short:
   checks are green — no approval is required, so a green PR does not wait.
 - Both tiers green before a change lands: `go test ./...`,
   `pnpm install && pnpm -r check && pnpm -r build && pnpm -r test`,
-  `go vet ./... && go test ./...` inside `otel/go` (a module of its own,
-  which the root's `./...` does not enter), `node scripts/matrix-table.mjs
+  `go vet ./... && go test ./...` inside `otel/go` and `auth/go` (modules of
+  their own, which the root's `./...` does not enter), `node scripts/matrix-table.mjs
   --check` and `node scripts/links.mjs` — what CI runs, which runs the
   example and the packed-install smoke besides. The full tier needs Go, Node
   22.12 or later and the TypeScript compiler `pnpm install` brings, and fails

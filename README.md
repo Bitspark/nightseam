@@ -187,6 +187,7 @@ covers `nightseam-duplex`, `nightseam` and the packaged WebSocket consumer.
 | [`@nightseam/tunnel`](tunnel/ts) | [`tunnel/go`](tunnel/go) | prepared Wire channels multiplexed over one peer with per-channel credit, and separate raw connections |
 | [`@nightseam/live`](live/ts) | [`live/go`](live/go) | callable values across one connection: a scope over a peer, exported bindings, imported references, release and forwarding |
 | [`@nightseam/otel`](otel/ts) | [`otel/go`](otel/go) | the OpenTelemetry adapter: a propagator over W3C trace context and an observer that opens a span per request. The four components above pull in no telemetry backend; their external Go dependencies provide WebSocket transport and strict JSON decoding. |
+| [`@nightseam/auth`](auth/ts) | [`auth/go`](auth/go) | the optional authority profile: the rooted, attenuating grant, the authenticated connection and its bootstrap, and the exposure that binds a policy to a generated surface — specified under [`docs/auth/`](docs/auth/), held to the shared tables, with [Archon](https://github.com/Bitspark/archon) as the identity layer. The four components pull in no identity layer either. |
 | — | [`cmd/nightseam`](cmd/nightseam) | the generator |
 
 Every published component exists in both languages and both are held to one
@@ -240,7 +241,8 @@ who reads it:
 go test -short ./...                              # the fast tier: Go alone, seconds
 go test ./...                                     # the full tier: both languages, the conformance suite
 pnpm install && pnpm -r check && pnpm -r build && pnpm -r test
-(cd otel/go && go vet ./... && go test ./...)     # the nested module, which ./... does not enter
+(cd otel/go && go vet ./... && go test ./...)     # the nested modules, which ./... does not enter
+(cd auth/go && go vet ./... && go test ./...)
 node scripts/matrix-table.mjs --check             # the README's Languages table against the matrix
 node scripts/links.mjs                            # every link in every page resolves to the tree
 cargo fmt --all --check && cargo clippy --workspace --all-targets --locked -- -D warnings

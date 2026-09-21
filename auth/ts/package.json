@@ -1,0 +1,55 @@
+{
+  "name": "@nightseam/auth",
+  "version": "0.5.0",
+  "description": "The optional authority profile for Nightseam: the rooted, attenuating grant, the authenticated connection and its bootstrap, and the exposure that binds a policy to a generated surface — held to the shared tables, with Archon as the identity layer.",
+  "license": "Apache-2.0",
+  "author": "Bitspark",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bitspark/nightseam.git",
+    "directory": "auth/ts"
+  },
+  "homepage": "https://github.com/Bitspark/nightseam#readme",
+  "bugs": "https://github.com/Bitspark/nightseam/issues",
+  "keywords": [
+    "duplex",
+    "authorization",
+    "grant",
+    "ed25519",
+    "archon"
+  ],
+  "type": "module",
+  "exports": "./src/index.ts",
+  "types": "./src/index.ts",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  },
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
+    "check": "tsc -p tsconfig.check.json",
+    "test": "node --experimental-strip-types --test --test-timeout=10000 src/dependencies.test.ts"
+  }
+}

@@ -139,10 +139,13 @@ jobs:
       - run: stack --system-ghc --no-install-ghc --stack-yaml conformance/haskell/stack.yaml test
       - run: node scripts/haskell-smoke.mjs
       - run: go test ./...
-      # The adapter at otel/go is a module of its own, released by a second
-      # tag beside this one; the tag is cut on a tree where it is green too.
+      # The adapter at otel/go and the profile at auth/go are modules of
+      # their own, released by a tag each beside this one; the tag is cut on
+      # a tree where they are green too.
       - run: go test ./...
         working-directory: otel/go
+      - run: go test ./...
+        working-directory: auth/go
       - run: pnpm -r build
       # Provenance is refused for a package published from a private
       # repository, and the registry refuses it at the upload — which is

@@ -38,14 +38,19 @@ jobs:
       - run: go vet ./...
       - run: go test -short ./...
       # The root module's ./... does not enter a nested module, so the
-      # OpenTelemetry adapter is vetted and tested where it lives. It is in
-      # both tiers because it is held to the runtime it binds to, and a
-      # runtime change that breaks it should fail the pull request that made
-      # it and not the release that carries it.
+      # OpenTelemetry adapter and the authority profile are vetted and tested
+      # where they live. They are in both tiers because they are held to the
+      # runtime they bind to, and a runtime change that breaks one should
+      # fail the pull request that made it and not the release that carries
+      # it.
       - run: go vet ./...
         working-directory: otel/go
       - run: go test ./...
         working-directory: otel/go
+      - run: go vet ./...
+        working-directory: auth/go
+      - run: go test ./...
+        working-directory: auth/go
 
   # The rules on main are a file, .github/ruleset-main.json, and this job
   # fails when the live ruleset has drifted from it — a required check
@@ -225,3 +230,7 @@ jobs:
         working-directory: otel/go
       - run: go test ./...
         working-directory: otel/go
+      - run: go vet ./...
+        working-directory: auth/go
+      - run: go test ./...
+        working-directory: auth/go

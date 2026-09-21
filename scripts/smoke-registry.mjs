@@ -20,9 +20,9 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { execFileSync, execSync, spawn } from "node:child_process";
 import { connect, createServer } from "node:net";
 import { setTimeout as after } from "node:timers/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
-import { copyRegistryConsumer, examples, root } from "./packages.mjs";
+import { copyRegistryConsumer, examples, modules, root } from "./packages.mjs";
 import { waitForRegistries } from "./registry.mjs";
 import { holdProbeExchange } from "./probe-exchange.mjs";
 import { addPublishedDependencies, holdOutsiderImports } from "./smoke-imports.mjs";
@@ -93,7 +93,7 @@ async function roundTrip() {
   run("go", ["mod", "download", "all"], { cwd: consumer, env: go, stdio: ["ignore", "inherit", "inherit"] });
   step("go tool nightseam check");
   run("go", ["tool", "nightseam", "check"], { cwd: consumer, env: go, stdio: ["ignore", "inherit", "inherit"] });
-  adapter(go);
+  nested(go);
 
   const address = `127.0.0.1:${await free()}`;
   step(`go run ./server on ws://${address}/probe`);
@@ -117,23 +117,32 @@ async function roundTrip() {
 }
 
 /**
- * The OpenTelemetry adapter, which is a module of its own and released by a
- * second tag beside this one: it is the one release step that depends on
- * the first tag already being fetchable, so it is the one most worth
- * asking about here. A module of its own needs a consumer of its own,
- * since the example asks for none of it.
+ * Every nested module — the OpenTelemetry adapter, the authority profile —
+ * is a module of its own and released by a tag of its own beside this one:
+ * it is the one release step that depends on the first tag already being
+ * fetchable, so it is the one most worth asking about here. A module of its
+ * own needs a consumer of its own, since the example asks for none of it;
+ * each consumer imports the module's root package and, where one is
+ * exported, calls something of it.
  */
-function adapter(go) {
-  const at = join(scratch, "adapter");
-  mkdirSync(at);
-  writeFileSync(join(at, "go.mod"), `module example.com/adapter\n\ngo ${directive()}\n`);
-  writeFileSync(
-    join(at, "main.go"),
-    'package main\n\nimport otel "github.com/Bitspark/nightseam/otel/go"\n\nfunc main() { _ = otel.Propagator(nil) }\n',
-  );
-  step(`go get ${module}/otel/go@${tag}`);
-  run("go", ["get", `${module}/otel/go@${tag}`], { cwd: at, env: go, stdio: ["ignore", "inherit", "inherit"] });
-  run("go", ["build", "./..."], { cwd: at, env: go, stdio: ["ignore", "inherit", "inherit"] });
+const consumers = {
+  "otel/go": 'import otel "github.com/Bitspark/nightseam/otel/go"\n\nfunc main() { _ = otel.Propagator(nil) }\n',
+  "auth/go": 'import _ "github.com/Bitspark/nightseam/auth/go"\n\nfunc main() {}\n',
+};
+
+function nested(go) {
+  for (const file of modules) {
+    const directory = dirname(file);
+    const program = consumers[directory];
+    if (!program) throw new Error(`no registry consumer for the nested module ${directory}; add one beside the others`);
+    const at = join(scratch, directory.replace("/", "-"));
+    mkdirSync(at, { recursive: true });
+    writeFileSync(join(at, "go.mod"), `module example.com/${directory.replace("/", "-")}\n\ngo ${directive()}\n`);
+    writeFileSync(join(at, "main.go"), `package main\n\n${program}`);
+    step(`go get ${module}/${directory}@${tag}`);
+    run("go", ["get", `${module}/${directory}@${tag}`], { cwd: at, env: go, stdio: ["ignore", "inherit", "inherit"] });
+    run("go", ["build", "./..."], { cwd: at, env: go, stdio: ["ignore", "inherit", "inherit"] });
+  }
 }
 
 /** The language version this repository's own module declares, which no consumer of it may declare less than. */

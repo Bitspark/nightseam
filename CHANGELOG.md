@@ -90,6 +90,14 @@ are one number. Entries are in the words of the commits that landed them.
   a malformed frame does. Reservation and publication share the outgoing
   queue's one ordering gate, a sender that would wrap refuses first, and every
   carrier bridge mints its own serials and maps the replies back.
+- The coordinates of the optional authority profile: `auth/go`, a nested Go
+  module at `github.com/Bitspark/nightseam/auth/go` released by a tag of its
+  own beside the root module's, and `@nightseam/auth`, a package of the
+  workspace under the lockstep version — each with its README, its
+  import-direction test holding the root module and the components free of
+  any identity layer, and its place in CI, the release, the registry round
+  trip and the dependency updates. The identity layer is Archon, pinned at
+  one release; the packages land by their packets.
 - The exposure packet of the optional authority profile: a policy of one
   treatment per declared member — guarded with an action and a scope
   template, public, or denied — bound whole to the declared surface or
