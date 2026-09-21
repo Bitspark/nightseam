@@ -209,8 +209,12 @@ public final class WirePairTest {
 
     private static void boundedDataAndStalledEvent() {
         for (boolean overflow : List.of(true, false)) {
-            try (var pair = WirePair.create(options(1, 1, 1, Duration.ofSeconds(5),
-                    overflow ? Duration.ofSeconds(5) : Duration.ofMillis(30)))) {
+            var observed = new ArrayBlockingQueue<Map<String,Object>>(8);
+            var configured = options(1, 1, 1, Duration.ofSeconds(5),
+                overflow ? Duration.ofSeconds(5) : Duration.ofMillis(30));
+            try (var pair = WirePair.create(new PeerOptions(configured.maxConcurrentHandlers(),
+                    configured.maxPendingRequests(), configured.queueCapacity(), configured.maxFrameBytes(),
+                    configured.requestTimeout(), configured.writeTimeout(), configured.families(), observed::add))) {
                 var started = new CountDownLatch(1); var release = new CountDownLatch(1);
                 var closed = new ArrayBlockingQueue<Integer>(4);
                 pair.right().receive(List.of("hold"), new Receiver(false, (path, message) -> { started.countDown(); await(release); },
@@ -221,7 +225,11 @@ public final class WirePairTest {
                         pair.left().send(List.of("hold"), event(2));
                         fails(() -> pair.left().send(List.of("hold"), event(3)));
                     }
-                    check(take(closed) == 1008, "stalled/overflow carrier close code");
+                    check(take(closed) == 4011, "stalled/overflow carrier close code");
+                    var pressure = take(observed);
+                    check(pressure.get("type").equals("backpressure") && pressure.get("stalled").equals(true)
+                        && pressure.get("deadline").equals(true), "missing backpressure observation");
+                    check(take(observed).get("type").equals("connection.closed"), "pressure must precede closure");
                     fails(() -> pair.left().send(List.of("hold"), event(4)));
                 } finally { release.countDown(); }
             }

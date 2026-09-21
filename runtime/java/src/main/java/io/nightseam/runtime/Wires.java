@@ -97,7 +97,7 @@ public final class Wires {
         }
         try {
             request.returnAddress().send(List.of(), new Message(frame, null));
-        } catch (RuntimeException ignored) {
+        } catch (Throwable ignored) {
             // A withdrawn caller cannot receive a terminal response.
         }
     }

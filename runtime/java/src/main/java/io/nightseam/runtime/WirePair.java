@@ -6,6 +6,7 @@ import io.nightseam.duplex.Wire;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -112,12 +113,9 @@ public final class WirePair implements AutoCloseable {
                     message = new Message(message.frame(), call.returning);
                 } else {
                     if (dataQueued >= options.queueCapacity()) {
-                        // Carrier teardown/callbacks occur outside this lock.
-                        int depth = dataQueued;
-                        Thread.ofVirtual().start(() -> {
-                            observe(Map.of("kind", "backpressure", "queued", depth, "stalled", true));
-                        });
-                        end(1008, "local wire queue limit reached");
+                        // Carrier callbacks occur asynchronously outside this lock.
+                        end(4011, "local wire queue limit reached",
+                            Map.of("type", "backpressure", "queued", dataQueued, "stalled", true, "deadline", true));
                         throw new IllegalStateException("local wire backpressure");
                     }
                     dataQueued++;
@@ -217,8 +215,8 @@ public final class WirePair implements AutoCloseable {
                             eventRunning = false;
                             depth = dataQueued;
                         }
-                        end(1008, "local wire event consumer stalled");
-                        observe(Map.of("kind", "backpressure", "queued", depth, "stalled", true));
+                        end(4011, "local wire event consumer stalled",
+                            Map.of("type", "backpressure", "queued", depth, "stalled", true, "deadline", true));
                     }, options.writeTimeout().toNanos(), TimeUnit.NANOSECONDS);
                 }
             }
@@ -242,9 +240,15 @@ public final class WirePair implements AutoCloseable {
             try {
                 registration.receiver().message().accept(path, message);
             } catch (Throwable failure) {
-                observe(Map.of("kind", "handler_panic", "method", io.nightseam.duplex.Wires.encodePath(path)));
+                String method = io.nightseam.duplex.Wires.encodePath(path);
+                var observation = new LinkedHashMap<String,Object>();
+                observation.put("type", "handler.panic");
+                observation.put("method", method);
+                observation.put("value", failure.getMessage() == null ? failure.toString() : failure.getMessage());
+                if (options.families().containsKey(method)) observation.put("family", options.families().get(method));
+                observe(observation);
                 if ("request".equals(message.frame().get("kind"))) Wires.refuse(message, "internal", "Internal error");
-                else end(1008, "wire event receiver failed");
+                else end(4011, "wire event receiver failed");
             }
         }
 
@@ -328,6 +332,10 @@ public final class WirePair implements AutoCloseable {
     }
 
     private void end(int code, String reason) {
+        end(code, reason, null);
+    }
+
+    private void end(int code, String reason, Map<String,Object> cause) {
         var receivers = new ArrayList<Receiver>();
         var requests = new ArrayList<Message>();
         synchronized (lock) {
@@ -353,7 +361,13 @@ public final class WirePair implements AutoCloseable {
         }
         deadlines.shutdownNow();
         Thread.ofVirtual().name("nightseam-wire-close").start(() -> {
-            observe(Map.of("kind", "connection_closed", "code", code, "reason", reason, "local", true));
+            if (cause != null) observe(cause);
+            var observation = new LinkedHashMap<String,Object>();
+            observation.put("type", "connection.closed");
+            observation.put("code", code);
+            observation.put("local", true);
+            if (!reason.isEmpty()) observation.put("reason", reason);
+            observe(observation);
             for (Receiver receiver : receivers) {
                 if (receiver.closed() != null) {
                     try { receiver.closed().accept(code, reason); } catch (Throwable ignored) { }
