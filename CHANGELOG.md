@@ -38,9 +38,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
-- Python provides bounded local Wire pairs, relative access over existing peers,
-  request/event registration and forwarding, private context composition, and
-  send-local publication proof while retaining cancelled handlers' work budget.
+- C++20 has a bounded frames connection, pipe and WebSocket transports, the
+  peer runtime and descriptor validator, held to the shared core scenarios
+  against Go in both roles. Its CMake targets are `Nightseam::duplex` and
+  `Nightseam::runtime`; the language enters the conformance matrix at tier 4.
 - Swift joins at tier 4 with native bounded pipes and Linux WebSockets,
   the core peer and relative-path Wire, shared descriptor/frame validation,
   conformance in both Go roles, and an external Swift Package Manager smoke.
@@ -51,6 +52,9 @@ are one number. Entries are in the words of the commits that landed them.
 - Python enters at tier 4 with bounded asyncio frame connections, peers,
   descriptor validation, Wire path views and declaration identity exchange,
   held against Go in both socket roles and by an installed-wheel smoke.
+- Python provides bounded local Wire pairs, relative access over existing peers,
+  request/event registration and forwarding, private context composition, and
+  send-local publication proof while retaining cancelled handlers' work budget.
 - Python provides bounded Wire recording and independent following over
   consumer-owned storage, with atomic replay heads, cancellation-safe follower
   ownership and unchanged opaque message capabilities.
