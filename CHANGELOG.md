@@ -42,6 +42,10 @@ are one number. Entries are in the words of the commits that landed them.
   with validated document examples, pipe pairs and smoke checks of method
   inputs, results and public errors across local and carrier presentations.
 
+- C++20 has a bounded frames connection, pipe and WebSocket transports, the
+  peer runtime and descriptor validator, held to the shared core scenarios
+  against Go in both roles. Its CMake targets are `Nightseam::duplex` and
+  `Nightseam::runtime`; the language enters the conformance matrix at tier 4.
 - Swift joins at tier 4 with native bounded pipes and Linux WebSockets,
   the core peer and relative-path Wire, shared descriptor/frame validation,
   conformance in both Go roles, and an external Swift Package Manager smoke.
