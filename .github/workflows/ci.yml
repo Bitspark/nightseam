@@ -84,6 +84,15 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.6.7'
+          enable-stack: true
+          stack-version: '3.7.1'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.stack
+          key: haskell-${{ runner.os }}-9.6.7-${{ hashFiles('conformance/haskell/stack.yaml.lock') }}
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -97,6 +106,8 @@ jobs:
       # than a release.
       - run: pnpm -r build
       - run: pnpm -r test
+      - run: stack --system-ghc --no-install-ghc --stack-yaml conformance/haskell/stack.yaml test
+      - run: node scripts/haskell-smoke.mjs
       - run: go test ./...
       # The conformance suite is in go test ./... above; it is run again by
       # name so that a failure of the matrix reads as one, and its
