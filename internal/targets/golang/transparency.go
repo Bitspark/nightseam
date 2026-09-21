@@ -93,6 +93,11 @@ func (f *file) emitTransparency(side, opposite, role string) {
 			if m.Request != nil {
 				input = "input"
 			}
+			live := []string{f.expressionLive(m.Result)}
+			if m.Request != nil {
+				live = append(live, f.expressionLive(m.Request))
+			}
+			f.linef("if options.Equal==nil && (%s) { return fmt.Errorf(%q) }", strings.Join(live, " || "), m.Name+": requires an Equal observer for live values")
 			f.linef("mutex.Lock();inputs[%q]=%s;before:=seen[%q];mutex.Unlock()", m.Name, input, m.Name)
 			f.linef("actual,actualErr := remote.Methods.%s(ctx%s)", name, argument)
 			f.linef("mutex.Lock();observedError:=inputError;called:=seen[%q]>before;mutex.Unlock();if observedError!=nil{return observedError};if !called{return fmt.Errorf(%q,actualErr)}", m.Name, m.Name+": model was not reached: %v")

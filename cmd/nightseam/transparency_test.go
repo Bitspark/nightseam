@@ -140,6 +140,7 @@ func liveHelper(t *testing.T,ctx context.Context){
   first,err:=x(callContext,4);if err!=nil{return err};second,err:=y(callContext,4);if err!=nil{return err};if first!=5||second!=5{return errors.New("callable behavior changed")};return nil
  }
  if err:=celltest.Smoke(callContext,factory,cell.Client[functions.Unary]{},options,functions.AdapterUnary());err!=nil{t.Fatal(err)}
+ unobserved:=options;unobserved.Equal=nil;if err:=celltest.Smoke(callContext,factory,cell.Client[functions.Unary]{},unobserved,functions.AdapterUnary());err==nil||!strings.Contains(err.Error(),"requires an Equal observer for live values"){t.Fatal("missing live observer",err)}
  options.Inputs=nil;if err:=celltest.Smoke(callContext,factory,cell.Client[functions.Unary]{},options,functions.AdapterUnary());err==nil||!strings.Contains(err.Error(),"native"){t.Fatal("missing live witness",err)}
  owner.Release();near.Owner().Release();far.Owner().Release()
  until:=time.Now().Add(3*time.Second);for near.Counts()!=(live.Counts{})||far.Counts()!=(live.Counts{}){if time.Now().After(until){t.Fatal("live helper retained caller-owned bindings",near.Counts(),far.Counts())};time.Sleep(time.Millisecond)}
@@ -199,6 +200,7 @@ await clientTest.smoke(()=>opposite(),model(opposite()),{});
  }};
  try{
   await cellTest.smoke<Unary>(()=>({methods:{echo:input=>input.value},events:{}}),{methods:{},events:{}},options,adapterUnary());
+  await rejects(()=>cellTest.smoke<Unary>(()=>({methods:{echo:input=>input.value},events:{}}),{methods:{},events:{}},{...options,equal:undefined},adapterUnary()),'requires an equal observer for live values');
   await rejects(()=>cellTest.smoke<Unary>(()=>({methods:{echo:input=>input.value},events:{}}),{methods:{},events:{}},{...options,inputs:undefined},adapterUnary()),'native');
   owner.release();near.owner().release();far.owner().release();const until=Date.now()+3000;
   while(near.counts().exports||near.counts().imports||far.counts().exports||far.counts().imports){check(Date.now()<until,'live helper retained caller-owned bindings');await new Promise(resolve=>setTimeout(resolve,1));}

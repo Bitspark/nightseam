@@ -86,6 +86,7 @@ func emitTransparency(f *file, side string) {
 			}
 			f.line("}")
 			name := f.plan.operations[m.Name]
+			f.linef("if (!options.equal && (%s || %s)) throw new Error(%s);", f.boundaryLive(m.Request), f.boundaryLive(m.Result), quote(m.Name+": requires an equal observer for live values"))
 			callArgs := fmt.Sprintf("input as Parameters<typeof remote.methods.%s>[0], options.callContext as Parameters<typeof remote.methods.%s>[1]", name, name)
 			f.linef("inputs.set(%s,input);", quote(m.Name))
 			f.linef("const before=seen.get(%s)??0;", quote(m.Name))
