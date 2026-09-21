@@ -248,3 +248,57 @@ func TestGeneratedAtomicHeadTable(t *testing.T) {
 		})
 	}
 }
+
+func TestGeneratedSlowFollowerIsIsolated(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	source, original := target(t)
+	log := &heldLog{MemoryWireLog: duplex.NewMemoryWireLog(), entered: make(chan struct{}), release: make(chan struct{})}
+	recorded, err := binding.Record(ctx, source, log, duplex.RecordOptions{MaxQueuedMessages: 2}, runtime.AdapterContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer recorded.Close(1000, "")
+	appendValue := func(value int64) {
+		t.Helper()
+		if err := recorded.Append(ctx, binding.RecordedTick{Data: protocol.Payload{Value: value}}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := recorded.Head(ctx); err != nil {
+			t.Fatal(err)
+		}
+		next(t, ctx, original, value)
+	}
+	appendValue(1)
+	slowTarget, _ := target(t)
+	slow, err := recorded.Follow(ctx, 0, slowTarget)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer slow.Close()
+	select {
+	case <-log.entered:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	fastTarget, fastValues := target(t)
+	fast, err := recorded.Follow(ctx, 1, fastTarget)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fast.Close()
+	for _, value := range []int64{2, 3, 4} {
+		appendValue(value)
+		next(t, ctx, fastValues, value)
+	}
+	select {
+	case <-slow.Done:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	if !errors.Is(slow.Err(), duplex.ErrRecordOverflow) {
+		t.Fatalf("slow follower: %v", slow.Err())
+	}
+	appendValue(5)
+	next(t, ctx, fastValues, int64(5))
+}

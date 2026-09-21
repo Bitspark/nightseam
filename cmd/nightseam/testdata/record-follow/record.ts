@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import './live_record.ts';
 import './setup_record.ts';
 import {readFileSync} from 'node:fs';
-import { MemoryWireLog } from '@nightseam/duplex';
+import { MemoryWireLog, RecordError } from '@nightseam/duplex';
 import { DuplexError } from '@nightseam/runtime';
 import * as binding from '@example/history-binding';
 import * as client from '@example/history-client';
@@ -37,5 +37,17 @@ for(const row of table.cases){
  for(const value of row.before)await record.append({name:'tick',data:{value}});const subscriber=target();const follow=await record.follow(row.after,subscriber.wire);assert.equal(follow.head,row.head);await store.entered.promise;
  for(const value of row.during)await record.append({name:'tick',data:{value}});assert.equal(await record.head(),row.before.length+row.during.length);store.release.resolve();await until(()=>subscriber.values.length===row.expected.length);assert.deepEqual(subscriber.values,row.expected);
  await record.append({name:'tick',data:{value:99}});await until(()=>subscriber.values.length>row.expected.length);assert.deepEqual(subscriber.values,[...row.expected,99]);follow.close();await follow.done;
+ }finally{record.close();}
+}
+
+{
+ const source=target(),store=new HeldLog();const record=await binding.record(source.wire,store,{maxQueuedMessages:2},{});
+ try{
+  async function append(value:number){await record.append({name:'tick',data:{value}});await record.head();await until(()=>source.values.at(-1)===value);}
+  await append(1);const slowTarget=target();const slow=await record.follow(0,slowTarget.wire);await store.entered.promise;
+  const fastTarget=target();const fast=await record.follow(1,fastTarget.wire);
+  for(const value of [2,3,4]){await append(value);await until(()=>fastTarget.values.at(-1)===value);}
+  await slow.done;assert.ok(slow.error instanceof RecordError&&slow.error.code==='overflow');
+  await append(5);await until(()=>fastTarget.values.at(-1)===5);assert.deepEqual(fastTarget.values,[2,3,4,5]);fast.close();await fast.done;
  }finally{record.close();}
 }
