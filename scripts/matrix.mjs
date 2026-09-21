@@ -146,7 +146,7 @@ export function gate(matrix, profiles, previous) {
     if (incomplete.length > 0) {
       const what = `\`${language}\` (tier ${row.tier}) ${incomplete.join(" and ")}`;
       if (tier.onFailure === "stop") problems.push(`${what}, which tier ${row.tier} stops a release for`);
-      else if (tier.onFailure === "provisional") provisional.push(`${what}; tier ${row.tier} ships provisional`);
+      else if (tier.onFailure === "provisional" || row.state === "absent") provisional.push(`${what}; tier ${row.tier} ships provisional`);
     }
     if (elsewhere.length > 0 && tier.otherwise === "stop-next") {
       const before = wasLagging(previous, language, profiles);
