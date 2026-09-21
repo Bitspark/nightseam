@@ -189,6 +189,16 @@ importers:
         version: 7.0.2
 
   auth/ts:
+    dependencies:
+      '@bitspark/archon':
+        specifier: ^0.7.0
+        version: 0.7.0
+      '@bitspark/archon-sdk':
+        specifier: ^0.7.0
+        version: 0.7.0
+      '@noble/hashes':
+        specifier: ^2.2.0
+        version: 2.4.0
     devDependencies:
       typescript:
         specifier: ^7.0.2
@@ -304,8 +314,22 @@ importers:
 
 packages:
 
+  '@bitspark/archon-sdk@0.7.0':
+    resolution: {integrity: sha512-NzTp54F6yRHpA12Rgg4YjmSAEzyE7JeGPlx1xhJEH6gOAPKGZPIOI1MCzKtLBahDDOu1Nmj2xXmBNGpbWiFRUg==}
+
+  '@bitspark/archon@0.7.0':
+    resolution: {integrity: sha512-TRKeeOi16PxlqU3KhciEPjlCQQs0sS0gawU3iP6nd1sW/bI2j73RAJ4Jcmu+ONJGcp8NanuaoTvY3qQ9Mczn0Q==}
+
   '@bitspark/bitwire@0.2.0':
     resolution: {integrity: sha512-1vKXTpkzzrrStbMOH1EetDngd957DQYIT2MtAhkfgQiym6HY7RHURDGY+9h2fBjAFdGq1Izg71FyumkumKUb5Q==}
+
+  '@noble/curves@2.4.0':
+    resolution: {integrity: sha512-P4/62zrgfH33CneE3Dn4WhJVA22YUU0eR51wKIan4NVRvwsA0YnPTwWGpNbpuacSujmSFLvyzpyuR30+fbq2Ew==}
+    engines: {node: '>= 20.19.0'}
+
+  '@noble/hashes@2.4.0':
+    resolution: {integrity: sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==}
+    engines: {node: '>= 20.19.0'}
 
   '@opentelemetry/api@1.9.1':
     resolution: {integrity: sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==}
@@ -498,7 +522,22 @@ packages:
 
 snapshots:
 
+  '@bitspark/archon-sdk@0.7.0':
+    dependencies:
+      '@bitspark/archon': 0.7.0
+
+  '@bitspark/archon@0.7.0':
+    dependencies:
+      '@noble/curves': 2.4.0
+      '@noble/hashes': 2.4.0
+
   '@bitspark/bitwire@0.2.0': {}
+
+  '@noble/curves@2.4.0':
+    dependencies:
+      '@noble/hashes': 2.4.0
+
+  '@noble/hashes@2.4.0': {}
 
   '@opentelemetry/api@1.9.1': {}
 
