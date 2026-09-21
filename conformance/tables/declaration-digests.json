@@ -1,4 +1,5 @@
 {
+  "description": "Canonical declaration identity across operations, events, errors, reachable imports and closed generic applications; equivalent declarations share bytes and wire-visible changes differ.",
   "cases": [
     {
       "name": "method baseline",

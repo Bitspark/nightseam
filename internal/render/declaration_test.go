@@ -49,7 +49,8 @@ func TestCanonicalDeclarationCoverage(t *testing.T) {
 		t.Fatal(err)
 	}
 	var table struct {
-		Cases []declarationFixture `json:"cases"`
+		Description string               `json:"description"`
+		Cases       []declarationFixture `json:"cases"`
 	}
 	if err := json.Unmarshal(data, &table); err != nil {
 		t.Fatal(err)
