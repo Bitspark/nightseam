@@ -77,9 +77,28 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-  full:
+  swift:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+      - name: Import Swift signing keys
+        run: curl --fail --silent --show-error --location --compressed https://www.swift.org/keys/all-keys.asc | gpg --import -
+      - uses: swift-actions/setup-swift@d8e84bc3a450686a95474d7d6fa4a3301498debc # v3
+        with:
+          swift-version: "6.1.3"
+      - run: node scripts/swift.mjs
+
+  full:
+    needs: swift
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the Swift package gate
+        if: needs.swift.result != 'success'
+        run: exit 1
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
@@ -93,6 +112,11 @@ jobs:
         with:
           node-version-file: package.json
           cache: pnpm
+      - name: Import Swift signing keys
+        run: curl --fail --silent --show-error --location --compressed https://www.swift.org/keys/all-keys.asc | gpg --import -
+      - uses: swift-actions/setup-swift@d8e84bc3a450686a95474d7d6fa4a3301498debc # v3
+        with:
+          swift-version: "6.1.3"
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
@@ -109,6 +133,13 @@ jobs:
       - name: Python installed wheel
         run: python scripts/smoke-python.py
       - run: pnpm install --frozen-lockfile
+      - name: Install the C++ core toolchain
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++
+      - name: Build and test the C++ core
+        run: |
+          cmake -S . -B .build/cpp -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          cmake --build .build/cpp --parallel 2
+          ctest --test-dir .build/cpp --output-on-failure
       - run: pnpm format:check
       - run: pnpm -r check
       # The packages are built here and not only at a tag, so that a
