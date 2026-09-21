@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Bitspark/nightseam/internal/analysis"
+	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/model"
 )
 
@@ -17,6 +18,7 @@ import (
 // docs/declaration/declaration-identity.md. It is not the validator schema.
 func CanonicalDeclaration(f *analysis.Family) string {
 	g := newDeclarationGraph()
+	g.computeCaptures(f)
 	return g.bytes(g.family(f))
 }
 
@@ -24,6 +26,7 @@ func CanonicalDeclaration(f *analysis.Family) string {
 // declaration content, using the same graph and encoding as a family.
 func CanonicalExpression(f *analysis.Family, e model.TypeExpr) string {
 	g := newDeclarationGraph()
+	g.computeCaptures(f)
 	return g.bytes(g.expression(f, e, familyScope(f), nil))
 }
 
@@ -90,6 +93,13 @@ type declarationScope map[string]string
 type declarationGraph struct {
 	definitions map[string]any
 	aliases     map[string]bool
+	captureUses map[declarationType]map[string]bool
+	families    map[string]*analysis.Family
+}
+
+type declarationType struct {
+	family      *analysis.Family
+	declaration *model.Type
 }
 
 func newDeclarationGraph() *declarationGraph {
@@ -104,19 +114,51 @@ func (g *declarationGraph) bytes(root any) string {
 	return string(data)
 }
 
-func (g *declarationGraph) document(root any, scopeApplication bool) declarationObject {
-	if node, ok := root.(map[string]any); ok && scopeApplication {
-		if path, ok := node["apply"].(string); ok {
-			args := []any{}
-			for _, arg := range node["arguments"].([]any) {
-				if object, ok := arg.(map[string]any); ok && object["graph"] != nil {
-					args = append(args, arg)
-				} else {
-					args = append(args, declarationObject{"graph": g.document(arg, true)})
-				}
-			}
-			root = declarationObject{"apply": path, "arguments": args}
+func (g *declarationGraph) document(root any, scopeRoot bool) declarationObject {
+	if node, ok := root.(map[string]any); ok && scopeRoot {
+		if graph, ok := node["graph"].(map[string]any); ok {
+			return graph
 		}
+		clone := declarationObject{}
+		for key, value := range node {
+			clone[key] = value
+		}
+		wrap := func(value any) any { return declarationObject{"graph": g.document(value, true)} }
+		for _, key := range []string{"array", "map", "nullable", "entity", "draw", "family", "type", "request", "result"} {
+			if value, ok := node[key]; ok {
+				clone[key] = wrap(value)
+			}
+		}
+		for _, key := range []string{"arguments", "extends"} {
+			if values, ok := node[key].([]any); ok {
+				scoped := []any{}
+				for _, value := range values {
+					scoped = append(scoped, wrap(value))
+				}
+				clone[key] = scoped
+			}
+		}
+		if fields, ok := node["fields"].([]any); ok {
+			scoped := []any{}
+			for _, field := range fields {
+				original := field.(map[string]any)
+				copy := declarationObject{}
+				for key, value := range original {
+					copy[key] = value
+				}
+				copy["type"] = wrap(original["type"])
+				scoped = append(scoped, copy)
+			}
+			clone["fields"] = scoped
+		}
+		if variants, ok := node["variants"].(map[string]any); ok {
+			scoped := declarationObject{}
+			for name, value := range variants {
+				scoped[name] = wrap(value)
+			}
+			clone["variants"] = scoped
+		}
+		root = clone
 	}
 	// Alias normalization can make an argument unreachable. Select again
 	// from the normalized root so unused arguments do not enter identity.
@@ -198,6 +240,10 @@ func (g *declarationGraph) family(f *analysis.Family) any {
 	if f == nil {
 		return declarationObject{"unresolved": "family"}
 	}
+	if g.families == nil {
+		g.families = map[string]*analysis.Family{}
+	}
+	g.families[f.Name] = f
 	if _, seen := g.definitions[f.Name]; seen {
 		return declarationRef(f.Name)
 	}
@@ -311,8 +357,16 @@ func (g *declarationGraph) typeNode(f *analysis.Family, t *model.Type, scope dec
 	node := declarationObject{"kind": t.Kind, "parameters": parameters(t.Parameters)}
 	// Family parameters remain scoped nodes, never captured by a same-named
 	// parameter belonging to another declaration.
-	if captured := capturedParameters(f, t); len(captured) > 0 {
-		node["captures"] = parameters(captured)
+	if captured := g.capturedParameters(f, t); len(captured) > 0 {
+		free := []model.Parameter{}
+		for _, p := range captured {
+			if _, bound := bindings[p.Name]; !bound {
+				free = append(free, p)
+			}
+		}
+		if len(free) > 0 {
+			node["captures"] = parameters(free)
+		}
 	}
 	extends := []any{}
 	for _, base := range t.Extends {
@@ -371,34 +425,158 @@ func (g *declarationGraph) typeNode(f *analysis.Family, t *model.Type, scope dec
 	return node
 }
 
-func capturedParameters(f *analysis.Family, t *model.Type) []model.Parameter {
-	used := map[string]bool{}
-	for _, use := range f.Generics().Types[t.Name] {
-		used[use.Parameter] = true
+func (g *declarationGraph) capturedParameters(f *analysis.Family, t *model.Type) []model.Parameter {
+	if g.captureUses == nil {
+		g.computeCaptures(f)
 	}
-	// Callable captures are part of the declaration even on a generator
-	// target which does not yet render parameterized callables.
-	for _, expr := range []model.TypeExpr{t.Request, t.Result} {
-		model.Walk(expr, func(e model.TypeExpr) bool {
-			switch x := e.(type) {
-			case model.Named:
-				used[x.Name] = true
-			case model.Drawn:
-				used[x.Parameter] = true
-			}
-			return true
-		})
-	}
-	for _, p := range t.Parameters {
-		delete(used, p.Name)
-	}
+	used := g.captureUses[declarationType{f, t}]
+	if used == nil {
+		used = g.typeCaptures(f, t)
+	} // inline declaration
 	out := []model.Parameter{}
 	for _, p := range f.Parameters() {
-		if used[p.Name] {
+		_, shadowed := t.Parameter(p.Name)
+		if used[p.Name] && !shadowed {
 			out = append(out, p)
 		}
 	}
 	return out
+}
+
+// Captures are a declaration fact, including callable signatures. The
+// monotone finite fixed point propagates free family parameters through
+// recursive local/imported types without expanding any application.
+func (g *declarationGraph) computeCaptures(root *analysis.Family) {
+	g.captureUses = map[declarationType]map[string]bool{}
+	if g.families == nil {
+		g.families = map[string]*analysis.Family{}
+	}
+	visited := map[*analysis.Family]bool{}
+	var collect func(*analysis.Family)
+	collect = func(f *analysis.Family) {
+		if f == nil || visited[f] {
+			return
+		}
+		visited[f] = true
+		g.families[f.Name] = f
+		for _, t := range f.Types {
+			g.captureUses[declarationType{f, t}] = map[string]bool{}
+		}
+		for _, other := range f.Imported {
+			collect(other)
+		}
+	}
+	collect(root)
+	for changed := true; changed; {
+		changed = false
+		for key, used := range g.captureUses {
+			for name := range g.typeCaptures(key.family, key.declaration) {
+				if !used[name] {
+					used[name] = true
+					changed = true
+				}
+			}
+		}
+	}
+}
+
+func (g *declarationGraph) typeCaptures(f *analysis.Family, t *model.Type) map[string]bool {
+	used := map[string]bool{}
+	shadow := map[string]bool{}
+	own := map[string]bool{}
+	for _, p := range t.Parameters {
+		own[p.Name] = true
+	}
+	var expression func(model.TypeExpr, map[string]bool)
+	var application func(*analysis.Family, *model.Type, map[string]model.Filler, map[string]bool)
+	add := func(name string, shadow map[string]bool) {
+		if !shadow[name] && (f.HasParameter(name) || own[name]) {
+			used[name] = true
+		}
+	}
+	application = func(owner *analysis.Family, target *model.Type, with map[string]model.Filler, shadow map[string]bool) {
+		if owner == nil || target == nil {
+			return
+		}
+		params := []model.Parameter{}
+		for _, p := range owner.Parameters() {
+			_, shadowed := target.Parameter(p.Name)
+			if !shadowed && g.captureUses[declarationType{owner, target}][p.Name] {
+				params = append(params, p)
+			}
+		}
+		for _, p := range target.Parameters {
+			if target.Kind != model.KindAlias || g.captureUses[declarationType{owner, target}][p.Name] {
+				params = append(params, p)
+			}
+		}
+		for _, p := range params {
+			filler, ok := with[p.Name]
+			if ok {
+				if filler.Type != nil {
+					expression(filler.Type, shadow)
+				}
+				continue
+			}
+			if owner == f {
+				add(p.Name, shadow)
+			} else if p.IsFamily() && len(f.FamilyParameters()) == 1 {
+				add(f.FamilyParameters()[0].Name, shadow)
+			}
+		}
+	}
+	expression = func(e model.TypeExpr, shadow map[string]bool) {
+		switch x := e.(type) {
+		case model.Named:
+			if shadow[x.Name] {
+				return
+			}
+			if f.HasParameter(x.Name) || own[x.Name] {
+				add(x.Name, shadow)
+			} else if target := f.Types[x.Name]; target != nil {
+				application(f, target, nil, shadow)
+			}
+		case model.Imported:
+			if owner := f.Imported[x.Family]; owner != nil {
+				application(owner, owner.Types[x.Name], nil, shadow)
+			}
+		case model.Drawn:
+			add(x.Parameter, shadow)
+		case model.Array:
+			expression(x.Elem, shadow)
+		case model.Map:
+			expression(x.Elem, shadow)
+		case model.Nullable:
+			expression(x.Elem, shadow)
+		case model.Apply:
+			owner := f
+			if x.Family != "" {
+				owner = f.Imported[x.Family]
+			}
+			if owner != nil {
+				application(owner, owner.Types[x.Name], x.With, shadow)
+			}
+		case model.Ref:
+			owner := f
+			if x.Family != "" && x.Family != f.Name {
+				owner = f.Imported[x.Family]
+			}
+			if owner != nil {
+				application(owner, owner.Types[x.Entity], nil, shadow)
+			}
+		case model.Inline:
+			inner := map[string]bool{}
+			for name := range shadow {
+				inner[name] = true
+			}
+			for _, p := range x.Type.Parameters {
+				inner[p.Name] = true
+			}
+			x.Type.WalkExpressions(func(child model.TypeExpr, _ diag.Location) { expression(child, inner) })
+		}
+	}
+	t.WalkExpressions(func(e model.TypeExpr, _ diag.Location) { expression(e, shadow) })
+	return used
 }
 
 func (g *declarationGraph) expression(f *analysis.Family, e model.TypeExpr, scope declarationScope, bindings map[string]any) any {
@@ -414,13 +592,30 @@ func (g *declarationGraph) expression(f *analysis.Family, e model.TypeExpr, scop
 		if path := scope[x.Name]; path != "" {
 			return parameterRef(path)
 		}
+		if target := f.Types[x.Name]; target != nil && len(bindings) > 0 {
+			params := append(g.capturedParameters(f, target), target.Parameters...)
+			for _, p := range params {
+				if _, bound := bindings[p.Name]; bound {
+					return g.application(f, target, params, g.arguments(f, f, params, nil, scope, bindings))
+				}
+			}
+		}
 		return g.named(f, x.Name)
 	case model.Imported:
-		return g.named(f.Imported[x.Family], x.Name)
+		owner := f.Imported[x.Family]
+		if owner != nil && owner.Types[x.Name] != nil && len(g.capturedParameters(owner, owner.Types[x.Name])) > 0 {
+			return g.expression(f, model.Apply{Family: x.Family, Name: x.Name}, scope, bindings)
+		}
+		return g.named(owner, x.Name)
 	case model.Drawn:
 		parameter := parameterRef(scope[x.Parameter])
 		if bound, ok := bindings[x.Parameter]; ok {
 			parameter = bound
+			if node, ok := bound.(map[string]any); ok {
+				if path, ok := node["ref"].(string); ok && g.families[path] != nil {
+					return g.named(g.families[path], x.Name)
+				}
+			}
 		}
 		return declarationObject{"draw": parameter, "name": x.Name}
 	case model.Array:
@@ -448,22 +643,26 @@ func (g *declarationGraph) expression(f *analysis.Family, e model.TypeExpr, scop
 			return declarationObject{"unresolved": x.Family + "/" + x.Name}
 		}
 		t := owner.Types[x.Name]
-		params := append(capturedParameters(owner, t), t.Parameters...)
+		params := append(g.capturedParameters(owner, t), t.Parameters...)
 		args := g.arguments(f, owner, params, x.With, scope, bindings)
-		path := owner.Name + "/" + x.Name
-		if t.Kind == model.KindAlias && !g.aliases[path] {
-			g.aliases[path] = true
-			defer delete(g.aliases, path)
-			bound := map[string]any{}
-			for i, p := range params {
-				bound[p.Name] = args[i]
-			}
-			return g.expression(owner, t.Alias, typeScope(owner, t), bound)
-		}
-		g.named(owner, x.Name)
-		return declarationObject{"apply": path, "arguments": args}
+		return g.application(owner, t, params, args)
 	}
 	panic("unhandled declaration expression")
+}
+
+func (g *declarationGraph) application(owner *analysis.Family, t *model.Type, params []model.Parameter, args []any) any {
+	path := owner.Name + "/" + t.Name
+	if t.Kind == model.KindAlias && !g.aliases[path] {
+		g.aliases[path] = true
+		defer delete(g.aliases, path)
+		bound := map[string]any{}
+		for i, p := range params {
+			bound[p.Name] = args[i]
+		}
+		return g.expression(owner, t.Alias, typeScope(owner, t), bound)
+	}
+	g.named(owner, t.Name)
+	return declarationObject{"apply": path, "arguments": args}
 }
 
 func (g *declarationGraph) arguments(caller, owner *analysis.Family, params []model.Parameter, with map[string]model.Filler, scope declarationScope, bindings map[string]any) []any {
@@ -471,9 +670,15 @@ func (g *declarationGraph) arguments(caller, owner *analysis.Family, params []mo
 	for _, p := range params {
 		filler, supplied := with[p.Name]
 		if !supplied {
-			if bound, ok := bindings[p.Name]; ok {
+			// A bare imported generic type has the language's one implicit
+			// family-parameter binding when the caller has exactly one.
+			name := p.Name
+			if caller != owner && p.IsFamily() && len(caller.FamilyParameters()) == 1 {
+				name = caller.FamilyParameters()[0].Name
+			}
+			if bound, ok := bindings[name]; ok {
 				args = append(args, bound)
-			} else if path := scope[p.Name]; path != "" {
+			} else if path := scope[name]; path != "" {
 				args = append(args, parameterRef(path))
 			} else {
 				args = append(args, parameterRef(owner.Name+"/"+p.Name))

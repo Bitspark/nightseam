@@ -110,11 +110,11 @@ declaration cannot capture that argument. Family arguments reference their
 family declaration graph. The unapplied family digest does not establish
 identity of two applications.
 
-A **selected application root** scopes each bound argument separately. Its
-arguments have the form `{"graph":G}`, where `G` is another complete
+A **selected composite root** scopes each expression-valued child separately.
+Its children have the form `{"graph":G}`, where `G` is another complete
 `{version,root,definitions}` document using these same rules. The constructor
-and its reachable template content occupy the outer definitions. An argument
-graph contains only that argument's reachable content. This permits two slots
+of an application and its reachable template content occupy the outer
+definitions. A child graph contains only that child's reachable content. This permits two slots
 to hold two revisions of the same qualified path without a definition-key
 collision. No final digest appears in either scope.
 
@@ -124,9 +124,21 @@ For example, a closed family application has this root:
 {"apply":"worker","arguments":[{"graph":{"definitions":{},"root":{"primitive":"integer"},"version":1}}]}
 ```
 
-Application expressions **inside definitions** retain ordinary lexical
-arguments rather than embedding graphs recursively. Selecting an application
-normalizes just its root arguments into scoped graphs. Selecting a recursive
+The scoped child positions are application `arguments`, container `array`,
+`map`, and `nullable`, entity-reference `entity`, a draw's `draw` source,
+a carried projection's `family`,
+inline `fields[].type`, `variants` values, `extends` entries, alias `type`, and
+callable `request` and `result`. This rule always applies at a selected root,
+including a primitive-valued child; it is not conditional on a name collision.
+A root which is itself `{"graph":G}` unwraps to `G`. References, primitives,
+parameters, literals, and empty expressions have no child scopes. Consequently
+an alias expanded to an anonymous record has the same graph as that record
+selected directly, including when its fields contain multiple revisions of
+one nominal path.
+
+Expressions **inside definitions** retain ordinary lexical children rather
+than embedding graphs recursively. Selecting a composite expression normalizes
+its root children into scoped graphs. Selecting a recursive
 named argument preserves the finite definition graph in its scope; it does not
 re-expand every application occurring inside that definition.
 
@@ -189,6 +201,15 @@ content, application arguments and nominality, documentation and target naming,
 unreachable declarations, exact integers, inheritance, and live operations.
 The runtime suites consume the same byte strings; generation tests hold the
 Go and TypeScript exports to the renderer.
+
+Each source row also supplies its normalized `wireExpression`, its `wire` and
+`familyDeclaration`, and a `families` map of every source family's validator
+descriptor, canonical declaration, digest, and imports. This lets both runtime
+suites exercise identity selection through their real validators rather than
+reimplement the source loader in a test. `application` rows compose earlier
+named cases as a constructor and ordered arguments. `composite` rows replace
+`{"case":N}` leaves with the earlier case's scoped graph, exercising multiple
+revisions of one path inside an anonymous structure.
 
 `go test ./internal/render -run TestCanonicalDeclarationCoverage
 -update-declarations` rewrites the byte fixtures for an intentional graph
