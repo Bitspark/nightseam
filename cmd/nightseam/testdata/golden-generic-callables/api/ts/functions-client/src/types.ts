@@ -82,7 +82,7 @@ export function exportFunction<A = unknown, B = unknown>(owner: LiveOwner, value
     const parent = owner;
     const reference = owner.export(identity.path, identity.digest ?? '', async (request, options) => {
       const owner = parent.child();
-      const context = { ...options, owner };
+      const context = Object.assign(Object.create(options ?? null), { owner });
       validateWire("A", request, '$', slots);
       const argument = (slot_A.needsContext ? owner!.importValue((owner) => slot_A.import(owner, request)) : slot_A.import(owner, request));
       const result = await value(argument, context);
@@ -120,7 +120,7 @@ export function exportIntFunction(owner: LiveOwner, value: IntFunction): unknown
     const parent = owner;
     const reference = owner.export(identity.path, identity.digest ?? '', async (request, options) => {
       const owner = parent.child();
-      const context = { ...options, owner };
+      const context = Object.assign(Object.create(options ?? null), { owner });
       validateWire("integer", request, '$', slots);
       const argument = request as number;
       const result = await value(argument, context);
@@ -160,7 +160,7 @@ export function exportOther<A = unknown, B = unknown>(owner: LiveOwner, value: O
     const parent = owner;
     const reference = owner.export(identity.path, identity.digest ?? '', async (request, options) => {
       const owner = parent.child();
-      const context = { ...options, owner };
+      const context = Object.assign(Object.create(options ?? null), { owner });
       validateWire("A", request, '$', slots);
       const argument = (slot_A.needsContext ? owner!.importValue((owner) => slot_A.import(owner, request)) : slot_A.import(owner, request));
       const result = await value(argument, context);

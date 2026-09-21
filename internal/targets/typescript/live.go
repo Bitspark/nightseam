@@ -187,7 +187,9 @@ func (f *file) emitCallable(t *render.Type) {
 			f.line("const parent = owner;")
 			f.w.Block(fmt.Sprintf("const reference = owner.export(%s, %s, async (request, options) => {", p.contracts[t.Name], identWireDigest), "});", func() {
 				f.line("const owner = parent.child();")
-				f.line("const context = { ...options, owner };")
+				// The invoking context is inherited, never copied: what the
+				// connection placed on it reaches the function, as in Go.
+				f.line("const context = Object.assign(Object.create(options ?? null), { owner });")
 				call := "context"
 				if t.Request != nil {
 					f.linef("%s(%s, request);", identValidateWire, expression(t.Request))

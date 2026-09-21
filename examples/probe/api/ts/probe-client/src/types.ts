@@ -77,7 +77,7 @@ export function exportNotice(owner: LiveOwner, value: Notice): unknown {
     const parent = owner;
     const reference = owner.export(contractNotice, wireDigest, async (request, options) => {
       const owner = parent.child();
-      const context = { ...options, owner };
+      const context = Object.assign(Object.create(options ?? null), { owner });
       validateWire("Payload", request);
       const argument = request as Payload;
       await value(argument, context);
@@ -105,7 +105,7 @@ export function exportStop(owner: LiveOwner, value: Stop): unknown {
     const parent = owner;
     const reference = owner.export(contractStop, wireDigest, async (request, options) => {
       const owner = parent.child();
-      const context = { ...options, owner };
+      const context = Object.assign(Object.create(options ?? null), { owner });
       await value(context);
       return undefined;
     });

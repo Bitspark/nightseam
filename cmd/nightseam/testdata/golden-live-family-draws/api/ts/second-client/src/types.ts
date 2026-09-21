@@ -93,7 +93,7 @@ export function exportRun(owner: LiveOwner, value: Run): unknown {
     const parent = owner;
     const reference = owner.export(contractRun, wireDigest, async (request, options) => {
       const owner = parent.child();
-      const context = { ...options, owner };
+      const context = Object.assign(Object.create(options ?? null), { owner });
       validateWire("integer", request);
       const argument = request as number;
       const result = await value(argument, context);
