@@ -1,0 +1,9 @@
+{
+  "language": "cpp",
+  "toolchains": ["cmake", "ninja", "c++"],
+  "build": [
+    {"argv": ["cmake", "-S", "{checkout}", "-B", "{out}/cpp", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Debug", "-DNIGHTSEAM_BUILD_CONFORMANCE=ON", "-DNIGHTSEAM_BUILD_TESTS=OFF", "-DBUILD_TESTING=OFF"]},
+    {"argv": ["cmake", "--build", "{out}/cpp", "--target", "nightseam_cpp_testee", "--parallel", "2"]}
+  ],
+  "run": {"argv": ["{out}/cpp/bin/nightseam_cpp_testee{exe}"]}
+}

@@ -5,6 +5,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
+from .record import Follower, MemoryWireLog, RecordedWire, RecordError, RecordOptions, WireLog, WireRecord, record
 from .wire import (
     Message,
     Path,
@@ -37,6 +38,14 @@ __all__ = [
     "decode_path",
     "encode_path",
     "mount",
+    "Follower",
+    "MemoryWireLog",
+    "RecordedWire",
+    "RecordError",
+    "RecordOptions",
+    "WireLog",
+    "WireRecord",
+    "record",
 ]
 
 

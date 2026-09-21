@@ -1,0 +1,6 @@
+{
+  "language": "swift",
+  "toolchains": ["swift"],
+  "build": [{"argv": ["swift", "build", "--package-path", "{self}/NightseamConformance", "--scratch-path", "{out}/swift", "--jobs", "2"]}],
+  "run": {"argv": ["{out}/swift/debug/nightseam-swift-testee{exe}"]}
+}

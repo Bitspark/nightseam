@@ -6,6 +6,14 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Fixed
+
+- The generated composition fixture waits for worker completion before
+  asserting finished cancellation, preserving the final callback race.
+- The TypeScript OpenTelemetry adapter retains connection and event-only
+  telemetry with the Go reference's connection lifecycle, producer/consumer
+  spans and fallback routing, without copying connection events onto requests.
+
 ### Clarified
 
 - The profile documentation names 4011 for a binary frame rejected by the
@@ -32,9 +40,28 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Rust enters at tier 4 with bounded pipe and WebSocket connections, the
+  duplex peer, schema validation, declaration identity, and relative-path
+  Wire composition. Its private testee runs the shared core scenarios in
+  both roles against Go; packaged crates are held by an outside WebSocket
+  consumer, with Cargo checks and version lockstep in the release gates.
+- C++20 has a bounded frames connection, pipe and WebSocket transports, the
+  peer runtime and descriptor validator, held to the shared core scenarios
+  against Go in both roles. Its CMake targets are `Nightseam::duplex` and
+  `Nightseam::runtime`; the language enters the conformance matrix at tier 4.
+- Swift joins at tier 4 with native bounded pipes and Linux WebSockets,
+  the core peer and relative-path Wire, shared descriptor/frame validation,
+  conformance in both Go roles, and an external Swift Package Manager smoke.
+- Java 21 joins at tier 4 with native framed connections, bounded pipes and
+  WebSockets, a symmetric peer, exact JSON/schema validation, relative-path
+  Wires and declaration identity. The shared core suite holds both Java/Go
+  roles; native tests and an isolated jar consumer hold the artifacts.
 - Python enters at tier 4 with bounded asyncio frame connections, peers,
   descriptor validation, Wire path views and declaration identity exchange,
   held against Go in both socket roles and by an installed-wheel smoke.
+- Python provides bounded Wire recording and independent following over
+  consumer-owned storage, with atomic replay heads, cancellation-safe follower
+  ownership and unchanged opaque message capabilities.
 - Go and TypeScript ship a bounded Wire record/follow composition with
   consumer-owned storage, an atomic replay-to-live handoff and independent
   subscriber failure. Opaque messages retain their existing reference scope.
@@ -243,6 +270,10 @@ are one number. Entries are in the words of the commits that landed them.
   invocation results, closure, release, cancellation and reference checks.
 
 ### Changed
+
+- The CI conformance star follows the language tiers' blocking verdicts and
+  reports provisional cells in its matrix and job summary; nightly remains
+  strict about every red cell.
 
 - Callable documentation separates named declarations from nominal wire
   identity and states the limits of native function assignment and contract
