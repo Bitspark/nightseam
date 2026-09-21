@@ -345,3 +345,28 @@ test('registerWire groups request event and cancellation while preserving verifi
   detach();
   await assert.rejects(callWire(left.wire(), ['both']), { code: 'method_not_found' });
 });
+
+test('registerWire sanitizes synchronous and asynchronous event failures into its wire close', async () => {
+  for (const failure of ['sync', 'async'] as const) {
+    let receiver!: Receiver;
+    const closed: unknown[] = [];
+    const wire: Wire = {
+      send: () => {},
+      receive: (_path, next) => {
+        receiver = next;
+        return () => {};
+      },
+      close: (code, reason) => {
+        closed.push([code, reason]);
+      },
+    };
+    registerWire(wire, ['event'], {
+      event: () => {
+        if (failure === 'sync') throw new Error('private panic');
+        return Promise.reject(new DuplexError('private', 'private refusal'));
+      },
+    });
+    await receiver.message!(['event'], { frame: { version: 1, kind: 'event', data: null } });
+    assert.deepEqual(closed, [[1002, 'wire event rejected']]);
+  }
+});

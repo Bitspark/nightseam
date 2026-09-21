@@ -337,7 +337,17 @@ export function registerWire(
         if (!handlers.event) return;
         const context: WireEventContext = { wire, ...(frame.meta ? { meta: { ...frame.meta } } : {}) };
         defaultPropagator.extract(context, traceOf(frame));
-        return handlers.event(frame.data, context);
+        const failed = (error: unknown) => {
+          if (!(error instanceof DuplexError) && message.return) dispatchContexts.get(message.return)?.panic(error);
+          wire.close(1002, 'wire event rejected');
+        };
+        try {
+          const pending = handlers.event(frame.data, context);
+          if (pending) return pending.catch(failed);
+        } catch (error) {
+          failed(error);
+        }
+        return;
       }
       if ((frame.kind !== 'request' && frame.kind !== 'cancel') || !message.return) return;
       let calls = incoming.get(message.return);
