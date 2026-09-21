@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <stdexcept>
@@ -48,7 +49,7 @@ struct Node {
     Characters set;
     std::vector<std::shared_ptr<Node>> children;
     Count min = 0, max = 0, width = 0;
-    bool unlimited = false;
+    bool unlimited = false, nullable = false;
     explicit Node(char kind) : kind(kind) {}
 };
 using Tree = std::shared_ptr<Node>;
@@ -63,15 +64,18 @@ Tree join(char kind, std::vector<Tree> children) {
     auto node = std::make_shared<Node>(kind);
     node->children = std::move(children);
     if (kind == '|') node->width = limit;
+    node->nullable = kind != '|';
     for (const auto& child : node->children) {
         if (kind == '|') node->width = std::min(node->width, child->width);
         else node->width = node->width > limit - child->width ? limit : node->width + child->width;
+        node->nullable = kind == '|' ? node->nullable || child->nullable : node->nullable && child->nullable;
     }
     return node;
 }
 Tree repeat(Tree child, Count min, Count max, bool unlimited) {
     auto node = std::make_shared<Node>('r');
     node->width = min != 0 && child->width > limit / min ? limit : child->width * min;
+    node->nullable = min == 0 || child->nullable;
     node->children.push_back(std::move(child));
     node->min = min;
     node->max = max;
@@ -272,10 +276,130 @@ struct Parser {
     }
 };
 
+// Thompson states merge every candidate start while scanning once. Neither
+// backtracking paths nor the endpoints of each possible start are retained.
+// A compilation budget chooses an engine, never whether a pattern is valid.
+// The direct matcher below handles counted trees whose compact program would
+// require more states, without expanding an untrusted decimal count.
+struct Nfa {
+    using Index = std::size_t;
+    struct Instruction {
+        char kind;
+        const Characters* set = nullptr;
+        Index next = 0, alternative = 0;
+    };
+    static constexpr std::size_t budget = 4096;
+    std::vector<Instruction> code;
+    std::size_t length;
+
+    struct Repetition { Count min, max; bool unlimited; };
+    Repetition repetition(const Tree& node) const {
+        const auto& child = node->children.front();
+        // If the child always admits epsilon, empty iterations can fill any
+        // lower bound. A maximum >= the input's possible consuming iterations
+        // is irrelevant for this input, including when nullable is conditional.
+        auto minimum = child->nullable ? 0 : node->min;
+        auto consuming = child->width > 0 ? length / child->width : length;
+        return {minimum, node->max, node->unlimited || node->max >= consuming};
+    }
+    static std::size_t add(std::size_t a, std::size_t b) {
+        return a > budget || b > budget - a ? budget + 1 : a + b;
+    }
+    static std::size_t multiply(Count count, std::size_t size) {
+        return size != 0 && count > budget / size ? budget + 1 : static_cast<std::size_t>(count) * size;
+    }
+    std::size_t size(const Tree& node) const {
+        if (node->width > length) return 1;
+        if (node->kind == 'r') {
+            auto repeat = repetition(node);
+            auto child = size(node->children.front());
+            if (repeat.unlimited) return add(add(multiply(repeat.min, child), child), 1);
+            return add(multiply(repeat.max, child), multiply(repeat.max - repeat.min, 1));
+        }
+        if (node->kind == 's' || node->kind == '|') {
+            std::size_t result = node->kind == '|' && !node->children.empty() ? node->children.size() - 1 : 0;
+            for (const auto& child : node->children) result = add(result, size(child));
+            return result;
+        }
+        return 1;
+    }
+    Index emit(Instruction instruction) { code.push_back(instruction); return code.size() - 1; }
+    Index compile(const Tree& node, Index next) {
+        if (node->width > length) return emit({'!'});
+        if (node->kind == 's') {
+            for (auto child = node->children.rbegin(); child != node->children.rend(); ++child) next = compile(*child, next);
+            return next;
+        }
+        if (node->kind == '|') {
+            if (node->children.empty()) return emit({'!'});
+            auto start = compile(node->children.front(), next);
+            for (std::size_t i = 1; i < node->children.size(); ++i) start = emit({'|', nullptr, start, compile(node->children[i], next)});
+            return start;
+        }
+        if (node->kind == 'r') {
+            auto repeat = repetition(node);
+            const auto& child = node->children.front();
+            if (repeat.unlimited) {
+                auto loop = emit({'|', nullptr, 0, next});
+                auto body = compile(child, loop);
+                code[loop].next = body;
+                next = loop;
+            } else {
+                for (Count i = repeat.min; i < repeat.max; ++i) next = emit({'|', nullptr, compile(child, next), next});
+            }
+            for (Count i = 0; i < repeat.min; ++i) next = compile(child, next);
+            return next;
+        }
+        return emit({node->kind, node->kind == 'c' ? &node->set : nullptr, next});
+    }
+    bool matches(const Tree& tree, const std::u32string& input) {
+        auto start = compile(tree, emit({'m'}));
+        std::vector<Index> next, pending, active;
+        std::vector<std::size_t> visited(code.size(), std::numeric_limits<std::size_t>::max());
+        auto word = [&](std::size_t at) {
+            if (at >= input.size()) return false;
+            auto c = input[at];
+            return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || c == '_' || (c >= 'a' && c <= 'z');
+        };
+        for (std::size_t at = 0; at <= input.size(); ++at) {
+            pending.swap(next);
+            next.clear();
+            pending.push_back(start);
+            active.clear();
+            while (!pending.empty()) {
+                auto pc = pending.back();
+                pending.pop_back();
+                if (visited[pc] == at) continue;
+                visited[pc] = at;
+                const auto& instruction = code[pc];
+                switch (instruction.kind) {
+                case 'm': return true;
+                case 'c': active.push_back(pc); break;
+                case '|': pending.push_back(instruction.next); pending.push_back(instruction.alternative); break;
+                case '^': if (at == 0) pending.push_back(instruction.next); break;
+                case '$': if (at == input.size()) pending.push_back(instruction.next); break;
+                case 'b': case 'B':
+                    if (((at > 0 && word(at - 1)) != word(at)) == (instruction.kind == 'b')) pending.push_back(instruction.next);
+                    break;
+                }
+            }
+            if (at == input.size()) break;
+            for (auto pc : active) {
+                const auto& instruction = code[pc];
+                for (auto [lo, hi] : *instruction.set) {
+                    if (input[at] >= lo && input[at] <= hi) { next.push_back(instruction.next); break; }
+                }
+            }
+        }
+        return false;
+    }
+};
+
 using Positions = std::vector<std::size_t>;
-void unique(Positions& positions) {
-    std::sort(positions.begin(), positions.end());
-    positions.erase(std::unique(positions.begin(), positions.end()), positions.end());
+void merge_positions(Positions& positions, const Positions& other) {
+    Positions merged;
+    std::set_union(positions.begin(), positions.end(), other.begin(), other.end(), std::back_inserter(merged));
+    positions = std::move(merged);
 }
 struct Matcher {
     std::u32string input;
@@ -284,9 +408,8 @@ struct Matcher {
         Positions result;
         for (auto start : positions) {
             auto next = ends(child, start);
-            result.insert(result.end(), next.begin(), next.end());
+            merge_positions(result, next);
         }
-        unique(result);
         return result;
     }
     Positions ends(const Tree& node, std::size_t start) {
@@ -320,9 +443,8 @@ struct Matcher {
         case '|':
             for (const auto& child : node->children) {
                 auto next = ends(child, start);
-                result.insert(result.end(), next.begin(), next.end());
+                merge_positions(result, next);
             }
-            unique(result);
             break;
         case 'r': {
             Positions current{start};
@@ -338,16 +460,18 @@ struct Matcher {
                 while (node->unlimited || count < node->max) {
                     auto next = advance(node->children.front(), current);
                     if (next.empty() || next == current) break;
-                    result.insert(result.end(), next.begin(), next.end());
+                    merge_positions(result, next);
                     current = std::move(next);
                     ++count;
                 }
-                unique(result);
             }
             break;
         }
         }
-        memo.emplace(key, result);
+        // Cache only a constant-sized answer per node/position. Retaining a
+        // variable-sized endpoint set for every start takes quadratic memory.
+        // Every intermediate union above also stays a set of input positions.
+        if (result.size() <= 1) memo.emplace(key, result);
         return result;
     }
 };
@@ -356,7 +480,11 @@ struct Matcher {
 void check_pattern(std::string_view source) { Parser{decode_utf8(source)}.disjunction(); }
 bool match_pattern(std::string_view source, std::string_view value) {
     auto tree = Parser{decode_utf8(source)}.disjunction();
-    Matcher matcher{decode_utf8(value), {}};
+    auto input = decode_utf8(value);
+    if (tree->width > input.size()) return false;
+    Nfa nfa{{}, input.size()};
+    if (nfa.size(tree) < Nfa::budget) return nfa.matches(tree, input);
+    Matcher matcher{std::move(input), {}};
     for (std::size_t start = 0; start <= matcher.input.size(); ++start)
         if (!matcher.ends(tree, start).empty()) return true;
     return false;
