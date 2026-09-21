@@ -392,7 +392,7 @@ func bindClient(wire duplex.Wire, lookup func() protocol.Client, environment run
 	return nil
 }
 func normalizeContext(environment runtime.AdapterContext) (runtime.AdapterContext, error) {
-	if true && environment.ValueEnvironment == nil {
+	if (true) && environment.ValueEnvironment == nil {
 		return environment, fmt.Errorf("a context-dependent adapter requires a value environment")
 	}
 	return environment, nil

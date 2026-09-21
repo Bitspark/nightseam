@@ -322,9 +322,10 @@ and through an inline shape. Two edges are deliberately not followed:
 - **`{"ref": "E"}` is never live.** An entity key is a name for a row, not a
   name for a binding; a live entity has a live value and a data key, and the
   two identities stay apart.
-- **A draw through a family parameter is decided where it is written.** Every
-  family that may bind the parameter declares the drawn type, so a draw that
-  would be live is refused there, naming the family that makes it so.
+- **A draw through a family parameter stays neutral.** Every family that may
+  bind the parameter declares the plain associated type. Its supplied
+  interpretation determines whether conversion needs an active live context;
+  the generic declaration does not import that provider or acquire its tier.
 
 Then the direction rule every tier shares does the rest of the work with no
 machinery of its own: a callable is declared in `live.json`, so it ranks with
@@ -347,9 +348,15 @@ aliases and nested applications, including imported containers. The generic
 container itself has no live dependency; its caller supplies the scope-aware
 conversion for each live argument. `Page<Payload>` remains ordinary data.
 
-A **live type drawn through a family parameter** remains refused: what fills
-that family parameter is the consumer's to choose, and its boundary conversion
-is not supplied by the family-binding contract.
+A **plain associated record containing live values** can be drawn through a
+family parameter. A protocol operation using `S.Job` receives the provider's
+complete interpretation: declaration identity, validation and both converters.
+Go takes one value adapter per drawn type; TypeScript takes a family binding
+whose `types` dictionary supplies the required members. Each conversion uses
+the current operation's ownership batch, so the same interpretation works
+across simultaneous scopes. Missing or mixed-family recipes refuse before
+model construction. Direct alias, callable and generic-member draws remain
+outside the plain associated-type grammar.
 
 ### What a reference carries
 

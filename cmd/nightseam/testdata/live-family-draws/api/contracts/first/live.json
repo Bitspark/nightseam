@@ -1,0 +1,7 @@
+{
+  "types": {
+    "Run": {"kind": "callable", "request": "integer", "result": "integer"},
+    "Job": {"kind": "record", "fields": [{"name": "run", "type": "Run"}]},
+    "Progress": {"kind": "record", "fields": [{"name": "read", "type": "Run"}]}
+  }
+}

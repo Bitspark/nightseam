@@ -1,0 +1,8 @@
+{
+  "description": "Atomic recorded-Wire replay heads and live handoffs, held by both duplex runtime suites. The producer appends during a paused replay; every entry reaches the follower once in order.",
+  "cases": [
+    {"name":"head before append","before":[1,2,3],"after":0,"during":[4,5],"head":3,"expected":[1,2,3,4,5]},
+    {"name":"append before head","before":[1,2,3,4],"after":0,"during":[5],"head":4,"expected":[1,2,3,4,5]},
+    {"name":"resume after three","before":[1,2,3,4],"after":3,"during":[5,6],"head":4,"expected":[4,5,6]}
+  ]
+}

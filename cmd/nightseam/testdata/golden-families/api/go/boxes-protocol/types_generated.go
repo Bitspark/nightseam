@@ -679,6 +679,9 @@ func AdapterBatch[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[
 		Binding:      binding,
 		NeedsContext: adapterT.NeedsContext,
 		Export: func(ctx context.Context, value Batch[T]) (json.RawMessage, error) {
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return nil, fmt.Errorf("T: both conversion recipes are required")
+			}
 			raw, err := ExportBatch[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -687,6 +690,9 @@ func AdapterBatch[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Batch[T], error) {
 			var zero Batch[T]
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return zero, fmt.Errorf("T: both conversion recipes are required")
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}
@@ -703,6 +709,9 @@ func AdapterBox[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[Bo
 		Binding:      binding,
 		NeedsContext: adapterT.NeedsContext,
 		Export: func(ctx context.Context, value Box[T]) (json.RawMessage, error) {
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return nil, fmt.Errorf("T: both conversion recipes are required")
+			}
 			raw, err := ExportBox[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -711,6 +720,9 @@ func AdapterBox[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[Bo
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Box[T], error) {
 			var zero Box[T]
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return zero, fmt.Errorf("T: both conversion recipes are required")
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}
@@ -727,6 +739,9 @@ func AdapterChoice[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter
 		Binding:      binding,
 		NeedsContext: adapterT.NeedsContext,
 		Export: func(ctx context.Context, value Choice[T]) (json.RawMessage, error) {
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return nil, fmt.Errorf("T: both conversion recipes are required")
+			}
 			raw, err := ExportChoice[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -735,6 +750,9 @@ func AdapterChoice[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Choice[T], error) {
 			var zero Choice[T]
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return zero, fmt.Errorf("T: both conversion recipes are required")
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}
@@ -751,6 +769,9 @@ func AdapterPage[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[P
 		Binding:      binding,
 		NeedsContext: adapterT.NeedsContext,
 		Export: func(ctx context.Context, value Page[T]) (json.RawMessage, error) {
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return nil, fmt.Errorf("T: both conversion recipes are required")
+			}
 			raw, err := ExportPage[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -759,6 +780,9 @@ func AdapterPage[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[P
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Page[T], error) {
 			var zero Page[T]
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return zero, fmt.Errorf("T: both conversion recipes are required")
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}
@@ -775,6 +799,9 @@ func AdapterResult[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter
 		Binding:      binding,
 		NeedsContext: adapterT.NeedsContext,
 		Export: func(ctx context.Context, value Result[T]) (json.RawMessage, error) {
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return nil, fmt.Errorf("T: both conversion recipes are required")
+			}
 			raw, err := ExportResult[T](value, func(value T) (json.RawMessage, error) { return adapterT.Export(ctx, value) }, typeT)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -783,6 +810,9 @@ func AdapterResult[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Result[T], error) {
 			var zero Result[T]
+			if adapterT.Export == nil || adapterT.Import == nil {
+				return zero, fmt.Errorf("T: both conversion recipes are required")
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}

@@ -107,7 +107,7 @@ func (t *testee) proofDispatch(op string, raw map[string]json.RawMessage) (any, 
 			return binding.ToWire(func(remote proofRemote) (proofClient, error) {
 				s.remote <- &remote
 				return proofClient{Methods: proofServer{}}, nil
-			}, runtime.AdapterContext{}, runtime.JSONAdapter[string]())
+			}, runtime.AdapterContext{}, runtime.JSONAdapter[probe.Envelope](), runtime.JSONAdapter[probe.Handle](), runtime.JSONAdapter[string]())
 		})
 		if err != nil {
 			return nil, err
@@ -126,7 +126,7 @@ func (t *testee) proofDispatch(op string, raw map[string]json.RawMessage) (any, 
 			return client.ToWire(func(remote proofClient) (proofRemote, error) {
 				d.client = remote
 				return proofRemote{Events: proofClientEvents{d}}, nil
-			}, runtime.AdapterContext{}, runtime.JSONAdapter[string]())
+			}, runtime.AdapterContext{}, runtime.JSONAdapter[probe.Envelope](), runtime.JSONAdapter[probe.Handle](), runtime.JSONAdapter[string]())
 		})
 		if err != nil {
 			cancel()

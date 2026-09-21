@@ -193,7 +193,7 @@ func TestMixedClientsRoundtripBothDeclarations(t *testing.T){
   handler,err:=runtime.NewHandler(options);if err!=nil{t.Fatal(err)};return httptest.NewServer(handler)
  }
  ls:=serve(func(*runtime.Peer)(duplex.Wire,error){return lb.ToWire(func(left.Client)(left.Server,error){return left.Server{Methods:leftServer{},Events:struct{}{}},nil},runtime.AdapterContext{})})
- rs:=serve(func(peer *runtime.Peer)(duplex.Wire,error){return rb.ToWire[E,H,string](func(right.Client[E,H,string])(right.Server[E,H,string],error){return right.Server[E,H,string]{Methods:rightServer{},Events:struct{}{}},nil},runtime.AdapterContext{},runtime.JSONAdapter[string]())})
+ rs:=serve(func(peer *runtime.Peer)(duplex.Wire,error){return rb.ToWire[E,H,string](func(right.Client[E,H,string])(right.Server[E,H,string],error){return right.Server[E,H,string]{Methods:rightServer{},Events:struct{}{}},nil},runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H](),runtime.JSONAdapter[string]())})
  defer ls.Close();defer rs.Close()
  leftURL,rightURL:="ws"+strings.TrimPrefix(ls.URL,"http"),"ws"+strings.TrimPrefix(rs.URL,"http")
  ctx,cancel:=context.WithTimeout(context.Background(),15*time.Second);defer cancel()
@@ -204,7 +204,7 @@ func TestMixedClientsRoundtripBothDeclarations(t *testing.T){
  defer lclose();lf,err:=lc(ctx);if err!=nil{t.Fatal(err)};l,err:=lf(left.Client{Methods:struct{}{},Events:discardLeftEvents{}});if err!=nil{t.Fatal(err)}
  var rc func(context.Context)(right.ServerModel[E,H,string],error);var rclose func()
  rpPeer,_,err:=runtime.Dial(ctx,rightURL,runtime.DialOptions{Options:runtime.Options{Prepare:func(peer *runtime.Peer)error{
-  var err error;rc,rclose,err=rb.PrepareFromWire[E,H,string](peer.Wire(),runtime.AdapterContext{},runtime.JSONAdapter[string]());return err
+  var err error;rc,rclose,err=rb.PrepareFromWire[E,H,string](peer.Wire(),runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H](),runtime.JSONAdapter[string]());return err
  }}});if err!=nil{t.Fatal(err)};defer rpPeer.Close()
  defer rclose();rf,err:=rc(ctx);if err!=nil{t.Fatal(err)};r,err:=rf(right.Client[E,H,string]{Methods:struct{}{},Events:discardRightEvents{}});if err!=nil{t.Fatal(err)}
  var lp left.Carried;var rp right.Carried[E,H,string];_ = json.Unmarshal(good,&lp);_ = json.Unmarshal(good,&rp)
@@ -216,9 +216,9 @@ func TestMixedClientsRoundtripBothDeclarations(t *testing.T){
 func TestMixedDeclarationsRefuseCrossInterpretation(t *testing.T){
  ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second);defer cancel()
  plain,err:=lb.ToWire(func(left.Client)(left.Server,error){return left.Server{Methods:leftServer{},Events:struct{}{}},nil},runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer plain.Close(duplex.CodeNormal,"")
- generic,err:=rb.ToWire[E,H,string](func(right.Client[E,H,string])(right.Server[E,H,string],error){return right.Server[E,H,string]{Methods:rightServer{},Events:struct{}{}},nil},runtime.AdapterContext{},runtime.JSONAdapter[string]());if err!=nil{t.Fatal(err)};defer generic.Close(duplex.CodeNormal,"")
+ generic,err:=rb.ToWire[E,H,string](func(right.Client[E,H,string])(right.Server[E,H,string],error){return right.Server[E,H,string]{Methods:rightServer{},Events:struct{}{}},nil},runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H](),runtime.JSONAdapter[string]());if err!=nil{t.Fatal(err)};defer generic.Close(duplex.CodeNormal,"")
  _,leftErr:=lb.FromWire(ctx,generic,runtime.AdapterContext{})
- _,rightErr:=rb.FromWire[E,H,string](ctx,plain,runtime.AdapterContext{},runtime.JSONAdapter[string]())
+ _,rightErr:=rb.FromWire[E,H,string](ctx,plain,runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H](),runtime.JSONAdapter[string]())
  for _,err:=range []error{leftErr,rightErr}{var public *runtime.PublicError;if !errors.As(err,&public)||public.Code!="contract_mismatch"{t.Fatalf("cross-interpretation: %v",err)}}
 }
 `

@@ -71,7 +71,8 @@ func (f *file) emitWireAdapter(side, opposite string) {
 		f.wireRegistration(name, methods, events)
 	}
 	f.w.Block(fmt.Sprintf("func normalizeContext%s(environment %s%s) (%s, error) {", decl, contextType, f.slotParameters(), contextType), "}", func() {
-		f.linef("if %s && environment.ValueEnvironment == nil { return environment, %s.Errorf(\"a context-dependent adapter requires a value environment\") }", f.scopeLive(), f.std("fmt"))
+		f.adapterRecipes(f.slotUses(), "environment, ")
+		f.linef("if (%s) && environment.ValueEnvironment == nil { return environment, %s.Errorf(\"a context-dependent adapter requires a value environment\") }", f.scopeLive(), f.std("fmt"))
 
 		f.line("return environment, nil")
 	})

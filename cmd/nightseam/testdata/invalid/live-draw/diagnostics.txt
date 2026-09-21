@@ -1,2 +1,0 @@
-carrier/protocol.json#/types/Holder/fields/0/type: S.Job draws Job from worker, which carries a callable; the current family-binding contract supplies no live boundary converter for that draw. Use an explicitly named live type in live.json instead. [live_draw]
-error: 1 problems

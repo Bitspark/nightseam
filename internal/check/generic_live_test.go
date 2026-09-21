@@ -1,7 +1,6 @@
 package check
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/Bitspark/nightseam/internal/model/modeltest"
@@ -18,13 +17,13 @@ func TestGenericContainersAdmitLiveArguments(t *testing.T) {
 	}
 }
 
-func TestGenericCallablesRemainRefused(t *testing.T) {
+func TestGenericCallablesAdmitClosedApplications(t *testing.T) {
 	f := world("x", map[string]string{
 		"model.json":    `{"nightseam":2,"types":{}}`,
 		"protocol.json": modeltest.Protocol(``),
-		"live.json":     `{"types":{"Handler":{"kind":"callable","parameters":[{"name":"T"}],"request":"T"}}}`,
+		"live.json":     `{"types":{"Handler":{"kind":"callable","parameters":[{"name":"T"}],"request":"T"},"Concrete":{"kind":"alias","type":{"apply":"Handler","with":{"T":"string"}}}}}`,
 	})
-	if got := codes(Family(f)); !strings.Contains(got, "callable_parameters") {
-		t.Fatalf("generic callable was admitted: %s", got)
+	if got := Family(f); len(got) != 0 {
+		t.Fatalf("closed callable application was refused: %v", got)
 	}
 }

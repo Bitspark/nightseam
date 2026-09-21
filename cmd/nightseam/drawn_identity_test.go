@@ -92,13 +92,13 @@ func TestDrawnFamilyIdentity(t *testing.T) {
  constructions := 0
  _, err := binding.ToWire[source.Envelope](func(consumer.Client[source.Envelope]) (consumer.Server[source.Envelope], error) {
   constructions++; return consumer.Server[source.Envelope]{}, nil
- }, runtime.AdapterContext{})
+ }, runtime.AdapterContext{}, runtime.JSONAdapter[source.Envelope]())
  if err == nil || !strings.Contains(err.Error(), "missing required binding T") || constructions != 0 {
   t.Fatalf("unbound source interpretation: constructions=%d, err=%v", constructions, err)
  }
  wire, err := binding.ToWire[closedEnvelope](func(consumer.Client[closedEnvelope]) (consumer.Server[closedEnvelope], error) {
   constructions++; return consumer.Server[closedEnvelope]{Methods: methods{}}, nil
- }, runtime.AdapterContext{})
+ }, runtime.AdapterContext{}, runtime.JSONAdapter[closedEnvelope]())
  if err != nil { t.Fatal(err) }
  defer wire.Close(duplex.CodeNormal, "")
  if constructions != 1 { t.Fatalf("closed interpretation constructed %d models", constructions) }
@@ -125,18 +125,23 @@ func TestDrawnFamilyIdentity(t *testing.T) {
 
 const tsDrawnIdentityFixture = `import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
-import { boundDeclaration, declarationDigest, callWire, IDENTITY_METHOD, type DeclarationIdentity, type FamilyBinding } from '@nightseam/runtime';
+import { boundDeclaration, declarationDigest, callWire, jsonAdapter, IDENTITY_METHOD, type DeclarationIdentity, type FamilyBinding } from '@nightseam/runtime';
 import { toWire, validateWire as consumerValidator } from '@example/consumer-binding';
 import { validateWire as sourceValidator, type Family } from '@example/source-client/types';
 
 let constructions = 0;
 const model = () => { constructions++; return { methods: { read() { return { version: 1, kind: 'event' }; } }, events: {} }; };
-const unbound: FamilyBinding<Family> = { name: 'source', validate: sourceValidator };
+const unbound: FamilyBinding<Family, 'Envelope'> = {
+ name: 'source', validate: sourceValidator,
+ types: { Envelope: jsonAdapter<Family['Envelope']>({ validate: sourceValidator, type: 'Envelope' }) },
+};
 assert.throws(() => toWire(model, {}, unbound), /missing required binding T/);
 assert.equal(constructions, 0, 'an unbound family constructed its model');
-const closed: FamilyBinding<Family> = {
+const closedSlots = { T: { validate: sourceValidator, type: 'string' } };
+const closed: FamilyBinding<Family, 'Envelope'> = {
  name: 'source', validate: sourceValidator,
- slots: { T: { validate: sourceValidator, type: 'string' } },
+ slots: closedSlots,
+ types: { Envelope: jsonAdapter<Family['Envelope']>({ validate: sourceValidator, type: 'Envelope', slots: closedSlots }) },
 };
 const wire = toWire(model, {}, closed);
 try {

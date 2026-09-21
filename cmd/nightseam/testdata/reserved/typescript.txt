@@ -39,6 +39,8 @@ encodePath
 conversion
 createValidator
 withDeclaration
+jsonAdapter
+familyTypeAdapter
 declarationDigest
 identityHandler
 IDENTITY_METHOD

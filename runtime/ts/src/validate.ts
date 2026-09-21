@@ -6,6 +6,8 @@
 // bindings that generated Go codecs also carry in their instantiated types.
 import { scalarValue } from './unicode.ts';
 import { DuplexError } from './error.ts';
+import { callableIdentity } from './callable_identity.ts';
+import type { ValueAdapter } from './value-adapter.ts';
 
 /** An expression as the declaration writes it, including unnamed shapes. */
 export type TypeExpression =
@@ -67,12 +69,12 @@ export interface AnyFamily {
   Handle: unknown;
 }
 
-/** A family bound to a parameter, retaining its descriptor for nested applications. */
-export interface FamilyBinding<F extends AnyFamily> {
+/** A family descriptor, with complete recipes for the associated members a consumer uses. */
+export type FamilyBinding<F extends AnyFamily, K extends keyof F = never> = {
   readonly name: F['name'];
   readonly validate: Validator;
   readonly slots?: Slots;
-}
+} & ([K] extends [never] ? {} : { readonly types: { readonly [P in K]: ValueAdapter<F[P]> } });
 
 /** A type argument interpreted in the family whose validator is supplied. */
 export interface TypeBinding {
@@ -85,6 +87,7 @@ export type Slots = { readonly [parameter: string]: FamilyBinding<AnyFamily> | T
 
 const descriptor = Symbol('validator descriptor');
 interface Schema {
+  validator: Validator;
   family: WireFamily;
   digest: string;
   imported: Record<string, Validator>;
@@ -317,6 +320,8 @@ function freeParameters(schema: Schema, type: WireType | undefined, seen = new S
         const entity = schema.family.types[value.ref];
         walk(entity?.fields?.find((field) => field.name === entity.key)?.type);
       } else if ('kind' in value) {
+        walk(value.request);
+        walk(value.result);
         for (const field of value.fields ?? []) walk(field.type);
         for (const base of value.extends ?? []) walkBase(base);
         for (const variant of Object.values(value.variants ?? {})) walk(variant);
@@ -324,6 +329,8 @@ function freeParameters(schema: Schema, type: WireType | undefined, seen = new S
     }
   };
   walk(type.type);
+  walk(type.request);
+  walk(type.result);
   for (const field of type.fields ?? []) walk(field.type);
   for (const base of type.extends ?? []) walkBase(base);
   for (const variant of Object.values(type.variants ?? {})) walk(variant);
@@ -476,6 +483,11 @@ function validate(expression: Expression, value: unknown, location: string): voi
   if (definition) {
     switch (definition.kind) {
       case 'callable': {
+        const generic =
+          (definition.parameters?.length ?? 0) > 0 || freeParameters(resolved.schema, definition).length > 0;
+        const identity = generic
+          ? callableIdentity(expressionBinding(expression))
+          : { path: definition.contract, digest: resolved.schema.digest };
         // A live value on the wire is a reference to one binding: the
         // binding, opaque here, and the contract it implements. The contract
         // is nominal, so the only reference this position accepts is one
@@ -484,7 +496,7 @@ function validate(expression: Expression, value: unknown, location: string): voi
         // nothing and reaches no network; whether the binding exists, is
         // still alive or belongs to this scope is the live runtime's to
         // answer when it imports it.
-        if (!plainObject(value)) bad(location, 'a live reference to ' + definition.contract);
+        if (!plainObject(value)) bad(location, 'a live reference to ' + identity.path);
         const reference = value as Record<string, unknown>;
         if (typeof reference['binding'] !== 'string' || reference['binding'] === '') {
           throw new Error(location + '.binding: a live reference names the binding it refers to');
@@ -492,13 +504,13 @@ function validate(expression: Expression, value: unknown, location: string): voi
         if (typeof reference['contract'] !== 'string') {
           throw new Error(location + '.contract: a live reference carries the declaration it implements');
         }
-        if (reference['contract'] !== definition.contract) {
+        if (reference['contract'] !== identity.path) {
           throw new Error(
             location +
               '.contract: the reference carries ' +
               reference['contract'] +
               ' where ' +
-              definition.contract +
+              identity.path +
               ' is expected',
           );
         }
@@ -509,16 +521,16 @@ function validate(expression: Expression, value: unknown, location: string): voi
         ) {
           throw new Error(location + '.digest: expected lowercase SHA-256 digest');
         }
-        if (digest !== '' && resolved.schema.digest !== '' && digest !== resolved.schema.digest) {
+        if (digest !== '' && identity.digest !== '' && digest !== identity.digest) {
           throw new DuplexError(
             'contract_mismatch',
             location +
               '.digest: the reference to ' +
-              definition.contract +
+              identity.path +
               ' carries declaration digest ' +
               digest +
               ' where ' +
-              resolved.schema.digest +
+              identity.digest +
               ' is expected',
           );
         }
@@ -680,6 +692,42 @@ function boundScope(slots: Slots, active = new Set<Slots>()): Scope {
   }
 }
 
+// Reconstitute public binding records from the validator's lexical expression
+// scopes. Each argument keeps its original schema and nested supplied scope.
+function expressionBinding(expression: Expression, depth = 0): TypeBinding {
+  return {
+    validate: expression.schema.validator,
+    type: expression.value,
+    slots: scopeBindings(expression.scope, depth),
+  };
+}
+
+function scopeBindings(scope: Scope, depth: number): Slots {
+  if (depth > 256) throw new Error('declaration: cyclic supplied bindings');
+  const slots: Record<string, TypeBinding | FamilyBinding<AnyFamily>> = {};
+  for (const [name, argument] of Object.entries(scope)) {
+    if ('type' in argument) slots[name] = expressionBinding(argument.type, depth + 1);
+    else
+      slots[name] = {
+        name: '',
+        validate: argument.family.validator,
+        slots: scopeBindings(argument.family.scope ?? {}, depth + 1),
+      };
+  }
+  return slots;
+}
+
+// Internal access for callable_identity: validation and public identity resolve
+// exactly the same alias/application expression rather than flattening slots.
+export function callableBindingMetadata(binding: TypeBinding): { digest: string } {
+  const resolved = resolve(
+    { schema: validatorMetadata(binding.validate), value: binding.type, scope: boundScope(binding.slots ?? {}) },
+    'declaration',
+  );
+  if (resolved.definition?.kind !== 'callable') throw new Error('declaration: expected callable declaration');
+  return { digest: resolved.schema.digest };
+}
+
 /** Creates a validator whose imports retain their declaration scope and generated
  * digest. An empty digest leaves identity unspecified. */
 export function createValidator(
@@ -693,7 +741,7 @@ export function createValidator(
   scalarValue(Object.keys(imported));
   if (!family.types) throw new Error('expected family descriptor with types');
   checkPatterns(family.types);
-  const schema: Schema = { family, digest, imported };
+  const schema = { family, digest, imported } as Schema;
   const validateWire = (type: TypeExpression, value: unknown, location = '$', slots: Slots = {}): void => {
     scalarValue(type);
     scalarValue(value);
@@ -701,5 +749,6 @@ export function createValidator(
     const scope = boundScope(slots);
     validate({ schema, value: type, scope }, value, location);
   };
-  return Object.assign(validateWire, { [descriptor]: schema });
+  schema.validator = Object.assign(validateWire, { [descriptor]: schema });
+  return schema.validator;
 }

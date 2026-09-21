@@ -81,7 +81,7 @@ export const forwardingOps: Record<string, (args: Args) => unknown | Promise<unk
       endpoint.scope = scope;
       handleWire(connection.peer.wire(), ['fixture.forwarding.retain'], wire => {
         combinator.validateWire('Toolkit', wire);
-        endpoint.retained = combinator.importToolkit(scope.owner(), wire);
+        endpoint.retained = combinator.importToolkitUnchecked(scope.owner(), wire);
       });
       connection.expose(binding.toWire(remote => {
         connection.model = remote;
@@ -141,10 +141,10 @@ export const forwardingOps: Record<string, (args: Args) => unknown | Promise<unk
       const options = { signal: AbortSignal.timeout(within(args)) };
       const source = await callWire(origin.peer.wire(), ['toolkit'], { seed: 3 }, options);
       combinator.validateWire('Toolkit', source);
-      const toolkit = combinator.importToolkit(upstream.owner(), source);
+      const toolkit = combinator.importToolkitUnchecked(upstream.owner(), source);
       // Exporting the typed proxies installs wrappers that translate callable
       // requests and results between these scopes, unlike raw forward().
-      const target = combinator.exportToolkit(downstream.owner(), toolkit);
+      const target = combinator.exportToolkitUnchecked(downstream.owner(), toolkit);
       await callWire(destination.peer.wire(), ['fixture.forwarding.retain'], target, options);
       const from = source as Record<string, unknown>;
       const to = target as Record<string, unknown>;
