@@ -19,9 +19,9 @@ refuses a tag whose matrix has a cell the tier table says stops it. Running
 the whole suite for every language, rather than only a tier's, is what
 makes the matrix a picture of progress instead of a picture of policy.
 Putting the hardest languages among the pilots is deliberate: this
-repository tests its limits to find out where the model breaks before
-Bitlink settles it, and a language that would only ever be held to `core`
-is a language nobody pushed.
+repository tests its limits to find out where the model breaks while
+breaking it is still cheap, and a language that would only ever be held to
+`core` is a language nobody pushed.
 
 **Serves.** Agnosticism — the definition is outside every language, and
 each language's standing against it is one table, not one opinion.
