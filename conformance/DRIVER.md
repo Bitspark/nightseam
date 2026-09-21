@@ -362,12 +362,12 @@ scope is made over a **peer** and needs no tunnel.
 | `live.owner` | **`on`** scope, `owner` parent handle, `root` | `{"handle"}` — a child of the parent (the root by default), or the root itself when `root: true` |
 | `live.owner_release` | **`on`** owner | `{}` — release this owner and its descendants, idempotently |
 | `live.owner_counts` | **`on`** owner | `{"exports", "imports"}` — bindings owned here, excluding borrows |
-| `live.import_value` | **`on`** scope, `owner`, **`references`**, **`contract`**, `fail` | `{"handles"}` — imports in one batch; `fail: true` refuses after the imports to exercise rollback |
-| `live.export` | **`on`** scope, **`contract`**, `behavior` | `{"reference"}` — the reference as it travels in a payload |
-| `live.import` | **`on`** scope, **`reference`**, **`contract`** | `{"handle"}` an attachment |
+| `live.import_value` | **`on`** scope, `owner`, **`references`**, **`contract`**, `digest`, `fail` | `{"handles"}` — imports in one batch; `fail: true` refuses after the imports to exercise rollback |
+| `live.export` | **`on`** scope, **`contract`**, `digest`, `behavior` | `{"reference"}` — the reference as it travels in a payload |
+| `live.import` | **`on`** scope, **`reference`**, **`contract`**, `digest` | `{"handle"}` an attachment |
 | `live.invoke` | **`on`** attachment, `request`, `timeout_ms`, `cancelled` | `{"handle"}` a call, in flight |
 | `live.release` | **`on`** scope, **`reference`** | `{}` |
-| `live.forward` | **`on`** the destination scope, **`contract`**, **`attachment`** | `{"reference"}` |
+| `live.forward` | **`on`** the destination scope, **`contract`**, `digest`, **`attachment`** | `{"reference"}` |
 | `live.counts` | **`on`** scope | `{"exports", "imports"}` |
 | `live.await_invocation` | **`on`** scope, `contract`, `within_ms` | `{"contract", "outcome"}` — what an exported binding was asked |
 | `live.close` | **`on`** scope | `{}` |
@@ -386,6 +386,12 @@ A `reference` is the value a `live.export` answered with, passed along by the
 scenario; a testee decodes it through the scope it is importing into, since a
 reference of no scope is not a reference. A scenario may also write one by hand
 to name a binding nobody exported, which is the stale token.
+
+`digest` is the generated declaration digest to export or expect at import.
+The driver omits a revision claim when the argument is absent. A mismatch
+between two nonempty digests is `contract_mismatch` before an attachment is
+allocated or an implementation runs. A present wire member is 64 lowercase
+hex characters; an unspecified revision omits the member.
 
 `behavior` is the same canned set a peer's handler takes, plus `through`. A
 binding that `wait`s never settles of its own accord, and one that `hold`s waits

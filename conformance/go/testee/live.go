@@ -289,6 +289,10 @@ func (t *testee) liveOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
+			digest, err := r.string("digest")
+			if err != nil {
+				return nil, err
+			}
 			var references []json.RawMessage
 			if err := json.Unmarshal(r.raw("references"), &references); err != nil {
 				return nil, invalid("references: %v", err)
@@ -304,7 +308,7 @@ func (t *testee) liveOps() map[string]func(request) (any, error) {
 					if err != nil {
 						return err
 					}
-					fn, err := batch.Import(ref, contract)
+					fn, err := batch.Import(ref, contract, digest)
 					if err != nil {
 						return err
 					}
@@ -363,6 +367,10 @@ func (t *testee) liveOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
+			digest, err := r.string("digest")
+			if err != nil {
+				return nil, err
+			}
 			b, err := parseBehavior(r.raw("behavior"))
 			if err != nil {
 				return nil, err
@@ -371,7 +379,7 @@ func (t *testee) liveOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			ref, err := o.Export(contract, cannedInvoke(t, s, contract, b))
+			ref, err := o.Export(contract, digest, cannedInvoke(t, s, contract, b))
 			if err != nil {
 				return nil, liveError(err)
 			}
@@ -394,6 +402,10 @@ func (t *testee) liveOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
+			digest, err := r.string("digest")
+			if err != nil {
+				return nil, err
+			}
 			ref, err := t.reference(r, s, "reference")
 			if err != nil {
 				return nil, err
@@ -402,7 +414,7 @@ func (t *testee) liveOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			invoke, err := o.Import(ref, contract)
+			invoke, err := o.Import(ref, contract, digest)
 			if err != nil {
 				return nil, liveError(err)
 			}
@@ -461,6 +473,10 @@ func (t *testee) liveOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
+			digest, err := r.string("digest")
+			if err != nil {
+				return nil, err
+			}
 			a, err := t.bindingOf(r, "attachment")
 			if err != nil {
 				return nil, err
@@ -469,7 +485,7 @@ func (t *testee) liveOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			ref, err := live.Forward(o, contract, a.invoke)
+			ref, err := live.Forward(o, contract, digest, a.invoke)
 			if err != nil {
 				return nil, liveError(err)
 			}

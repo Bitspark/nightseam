@@ -460,8 +460,8 @@ func (r *Family) IsLive(e model.TypeExpr) bool { return r.f.IsLive(e) }
 // usable exactly where the callable it was declared as is expected, so a
 // `setVolume` reference cannot arrive where a `report` is expected even
 // though both take an integer and answer nothing. Every callable has a
-// declaration site, which is why the identity needs no derived name and no
-// structural digest: the declaration *is* the identity.
+// declaration site, which is why its nominal name needs no structural
+// fingerprint. WireDigest identifies the separately carried revision.
 func Contract(declaringFamily, family, name string) string {
 	if declaringFamily != "" {
 		family = declaringFamily

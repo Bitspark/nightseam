@@ -46,7 +46,7 @@ func TestUnavailableExamplesAreAccountedForWithoutInventedJSON(t *testing.T) {
 		if typ.ExampleUnavailable != nil {
 			t.Fatalf("%s: %v", name, typ.ExampleUnavailable)
 		}
-		if err := runtime.MustSchema(facts.Wire, nil).ValidateRaw(name, typ.Example); err != nil {
+		if err := runtime.MustSchema(facts.Wire, facts.WireDigest, nil).ValidateRaw(name, typ.Example); err != nil {
 			t.Fatal(err)
 		}
 	}
