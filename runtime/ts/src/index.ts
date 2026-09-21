@@ -32,6 +32,13 @@ export { webSocketConnection } from '@nightseam/duplex';
 export type { Frame, ConnectionState, ConnectionHandlers, FrameConnection, WebSocketLike } from '@nightseam/duplex';
 export { createValidator } from './validate.ts';
 export { scalarJSON as validateUnicodeJSON } from './unicode.ts';
+export {
+  jsonAdapter,
+  type ValueAdapter,
+  type ValueEnvironment,
+  type ValueContext,
+  type ValueOptions,
+} from './value-adapter.ts';
 export type {
   TypeExpression,
   WireField,

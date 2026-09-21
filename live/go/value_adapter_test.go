@@ -1,14 +1,16 @@
 package live_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/Bitspark/nightseam/live/go"
+	"github.com/Bitspark/nightseam/runtime/go"
 )
 
 func TestJSONValueAdapterNeedsNoLiveOwner(t *testing.T) {
-	adapter := live.JSONAdapter[string]()
-	if adapter.Live || adapter.Binding.Schema == nil {
+	adapter := runtime.JSONAdapter[string]()
+	if adapter.NeedsContext || adapter.Binding.Schema == nil {
 		t.Fatal("JSON adapter lost its data binding")
 	}
 	p := over(t, live.Options{})
@@ -18,18 +20,19 @@ func TestJSONValueAdapterNeedsNoLiveOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, owner := range []*live.Owner{nil, owner} {
-		raw, err := adapter.Export(owner, "held")
+		ctx := live.WithOwner(context.Background(), owner)
+		raw, err := adapter.Export(ctx, "held")
 		if err != nil {
 			t.Fatal(err)
 		}
-		value, err := adapter.Import(owner, raw)
+		value, err := adapter.Import(ctx, raw)
 		if err != nil || value != "held" {
 			t.Fatalf("value %q: %v", value, err)
 		}
-		if _, err := adapter.Import(owner, []byte("42")); err == nil {
+		if _, err := adapter.Import(ctx, []byte("42")); err == nil {
 			t.Fatal("binding validation bypassed")
 		}
-		if _, err := adapter.Export(owner, string([]byte{255})); err == nil {
+		if _, err := adapter.Export(ctx, string([]byte{255})); err == nil {
 			t.Fatal("invalid Unicode exported")
 		}
 	}

@@ -22,13 +22,7 @@
  * The layer proves which binding of which contract, and never who may call it.
  */
 import { DuplexError, UnpublishedError, type DuplexPeer } from '@nightseam/runtime';
-export {
-  jsonAdapter,
-  type AdapterContext,
-  type ValueAdapter,
-  type ValueContext,
-  type ValueOptions,
-} from './value_adapter.ts';
+export { valueEnvironment } from './value_adapter.ts';
 
 /**
  * What a scope tells the observer of the peer it runs over. They are members of
