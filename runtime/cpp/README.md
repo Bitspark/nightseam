@@ -20,9 +20,11 @@ cmake --build .build/cpp --parallel 2
 ctest --test-dir .build/cpp --output-on-failure
 ```
 
-On Windows with MinGW, put the compiler's `bin` directory first in `PATH` for
-both building and running, so the compiler and test programs load the matching
-runtime DLLs. The same commands work with MinGW's Ninja generator.
+On Windows with MinGW, place the compiler's `bin` directory before other C++
+toolchains in `PATH` for both building and running, so the compiler and test
+programs load the matching runtime DLLs. Keep the intended Go installation
+earlier in `PATH` when running conformance; some compiler installations also
+contain a Go executable. The commands above use the Ninja generator.
 
 The private testee under [`conformance/cpp`](../../conformance/cpp) is built
 by the full Go conformance runner, which fails if a required toolchain is
