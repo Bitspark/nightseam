@@ -7,6 +7,12 @@ client's manifest (`DefaultRuntimeVersion` in
 of every Go module nested in it. They move together, and a test in the fast
 tier (`cmd/nightseam`, `TestVersions…`) fails when they drift.
 
+The Rust Cargo workspace also follows this version. `scripts/version.mjs`
+moves its package version, local crate requirements and local lock entries;
+`scripts/release-prepare.mjs` and the script tests refuse drift. The core
+Rust crates are packaged and consumed by an outside smoke but are not
+published to crates.io in this lane.
+
 This is the current lockstep release policy. The 0.5.0 removal of the governed
 session layer is a clean break under [COLLABORATION.md](COLLABORATION.md), not
 a permanent compatibility policy for consumers of future releases.
@@ -27,6 +33,16 @@ does not supply this evidence. These checks do not version or publish a
 candidate.
 
 ## What is published
+
+Rust packaging is validated separately from registry publication:
+`node scripts/smoke-rust-packed.mjs` creates public `.crate` archives, checks
+their source, manifests, READMEs and notices, and builds a new consumer
+outside the checkout from those archives. The consumer makes a real
+WebSocket request round trip. CI, nightly and release validation run it
+alongside `cargo fmt --all --check`,
+`cargo clippy --workspace --all-targets --locked -- -D warnings` and
+`cargo test --workspace --locked`. It publishes nothing. See the
+[Rust guide](docs/languages/rust.md).
 
 - **npm**: every package under `*/ts`, in the `@nightseam` organization,
   public. They are found rather than listed — `scripts/packages.mjs` reads

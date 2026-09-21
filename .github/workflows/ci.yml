@@ -77,13 +77,40 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-  full:
+  swift:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+      - name: Import Swift signing keys
+        run: curl --fail --silent --show-error --location --compressed https://www.swift.org/keys/all-keys.asc | gpg --import -
+      - uses: swift-actions/setup-swift@d8e84bc3a450686a95474d7d6fa4a3301498debc # v3
+        with:
+          swift-version: "6.1.3"
+      - run: node scripts/swift.mjs
+
+  full:
+    needs: swift
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      NIGHTSEAM_MATRIX_SUMMARY: ${{ github.workspace }}/conformance-summary.md
+    steps:
+      - name: Require the Swift package gate
+        if: needs.swift.result != 'success'
+        run: exit 1
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -93,6 +120,11 @@ jobs:
         with:
           node-version-file: package.json
           cache: pnpm
+      - name: Import Swift signing keys
+        run: curl --fail --silent --show-error --location --compressed https://www.swift.org/keys/all-keys.asc | gpg --import -
+      - uses: swift-actions/setup-swift@d8e84bc3a450686a95474d7d6fa4a3301498debc # v3
+        with:
+          swift-version: "6.1.3"
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
@@ -109,6 +141,13 @@ jobs:
       - name: Python installed wheel
         run: python scripts/smoke-python.py
       - run: pnpm install --frozen-lockfile
+      - name: Install the C++ core toolchain
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++
+      - name: Build and test the C++ core
+        run: |
+          cmake -S . -B .build/cpp -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          cmake --build .build/cpp --parallel 2
+          ctest --test-dir .build/cpp --output-on-failure
       - run: pnpm format:check
       - run: pnpm -r check
       # The packages are built here and not only at a tag, so that a
@@ -116,11 +155,23 @@ jobs:
       # than a release.
       - run: pnpm -r build
       - run: pnpm -r test
+      # Hold the committed README to its committed evidence before the new
+      # run writes fresh cells. A provisional cell must be reported without
+      # becoming a second, stricter gate through a changed README count.
+      - run: node scripts/matrix-table.mjs --check
       - run: go test ./...
       # The conformance suite is in go test ./... above; it is run again by
       # name so that a failure of the matrix reads as one, and its
       # matrix.json is kept as the run's artifact.
-      - run: go test ./conformance/go -run 'TestSelf|TestStar|TestGenerated' -count=1
+      - run: go test -v ./conformance/go -run 'TestSelf|TestStar|TestGenerated' -count=1
+      - name: Publish the conformance matrix and provisional cells
+        if: always()
+        run: |
+          if [ -f "$NIGHTSEAM_MATRIX_SUMMARY" ]; then
+            cat "$NIGHTSEAM_MATRIX_SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'The conformance run produced no matrix summary; inspect the setup or test failure above.' >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -131,13 +182,6 @@ jobs:
       # yet, since a gate first exercised by the release it refuses is a gate
       # nobody has run.
       - run: node --test 'scripts/*.test.mjs'
-      # The README's Languages table against the matrix the step above just
-      # wrote, as `nightseam check` holds generated output: a table that
-      # drifted fails the pull request that drifted it. This catches a stale
-      # checked-in matrix.json too — the table is rendered from the committed
-      # file and compared against the regenerated one, so a run that moved a
-      # cell shows up here whether or not the file was committed with it.
-      - run: node scripts/matrix-table.mjs --check
       # Every link in every tracked Markdown page resolves to the tree — a
       # file, a directory, a heading — including the repository's own
       # absolute URLs, which the package READMEs use so as to render on npm.
@@ -165,6 +209,7 @@ jobs:
       # refuses any tarball missing them, including during a local run.
       - run: node --input-type=module -e "import { copyNotices } from './scripts/packages.mjs'; copyNotices();"
       - run: node scripts/smoke-packed.mjs
+      - run: node scripts/smoke-rust-packed.mjs
       - run: go vet ./...
         working-directory: otel/go
       - run: go test ./...

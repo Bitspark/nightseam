@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -15,7 +15,7 @@ function fixture(t) {
   for (const path of ["scripts", "runtime/ts", "internal/targets/typescript", "conformance"]) {
     mkdirSync(join(directory, path), { recursive: true });
   }
-  for (const name of ["version.mjs", "release-prepare.mjs", "packages.mjs", "matrix.mjs"]) {
+  for (const name of readdirSync(join(root, "scripts")).filter(name => name.endsWith(".mjs") && !name.endsWith(".test.mjs"))) {
     copyFileSync(join(root, "scripts", name), join(directory, "scripts", name));
   }
   copyFileSync(join(root, "pyproject.toml"), join(directory, "pyproject.toml"));

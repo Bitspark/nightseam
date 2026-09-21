@@ -1,6 +1,7 @@
 package conformance
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,6 +52,7 @@ func TestATesteeIsHeldToItsTier(t *testing.T) {
 // TestVerdictsFollowTheTierTable: one verdict per onFailure value, from a
 // row with one failure or skip in a required profile, and ok without either.
 func TestVerdictsFollowTheTierTable(t *testing.T) {
+	t.Setenv("NIGHTSEAM_MATRIX", "")
 	p := tiered()
 	m := NewMatrix(p)
 	failed := Outcome{Failed: &Failure{Reason: "x"}}
@@ -88,6 +90,110 @@ func TestVerdictsFollowTheTierTable(t *testing.T) {
 				t.Errorf("required skip: verdict %s, want %s", got, want[language])
 			}
 		})
+	}
+	for _, c := range []struct {
+		language, profile, verdict string
+		blocking                   bool
+	}{
+		{"fourth", "core", "provisional", false},
+		{"third", "generator", "provisional", false},
+		{"go", "core", "blocking", true},
+		{"second", "core", "blocking", true},
+		{"second", "live", "ok", false},
+	} {
+		t.Run("CI/"+c.language+"/"+c.profile, func(t *testing.T) {
+			p := tiered()
+			p.Profiles["live"] = Profile{Layers: []string{"live"}}
+			m := NewMatrix(p)
+			for language := range p.Languages {
+				for profile := range p.Profiles {
+					m.Record(language, profile, Outcome{})
+				}
+			}
+			sc := Scenario{Layer: "peer", Name: "fixture", File: "fixture.json"}
+			s := &Suite{Profiles: p, Matrix: m, Placed: map[string]string{sc.Key(): c.profile}}
+			reporter := &verdictReporter{}
+			s.reportOutcome(reporter, sc, "go", c.language, c.language, Outcome{Failed: &Failure{Reason: "fixture refusal"}})
+			if reporter.failed != c.blocking || (len(m.Blocking(p)) > 0) != c.blocking {
+				t.Fatalf("star failed=%v, blocking=%v; want blocking=%v", reporter.failed, m.Blocking(p), c.blocking)
+			}
+			if got := m.Verdict(p, c.language); got != c.verdict {
+				t.Fatalf("verdict=%s, want %s", got, c.verdict)
+			}
+			if cell := m.rows[c.language][c.profile]; cell.Passed != 1 || cell.Failed != 1 {
+				t.Fatalf("failure lost from matrix: %+v", cell)
+			}
+			if !strings.Contains(reporter.output, "fixture refusal") {
+				t.Fatalf("scenario diagnostic lost: %s", reporter.output)
+			}
+			summary := m.summary(p)
+			if !strings.Contains(summary, "`"+c.language+"/"+c.profile+"`: 1 failed") || !strings.Contains(summary, "| "+c.language+" |") {
+				t.Fatalf("summary lost the red cell or matrix row:\n%s", summary)
+			}
+			if c.verdict == "provisional" && !strings.Contains(summary, "(provisional)") {
+				t.Fatalf("summary lost provisional label:\n%s", summary)
+			}
+			if c.language == "second" && c.profile == "live" && !strings.Contains(summary, "next minor release") {
+				t.Fatalf("summary lost lag note:\n%s", summary)
+			}
+			// Nightly mode also holds star/generated pairings, regardless of
+			// whether TestMatrix itself is selected in this test process.
+			t.Run("nightly", func(t *testing.T) {
+				t.Setenv("NIGHTSEAM_MATRIX", "1")
+				nightly := &verdictReporter{}
+				s.reportOutcome(nightly, sc, "go", c.language, c.language, Outcome{Failed: &Failure{Reason: "fixture refusal"}})
+				if !nightly.failed {
+					t.Fatal("nightly passed a failed star/generated scenario")
+				}
+			})
+		})
+	}
+}
+
+type verdictReporter struct {
+	failed bool
+	output string
+}
+
+func (*verdictReporter) Helper()            {}
+func (r *verdictReporter) Skip(args ...any) { r.output += fmt.Sprint(args...) }
+func (r *verdictReporter) Fatalf(format string, args ...any) {
+	r.failed = true
+	r.output += fmt.Sprintf(format, args...)
+}
+func (r *verdictReporter) Logf(format string, args ...any) { r.output += fmt.Sprintf(format, args...) }
+
+func TestNightlyRetainsRequiredSkipFailures(t *testing.T) {
+	t.Setenv("NIGHTSEAM_MATRIX", "1")
+	p := tiered()
+	sc := Scenario{Layer: "peer", Name: "fixture"}
+	for _, profile := range []string{"core", "tunnel"} {
+		s := &Suite{Profiles: p, Matrix: NewMatrix(p), Placed: map[string]string{sc.Key(): profile}}
+		r := &verdictReporter{}
+		s.reportOutcome(r, sc, "third", "fourth", "fourth", Outcome{Skipped: "missing operation"})
+		if r.failed != (profile == "core") {
+			t.Fatalf("nightly %s skip failed=%v", profile, r.failed)
+		}
+	}
+}
+
+func TestSummaryPublishesLatestRunWithRequiredSkips(t *testing.T) {
+	p := tiered()
+	m := NewMatrix(p)
+	m.Record("fourth", "core", Outcome{Skipped: "missing operation"})
+	file := filepath.Join(t.TempDir(), "summary.md")
+	if err := os.WriteFile(file, []byte("stale run"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeSummary(file, m, p); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "stale run") || !strings.Contains(string(data), "`fourth/core`: 0 failed, 1 skipped (provisional)") {
+		t.Fatalf("summary=%s", data)
 	}
 }
 

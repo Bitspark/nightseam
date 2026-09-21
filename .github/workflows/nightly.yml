@@ -32,6 +32,12 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -41,6 +47,12 @@ jobs:
         with:
           node-version-file: package.json
           cache: pnpm
+      - name: Import Swift signing keys
+        run: curl --fail --silent --show-error --location --compressed https://www.swift.org/keys/all-keys.asc | gpg --import -
+      - uses: swift-actions/setup-swift@d8e84bc3a450686a95474d7d6fa4a3301498debc # v3
+        with:
+          swift-version: "6.1.3"
+      - run: node scripts/swift.mjs
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
@@ -57,6 +69,9 @@ jobs:
       - name: Python installed wheel
         run: python scripts/smoke-python.py
       - run: pnpm install --frozen-lockfile
+      - run: node scripts/smoke-rust-packed.mjs
+      - name: Install the C++ core toolchain
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++
       # -json so that the failures can be read out by scenario rather than
       # scraped; the run is expected to fail, and what it failed at is the
       # output, so the step keeps going and the issues are what reports it.

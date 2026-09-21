@@ -29,7 +29,7 @@ func TestSelf(t *testing.T) {
 }
 
 // TestStar holds every other language to Go, on either side in turn: the
-// gate a language passes to have joined.
+// gate holds the tier's promise; nonblocking failures remain in the matrix.
 func TestStar(t *testing.T) {
 	s := Open(t)
 	for _, p := range s.Pairings(false) {

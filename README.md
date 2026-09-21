@@ -131,12 +131,15 @@ pairing.
 <!-- matrix:start -->
 | language | tier | core | generator | tunnel | live | observability | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| `cpp` | 4 | ✓ | — 64 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
 | `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
 | `java` | 4 | ✓ | — 332 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
 | `python` | 4 | ✓ | — 332 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
+| `rust` | 4 | ✓ | — 64 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
+| `swift` | 4 | ✓ | — 64 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
 | `typescript` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
 
-Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2; `swift` at tier 4.
+Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2.
 <!-- matrix:end -->
 
 The table is the last conformance run, rendered from
@@ -165,6 +168,10 @@ The generator is development tooling. Generated packages depend on their
 protocol types and the runtime components they use. Carrier assembly chooses
 the tunnel explicitly; live values add the live runtime. Generated data-only
 and scalar-generic packages need no live runtime.
+
+Rust core crates are available from a checkout and as local Cargo packages;
+they are not published to crates.io. The [Rust guide](docs/languages/rust.md)
+covers `nightseam-duplex`, `nightseam` and the packaged WebSocket consumer.
 
 ## The packages
 
@@ -231,9 +238,12 @@ pnpm install && pnpm -r check && pnpm -r build && pnpm -r test
 (cd otel/go && go vet ./... && go test ./...)     # the nested module, which ./... does not enter
 node scripts/matrix-table.mjs --check             # the README's Languages table against the matrix
 node scripts/links.mjs                            # every link in every page resolves to the tree
+cargo fmt --all --check && cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked                   # Rust invariant tests
+node scripts/smoke-rust-packed.mjs                # packaged Rust consumer outside the checkout
 ```
 
-The full tier needs Go, Node 22.12 or later and the TypeScript compiler
+The full tier needs Go, a stable Rust toolchain, Node 22.12 or later and the TypeScript compiler
 `pnpm install` brings, and fails rather than skips when one is missing.
 
 [COLLABORATION.md](COLLABORATION.md) says how work is organized here — the
