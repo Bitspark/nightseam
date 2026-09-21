@@ -162,20 +162,47 @@ test("an index listing every built-in satisfies the claim", () => {
 
 test("a page crediting a name the documentation does not speak of is refused, once per name", () => {
   const pages = new Map([
-    ["docs/decisions/a-kind.md", "*A constructor.* Glyph's arrow, then TISL's thing types, then Glyph's arrow again.\n"],
+    ["docs/decisions/a-kind.md", "FixtureAlpha's example, then FixtureBeta's example, then FixtureAlpha's example again.\n"],
     ["docs/runtime/peer.md", "Go's peer and TypeScript's, beside the README's table and Node's resolver.\n"],
   ]);
   assert.deepEqual(unattributable(pages, ["docs/runtime/peer.md", "docs/decisions/a-kind.md"]), [
-    { page: "docs/decisions/a-kind.md", reason: "credits Glyph, which is not a name this documentation speaks of" },
-    { page: "docs/decisions/a-kind.md", reason: "credits TISL, which is not a name this documentation speaks of" },
+    { page: "docs/decisions/a-kind.md", reason: "credits FixtureAlpha, which is not a name this documentation speaks of" },
+    { page: "docs/decisions/a-kind.md", reason: "credits FixtureBeta, which is not a name this documentation speaks of" },
   ]);
 });
 
 test("a typographic apostrophe credits as an ASCII one does", () => {
-  const pages = new Map([["docs/admission.md", "The three levels are TISL’s pure values.\n"]]);
+  const pages = new Map([["docs/admission.md", "FixtureBeta’s example illustrates the rule.\n"]]);
   assert.deepEqual(unattributable(pages, ["docs/admission.md"]), [
-    { page: "docs/admission.md", reason: "credits TISL, which is not a name this documentation speaks of" },
+    { page: "docs/admission.md", reason: "credits FixtureBeta, which is not a name this documentation speaks of" },
   ]);
+});
+
+test("ordinary contractions do not credit a project or hide a real attribution", () => {
+  const sentences = [
+    "It's safe to detach twice.",
+    "That's a local reference.",
+    "Here's the generated adapter.",
+    "There's one bounded queue.",
+    "He's already detached.",
+    "She's already detached.",
+    "What's the queue bound?",
+    "Who's receiving the event?",
+    "Where's the generated adapter?",
+    "When's the handler called?",
+    "Why's the connection closed?",
+    "How's the frame routed?",
+    "Let's send one frame.",
+  ];
+  for (const apostrophe of ["'", "’"]) {
+    const prose = sentences.join("\n").replaceAll("'", apostrophe);
+    const path = "docs/runtime/peer.md";
+    assert.deepEqual(unattributable(new Map([[path, prose]]), [path]), []);
+    assert.deepEqual(
+      unattributable(new Map([[path, `${prose}\nFixtureAlpha${apostrophe}s example.`]]), [path]),
+      [{ page: path, reason: "credits FixtureAlpha, which is not a name this documentation speaks of" }],
+    );
+  }
 });
 
 test("every name the documentation may credit is one a reader can look up", () => {

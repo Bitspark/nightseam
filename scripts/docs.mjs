@@ -123,6 +123,9 @@ export function handwritten(paths) {
     .sort();
 }
 
+// These words followed by 's contract is, has or us; they credit no name.
+const contractions = new Set(["He", "She", "It", "That", "Here", "There", "What", "Who", "Where", "When", "Why", "How", "Let"]);
+
 /**
  * A page crediting a name outside `attributable`, once per name however often
  * the page uses it. A possessive is the attributive form — it says what
@@ -141,7 +144,7 @@ export function unattributable(pages, paths) {
     if (markdown === undefined) continue;
     const credited = new Set();
     for (const [, name] of markdown.matchAll(/\b([A-Z][A-Za-z0-9]+)['’]s\b/g)) {
-      if (!attributable.has(name)) credited.add(name);
+      if (!attributable.has(name) && !contractions.has(name)) credited.add(name);
     }
     for (const name of [...credited].sort()) {
       problems.push({ page: path, reason: `credits ${name}, which is not a name this documentation speaks of` });
