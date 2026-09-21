@@ -16,6 +16,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -290,17 +291,78 @@ func RecipientOf(name string, ctx context.Context) auth.Recipient {
 }
 
 // Payload is a typed request's top-level members as the wire spells them,
-// which is what a scope template's holes are filled from.
+// which is what a scope template's holes are filled from: the scalar
+// members of a generated record, by their wire names. A member that is a
+// live value — a callable a request carries — is no selector and is left
+// out, as it is on the wire's own rendering of the request.
 func Payload(params any) map[string]any {
-	data, err := json.Marshal(params)
-	if err != nil {
-		return map[string]any{}
+	out := map[string]any{}
+	if params == nil {
+		return out
 	}
-	var out map[string]any
-	if json.Unmarshal(data, &out) != nil || out == nil {
-		return map[string]any{}
+	v := reflect.ValueOf(params)
+	for v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return out
+		}
+		v = v.Elem()
+	}
+	switch v.Kind() {
+	case reflect.Map:
+		for _, k := range v.MapKeys() {
+			if k.Kind() == reflect.String {
+				if scalar, ok := scalarOf(v.MapIndex(k)); ok {
+					out[k.String()] = scalar
+				}
+			}
+		}
+	case reflect.Struct:
+		t := v.Type()
+		for i := 0; i < t.NumField(); i++ {
+			f := t.Field(i)
+			if !f.IsExported() {
+				continue
+			}
+			name := f.Name
+			if tag, ok := f.Tag.Lookup("json"); ok {
+				name, _, _ = strings.Cut(tag, ",")
+				if name == "-" {
+					continue
+				}
+				if name == "" {
+					name = f.Name
+				}
+			}
+			if scalar, ok := scalarOf(v.Field(i)); ok {
+				out[name] = scalar
+			}
+		}
 	}
 	return out
+}
+
+// scalarOf is a string, an integer or a boolean as a payload carries it;
+// anything else is not a selector.
+func scalarOf(v reflect.Value) (any, bool) {
+	for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
+		if v.IsNil() {
+			return nil, false
+		}
+		v = v.Elem()
+	}
+	switch v.Kind() {
+	case reflect.String:
+		return v.String(), true
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return v.Int(), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return v.Uint(), true
+	case reflect.Bool:
+		return v.Bool(), true
+	case reflect.Float32, reflect.Float64:
+		return v.Float(), true
+	}
+	return nil, false
 }
 
 // ---- the surface ---------------------------------------------------------------------

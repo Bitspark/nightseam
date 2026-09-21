@@ -122,8 +122,8 @@ export function authOf(peer: DuplexPeer): AuthLayer | undefined {
  * of the connection that carried the frame in, and the layer over that peer
  * has the context. Nothing captured at export, nothing copied across a hop.
  */
-export function contextOf(context: { peer?: DuplexPeer } | undefined): Context | undefined {
-  const peer = context?.peer;
+export function contextOf(context: object | undefined): Context | undefined {
+  const peer = (context as { peer?: DuplexPeer } | undefined)?.peer;
   return peer === undefined ? undefined : OVER.get(peer)?.context();
 }
 
@@ -149,17 +149,13 @@ export class Guard {
     this.options = options;
   }
 
-  decide(
-    context: { peer?: DuplexPeer } | undefined,
-    member: string,
-    payload: { [field: string]: unknown } = {},
-  ): Decision {
+  decide(context: object | undefined, member: string, payload: { [field: string]: unknown } = {}): Decision {
     const decided = this.binding.decide(this.options.root, member, payload, '', contextOf(context), this.options.now());
     if ('code' in decided) throw refusalError(decided);
     return decided;
   }
 
-  effect(context: { peer?: DuplexPeer } | undefined, decision: Decision, condition?: Condition): void {
+  effect(context: object | undefined, decision: Decision, condition?: Condition): void {
     const refused = this.binding.effect(this.options.root, decision, contextOf(context), this.options.now(), condition);
     if (refused !== undefined) throw refusalError(refused);
   }
@@ -169,22 +165,22 @@ export class Guard {
       throw new DuplexError('auth.unknown_member', `${member} is not a callable member at ${scope}`);
   }
 
-  invoke(
-    context: { peer?: DuplexPeer } | undefined,
-    ref: string,
-    payload: { [field: string]: unknown } = {},
-  ): Decision {
+  invoke(context: object | undefined, ref: string, payload: { [field: string]: unknown } = {}): Decision {
     const decided = this.binding.invoke(this.options.root, ref, payload, contextOf(context), this.options.now());
     if ('code' in decided) throw refusalError(decided);
     return decided;
   }
 
-  emit(event: string, data: { [field: string]: unknown }, to: { name: string; peer: DuplexPeer }[]): Delivery[] {
+  emit(
+    event: string,
+    data: { [field: string]: unknown },
+    to: { name: string; context: object | undefined }[],
+  ): Delivery[] {
     return this.binding.emit(
       this.options.root,
       event,
       data,
-      to.map((r) => ({ name: r.name, ctx: contextOf(r) })),
+      to.map((r) => ({ name: r.name, ctx: contextOf(r.context) })),
       this.options.now(),
     );
   }

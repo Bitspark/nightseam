@@ -281,9 +281,9 @@ test('an exported reference is decided by its record under the invoking connecti
   await refused(async () => g.invoke({ peer: bob.serving }, 'nobody'), 'auth.reference_unknown');
   // One emission, decided per recipient.
   const deliveries = g.emit('event:progress', { projectId: '7', percent: 50 }, [
-    { name: 'bob', peer: bob.serving },
-    { name: 'carol', peer: carol.serving },
-    { name: 'nobody', peer: bob.client },
+    { name: 'bob', context: { peer: bob.serving } },
+    { name: 'carol', context: { peer: carol.serving } },
+    { name: 'nobody', context: { peer: bob.client } },
   ]);
   assert.deepEqual(
     deliveries.map((d) => [d.recipient, d.refused?.code]),
