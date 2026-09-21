@@ -7,6 +7,37 @@
     "tunnel"
   ],
   "languages": {
+    "cpp": {
+      "tier": 4,
+      "verdict": "ok",
+      "cells": {
+        "core": {
+          "passed": 214,
+          "skipped": 0,
+          "failed": 0
+        },
+        "generator": {
+          "passed": 0,
+          "skipped": 64,
+          "failed": 0
+        },
+        "live": {
+          "passed": 0,
+          "skipped": 32,
+          "failed": 0
+        },
+        "observability": {
+          "passed": 24,
+          "skipped": 2,
+          "failed": 0
+        },
+        "tunnel": {
+          "passed": 0,
+          "skipped": 12,
+          "failed": 0
+        }
+      }
+    },
     "go": {
       "tier": 1,
       "verdict": "ok",
@@ -122,6 +153,37 @@
         "observability": {
           "passed": 24,
           "skipped": 2,
+          "failed": 0
+        },
+        "tunnel": {
+          "passed": 0,
+          "skipped": 12,
+          "failed": 0
+        }
+      }
+    },
+    "swift": {
+      "tier": 4,
+      "verdict": "ok",
+      "cells": {
+        "core": {
+          "passed": 214,
+          "skipped": 0,
+          "failed": 0
+        },
+        "generator": {
+          "passed": 0,
+          "skipped": 64,
+          "failed": 0
+        },
+        "live": {
+          "passed": 0,
+          "skipped": 32,
+          "failed": 0
+        },
+        "observability": {
+          "passed": 8,
+          "skipped": 18,
           "failed": 0
         },
         "tunnel": {

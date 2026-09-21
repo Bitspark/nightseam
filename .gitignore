@@ -15,6 +15,7 @@ secrets/
 dist-newstyle/
 *.hi
 *.o
+.build/
 .venv/
 __pycache__/
 *.egg-info/
