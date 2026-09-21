@@ -135,6 +135,16 @@ distinguish calls, bindings, aliases, records and connections in both runtimes.
 
 ## Why this and not a channel each
 
+The relative-path Wire surface can present a checked invocation at one opaque
+`[binding]` path. Selection and mounting then reuse that origin without a
+channel per function. This changes access, not the reference interpretation:
+the current live descriptor, expected import contract, native scope association,
+nonce lookup, explicit owner and release barrier remain. The
+[construction](../runtime/compositions.md#live-access-through-wire) retains
+those checks and state. A path is not authorization, and a path plus a proposed
+digest is not this version's complete reference contract; declaration digest
+work is tracked separately in [#323](https://github.com/Bitspark/nightseam/issues/323).
+
 A binding could have been a tunnel channel: the tunnel already opens one per
 family and a channel is a connection of the seam. It is the heavier of the two.
 It would impose a tunnel on every peer that might *receive* a live value, since a

@@ -12,8 +12,8 @@ beside them, `api/spec/<f>/README.md`, is the family's own reference.
 ## Go: three packages
 
 `api/go/<f>-protocol`, `-binding` and `-client`, each owned wholesale. A
-consumer imports the protocol package for the types, serves the binding
-package's `Handler`, and calls through the client package. A family with only
+consumer imports the protocol package for its types and side models, and uses
+either side's adapter to interpret a Wire. A family with only
 a model generates the protocol package's types and validator; binding and
 client helpers require a protocol.
 
@@ -56,9 +56,8 @@ Generated records, enums, unions and literal types expose `WireType()` for
 automatic runtime validation of Go type arguments. Codecs bind ordinary
 parameters and family draws before validation, so nested generic values
 retain literal constraints, nullness and their declaring family's schema.
-Ordinary generated Go client calls take type arguments without caller-supplied
-codecs or registration. Direct use of the generic boundary helpers below is
-different: those helpers explicitly take converters and type bindings.
+Generic operation adapters take explicit value adapters alongside their type
+arguments; direct boundary helpers take converters and type bindings.
 An extended side includes its base operations with their bound types and
 source naming overrides; a base client can call the extended binding.
 
@@ -73,227 +72,211 @@ client call on every frame.
 families, so validation of an imported application retains its parameter
 bindings and the family that declared each expression.
 
-### The binding package
+## One model factory for each side
 
-What a server implements and serves:
+The protocol declares two complete side values. A side contains the methods
+it implements and the events it receives from the opposite side. Methods and
+events occupy separate facets, so their names may coincide.
+
+For a server with `echo`, a client with `reverse`, a server event `changed`
+and a client event `noticed`, Go emits:
 
 ```go
-type Handler interface {
-	Echo(ctx context.Context, remote *Remote, params protocol.Payload) (protocol.Payload, error)
-	NoArgs(ctx context.Context, remote *Remote) (string, error)
-	Seen(ctx context.Context, remote *Remote, params protocol.Seen) (protocol.Payloads, error)
-}
-type Remote struct{ Peer *runtime.Peer }
-func (*Remote) Reverse(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
-func (*Remote) EmitChanged(ctx context.Context, data protocol.Payload) error
-func (*Remote) OnNoticed(handler func(context.Context, protocol.Seen)) error
-func NewHandler(handler Handler, options runtime.ServerOptions) (http.Handler, error)
-func Serve(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler) (*runtime.Peer, error)
+type ServerMethods interface { Echo(context.Context, Payload) (Payload, error) }
+type ServerEvents interface { Noticed(context.Context, Seen) error }
+type ClientMethods interface { Reverse(context.Context, Payload) (Payload, error) }
+type ClientEvents interface { Changed(context.Context, Payload) error }
+type Server struct { Methods ServerMethods; Events ServerEvents }
+type Client struct { Methods ClientMethods; Events ClientEvents }
+type ServerModel func(Client) (Server, error)
+type ClientModel func(Server) (Client, error)
 ```
 
-`Handler` is the server side of the protocol — one method per server
-method, each given the `Remote` — and `Remote` is the client side as the
-server sees it: the client's methods to call, the server's events to emit,
-the client's events to listen for. `NewHandler` serves the family at an
-HTTP endpoint with the handlers installed before the peer reads its first
-frame; `Serve` speaks it over any connection of the seam. `nightseam init`
-writes a `Handler` with every method returning `unimplemented`, once, under
-`api/impl/<f>`.
+A model is a session factory. It receives the opposite side, captures it where
+its implementation needs reverse calls or outgoing events, and returns its
+own side. Construct the implementation without application traffic; invoke
+methods and emit events after both sides are bound. A model's methods have
+the same native signatures whether called directly or through a Wire.
+
+### The binding package
+
+The server adapter exports:
+
+```go
+func ToWire(model protocol.ServerModel, environment runtime.AdapterContext) (duplex.Wire, error)
+func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ServerModel, error)
+```
+
+`ToWire` constructs a bounded local Wire pair, invokes the factory once with
+the opposite proxy, registers the returned implementation and returns the
+access end. It creates no physical peer or serialized frame connection.
+`FromWire` returns a factory that binds the supplied opposite implementation
+once and returns this side's proxy. A second bind is refused.
+
+Thus `FromWire(ToWire(model))` has the same model type. The host can perform
+that round trip locally, or pass a socket peer's Wire, a prepared tunnel
+channel, a selected view or a mount through the same adapter. The declaration's
+operation name is one relative path segment; dotted names are not split.
 
 ### The client package
 
+The client adapter is the mirror:
+
 ```go
-type Client struct{ Peer *runtime.Peer }
-type Events struct{ Changed func(context.Context, protocol.Payload) }
-func Dial(ctx context.Context, url string, options runtime.DialOptions, handler Handler, events Events) (*Client, error)
-func Attach(ctx context.Context, conn duplex.Conn, options runtime.Options, handler Handler, events Events) (*Client, error)
-func Open(ctx context.Context, t *tunnel.Tunnel, handle protocol.Handle, options runtime.Options, handler Handler, events Events) (*Client, error)
-func (*Client) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
-func (*Client) NoArgs(ctx context.Context) (string, error)
-func (*Client) EmitNoticed(ctx context.Context, data protocol.Seen) error
-func (*Client) OnChanged(handler func(context.Context, protocol.Payload)) error
-func (*Client) Close() error
-type Caller interface{ Echo(…); NoArgs(…); Seen(…) }
-type Handler interface{ Reverse(ctx context.Context, client *Client, params protocol.Payload) (protocol.Payload, error) }
+func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (duplex.Wire, error)
+func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ClientModel, error)
 ```
 
-The mirror image: `Client` calls the server's methods, emits the client's
-events and listens for the server's; `Handler` is what the server calls on
-this client, required because a client serves what the server calls; and
-`Caller` is the interface a consumer mocks. `Dial` over a socket, `Attach`
-over any connection of the seam, `Open` over a handle resolved on a tunnel.
-All three take `Events`, installed through `Prepare` before the first frame.
-For a live family, the caller-supplied `Prepare` runs first, allowing it to
-configure a live scope before the generated defaults are installed. Other
-families install events before running the caller's `Prepare`. An empty
-`Events{}` handles none.
-`OnX` is for later registration; it cannot recover already delivered events.
+Both packages share the protocol's side and model types. Neither has
+`Dial`, `Attach`, `Open`, `Serve`, `NewHandler`, `Remote` or a transport-owning
+`Client` facade. `nightseam init` writes implementation stubs once; generated
+packages remain owned wholesale by the generator.
 
 ## TypeScript: client and binding packages
 
-`api/ts/<f>-client` and `api/ts/<f>-binding` are npm packages under the
-consumer's scope. The client contains shared types, validators and live
-conversion helpers in `src/types.ts`, exported as `@scope/<f>-client/types`.
-Both package entry points re-export those declarations; the binding imports
-that subpath so it shares the protocol without importing the client class.
-
-The client depends on `@nightseam/runtime` and `@nightseam/tunnel`; the
-binding depends on the runtime and its sibling client package. Each also
-declares the generated families it references and `@nightseam/live` when
-it carries live values. Neither generated package provides a socket listener.
-
-A family with only a model tier emits its types, validator and family
-binding in the client package layout, with no server-binding package. Of
-the runtime components it needs only the runtime, and it declares no client
-or protocol helpers.
+`api/ts/<f>-client` contains shared declarations in `src/types.ts`, exported
+as `@scope/<f>-client/types`. Its entry point adapts the declared client side;
+`api/ts/<f>-binding` adapts the server side and imports that shared types
+subpath. Both re-export the declarations. A model-only family emits types,
+validation and value adapters in the client layout without a binding package
+or protocol adapters. It needs no live runtime for ordinary data.
 
 ### Shared protocol declarations
 
-`types.ts` is one interface or type per declared type — a field not
-`required` is optional, one `nullable` is `T | null`, an `open` record has
-an index signature, an enum is a union of its string literals, an alias a
-type alias, a `timestamp` a `string`, `json` `unknown` — plus `Envelope`
-and `Handle`, and
-three things the runtime binds by: the `Family` interface naming every type
-of the family, `validateWire`, the family's validator built by the
-runtime's `createValidator` from the embedded wire description, and
-`family`, the binding a generic family's slot is filled with.
+Records become interfaces, optional fields become optional properties, nullable
+values add `null`, enums become unions of string literals, timestamps are
+strings and arbitrary JSON is `unknown`. A union carries its payload whole
+under the declared value member: `{ kind: "some"; value: T }`. An empty
+alternative carries its tag alone. Inline shapes become named declarations;
+generic declarations retain their parameters and family associated types.
 
-A union is a discriminated TypeScript union. Every variant with a payload
-keeps it whole under the declared value member (`value` by default), even
-a record: `{ kind: "some"; value: T }`. A no-payload variant declared with
-`{ "empty": true }` is `{ kind: "none" }`; an empty record still has its
-`value: {}` payload. An extending union includes its inherited variants
-with the base's explicit type and family arguments applied. Literal types
-stay literals, and nullable expressions work inside arrays, maps and type
-arguments as well as on fields. Inline shapes become named declarations
-at their derived names and capture the parameters they use.
+The shared `Family`, `family` and `validateWire` retain the declaration and
+its validation scope. Type bindings carry `type`, `validate` and any
+`slots`; family bindings keep the supplied family's validator. Conversion
+and declaration validation remain separate responsibilities.
 
-A type parameter becomes a TypeScript parameter with an `unknown` default;
-a family parameter exposes associated types such as `S["Envelope"]`.
-Both can appear on the same declaration. A generated generic client takes
-one runtime binding per parameter: `FamilyBinding<S>` for a family, or
-`TypeBinding` containing `{ type, validate }` for a type interpreted in the
-supplied validator's declaration scope. For example, a string binding is
-`{ type: "string", validate: probe.validateWire }`. An explicit TypeScript
-type argument supplies the matching consumer type. Imported type names
-follow the source family's overrides; associated-type keys retain their
-declaration names. Extended sides retain their source operation names and
-validate their fixed or forwarded parameter bindings on calls and events.
-
-### The client package
-
-`nightseam init` writes a client handler whose method types come from its `Handler`
-annotation. For a generic family, choose concrete arguments on that annotation
-when implementing the handler; the initial stub uses the interface's defaults.
-
-`index.ts` re-exports the types and `DuplexError`, and declares:
+The same complete side values and factories are emitted:
 
 ```ts
-export interface Events { changed?: (data: Payload, context: EventContext) => void | Promise<void> }
-export interface Handler { reverse(params: Payload, context: RequestContext): Payload | Promise<Payload> }
-export interface Caller { echo(params: Payload, options?: CallOptions): Promise<Payload>; noArgs(options?: CallOptions): Promise<string>; … }
-export const errors: { denied: "denied"; notFound: "not_found" };
-export type ErrorCode = (typeof errors)[keyof typeof errors];
-export class Client implements Caller {
-  static dial(url: string, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client>;
-  static attach(connection: FrameConnection, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client>;
-  static open(tunnel: Tunnel, handle: Handle, options: PeerOptions, handler: Handler | undefined, events: Events): Promise<Client>;
-  echo(params: Payload, options?: CallOptions): Promise<Payload>;
-  emitNoticed(data: Seen, options?: EmitOptions): Promise<void>;
-  onChanged(handler: (data: Payload, context: EventContext) => void | Promise<void>): () => void;
-  close(): void;
-  readonly peer: DuplexPeer;
+export interface ServerMethods {
+  echo(params: Payload, context?: WireModelContext): Payload | Promise<Payload>;
 }
+export interface ServerEvents {
+  noticed(data: Seen, context?: WireModelContext): void | Promise<void>;
+}
+export interface ClientMethods {
+  reverse(params: Payload, context?: WireModelContext): Payload | Promise<Payload>;
+}
+export interface ClientEvents {
+  changed(data: Payload, context?: WireModelContext): void | Promise<void>;
+}
+export interface Server { methods: ServerMethods; events: ServerEvents }
+export interface Client { methods: ClientMethods; events: ClientEvents }
+export type ServerModel = (remote: Client) => Server;
+export type ClientModel = (remote: Server) => Client;
 ```
 
-A `Client` validates every frame both ways against `validateWire` — a call's
-params and result, a reverse call's, an event's data — and installs the
-`Handler` and `Events` before the peer has a connection, so the server's first reverse call or event meets them. Pass `{}` for no event handlers;
-use `onX` for later registration, before the event-producing flow begins. The `families` option is filled in for the observer, so a
-frame event names the family.
+A method with no declared request takes `Record<string, never>` in TypeScript;
+Go omits that parameter. Methods return native values or promises.
 
 ### The binding package
 
-The binding's `Handler` implements the declared server methods, while its
-`Remote` calls the client's methods and exchanges typed events:
-
 ```ts
-export interface Handler {
-  echo(params: Payload, remote: Remote, context: RequestContext): Payload | Promise<Payload>;
-  noArgs(params: Record<string, never>, remote: Remote, context: RequestContext): string | Promise<string>;
-  seen(params: Seen, remote: Remote, context: RequestContext): Payloads | Promise<Payloads>;
-}
-export interface Events {
-  noticed?: (data: Seen, context: EventContext) => void | Promise<void>;
-}
-export class Remote {
-  constructor(peer: DuplexPeer);
-  readonly peer: DuplexPeer;
-  reverse(params: Payload, options?: CallOptions): Promise<Payload>;
-  emitChanged(data: Payload, options?: EmitOptions): Promise<void>;
-  onNoticed(handler: (data: Seen, context: EventContext) => void | Promise<void>): () => void;
-  close(): void;
-}
-export function serve(
-  connection: FrameConnection | WebSocketLike,
-  options: PeerOptions,
-  handler: Handler,
-  events?: Events,
-): Promise<DuplexPeer>;
-export function install(peer: DuplexPeer, handler: Handler, events?: Events): Remote;
+export function toWire(model: ServerModel, context: AdapterContext): Wire;
+export function fromWire(wire: Wire, context: AdapterContext): Promise<ServerModel>;
 ```
 
-The host accepts the connection, including any authentication, origin checks
-and HTTP upgrade, then calls `serve` for it. For example, with an accepted
-`connection` and imports from the generated binding:
+### The client package
 
 ```ts
-const peer = await serve(connection, {}, {
-  echo: (params, remote, context) => remote.reverse(params, { signal: context.signal }),
-  noArgs: () => 'none',
-  seen: () => [],
-}, {
-  noticed: data => console.log('noticed', data),
-});
-const remote = new Remote(peer);
-await remote.emitChanged({ text: 'ready', count: 0 });
+export function toWire(model: ClientModel, context: AdapterContext): Wire;
+export function fromWire(wire: Wire, context: AdapterContext): Promise<ClientModel>;
 ```
 
-`serve` fixes the peer's role to `server`, preserves the other peer options
-including a fallback `dispatch`, and supplies the family's observer labels.
-It checks required handlers, registers methods and supplied event listeners,
-and installs the live layer when needed before attaching the connection.
-Params and results pass through the same validators and boundary converters
-as the client. Invalid request params become `invalid_params`; invalid event
-data closes the peer. The returned peer is the host's to close; a `Remote`
-constructed from it exposes the typed server surface outside a handler.
-Later `onX` registration cannot recover events already delivered, so use the
-`events` argument for listeners that must see the first frame.
+`toWire` invokes one model factory synchronously and returns its access Wire.
+Await `fromWire`, then bind the returned factory once with the opposite side.
+Reverse methods and incoming events are supplied together in that opposite side.
 
-Use `install` when the host configures the peer before attaching, such as
-setting live registry bounds. With the live family's `handler` and `events`,
-and `install` imported from its binding package:
+## Carrier assembly and context
+
+The host owns authentication, upgrade, peer preparation and closure. In a
+peer's `Prepare` / `prepare`, it can forward `peer.Wire()` / `peer.wire()`
+to a model's local Wire with `runtime.ForwardWire` / `forwardWire`. Or it can
+interpret that peer Wire with `FromWire` / `fromWire` and bind the opposite
+side before reads start. TypeScript awaits `fromWire` on a constructed peer
+before `attach` or `connect`; its `prepare` hook is synchronous. A tunnel's
+prepared channel has the same Wire
+surface and accepts preparation options at acquisition. Views and mounts
+reuse these roots without allocating another peer.
+
+`runtime.AdapterContext` in Go and `AdapterContext` in TypeScript carry
+`Options` / `options` and an optional `ValueEnvironment` /
+`valueEnvironment`. Options govern a local pair's bounds and the adapters'
+observer. Carrier options remain with the host that constructs the carrier.
+
+Every operation validates request, response and event data in both
+directions, including generic slots in their declaring family's scope.
+Invalid incoming parameters are refused; a rejected incoming event closes
+the affected Wire with code 1002. Generated operation observations carry the
+declared family independently of a physical peer's labels.
+
+Go passes `context.Context` through model operations. TypeScript uses
+`WireModelContext`: cancellation, timeout, trace, received `meta`, explicit
+`outgoingMeta`, and the received request id where present. Local composition
+preserves verified context attached by the receiving runtime; path selection
+does not confer authority. A handler explicitly chooses outgoing metadata
+(`runtime.WithMeta` in Go, `outgoingMeta` in TypeScript); received metadata is
+not implicitly copied to its subsequent calls.
+
+## Value adapters and generic operations
+
+A generic operation takes a reusable `runtime.ValueAdapter[T]` /
+`ValueAdapter<T>` for each type slot. TypeScript also takes explicit family
+bindings; Go retains drawn types through its type arguments and schema metadata.
+Each value adapter retains the declaration binding, both conversion
+directions and `NeedsContext` / `needsContext`. Each conversion receives the
+active invocation context: `context.Context` in Go, opaque `unknown` in
+TypeScript. It does not capture a permanent owner or principal.
+
+Generated `AdapterX` / `adapterX` factories compose adapters through arrays,
+maps, records, aliases and unions. `runtime.JSONAdapter[T]()` and
+`jsonAdapter<T>(binding)` validate ordinary data both ways and require no
+value environment. A generic model and its operation adapter can stay
+unchanged when its type argument changes from scalar data to a fixed declared
+callable or a nested callable-bearing value.
+
+An acquiring conversion requires an explicit environment:
+`runtime.AdapterContext{ValueEnvironment: live.ValueEnvironment(scope)}`,
+or `{ valueEnvironment: valueEnvironment(scope) }` in TypeScript. The runtime's
+`ValueEnvironment` supplies `Select`, `Child`, `Export`, `Import` and
+`Publish` (lower camel case in TypeScript). The live wrapper selects the
+current operation's owner from the given scope and supplies a batch view
+throughout the whole conversion. Model-only and scalar-generic packages do
+not import live to obtain this surface.
+
+These adapters are primitive converters: acquiring conversions must run
+inside the matching environment batch. A standalone consumer encloses the
+entire walk and its validation in `Export`, `Import` or `Publish` and passes
+the callback's active context through every nested adapter. There is no
+global context registry and no factory-owned lifetime. The lower generated
+conversion helpers below remain available for explicit native live work.
+
+For a standalone export using an already chosen adapter and scope:
+
+```go
+environment := live.ValueEnvironment(scope)
+raw, err := environment.Export(live.WithOwner(ctx, owner), func(active context.Context) (json.RawMessage, error) {
+    return adapter.Export(active, value)
+})
+```
 
 ```ts
-const peer = new DuplexPeer({ ...options, role: 'server' });
-liveOver(peer, { maxExports: 64, maxImports: 64 });
-const remote = install(peer, handler, events);
-await peer.attach(connection);
+const environment = valueEnvironment(scope);
+const raw = environment.export(owner, active => adapter.export(active, value));
 ```
 
-`install` registers the same typed handlers and event listeners and returns
-their `Remote`. For a live family it preserves an existing scope and its
-bounds, creating a default scope only when none exists. It leaves the peer's
-role, observer family labels and other options with the host. Call it before
-attaching so the first frame reaches the installed handlers. `serve`
-constructs the server peer, calls `install`, then attaches the connection.
-
-A generic binding takes the same explicit family and type bindings as its
-client, before `options` in `serve` and after `peer` in `install` and
-`new Remote`.
-See the [generated-role evidence](proof-findings.md#generated-roles-and-skips)
-for the real-socket coverage of both languages' client and binding packages.
+Use `Publish` / `publish` instead when that same operation will attempt to
+send the value, so only definite non-publication can unwind fresh exports.
 
 ## Live values
 
@@ -342,15 +325,16 @@ export function importJob(owner: LiveOwner, raw: unknown): Job;
 
 Export walks the value, makes a binding of each local function and writes the
 reference that names it in its place; import validates, attaches, and replaces
-each reference with a typed proxy. The generated client and binding call these
-for an operation that carries callables, and install the scope before the peer
-reads: through `Prepare` in Go, and client construction or binding `install`
-in TypeScript.
+each reference with a typed proxy. Generated operation adapters call the
+converters inside the explicit value environment supplied by their host.
+The host creates the live scope before its physical peer reads.
 
 Choose a lifetime with `scope.Owner().Child()` or `scope.owner().child()`.
-For a generated operation or callable invocation, Go selects it through
-`live.WithOwner(ctx, owner)`; TypeScript adds `owner?: LiveOwner` to its call
-options (or event emit options). A supplied owner applies to its own connection.
+For a generated model operation, Go selects it through
+`live.WithOwner(ctx, owner)`; TypeScript supplies `valueContext: owner` in the
+model context. With the live value environment, a supplied owner applies to
+its own connection. Concrete callable aliases still take `owner?: LiveOwner`
+in their native invocation options; they are the live-specific surface.
 When it belongs to another connection, or none is supplied, conversion uses
 the current connection's root owner. Thus a native proxy forwarded through
 another connection still works; narrower ownership on the origin connection
@@ -360,9 +344,10 @@ an already imported function is called, or the low-level refusal of foreign
 native references.
 
 Generated handlers that receive or return live values get a per-invocation
-child owner: `live.OwnerOf(ctx)` in Go, `context.owner` in TypeScript. Live
-event handlers receive it too, and callable implementations find it in their
-context/options. Returned functions are exported under that child. A handler
+child owner: `live.OwnerOf(ctx)` in Go, `context.valueContext` in a TypeScript
+model using the live environment. Concrete callable implementations receive
+`options.owner`. Live event handlers receive a child too. Returned functions
+are exported under that child. A handler
 can retain the owner and release it later; RPC completion does not dispose of
 it. Releasing an owner revokes its own new bindings and its descendants,
 including every alias of those bindings, while borrowed attachments remain
@@ -372,7 +357,7 @@ under the owner that first acquired them. See
 A live type's own `MarshalJSON` **refuses**, and that is the semantics rather
 than a gap: a reference means nothing outside the scope that minted its
 binding, so a live value has no scope-free encoding. The refusal names the pair
-that does have a scope. TypeScript needs no such refusal — its generated client
+that does have a scope. TypeScript needs no such refusal — its generated adapter
 never hands a live value to the peer unconverted — but the same rule holds.
 
 ### Generic boundary helpers

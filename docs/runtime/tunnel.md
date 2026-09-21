@@ -1,75 +1,72 @@
 # The tunnel's surface
 
-`tunnel/go` and `@nightseam/tunnel` multiplex channels over one peer, each
-channel a connection of the seam — `duplex.Conn` in Go, `FrameConnection`
-in TypeScript — so a peer, and every client Nightseam generates, runs over
-one unchanged. The two are held to each other over a real socket in both
-directions. This page is the surface in both languages; what crosses the
-wire is [the tunnel](../wire/tunnel.md).
+`tunnel/go` and `@nightseam/tunnel` multiplex channels over one peer. A
+`Channel` is a prepared `Wire`: generated models can interpret it directly,
+select a relative path within it, or mount it beside another Wire. What
+crosses the outer connection remains [the tunnel vocabulary](../wire/tunnel.md).
 
 ## Making one, and when
 
-A tunnel is made over a peer **before that peer reads its first frame**, on
-whichever side may be opened to: `tunnel.New(peer, options)` registers
-`channel.open` and the three channel events on the peer, and a peer that is
-already reading can refuse the other side's first open `method_not_found`
-before they are there. In Go that place is `Options.Prepare`, which runs on
-the peer between its construction and its loops — `ServerOptions` and
-`DialOptions` both reach it, and `OnConnect` is too late ([the
-peer](peer.md#when-a-peer-starts-reading)). In TypeScript it is the ordering
-the peer has anyway: make the `Tunnel`, then `connect` or `attach`.
-
-```go
-handler, _ := runtime.NewHandler(runtime.ServerOptions{
-	Options: runtime.Options{Prepare: func(peer *runtime.Peer) error {
-		carrier, err := tunnel.New(peer, tunnel.Options{}) // once per outer peer, before it reads
-		if err != nil {
-			return err
-		}
-		go serve(peer.Context(), carrier)                  // takes what the other side opens
-		return nil
-	}},
-	Authenticate: authenticate, CheckOrigin: allow,
-})
-```
+Make the tunnel before its outer peer reads the first frame. In Go use
+`runtime.Options.Prepare`; in TypeScript construct `Tunnel` before `connect`
+or `attach`, or use `PeerOptions.prepare`. This installs `channel.open` and
+the three channel event handlers before the remote can use them. `OnConnect`
+is too late for registration ([the peer](peer.md#when-a-peer-starts-reading)).
 
 ```go
 var carrier *tunnel.Tunnel
-peer, _, _ := runtime.Dial(ctx, url, runtime.DialOptions{
-	Options: runtime.Options{Prepare: func(p *runtime.Peer) (err error) {
-		carrier, err = tunnel.New(p, tunnel.Options{})     // the dialing side, likewise
-		return err
-	}},
+peer, _, err := runtime.Dial(ctx, url, runtime.DialOptions{
+    Options: runtime.Options{Prepare: func(p *runtime.Peer) (err error) {
+        carrier, err = tunnel.New(p, tunnel.Options{})
+        return err
+    }},
 })
-defer peer.Close()
-channel, _ := carrier.Open(ctx, "chat")                // this side opens
-served, _ := chatbinding.Serve(ctx, channel, …)        // and speaks the family over it
-
-accepted, _ := carrier.Accept(ctx)                     // or takes what the other side opened
-client, _ := chatclient.Open(ctx, carrier, handle, …)  // or resolves a handle it was given
 ```
 
 ```ts
 const peer = new DuplexPeer();
-const carrier = new Tunnel(peer);                      // before the peer is attached
+const carrier = new Tunnel(peer);
 await peer.connect(url);
-const channel = await carrier.open('chat');
-const client = await Client.attach(channel, …);
-const resolved = await Client.open(carrier, handle, …);
 ```
 
 ## The surface
 
-| | Go | TypeScript |
+| Operation | Go | TypeScript |
 | --- | --- | --- |
-| open a channel, naming the family it speaks | `carrier.Open(ctx, family)` → `*Channel` | `carrier.open(family)` |
-| take a channel the other side opened | `carrier.Accept(ctx)` | `carrier.accept()` |
-| resolve one by id — what the generated `Open` does with a handle | `carrier.Channel(id)` → `(*Channel, bool)` | `carrier.channel(id)` |
-| the peer it runs over | `carrier.Peer()`, `channel.Peer()` | `channel.observe(event)` reaches its observer |
-| a channel as a connection of the seam | `Send(ctx, frame)`, `Receive(ctx)`, `Close(ctx, code, reason)`, `Abort()` | `send`, `listen`, `close`, `state`, `buffered` |
+| open a prepared Wire | `carrier.Open(ctx, family, runtime.Options{})` | `await carrier.open(family, options)` |
+| accept a prepared Wire | `carrier.Accept(ctx, runtime.Options{})` | `await carrier.accept(options)` |
+| resolve a prepared Wire by id | `carrier.Channel(id, options)` → `(*Channel, bool, error)` | `await carrier.channel(id, options)` → `Channel \| undefined` |
+| identify a channel | `channel.ID`, `channel.Family` | `channel.id`, `channel.family` |
+| use its Wire | `Send(path, message)`, `Receive(path, receiver)`, `Close(code, reason)` | `send`, `receive`, `close` |
 
-`Close` carries its code and reason across; `Abort` ends the channel at
-once and the other side sees 1006.
+Acquisition constructs one inner peer eagerly. Its options and `Prepare` /
+`prepare` install the model before that peer starts reading. Repeated lookup
+returns the same channel; the first acquisition owns its options. `At` and
+`Mount` work on that existing Wire and create no inner peer, even on first use.
+The acquisition context bounds the wait; the Go inner peer lives with the
+outer peer's context, so returning from the RPC that opened it does not end it.
+
+Prepare the inner peer by forwarding its Wire to the local Wire returned by
+either side's generated `ToWire` / `toWire`. Its factory receives the opposite
+proxy, which the host may retain for calls after acquisition. TypeScript's
+`prepare` must complete synchronously; do not await `fromWire` inside it. Carrier
+assembly and lifetime belong to the host; the generated
+[model factory](../declaration/generated.md) has the same type on either route.
+
+### Raw connections
+
+The lower frame transport is separate. `OpenConnection(ctx, family)`,
+`AcceptConnection(ctx)` and `Connection(id)` expose a Go `*Connection`
+implementing `duplex.Conn`. TypeScript's `openConnection(family)`,
+`acceptConnection()` and `connection(id)` expose a `Connection` implementing
+`FrameConnection`. Use these for a raw protocol or transport conformance work.
+
+A connection can have one reader presentation: raw or prepared Wire. A raw
+claim and a Wire claim conflict; selecting a path is not another claim. Raw
+Go operations are `Send(ctx, frame)`, `Receive(ctx)`, `Close(ctx, code, reason)`
+and `Abort()`. TypeScript exposes `send`, `listen`, `close`, `state` and
+`buffered`. Close carries its code and reason across; raw abort ends the
+channel immediately and the other side sees 1006.
 
 ## Options
 
@@ -77,24 +74,26 @@ once and the other side sees 1006.
 | --- | --- | --- | --- |
 | `MaxFrameBytes` | `maxFrameBytes` | 1 MiB | bound on a received inner frame |
 | `Window` | `window` | 32 | frames the other side may have in flight on a channel |
-| `AcceptCapacity` | `acceptCapacity` | 64 | channels the other side may have opened that nobody here took |
+| `AcceptCapacity` | `acceptCapacity` | 64 | channels the other side opened that nobody here took |
+
+These are tunnel options. Each prepared channel also takes ordinary runtime
+options for its inner peer's queue, pending-call, handler and frame bounds.
 
 ## Credit in each language
 
-A `Send` beyond the window waits until credit arrives or its context ends;
-in TypeScript the frame waits in the channel and `buffered` counts it, so a
-peer above paces on it as on any connection. What arrives before anyone
-receives is held one window deep in both: in Go a channel's inbox is a
-window's frames, in TypeScript a channel holds as many until the first
-listener and delivers and credits them then.
+Credit remains per raw channel. Go's raw `Send` waits past the window until
+credit arrives or its context ends. TypeScript holds the frame in the raw
+connection and counts it in `buffered`, so its inner peer paces writes. Before
+a reader takes the connection, it holds one window of frames. A prepared
+channel's eager inner reader returns credit as it takes those frames, and its
+own bounded runtime queues govern subsequent delivery. A stalled channel
+stalls its own sender, not the outer peer's event loop.
 
 ## Observing it
 
-A tunnel takes no observer of its own: it emits through the observer of the
-peer it runs over, as `ChannelOpened`, `ChannelAccepted`, `ChannelClosed`,
-`CreditStall` and `OpenRefused` — in TypeScript `channel.opened`,
-`channel.accepted`, `channel.closed`, `credit.stall` and `open.refused`,
-declared into the runtime's `ObserverEvents`. A layer built over a channel
-reaches that observer the same way, through `Channel.Peer()` in Go and
-`channel.observe(event)` in TypeScript. [The observer](observer.md) has the
-rule and every event of every layer.
+The tunnel emits through its outer peer's observer: `ChannelOpened`,
+`ChannelAccepted`, `ChannelClosed`, `CreditStall` and `OpenRefused` in Go;
+`channel.opened`, `channel.accepted`, `channel.closed`, `credit.stall` and
+`open.refused` in TypeScript. Inner peer observation is chosen through the
+channel's runtime options; generated model observation is chosen through its
+adapter context. [The observer](observer.md) lists each event and its fields.
