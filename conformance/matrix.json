@@ -12,7 +12,7 @@
       "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 105,
+          "passed": 107,
           "skipped": 0,
           "failed": 0
         },
@@ -43,7 +43,38 @@
       "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 210,
+          "passed": 214,
+          "skipped": 0,
+          "failed": 0
+        },
+        "generator": {
+          "passed": 0,
+          "skipped": 64,
+          "failed": 0
+        },
+        "live": {
+          "passed": 0,
+          "skipped": 32,
+          "failed": 0
+        },
+        "observability": {
+          "passed": 24,
+          "skipped": 2,
+          "failed": 0
+        },
+        "tunnel": {
+          "passed": 0,
+          "skipped": 12,
+          "failed": 0
+        }
+      }
+    },
+    "python": {
+      "tier": 4,
+      "verdict": "ok",
+      "cells": {
+        "core": {
+          "passed": 214,
           "skipped": 0,
           "failed": 0
         },
@@ -74,7 +105,7 @@
       "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 210,
+          "passed": 214,
           "skipped": 0,
           "failed": 0
         },
