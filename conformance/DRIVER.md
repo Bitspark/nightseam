@@ -331,9 +331,9 @@ Channels multiplexed over one peer: `tunnel/go`, `@nightseam/tunnel`.
 
 | op | arguments | answer |
 |---|---|---|
-| `tunnel.over` | **`on`** peer, `options` (`window`, `max_frame_bytes`, `accept_capacity`) | `{"handle"}` |
-| `tunnel.open` | **`on`**, **`family`**, `consume`, `within_ms` | `{"handle", "id"}` — the channel, a connection handle |
-| `tunnel.accept` | **`on`**, `consume`, `within_ms` | `{"handle", "id", "family"}` |
+| `tunnel.over` | **`on`** peer, `options` (`window`, `max_frame_bytes`, `accept_capacity`, `contracts`: family-to-digest map) | `{"handle"}` |
+| `tunnel.open` | **`on`**, **`family`**, `digest`, `consume`, `within_ms` | `{"handle", "id"}` — the channel, a connection handle |
+| `tunnel.accept` | **`on`**, `consume`, `within_ms` | `{"handle", "id", "family", "digest"}` — empty digest means unspecified |
 
 A channel takes every `conn.*` op, and `peer.over` makes a peer of it. A
 tunnel observes through its peer's observer; its events reach

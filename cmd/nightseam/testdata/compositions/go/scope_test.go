@@ -94,7 +94,7 @@ func (s *scope) export(ctx context.Context, family string, serve func(context.Co
 	if closed {
 		return 0, errScopeClosed
 	}
-	channel, err := s.carrier.Open(ctx, family)
+	channel, err := s.carrier.Open(ctx, family, "")
 	if err != nil {
 		return 0, err
 	}

@@ -73,7 +73,7 @@ func (m *multiplexed) channels() (near, far *tunnel.Channel) {
 		}
 		accepted <- channel
 	}()
-	opened, err := m.opening.Open(m.ctx, "probe")
+	opened, err := m.opening.Open(m.ctx, "probe", "")
 	if err != nil {
 		m.t.Fatal(err)
 	}

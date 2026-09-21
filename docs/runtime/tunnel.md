@@ -42,7 +42,7 @@ peer, _, _ := runtime.Dial(ctx, url, runtime.DialOptions{
 	}},
 })
 defer peer.Close()
-channel, _ := carrier.Open(ctx, "chat")                // this side opens
+channel, _ := carrier.Open(ctx, "chat", chatprotocol.WireDigest()) // this side opens
 served, _ := chatbinding.Serve(ctx, channel, …)        // and speaks the family over it
 
 accepted, _ := carrier.Accept(ctx)                     // or takes what the other side opened
@@ -53,7 +53,7 @@ client, _ := chatclient.Open(ctx, carrier, handle, …)  // or resolves a handle
 const peer = new DuplexPeer();
 const carrier = new Tunnel(peer);                      // before the peer is attached
 await peer.connect(url);
-const channel = await carrier.open('chat');
+const channel = await carrier.open('chat', wireDigest);
 const client = await Client.attach(channel, …);
 const resolved = await Client.open(carrier, handle, …);
 ```
@@ -62,7 +62,7 @@ const resolved = await Client.open(carrier, handle, …);
 
 | | Go | TypeScript |
 | --- | --- | --- |
-| open a channel, naming the family it speaks | `carrier.Open(ctx, family)` → `*Channel` | `carrier.open(family)` |
+| open a channel, naming the family and declaration digest it speaks | `carrier.Open(ctx, family, digest)` → `*Channel` | `carrier.open(family, digest)` |
 | take a channel the other side opened | `carrier.Accept(ctx)` | `carrier.accept()` |
 | resolve one by id — what the generated `Open` does with a handle | `carrier.Channel(id)` → `(*Channel, bool)` | `carrier.channel(id)` |
 | the peer it runs over | `carrier.Peer()`, `channel.Peer()` | `channel.observe(event)` reaches its observer |
@@ -78,6 +78,15 @@ once and the other side sees 1006.
 | `MaxFrameBytes` | `maxFrameBytes` | 1 MiB | bound on a received inner frame |
 | `Window` | `window` | 32 | frames the other side may have in flight on a channel |
 | `AcceptCapacity` | `acceptCapacity` | 64 | channels the other side may have opened that nobody here took |
+| `Contracts` | `contracts` | empty map | known family names mapped to generated digests, copied when the tunnel is created |
+
+Supply generated `WireDigest()` / `wireDigest` values for the families the
+tunnel expects. A different nonempty incoming digest is refused
+`contract_mismatch` before the channel enters the accept queue. An empty
+digest argument represents no revision claim and is omitted on the wire;
+absence on either side does not cause this refusal. `Channel.Digest` /
+`channel.digest` retains what the opener declared, beside `Family` /
+`family`. The digest check is independent of which side opened the channel.
 
 ## Credit in each language
 

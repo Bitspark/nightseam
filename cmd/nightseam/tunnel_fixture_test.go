@@ -48,7 +48,7 @@ func TestAttachAndServeOverAChannel(t *testing.T) {
   served <- nil
   <-peer.Done()
  }()
- channel, err := ct.Open(ctx, "probe")
+ channel, err := ct.Open(ctx, "probe", "")
  if err != nil { t.Fatal(err) }
  if err := <-served; err != nil { t.Fatal(err) }
  c, err := client.Attach(ctx, channel, runtime.Options{}, clientHandler{}, client.Events{})
@@ -64,7 +64,7 @@ func TestOpenResolvesAHandle(t *testing.T) {
  ct, st := tunnels(t, ctx)
  opened := make(chan int64, 1)
  go func() {
-  channel, err := st.Open(ctx, "probe")
+  channel, err := st.Open(ctx, "probe", "")
   if err != nil { t.Error(err); opened <- 0; return }
   if _, err := binding.Serve(ctx, channel, runtime.Options{}, serverHandler{}); err != nil { t.Error(err); opened <- 0; return }
   opened <- channel.ID
@@ -89,7 +89,7 @@ func TestGeneratedTypeScriptOverATunnel(t *testing.T) {
   inbound, err := tn.Accept(ctx)
   if err != nil { failures <- err; return }
   if _, err := binding.Serve(ctx, inbound, runtime.Options{}, serverHandler{}); err != nil { failures <- err; return }
-  outbound, err := tn.Open(ctx, "probe")
+  outbound, err := tn.Open(ctx, "probe", "")
   if err != nil { failures <- err; return }
   if _, err := binding.Serve(ctx, outbound, runtime.Options{}, serverHandler{}); err != nil { failures <- err; return }
   if err := peer.Emit(ctx, "opened", map[string]int64{"channel": outbound.ID}); err != nil { failures <- err; return }
@@ -114,7 +114,7 @@ const opened = new Promise(resolve => { outer.onEvent('opened', resolve); });
 await outer.connect(process.argv[2]);
 const tunnel = new Tunnel(outer);
 const handler = { reverse(params) { return { ...params, text: 'typescript:' + params.text }; } };
-const channel = await tunnel.open('probe');
+const channel = await tunnel.open('probe', '');
 const attached = await Client.attach(channel, {}, handler, {});
 const echoed = await attached.echo({ text: 'value', count: 7, note: null });
 assert.equal(echoed.text, 'typescript:value');

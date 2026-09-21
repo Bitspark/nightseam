@@ -45,7 +45,7 @@ class Scope {
   /** Opens a channel, serves an implementation over it, answers the reference. */
   async export(family: string, serve: (channel: Channel) => Promise<{ close(): void }>): Promise<number> {
     if (this.closed) throw new Error('the scope is closed');
-    const channel = await this.carrier.open(family);
+    const channel = await this.carrier.open(family, '');
     const served = await serve(channel);
     this.served.set(channel.id, { family, channel, close: () => served.close() });
     return channel.id;

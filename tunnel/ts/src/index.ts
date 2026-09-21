@@ -49,9 +49,14 @@ export const CLOSE_EVENT = 'channel.close';
 export const CHANNEL_REFUSED = 'channel_refused';
 export const CHANNEL_EXISTS = 'channel_exists';
 export const CHANNEL_INVALID = 'channel_invalid';
+export const CONTRACT_MISMATCH = 'contract_mismatch';
+
+const validDigest = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
 
 /** Bounds on incoming frames, credit, and channels waiting to be accepted. */
 export interface TunnelOptions {
+  /** Locally known generated family digests, checked before admitting an incoming channel. */
+  contracts?: Readonly<Record<string, string>>;
   /** Bounds a frame received over a channel; a larger one is refused before delivery, and the channel with it. Default: one mebibyte. */
   maxFrameBytes?: number;
   /** How many frames the other side may have in flight to this one on a channel before its send waits for credit. Default: 32. */
@@ -80,10 +85,15 @@ export class Tunnel {
   constructor(peer: DuplexPeer, options: TunnelOptions = {}) {
     this.peer = peer;
     this.options = {
+      contracts: Object.freeze({ ...options.contracts }),
       maxFrameBytes: positiveInteger(options.maxFrameBytes ?? 1 << 20, 'maxFrameBytes'),
       window: positiveInteger(options.window ?? 32, 'window'),
       acceptCapacity: positiveInteger(options.acceptCapacity ?? 64, 'acceptCapacity'),
     };
+    for (const [family, digest] of Object.entries(this.options.contracts)) {
+      if (!family || (digest !== '' && !validDigest(digest)))
+        throw new TypeError('A tunnel contract needs a family and an absent or lowercase SHA-256 digest.');
+    }
     this.parity = peer.role === 'server' ? 0 : 1;
     this.next = this.parity === 0 ? 2 : 1;
     peer.handle(OPEN_METHOD, (params) => this.onOpen(params));
@@ -99,18 +109,27 @@ export class Tunnel {
   }
 
   /** Opens a channel to the other side, saying what family it speaks; resolves once the other side accepted it. */
-  async open(family: string): Promise<Channel> {
+  async open(family: string, digest: string): Promise<Channel> {
     if (typeof family !== 'string' || family === '') {
       this.refused('', 'a channel is opened for a family');
       throw new DuplexError(CHANNEL_INVALID, 'A channel is opened for a family.');
     }
+    if (digest !== '' && !validDigest(digest)) {
+      this.refused(family, 'a channel digest is lowercase SHA-256 hex');
+      throw new DuplexError(CHANNEL_INVALID, 'A channel digest is lowercase SHA-256 hex.');
+    }
     const id = this.next;
     this.next += 2;
-    const channel = new Channel(this, id, family, 0);
+    const channel = new Channel(this, id, family, digest, 0);
     this.table.set(id, channel);
     let result: unknown;
     try {
-      result = await this.peer.call(OPEN_METHOD, { channel: id, family, window: this.options.window });
+      result = await this.peer.call(OPEN_METHOD, {
+        channel: id,
+        family,
+        ...(digest ? { digest } : {}),
+        window: this.options.window,
+      });
     } catch (error) {
       this.table.delete(id);
       channel.endLocal();
@@ -188,7 +207,7 @@ export class Tunnel {
   }
 
   private onOpen(params: unknown): { window: number } {
-    const p = params as Partial<Record<'channel' | 'family' | 'window', unknown>> | null;
+    const p = params as Partial<Record<'channel' | 'family' | 'digest' | 'window', unknown>> | null;
     if (
       !p ||
       typeof p !== 'object' ||
@@ -207,6 +226,17 @@ export class Tunnel {
         "channel.open needs a positive channel id of the opener's parity, a family and a window.",
       );
     }
+    if (Object.hasOwn(p, 'digest') && !validDigest(p.digest)) {
+      this.refused(p.family, 'a channel digest is lowercase SHA-256 hex');
+      throw new DuplexError(CHANNEL_INVALID, 'A channel digest is lowercase SHA-256 hex.');
+    }
+    const digest = typeof p.digest === 'string' ? p.digest : '';
+    const expected = Object.hasOwn(this.options.contracts, p.family) ? this.options.contracts[p.family] : '';
+    if (expected && digest && expected !== digest) {
+      const message = `the declaration digest for ${p.family} differs`;
+      this.refused(p.family, message);
+      throw new DuplexError(CONTRACT_MISMATCH, message);
+    }
     if (p.channel % 2 === this.parity) {
       this.refused(p.family, "the channel id is of this side's parity");
       throw new DuplexError(CHANNEL_INVALID, "The channel id is of this side's parity.");
@@ -219,7 +249,7 @@ export class Tunnel {
       this.refused(p.family, 'no room for a channel nobody has accepted');
       throw new DuplexError(CHANNEL_REFUSED, 'No room for a channel nobody has accepted.');
     }
-    const channel = new Channel(this, p.channel, p.family, p.window);
+    const channel = new Channel(this, p.channel, p.family, digest, p.window);
     this.table.set(p.channel, channel);
     this.observe({ type: 'channel.opened', at: new Date(), family: p.family, id: p.channel, opener: false });
     const acceptor = this.acceptors.shift();
@@ -310,6 +340,8 @@ export class Channel implements FrameConnection {
   readonly id: number;
   /** The family named by the opener. */
   readonly family: string;
+  /** The declaration digest named by the opener, or empty when unspecified. */
+  readonly digest: string;
   private readonly tunnel: Tunnel;
   private credit: number;
   private taken = 0;
@@ -321,10 +353,11 @@ export class Channel implements FrameConnection {
   private current: ConnectionState = 'open';
 
   /** @internal */
-  constructor(tunnel: Tunnel, id: number, family: string, credit: number) {
+  constructor(tunnel: Tunnel, id: number, family: string, digest: string, credit: number) {
     this.tunnel = tunnel;
     this.id = id;
     this.family = family;
+    this.digest = digest;
     this.credit = credit;
   }
 

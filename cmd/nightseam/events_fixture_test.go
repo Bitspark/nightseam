@@ -41,7 +41,7 @@ func TestEventsBeforeReading(t *testing.T) {
     var near, far duplex.Conn
     if mode == "open" {
      ct, st := tunnels(t, ctx)
-     channel, e := st.Open(ctx,"probe"); if e != nil { t.Fatal(e) }; far = channel
+     channel, e := st.Open(ctx, "probe", ""); if e != nil { t.Fatal(e) }; far = channel
      accepted, e := ct.Accept(ctx); if e != nil { t.Fatal(e) }; near = accepted
      if e = far.Send(ctx,duplex.Frame{Kind:duplex.Text,Data:[]byte("{\"version\":1,\"kind\":\"event\",\"event\":\"changed\",\"data\":{\"text\":\"first\",\"count\":1}}")}); e != nil { t.Fatal(e) }
      c, err = client.Open(ctx,ct,protocol.Handle{Channel:accepted.ID},options,clientHandler{},events)

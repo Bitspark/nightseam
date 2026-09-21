@@ -9,6 +9,51 @@ import { Tunnel, type Channel, type TunnelOptions } from './index.ts';
 /** The five a tunnel adds to the runtime's ten, which is how they are told apart here. */
 const TUNNEL_EVENTS = new Set(['channel.opened', 'channel.accepted', 'channel.closed', 'credit.stall', 'open.refused']);
 
+test('a different channel digest is refused before admission and configuration is captured', async (t) => {
+  const first = 'a'.repeat(64),
+    second = 'b'.repeat(64);
+  const contracts = { probe: first };
+  const { client, server, ct, st } = await tunnels({ contracts, acceptCapacity: 1 });
+  t.after(() => {
+    client.close();
+    server.close();
+  });
+  contracts.probe = second;
+  await assert.rejects(
+    ct.open('probe', second),
+    (error: unknown) =>
+      error instanceof DuplexError && error.code === 'contract_mismatch' && error.message.includes('probe'),
+  );
+  const opened = await ct.open('probe', first);
+  const accepted = await st.accept();
+  assert.equal(opened.digest, first);
+  assert.equal(accepted.digest, first);
+  assert.equal(accepted.id, opened.id);
+});
+
+test('a channel permits an absent digest but refuses malformed present digest members', async (t) => {
+  const digest = 'a'.repeat(64);
+  const { client, server, ct, st } = await tunnels({ contracts: { probe: digest } });
+  t.after(() => {
+    client.close();
+    server.close();
+  });
+  for (const [family, revision] of [
+    ['probe', ''],
+    ['untyped', digest],
+  ] as const) {
+    const opened = await ct.open(family, revision);
+    const accepted = await st.accept();
+    assert.equal(accepted.digest, revision);
+    assert.equal(accepted.id, opened.id);
+  }
+  for (const malformed of ['', 'short', 'A'.repeat(64), 7, null]) {
+    await assert.rejects(client.call('channel.open', { channel: 101, family: 'probe', digest: malformed, window: 1 }), {
+      code: 'channel_invalid',
+    });
+  }
+});
+
 test('a send on a closed channel is a coded disconnection', async (t) => {
   const { client, server, ct, st } = await tunnels();
   t.after(() => {
@@ -63,7 +108,7 @@ async function tunnels(options: TunnelOptions = {}) {
 /** One channel opened by the client and accepted by the server. */
 async function pair(ct: Tunnel, st: Tunnel, family = 'probe'): Promise<[Channel, Channel]> {
   const accepted = st.accept();
-  const opened = await ct.open(family);
+  const opened = await ct.open(family, '');
   return [opened, await accepted];
 }
 
@@ -186,13 +231,13 @@ test('a frame over the limit is refused, and the channel with it', async () => {
 
 test('an open beyond the accept capacity is refused, and the tunnel stands', async () => {
   const { ct } = await tunnels({ acceptCapacity: 1 });
-  await ct.open('probe');
+  await ct.open('probe', '');
   await assert.rejects(
-    ct.open('probe'),
+    ct.open('probe', ''),
     (error: unknown) => error instanceof DuplexError && error.code === 'channel_refused',
   );
   await assert.rejects(
-    ct.open(''),
+    ct.open('', ''),
     (error: unknown) => error instanceof DuplexError && error.code === 'channel_invalid',
   );
 });
@@ -358,13 +403,13 @@ test('a send beyond the window stalls, and the stall says which channel and how 
 
 test('an open that becomes no channel is refused where it was refused and where it was asked', async () => {
   const { ct, seenByClient, seenByServer } = await tunnels({ acceptCapacity: 1 });
-  await ct.open('probe');
+  await ct.open('probe', '');
   await assert.rejects(
-    ct.open('codex'),
+    ct.open('codex', ''),
     (error: unknown) => error instanceof DuplexError && error.code === 'channel_refused',
   );
   await assert.rejects(
-    ct.open(''),
+    ct.open('', ''),
     (error: unknown) => error instanceof DuplexError && error.code === 'channel_invalid',
   );
   // The side that refused it says why in its own words; the side that asked
