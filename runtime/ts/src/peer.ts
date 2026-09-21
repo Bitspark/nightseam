@@ -159,8 +159,6 @@ export class DuplexPeer {
   private readonly closedListeners = new Set<(error: DuplexError) => void>();
   private readonly outgoing: Outgoing[] = [];
   private writeTimer?: Timer;
-  /** Senders paced by a full outgoing queue, woken as it drains. */
-  private readonly waitingForRoom = new Set<(room: boolean) => void>();
   private readonly events: QueuedEvent[] = [];
   private eventActive = false;
   private eventTimer?: Timer;
@@ -384,7 +382,11 @@ export class DuplexPeer {
         if (!this.takePending(id)) return;
         this.ended(id, pending, outcome, error.code);
         reject(error);
-        void this.send(traced({ version: 1, kind: 'cancel', id }, trace), method).catch(() => {});
+        // Cancellation is best effort, as in Go. It never waits for room and
+        // an already cancelled caller cannot end a healthy carrier merely
+        // because its cancellation frame has no room in the output queue.
+        if (this.outgoing.length < this.limits.queueCapacity)
+          void this.send(traced({ version: 1, kind: 'cancel', id }, trace), method).catch(() => {});
       };
       if (this.observer)
         this.observe({
@@ -477,38 +479,14 @@ export class DuplexPeer {
       if (bytes > this.limits.maxFrameBytes) {
         throw new DuplexError('frame_too_large', 'Outgoing frame exceeds the size limit.');
       }
-      // A full queue can be a healthy transient burst — durable event replay,
-      // say — so the producer is paced for one write deadline before the
-      // consumer is declared stalled, as the Go peer paces it. A sender that
-      // waits here may be overtaken by one that does not, exactly as two
-      // goroutines blocked on a Go channel may be: the order of concurrent
-      // senders is no promise of the profile, and one sender's own frames keep
-      // their order because it awaits each in turn.
-      let paced = false;
-      for (;;) {
-        if (!this.isOpen()) throw new DuplexError('not_connected', 'Peer is not connected.');
-        if (this.outgoing.length < this.limits.queueCapacity) break;
-        // Told once per send, however many times it is woken and finds the queue
-        // full again: one burst is one thing the observer is told about.
-        if (!paced) {
-          paced = true;
-          if (this.observer) this.pressure(this.outgoing.length, false);
-        }
-        const room = await new Promise<boolean>((resolve) => {
-          const wake = (value: boolean) => {
-            clearTimeout(timer);
-            this.waitingForRoom.delete(wake);
-            resolve(value);
-          };
-          const timer = setTimeout(() => wake(false), this.limits.writeTimeoutMs);
-          this.waitingForRoom.add(wake);
-        });
-        if (!room) {
-          const error = new DuplexError('busy', 'Output consumer is stalled; queue limit reached.');
-          if (this.observer) this.pressure(this.outgoing.length, true);
-          this.fail(error);
-          throw error;
-        }
+      // One bounded handoff decides acceptance. A destination that cannot
+      // accept ends itself; it cannot make a composed sender await its drain.
+      // The writer's deadline still bounds transport of accepted frames.
+      if (this.outgoing.length >= this.limits.queueCapacity) {
+        const error = new DuplexError('busy', 'Output consumer is stalled; queue limit reached.');
+        if (this.observer) this.pressure(this.outgoing.length, true);
+        this.fail(error);
+        throw error;
       }
       const kind = envelope.kind as string;
       const trace = traceOf(envelope);
@@ -536,8 +514,7 @@ export class DuplexPeer {
       // Accepted for sending is queued, as the profile says and as the Go peer
       // returns: what the transport does with the frame after that is the
       // transport's, held to the write deadline the flush keeps, and a sender
-      // that waited on the drain could never reach the frame that fills the
-      // queue — which is what is being paced above.
+      // that waited on the drain would hold a composition to this consumer.
       this.outgoing.push({ text, started: Date.now(), sent: false, waited: false, observeSent });
       queued = true;
       this.flush();
@@ -574,7 +551,6 @@ export class DuplexPeer {
       }
       if (item.sent && connection.buffered === 0) {
         this.outgoing.shift();
-        this.makeRoom();
       } else {
         item.waited = true;
         this.writeTimer = setTimeout(() => {
@@ -584,12 +560,6 @@ export class DuplexPeer {
         return;
       }
     }
-  }
-
-  /** Wakes every paced sender once the queue has room; each re-checks for itself. */
-  private makeRoom(): void {
-    if (this.outgoing.length >= this.limits.queueCapacity) return;
-    for (const wake of [...this.waitingForRoom]) wake(true);
   }
 
   private receive(incoming: Frame): void {
@@ -916,9 +886,6 @@ export class DuplexPeer {
     this.stallTimer = undefined;
     this.eventActive = false;
     this.events.length = 0;
-    // A sender paced by a queue that will never drain is woken now rather than
-    // at its deadline; the peer is shut, so its send ends as any other does.
-    for (const wake of [...this.waitingForRoom]) wake(true);
     if (this.opening) {
       clearTimeout(this.opening.timer);
       this.opening.reject(error);

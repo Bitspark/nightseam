@@ -560,25 +560,12 @@ func (p *Peer) enqueue(ctx context.Context, f frame) error {
 		return nil
 	default:
 	}
-	// A full queue can be a healthy transient burst (for example durable event
-	// replay). Pace the producer for one write deadline before declaring the
-	// consumer stalled. Cancellation belongs to this send and does not close an
-	// otherwise healthy connection.
-	p.observeBackpressure(len(p.outputs), false, p.options.WriteTimeout)
-	timer := time.NewTimer(p.options.WriteTimeout)
-	defer timer.Stop()
-	select {
-	case p.outputs <- queuedFrame{data: data, frame: f}:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-p.done:
-		return p.Err()
-	case <-timer.C:
-		p.observeBackpressure(len(p.outputs), true, p.options.WriteTimeout)
-		p.fail(ErrBackpressure)
-		return ErrBackpressure
-	}
+	// Admission is one bounded handoff. Waiting for this destination here
+	// would make a composition run at its slowest consumer's pace. The writer
+	// still applies WriteTimeout to accepted frames on the carrier itself.
+	p.observeBackpressure(len(p.outputs), true, p.options.WriteTimeout)
+	p.fail(ErrBackpressure)
+	return ErrBackpressure
 }
 
 func (p *Peer) writeLoop() {
