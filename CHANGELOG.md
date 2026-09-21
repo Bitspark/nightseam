@@ -8,15 +8,17 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
-- Go and TypeScript peer Wires retain canceled handlers in their concurrency
-  budget until their application bodies finish, including caller and receiver
-  deadlines. Caller cancellation still returns promptly and reaches the handler.
+- The Java WebSocket transport finishes its bounded close handshake before
+  publishing closure, and the peer's terminal winner owns the transport action.
 - Give each language testee build its own bounded deadline.
 - The generated composition fixture waits for worker completion before
   asserting finished cancellation, preserving the final callback race.
 - The TypeScript OpenTelemetry adapter retains connection and event-only
   telemetry with the Go reference's connection lifecycle, producer/consumer
   spans and fallback routing, without copying connection events onto requests.
+- Go and TypeScript peer Wires retain canceled handlers in their concurrency
+  budget until their application bodies finish, including caller and receiver
+  deadlines. Caller cancellation still returns promptly and reaches the handler.
 
 ### Clarified
 
