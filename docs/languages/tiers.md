@@ -158,7 +158,8 @@ required-profile skip, regardless of tier.
 
 The release workflow refuses a tag whose matrix has a cell, or a testee
 recorded absent, that the tier table says stops the release, and marks the
-languages that the table says are provisional in the release notes. The matrix of the last run on `main`
-is rendered into the README. CI checks the committed table against the committed
-`conformance/matrix.json` before running conformance; the new run's matrix and
-provisional cells are published separately as its artifact and job summary.
+languages that the table says are provisional in the release notes. The
+matrix of the last run on `main` is rendered into the README. CI checks the
+committed table against the committed `conformance/matrix.json` before
+running conformance; the new run's matrix, its provisional cells and its
+absent testees are published separately as its artifact and job summary.
