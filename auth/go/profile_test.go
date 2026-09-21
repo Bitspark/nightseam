@@ -15,13 +15,16 @@ import (
 )
 
 // TestNoClockNoNetwork holds the packets' promise that nothing here does
-// I/O, reads a clock or touches the network: no package of this module
-// imports time, net, os, the process or the entropy of the platform. Every
-// nonce, every id and every decision time is an argument.
+// I/O, reads a clock or touches the network: neither pure package of this
+// module — auth and grant — imports time, net, os, the process, the
+// entropy of the platform, or a context. Every nonce, every id and every
+// decision time is an argument. The layer over a peer, package over, is
+// the one that composes onto the runtime and takes a handler's context;
+// it makes no such promise and is held by its own tests.
 func TestNoClockNoNetwork(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "go", "list", "-json", "./...").Output()
+	out, err := exec.CommandContext(ctx, "go", "list", "-json", ".", "./grant").Output()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +50,7 @@ func TestNoClockNoNetwork(t *testing.T) {
 			}
 		}
 	}
-	if packages < 2 {
+	if packages != 2 {
 		t.Fatalf("listed %d packages; auth and grant are two", packages)
 	}
 }

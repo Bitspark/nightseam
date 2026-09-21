@@ -242,15 +242,18 @@ func (s *Service) Begin(now uint64, id, nonce, browser []byte, scope []string, v
 	return r, ""
 }
 
-// Read answers a pending record; an unknown, expired, answered or
-// collected one is ExpiredToken.
+// Read answers a pending record: an unknown or expired one is
+// ExpiredToken, an answered or collected one InvalidRequest.
 func (s *Service) Read(now uint64, id []byte) (Record, LoginCode) {
 	if s.Store == nil {
 		return Record{}, ExpiredToken
 	}
 	r, ok := s.Store.Get(id)
-	if !ok || r.Gone(now) || r.State != Pending {
+	if !ok || r.Gone(now) {
 		return Record{}, ExpiredToken
+	}
+	if r.State != Pending {
+		return Record{}, InvalidRequest
 	}
 	return r, ""
 }
