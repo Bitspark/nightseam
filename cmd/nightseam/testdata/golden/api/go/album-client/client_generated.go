@@ -258,3 +258,66 @@ func FromWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag
 	}
 	return model, nil
 }
+
+// RecordedEvent is the closed union of this side's outgoing event payloads.
+type RecordedEvent[AEnvelope, BEnvelope any] interface{ recordedEvent(AEnvelope, BEnvelope) }
+
+// Recorder records converted messages without retaining or rebinding their live values.
+type Recorder[AEnvelope, BEnvelope any] struct {
+	*duplex.RecordedWire
+	events   protocol.ServerEvents[AEnvelope, BEnvelope]
+	identity runtime.DeclarationIdentity
+	options  runtime.Options
+}
+
+func (r *Recorder[AEnvelope, BEnvelope]) Append(ctx context.Context, event RecordedEvent[AEnvelope, BEnvelope]) error {
+	return fmt.Errorf("this side declares no outgoing events")
+}
+
+// Follow checks the subscriber's declaration before registering any replay.
+func (r *Recorder[AEnvelope, BEnvelope]) Follow(ctx context.Context, after uint64, target duplex.Wire) (*duplex.Follower, error) {
+	if err := runtime.CheckIdentity(ctx, func(ctx context.Context, method string, params, result any) error {
+		return runtime.CallWire(ctx, target, []string{method}, params, result, runtime.WireCallOptions{RequestTimeout: r.options.RequestTimeout, Observer: r.options.Observer, Propagator: r.options.Propagator})
+	}, r.identity); err != nil {
+		return nil, err
+	}
+	return r.RecordedWire.Follow(ctx, after, target)
+}
+
+// Record checks a prepared origin before exposing typed event append. Setup
+// failure detaches this interpretation and leaves the borrowed target usable.
+func Record[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, target duplex.Wire, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext) (*Recorder[AEnvelope, BEnvelope], error) {
+	environment, err := normalizeContext[AEnvelope, BEnvelope](environment)
+	if err != nil {
+		return nil, err
+	}
+	identity, err := declarationIdentity[AEnvelope, BEnvelope]()
+	if err != nil {
+		return nil, err
+	}
+	preparation, err := runtime.PrepareIdentity(target, identity, environment.Options)
+	if err != nil {
+		return nil, err
+	}
+	if err := preparation.Check(ctx); err != nil {
+		preparation.Close()
+		return nil, err
+	}
+	if err := preparation.Ready(); err != nil {
+		preparation.Close()
+		return nil, err
+	}
+	onClose := options.OnClose
+	options.OnClose = func(err error) {
+		preparation.Close()
+		if onClose != nil {
+			onClose(err)
+		}
+	}
+	wire, err := duplex.Record(ctx, preparation.Wire(), log, options)
+	if err != nil {
+		preparation.Close()
+		return nil, err
+	}
+	return &Recorder[AEnvelope, BEnvelope]{RecordedWire: wire, events: accessServer[AEnvelope, BEnvelope](wire, environment).Events, identity: identity, options: environment.Options}, nil
+}

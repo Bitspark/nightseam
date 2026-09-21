@@ -345,3 +345,81 @@ func FromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope ru
 	}
 	return model, nil
 }
+
+// RecordedEvent is the closed union of this side's outgoing event payloads.
+type RecordedEvent[SEnvelope, SHandle, TEnvelope any] interface {
+	recordedEvent(SEnvelope, SHandle, TEnvelope)
+}
+type RecordedEchoed[SEnvelope, SHandle, TEnvelope any] struct{ Data protocol.Echo[TEnvelope] }
+
+func (RecordedEchoed[SEnvelope, SHandle, TEnvelope]) recordedEvent(SEnvelope, SHandle, TEnvelope) {}
+
+// Recorder records converted messages without retaining or rebinding their live values.
+type Recorder[SEnvelope, SHandle, TEnvelope any] struct {
+	*duplex.RecordedWire
+	events   protocol.ClientEvents[SEnvelope, SHandle, TEnvelope]
+	identity runtime.DeclarationIdentity
+	options  runtime.Options
+}
+
+func (r *Recorder[SEnvelope, SHandle, TEnvelope]) Append(ctx context.Context, event RecordedEvent[SEnvelope, SHandle, TEnvelope]) error {
+	switch value := event.(type) {
+	case RecordedEchoed[SEnvelope, SHandle, TEnvelope]:
+		return r.events.Echoed(ctx, value.Data)
+	case *RecordedEchoed[SEnvelope, SHandle, TEnvelope]:
+		if value == nil {
+			return fmt.Errorf("nil recorded event")
+		}
+		return r.events.Echoed(ctx, value.Data)
+	default:
+		return fmt.Errorf("unknown or nil recorded event")
+	}
+}
+
+// Follow checks the subscriber's declaration before registering any replay.
+func (r *Recorder[SEnvelope, SHandle, TEnvelope]) Follow(ctx context.Context, after uint64, target duplex.Wire) (*duplex.Follower, error) {
+	if err := runtime.CheckIdentity(ctx, func(ctx context.Context, method string, params, result any) error {
+		return runtime.CallWire(ctx, target, []string{method}, params, result, runtime.WireCallOptions{RequestTimeout: r.options.RequestTimeout, Observer: r.options.Observer, Propagator: r.options.Propagator})
+	}, r.identity); err != nil {
+		return nil, err
+	}
+	return r.RecordedWire.Follow(ctx, after, target)
+}
+
+// Record checks a prepared origin before exposing typed event append. Setup
+// failure detaches this interpretation and leaves the borrowed target usable.
+func Record[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], TEnvelope runtime.Of[TTag], STag, TTag any](ctx context.Context, target duplex.Wire, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext) (*Recorder[SEnvelope, SHandle, TEnvelope], error) {
+	environment, err := normalizeContext[SEnvelope, SHandle, TEnvelope](environment)
+	if err != nil {
+		return nil, err
+	}
+	identity, err := declarationIdentity[SEnvelope, SHandle, TEnvelope]()
+	if err != nil {
+		return nil, err
+	}
+	preparation, err := runtime.PrepareIdentity(target, identity, environment.Options)
+	if err != nil {
+		return nil, err
+	}
+	if err := preparation.Check(ctx); err != nil {
+		preparation.Close()
+		return nil, err
+	}
+	if err := preparation.Ready(); err != nil {
+		preparation.Close()
+		return nil, err
+	}
+	onClose := options.OnClose
+	options.OnClose = func(err error) {
+		preparation.Close()
+		if onClose != nil {
+			onClose(err)
+		}
+	}
+	wire, err := duplex.Record(ctx, preparation.Wire(), log, options)
+	if err != nil {
+		preparation.Close()
+		return nil, err
+	}
+	return &Recorder[SEnvelope, SHandle, TEnvelope]{RecordedWire: wire, events: accessClient[SEnvelope, SHandle, TEnvelope](wire, environment).Events, identity: identity, options: environment.Options}, nil
+}
