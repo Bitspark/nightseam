@@ -29,6 +29,13 @@ prepared once during channel acquisition, before reads begin. Raw tunnel
 transport is available separately as `Connection`; one channel cannot be
 claimed by both presentations.
 
+These are the current Nightseam definitions. The approved
+[repository-home revision](../decisions/the-reusable-foundation-lives-in-nightseam.md)
+selects the shared Bitwire contract when ready, with adoption required in 0.6.0 by
+[#421](https://github.com/Bitspark/nightseam/issues/421). Runtime implementations
+remain here. This planned handover has not changed today's imports or introduced
+a private dependency.
+
 `Send` returns on admission or refusal. It never waits for a destination
 handler or a reply, and never executes application code on the sender's
 stack. Go returns a refusal; TypeScript throws it. Request completion goes
