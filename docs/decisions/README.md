@@ -37,6 +37,7 @@ both, and says so at the top.
 | [The relay mints its own ids](the-relay-mints-its-own-ids.md) *(superseded, 0.5.0)* | [layering](../goals/layering.md) | 0.2.0 |
 | [The session's vocabulary is not logged](the-sessions-vocabulary-is-not-logged.md) *(superseded, 0.5.0)* | [layering](../goals/layering.md) | 0.3.0 |
 | [A layer takes a wire](the-session-runs-over-any-connection-of-the-seam.md) | [composability](../goals/composability.md) | #48, #289, #321 |
+| [An invocation is a Wire, and routing is composed above it](an-invocation-is-a-wire-and-routing-is-composed-above-it.md) | [composability](../goals/composability.md), [layering](../goals/layering.md), [boundary](../goals/boundary.md) | #439 |
 | [Refusals are codes, not prose](refusals-are-codes-not-prose.md) | [agnosticism](../goals/agnosticism.md) | 0.3.0 |
 | [The log is bound at its head](the-log-is-bound-at-its-head.md) *(superseded, 0.5.0)* | [composability](../goals/composability.md) | 0.3.0 |
 | [The observer is told at the write](the-observer-is-told-at-the-write.md) | [observability](../goals/observability.md) | 0.3.0 |

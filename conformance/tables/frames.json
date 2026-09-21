@@ -1,5 +1,5 @@
 {
-  "description": "Every envelope a peer must accept or refuse, as raw text: what the frame is, whether it is valid, and which side it is addressed to — a server (it carries a client's ids, c:N, and answers a server's, s:N), a client, or either. The meta rows hold the carriage a request and an event may take: an object of strings, empty or not, refused on a response and a cancel, in any other form, and under the reserved nightseam. prefix. A refused frame ends the connection; the harness sends each row over a raw connection to a peer of the named role and holds that the peer ended, or did not. One row is a sequence: its before frame is sent first on the same connection, and the row judges the frame that follows it.",
+  "description": "Every envelope a peer must accept or refuse, as raw text: what the frame is, whether it is valid, and which side it is addressed to — a server (it carries a client's ids, c:N, and answers a server's, s:N), a client, or either. The meta rows hold the carriage a request and an event may take: an object of strings, empty or not, refused on a response and a cancel, in any other form, and under the reserved nightseam. prefix. A refused frame ends the connection; the harness sends each row over a raw connection to a peer of the named role and holds that the peer ended, or did not.",
   "rows": [
     {
       "name": "valid Unicode payload",
@@ -616,15 +616,6 @@
       "frame": "{\"version\":1,\"kind\":\"event\",\"event\":\"updated\",\"data\":1,\"meta\":{\"nightseam.cause\":\"nightly\"}}",
       "valid": false,
       "why": "keys under nightseam. are the profile's and this version defines none"
-    },
-    {
-      "name": "a request serial that does not increase",
-      "to": "server",
-      "before": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:5\",\"method\":\"echo\",\"params\":1}",
-      "frame": "{\"version\":1,\"kind\":\"request\",\"id\":\"c:3\",\"method\":\"echo\",\"params\":1}",
-      "sequence": true,
-      "valid": false,
-      "why": "request serials increase in publication order within one connection instance and one direction (#439)"
     }
   ]
 }

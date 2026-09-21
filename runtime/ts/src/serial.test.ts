@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { setImmediate as nextTurn } from 'node:timers/promises';
 import { DuplexPeer } from './peer.ts';
@@ -32,36 +33,42 @@ async function raw(options: PeerOptions = {}) {
   return { socket, peer };
 }
 
-const request = (id: string, method = 'echo'): string =>
-  JSON.stringify({ version: 1, kind: 'request', id, method, params: 1 });
+/**
+ * Every row of tables/serials.json, held the way the peer holds what arrives —
+ * the first frame published, then the request that follows it — so that the two
+ * runtimes and the suite read one description of the order, this one.
+ */
+interface SerialRow {
+  name: string;
+  before: string;
+  frame: string;
+  valid: boolean;
+}
+const serials = JSON.parse(
+  readFileSync(new URL('../../../conformance/tables/serials.json', import.meta.url), 'utf8'),
+) as { rows: SerialRow[] };
 
-// A serial that does not increase is a protocol violation: the peer could not
-// otherwise say which invocation a later control names.
-for (const second of ['c:3', 'c:5', 'c:1']) {
-  test(`a request serial of ${second} after c:5 ends the connection`, async (t) => {
+assert.ok(serials.rows.length > 0, 'the serials table has no rows');
+for (const row of serials.rows) {
+  test(`serials table: ${row.name}`, async (t) => {
     const { socket, peer } = await raw();
     t.after(() => peer.close());
     peer.handle('echo', (data) => data);
-    socket.receive(request('c:5'));
-    socket.receive(request(second));
+    socket.receive(row.before);
+    socket.receive(row.frame);
     await nextTurn();
-    assert.equal(socket.readyState, 3, 'a serial that did not increase was admitted');
+    await nextTurn();
+    if (!row.valid) {
+      assert.equal(socket.readyState, 3, 'a serial that did not increase was admitted');
+      return;
+    }
+    assert.equal(socket.readyState, 1, 'an admissible serial ended the connection');
+    assert.ok(
+      socket.sent.some((frame) => frame.kind === 'response'),
+      'an admissible serial was never answered',
+    );
   });
 }
-
-test('request serials may leave gaps', async (t) => {
-  const { socket, peer } = await raw();
-  t.after(() => peer.close());
-  peer.handle('echo', (data) => data);
-  for (const id of ['c:2', 'c:9', 'c:10000']) socket.receive(request(id));
-  await nextTurn();
-  await nextTurn();
-  assert.equal(socket.readyState, 1, 'gaps ended the connection');
-  assert.deepEqual(
-    socket.sent.filter((frame) => frame.kind === 'response').map((frame) => frame.id),
-    ['c:2', 'c:9', 'c:10000'],
-  );
-});
 
 test('only request admission advances the mark', async (t) => {
   const { socket, peer } = await raw();

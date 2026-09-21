@@ -3,6 +3,8 @@ package runtime_test
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,42 +20,50 @@ func echoOptions() ws.Options {
 	}}
 }
 
-// A serial that does not increase is a protocol violation: the peer could not
-// otherwise say which invocation a later control names.
-func TestRequestSerialThatDoesNotIncreaseEndsTheConnection(t *testing.T) {
-	for _, second := range []string{"c:3", "c:5", "c:1"} {
-		t.Run(second, func(t *testing.T) {
+// TestTheSerialTableIsHeldAsItJudges: every row of tables/serials.json, held
+// the way the peer holds what arrives — the first frame published, then the
+// request that follows it — so that the two runtimes and the suite read one
+// description of the order, this one.
+func TestTheSerialTableIsHeldAsItJudges(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "conformance", "tables", "serials.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var table struct {
+		Rows []struct {
+			Name          string
+			Before, Frame string
+			Valid         bool
+		}
+	}
+	if err := json.Unmarshal(data, &table); err != nil {
+		t.Fatal(err)
+	}
+	if len(table.Rows) == 0 {
+		t.Fatal("the serials table has no rows")
+	}
+	for _, row := range table.Rows {
+		t.Run(row.Name, func(t *testing.T) {
 			peer, conn, ctx := rawPeer(t, echoOptions())
-			for _, id := range []string{"c:5", second} {
-				frame := `{"version":1,"kind":"request","id":"` + id + `","method":"echo","params":1}`
+			for _, frame := range []string{row.Before, row.Frame} {
 				if err := conn.Write(ctx, websocket.MessageText, []byte(frame)); err != nil {
 					t.Fatal(err)
 				}
 			}
-			receive(t, peer.Done())
-			if peer.Err() == nil {
-				t.Fatal("a serial that did not increase was admitted")
+			if !row.Valid {
+				receive(t, peer.Done())
+				if peer.Err() == nil {
+					t.Fatal("a serial that did not increase was admitted")
+				}
+				return
+			}
+			if members := readFrame(ctx, t, conn); string(members["kind"]) != `"response"` {
+				t.Fatalf("frame was %s", members["kind"])
+			}
+			if peer.Err() != nil {
+				t.Fatalf("an admissible serial ended the connection: %v", peer.Err())
 			}
 		})
-	}
-}
-
-// Gaps are allowed: a reservation that never published still spent its serial.
-func TestRequestSerialsMayLeaveGaps(t *testing.T) {
-	peer, conn, ctx := rawPeer(t, echoOptions())
-	for _, id := range []string{"c:2", "c:9", "c:10000"} {
-		frame := `{"version":1,"kind":"request","id":"` + id + `","method":"echo","params":1}`
-		if err := conn.Write(ctx, websocket.MessageText, []byte(frame)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for range 3 {
-		if members := readFrame(ctx, t, conn); string(members["kind"]) != `"response"` {
-			t.Fatalf("frame was %s", members["kind"])
-		}
-	}
-	if peer.Err() != nil {
-		t.Fatalf("gaps ended the connection: %v", peer.Err())
 	}
 }
 

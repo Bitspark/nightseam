@@ -1,12 +1,12 @@
 {
-  "name": "a well-formed frame of every kind is taken without ending the connection",
+  "name": "a request serial that increases is served, gaps and all",
   "layer": "peer",
   "needs": [
     "peer",
     "seam"
   ],
   "foreach": {
-    "table": "tables/frames.json",
+    "table": "tables/serials.json",
     "as": "row",
     "where": {
       "valid": true
@@ -30,7 +30,7 @@
       "op": "peer.handle",
       "args": {
         "on": "$pb",
-        "method": "read",
+        "method": "echo",
         "behavior": {
           "kind": "echo"
         }
@@ -42,8 +42,19 @@
       "args": {
         "on": "$ca",
         "kind": "text",
+        "text": "$row.before"
+      },
+      "note": "what the direction published first"
+    },
+    {
+      "on": "a",
+      "op": "conn.send",
+      "args": {
+        "on": "$ca",
+        "kind": "text",
         "text": "$row.frame"
-      }
+      },
+      "note": "and a serial the receiver admits"
     },
     {
       "on": "b",

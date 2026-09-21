@@ -6,10 +6,10 @@
     "seam"
   ],
   "foreach": {
-    "table": "tables/frames.json",
+    "table": "tables/serials.json",
     "as": "row",
     "where": {
-      "sequence": true
+      "valid": false
     }
   },
   "steps": [
@@ -66,7 +66,7 @@
         "kind": "text",
         "text": "$row.before"
       },
-      "note": "the first request of the direction, which the receiver admits and takes as its mark"
+      "note": "what the direction published first, which the receiver takes as its mark"
     },
     {
       "on": "a",
@@ -76,7 +76,7 @@
         "kind": "text",
         "text": "$row.frame"
       },
-      "note": "a serial that does not increase, which the receiver refuses as it refuses a malformed frame"
+      "note": "and the serial that does not increase, refused as a malformed frame is"
     },
     {
       "on": "b",

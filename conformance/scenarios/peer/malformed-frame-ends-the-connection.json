@@ -10,8 +10,7 @@
     "table": "tables/frames.json",
     "as": "row",
     "where": {
-      "valid": false,
-      "sequence": null
+      "valid": false
     }
   },
   "steps": [
