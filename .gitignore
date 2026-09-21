@@ -11,3 +11,4 @@ conformance/.out/
 conformance/*/.generated/
 secrets/
 .worktrees/
+.build/

@@ -4,7 +4,7 @@ target_include_directories(nightseam_runtime PUBLIC include)
 target_link_libraries(nightseam_runtime PUBLIC Nightseam::duplex jsoncons)
 target_compile_features(nightseam_runtime PUBLIC cxx_std_20)
 
-if(BUILD_TESTING)
+if(BUILD_TESTING AND NIGHTSEAM_BUILD_TESTS)
   add_executable(nightseam_value_tests tests/value.cpp)
   target_link_libraries(nightseam_value_tests PRIVATE Nightseam::runtime)
   add_test(NAME cpp.value COMMAND nightseam_value_tests "${PROJECT_SOURCE_DIR}/conformance/tables")

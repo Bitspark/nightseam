@@ -38,6 +38,8 @@ jobs:
           node-version-file: package.json
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install the C++ core toolchain
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++
       # -json so that the failures can be read out by scenario rather than
       # scraped; the run is expected to fail, and what it failed at is the
       # output, so the step keeps going and the issues are what reports it.

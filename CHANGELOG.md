@@ -29,6 +29,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- C++20 has a bounded frames connection, pipe and WebSocket transports, the
+  peer runtime and descriptor validator, held to the shared core scenarios
+  against Go in both roles. Its CMake targets are `Nightseam::duplex` and
+  `Nightseam::runtime`; the language enters the conformance matrix at tier 4.
 - Generated Go and TypeScript families expose the canonical declaration and its
   SHA-256 digest, covering operations, events, errors and reachable imported
   declarations. Bound arguments retain their own declaration content and scope.

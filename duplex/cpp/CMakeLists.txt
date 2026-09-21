@@ -9,7 +9,7 @@ if(WIN32)
   target_link_libraries(nightseam_duplex PRIVATE ws2_32 mswsock)
 endif()
 
-if(BUILD_TESTING)
+if(BUILD_TESTING AND NIGHTSEAM_BUILD_TESTS)
   add_executable(nightseam_duplex_tests tests/seam.cpp)
   target_link_libraries(nightseam_duplex_tests PRIVATE Nightseam::duplex)
   add_test(NAME cpp.duplex COMMAND nightseam_duplex_tests)

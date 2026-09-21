@@ -55,7 +55,38 @@ void limit_and_shutdown() {
     accepting.get();
 }
 
+void cancellation_and_backpressure() {
+    ws::Listener listener;
+    auto client = ws::dial(listener.url());
+    auto server = listener.accept(Wait::after(2s));
+    std::stop_source cancel;
+    auto receiving = std::async(std::launch::async, [&] {
+        try {
+            server.conn->receive({cancel.get_token()});
+            throw std::runtime_error("cancelled receive unexpectedly completed");
+        } catch (const Cancelled&) {}
+    });
+    cancel.request_stop();
+    require(receiving.wait_for(1s) == std::future_status::ready, "receive cancellation did not settle");
+    receiving.get();
+    server.conn->abort();
+    client.conn->abort();
+
+    auto sender = ws::dial(listener.url());
+    auto stopped = listener.accept(Wait::after(2s));
+    const Frame large{Kind::binary, std::string(256 << 10, 'x')};
+    auto deadline = Wait::after(1s);
+    bool paced = false;
+    for (int n = 0; n != 400; ++n) {
+        try { sender.conn->send(large, deadline); }
+        catch (const DeadlineExceeded&) { paced = true; break; }
+    }
+    require(paced, "WebSocket buffered an unbounded stalled send");
+    sender.conn->abort();
+    stopped.conn->abort();
+}
+
 int main() {
-    try { exchange(); limit_and_shutdown(); }
+    try { exchange(); limit_and_shutdown(); cancellation_and_backpressure(); }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

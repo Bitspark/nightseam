@@ -91,6 +91,13 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           REQUIRE_CREDENTIAL: ${{ github.event_name == 'push' && '--require-credential' || '' }}
       - run: pnpm install --frozen-lockfile
+      - name: Install the C++ core toolchain
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++
+      - name: Build and test the C++ core
+        run: |
+          cmake -S . -B .build/cpp -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          cmake --build .build/cpp --parallel 2
+          ctest --test-dir .build/cpp --output-on-failure
       - run: pnpm -r check
       - run: pnpm -r test
       - run: go test ./...
