@@ -178,9 +178,9 @@ adapter](observer.md#the-opentelemetry-adapter) is the one that ships.
 ## The validator
 
 The wire validator lives in each runtime, once, and reads the family's wire
-description the protocol package embeds: `runtime.NewSchema(wire, imported)`
+description the protocol package embeds: `runtime.NewSchema(wire, digest, imported)`
 and `MustSchema` in Go, with `ValidateRaw`, `ValidateExpressionRaw` and
-`ValidateValue`; `createValidator(description, imported)` in TypeScript, which
+`ValidateValue`; `createValidator(description, digest, imported)` in TypeScript, which
 validates calls, replies, reverse calls and events alike. Both are held to
 one conformance table, `conformance/tables/validator.json`. `Optional[T]` and
 `Nullable[T]` in Go carry presence and nullness as the two facts the
