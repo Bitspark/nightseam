@@ -14,6 +14,18 @@ import (
 type routedFrame struct {
 	path    []string
 	message duplex.Message
+	call    *routedCall
+	refusal error
+}
+
+// A request reserves one cancellation at admission. Completed requests retain
+// their reservation until an already queued control has drained, so repeated
+// completion/admission cannot turn the control queue into an unbounded buffer.
+type routedCall struct {
+	cancel       context.CancelFunc
+	completed    bool
+	cancelQueued bool
+	cancelled    bool
 }
 
 type returnKey struct {
@@ -25,11 +37,13 @@ type returnKey struct {
 // associations stay beside the peer's carrier pending/incoming tables; views
 // in duplex only choose a path and never correlate an id.
 type peerWire struct {
-	peer      *Peer
-	queue     chan routedFrame
-	mu        sync.Mutex
-	incoming  map[returnKey]context.CancelFunc
-	receivers map[string]*wireRegistration
+	peer       *Peer
+	queue      []routedFrame
+	dataQueued int
+	wake       chan struct{}
+	mu         sync.Mutex
+	incoming   map[returnKey]*routedCall
+	receivers  map[string]*wireRegistration
 }
 
 type wireRegistration struct {
@@ -47,7 +61,7 @@ type wireDispatchContext struct {
 // its queues and its carrier lifetime.
 func (p *Peer) Wire() duplex.Wire {
 	p.wireOnce.Do(func() {
-		p.wire = &peerWire{peer: p, queue: make(chan routedFrame, p.options.QueueCapacity), incoming: map[returnKey]context.CancelFunc{}, receivers: map[string]*wireRegistration{}}
+		p.wire = &peerWire{peer: p, wake: make(chan struct{}, 1), incoming: map[returnKey]*routedCall{}, receivers: map[string]*wireRegistration{}}
 		go p.wire.run()
 	})
 	return p.wire
@@ -76,14 +90,78 @@ func (w *peerWire) Send(path []string, message duplex.Message) error {
 	message.Frame.Params = append(json.RawMessage(nil), message.Frame.Params...)
 	message.Frame.Data = append(json.RawMessage(nil), message.Frame.Data...)
 	message.Frame.Meta = maps.Clone(message.Frame.Meta)
-	select {
-	case w.queue <- routedFrame{path: append([]string(nil), path...), message: message}:
-		return nil
-	default:
-		w.peer.observeBackpressure(len(w.queue), true, w.peer.options.WriteTimeout)
-		w.peer.fail(ErrBackpressure)
-		return ErrBackpressure
+	delivered := routedFrame{path: append([]string(nil), path...), message: message}
+	key := returnKey{message.Return, message.Frame.ID}
+	w.mu.Lock()
+	if err := w.peer.Err(); err != nil {
+		w.mu.Unlock()
+		return err
 	}
+	if message.Frame.Kind == duplex.ProfileCancel {
+		call := w.incoming[key]
+		if call == nil || call.completed || call.cancelQueued || call.cancelled {
+			w.mu.Unlock()
+			return nil
+		}
+		call.cancelQueued = true
+		delivered.call = call
+	} else {
+		if w.dataQueued >= w.peer.options.QueueCapacity {
+			depth := w.dataQueued
+			w.mu.Unlock()
+			w.peer.observeBackpressure(depth, true, w.peer.options.WriteTimeout)
+			w.peer.fail(ErrBackpressure)
+			return ErrBackpressure
+		}
+		w.dataQueued++
+		if message.Frame.Kind == duplex.ProfileRequest {
+			if w.incoming[key] != nil {
+				delivered.refusal = &PublicError{Code: "invalid_message", Message: "Duplicate active request identifier"}
+			} else if len(w.incoming) >= w.peer.options.MaxPendingRequests {
+				delivered.refusal = &PublicError{Code: "busy", Message: "Outstanding call limit reached"}
+			} else {
+				delivered.call = &routedCall{}
+				w.incoming[key] = delivered.call
+			}
+		}
+	}
+	w.queue = append(w.queue, delivered)
+	w.mu.Unlock()
+	select {
+	case w.wake <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
+// retireLocked never removes a newer admission that reused the same local
+// return identity. It is called with w.mu held on completion and control drain.
+func (w *peerWire) retireLocked(key returnKey, call *routedCall) {
+	if call.completed && !call.cancelQueued && w.incoming[key] == call {
+		delete(w.incoming, key)
+	}
+}
+
+func (w *peerWire) complete(key returnKey, call *routedCall) {
+	w.mu.Lock()
+	call.completed = true
+	w.retireLocked(key, call)
+	w.mu.Unlock()
+}
+
+func (w *peerWire) next() (routedFrame, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.queue) == 0 {
+		return routedFrame{}, false
+	}
+	delivered := w.queue[0]
+	w.queue[0] = routedFrame{}
+	w.queue = w.queue[1:]
+	if delivered.message.Frame.Kind != duplex.ProfileCancel {
+		w.dataQueued--
+	}
+	return delivered, true
 }
 
 func (w *peerWire) Close(code duplex.Code, reason string) error {
@@ -95,14 +173,23 @@ func (w *peerWire) run() {
 	defer func() {
 		w.mu.Lock()
 		var receivers []duplex.Receiver
+		var cancels []context.CancelFunc
 		for _, registration := range w.receivers {
 			receivers = append(receivers, registration.receiver)
 		}
 		w.receivers = map[string]*wireRegistration{}
-		for _, cancel := range w.incoming {
+		for _, call := range w.incoming {
+			if call.cancel != nil {
+				cancels = append(cancels, call.cancel)
+			}
+		}
+		w.incoming = map[returnKey]*routedCall{}
+		w.queue = nil
+		w.dataQueued = 0
+		w.mu.Unlock()
+		for _, cancel := range cancels {
 			cancel()
 		}
-		w.mu.Unlock()
 		for _, receiver := range receivers {
 			if receiver.Closed != nil {
 				receiver.Closed(duplex.CodeGoingAway, "peer ended")
@@ -113,68 +200,76 @@ func (w *peerWire) run() {
 		select {
 		case <-w.peer.Done():
 			return
-		case delivered := <-w.queue:
-			f := delivered.message.Frame
-			key := returnKey{delivered.message.Return, f.ID}
-			switch f.Kind {
-			case duplex.ProfileCancel:
-				w.mu.Lock()
-				cancel := w.incoming[key]
-				w.mu.Unlock()
-				if cancel != nil {
-					cancel()
+		default:
+		}
+		delivered, exists := w.next()
+		if !exists {
+			select {
+			case <-w.peer.Done():
+				return
+			case <-w.wake:
+			}
+			continue
+		}
+		f := delivered.message.Frame
+		key := returnKey{delivered.message.Return, f.ID}
+		switch f.Kind {
+		case duplex.ProfileCancel:
+			w.mu.Lock()
+			state := delivered.call
+			var cancel context.CancelFunc
+			if w.incoming[key] == state {
+				state.cancelQueued = false
+				state.cancelled = true
+				if !state.completed {
+					cancel = state.cancel
 				}
-			case duplex.ProfileRequest:
-				ctx := w.peer.options.Propagator.Extract(w.peer.Context(), Trace{Parent: f.Traceparent, State: f.Tracestate})
-				ctx = WithMeta(ctx, f.Meta)
-				ctx, cancel := context.WithCancel(ctx)
-				w.mu.Lock()
-				_, duplicate := w.incoming[key]
-				full := len(w.incoming) >= w.peer.options.MaxPendingRequests
-				if !duplicate && !full {
-					w.incoming[key] = cancel
-				}
-				w.mu.Unlock()
-				if duplicate || full {
-					cancel()
-					code, message := "busy", "Outstanding call limit reached"
-					if duplicate {
-						code, message = "invalid_message", "Duplicate active request identifier"
-					}
-					sendWireResponse(delivered.message, nil, &PublicError{Code: code, Message: message})
-					continue
-				}
-				name, err := duplex.EncodePath(delivered.path)
-				var call *admittedCall
-				if err == nil {
-					call, err = w.peer.beginCall(ctx, name, f.Params)
-				}
-				if err != nil {
-					cancel()
-					w.mu.Lock()
-					delete(w.incoming, key)
-					w.mu.Unlock()
-					sendWireResponse(delivered.message, nil, WithoutUnpublishedProof(err))
-					continue
-				}
-				w.mu.Lock()
-				w.incoming[key] = func() { call.withdraw(); cancel() }
-				w.mu.Unlock()
-				go func() {
-					defer func() { cancel(); w.mu.Lock(); delete(w.incoming, key); w.mu.Unlock() }()
-					var result json.RawMessage
-					err := call.await(&result)
-					sendWireResponse(delivered.message, result, WithoutUnpublishedProof(err))
-				}()
-			case duplex.ProfileEvent:
-				name, err := duplex.EncodePath(delivered.path)
-				ctx := w.peer.options.Propagator.Extract(w.peer.Context(), Trace{Parent: f.Traceparent, State: f.Tracestate})
-				if err == nil {
-					err = w.peer.Emit(WithMeta(ctx, f.Meta), name, f.Data)
-				}
-				if err != nil {
-					w.peer.fail(err)
-				}
+				w.retireLocked(key, state)
+			}
+			w.mu.Unlock()
+			if cancel != nil {
+				cancel()
+			}
+		case duplex.ProfileRequest:
+			if delivered.refusal != nil {
+				sendWireResponse(delivered.message, nil, delivered.refusal)
+				continue
+			}
+			state := delivered.call
+			ctx := w.peer.options.Propagator.Extract(w.peer.Context(), Trace{Parent: f.Traceparent, State: f.Tracestate})
+			ctx = WithMeta(ctx, f.Meta)
+			ctx, cancel := context.WithCancel(ctx)
+			name, err := duplex.EncodePath(delivered.path)
+			var call *admittedCall
+			if err == nil {
+				call, err = w.peer.beginCall(ctx, name, f.Params)
+			}
+			if err != nil {
+				cancel()
+				w.complete(key, state)
+				sendWireResponse(delivered.message, nil, WithoutUnpublishedProof(err))
+				continue
+			}
+			w.mu.Lock()
+			state.cancel = func() { call.withdraw(); cancel() }
+			w.mu.Unlock()
+			go func() {
+				var result json.RawMessage
+				err := call.await(&result)
+				cancel()
+				// Retire before delivering the response: its callback can admit
+				// another request, but a queued cancellation still owns budget.
+				w.complete(key, state)
+				sendWireResponse(delivered.message, result, WithoutUnpublishedProof(err))
+			}()
+		case duplex.ProfileEvent:
+			name, err := duplex.EncodePath(delivered.path)
+			ctx := w.peer.options.Propagator.Extract(w.peer.Context(), Trace{Parent: f.Traceparent, State: f.Tracestate})
+			if err == nil {
+				err = w.peer.Emit(WithMeta(ctx, f.Meta), name, f.Data)
+			}
+			if err != nil {
+				w.peer.fail(err)
 			}
 		}
 	}
