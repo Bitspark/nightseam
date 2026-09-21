@@ -2,18 +2,14 @@
 // real socket. The argument is the URL the Go case started; the scope below
 // is the TypeScript twin of scope_test.go, rule for rule, because parity is
 // one suite and not two implementations that happen to agree.
-//
-// One thing differs, and it is a finding rather than a choice: the generator
-// renders a Go binding and a Go client, and for TypeScript a client alone. So
-// the side a TypeScript peer can implement is the client side, which is why
-// the sink's operations are declared there. See docs/runtime/compositions.md.
 
 import assert from 'node:assert/strict';
-import { DuplexPeer } from '@nightseam/runtime';
+import { DuplexPeer, forwardWire } from '@nightseam/runtime';
+import type { Wire } from '@nightseam/duplex';
 import { Tunnel, type Channel } from '@nightseam/tunnel';
-import { Client as WorkerClient, type Handle, type Held } from './api/ts/worker-client/src/index.ts';
-import { Client as SinkClient, type Ending, type ReportRequest } from './api/ts/sink-client/src/index.ts';
-import { Client as JobClient } from './api/ts/job-client/src/index.ts';
+import { fromWire as workerFromWire, type Handle, type Held } from './api/ts/worker-binding/src/index.ts';
+import { toWire as sinkToWire, type Ending, type ReportRequest } from './api/ts/sink-client/src/index.ts';
+import { fromWire as jobFromWire } from './api/ts/job-binding/src/index.ts';
 
 const url = process.argv[2];
 assert.ok(url, 'the worker URL is the first argument');
@@ -43,16 +39,36 @@ class Scope {
   }
 
   /** Opens a channel, serves an implementation over it, answers the reference. */
-  async export(family: string, serve: (channel: Channel) => Promise<{ close(): void }>): Promise<number> {
-    if (this.closed) throw new Error('the scope is closed');
-    const channel = await this.carrier.open(family, '');
-    const served = await serve(channel);
-    this.served.set(channel.id, { family, channel, close: () => served.close() });
+  async export(family: string, model: Wire): Promise<number> {
+    if (this.closed) {
+      model.close();
+      throw new Error('the scope is closed');
+    }
+    let channel: Channel;
+    try {
+      channel = await this.carrier.open(family, '', {
+        prepare(peer) {
+          forwardWire(peer.wire(), model);
+          peer.onClose(() => model.close());
+        },
+      });
+    } catch (error) {
+      model.close();
+      throw error;
+    }
+    this.served.set(channel.id, {
+      family,
+      channel,
+      close: () => {
+        model.close();
+        channel.close();
+      },
+    });
     return channel.id;
   }
 
   /** Resolves a reference this connection carried, once per binding. */
-  async import<T>(id: number, family: string, attach: (channel: Channel) => Promise<T & { close(): void }>): Promise<T> {
+  async import<T>(id: number, family: string, interpret: (channel: Channel) => Promise<T>): Promise<T> {
     if (this.closed) throw new Error('the scope is closed');
     if (this.served.has(id)) throw new Error('the reference was minted here');
     const already = this.held.get(id);
@@ -61,11 +77,11 @@ class Scope {
       already.aliases += 1;
       return already.client as T;
     }
-    const channel = this.carrier.channel(id);
+    const channel = await this.carrier.channel(id, {});
     if (!channel) throw new Error('the reference names no channel of this connection');
     if (channel.family !== family) throw new Error('the channel speaks ' + channel.family + ', not ' + family);
-    const client = await attach(channel);
-    this.held.set(id, { family, aliases: 1, close: () => client.close(), client });
+    const client = await interpret(channel);
+    this.held.set(id, { family, aliases: 1, close: () => channel.close(), client });
     return client;
   }
 
@@ -115,24 +131,24 @@ class Recorder {
 
 const peer = new DuplexPeer();
 const carrier = new Tunnel(peer);
-const client = new WorkerClient(peer, undefined, {});
+const workerModel = await workerFromWire(peer.wire(), {});
+const client = workerModel({ methods: {}, events: {} }).methods;
 await peer.connect(url);
 const scope = new Scope(carrier);
 
 const exportSink = (sink: Recorder) =>
-  scope.export('sink', channel =>
-    SinkClient.attach(
-      channel,
-      {},
-      {
-        report: params => sink.report(params),
-        end: params => sink.end(params),
-      },
-      {},
-    ),
+  scope.export(
+    'sink',
+    sinkToWire(() => ({
+      methods: { report: params => sink.report(params), end: params => sink.end(params) },
+      events: {},
+    }), {}),
   );
-
-const importJob = (id: number) => scope.import(id, 'job', channel => JobClient.attach(channel, {}, undefined, {}));
+const importJob = (id: number) =>
+  scope.import(id, 'job', async channel => {
+    const factory = await jobFromWire(channel, {});
+    return factory({ methods: {}, events: {} }).methods;
+  });
 
 const settle = async (why: string, holds: () => boolean) => {
   for (let waited = 0; waited < 600; waited += 1) {
@@ -153,7 +169,7 @@ const job = await importJob(started.job.channel);
 
 await settle('four reports and one ending', () => sink.ended === 'done' && sink.endings === 1);
 assert.deepEqual(sink.items, [1, 2, 3, 4], 'the sink was told out of order');
-const status = await job.status();
+const status = await job.status({});
 assert.equal(status.state, 'done');
 assert.equal(status.delivered, 4);
 
@@ -161,7 +177,9 @@ assert.equal(status.delivered, 4);
 // The reference has to be live for the first of these to mean anything, so it
 // comes before the release below rather than after it.
 await assert.rejects(
-  scope.import(started.job.channel, 'sink', channel => SinkClient.attach(channel, {}, { report: () => 0, end: () => 0 }, {})),
+  scope.import(started.job.channel, 'sink', async () => {
+    throw new Error('wrong contract reached the interpreter');
+  }),
   /speaks job/,
 );
 await assert.rejects(importJob(reference), /minted here/);
@@ -172,16 +190,16 @@ const again = await importJob(started.job.channel);
 assert.equal(again, job, 'two imports of one reference gave two attachments');
 assert.equal(scope.aliases(started.job.channel), 2);
 assert.equal(scope.release(started.job.channel), true);
-await job.status();
+await job.status({});
 assert.equal(scope.release(started.job.channel), true);
 assert.equal(scope.aliases(started.job.channel), 0);
-await assert.rejects(job.status(), 'a released reference still answered');
+await assert.rejects(async () => job.status({}), 'a released reference still answered');
 assert.equal(scope.release(started.job.channel), false);
 
 // 4. A wrong contract on the wire: the Go worker refuses a job reference
 // where a sink belongs, by the code the family declares.
 await assert.rejects(
-  client.start({ ticket: { label: 'miscast', steps: 1 }, progress: started.job }),
+  async () => client.start({ ticket: { label: 'miscast', steps: 1 }, progress: started.job }),
   (error: unknown) => (error as { code?: string }).code === 'unknown_reference',
 );
 
@@ -210,7 +228,7 @@ const cancellable = new Recorder();
 const cancellableReference = await exportSink(cancellable);
 const long = await client.start({ ticket: { label: 'cancel', steps: 16 }, progress: { channel: cancellableReference } });
 const longJob = await importJob(long.job.channel);
-const cancelled = await longJob.cancel();
+const cancelled = await longJob.cancel({});
 await settle('the cancelled job ended its sink once', () => cancellable.ended !== '' && cancellable.endings === 1);
 assert.equal(cancelled.stopped, cancellable.ended === 'cancelled', 'the answer and the sink disagree about the ending');
 
@@ -219,12 +237,12 @@ assert.equal(cancelled.stopped, cancellable.ended === 'cancelled', 'the answer a
 // held.
 const aborting = new AbortController();
 const slow = client.slow({ label: 'slow', steps: 1 }, { signal: aborting.signal });
-const rejected = assert.rejects(slow);
+const rejected = assert.rejects(Promise.resolve(slow));
 aborting.abort();
 await rejected;
 assert.equal(scope.aliases(long.job.channel), 1, 'cancelling a call released a reference');
-assert.equal((await longJob.status()).state.length > 0, true, 'cancelling a call reached the job');
+assert.equal((await longJob.status({})).state.length > 0, true, 'cancelling a call reached the job');
 
 scope.close();
-client.close();
+peer.close();
 console.log('compositions across the wire: ok');

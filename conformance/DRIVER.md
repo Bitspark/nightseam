@@ -690,3 +690,16 @@ platform's executable suffix. A rendering placed under `{out}` lies inside
 the checkout, where a TypeScript package resolves `@nightseam/*` through
 the workspace. `env` on any command is
 merged over the runner's environment; `cwd` defaults to `{self}`.
+
+
+### Generated relative-path Wire construction
+
+The Cell<T> fixture is declared under `conformance/corpora/wire-cell`. Its one
+model retains values and revisions, calls the opposite model, and sends events
+through the generated value adapter. A presentation changes only assembly.
+Allocation counters observe cumulative runtime `ConnectionOpened` and tunnel
+`ChannelOpened` events; view construction and first use are measured separately.
+
+| Operation | Arguments | Result |
+| --- | --- | --- |
+| `gen.wire_local` | **`presentation`**: `local`, `mounted`, or `forwarded`; `within_ms` | `{"revisions":[1,2],"value":"second","reverse":"second","changed":"second","noted":"first","view_allocations":{"peers":0,"channels":0},"use_allocations":{"peers":0,"channels":0}}` — one scalar model survives direct local access, nested `At(Mount(...))`, or a generic bidirectional forwarder. Both events and the reverse call complete before counters are returned. |

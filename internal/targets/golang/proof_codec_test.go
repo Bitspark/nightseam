@@ -81,7 +81,6 @@ import (
  probebinding "example.test/proof/api/go/probe-binding"
  duplex "github.com/Bitspark/nightseam/duplex/go"
  runtime "github.com/Bitspark/nightseam/runtime/go"
- live "github.com/Bitspark/nightseam/live/go"
 )
 type server struct{protocol.ServerMethods[probe.Envelope,probe.Handle,string];remote protocol.Client[probe.Envelope,probe.Handle,string]}
 func (s server) Echo(ctx context.Context,p probe.Payload)(probe.Payload,error) {
@@ -100,9 +99,9 @@ func(r receiver) Changed(_ context.Context,p probe.Payload)error{r.values<-p;ret
 func model(remote protocol.Client[probe.Envelope,probe.Handle,string])(protocol.Server[probe.Envelope,probe.Handle,string],error){return protocol.Server[probe.Envelope,probe.Handle,string]{Methods:server{remote:remote}},nil}
 func TestMixedParametersAndInheritedOperations(t *testing.T) {
  ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second); defer cancel()
- wire,err:=binding.ToWire[probe.Envelope,probe.Handle,string](model,live.AdapterContext{},live.JSONAdapter[string]());if err!=nil{t.Fatal(err)};defer wire.Close(duplex.CodeNormal,"")
+ wire,err:=binding.ToWire[probe.Envelope,probe.Handle,string](model,runtime.AdapterContext{},runtime.JSONAdapter[string]());if err!=nil{t.Fatal(err)};defer wire.Close(duplex.CodeNormal,"")
  events:=make(chan probe.Payload,1)
- factory,err:=binding.FromWire[probe.Envelope,probe.Handle,string](ctx,wire,live.AdapterContext{},live.JSONAdapter[string]());if err!=nil{t.Fatal(err)}
+ factory,err:=binding.FromWire[probe.Envelope,probe.Handle,string](ctx,wire,runtime.AdapterContext{},runtime.JSONAdapter[string]());if err!=nil{t.Fatal(err)}
  c,err:=factory(protocol.Client[probe.Envelope,probe.Handle,string]{Events:receiver{values:events}});if err!=nil{t.Fatal(err)}
  echo,err:=c.Methods.Echo(ctx,probe.Payload{Text:"hello"}); if err!=nil || echo.Text!="hello" { t.Fatalf("echo: %#v %v",echo,err) }
  select {case event:=<-events: if event.Text!="hello" { t.Fatal(event) }; case <-ctx.Done(): t.Fatal(ctx.Err())}
@@ -112,7 +111,7 @@ func TestMixedParametersAndInheritedOperations(t *testing.T) {
 }
 func TestBaseClientSpeaksExtendedBinding(t *testing.T) {
  ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second); defer cancel()
- wire,err:=binding.ToWire[probe.Envelope,probe.Handle,string](model,live.AdapterContext{},live.JSONAdapter[string]());if err!=nil{t.Fatal(err)};defer wire.Close(duplex.CodeNormal,"")
+ wire,err:=binding.ToWire[probe.Envelope,probe.Handle,string](model,runtime.AdapterContext{},runtime.JSONAdapter[string]());if err!=nil{t.Fatal(err)};defer wire.Close(duplex.CodeNormal,"")
  factory,err:=probebinding.FromWire(ctx,wire,runtime.AdapterContext{});if err!=nil{t.Fatal(err)}
  c,err:=factory(probe.Client{Methods:reverse{}});if err!=nil{t.Fatal(err)}
  result,err:=c.Methods.Echo(ctx,probe.Payload{Text:"base"}); if err!=nil || result.Text!="base" { t.Fatalf("base client: %#v %v",result,err) }

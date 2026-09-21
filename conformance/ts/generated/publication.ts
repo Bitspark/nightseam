@@ -1,13 +1,14 @@
 /** Ordinary generated callbacks survive uncertain publication and have explicit owners. */
 import * as publication from './api/ts/publication-client/src/index.ts';
 import * as binding from './api/ts/publication-binding/src/index.ts';
-import { DuplexPeer, DuplexError, UnpublishedError, type CallOptions, type EmitOptions, type RequestContext, type EventContext } from '@nightseam/runtime';
+import { DuplexError, UnpublishedError, type CallOptions, type EmitOptions, type WireModelContext } from '@nightseam/runtime';
 import { liveOver, type LiveScope, type LiveOwner } from '@nightseam/live';
-import { Served } from './server.ts';
+import { Served, Session, adapterContext } from './server.ts';
 
 type Args = Record<string, unknown>;
-type OwnedCall = CallOptions & { owner?: LiveOwner };
-type OwnedEmit = EmitOptions & { owner?: LiveOwner };
+type OwnedCall = CallOptions & { owner: LiveOwner };
+type OwnedEmit = EmitOptions & { owner: LiveOwner };
+type ReceivedContext = WireModelContext & { owner?: LiveOwner };
 export class PublicationFailure extends Error {
   readonly code: string;
   constructor(code: string, message: string) { super(message); this.code = code; }
@@ -19,7 +20,8 @@ function code(error: unknown): string {
   throw error;
 }
 const delay = () => new Promise<void>(resolve => setTimeout(resolve, 1));
-function aborted(signal: AbortSignal): Promise<void> {
+function aborted(signal?: AbortSignal): Promise<void> {
+  if (!signal) throw new PublicationFailure('invalid', 'generated request supplied no cancellation signal');
   if (signal.aborted) return Promise.resolve();
   return new Promise(resolve => signal.addEventListener('abort', () => resolve(), { once: true }));
 }
@@ -30,28 +32,29 @@ class Receiver {
   failure?: unknown;
   readonly scope: LiveScope;
   constructor(scope: LiveScope) { this.scope = scope; }
-  retain(value: publication.Supply, context: (RequestContext | EventContext) & { owner: LiveOwner }): void {
+  retain(value: publication.Supply, context?: ReceivedContext): void {
+    if (!context?.owner) throw new PublicationFailure('invalid', 'generated receiver supplied no owner');
     check(context.owner.scope === this.scope && context.owner !== this.scope.owner(), 'generated receiver did not supply a child owner');
     this.owner = context.owner;
     this.callback = value.callback;
   }
-  async supply(value: publication.Supply, context: RequestContext & { owner: LiveOwner }): Promise<number> {
+  async supply(value: publication.Supply, context?: ReceivedContext): Promise<number> {
     this.retain(value, context);
     await value.callback(-1);
     if (['busy', 'cancelled', 'frame_too_large'].includes(value.mode)) throw new DuplexError(value.mode, 'retained before refusal');
     check(['timeout', 'cancel', 'lost_reply'].includes(value.mode), 'unknown supply mode ' + value.mode);
-    await aborted(context.signal);
+    await aborted(context?.signal);
     if (value.mode === 'lost_reply') return 0;
     throw new DuplexError('cancelled', 'caller withdrew');
   }
-  async produce(value: publication.Supply, context: RequestContext & { owner: LiveOwner }): Promise<publication.Callback> {
+  async produce(value: publication.Supply, context?: ReceivedContext): Promise<publication.Callback> {
     this.retain(value, context);
     await value.callback(-1);
-    await aborted(context.signal);
+    await aborted(context?.signal);
     // Conversion still runs after cancellation; the generated reply is suppressed.
     return async n => n + 2;
   }
-  async event(value: publication.Supply, context: EventContext & { owner: LiveOwner }): Promise<void> {
+  async event(value: publication.Supply, context?: ReceivedContext): Promise<void> {
     try { this.retain(value, context); await value.callback(-1); }
     catch (error) { this.failure = error; }
   }
@@ -78,7 +81,7 @@ interface Endpoint {
   drop(): Promise<boolean>;
   close(): void;
 }
-interface Handle { endpoint?: Endpoint; served?: Served<binding.Remote>; }
+interface Handle { endpoint?: Endpoint; served?: Served<Session<publication.Client>>; }
 const handles = new Map<string, Handle>();
 let next = 0;
 const mint = (value: Handle): string => { const handle = 'publication' + String(++next); handles.set(handle, value); return handle; };
@@ -159,36 +162,46 @@ export const publicationOps: Record<string, (args: Args) => unknown | Promise<un
   'gen.publication_serve': async () => {
     const handle: Handle = {};
     const served = await new Served(async socket => {
-      const peer = new DuplexPeer({ role: 'server', maxFrameBytes: 1024 });
+      const connection = new Session<publication.Client>({ role: 'server', maxFrameBytes: 1024 });
+      const peer = connection.peer;
       const scope = liveOver(peer, { maxExports: 4, maxImports: 4 });
       const receiver = new Receiver(scope);
-      const remote = binding.install(peer, {
-        supply: (value, _remote, context) => receiver.supply(value, context),
-        produce: (value, _remote, context) => receiver.produce(value, context),
-        inspect: () => receiver.inspect(),
-        invoke: () => receiver.invoke(),
-        drop: () => receiver.drop(),
-      }, { offeredBack: (value, context) => receiver.event(value, context) });
-      await peer.attach(socket);
-      handle.endpoint = { scope, supply: (v, o) => remote.supplyBack(v, o), produce: (v, o) => remote.produceBack(v, o), emit: (v, o) => remote.emitOffered(v, o), inspect: () => remote.inspectBack(), invoke: () => remote.invokeBack(), drop: () => remote.dropBack(), close: () => peer.close() };
-      return remote;
+      connection.expose(binding.toWire(remote => {
+        connection.model = remote;
+        return { methods: {
+          supply: (value, context) => receiver.supply(value, context),
+          produce: (value, context) => receiver.produce(value, context),
+          inspect: () => receiver.inspect(),
+          invoke: () => receiver.invoke(),
+          drop: () => receiver.drop(),
+        }, events: { offeredBack: (value, context) => receiver.event(value, context) } };
+      }, adapterContext(scope, { maxFrameBytes: 1024 })));
+      await connection.attach(socket);
+      const remote = connection.model;
+      handle.endpoint = { scope, supply: async (v, o) => remote.methods.supplyBack(v, o), produce: async (v, o) => remote.methods.produceBack(v, o), emit: async (v, o) => remote.events.offered(v, o), inspect: async () => remote.methods.inspectBack({}), invoke: async () => remote.methods.invokeBack({}), drop: async () => remote.methods.dropBack({}), close: () => connection.close() };
+      return connection;
     }).listen();
     handle.served = served;
     return { handle: mint(handle), url: served.url };
   },
   'gen.publication_dial': async args => {
-    const peer = new DuplexPeer({ maxFrameBytes: 1024 });
+    const connection = new Session<publication.Server>({ maxFrameBytes: 1024 });
+    const peer = connection.peer;
     const scope = liveOver(peer, { maxExports: 4, maxImports: 4 });
     const receiver = new Receiver(scope);
-    const client = new publication.Client(peer, {
-      supplyBack: (value, context) => receiver.supply(value, context),
-      produceBack: (value, context) => receiver.produce(value, context),
-      inspectBack: () => receiver.inspect(),
-      invokeBack: () => receiver.invoke(),
-      dropBack: () => receiver.drop(),
-    }, { offered: (value, context) => receiver.event(value, context) });
-    await peer.connect(String(args.url));
-    return { handle: mint({ endpoint: { scope, supply: (v, o) => client.supply(v, o), produce: (v, o) => client.produce(v, o), emit: (v, o) => client.emitOfferedBack(v, o), inspect: () => client.inspect(), invoke: () => client.invoke(), drop: () => client.drop(), close: () => peer.close() } }) };
+    connection.expose(publication.toWire(remote => {
+      connection.model = remote;
+      return { methods: {
+        supplyBack: (value, context) => receiver.supply(value, context),
+        produceBack: (value, context) => receiver.produce(value, context),
+        inspectBack: () => receiver.inspect(),
+        invokeBack: () => receiver.invoke(),
+        dropBack: () => receiver.drop(),
+      }, events: { offered: (value, context) => receiver.event(value, context) } };
+    }, adapterContext(scope, { maxFrameBytes: 1024 })));
+    await connection.connect(String(args.url));
+    const client = connection.model;
+    return { handle: mint({ endpoint: { scope, supply: async (v, o) => client.methods.supply(v, o), produce: async (v, o) => client.methods.produce(v, o), emit: async (v, o) => client.events.offeredBack(v, o), inspect: async () => client.methods.inspect({}), invoke: async () => client.methods.invoke({}), drop: async () => client.methods.drop({}), close: () => connection.close() } }) };
   },
   'gen.publication_exercise': async args => {
     const handle = handles.get(String(args.on));

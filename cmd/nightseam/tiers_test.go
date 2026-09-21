@@ -88,7 +88,7 @@ func TestTierFilesAreLoadedAndRendered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"type Caller interface", "var _ Caller = (*Client)(nil)", "func (c *Client) Echo("} {
+	for _, want := range []string{"func ToWire(", "func FromWire(", " Echo(ctx "} {
 		if !strings.Contains(string(client), want) {
 			t.Errorf("the Go client lacks %s", want)
 		}
@@ -102,7 +102,7 @@ func TestTierFilesAreLoadedAndRendered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"export interface Caller {", "export class Client implements Caller {"} {
+	for _, want := range []string{"export function toWire(", "export async function fromWire(", "async echo(params, context)"} {
 		if !strings.Contains(string(index), want) {
 			t.Errorf("the TypeScript client lacks %s", want)
 		}
@@ -242,7 +242,7 @@ func TestInitWritesTheHandlersOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"package probe", "var _ binding.Handler = Handler{}", "func (Handler) Echo(ctx context.Context, remote *binding.Remote, params protocol.Payload) (protocol.Payload, error)", `Code: "unimplemented"`} {
+	for _, want := range []string{"package probe", "var _ protocol.ServerMethods = Handler{}", "func (Handler) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error)", `Code: "unimplemented"`} {
 		if !strings.Contains(string(handler), want) {
 			t.Errorf("the Go handler lacks %s:\n%s", want, handler)
 		}
@@ -251,7 +251,7 @@ func TestInitWritesTheHandlersOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(stub), "export const handler: Handler = {") || !strings.Contains(string(stub), "async reverse(params, context)") || !strings.Contains(string(stub), `throw new Error("reverse is not implemented")`) {
+	if !strings.Contains(string(stub), "export const model: ClientModel = remote => ({") || !strings.Contains(string(stub), "async reverse(params, context)") || !strings.Contains(string(stub), `throw new Error("reverse is not implemented")`) {
 		t.Errorf("the TypeScript handler is wrong:\n%s", stub)
 	}
 	writeFixture(t, root, "api/impl/probe/handler.go", []byte("package probe // mine\n"))
@@ -268,7 +268,7 @@ func TestInitWritesTheHandlersOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	generic, _ := os.ReadFile(filepath.Join(root, "impl/carrier/handler.go"))
-	if !strings.Contains(string(generic), "type Handler[SEnvelope, SHandle any] struct{}") || !strings.Contains(string(generic), "func (Handler[SEnvelope, SHandle]) Relay(ctx context.Context, remote *binding.Remote[SEnvelope, SHandle], params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)") {
+	if !strings.Contains(string(generic), "type Handler[SEnvelope, SHandle any] struct{}") || !strings.Contains(string(generic), "func (Handler[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)") {
 		t.Errorf("the generic handler is wrong:\n%s", generic)
 	}
 }

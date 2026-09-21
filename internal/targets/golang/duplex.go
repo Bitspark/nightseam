@@ -13,12 +13,7 @@ import (
 func emitBinding(f *file) { f.emitWireAdapter("Server", "Client") }
 func emitClient(f *file)  { f.emitWireAdapter("Client", "Server") }
 
-func (f *file) adapterContext() string {
-	if f.family.Live || f.adapters {
-		return f.live() + ".AdapterContext"
-	}
-	return f.runtime() + ".AdapterContext"
-}
+func (f *file) adapterContext() string { return f.runtime() + ".AdapterContext" }
 
 func (f *file) emitWireModels() {
 	if !f.family.HasProtocol() {
@@ -76,11 +71,8 @@ func (f *file) emitWireAdapter(side, opposite string) {
 		f.wireRegistration(name, methods, events)
 	}
 	f.w.Block(fmt.Sprintf("func normalizeContext%s(environment %s%s) (%s, error) {", decl, contextType, f.slotParameters(), contextType), "}", func() {
-		if f.family.Live || f.adapters {
-			f.line("if environment.Scope == nil && environment.Owner != nil { environment.Scope = environment.Owner.Scope() }")
-			f.linef("if %s && environment.Scope == nil { return environment, &%s.PublicError{Code:%s.ErrorScopeClosed,Message:\"a live adapter requires an explicit scope\"} }", f.scopeLive(), rt, f.live())
-			f.line("if environment.Scope != nil && (environment.Owner == nil || environment.Owner.Scope() != environment.Scope) { environment.Owner = environment.Scope.Owner() }")
-		}
+		f.linef("if %s && environment.ValueEnvironment == nil { return environment, %s.Errorf(\"a context-dependent adapter requires a value environment\") }", f.scopeLive(), f.std("fmt"))
+
 		f.line("return environment, nil")
 	})
 	f.linef("// ToWire binds one model factory and returns its access wire.")
@@ -143,7 +135,7 @@ func operations(fam *render.Family) []string {
 
 // Each request gets a child of the explicitly selected owner. Outgoing work
 // uses a same-scope owner from its context, preserving publication batches.
-func (f *file) wireOwner(expressions []model.TypeExpr, incoming bool, prefix string) {
+func (f *file) wireOwner(expressions []model.TypeExpr, incoming bool, prefix, failure string) {
 	needed := false
 	var parts []string
 	for _, e := range expressions {
@@ -155,15 +147,14 @@ func (f *file) wireOwner(expressions []model.TypeExpr, incoming bool, prefix str
 	if !needed {
 		return
 	}
-	f.linef("var owner *%s.Owner", f.live())
 	f.w.Block("if "+liveOr(parts...)+" {", "}", func() {
-		f.line("owner = " + prefix + "environment.Owner")
+		f.line("var err error")
+		action := "Select"
 		if incoming {
-			f.line("owner = owner.Child()")
-			f.linef("ctx = %s.WithOwner(ctx,owner)", f.live())
-		} else {
-			f.linef("if current, ok := %s.OwnerOf(ctx); ok && current.Scope() == %senvironment.Scope { owner = current }", f.live(), prefix)
+			action = "Child"
 		}
+		f.linef("ctx, err = %senvironment.ValueEnvironment.%s(ctx)", prefix, action)
+		f.linef("if err != nil { return %serr }", failure)
 	})
 }
 
@@ -174,7 +165,7 @@ func (f *file) wireCaller(m render.Method, receiver string) {
 	json := f.std("json")
 	f.w.Block(fmt.Sprintf("func(c *%s) %s(ctx %s.Context%s) (%s,error) {", receiver, f.plan.operations[m.Name], f.std("context"), f.request(m), f.spell(m.Result)), "}", func() {
 		f.linef("var result %s", f.spell(m.Result))
-		f.wireOwner([]model.TypeExpr{m.Request, m.Result}, false, "c.")
+		f.wireOwner([]model.TypeExpr{m.Request, m.Result}, false, "c.", "result, ")
 		if m.Request != nil && f.needsConversion(m.Request) {
 			f.publishBoundary(m.Request, "params", "raw", func() {
 				f.linef("var raw %s.RawMessage", json)
@@ -204,7 +195,7 @@ func (f *file) wireEmitter(e render.Event, receiver string) {
 	f.adapterPrefix = "c."
 	defer func() { f.adapterPrefix = previous }()
 	f.w.Block(fmt.Sprintf("func(c *%s) %s(ctx %s.Context,data %s) error {", receiver, f.plan.operations[e.Name], f.std("context"), f.spell(e.Type)), "}", func() {
-		f.wireOwner([]model.TypeExpr{e.Type}, false, "c.")
+		f.wireOwner([]model.TypeExpr{e.Type}, false, "c.", "")
 		if f.needsConversion(e.Type) {
 			f.publishBoundary(e.Type, "data", "_", func() { f.linef("return nil,%s.EmitWire(ctx,c.wire,[]string{%q},sent)", f.runtime(), e.Name) })
 			f.line("return err")
@@ -261,7 +252,7 @@ func (f *file) wireRegistration(side string, methods []render.Method, events []r
 func (f *file) wireRequest(m render.Method) {
 	json := f.std("json")
 	f.w.Block(fmt.Sprintf("handlers.Request = func(ctx %s.Context,raw %s.RawMessage)(any,error){", f.std("context"), json), "}", func() {
-		f.wireOwner([]model.TypeExpr{m.Request, m.Result}, true, "")
+		f.wireOwner([]model.TypeExpr{m.Request, m.Result}, true, "", "nil, ")
 		params := ""
 		if m.Request != nil {
 			if f.needsConversion(m.Request) {
@@ -290,7 +281,7 @@ func (f *file) wireRequest(m render.Method) {
 func (f *file) wireEvent(e render.Event) {
 	f.w.Block("if implementation.Events != nil {", "}", func() {
 		f.w.Block(fmt.Sprintf("handlers.Event=func(ctx %s.Context,raw %s.RawMessage)error{", f.std("context"), f.std("json")), "}", func() {
-			f.wireOwner([]model.TypeExpr{e.Type}, true, "")
+			f.wireOwner([]model.TypeExpr{e.Type}, true, "", "")
 			if f.needsConversion(e.Type) {
 				f.liveBoundary(e.Type, "raw", "data", false)
 				f.line("if err!=nil{return err}")

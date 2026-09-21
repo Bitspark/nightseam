@@ -57,27 +57,43 @@ func TestDiagramCommutesInGo(t *testing.T) {
 	}
 }
 
-const slotLoader = runtimeLoader
+// The two renderings intentionally have the same package name. Resolve the
+// generic binding's protocol import to its own artifact, so the socket proof
+// cannot accidentally exercise the substituted validator for both routes.
+const slotLoader = `export async function resolve(specifier, context, next) {
+ const map = {'@nightseam/runtime':'./runtime/ts/src/index.ts','@nightseam/duplex':'./duplex/ts/src/index.ts','@nightseam/tunnel':'./tunnel/ts/src/index.ts','@nightseam/live':'./live/ts/src/index.ts'};
+ const name = specifier.slice('@example/'.length);
+ const root = specifier === '@example/carrier-client/types' && context.parentURL?.includes('/gen/ts/') ? './gen/ts/' : './api/ts/';
+ const generated = name.endsWith('/types') ? root + name.slice(0, -6) + '/src/types.ts' : root + name + '/src/index.ts';
+ const entry = map[specifier] ?? (specifier.startsWith('@example/') ? generated : undefined);
+ if (entry) return {url: new URL(entry, import.meta.url).href, shortCircuit: true};
+ return next(specifier, context);
+}`
 
 // tsGenericRoundtrip dials a carrier server with the generic TypeScript
 // client bound to probe: a relayed frame comes back as its envelope, the
 // event arrives typed, and a frame whose envelope probe refuses is refused
 // before it is sent.
 const tsGenericRoundtrip = `import assert from 'node:assert/strict';
-import {Client} from './gen/ts/carrier-client/src/index.ts';
+import {fromWire} from './gen/ts/carrier-binding/src/index.ts';
 import {family as probe} from './api/ts/probe-client/src/index.ts';
-const client = await Client.dial(process.argv[2], probe, {}, undefined, {});
+import {DuplexPeer} from '@nightseam/runtime';
+const peer = new DuplexPeer();
 let observed;
-client.onFrameRelayed((frame) => { observed = frame; });
+const bind = await fromWire(peer.wire(), {}, probe);
+const client = bind({methods: {}, events: {frameRelayed(frame) { observed = frame; }}});
+await peer.connect(process.argv[2]);
 const message = {version: 1, kind: 'event', event: 'changed', data: {}};
-const result = await client.relay({sequence: 1, message});
+const result = await client.methods.relay({sequence: 1, message});
 assert.deepEqual(result, message);
+const deadline = Date.now() + 5000;
+while (!observed) { assert.ok(Date.now() < deadline, 'frameRelayed did not arrive'); await new Promise(resolve => setTimeout(resolve, 1)); }
 assert.equal(observed.sequence, 1);
 assert.deepEqual(observed.message, message);
-await assert.rejects(client.relay({sequence: 2, message: {version: 1}}));
-const attachment = await client.attach({id: 'x'});
+await assert.rejects(client.methods.relay({sequence: 2, message: {version: 1}}));
+const attachment = await client.methods.attach({id: 'x'});
 assert.equal(attachment.connection.channel, 7);
-client.close();
+peer.close();
 `
 
 const goDiagramFixture = `package generated
@@ -92,13 +108,12 @@ import (
  "testing"
  "time"
  leftbinding "example.test/generated/api/go/carrier-binding"
- leftclient "example.test/generated/api/go/carrier-client"
  left "example.test/generated/api/go/carrier-protocol"
  probe "example.test/generated/api/go/probe-protocol"
  rightbinding "example.test/generated/gen/go/carrier-binding"
- rightclient "example.test/generated/gen/go/carrier-client"
  right "example.test/generated/gen/go/carrier-protocol"
  "github.com/Bitspark/nightseam/runtime/go"
+ "github.com/Bitspark/nightseam/duplex/go"
 )
 type E = probe.Envelope
 type H = probe.Handle
@@ -144,33 +159,53 @@ func TestInstantiationIsTheLeftPath(t *testing.T) {
   {"Frames", reflect.TypeOf(left.Frames{}), reflect.TypeOf(right.Frames[E]{})},
   {"AttachParams", reflect.TypeOf(left.AttachParams{}), reflect.TypeOf(right.AttachParams{})},
   {"Envelope", reflect.TypeOf(left.Envelope{}), reflect.TypeOf(right.Envelope{})},
-  {"Caller", reflect.TypeOf((*leftclient.Caller)(nil)).Elem(), reflect.TypeOf((*rightclient.Caller[E, H])(nil)).Elem()},
-  {"client Handler", reflect.TypeOf((*leftclient.Handler)(nil)).Elem(), reflect.TypeOf((*rightclient.Handler[E, H])(nil)).Elem()},
-  {"binding Handler", reflect.TypeOf((*leftbinding.Handler)(nil)).Elem(), reflect.TypeOf((*rightbinding.Handler[E, H])(nil)).Elem()},
-  {"Client", reflect.TypeOf((*leftclient.Client)(nil)), reflect.TypeOf((*rightclient.Client[E, H])(nil))},
-  {"Remote", reflect.TypeOf((*leftbinding.Remote)(nil)), reflect.TypeOf((*rightbinding.Remote[E, H])(nil))},
+  {"ServerMethods", reflect.TypeOf((*left.ServerMethods)(nil)).Elem(), reflect.TypeOf((*right.ServerMethods[E, H])(nil)).Elem()},
+  {"ClientMethods", reflect.TypeOf((*left.ClientMethods)(nil)).Elem(), reflect.TypeOf((*right.ClientMethods[E, H])(nil)).Elem()},
+  {"ServerEvents", reflect.TypeOf((*left.ServerEvents)(nil)).Elem(), reflect.TypeOf((*right.ServerEvents[E, H])(nil)).Elem()},
+  {"ClientEvents", reflect.TypeOf((*left.ClientEvents)(nil)).Elem(), reflect.TypeOf((*right.ClientEvents[E, H])(nil)).Elem()},
+  {"Server", reflect.TypeOf(left.Server{}), reflect.TypeOf(right.Server[E, H]{})},
+  {"Client", reflect.TypeOf(left.Client{}), reflect.TypeOf(right.Client[E, H]{})},
+  {"ServerModel", reflect.TypeOf((*left.ServerModel)(nil)).Elem(), reflect.TypeOf((*right.ServerModel[E, H])(nil)).Elem()},
+  {"ClientModel", reflect.TypeOf((*left.ClientModel)(nil)).Elem(), reflect.TypeOf((*right.ClientModel[E, H])(nil)).Elem()},
  } {
   if !same(pair.left, pair.right) { t.Errorf("%s: %v is not %v", pair.name, pair.right, pair.left) }
   if !sameMethods(pair.left, pair.right) { t.Errorf("%s: the method set of %v is not %v's", pair.name, pair.right, pair.left) }
  }
 }
-type rightServer struct{}
-func (rightServer) Attach(ctx context.Context, remote *rightbinding.Remote[E, H], params right.AttachParams) (right.Attachment[H], error) {
+type rightServer struct{ remote right.Client[E, H] }
+func (rightServer) Attach(ctx context.Context, params right.AttachParams) (right.Attachment[H], error) {
  return right.Attachment[H]{Connection: H{Channel: 7}, Last: 1}, nil
 }
-func (rightServer) Relay(ctx context.Context, remote *rightbinding.Remote[E, H], frame right.Frame[E]) (E, error) {
- if err := remote.EmitFrameRelayed(ctx, frame); err != nil { return frame.Message, err }
+func (s rightServer) Relay(ctx context.Context, frame right.Frame[E]) (E, error) {
+ if err := s.remote.Events.FrameRelayed(ctx, frame); err != nil { return frame.Message, err }
  return frame.Message, nil
 }
-type leftServer struct{}
-func (leftServer) Attach(ctx context.Context, remote *leftbinding.Remote, params left.AttachParams) (left.Attachment, error) {
+type leftServer struct{ remote left.Client }
+func (leftServer) Attach(ctx context.Context, params left.AttachParams) (left.Attachment, error) {
  return left.Attachment{Connection: H{Channel: 7}, Last: 1}, nil
 }
-func (leftServer) Relay(ctx context.Context, remote *leftbinding.Remote, frame left.Frame) (E, error) {
- if err := remote.EmitFrameRelayed(ctx, frame); err != nil { return frame.Message, err }
+func (s leftServer) Relay(ctx context.Context, frame left.Frame) (E, error) {
+ if err := s.remote.Events.FrameRelayed(ctx, frame); err != nil { return frame.Message, err }
  return frame.Message, nil
 }
 var options = runtime.ServerOptions{Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil }, CheckOrigin: func(*http.Request) bool { return true }}
+func rightModel(remote right.Client[E,H]) (right.Server[E,H],error) { return right.Server[E,H]{Methods:rightServer{remote},Events:struct{}{}},nil }
+func leftModel(remote left.Client) (left.Server,error) { return left.Server{Methods:leftServer{remote},Events:struct{}{}},nil }
+type leftEvents struct{ relayed chan left.Frame }
+func (e leftEvents) FrameRelayed(_ context.Context, frame left.Frame) error {e.relayed<-frame;return nil}
+type rightEvents struct{ relayed chan right.Frame[E] }
+func (e rightEvents) FrameRelayed(_ context.Context, frame right.Frame[E]) error {e.relayed<-frame;return nil}
+func wireHandler(t *testing.T, model func()(duplex.Wire,error)) http.Handler {
+ t.Helper()
+ settings:=options
+ settings.Options.Prepare=func(peer *runtime.Peer)error{
+  wire,err:=model();if err!=nil{return err}
+  if _,err=runtime.ForwardWire(peer.Wire(),wire);err!=nil{_ = wire.Close(duplex.CodeInternalError,"forward failed");return err}
+  go func(){<-peer.Done();_ = wire.Close(duplex.CodeNormal,"")}()
+  return nil
+ }
+ handler,err:=runtime.NewHandler(settings);if err!=nil{t.Fatal(err)};return handler
+}
 func envelope(t *testing.T) E {
  t.Helper()
  var e E
@@ -183,19 +218,21 @@ func serve(t *testing.T, h http.Handler) (*httptest.Server, string) {
  return server, "ws" + strings.TrimPrefix(server.URL, "http")
 }
 func TestPlainClientSpeaksWithGenericServer(t *testing.T) {
- h, err := rightbinding.NewHandler(rightServer{}, options)
- if err != nil { t.Fatal(err) }
+ h := wireHandler(t,func()(duplex.Wire,error){return rightbinding.ToWire(rightModel,runtime.AdapterContext{})})
  server, url := serve(t, h)
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
  defer cancel()
- c, err := leftclient.Dial(ctx, url, runtime.DialOptions{}, nil, leftclient.Events{})
- if err != nil { t.Fatal(err) }
- defer c.Close()
  relayed := make(chan left.Frame, 1)
- if err := c.OnFrameRelayed(func(_ context.Context, frame left.Frame) { relayed <- frame }); err != nil { t.Fatal(err) }
+ var c left.Server
+ peer, _, err := runtime.Dial(ctx,url,runtime.DialOptions{Options:runtime.Options{Prepare:func(peer *runtime.Peer)error{
+  bind,err:=leftbinding.FromWire(ctx,peer.Wire(),runtime.AdapterContext{});if err!=nil{return err}
+  c,err=bind(left.Client{Methods:struct{}{},Events:leftEvents{relayed}});return err
+ }}})
+ if err != nil { t.Fatal(err) }
+ defer peer.Close()
  message := envelope(t)
- result, err := c.Relay(ctx, left.Frame{Sequence: 1, Message: message})
+ result, err := c.Methods.Relay(ctx, left.Frame{Sequence: 1, Message: message})
  if err != nil { t.Fatal(err) }
  if !reflect.DeepEqual(result, message) { t.Fatalf("relayed %#v", result) }
  select {
@@ -204,23 +241,25 @@ func TestPlainClientSpeaksWithGenericServer(t *testing.T) {
  case <-ctx.Done():
   t.Fatal("no event")
  }
- attachment, err := c.Attach(ctx, left.AttachParams{ID: "x"})
+ attachment, err := c.Methods.Attach(ctx, left.AttachParams{ID: "x"})
  if err != nil || attachment.Connection.Channel != 7 { t.Fatalf("attach %#v %v", attachment, err) }
 }
 func TestGenericClientSpeaksWithPlainServer(t *testing.T) {
- h, err := leftbinding.NewHandler(leftServer{}, options)
- if err != nil { t.Fatal(err) }
+ h := wireHandler(t,func()(duplex.Wire,error){return leftbinding.ToWire(leftModel,runtime.AdapterContext{})})
  server, url := serve(t, h)
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
  defer cancel()
- c, err := rightclient.Dial[E, H](ctx, url, runtime.DialOptions{}, nil, rightclient.Events[E, H]{})
- if err != nil { t.Fatal(err) }
- defer c.Close()
  relayed := make(chan right.Frame[E], 1)
- if err := c.OnFrameRelayed(func(_ context.Context, frame right.Frame[E]) { relayed <- frame }); err != nil { t.Fatal(err) }
+ var c right.Server[E,H]
+ peer, _, err := runtime.Dial(ctx,url,runtime.DialOptions{Options:runtime.Options{Prepare:func(peer *runtime.Peer)error{
+  bind,err:=rightbinding.FromWire[E,H](ctx,peer.Wire(),runtime.AdapterContext{});if err!=nil{return err}
+  c,err=bind(right.Client[E,H]{Methods:struct{}{},Events:rightEvents{relayed}});return err
+ }}})
+ if err != nil { t.Fatal(err) }
+ defer peer.Close()
  message := envelope(t)
- result, err := c.Relay(ctx, right.Frame[E]{Sequence: 2, Message: message})
+ result, err := c.Methods.Relay(ctx, right.Frame[E]{Sequence: 2, Message: message})
  if err != nil { t.Fatal(err) }
  if !reflect.DeepEqual(result, message) { t.Fatalf("relayed %#v", result) }
  select {
@@ -229,9 +268,9 @@ func TestGenericClientSpeaksWithPlainServer(t *testing.T) {
  case <-ctx.Done():
   t.Fatal("no event")
  }
- attachment, err := c.Attach(ctx, right.AttachParams{ID: "x"})
+ attachment, err := c.Methods.Attach(ctx, right.AttachParams{ID: "x"})
  if err != nil || attachment.Connection.Channel != 7 { t.Fatalf("attach %#v %v", attachment, err) }
- var caller rightclient.Caller[E, H] = c
+ var caller right.ServerMethods[E, H] = c.Methods
  if _, err := caller.Attach(ctx, right.AttachParams{ID: "y"}); err != nil { t.Fatal(err) }
 }
 func TestInstantiationValidatesThroughTheFamily(t *testing.T) {
@@ -254,8 +293,7 @@ func TestInstantiationValidatesThroughTheFamily(t *testing.T) {
 }
 func TestGenericTypeScriptClientSpeaksWithPlainServer(t *testing.T) {
  if _, err := exec.LookPath("node"); err != nil { t.Skip("Node is not installed") }
- h, err := leftbinding.NewHandler(leftServer{}, options)
- if err != nil { t.Fatal(err) }
+ h := wireHandler(t,func()(duplex.Wire,error){return leftbinding.ToWire(leftModel,runtime.AdapterContext{})})
  server, url := serve(t, h)
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -337,8 +375,14 @@ export const frame: Equals<right.Frame<probe.Family>, left.Frame> = true;
 export const attachment: Equals<right.Attachment<probe.Family>, left.Attachment> = true;
 export const frames: Equals<right.Frames<probe.Family>, left.Frames> = true;
 export const params: Equals<right.AttachParams, left.AttachParams> = true;
-export const caller: Equals<right.Caller<probe.Family>, left.Caller> = true;
-export const handler: Equals<right.Handler<probe.Family>, left.Handler> = true;
+export const serverMethods: Equals<right.ServerMethods<probe.Family>, left.ServerMethods> = true;
+export const clientMethods: Equals<right.ClientMethods<probe.Family>, left.ClientMethods> = true;
+export const serverEvents: Equals<right.ServerEvents<probe.Family>, left.ServerEvents> = true;
+export const clientEvents: Equals<right.ClientEvents<probe.Family>, left.ClientEvents> = true;
+export const server: Equals<right.Server<probe.Family>, left.Server> = true;
+export const client: Equals<right.Client<probe.Family>, left.Client> = true;
+export const serverModel: Equals<right.ServerModel<probe.Family>, left.ServerModel> = true;
+export const clientModel: Equals<right.ClientModel<probe.Family>, left.ClientModel> = true;
 export const bound: Equals<right.FamilyBinding<probe.Family>["name"], "probe"> = true;
 `
 
@@ -362,7 +406,7 @@ func TestMixedInstantiationDoesNotCompile(t *testing.T) {
 		 probe "example.test/generated/api/go/probe-protocol"
 		 "github.com/Bitspark/nightseam/runtime/go"
 		)
-		var _, _ = rightclient.Dial[probe.Envelope, string](context.Background(), "", runtime.DialOptions{}, nil, rightclient.Events[probe.Envelope, string]{})
+		var _, _ = rightclient.FromWire[probe.Envelope, string](context.Background(), nil, runtime.AdapterContext{})
 		`))
 			writeFixture(t, directory, "mixed_families_test.go", []byte(`//go:build families
 
@@ -373,7 +417,7 @@ func TestMixedInstantiationDoesNotCompile(t *testing.T) {
 		 probe "example.test/generated/api/go/probe-protocol"
 		 "github.com/Bitspark/nightseam/runtime/go"
 		)
-		var _, _ = rightclient.Dial[probe.Envelope, runtime.Raw](context.Background(), "", runtime.DialOptions{}, nil, rightclient.Events[probe.Envelope, runtime.Raw]{})
+		var _, _ = rightclient.FromWire[probe.Envelope, runtime.Raw](context.Background(), nil, runtime.AdapterContext{})
 		`))
 			// The compiler reports one inference failure per package, so each case
 			// is its own build.
@@ -396,7 +440,7 @@ func TestMixedInstantiationDoesNotCompile(t *testing.T) {
 		 rightclient "example.test/generated/gen/go/carrier-client"
 		 "github.com/Bitspark/nightseam/runtime/go"
 		)
-		var _ = func() { _, _ = rightclient.Dial[runtime.Raw, runtime.Raw](context.Background(), "", runtime.DialOptions{}, nil, rightclient.Events[runtime.Raw, runtime.Raw]{}) }
+		var _ = func() { _, _ = rightclient.FromWire[runtime.Raw, runtime.Raw](context.Background(), nil, runtime.AdapterContext{}) }
 		`))
 			command := exec.Command("go", "vet", ".")
 			command.Dir = directory

@@ -29,9 +29,12 @@ func TestGeneratedGoValueAdapters(t *testing.T) {
 		}
 		contextA, contextB := "runtime.AdapterContext{}", "runtime.AdapterContext{}"
 		if slot.live {
-			contextA, contextB = "live.AdapterContext{Scope:sa}", "live.AdapterContext{Scope:sb}"
+			contextA, contextB = "runtime.AdapterContext{ValueEnvironment:live.ValueEnvironment(sa)}", "runtime.AdapterContext{ValueEnvironment:live.ValueEnvironment(sb)}"
 		}
 		program := strings.NewReplacer("CONTEXTA", contextA, "CONTEXTB", contextB, "FAMILY", family, "NAME", slot.name, "TYPE", slot.goType, "ADAPTER", slot.adapter, "VALUE", slot.value, "OBSERVE", slot.observe, "LIVE", fmt.Sprint(slot.live)).Replace(goBoundAdapterProgram)
+		if !slot.live {
+			program = strings.ReplaceAll(program, "\n \"github.com/Bitspark/nightseam/live/go\"", "")
+		}
 		writeFixture(t, directory, family+"_test.go", []byte(program))
 	}
 	if out, errs, err := run(t, directory, "generate"); err != nil {
@@ -67,6 +70,19 @@ type receiveChanged[T any] struct{ values chan T }
 func(c receiveChanged[T]) Changed(_ context.Context,p cellprotocol.PutParams[T])error{c.values<-p.Value;return nil}
 type receiveNoted[T any] struct{ values chan T }
 func(c receiveNoted[T]) Noted(_ context.Context,p cellprotocol.PutParams[T])error{c.values<-p.Value;return nil}
+func adapterContext(scope *live.Scope)runtime.AdapterContext{if scope==nil{return runtime.AdapterContext{}};return runtime.AdapterContext{ValueEnvironment:live.ValueEnvironment(scope)}}
+// Standalone acquired conversion explicitly owns its invocation boundary.
+func exportValue[T any](owner *live.Owner,adapter runtime.ValueAdapter[T],value T)(json.RawMessage,error){
+ ctx:=context.Background();if owner!=nil{ctx=live.WithOwner(ctx,owner)}
+ convert:=func(ctx context.Context)(json.RawMessage,error){return adapter.Export(ctx,value)}
+ if !adapter.NeedsContext{return convert(ctx)}
+ return live.ValueEnvironment(owner.Scope()).Export(ctx,convert)
+}
+func importValue[T any](owner *live.Owner,adapter runtime.ValueAdapter[T],raw json.RawMessage)(T,error){
+ ctx:=context.Background();if owner!=nil{ctx=live.WithOwner(ctx,owner)}
+ if !adapter.NeedsContext{return adapter.Import(ctx,raw)}
+ var value T;err:=live.ValueEnvironment(owner.Scope()).Import(ctx,func(ctx context.Context)error{converted,err:=adapter.Import(ctx,raw);if err==nil{value=converted};return err});return value,err
+}
 func physical(t *testing.T,isLive bool)(*runtime.Peer,*runtime.Peer,*live.Scope,*live.Scope){
  t.Helper();a,b:=duplex.Pipe(1<<20);var sa,sb *live.Scope
  options:=func(scope **live.Scope)runtime.Options{return runtime.Options{Prepare:func(p *runtime.Peer)(err error){if isLive{*scope,err=live.Over(p,live.Options{})};return}}}
@@ -74,23 +90,23 @@ func physical(t *testing.T,isLive bool)(*runtime.Peer,*runtime.Peer,*live.Scope,
  pb,err:=runtime.NewPeer(context.Background(),b,runtime.ServerRole,options(&sb));if err!=nil{t.Fatal(err)}
  t.Cleanup(func(){_=pa.Close();_=pb.Close()});return pa,pb,sa,sb
 }
-func connect[T any](t *testing.T, adapter live.ValueAdapter[T]) (cellprotocol.Server[T],*cell[T],*live.Scope,*live.Scope) {
- t.Helper();pa,pb,sa,sb:=physical(t,adapter.Live);implementation:=&cell[T]{changed:make(chan T,4),noted:make(chan T,4)}
- wire,err:=binding.ToWire(func(remote cellprotocol.Client[T])(cellprotocol.Server[T],error){implementation.remote=remote;return cellprotocol.Server[T]{Methods:implementation,Events:receiveNoted[T]{implementation.noted}},nil},live.AdapterContext{Scope:sb},adapter);if err!=nil{t.Fatal(err)}
+func connect[T any](t *testing.T, adapter runtime.ValueAdapter[T]) (cellprotocol.Server[T],*cell[T],*live.Scope,*live.Scope) {
+ t.Helper();pa,pb,sa,sb:=physical(t,adapter.NeedsContext);implementation:=&cell[T]{changed:make(chan T,4),noted:make(chan T,4)}
+ wire,err:=binding.ToWire(func(remote cellprotocol.Client[T])(cellprotocol.Server[T],error){implementation.remote=remote;return cellprotocol.Server[T]{Methods:implementation,Events:receiveNoted[T]{implementation.noted}},nil},adapterContext(sb),adapter);if err!=nil{t.Fatal(err)}
  off,err:=runtime.ForwardWire(pb.Wire(),wire);if err!=nil{t.Fatal(err)}
- model,err:=binding.FromWire(context.Background(),pa.Wire(),live.AdapterContext{Scope:sa},adapter);if err!=nil{t.Fatal(err)}
+ model,err:=binding.FromWire(context.Background(),pa.Wire(),adapterContext(sa),adapter);if err!=nil{t.Fatal(err)}
  caller,err:=model(cellprotocol.Client[T]{Methods:reverse[T]{},Events:receiveChanged[T]{implementation.changed}});if err!=nil{t.Fatal(err)}
  t.Cleanup(func(){off();_=wire.Close(duplex.CodeNormal,"")});return caller,implementation,sa,sb
 }
 func zero(t *testing.T, scopes ...*live.Scope) { t.Helper(); deadline:=time.Now().Add(3*time.Second); for _,s:=range scopes { for s.Counts()!=(live.Counts{}) {if time.Now().After(deadline){t.Fatalf("leak: %+v",s.Counts())};time.Sleep(time.Millisecond)} } }
-func round[T any](t *testing.T,adapter live.ValueAdapter[T],value T,observe func(T)) {
+func round[T any](t *testing.T,adapter runtime.ValueAdapter[T],value T,observe func(T)) {
  t.Helper(); caller,state,a,b:=connect(t,adapter); ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second); defer cancel()
  n,err:=caller.Methods.Put(ctx,cellprotocol.PutParams[T]{Value:value});if err!=nil||n!=1||state.puts!=1 {t.Fatalf("put: %d, %v; state %d",n,err,state.puts)}
  got,err:=caller.Methods.Get(ctx);if err!=nil {t.Fatal(err)}; observe(got)
- if adapter.Live {if a.Counts().Exports==0||b.Counts().Imports==0 {t.Fatal("slot did not export/import")}; _=a.Owner().Release();_=b.Owner().Release();zero(t,a,b)} else if a!=nil||b!=nil {t.Fatal("scalar requires live scope")}
+ if adapter.NeedsContext {if a.Counts().Exports==0||b.Counts().Imports==0 {t.Fatal("slot did not export/import")}; _=a.Owner().Release();_=b.Owner().Release();zero(t,a,b)} else if a!=nil||b!=nil {t.Fatal("scalar requires live scope")}
 }
 func TestOneCellAcrossSlots(t *testing.T) {
- round(t,live.JSONAdapter[string](),"held",func(s string){if s!="held"{t.Fatal(s)}})
+ round(t,runtime.JSONAdapter[string](),"held",func(s string){if s!="held"{t.Fatal(s)}})
  var calls atomic.Int64
  unary:=combinator.Unary(func(_ context.Context,n int64)(int64,error){calls.Add(1);return n+3,nil})
  observeUnary:=func(f combinator.Unary){n,err:=f(context.Background(),4);if err!=nil||n!=7 {t.Fatalf("unary: %d %v",n,err)}}
@@ -106,15 +122,15 @@ func TestAdapterComposesWithCurrentOwnerAndRollsBack(t *testing.T) {
  a,b:=duplex.Pipe(1<<20); var sa,sb *live.Scope
  pa,err:=runtime.NewPeer(context.Background(),a,runtime.ClientRole,runtime.Options{Prepare:func(p *runtime.Peer)(err error){sa,err=live.Over(p,live.Options{});return}});if err!=nil{t.Fatal(err)};defer pa.Close()
  pb,err:=runtime.NewPeer(context.Background(),b,runtime.ServerRole,runtime.Options{Prepare:func(p *runtime.Peer)(err error){sb,err=live.Over(p,live.Options{MaxImports:1});return}});if err!=nil{t.Fatal(err)};defer pb.Close()
- scalar:=boxes.AdapterPage(live.JSONAdapter[string]()); dead:=sa.Owner().Child();_=dead.Release()
- for _,owner:=range []*live.Owner{nil,dead} {raw,err:=scalar.Export(owner,boxes.Page[string]{Items:[]string{"x"}});if err!=nil{t.Fatal(err)};v,err:=scalar.Import(owner,raw);if err!=nil||v.Items[0]!="x"{t.Fatalf("scalar: %v",err)}}
+ scalar:=boxes.AdapterPage(runtime.JSONAdapter[string]()); dead:=sa.Owner().Child();_=dead.Release()
+ for _,owner:=range []*live.Owner{nil,dead} {raw,err:=exportValue(owner,scalar,boxes.Page[string]{Items:[]string{"x"}});if err!=nil{t.Fatal(err)};v,err:=importValue(owner,scalar,raw);if err!=nil||v.Items[0]!="x"{t.Fatalf("scalar: %v",err)}}
  calls:=0;unary:=func(_ context.Context,n int64)(int64,error){calls++;return n+1,nil};adapter:=boxes.AdapterPage(combinator.AdapterUnary())
- owner:=sa.Owner().Child();raw,err:=adapter.Export(owner,boxes.Page[combinator.Unary]{Items:[]combinator.Unary{unary,unary}});if err!=nil{t.Fatal(err)}
- if owner.Counts().Exports!=2 {t.Fatal("wrong export owner")}; receiver:=sb.Owner().Child(); if _,err=adapter.Import(receiver,raw);err==nil {t.Fatal("limit accepted")}; if receiver.Counts()!=(live.Counts{})||sb.Counts().Imports!=0 {t.Fatal("partial import leaked")}
+ owner:=sa.Owner().Child();raw,err:=exportValue(owner,adapter,boxes.Page[combinator.Unary]{Items:[]combinator.Unary{unary,unary}});if err!=nil{t.Fatal(err)}
+ if owner.Counts().Exports!=2 {t.Fatal("wrong export owner")}; receiver:=sb.Owner().Child(); if _,err=importValue(receiver,adapter,raw);err==nil {t.Fatal("limit accepted")}; if receiver.Counts()!=(live.Counts{})||sb.Counts().Imports!=0 {t.Fatal("partial import leaked")}
  _=owner.Release();zero(t,sa,sb)
- owner=sa.Owner().Child();bad:=boxes.Page[combinator.Unary]{Items:[]combinator.Unary{unary,nil}};if _,err=adapter.Export(owner,bad);err==nil||owner.Counts()!=(live.Counts{}) {t.Fatal("partial export leaked")}
- raw,err=adapter.Export(owner,boxes.Page[combinator.Unary]{Items:[]combinator.Unary{unary}});if err!=nil{t.Fatal(err)};got,err:=adapter.Import(receiver,raw);if err!=nil{t.Fatal(err)};if n,err:=got.Items[0](context.Background(),2);err!=nil||n!=3||calls!=1{t.Fatalf("callback: %d %v %d",n,err,calls)}
- _=owner.Release();if _,err=adapter.Export(owner,boxes.Page[combinator.Unary]{Items:[]combinator.Unary{unary}});err==nil{t.Fatal("released owner reused")};_=receiver.Release();zero(t,sa,sb)
+ owner=sa.Owner().Child();bad:=boxes.Page[combinator.Unary]{Items:[]combinator.Unary{unary,nil}};if _,err=exportValue(owner,adapter,bad);err==nil||owner.Counts()!=(live.Counts{}) {t.Fatal("partial export leaked")}
+ raw,err=exportValue(owner,adapter,boxes.Page[combinator.Unary]{Items:[]combinator.Unary{unary}});if err!=nil{t.Fatal(err)};got,err:=importValue(receiver,adapter,raw);if err!=nil{t.Fatal(err)};if n,err:=got.Items[0](context.Background(),2);err!=nil||n!=3||calls!=1{t.Fatalf("callback: %d %v %d",n,err,calls)}
+ _=owner.Release();if _,err=exportValue(owner,adapter,boxes.Page[combinator.Unary]{Items:[]combinator.Unary{unary}});err==nil{t.Fatal("released owner reused")};_=receiver.Release();zero(t,sa,sb)
 }
 func TestGenericPublicationRefusalDoesNotAcquire(t *testing.T) {
  adapter:=boxes.AdapterPage(combinator.AdapterUnary());caller,state,a,b:=connect(t,adapter)
@@ -127,7 +143,7 @@ func TestGenericPublicationRefusalDoesNotAcquire(t *testing.T) {
  _=owner.Release();_=b.Owner().Release();zero(t,a,b)
 }
 func TestComposedBindingRejectsInvalidScalarInsideLiveValue(t *testing.T) {
- adapter:=boxes.AdapterPage(live.JSONAdapter[string]());if _,err:=adapter.Import(nil,json.RawMessage("{\"items\":[42]}"));err==nil{t.Fatal("nested scalar constraint lost")}
+ adapter:=boxes.AdapterPage(runtime.JSONAdapter[string]());if _,err:=importValue(nil,adapter,json.RawMessage("{\"items\":[42]}"));err==nil{t.Fatal("nested scalar constraint lost")}
 }
 func TestSlotAdaptersReachReverseCallsAndEvents(t *testing.T) {
  caller,state,a,b:=connect(t,combinator.AdapterUnary());ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second);defer cancel();var calls atomic.Int64
@@ -146,7 +162,7 @@ var goBoundAdapterSlots = []struct {
 	name, expression, goType, adapter, value, observe string
 	live                                              bool
 }{
-	{"String", `"string"`, "string", "live.JSONAdapter[string]()", `"held"`, `return value`, false},
+	{"String", `"string"`, "string", "runtime.JSONAdapter[string]()", `"held"`, `return value`, false},
 	{"Unary", `"combinator.Unary"`, "combinator.Unary", "combinator.AdapterUnary()", "unary", `n,err:=value(ctx,4);if err!=nil{t.Fatal(err)};return fmt.Sprint(n)`, true},
 	{"Factory", `"combinator.Factory"`, "combinator.Factory", "combinator.AdapterFactory()", "factory", `fn,err:=value(ctx,unary);if err!=nil{t.Fatal(err)};n,err:=fn(ctx,4);if err!=nil{t.Fatal(err)};return fmt.Sprint(n)`, true},
 	{"Nested", `{"apply":"boxes.Page","with":{"T":{"apply":"combinator.Bundle","with":{"T":"combinator.Unary"}}}}`, "boxes.Page[combinator.Bundle[combinator.Unary]]", "boxes.AdapterPage(combinator.AdapterBundle(combinator.AdapterUnary()))", "nested", `a,err:=value.Items[0].Run(ctx,4);if err!=nil{t.Fatal(err)};b,err:=value.Items[0].Metadata.Seed(ctx,5);if err!=nil{t.Fatal(err)};return fmt.Sprint(a, "/", b)`, true},

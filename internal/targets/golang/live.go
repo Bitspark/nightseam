@@ -414,7 +414,7 @@ func (f *file) liveExpr(e model.TypeExpr, src, dst string, export bool, fail str
 			} else {
 				codec += ".Import"
 			}
-			src = "owner, " + src
+			src = "ctx, " + src
 		} else if f.scopedCodecs {
 			src = "owner, " + src
 		}

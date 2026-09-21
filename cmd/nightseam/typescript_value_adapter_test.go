@@ -37,10 +37,10 @@ func TestGeneratedTypeScriptValueAdapters(t *testing.T) {
 }
 
 const tsValueAdaptersFixture = `import {pipe} from '@nightseam/duplex';
-import {DuplexPeer, forwardWire} from '@nightseam/runtime';
+import {DuplexPeer, forwardWire, type ValueAdapter} from '@nightseam/runtime';
 import {toWire, fromWire, type ServerModel} from '@example/cell-binding';
 import {adapterCount, adapterUnary, adapterFactory, adapterPage, adapterBundle} from '@example/values-client';
-import {scopeOf, liveOver, type ValueAdapter, type LiveOwner} from '@nightseam/live';
+import {scopeOf, liveOver, valueEnvironment, type LiveOwner} from '@nightseam/live';
 
 function check(value: unknown, message: string): asserts value { if (!value) throw new Error(message); }
 const options = {signal: AbortSignal.timeout(5000)};
@@ -52,16 +52,16 @@ function cell<T>(): ServerModel<T> {
 async function exercise<T>(adapter: ValueAdapter<T>, input: T, observe: (value: T, owner: LiveOwner | undefined) => Promise<number>) {
  const [a,b] = pipe();
  const clientPeer=new DuplexPeer({role:'client'}),serverPeer=new DuplexPeer({role:'server'});
- const near=adapter.live?liveOver(clientPeer,{}):undefined,far=adapter.live?liveOver(serverPeer,{}):undefined;
+ const near=adapter.needsContext?liveOver(clientPeer,{}):undefined,far=adapter.needsContext?liveOver(serverPeer,{}):undefined;
  await Promise.all([clientPeer.attach(a),serverPeer.attach(b)]);
- const modelWire=toWire(cell<T>(),{scope:far},adapter);
+ const modelWire=toWire(cell<T>(),far?{valueEnvironment:valueEnvironment(far)}:{},adapter);
  const detach=forwardWire(serverPeer.wire(),modelWire);
- const client=(await fromWire(clientPeer.wire(),{scope:near},adapter))({methods:{},events:{}});
+ const client=(await fromWire(clientPeer.wire(),near?{valueEnvironment:valueEnvironment(near)}:{},adapter))({methods:{},events:{}});
  try {
   const scopes = [scopeOf(clientPeer), scopeOf(serverPeer)].filter(s => s !== undefined);
-  check(scopes.length === (adapter.live ? 2 : 0), 'generic boundary acquired the wrong scopes');
+  check(scopes.length === (adapter.needsContext ? 2 : 0), 'generic boundary acquired the wrong scopes');
   const owner = scopes[0]?.owner().child();
-  const result = await client.methods.exchange({value: input}, {...options, owner} as Parameters<typeof client.methods.exchange>[1]);
+  const result = await client.methods.exchange({value: input}, {...options, valueContext:owner} as Parameters<typeof client.methods.exchange>[1]);
   check(await observe(result, owner) === 42, 'generic value changed behavior');
   owner?.release();
   const until = Date.now() + 5000;
@@ -69,12 +69,14 @@ async function exercise<T>(adapter: ValueAdapter<T>, input: T, observe: (value: 
    check(Date.now() < until, 'generic conversion leaked retained bindings');
    await new Promise(resolve => setTimeout(resolve, 1));
   }
-  if (!adapter.live) {
+  if (!adapter.needsContext) {
+   check(adapter.export(undefined, input) === input, 'scalar export required a context');
+   check(adapter.import(undefined, input) === input, 'scalar import required a context');
    const scope = liveOver(clientPeer, {});
    const released = scope.owner().child(); released.release();
    check(adapter.export(released, input) === input, 'scalar export changed after owner release');
    check(adapter.import(released, input) === input, 'scalar import changed after owner release');
-   check(await client.methods.exchange({value: input}, {...options, owner: released} as Parameters<typeof client.methods.exchange>[1]) === input, 'scalar operation acquired a released owner');
+   check(await client.methods.exchange({value: input}, {...options, valueContext:released} as Parameters<typeof client.methods.exchange>[1]) === input, 'scalar operation acquired a released owner');
    scope.close();
   }
  } finally { detach();modelWire.close();clientPeer.close();serverPeer.close(); }

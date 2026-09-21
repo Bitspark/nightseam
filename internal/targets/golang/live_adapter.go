@@ -8,8 +8,8 @@ import (
 	"github.com/Bitspark/nightseam/internal/render"
 )
 
-// emitValueAdapters composes declaration bindings and both conversion directions
-// once. The owner is supplied only when a value crosses an operation boundary.
+// emitValueAdapters composes neutral conversions. A caller supplies the active
+// batch context; reusable factories never retain an owner or environment.
 func (f *file) emitValueAdapters() {
 	for _, t := range f.family.Types {
 		if t.Carried {
@@ -18,53 +18,52 @@ func (f *file) emitValueAdapters() {
 		f.uses, f.codecs = t.Uses, t.Uses
 		name := f.plan.types[t.Name]
 		self := name + apply(t.Uses)
-		var parameters, live []string
+		var parameters, needs []string
 		if t.IsLive {
-			live = append(live, "true")
+			needs = append(needs, "true")
 		}
 		for _, use := range t.Uses {
 			n := parameterName(use)
-			parameters = append(parameters, "adapter"+n+" "+f.live()+".ValueAdapter["+n+"]")
-			live = append(live, "adapter"+n+".Live")
-		}
-		if len(live) == 0 {
-			live = append(live, "false")
+			parameters = append(parameters, "adapter"+n+" "+f.runtime()+".ValueAdapter["+n+"]")
+			needs = append(needs, "adapter"+n+".NeedsContext")
 		}
 		factory := identAdapter + name
-		f.linef("// %s composes the declaration and both conversions, receiving an owner at each use.", factory)
-		f.w.Block(fmt.Sprintf("func %s%s(%s) %s.ValueAdapter[%s] {", factory, declare(t.Uses), strings.Join(parameters, ", "), f.live(), self), "}", func() {
+		f.linef("// %s composes declaration validation and conversion within the supplied invocation context.", factory)
+		f.w.Block(fmt.Sprintf("func %s%s(%s) %s.ValueAdapter[%s] {", factory, declare(t.Uses), strings.Join(parameters, ", "), f.runtime(), self), "}", func() {
 			for _, use := range t.Uses {
 				n := parameterName(use)
 				f.linef("type%s := adapter%s.Binding", n, n)
 			}
 			f.linef("binding := %s.TypeBinding{Schema: %s, Type: %s}", f.runtime(), f.boundSchema(t.Uses), f.typeExpression(t))
-			f.linef("isLive := %s", liveOr(live...))
-			f.w.Block(fmt.Sprintf("return %s.ValueAdapter[%s]{", f.live(), self), "}", func() {
+			f.w.Block(fmt.Sprintf("return %s.ValueAdapter[%s]{", f.runtime(), self), "}", func() {
 				f.line("Binding: binding,")
-				f.line("Live: isLive,")
-				f.w.Block(fmt.Sprintf("Export: func(owner *%s.Owner, value %s) (%s.RawMessage, error) {", f.live(), self, f.std("json")), "},", func() {
-					f.w.Block(fmt.Sprintf("convert := func(owner *%s.Owner) (%s.RawMessage, error) {", f.live(), f.std("json")), "}", func() {
-						f.linef("raw, err := %s", f.adapterHelper(t, true))
-						f.line("if err == nil { err = binding.Schema.ValidateExpressionRaw(binding.Type, raw) }")
-						f.line("return raw, err")
-					})
-					f.linef("if isLive { if owner == nil { return nil, %s.Errorf(%q) }; return owner.ExportValue(convert) }", f.std("fmt"), name+": a live value is exported into an owner")
-					f.line("return convert(owner)")
+				f.linef("NeedsContext: %s,", liveOr(needs...))
+				f.w.Block(fmt.Sprintf("Export: func(ctx %s.Context, value %s) (%s.RawMessage,error) {", f.std("context"), self, f.std("json")), "},", func() {
+					if t.IsLive {
+						f.nativeOwner("nil, ")
+					}
+					f.linef("raw,err := %s", f.adapterHelper(t, true))
+					f.line("if err == nil { err = binding.Schema.ValidateExpressionRaw(binding.Type,raw) };return raw,err")
 				})
-				f.w.Block(fmt.Sprintf("Import: func(owner *%s.Owner, raw %s.RawMessage) (%s, error) {", f.live(), f.std("json"), self), "},", func() {
-					f.linef("var value %s", self)
-					f.w.Block(fmt.Sprintf("convert := func(owner *%s.Owner) error {", f.live()), "}", func() {
-						f.line("if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil { return err }")
-						f.linef("converted, err := %s", f.adapterHelper(t, false))
-						f.line("if err == nil { value = converted }; return err")
-					})
-					f.linef("if isLive { if owner == nil { return value, %s.Errorf(%q) }; err := owner.ImportValue(convert); if err != nil { var zero %s; return zero, err }; return value, nil }", f.std("fmt"), name+": a live value is imported into an owner", self)
-					f.line("err := convert(owner); return value, err")
+				f.w.Block(fmt.Sprintf("Import: func(ctx %s.Context, raw %s.RawMessage) (%s,error) {", f.std("context"), f.std("json"), self), "},", func() {
+					f.linef("var zero %s", self)
+					if t.IsLive {
+						f.nativeOwner("zero, ")
+					}
+					f.line("if err := binding.Schema.ValidateExpressionRaw(binding.Type,raw); err != nil { return zero,err }")
+					f.linef("return %s", f.adapterHelper(t, false))
 				})
 			})
 		})
 	}
 	f.uses, f.codecs = f.family.Uses, nil
+}
+
+// Native live declarations alone interpret the invocation context as an owner.
+func (f *file) nativeOwner(failure string) {
+	f.linef("if ctx == nil { return %s%s.Errorf(\"a live conversion requires an active owner\") }", failure, f.std("fmt"))
+	f.linef("owner, ok := %s.OwnerOf(ctx)", f.live())
+	f.linef("if !ok || owner == nil { return %s%s.Errorf(\"a live conversion requires an active owner\") }", failure, f.std("fmt"))
 }
 
 func (f *file) slotUses() []render.Use {
@@ -79,14 +78,14 @@ func (f *file) slotUses() []render.Use {
 
 func (f *file) operationAdapters() {
 	f.codecs = f.slotUses()
-	f.adapters = len(f.codecs) > 0
+	f.adapters = true
 }
 
 func (f *file) slotParameters() string {
 	var out string
 	for _, use := range f.slotUses() {
 		n := parameterName(use)
-		out += ", adapter" + n + " " + f.live() + ".ValueAdapter[" + n + "]"
+		out += ", adapter" + n + " " + f.runtime() + ".ValueAdapter[" + n + "]"
 	}
 	return out
 }
@@ -103,7 +102,7 @@ func (f *file) slotFields() string {
 	var out string
 	for _, use := range f.slotUses() {
 		n := parameterName(use)
-		out += "; adapter" + n + " " + f.live() + ".ValueAdapter[" + n + "]"
+		out += "; adapter" + n + " " + f.runtime() + ".ValueAdapter[" + n + "]"
 	}
 	return out
 }
@@ -123,7 +122,7 @@ func (f *file) scopeLive() string {
 	}
 	var values []string
 	for _, use := range f.slotUses() {
-		values = append(values, f.adapterPrefix+"adapter"+parameterName(use)+".Live")
+		values = append(values, f.adapterPrefix+"adapter"+parameterName(use)+".NeedsContext")
 	}
 	if len(values) == 0 {
 		return "false"
@@ -136,7 +135,7 @@ func (f *file) expressionLive(e model.TypeExpr) string {
 		return "true"
 	}
 	if codec := f.parameterConverter(e); codec != "" {
-		return f.adapterPrefix + "adapter" + strings.TrimPrefix(codec, "convert") + ".Live"
+		return f.adapterPrefix + "adapter" + strings.TrimPrefix(codec, "convert") + ".NeedsContext"
 	}
 	switch x := e.(type) {
 	case model.Array:
@@ -183,27 +182,31 @@ func (f *file) adapterBoundary(e model.TypeExpr, src, dst string, export bool) {
 	if export {
 		result = f.std("json") + ".RawMessage"
 	}
-	f.w.Block(fmt.Sprintf("%s, err := func() (%s, error) {", dst, result), "}()", func() {
+	f.w.Block(fmt.Sprintf("%s,err:=func()(%s,error){", dst, result), "}()", func() {
 		f.linef("var value %s", result)
-		f.w.Block(fmt.Sprintf("convert := func(owner *%s.Owner) (%s, error) {", f.live(), result), "}", func() {
+		f.w.Block(fmt.Sprintf("convert:=func(ctx %s.Context)(%s,error){", f.std("context"), result), "}", func() {
+			if f.family.IsLive(e) {
+				f.nativeOwner("value, ")
+			}
 			if !export {
-				f.linef("if err := %s; err != nil { return value, err }", f.validateExpression(e, src))
+				f.linef("if err:=%s;err!=nil{return value,err}", f.validateExpression(e, src))
 			}
 			f.liveExpr(e, src, "converted", export, "value")
 			if export {
-				f.linef("if err := %s; err != nil { return value, err }", f.validateExpression(e, "converted"))
+				f.linef("if err:=%s;err!=nil{return value,err}", f.validateExpression(e, "converted"))
 			}
-			f.line("return converted, nil")
+			f.line("return converted,nil")
 		})
+		environment := f.adapterPrefix + "environment.ValueEnvironment"
 		if export {
-			f.linef("if %s { return owner.ExportValue(convert) }", f.expressionLive(e))
+			f.linef("if %s { return %s.Export(ctx,convert) }", f.expressionLive(e), environment)
 		} else {
 			f.w.Block("if "+f.expressionLive(e)+" {", "}", func() {
-				f.linef("err := owner.ImportValue(func(owner *%s.Owner) error { converted, err := convert(owner); if err == nil { value = converted }; return err })", f.live())
-				f.linef("if err != nil { var zero %s; return zero, err }; return value, nil", result)
+				f.linef("err:=%s.Import(ctx,func(ctx %s.Context)error{converted,err:=convert(ctx);if err==nil{value=converted};return err})", environment, f.std("context"))
+				f.linef("if err!=nil{var zero %s;return zero,err};return value,nil", result)
 			})
 		}
-		f.line("return convert(owner)")
+		f.line("return convert(ctx)")
 	})
 }
 
@@ -229,9 +232,9 @@ func (f *file) adapterHelper(t *render.Type, export bool) string {
 		if !export {
 			method, from, to = "Import", to, from
 		}
-		conversion := "adapter" + name + "." + method
-		if !t.IsLive {
-			conversion = fmt.Sprintf("func(value %s) (%s, error) { return adapter%s.%s(owner, value) }", from, to, name, method)
+		conversion := fmt.Sprintf("func(value %s) (%s,error) { return adapter%s.%s(ctx,value) }", from, to, name, method)
+		if t.IsLive {
+			conversion = fmt.Sprintf("func(owner *%s.Owner,value %s)(%s,error){return adapter%s.%s(%s.WithOwner(ctx,owner),value)}", f.live(), from, to, name, method, f.live())
 		}
 		arguments = append(arguments, conversion, "type"+name)
 	}

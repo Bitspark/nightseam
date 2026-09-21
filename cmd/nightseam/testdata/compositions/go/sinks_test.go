@@ -11,19 +11,15 @@ import (
 	"sync"
 	"time"
 
-	cellbinding "example.test/generated/api/go/cell-binding"
 	cellprotocol "example.test/generated/api/go/cell-protocol"
-	sinkbinding "example.test/generated/api/go/sink-binding"
-	sinkclient "example.test/generated/api/go/sink-client"
 	sinkprotocol "example.test/generated/api/go/sink-protocol"
-	topicbinding "example.test/generated/api/go/topic-binding"
 	topicprotocol "example.test/generated/api/go/topic-protocol"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 )
 
-var _ sinkclient.Handler = (*recorder)(nil)
+var _ sinkprotocol.ClientMethods = (*recorder)(nil)
 
-func (r *recorder) Report(ctx context.Context, _ *sinkclient.Client, params sinkprotocol.ReportRequest) (int64, error) {
+func (r *recorder) Report(ctx context.Context, params sinkprotocol.ReportRequest) (int64, error) {
 	r.mu.Lock()
 	blocked, gate, delay := r.blockFor, r.gate, r.delay
 	r.mu.Unlock()
@@ -60,7 +56,7 @@ func (r *recorder) Report(ctx context.Context, _ *sinkclient.Client, params sink
 	return r.taken, nil
 }
 
-func (r *recorder) End(_ context.Context, _ *sinkclient.Client, params sinkprotocol.Ending) (int64, error) {
+func (r *recorder) End(_ context.Context, params sinkprotocol.Ending) (int64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.endings++
@@ -104,11 +100,16 @@ type theCell struct {
 type watcher struct {
 	token     string
 	reference int64
-	to        *sinkbinding.Remote
+	to        sinkprotocol.ClientMethods
 	scope     *scope
 }
 
-var _ cellbinding.Handler = (*theCell)(nil)
+type cellSession struct {
+	*theCell
+	here *scope
+}
+
+var _ cellprotocol.ServerMethods = (*cellSession)(nil)
 
 func newCell() *theCell {
 	return &theCell{scopes: map[*runtime.Peer]*scope{}, watchers: map[string]*watcher{}}
@@ -132,23 +133,13 @@ func (c *theCell) attach(peer *runtime.Peer, s *scope) {
 	}()
 }
 
-func (c *theCell) scopeOf(peer *runtime.Peer) (*scope, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	s, ok := c.scopes[peer]
-	if !ok {
-		return nil, errScopeClosed
-	}
-	return s, nil
-}
-
-func (c *theCell) Get(_ context.Context, _ *cellbinding.Remote) (cellprotocol.Value, error) {
+func (c *theCell) Get(_ context.Context) (cellprotocol.Value, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.value, nil
 }
 
-func (c *theCell) Set(ctx context.Context, _ *cellbinding.Remote, params cellprotocol.SetRequest) (cellprotocol.Value, error) {
+func (c *theCell) Set(ctx context.Context, params cellprotocol.SetRequest) (cellprotocol.Value, error) {
 	c.mu.Lock()
 	c.value = cellprotocol.Value{Text: params.Text, Version: c.value.Version + 1}
 	written := c.value
@@ -164,17 +155,14 @@ func (c *theCell) Set(ctx context.Context, _ *cellbinding.Remote, params cellpro
 			Sequence: written.Version,
 			Item:     sinkprotocol.Item{Update: &sinkprotocol.Update{At: written.Text, Version: written.Version}},
 		}); err != nil {
-			c.Unwatch(ctx, nil, cellprotocol.UnwatchRequest{Token: w.token})
+			c.Unwatch(ctx, cellprotocol.UnwatchRequest{Token: w.token})
 		}
 	}
 	return written, nil
 }
 
-func (c *theCell) Watch(ctx context.Context, remote *cellbinding.Remote, params cellprotocol.Watch) (cellprotocol.Watching, error) {
-	here, err := c.scopeOf(remote.Peer)
-	if err != nil {
-		return cellprotocol.Watching{}, err
-	}
+func (c *cellSession) Watch(ctx context.Context, params cellprotocol.Watch) (cellprotocol.Watching, error) {
+	here := c.here
 	to, err := here.importSink(ctx, params.Observer.Channel)
 	if err != nil {
 		return cellprotocol.Watching{}, &runtime.PublicError{Code: cellprotocol.ErrorUnknownReference, Message: err.Error()}
@@ -188,7 +176,7 @@ func (c *theCell) Watch(ctx context.Context, remote *cellbinding.Remote, params 
 	return cellprotocol.Watching{At: at, Token: token}, nil
 }
 
-func (c *theCell) Unwatch(_ context.Context, _ *cellbinding.Remote, params cellprotocol.UnwatchRequest) (bool, error) {
+func (c *theCell) Unwatch(_ context.Context, params cellprotocol.UnwatchRequest) (bool, error) {
 	c.mu.Lock()
 	w, ok := c.watchers[params.Token]
 	delete(c.watchers, params.Token)
@@ -226,14 +214,19 @@ type subscriber struct {
 	token     string
 	topic     string
 	reference int64
-	to        *sinkbinding.Remote
+	to        sinkprotocol.ClientMethods
 	scope     *scope
 	queue     chan sinkprotocol.ReportRequest
 	dropped   bool
 	done      chan struct{}
 }
 
-var _ topicbinding.Handler = (*theTopic)(nil)
+type topicSession struct {
+	*theTopic
+	here *scope
+}
+
+var _ topicprotocol.ServerMethods = (*topicSession)(nil)
 
 func newTopic() *theTopic {
 	return &theTopic{scopes: map[*runtime.Peer]*scope{}, subs: map[string]*subscriber{}}
@@ -258,17 +251,7 @@ func (t *theTopic) attach(peer *runtime.Peer, s *scope) {
 	}()
 }
 
-func (t *theTopic) scopeOf(peer *runtime.Peer) (*scope, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	s, ok := t.scopes[peer]
-	if !ok {
-		return nil, errScopeClosed
-	}
-	return s, nil
-}
-
-func (t *theTopic) Publish(_ context.Context, _ *topicbinding.Remote, params topicprotocol.Message) (int64, error) {
+func (t *theTopic) Publish(_ context.Context, params topicprotocol.Message) (int64, error) {
 	t.mu.Lock()
 	t.seq++
 	sequence := t.seq
@@ -295,11 +278,8 @@ func (t *theTopic) Publish(_ context.Context, _ *topicbinding.Remote, params top
 	return sequence, nil
 }
 
-func (t *theTopic) Subscribe(ctx context.Context, remote *topicbinding.Remote, params topicprotocol.Subscribe) (topicprotocol.Subscription, error) {
-	here, err := t.scopeOf(remote.Peer)
-	if err != nil {
-		return topicprotocol.Subscription{}, err
-	}
+func (t *topicSession) Subscribe(ctx context.Context, params topicprotocol.Subscribe) (topicprotocol.Subscription, error) {
+	here := t.here
 	to, err := here.importSink(ctx, params.Subscriber.Channel)
 	if err != nil {
 		return topicprotocol.Subscription{}, &runtime.PublicError{Code: topicprotocol.ErrorUnknownReference, Message: err.Error()}
@@ -322,7 +302,7 @@ func (t *theTopic) Subscribe(ctx context.Context, remote *topicbinding.Remote, p
 	return topicprotocol.Subscription{Token: sub.token, From: from}, nil
 }
 
-func (t *theTopic) Unsubscribe(_ context.Context, _ *topicbinding.Remote, params topicprotocol.UnsubscribeRequest) (bool, error) {
+func (t *theTopic) Unsubscribe(_ context.Context, params topicprotocol.UnsubscribeRequest) (bool, error) {
 	t.mu.Lock()
 	sub, ok := t.subs[params.Token]
 	delete(t.subs, params.Token)

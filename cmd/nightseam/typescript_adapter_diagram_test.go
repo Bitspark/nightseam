@@ -44,7 +44,7 @@ func TestTypeScriptValueAdapterConstructionDiagram(t *testing.T) {
 		fmt.Fprintf(&imports, "import * as client%s from '@example/%s-client';\nimport * as binding%s from '@example/%s-binding';\n", slot.name, name, slot.name, name)
 		serverContext, clientContext := "{}", "{}"
 		if slot.live {
-			serverContext, clientContext = "{scope:transport.far}", "{scope:transport.near}"
+			serverContext, clientContext = "{valueEnvironment:valueEnvironment(transport.far!)}", "{valueEnvironment:valueEnvironment(transport.near!)}"
 		}
 		fmt.Fprintf(&routes, `
 const caller%s: Equal<genericBinding.Server<%s>, binding%s.Server> = true;
@@ -91,8 +91,8 @@ await compare<%s>(%q, %s, source%s, state => {
 }
 
 const tsAdapterDiagramProgram = `import {pipe, type Wire} from '@nightseam/duplex';
-import {DuplexPeer, DuplexError, forwardWire} from '@nightseam/runtime';
-import {scopeOf, liveOver, type LiveOwner, type ValueAdapter} from '@nightseam/live';
+import {DuplexPeer, DuplexError, forwardWire, type ValueAdapter} from '@nightseam/runtime';
+import {scopeOf, liveOver, valueEnvironment, type LiveOwner} from '@nightseam/live';
 import * as values from '@example/values-client';
 import * as genericClient from '@example/cell-client';
 import * as genericBinding from '@example/cell-binding';
@@ -142,10 +142,10 @@ interface Boundary<T> extends Awaited<ReturnType<typeof connect>> {
  changed:Promise<T>;noted:Promise<T>;
 }
 async function derived<T>(adapter:ValueAdapter<T>,state:State):Promise<Boundary<T>> {
- const events=listeners<T>(state),capture:Capture<T>={},transport=await connect(adapter.live);
- const modelWire=genericBinding.toWire(cell(state,events.server,capture),{scope:transport.far},adapter);
+ const events=listeners<T>(state),capture:Capture<T>={},transport=await connect(adapter.needsContext);
+ const modelWire=genericBinding.toWire(cell(state,events.server,capture),transport.far?{valueEnvironment:valueEnvironment(transport.far)}:{},adapter);
  const detach=forwardWire(transport.serverPeer.wire(),modelWire);
- const model=(await genericBinding.fromWire(transport.clientPeer.wire(),{scope:transport.near},adapter))(events.client);
+ const model=(await genericBinding.fromWire(transport.clientPeer.wire(),transport.near?{valueEnvironment:valueEnvironment(transport.near)}:{},adapter))(events.client);
  check(capture.remote!==undefined,'generic factory did not capture its reverse proxy');
  return {...transport,model,remote:capture.remote,modelWire,detach,changed:events.changed,noted:events.noted};
 }
@@ -159,7 +159,7 @@ async function record<T>(make:()=>Promise<Boundary<T>>,live:boolean,state:State,
  const snapshots:unknown[]=[];
  const snapshot=(name:string,result:unknown)=>snapshots.push({name,result,state:structuredClone(state),counts:scopes.map(scope=>scope.counts())});
  try {
-  const nearContext={signal,owner:nearOwner} as Parameters<typeof model.methods.put>[1],farContext={signal,owner:farOwner} as Parameters<typeof remote.methods.mirror>[1];
+  const nearContext={signal,valueContext:nearOwner} as Parameters<typeof model.methods.put>[1],farContext={signal,valueContext:farOwner} as Parameters<typeof remote.methods.mirror>[1];
   const first=await model.methods.put({value:value.input},nearContext); check(first===1,'first state transition');snapshot('first',first);
   const second=await model.methods.put({value:value.input},nearContext);check(second===2,'second state transition');snapshot('second',second);
   const got=await model.methods.get({},nearContext);check(await value.observe(got,nearOwner)===42,'get behavior');snapshot('get',42);
@@ -179,8 +179,8 @@ async function record<T>(make:()=>Promise<Boundary<T>>,live:boolean,state:State,
 }
 async function compare<T>(name:string,adapter:ValueAdapter<T>,source:(state:State)=>Promise<Boundary<T>>,makeInput:(state:State)=>Input<T>) {
  const genericState=initial(),sourceState=initial();
- const generic=await record(()=>derived(adapter,genericState),adapter.live,genericState,makeInput(genericState));
- const concrete=await record(()=>source(sourceState),adapter.live,sourceState,makeInput(sourceState));
+ const generic=await record(()=>derived(adapter,genericState),adapter.needsContext,genericState,makeInput(genericState));
+ const concrete=await record(()=>source(sourceState),adapter.needsContext,sourceState,makeInput(sourceState));
  equal(generic,concrete,name+' independent construction observations');
  const expectedCallbacks=name==='Scalar'?0:name==='Nested'?8:4;
  check(genericState.callbacks===expectedCallbacks,name+' callback count');
@@ -196,6 +196,7 @@ async function rollback(adapter:ValueAdapter<{value:Nested}>) {
  const a=new DuplexPeer({role:'client',observer:{observe(event){if(event.type==='live.exported')acquired++;}}});
  const b=new DuplexPeer({role:'server'});
  const near=liveOver(a,{maxExports:3}),far=liveOver(b,{maxImports:2});
+ const nearEnvironment=valueEnvironment(near),farEnvironment=valueEnvironment(far);
  const [left,right]=pipe();await Promise.all([a.attach(left),b.attach(right)]);
  const baselineA=near.owner().child(),baselineB=far.owner().child(),sent=near.owner().child(),received=far.owner().child();
  const unary:values.Unary=async n=>{callbacks++;return n+1;};
@@ -211,21 +212,23 @@ async function rollback(adapter:ValueAdapter<{value:Nested}>) {
   check(caught instanceof DuplexError&&caught.code===code,'wrong rollback refusal: '+String(caught));
  }
  try {
-  const retained=unaryAdapter.import(baselineB,unaryAdapter.export(baselineA,unary));
+  const retainedWire=nearEnvironment.export(baselineA,context=>unaryAdapter.export(context,unary));
+  const retained=farEnvironment.import(baselineB,context=>unaryAdapter.import(context,retainedWire));
   const before=acquired;
-  refusal(()=>adapter.export(sent,{value:{items:[bundle,bundle]}}),'too_many_exports');
+  refusal(()=>nearEnvironment.export(sent,context=>adapter.export(context,{value:{items:[bundle,bundle]}})),'too_many_exports');
   check(acquired-before===2,'export failure did not exercise partial acquisition');
   equal(sent.counts(),{exports:0,imports:0},'failed export retained owner allocations');
   snapshot('export rollback');
-  const wire=adapter.export(sent,{value:{items:[bundle]}});
-  refusal(()=>adapter.import(received,wire),'too_many_imports');
+  const wire=nearEnvironment.export(sent,context=>adapter.export(context,{value:{items:[bundle]}}));
+  refusal(()=>farEnvironment.import(received,context=>adapter.import(context,wire)),'too_many_imports');
   equal(received.counts(),{exports:0,imports:0},'failed import retained owner allocations');
   await waitCounts(2,1);
   check(await retained(41,{signal})===42,'rollback revoked a preexisting callback');
   snapshot('import rollback preserves prior attachment');
   sent.release();baselineB.release();baselineA.release();await waitCounts(0,0);
   const again=near.owner().child(),arrival=far.owner().child();
-  const value=adapter.import(arrival,adapter.export(again,{value:{items:[bundle]}}));
+  const reusedWire=nearEnvironment.export(again,context=>adapter.export(context,{value:{items:[bundle]}}));
+  const value=farEnvironment.import(arrival,context=>adapter.import(context,reusedWire));
   check(await value.value.items[0]!.value(41,{signal})===42,'reused import slot value');
   check(await value.value.items[0]!.run(41,{signal})===42,'reused import slot sibling');
   check(callbacks===3,'rollback callback multiplicity');snapshot('successful reuse');

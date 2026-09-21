@@ -43,8 +43,11 @@ than the composition being made special.
 
 ## What it is not
 
-Not "everything combines with everything": a part composes with the shape
-beneath it, and two parts of the same layer do not compose with each other.
+Not "everything combines with everything": a part composes with a promised
+interface, without reaching into the implementation beside it. Values of
+one interface can compose: selecting a Wire, mounting several Wires, or
+forwarding between Wires produces access through that same interface.
+This does not make a layer's private state the basis of its neighbour.
 Not a plugin system, and not configuration: assembling is done by handing
 one part to another, not by naming it in a setting. Not a promise that
 every assembly is sensible — a consumer may stack what it does not need —

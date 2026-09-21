@@ -86,7 +86,7 @@ func TestOwnTypeParametersCannotShadowGeneratedNames(t *testing.T) {
 }
 
 func TestTypeParameterBindingsCannotShadowAdapterLocals(t *testing.T) {
-	for _, name := range []string{"Context", "Bindings", "Slots", "Environment", "ProxyServer", "ProxyClient", "BindServer", "BindClient", "Wire", "Model", "Adapter", "Access", "Binding", "Bound"} {
+	for _, name := range []string{"Context", "Bindings", "Slots", "Environment", "Observer", "HasModelHandler", "ProxyServer", "ProxyClient", "BindServer", "BindClient", "Wire", "Model", "Adapter", "Access", "Binding", "Bound"} {
 		t.Run(name, func(t *testing.T) {
 			r := family(map[string]string{"model.json": `{"nightseam":2}`, "protocol.json": modeltest.Protocol(`"parameters":[{"name":"` + name + `"}],"server":{"methods":{"read":{"result":"` + name + `"}}}`)})
 			_, diagnostics := newPlan(r)

@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"sync"
 
 	boxes "example.test/generated/api/go/boxes-protocol"
 	combinatorbinding "example.test/generated/api/go/combinator-binding"
 	combinatorclient "example.test/generated/api/go/combinator-client"
 	combinator "example.test/generated/api/go/combinator-protocol"
+	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -33,7 +33,7 @@ type combinatorServer struct {
 	applied []int64
 }
 
-func (s *combinatorServer) Pack(_ context.Context, _ *combinatorbinding.Remote, params boxes.Box[combinator.Unary]) (boxes.Batch[combinator.Bundle[combinator.Count]], error) {
+func (s *combinatorServer) Pack(_ context.Context, params boxes.Box[combinator.Unary]) (boxes.Batch[combinator.Bundle[combinator.Count]], error) {
 	twice := func(ctx context.Context, value combinator.Count) (combinator.Count, error) {
 		first, err := params.Item(ctx, value)
 		if err != nil {
@@ -47,11 +47,11 @@ func (s *combinatorServer) Pack(_ context.Context, _ *combinatorbinding.Remote, 
 	}}, nil
 }
 
-func (s *combinatorServer) Name(context.Context, *combinatorbinding.Remote) (string, error) {
+func (s *combinatorServer) Name(context.Context) (string, error) {
 	return "combinator", nil
 }
 
-func (s *combinatorServer) Toolkit(_ context.Context, _ *combinatorbinding.Remote, params combinator.ToolkitRequest) (combinator.Toolkit, error) {
+func (s *combinatorServer) Toolkit(_ context.Context, params combinator.ToolkitRequest) (combinator.Toolkit, error) {
 	seed := params.Seed
 	return combinator.Toolkit{
 		// Takes a callable and answers one: the argument arrives as a native
@@ -94,7 +94,8 @@ type combinatorServed struct {
 }
 
 type combinatorDialled struct {
-	client   *combinatorclient.Client
+	client   combinator.Server
+	peer     *runtime.Peer
 	cancel   context.CancelFunc
 	mu       sync.Mutex
 	toolkits map[string]combinator.Toolkit
@@ -130,7 +131,7 @@ func (t *testee) combinatorDispatch(op string, raw map[string]json.RawMessage) (
 		ctx, cancel := context.WithTimeout(context.Background(), within(raw))
 		defer cancel()
 		add := number(raw, "add")
-		batch, err := d.client.Pack(ctx, boxes.Box[combinator.Unary]{Item: func(_ context.Context, value combinator.Count) (combinator.Count, error) { return value + add, nil }})
+		batch, err := d.client.Methods.Pack(ctx, boxes.Box[combinator.Unary]{Item: func(_ context.Context, value combinator.Count) (combinator.Count, error) { return value + add, nil }})
 		if err != nil {
 			return nil, err
 		}
@@ -145,9 +146,17 @@ func (t *testee) combinatorDispatch(op string, raw map[string]json.RawMessage) (
 		return map[string]any{"value": value, "seed": members["call"].Value.Metadata.Seed, "none": batch.Items[0].None != nil, "null": members["empty"].Null, "absent": !batch.Next.Present, "extra": string(batch.AdditionalFields["label"]) == `"retained"`}, nil
 	case "gen.combinator_serve":
 		s := &combinatorServed{server: &combinatorServer{}}
-		handler, err := combinatorbinding.NewHandler(s.server, runtime.ServerOptions{
+		handler, err := fixtureHandler(runtime.ServerOptions{
 			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 			CheckOrigin:  func(*http.Request) bool { return true },
+		}, func(peer *runtime.Peer) (duplex.Wire, error) {
+			environment, err := fixtureLiveContext(peer, runtime.Options{})
+			if err != nil {
+				return nil, err
+			}
+			return combinatorbinding.ToWire(func(combinator.Client) (combinator.Server, error) {
+				return combinator.Server{Methods: s.server}, nil
+			}, environment)
 		})
 		if err != nil {
 			return nil, fail("failed", "%v", err)
@@ -162,23 +171,29 @@ func (t *testee) combinatorDispatch(op string, raw map[string]json.RawMessage) (
 		return map[string]any{"handle": t.mint("combsrv", s), "url": s.url}, nil
 	case "gen.combinator_dial":
 		ctx, cancel := context.WithCancel(context.Background())
-		endpoint, err := url.Parse(str(raw, "url"))
-		if err != nil {
-			cancel()
-			return nil, fail("invalid", "%v", err)
-		}
-		c, err := combinatorclient.Dial(ctx, endpoint.String(), runtime.DialOptions{}, combinatorHandler{}, combinatorclient.Events{})
+		d := &combinatorDialled{cancel: cancel}
+		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (duplex.Wire, error) {
+			environment, err := fixtureLiveContext(peer, runtime.Options{})
+			if err != nil {
+				return nil, err
+			}
+			return combinatorclient.ToWire(func(remote combinator.Server) (combinator.Client, error) {
+				d.client = remote
+				return combinator.Client{}, nil
+			}, environment)
+		})
 		if err != nil {
 			cancel()
 			return nil, fail("failed", "%v", err)
 		}
-		return map[string]any{"handle": t.mint("combcl", &combinatorDialled{client: c, cancel: cancel})}, nil
+		d.peer = peer
+		return map[string]any{"handle": t.mint("combcl", d)}, nil
 	case "client.combinator_toolkit":
 		d, err := liveOf[*combinatorDialled](t, raw)
 		if err != nil {
 			return nil, err
 		}
-		toolkit, callErr := d.client.Toolkit(context.Background(), combinator.ToolkitRequest{Seed: number(raw, "seed")})
+		toolkit, callErr := d.client.Methods.Toolkit(context.Background(), combinator.ToolkitRequest{Seed: number(raw, "seed")})
 		if callErr != nil {
 			return map[string]any{"error": callError(callErr)}, nil
 		}
@@ -265,3 +280,6 @@ func number(raw map[string]json.RawMessage, name string) int64 {
 // declares no client method, so it answers nothing; the client still serves
 // one, because a client serves what the server calls.
 type combinatorHandler struct{}
+
+func (s *combinatorServed) shutdown()  { _ = s.http.Close() }
+func (d *combinatorDialled) shutdown() { _ = d.peer.Close(); d.cancel() }

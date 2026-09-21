@@ -3,7 +3,9 @@
 // and is never edited; the handler the server calls is written here, the
 // way the repository's README writes it.
 import { argv, env } from 'node:process';
-import { Client, type Payload } from '../../api/ts/probe-client/src/index.ts';
+import { fromWire, type Payload } from '../../api/ts/probe-binding/src/index.ts';
+import { DuplexPeer } from '@nightseam/runtime';
+import { liveOver, valueEnvironment } from '@nightseam/live';
 
 const url = argv[2] ?? env.PROBE_URL ?? 'ws://127.0.0.1:8080/probe';
 
@@ -15,11 +17,16 @@ let onChanged!: (payload: Payload) => void;
 const changed = new Promise<Payload>(resolve => {
   onChanged = resolve;
 });
-const client = await Client.dial(url, {}, {
-  reverse: ({ text, count }: Payload): Payload => ({ text: [...text].reverse().join(''), count }),
-}, { changed: onChanged });
+const peer = new DuplexPeer();
+const scope = liveOver(peer, {});
+const model = await fromWire(peer.wire(), { valueEnvironment: valueEnvironment(scope) });
+const client = model({
+  methods: { reverse: ({ text, count }: Payload): Payload => ({ text: [...text].reverse().join(''), count }) },
+  events: { changed: onChanged },
+});
+await peer.dial(url);
 
-const result = await client.echo({ text: 'hello', count: 1 });
+const result = await client.methods.echo({ text: 'hello', count: 1 });
 
 console.log('echo    ->', result.text);
 console.log('changed ->', (await changed).text);
@@ -29,7 +36,7 @@ console.log('changed ->', (await changed).text);
 // connection's live scope, so what the server received is a reference to this
 // implementation and not a copy of anything. `stop` comes back the same way.
 const notices: Payload[] = [];
-const subscription = await client.watch({
+const subscription = await client.methods.watch({
   label: 'demo',
   watcher: { notice: async (payload: Payload) => { notices.push(payload); } },
 });
@@ -44,4 +51,4 @@ await subscription.stop();
 
 console.log('stopped ->', notices.at(-1)?.text);
 
-client.close();
+peer.close();

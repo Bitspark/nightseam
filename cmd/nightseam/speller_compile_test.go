@@ -50,11 +50,10 @@ func TestLanguageCallsCompile(t *testing.T) {
 					for _, file := range files {
 						source := string(file.Data)
 						switch {
-						case strings.HasSuffix(file.Path, "binding_generated.go"):
-							source = goDocumentCalls(t, source, "remote", "Remote", calls)
-						case strings.HasSuffix(file.Path, "client_generated.go"):
-							source = goDocumentCalls(t, source, "client", "Client", calls)
-						case strings.HasSuffix(file.Path, "src/index.ts") && f.HasProtocol() && strings.Contains(source, "export class Client"):
+						case strings.HasSuffix(file.Path, "types_generated.go") && f.HasProtocol():
+							source = goDocumentCalls(t, source, "remote", "Client", calls)
+							source = goDocumentCalls(t, source, "client", "Server", calls)
+						case strings.HasSuffix(file.Path, "src/types.ts") && f.HasProtocol():
 							source = tsDocumentCalls(t, source, f, calls)
 						default:
 							continue
@@ -115,12 +114,16 @@ func goDocumentCalls(t *testing.T, source, receiver, typ string, calls []string)
 		return source[positions.Position(node.Pos()).Offset:positions.Position(node.End()).Offset]
 	}
 	declaration, arguments := "", ""
-	methods := map[string]*ast.FuncDecl{}
+	methods := map[string]*ast.FuncType{}
 	for _, d := range parsed.Decls {
 		switch d := d.(type) {
 		case *ast.GenDecl:
 			for _, spec := range d.Specs {
-				if spec, ok := spec.(*ast.TypeSpec); ok && spec.Name.Name == typ && spec.TypeParams != nil {
+				spec, ok := spec.(*ast.TypeSpec)
+				if !ok {
+					continue
+				}
+				if spec.Name.Name == typ && spec.TypeParams != nil {
 					declaration = text(spec.TypeParams)
 					var names []string
 					for _, field := range spec.TypeParams.List {
@@ -130,10 +133,17 @@ func goDocumentCalls(t *testing.T, source, receiver, typ string, calls []string)
 					}
 					arguments = "[" + strings.Join(names, ", ") + "]"
 				}
-			}
-		case *ast.FuncDecl:
-			if d.Recv != nil {
-				methods[d.Name.Name] = d
+				if facet := strings.TrimPrefix(spec.Name.Name, typ); facet == "Methods" || facet == "Events" {
+					if body, ok := spec.Type.(*ast.InterfaceType); ok {
+						for _, method := range body.Methods.List {
+							if signature, ok := method.Type.(*ast.FuncType); ok {
+								for _, name := range method.Names {
+									methods[facet+"."+name.Name] = signature
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -149,8 +159,8 @@ func goDocumentCalls(t *testing.T, source, receiver, typ string, calls []string)
 		if method == nil {
 			t.Fatalf("document calls absent %s.%s", typ, name)
 		}
-		params := strings.TrimSuffix(strings.TrimPrefix(text(method.Type.Params), "("), ")")
-		fmt.Fprintf(&out, "\nfunc documentCall%d%s(%s *%s%s, %s) { %s }\n", i, declaration, receiver, typ, arguments, params, call)
+		params := strings.TrimSuffix(strings.TrimPrefix(text(method.Params), "("), ")")
+		fmt.Fprintf(&out, "\nfunc documentCall%s%d%s(%s %s%s, %s) { %s }\n", typ, i, declaration, receiver, typ, arguments, params, call)
 	}
 	return out.String()
 }
@@ -159,8 +169,8 @@ func tsDocumentCalls(t *testing.T, source string, f *render.Family, calls []stri
 	t.Helper()
 	declaration := ""
 	for _, line := range strings.Split(source, "\n") {
-		if rest, ok := strings.CutPrefix(line, "export class Client"); ok {
-			declaration, _, _ = strings.Cut(rest, " implements ")
+		if rest, ok := strings.CutPrefix(line, "export interface Server"); ok {
+			declaration, _, _ = strings.Cut(rest, " {")
 		}
 	}
 	var names []string
@@ -178,17 +188,18 @@ func tsDocumentCalls(t *testing.T, source string, f *render.Family, calls []stri
 	var out strings.Builder
 	out.WriteString(source)
 	for i, call := range calls {
-		after, ok := strings.CutPrefix(strings.TrimPrefix(call, "await "), "client.")
+		after, ok := strings.CutPrefix(strings.TrimPrefix(call, "await "), "server.")
 		if !ok {
 			t.Fatalf("unexpected call %s", call)
 		}
-		name, params, _ := strings.Cut(after, "(")
+		member, params, _ := strings.Cut(after, "(")
+		facet, name, _ := strings.Cut(member, ".")
 		parameter := strings.TrimSuffix(params, ")")
 		extra := ""
-		if parameter != "" {
-			extra = fmt.Sprintf(", %s: Parameters<Client%s[%q]>[0]", parameter, arguments, name)
+		if parameter != "" && parameter != "{}" {
+			extra = fmt.Sprintf(", %s: Parameters<Server%s[%q][%q]>[0]", parameter, arguments, facet, name)
 		}
-		fmt.Fprintf(&out, "\nasync function documentCall%d%s(client: Client%s%s) { %s; }\n", i, declaration, arguments, extra, call)
+		fmt.Fprintf(&out, "\nasync function documentCall%d%s(server: Server%s%s) { %s; }\n", i, declaration, arguments, extra, call)
 	}
 	return out.String()
 }

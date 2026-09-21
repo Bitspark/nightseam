@@ -6,20 +6,20 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"sort"
 	"sync"
 
 	workerbinding "example.test/generated/api/go/worker-binding"
 	workerclient "example.test/generated/api/go/worker-client"
 	worker "example.test/generated/api/go/worker-protocol"
+	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
 // The live half of the Go generated testee: what the generator renders for
 // the worker family, driven over the live ops of conformance/DRIVER.md.
 //
-// Nothing here touches the live runtime. Every callable is an ordinary Go
+// Live context is explicit in assembly. Every callable is an ordinary Go
 // function — one written here and handed across, one received and called —
 // which is the whole claim the live tier makes and the reason this testee
 // can be read as a consumer would write it.
@@ -30,19 +30,19 @@ import (
 type liveServer struct {
 	mu       sync.Mutex
 	sink     worker.ProgressSink
-	remote   *workerbinding.Remote
+	remote   *worker.Client
 	attached chan struct{}
 	started  int
 	renames  []string
 }
 
-func (s *liveServer) Describe(_ context.Context, _ *workerbinding.Remote, ticket worker.Ticket) (string, error) {
+func (s *liveServer) Describe(_ context.Context, ticket worker.Ticket) (string, error) {
 	// Ordinary RPC over a family that has a live tier: self-contained data
 	// in, self-contained data out, and no binding made on either side.
 	return ticket.Label, nil
 }
 
-func (s *liveServer) Start(ctx context.Context, _ *workerbinding.Remote, params worker.Start) (worker.Job, error) {
+func (s *liveServer) Start(ctx context.Context, params worker.Start) (worker.Job, error) {
 	// params.Progress.Report is a plain Go function. Calling it reaches the
 	// implementation the other peer wrote, in the other language.
 	if err := params.Progress.Report(ctx, 50); err != nil {
@@ -82,7 +82,8 @@ func (s *liveServed) shutdown() { _ = s.http.Close() }
 // liveDialled keeps the client and what its own callbacks recorded, so a
 // scenario reads back what the other peer called rather than being told.
 type liveDialled struct {
-	client  *workerclient.Client
+	client  worker.Server
+	peer    *runtime.Peer
 	cancel  context.CancelFunc
 	mu      sync.Mutex
 	reports []int64
@@ -90,7 +91,7 @@ type liveDialled struct {
 	next    int
 }
 
-func (d *liveDialled) shutdown() { _ = d.client.Close(); d.cancel() }
+func (d *liveDialled) shutdown() { _ = d.peer.Close(); d.cancel() }
 
 func (d *liveDialled) sink() worker.ProgressSink {
 	return worker.ProgressSink{Report: func(_ context.Context, percent worker.Percent) error {
@@ -124,18 +125,21 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 	switch op {
 	case "gen.live_serve":
 		s := &liveServed{server: &liveServer{attached: make(chan struct{})}}
-		handler, err := workerbinding.NewHandler(s.server, runtime.ServerOptions{
+		handler, err := fixtureHandler(runtime.ServerOptions{
 			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 			CheckOrigin:  func(*http.Request) bool { return true },
-			OnConnect: func(p *runtime.Peer) {
+			OnConnect:    func(*runtime.Peer) { close(s.server.attached) },
+		}, func(peer *runtime.Peer) (duplex.Wire, error) {
+			environment, err := fixtureLiveContext(peer, runtime.Options{})
+			if err != nil {
+				return nil, err
+			}
+			return workerbinding.ToWire(func(remote worker.Client) (worker.Server, error) {
 				s.server.mu.Lock()
-				first := s.server.remote == nil
-				s.server.remote = &workerbinding.Remote{Peer: p}
-				if first {
-					close(s.server.attached)
-				}
+				s.server.remote = &remote
 				s.server.mu.Unlock()
-			},
+				return worker.Server{Methods: s.server}, nil
+			}, environment)
 		})
 		if err != nil {
 			return nil, fail("failed", "%v", err)
@@ -150,25 +154,29 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 		return map[string]any{"handle": t.mint("livesrv", s), "url": s.url}, nil
 	case "gen.live_dial":
 		ctx, cancel := context.WithCancel(context.Background())
-		endpoint, err := url.Parse(str(raw, "url"))
-		if err != nil {
-			cancel()
-			return nil, fail("invalid", "%v", err)
-		}
 		d := &liveDialled{cancel: cancel}
-		c, err := workerclient.Dial(ctx, endpoint.String(), runtime.DialOptions{}, liveClientHandler{}, workerclient.Events{})
+		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (duplex.Wire, error) {
+			environment, err := fixtureLiveContext(peer, runtime.Options{})
+			if err != nil {
+				return nil, err
+			}
+			return workerclient.ToWire(func(remote worker.Server) (worker.Client, error) {
+				d.client = remote
+				return worker.Client{Methods: liveClientHandler{}}, nil
+			}, environment)
+		})
 		if err != nil {
 			cancel()
 			return nil, fail("failed", "%v", err)
 		}
-		d.client = c
+		d.peer = peer
 		return map[string]any{"handle": t.mint("livecl", d)}, nil
 	case "client.live_describe":
 		d, err := liveOf[*liveDialled](t, raw)
 		if err != nil {
 			return nil, err
 		}
-		label, callErr := d.client.Describe(context.Background(), worker.Ticket{ID: str(raw, "ticket"), Label: str(raw, "label")})
+		label, callErr := d.client.Methods.Describe(context.Background(), worker.Ticket{ID: str(raw, "ticket"), Label: str(raw, "label")})
 		if callErr != nil {
 			return map[string]any{"error": callError(callErr)}, nil
 		}
@@ -178,7 +186,7 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 		if err != nil {
 			return nil, err
 		}
-		job, callErr := d.client.Start(context.Background(), worker.Start{
+		job, callErr := d.client.Methods.Start(context.Background(), worker.Start{
 			Ticket:   worker.Ticket{ID: str(raw, "ticket"), Label: str(raw, "label")},
 			Progress: d.sink(),
 		})
@@ -273,7 +281,7 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 				return nil
 			}}
 		}
-		outcome, callErr := remote.Supervise(ctx, worker.Supervise{Sinks: sinks})
+		outcome, callErr := remote.Methods.Supervise(ctx, worker.Supervise{Sinks: sinks})
 		if callErr != nil {
 			return map[string]any{"error": callError(callErr)}, nil
 		}
@@ -295,7 +303,7 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 // callables, so a testee that dials serves it.
 type liveClientHandler struct{}
 
-func (liveClientHandler) Supervise(ctx context.Context, _ *workerclient.Client, params worker.Supervise) (worker.Outcome, error) {
+func (liveClientHandler) Supervise(ctx context.Context, params worker.Supervise) (worker.Outcome, error) {
 	// By key, in order. A map is an object on the wire and its members are
 	// unordered there, so the declaration promises nothing about the order
 	// these are called in — which means a scenario cannot assert one unless
