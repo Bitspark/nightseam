@@ -17,8 +17,8 @@ import (
 // TestDiagramCommutesInGo holds the diagram in Go: both paths compile in one
 // module; the generic rendering instantiated with probe has the types, the
 // interfaces and the method sets of the plain rendering, field for field
-// and signature for signature; the plain client speaks with the generic
-// server and the generic client with the plain server, events included; the
+// and signature for signature; each client speaks with its own declaration,
+// events included, while the distinct declarations refuse cross-interpretation; the
 // instantiation validates what fills a slot through probe's codec, and an
 // opaque instantiation passes it through; and the left path delegates a
 // slot's validation to probe.
@@ -75,14 +75,15 @@ const slotLoader = `export async function resolve(specifier, context, next) {
 // event arrives typed, and a frame whose envelope probe refuses is refused
 // before it is sent.
 const tsGenericRoundtrip = `import assert from 'node:assert/strict';
-import {fromWire} from './gen/ts/carrier-binding/src/index.ts';
+import {prepareFromWire} from './gen/ts/carrier-binding/src/index.ts';
 import {family as probe} from './api/ts/probe-client/src/index.ts';
 import {DuplexPeer} from '@nightseam/runtime';
 const peer = new DuplexPeer();
 let observed;
-const bind = await fromWire(peer.wire(), {}, probe);
-const client = bind({methods: {}, events: {frameRelayed(frame) { observed = frame; }}});
+const preparation = prepareFromWire(peer.wire(), {}, probe);
 await peer.connect(process.argv[2]);
+const bind = await preparation.complete();
+const client = bind({methods: {}, events: {frameRelayed(frame) { observed = frame; }}});
 const message = {version: 1, kind: 'event', event: 'changed', data: {}};
 const result = await client.methods.relay({sequence: 1, message});
 assert.deepEqual(result, message);
@@ -100,6 +101,7 @@ const goDiagramFixture = `package generated
 import (
  "context"
  "encoding/json"
+ "errors"
  "net/http"
  "net/http/httptest"
  "os/exec"
@@ -217,20 +219,23 @@ func serve(t *testing.T, h http.Handler) (*httptest.Server, string) {
  server := httptest.NewServer(h)
  return server, "ws" + strings.TrimPrefix(server.URL, "http")
 }
-func TestPlainClientSpeaksWithGenericServer(t *testing.T) {
- h := wireHandler(t,func()(duplex.Wire,error){return rightbinding.ToWire(rightModel,runtime.AdapterContext{})})
+func TestPlainClientSpeaksWithPlainServer(t *testing.T) {
+ h := wireHandler(t,func()(duplex.Wire,error){return leftbinding.ToWire(leftModel,runtime.AdapterContext{})})
  server, url := serve(t, h)
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
  defer cancel()
  relayed := make(chan left.Frame, 1)
- var c left.Server
+ var complete func(context.Context)(left.ServerModel,error)
+ var cleanup func()
  peer, _, err := runtime.Dial(ctx,url,runtime.DialOptions{Options:runtime.Options{Prepare:func(peer *runtime.Peer)error{
-  bind,err:=leftbinding.FromWire(ctx,peer.Wire(),runtime.AdapterContext{});if err!=nil{return err}
-  c,err=bind(left.Client{Methods:struct{}{},Events:leftEvents{relayed}});return err
+  var err error;complete,cleanup,err=leftbinding.PrepareFromWire(peer.Wire(),runtime.AdapterContext{});return err
  }}})
  if err != nil { t.Fatal(err) }
  defer peer.Close()
+ defer cleanup()
+ bind,err:=complete(ctx);if err!=nil{t.Fatal(err)}
+ c,err:=bind(left.Client{Methods:struct{}{},Events:leftEvents{relayed}});if err!=nil{t.Fatal(err)}
  message := envelope(t)
  result, err := c.Methods.Relay(ctx, left.Frame{Sequence: 1, Message: message})
  if err != nil { t.Fatal(err) }
@@ -244,20 +249,23 @@ func TestPlainClientSpeaksWithGenericServer(t *testing.T) {
  attachment, err := c.Methods.Attach(ctx, left.AttachParams{ID: "x"})
  if err != nil || attachment.Connection.Channel != 7 { t.Fatalf("attach %#v %v", attachment, err) }
 }
-func TestGenericClientSpeaksWithPlainServer(t *testing.T) {
- h := wireHandler(t,func()(duplex.Wire,error){return leftbinding.ToWire(leftModel,runtime.AdapterContext{})})
+func TestGenericClientSpeaksWithGenericServer(t *testing.T) {
+ h := wireHandler(t,func()(duplex.Wire,error){return rightbinding.ToWire(rightModel,runtime.AdapterContext{})})
  server, url := serve(t, h)
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
  defer cancel()
  relayed := make(chan right.Frame[E], 1)
- var c right.Server[E,H]
+ var complete func(context.Context)(right.ServerModel[E,H],error)
+ var cleanup func()
  peer, _, err := runtime.Dial(ctx,url,runtime.DialOptions{Options:runtime.Options{Prepare:func(peer *runtime.Peer)error{
-  bind,err:=rightbinding.FromWire[E,H](ctx,peer.Wire(),runtime.AdapterContext{});if err!=nil{return err}
-  c,err=bind(right.Client[E,H]{Methods:struct{}{},Events:rightEvents{relayed}});return err
+  var err error;complete,cleanup,err=rightbinding.PrepareFromWire[E,H](peer.Wire(),runtime.AdapterContext{});return err
  }}})
  if err != nil { t.Fatal(err) }
  defer peer.Close()
+ defer cleanup()
+ bind,err:=complete(ctx);if err!=nil{t.Fatal(err)}
+ c,err:=bind(right.Client[E,H]{Methods:struct{}{},Events:rightEvents{relayed}});if err!=nil{t.Fatal(err)}
  message := envelope(t)
  result, err := c.Methods.Relay(ctx, right.Frame[E]{Sequence: 2, Message: message})
  if err != nil { t.Fatal(err) }
@@ -291,9 +299,17 @@ func TestInstantiationValidatesThroughTheFamily(t *testing.T) {
  if err := right.ValidateExpressionRaw("probe.Envelope", []byte("{\"version\":1,\"kind\":\"event\"}")); err != nil { t.Fatal(err) }
  if err := right.ValidateExpressionRaw("nobody.Handle", []byte("{\"channel\":1}")); err == nil { t.Fatal("a reference to an unknown family passed") }
 }
-func TestGenericTypeScriptClientSpeaksWithPlainServer(t *testing.T) {
+func TestDistinctDeclarationsRefuseCrossInterpretation(t *testing.T) {
+ ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second);defer cancel()
+ plain,err:=leftbinding.ToWire(leftModel,runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer plain.Close(duplex.CodeNormal,"")
+ generic,err:=rightbinding.ToWire(rightModel,runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer generic.Close(duplex.CodeNormal,"")
+ _,leftErr:=leftbinding.FromWire(ctx,generic,runtime.AdapterContext{})
+ _,rightErr:=rightbinding.FromWire[E,H](ctx,plain,runtime.AdapterContext{})
+ for _,err:=range []error{leftErr,rightErr}{var public *runtime.PublicError;if !errors.As(err,&public)||public.Code!="contract_mismatch"{t.Fatalf("cross-interpretation: %v",err)}}
+}
+func TestGenericTypeScriptClientSpeaksWithGenericServer(t *testing.T) {
  if _, err := exec.LookPath("node"); err != nil { t.Skip("Node is not installed") }
- h := wireHandler(t,func()(duplex.Wire,error){return leftbinding.ToWire(leftModel,runtime.AdapterContext{})})
+ h := wireHandler(t,func()(duplex.Wire,error){return rightbinding.ToWire(rightModel,runtime.AdapterContext{})})
  server, url := serve(t, h)
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

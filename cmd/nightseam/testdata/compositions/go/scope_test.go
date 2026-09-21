@@ -86,7 +86,7 @@ func (s *scope) context() context.Context { return s.carrier.Peer().Context() }
 
 // export publishes a model Wire over one prepared channel. The model is ready
 // before the channel's peer begins reading, and its lifetime follows the channel.
-func (s *scope) export(ctx context.Context, family string, model duplex.Wire) (int64, error) {
+func (s *scope) export(ctx context.Context, family, digest string, model duplex.Wire) (int64, error) {
 	s.mu.Lock()
 	closed := s.closed
 	s.mu.Unlock()
@@ -94,7 +94,7 @@ func (s *scope) export(ctx context.Context, family string, model duplex.Wire) (i
 		_ = model.Close(duplex.CodeGoingAway, "scope closed")
 		return 0, errScopeClosed
 	}
-	channel, err := s.carrier.Open(ctx, family, "", runtime.Options{Prepare: func(peer *runtime.Peer) error {
+	channel, err := s.carrier.Open(ctx, family, digest, runtime.Options{Prepare: func(peer *runtime.Peer) error {
 		if _, err := runtime.ForwardWire(peer.Wire(), model); err != nil {
 			return err
 		}
@@ -233,7 +233,7 @@ func (s *scope) exportSink(ctx context.Context, impl sinkprotocol.ClientMethods)
 	if err != nil {
 		return 0, err
 	}
-	return s.export(ctx, "sink", wire)
+	return s.export(ctx, "sink", sinkprotocol.WireDigest(), wire)
 }
 func (s *scope) importSink(ctx context.Context, id int64) (sinkprotocol.ClientMethods, error) {
 	value, err := s.imported(ctx, id, "sink", func(wire duplex.Wire) (any, error) {
@@ -259,7 +259,7 @@ func (s *scope) exportJob(ctx context.Context, impl jobprotocol.ServerMethods) (
 	if err != nil {
 		return 0, err
 	}
-	return s.export(ctx, "job", wire)
+	return s.export(ctx, "job", jobprotocol.WireDigest(), wire)
 }
 func (s *scope) importJob(ctx context.Context, id int64) (jobprotocol.ServerMethods, error) {
 	value, err := s.imported(ctx, id, "job", func(wire duplex.Wire) (any, error) {
