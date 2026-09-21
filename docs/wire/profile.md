@@ -25,12 +25,14 @@ for what runs above the seam; the profile itself closes with **4011** when
 the other side broke it ([close codes are the WebSocket
 registry's](../decisions/close-codes-are-the-websocket-registrys.md)).
 
-The profile sends text frames only and refuses a binary frame; a frame
-larger than the peer's limit is refused before delivery and the connection
-with it. The seam frames every frame whole; the profile never splits one.
-**1003** is what a frame of the wrong kind is refused with — a layer above
-the profile that speaks JSON text closes with it too — where text that is no
-message of the profile is a fault of another kind and carries another code.
+The profile sends text frames only and refuses a binary frame with
+**4011**, even when its bytes are valid JSON for a profile message. No
+handler receives that message. Malformed text messages carry the same
+profile refusal code. A frame larger than the peer's limit is refused
+before delivery and the connection with it. The seam frames every frame
+whole; the profile never splits one. The shared
+[binary-frame scenario](../../conformance/scenarios/peer/binary-frame-ends-the-connection.json)
+holds the refusal code at both ends and the absence of handler dispatch.
 
 ## The subprotocol
 
