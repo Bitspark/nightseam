@@ -9,7 +9,7 @@
     "node": ">=22.12.0"
   },
   "dependencies": {
-    "@bitspark/bitwire": "0.1.0",
+    "@bitspark/bitwire": "0.2.0",
     "@nightseam/duplex": "workspace:*",
     "@nightseam/live": "workspace:*",
     "@nightseam/runtime": "workspace:*",

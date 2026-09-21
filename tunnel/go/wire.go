@@ -13,16 +13,16 @@ type Channel struct {
 	ID     int64
 	Family string
 	Digest string
-	wire   duplex.Wire
+	wire   duplex.Endpoint
 }
 
-var _ duplex.Wire = (*Channel)(nil)
+var _ duplex.Endpoint = (*Channel)(nil)
 
 func (c *Channel) Send(path []string, message duplex.Message) error {
 	return c.wire.Send(path, message)
 }
-func (c *Channel) Receive(path []string, receiver duplex.Receiver) (func(), error) {
-	return c.wire.Receive(path, receiver)
+func (c *Channel) Receive(receiver duplex.Receiver) (func(), error) {
+	return c.wire.Receive(receiver)
 }
 func (c *Channel) Close(code duplex.Code, reason string) error { return c.wire.Close(code, reason) }
 

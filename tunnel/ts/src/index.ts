@@ -23,7 +23,7 @@ import type {
   Message,
   Path,
   Receiver,
-  Wire,
+  Endpoint,
 } from '@nightseam/duplex';
 import { NO_STATUS } from '@nightseam/duplex';
 
@@ -610,14 +610,14 @@ export class Connection implements FrameConnection {
 }
 
 /** A prepared structured wire on one tunnel connection, with one eagerly acquired peer. */
-export class Channel implements Wire {
+export class Channel implements Endpoint {
   readonly id: number;
   readonly family: string;
   /** The declaration digest named by the opener, or empty when unspecified. */
   readonly digest: string;
-  private readonly wire: Wire;
+  private readonly wire: Endpoint;
   /** @internal Acquisition owns its peer and the underlying transport. */
-  constructor(id: number, family: string, digest: string, wire: Wire) {
+  constructor(id: number, family: string, digest: string, wire: Endpoint) {
     this.id = id;
     this.family = family;
     this.digest = digest;
@@ -626,8 +626,8 @@ export class Channel implements Wire {
   send(path: Path, message: Message): void {
     this.wire.send(path, message);
   }
-  receive(path: Path, receiver: Receiver): () => void {
-    return this.wire.receive(path, receiver);
+  receive(receiver: Receiver): () => void {
+    return this.wire.receive(receiver);
   }
   close(code = 1000, reason = ''): void {
     this.wire.close(code, reason);

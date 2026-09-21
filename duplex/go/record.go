@@ -155,15 +155,6 @@ func (w *RecordedWire) Send(path []string, message Message) error {
 	}
 	return w.admit(recordCommand{path: append([]string{}, path...), message: message})
 }
-func (w *RecordedWire) Receive(path []string, receiver Receiver) (func(), error) {
-	w.mu.Lock()
-	closed := w.closed
-	w.mu.Unlock()
-	if closed {
-		return nil, ErrClosed
-	}
-	return w.target.Receive(path, receiver)
-}
 func (w *RecordedWire) Close(code Code, reason string) error { w.end(code, reason, nil); return nil }
 func (w *RecordedWire) end(code Code, reason string, err error) {
 	w.mu.Lock()
@@ -178,12 +169,11 @@ func (w *RecordedWire) end(code Code, reason string, err error) {
 		followers = append(followers, f)
 	}
 	w.mu.Unlock()
-	// No consumer callback, including carrier close, runs inside Send or a lock.
+	// No consumer callback runs inside Send or a lock. The target is borrowed access.
 	go func() {
 		for _, f := range followers {
 			f.end(code, reason, err)
 		}
-		_ = w.target.Close(code, reason)
 		if w.options.OnClose != nil {
 			w.options.OnClose(err)
 		}
