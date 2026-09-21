@@ -1,5 +1,7 @@
 export { at, mount, encodePath, decodePath, WireError } from './wire.ts';
 export type { Path, ProfileFrame, ProfileError, ReturnAddress, Message, Receiver, Wire } from './wire.ts';
+export { record, MemoryWireLog, RecordError } from './record.ts';
+export type { WireRecord, WireLog, RecordOptions, RecordedWire, Follower } from './record.ts';
 
 /**
  * A frames duplex connection: ordered, message-framed, bidirectional, with an
