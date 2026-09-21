@@ -10,6 +10,7 @@ from nightseam.duplex import Message, ReturnAddress, WireError, encode_path
 from .peer import ABSENT, Options, PublicError
 from .publication import without_unpublished_proof
 from .wire import (
+    WireCompletion,
     WireDispatchContext,
     WireEventContext,
     WireRequestContext,
@@ -42,6 +43,7 @@ class _Call:
     original: Message
     path: list
     source: object
+    completion: WireCompletion = field(default_factory=WireCompletion)
     returning: object = None
     registration: object = None
     cancelled: asyncio.Event = field(default_factory=asyncio.Event)
@@ -149,6 +151,7 @@ class _Return:
             if call.responded or call.completed:
                 raise _disconnected()
             call.responded = True
+            call.completion.settle()
             try:
                 call.original.return_address.wire.send([], Message(checked))
             except Exception as error:
@@ -295,7 +298,14 @@ class _Endpoint:
         # which is still running in an asynchronous application handler.
         if not call.responded:
             call.responded = True
-            response(call.original, error=PublicError("cancelled", "Request deadline exceeded."))
+            # This root's deadline is a public refusal at an outer carrier;
+            # only that carrier's own deadline can claim its timeout outcome.
+            call.completion.prepare(None)
+            call.completion.settle()
+            response(
+                call.original,
+                error=PublicError("cancelled", "Request deadline exceeded."),
+            )
 
     def schedule(self):
         if not self.draining and not self.pair.closed:
@@ -321,6 +331,8 @@ class _Endpoint:
 
     def request_context(self, call, message):
         source = call.source.context if call.source else None
+        if call.source and call.source.completion is not None:
+            call.completion = call.source.completion
         cancelled, cancel_cleanup = compose_cancellation(call.cancelled, *([source.cancelled] if source else []))
         context = clone_context(
             source,
@@ -338,7 +350,7 @@ class _Endpoint:
             else lambda error: self.panic(call.path, message.frame, error)
         )
         context_cleanup = set_wire_context(
-            call.returning, WireDispatchContext(context, panic, self.pair.options.max_frame_bytes)
+            call.returning, WireDispatchContext(context, panic, self.pair.options.max_frame_bytes, call.completion)
         )
 
         def cleanup():
@@ -352,7 +364,7 @@ class _Endpoint:
             await pending
         except asyncio.CancelledError:
             if not self.pair.closed:
-                response(message, error=PublicError("cancelled", "Request cancelled."))
+                response(message, error=PublicError("cancelled", "Request cancelled."), completion_cause="cancelled")
         except Exception as error:
             response(message, error=public_error(error))
         finally:

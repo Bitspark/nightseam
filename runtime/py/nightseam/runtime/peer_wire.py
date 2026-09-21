@@ -9,6 +9,7 @@ from nightseam.duplex import Message, ReturnAddress, WireError, decode_path, enc
 
 from .peer import ABSENT, PublicError
 from .wire import (
+    WireCompletion,
     WireDispatchContext,
     outgoing_trace,
     profile_frame,
@@ -231,10 +232,13 @@ class PeerWire:
         async def dispatch(params, context):
             result = asyncio.get_running_loop().create_future()
             result.add_done_callback(lambda future: None if future.cancelled() else future.exception())
+            completion = WireCompletion()
+            answer = None
             bridge = self
 
             class Returning:
                 def send(self, suffix, message):
+                    nonlocal answer
                     frame = profile_frame(message.frame, "", bridge.options.max_frame_bytes)
                     if suffix or frame["kind"] != "response" or frame["id"] != "c:1":
                         raise PublicError("invalid_message", "invalid Wire response")
@@ -250,7 +254,16 @@ class PeerWire:
                         result.set_result(value)
                     # A response may precede actual application completion.
                     # Publish it now while _run_handler retains the work slot.
-                    bridge._answer(context, value, error)
+                    completion.settle()
+                    outcome = (
+                        "cancelled"
+                        if error is not None
+                        and error.code == "cancelled"
+                        and context.cancelled.is_set()
+                        and completion.cause == "cancelled"
+                        else None
+                    )
+                    answer = bridge._answer(context, value, error, outcome)
 
                 def receive(self, path, receiver):
                     raise WireError("receiver_exists")
@@ -264,7 +277,7 @@ class PeerWire:
             cleanup = set_wire_context(
                 address,
                 WireDispatchContext(
-                    context, lambda error: self._panic(name, error, trace), self.options.max_frame_bytes
+                    context, lambda error: self._panic(name, error, trace), self.options.max_frame_bytes, completion
                 ),
             )
             frame = {"version": 1, "kind": "request", "id": "c:1", "params": params, **trace}
@@ -281,10 +294,9 @@ class PeerWire:
                         await pending
                 except Exception:
                     pass
-                if not result.done():
-                    error = PublicError("cancelled", "request was cancelled")
-                    result.set_exception(error)
-                    self._answer(context, error=error)
+                # Withdrawal signals the body, but its eventual public error
+                # still decides the incoming response. Only a receiver deadline
+                # may answer before the application has completed.
 
             watcher = asyncio.create_task(cancellation())
             try:
@@ -300,15 +312,21 @@ class PeerWire:
                 raise public_error(error) from error
             finally:
                 watcher.cancel()
-                await asyncio.gather(watcher, return_exceptions=True)
-                cleanup()
+                try:
+                    # The outer handler must not race its own fallback response
+                    # ahead of this already-admitted capability completion.
+                    if answer is not None:
+                        await asyncio.shield(answer)
+                finally:
+                    await asyncio.gather(watcher, return_exceptions=True)
+                    cleanup()
 
         return dispatch
 
-    def _answer(self, context, result=ABSENT, error=None):
+    def _answer(self, context, result=ABSENT, error=None, outcome=None):
         entry = self.peer._incoming.get(context.request_id)
         if entry is not None and entry.context is context:
-            self.peer._spawn(self.peer._respond(context.request_id, entry, result, error))
+            return self.peer._spawn(self.peer._respond(context.request_id, entry, result, error, outcome))
 
     async def _event(self, name, data, context):
         found = self._lookup(name)

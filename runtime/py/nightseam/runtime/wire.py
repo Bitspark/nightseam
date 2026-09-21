@@ -58,10 +58,26 @@ class WireHandlers:
 
 
 @dataclass
+class WireCompletion:
+    """One local response's cause, shared only by received return capabilities."""
+
+    cause: str | None = None
+    settled: bool = False
+
+    def prepare(self, cause):
+        if not self.settled:
+            self.cause = cause
+
+    def settle(self):
+        self.settled = True
+
+
+@dataclass
 class WireDispatchContext:
     context: object
     panic: object = None
     max_frame_bytes: int | None = None
+    completion: WireCompletion | None = None
 
 
 @dataclass
@@ -251,7 +267,7 @@ def public_error(error):
     return PublicError("internal", "Request handler failed")
 
 
-def response(request, result=ABSENT, error=None):
+def response(request, result=ABSENT, error=None, *, completion_cause=None):
     """Send a validated response or bounded fallback; return its chosen outcome."""
     if request.frame.get("kind") != "request" or request.return_address is None:
         return PublicError("disconnected", "The request has no return address")
@@ -270,10 +286,17 @@ def response(request, result=ABSENT, error=None):
     except (ValueError, TypeError, PublicError):
         outcome = PublicError("internal", "Response could not be encoded")
         payload = {"error": outcome.envelope()}
+        completion_cause = None
     frame = {"version": 1, "kind": "response", "id": request.frame["id"], **payload, **trace_of(request.frame)}
+    dispatch = wire_context(request.return_address)
+    completion = dispatch.completion if dispatch else None
+    if completion is not None:
+        completion.prepare(completion_cause)
     try:
         request.return_address.wire.send([], Message(frame))
     except Exception as failure:
+        if completion is not None:
+            completion.prepare(None)
         if isinstance(failure, PublicError) and failure.code in ("invalid_message", "frame_too_large"):
             outcome = PublicError("internal", "Response could not be encoded")
             try:
@@ -620,11 +643,11 @@ def register_wire(wire, path, handlers):
                 if inspect.isawaitable(result):
                     result = await result
                 error = PublicError("cancelled", "Request was cancelled") if cancelled.is_set() else None
-                outcome = response(message, result, error)
+                outcome = response(message, result, error, completion_cause="cancelled" if error is not None else None)
                 finish(outcome, "cancelled" if error is not None and outcome is error else None)
             except asyncio.CancelledError:
                 error = PublicError("cancelled", "Handler was cancelled")
-                outcome = response(message, error=error)
+                outcome = response(message, error=error, completion_cause="cancelled")
                 finish(outcome, "cancelled" if outcome is error else None)
                 raise
             except Exception as error:
@@ -633,7 +656,7 @@ def register_wire(wire, path, handlers):
                         dispatch.panic(error)
                     except Exception:
                         pass
-                outcome = response(message, error=error)
+                outcome = response(message, error=error, completion_cause="cancelled" if cancelled_before else None)
                 finish(outcome, "cancelled" if cancelled_before and outcome is error else "error")
             finally:
                 cleanup()
