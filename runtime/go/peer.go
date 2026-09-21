@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -206,7 +205,9 @@ type Peer struct {
 	prefix          string
 	remotePrefix    string
 	subprotocol     string
-	next            atomic.Uint64
+	next            uint64
+	publish         sync.Mutex
+	admitted        uint64
 	done            chan struct{}
 	once            sync.Once
 	mu              sync.Mutex
@@ -472,7 +473,6 @@ func (p *Peer) beginCallTrace(ctx context.Context, method string, params any, ca
 		cancel()
 		return nil, Unpublished(err)
 	}
-	id := p.prefix + strconv.FormatUint(p.next.Add(1), 10)
 	// One trace serves the request and the cancellation that may follow it: a
 	// cancel carries its request's members, not a sibling span of them.
 	var trace Trace
@@ -482,10 +482,24 @@ func (p *Peer) beginCallTrace(ctx context.Context, method string, params any, ca
 		trace = p.options.Propagator.Inject(ctx)
 	}
 	reply := make(chan pendingResult, 1)
+	// Reservation and publication happen under the outgoing queue's one
+	// ordering gate, so serials reach the other side in the order they were
+	// taken. A reservation that never publishes has still spent its serial,
+	// and the receiver allows the gap it leaves.
+	p.publish.Lock()
+	if p.next == maxRequestSerial {
+		p.publish.Unlock()
+		cancel()
+		p.fail(errors.New("duplex request serials exhausted"))
+		return nil, Unpublished(&PublicError{Code: "identifier_exhausted", Message: "Create a new peer before issuing further calls"})
+	}
+	p.next++
+	id := p.prefix + strconv.FormatUint(p.next, 10)
 	p.mu.Lock()
 	if p.err != nil {
 		err = p.err
 		p.mu.Unlock()
+		p.publish.Unlock()
 		cancel()
 		return nil, Unpublished(err)
 	}
@@ -493,6 +507,7 @@ func (p *Peer) beginCallTrace(ctx context.Context, method string, params any, ca
 	// becomes an observer's request: nothing started, so nothing ended.
 	if len(p.pending) >= p.options.MaxPendingRequests {
 		p.mu.Unlock()
+		p.publish.Unlock()
 		cancel()
 		return nil, Unpublished(&PublicError{Code: "busy", Message: "Outstanding call limit reached"})
 	}
@@ -500,8 +515,10 @@ func (p *Peer) beginCallTrace(ctx context.Context, method string, params any, ca
 	p.mu.Unlock()
 	finish := func() { cancel(); p.mu.Lock(); delete(p.pending, id); p.mu.Unlock() }
 	started := p.requestStarted(id, method, false, trace)
-	if err := p.enqueueFrame(ctx, frame{Version: 1, Kind: "request", ID: id, Method: method, Params: data,
-		Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}, immediate); err != nil {
+	err = p.enqueueFrame(ctx, frame{Version: 1, Kind: "request", ID: id, Method: method, Params: data,
+		Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}, immediate)
+	p.publish.Unlock()
+	if err != nil {
 		finish()
 		err = Unpublished(err)
 		p.requestEnded(started, id, method, false, trace, err)
@@ -696,6 +713,12 @@ func (p *Peer) readLoop() {
 				p.refuse(errors.New("invalid duplex request identifier"))
 				return
 			}
+			// Only a request advances the mark: a response or a control names
+			// a serial that was taken before it.
+			if f.Kind == "request" && !p.admit(f.ID, prefix) {
+				p.refuse(errors.New("duplex request serial did not increase"))
+				return
+			}
 		}
 		p.observeReceived(f, len(received.Data))
 		switch f.Kind {
@@ -754,6 +777,28 @@ func (p *Peer) enqueueEvent(event queuedEvent) bool {
 		p.fail(ErrBackpressure)
 		return false
 	}
+}
+
+// maxRequestSerial is the largest serial a sender publishes. A sender that
+// would wrap refuses and ends the connection instead, since a wrapped serial
+// would name an invocation the receiver has already seen.
+const maxRequestSerial = uint64(1)<<63 - 1
+
+// admit holds an incoming request to the profile's publication order: within
+// one connection instance and one direction, each request's serial is greater
+// than every request's published before it. Gaps are allowed.
+func (p *Peer) admit(id, prefix string) bool {
+	serial, err := strconv.ParseUint(strings.TrimPrefix(id, prefix), 10, 64)
+	if err != nil || serial == 0 {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if serial <= p.admitted {
+		return false
+	}
+	p.admitted = serial
+	return true
 }
 
 func validID(id, prefix string) bool {

@@ -1,7 +1,6 @@
 {
-  "name": "a malformed frame ends the connection",
+  "name": "a request serial that does not increase ends the connection",
   "layer": "peer",
-  "replaces": "runtime/go/peer_test.go TestMalformedWireFramesDisconnect, runtime/ts/src/peer.test.ts's malformed and traceparent tables, runtime/go/presence_test.go's shape table",
   "needs": [
     "peer",
     "seam"
@@ -10,8 +9,7 @@
     "table": "tables/frames.json",
     "as": "row",
     "where": {
-      "valid": false,
-      "sequence": null
+      "sequence": true
     }
   },
   "steps": [
@@ -66,8 +64,19 @@
       "args": {
         "on": "$ca",
         "kind": "text",
+        "text": "$row.before"
+      },
+      "note": "the first request of the direction, which the receiver admits and takes as its mark"
+    },
+    {
+      "on": "a",
+      "op": "conn.send",
+      "args": {
+        "on": "$ca",
+        "kind": "text",
         "text": "$row.frame"
-      }
+      },
+      "note": "a serial that does not increase, which the receiver refuses as it refuses a malformed frame"
     },
     {
       "on": "b",

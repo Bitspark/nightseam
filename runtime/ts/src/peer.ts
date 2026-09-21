@@ -153,6 +153,9 @@ export class DuplexPeer {
   private detach?: () => void;
   private state: PeerStatus = 'disconnected';
   private nextID = 0;
+  // Only a request advances the mark: a response or a control names a serial
+  // that was taken before it.
+  private admittedSerial = 0;
   private opening?: { resolve: () => void; reject: (error: DuplexError) => void; timer: Timer };
   private readonly pending = new Map<string, Pending>();
   private readonly incoming = new Map<string, Incoming>();
@@ -584,7 +587,11 @@ export class DuplexPeer {
         if (abandoned?.aborted) return;
         if (!this.isOpen() || this.connection !== connection)
           throw new DuplexError('not_connected', 'Peer is not connected.');
-        if (this.outgoing.length < this.limits.queueCapacity) break;
+        // The queue is the one ordering gate: a sender that arrives while
+        // others are waiting for room takes its turn behind them rather than
+        // jumping in. That is what keeps publication in the order senders
+        // reserved, which the request serial is a promise about.
+        if (this.outgoing.length < this.limits.queueCapacity && this.waitingForRoom.size === 0) break;
         if (immediate || Date.now() >= deadline) {
           if (this.observer) this.pressure(this.outgoing.length, true);
           endOnRefusal = true;
@@ -732,6 +739,19 @@ export class DuplexPeer {
         trace,
         family: this.family(name),
       });
+    }
+    // Within one connection instance and one direction, each request's serial
+    // is greater than every request's published before it. Gaps are allowed; a
+    // serial that does not increase is a protocol violation, as a malformed
+    // frame is, because the peer could not then say which invocation a later
+    // control names.
+    if (frame.kind === 'request') {
+      const serial = Number((frame.id as string).slice(this.remotePrefix.length));
+      if (!Number.isSafeInteger(serial) || serial <= this.admittedSerial) {
+        this.fail(new DuplexError('invalid_message', 'Duplex request serial did not increase.'));
+        return;
+      }
+      this.admittedSerial = serial;
     }
     switch (frame.kind) {
       case 'response': {
