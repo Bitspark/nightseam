@@ -1,58 +1,60 @@
 # Bitwire adoption evidence
 
 Nightseam's Go and TypeScript Wire surfaces use
-[Bitwire v0.1.0](https://github.com/Bitspark/bitwire/releases/tag/v0.1.0), revision
-`9f45a2e0e9dc576db34237e5ad3aaaa0266a276b`. Bitspark maintains the shared
-contract and both implementations; the code is Apache-2.0. The public artifacts
-are Go module `github.com/Bitspark/bitwire@v0.1.0` (package `wire/go`) and
-`@bitspark/bitwire@0.1.0` on npmjs. Installation requires no sibling checkout
-or private credentials.
-
-Go's `duplex.Wire`, `Message`, `Receiver`, `ReturnAddress`, profile data and
-`Code` are aliases of the shared types. TypeScript re-exports the shared types.
-The generator's existing duplex references therefore target these actual
-declarations. Nightseam owns the implementations, carriers, profile, declaration
-identity, value converters, optional authentication and scoped-reference rules.
+[Bitwire v0.2.0](https://github.com/Bitspark/bitwire/releases/tag/v0.2.0), revision
+`616a2fc5e3a0972f67f40331a9d9ca102bc9698d`. The public artifacts are Go module
+`github.com/Bitspark/bitwire@v0.2.0` (package `wire/go`) and
+`@bitspark/bitwire@0.2.0` on npmjs. Installation requires no sibling checkout
+or private credentials. Both implementations use the complete shared type
+family, including send-only Wire and receiving/closing Endpoint.
 
 Run `node scripts/bitwire-conformance.mjs`, or `go test ./conformance/go -run
-TestPublishedBitwireConformance -v`. The full Go tier runs this gate. The runner
-resolves the versioned Go module, refuses a replacement, checks the revision
-and content sum, and reads its independent `conformance/cases/access.json`.
-It requires the exact case inventory and compares every emitted observation
-with the upstream expected object. Expected results are not copied into this
-repository. The drivers are adapted from that release with provenance in each
-source file; their types come from the adopted public contract.
+TestPublishedBitwireConformance -v`. The full Go tier runs this gate. It resolves
+the public Go dependency, refuses a replacement, verifies the immutable revision
+and content sum, and reads the release's
+[composition oracle](https://github.com/Bitspark/bitwire/blob/616a2fc5e3a0972f67f40331a9d9ca102bc9698d/conformance/reference/expected.json).
+Expected behavioral results remain upstream. The drivers execute Nightseam's
+production pair, peer, dispatcher, selected endpoint, mount and forwarder; they
+contain no replacement delivery scheduler, endpoint, routing or correlation
+implementation. Upstream reference implementations are never executed by this gate.
 
-Both languages run all ten cases over bounded local pairs, and nine cases in
-each role direction over real WebSockets. Those cases exercise selection,
-mounting, receiver precedence, return identity, detach and borrowed ownership,
-and forwarding through the production runtime. TypeScript uses the production
-WebSocket adapter; Go uses its public HTTP handler and dialer.
+Both languages run all six observation groups locally and in each role direction
+over real WebSockets. There are no carrier-specific case exclusions. The groups
+hold single receive ownership; sibling and overlapping selected views; nested
+selection, mounting and forwarding; opaque paths; view closure, detach and
+rebind; and delayed captured replies after receiver teardown. Detachment and
+view closure leave borrowed endpoints usable. Delivery barriers and bounded
+waits use actual callbacks, rather than sleeps or assumed event-loop turns.
 
-The explicit physical exception is `distinct-opaque-paths`. Its first unused
-registration is an exact `[]` receiver, which a physical Nightseam peer refuses;
-the profile requires a nonempty root request/event path. This does not make
-`[]` and `[""]` equivalent. The entire unchanged case remains mandatory locally;
-the runner permits exactly this physical exception and reports it. Nightseam's
-existing physical opaque-path tests separately hold supported segment encoding.
+The one explicit profile instantiation is the reference's request identifier
+`same-id`: it is outside Nightseam's existing `c:`/`s:` plus decimal grammar.
+Both independent return capabilities therefore submit the identical valid
+identifier `c:1`. The gate first asserts the upstream oracle's two `same-id`
+labels and substitutes only these two echoed identifiers with `c:1`; every
+other observation is compared unchanged. This is simultaneous independent
+return-scope coverage, not evidence that reuse on one physical connection is
+safe. The physical peer mints its own correlation identifiers.
 
-This follows the published contract's
-[path admission boundary](https://github.com/Bitspark/bitwire/blob/9f45a2e0e9dc576db34237e5ad3aaaa0266a276b/docs/wire/contract.md#paths)
-and [preservation laws](https://github.com/Bitspark/bitwire/blob/9f45a2e0e9dc576db34237e5ad3aaaa0266a276b/docs/wire/contract.md#preservation-laws):
-empty selection preserves the peer root's existing request/event refusal.
-The exact receiver-registration refusal is the existing Nightseam profile
-interpretation, not a universal Bitwire registration requirement. The upstream
-[baseline](https://github.com/Bitspark/bitwire/blob/9f45a2e0e9dc576db34237e5ad3aaaa0266a276b/conformance/README.md#what-remains-distinct)
-uses local pairs and leaves remote-carrier coverage separate. This gate keeps
-that entire mandatory baseline and reports the additional physical coverage's
-limit; it introduces no new exception to the shared path or composition laws.
+Frame and return-capability preservation are measured around pure composition
+boundaries: outgoing nested selection/mounting, the forwarding boundary and
+receiving selection. The request includes nested payload, traceparent,
+tracestate and metadata. A new carrier may remap correlation and return access;
+the driver never claims object identity across such a boundary. The association
+observation uses a test-owned marker keyed by the admitted Return capability;
+it establishes preservation of that association, not authenticity of verified
+runtime context. Go's asynchronous-delivery observation compares the callback's
+goroutine with the sender's; concurrent delivery on another goroutine is valid.
 
-These 56 observations establish the shared composition cases after adoption,
-not all profile or live-reference obligations. The ordinary full suite retains
-prepared tunnel, checked context, admission/cancellation, live scope and release
-coverage. The combined generic acceptance under #370 also retains independent
-construction, both converters, callbacks, rollback, guards and installed
-data-only consumers. The packed smoke installs the public Bitwire dependency
-transitively and checks emitted TypeScript declarations with library checking
-enabled; Go rehearsal uses an isolated module cache and a public dependency
-proxy.
+The released Bitwire `conformance/cases/access.json` and historical Nightseam
+driver are explicitly **0.1.0 historical evidence**. Their registration primitive
+and selected-view-close semantics are not obligations on the 0.2 contract.
+This gate replaces that baseline with the current released composition oracle
+rather than relabeling the old cases or running a test-only reference as proof
+of adoption.
+
+These observations do not establish the full invocation lifecycle contract,
+queued or newly arriving cancellation races, bounded retirement, independently
+implemented profile facilities, verified context, generated generic substitution,
+or live-reference release. Those require the runtime, generated-consumer and
+ordinary full conformance suites. In particular, delayed replies here are not
+signoff for the public lifecycle requirements of Nightseam #439 and Bitwire #20.

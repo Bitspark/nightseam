@@ -1,5 +1,5 @@
-// Compare observations from the migrated runtimes with Bitwire's published
-// independent cases. This repository never copies or rewrites their oracle.
+// Exercise actual Nightseam implementations against the released composition
+// oracle, never the upstream test-only endpoint/router implementations.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -9,38 +9,28 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const module = 'github.com/Bitspark/bitwire';
-const revision = '9f45a2e0e9dc576db34237e5ad3aaaa0266a276b';
+const revision = '616a2fc5e3a0972f67f40331a9d9ca102bc9698d';
 const run = (program, args, env = {}) => execFileSync(program, args, {
   cwd: root, encoding: 'utf8', timeout: 180_000, maxBuffer: 4 * 1024 * 1024,
   windowsHide: true, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'inherit'],
 });
 const dependency = JSON.parse(run('go', ['list', '-m', '-json', module]));
-assert.equal(dependency.Version, 'v0.1.0');
+assert.equal(dependency.Version, 'v0.2.0');
 assert.equal(dependency.Replace, undefined, 'Bitwire must resolve as a public versioned dependency');
 const downloaded = JSON.parse(run('go', ['mod', 'download', '-json', `${module}@${dependency.Version}`]));
 assert.equal(downloaded.Origin.Hash, revision);
-assert.equal(downloaded.Sum, 'h1:kzUdpCWeepYLHkqmcBWCO33smBSajl2Z/qHl5vSAmsI=');
-const casesPath = join(downloaded.Dir, 'conformance/cases/access.json');
-const fixture = JSON.parse(readFileSync(casesPath, 'utf8'));
-assert.equal(fixture.schemaVersion, 1);
-assert.equal(fixture.cases.length, 10);
-assert.equal(new Set(fixture.cases.map(test => test.id)).size, 10);
-const physicalException = fixture.cases.filter(test => test.id === 'distinct-opaque-paths');
-assert.equal(physicalException.length, 1);
-assert.ok(physicalException[0].registrations.some(entry => entry.path.length === 0 && !entry.namespace));
-
-function compare(label, carrier, output) {
-  const observations = JSON.parse(output);
-  const expected = fixture.cases.filter(test => carrier === 'local' || test.id !== 'distinct-opaque-paths');
-  assert.ok(Array.isArray(observations), `${label}: observations must be an array`);
-  assert.equal(observations.length, expected.length, `${label}: missing or extra cases`);
-  const actual = new Map(observations.map(row => [row.id, row.observations]));
-  assert.equal(actual.size, observations.length, `${label}: duplicate observations`);
-  assert.deepEqual([...actual.keys()].sort(), expected.map(test => test.id).sort(), `${label}: case inventory`);
-  for (const test of expected) assert.deepEqual(actual.get(test.id), test.expected, `${label}: ${test.id}`);
-  console.log(`Bitwire ${label}: ${expected.length} independent cases passed`);
+assert.equal(downloaded.Sum, 'h1:gGlNYgfzAHqZtxorw6HkCTWOoInil//uchOWhTA/d3k=');
+const expected = JSON.parse(readFileSync(join(downloaded.Dir, 'conformance/reference/expected.json'), 'utf8'));
+assert.deepEqual(Object.keys(expected).sort(), ['composition', 'opaquePaths', 'overlap', 'sameIDDelayedReplies', 'selectedEndpoints', 'siblings']);
+// The reference's literal identifier is a placeholder outside Nightseam's
+// canonical c:/s: decimal grammar. Instantiate only that input and its two
+// echoed observations; no boolean, path, lifetime or routing oracle is changed.
+assert.deepEqual(expected.sameIDDelayedReplies.replyIDs, ['same-id', 'same-id']);
+expected.sameIDDelayedReplies.replyIDs = ['c:1', 'c:1'];
+function compare(label, output) {
+  assert.deepEqual(JSON.parse(output), expected, `${label}: composition observations differ from public Bitwire oracle`);
+  console.log(`Bitwire ${label}: all six released composition groups passed`);
 }
-
 const scratch = mkdtempSync(join(tmpdir(), 'nightseam-bitwire-'));
 try {
   mkdirSync(join(scratch, 'bin'));
@@ -50,10 +40,10 @@ try {
   for (const [carrier, reverse] of [['local', '0'], ['peer', '0'], ['peer', '1']]) {
     const env = { NIGHTSEAM_BITWIRE_CARRIER: carrier, NIGHTSEAM_BITWIRE_REVERSE: reverse };
     const role = carrier === 'local' ? 'local' : `WebSocket/${reverse === '0' ? 'client-to-server' : 'server-to-client'}`;
-    compare(`Go/${role}`, carrier, run(driver, [casesPath], env));
-    compare(`TypeScript/${role}`, carrier, run(process.execPath, ['--experimental-strip-types', 'conformance/ts/src/bitwire.ts', casesPath], env));
+    compare(`Go/${role}`, run(driver, [], env));
+    compare(`TypeScript/${role}`, run(process.execPath, ['--experimental-strip-types', 'conformance/ts/src/bitwire.ts'], env));
   }
-  console.log('Physical applicability: distinct-opaque-paths is local-only because its exact [] receiver is refused at a peer root. All ten cases remain mandatory locally.');
+  console.log('All six groups run on every carrier; repeated request-ID input is profile-valid c:1. Historical 0.1 registration cases are not 0.2 obligations.');
 } finally {
   assert.equal(dirname(resolve(scratch)), resolve(tmpdir()));
   rmSync(scratch, { recursive: true, force: true, maxRetries: 5 });
