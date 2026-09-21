@@ -495,8 +495,11 @@ function validate(expression: Expression, value: unknown, location: string): voi
           );
         }
         const digest = Object.hasOwn(reference, 'digest') ? reference['digest'] : '';
-        if (typeof digest !== 'string' || !validDeclarationDigest(digest)) {
-          throw new Error(location + '.digest: expected empty or lowercase SHA-256 digest');
+        if (
+          Object.hasOwn(reference, 'digest') &&
+          (typeof digest !== 'string' || digest === '' || !validDeclarationDigest(digest))
+        ) {
+          throw new Error(location + '.digest: expected lowercase SHA-256 digest');
         }
         if (digest !== '' && resolved.schema.digest !== '' && digest !== resolved.schema.digest) {
           throw new DuplexError(

@@ -818,8 +818,8 @@ func (e expression) validate(value any, location string) error {
 			if value, present := obj["digest"]; present {
 				var valid bool
 				digest, valid = value.(string)
-				if !valid || !validDeclarationDigest(digest) {
-					return fmt.Errorf("%s.digest: expected empty or lowercase SHA-256 digest", location)
+				if !valid || digest == "" || !validDeclarationDigest(digest) {
+					return fmt.Errorf("%s.digest: expected lowercase SHA-256 digest", location)
 				}
 			}
 			if digest != "" && r.schema.digest != "" && digest != r.schema.digest {

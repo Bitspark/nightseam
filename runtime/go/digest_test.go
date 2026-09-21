@@ -56,7 +56,11 @@ func TestValidatorDeclarationDigests(t *testing.T) {
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			for _, digest := range []string{first.Digest, second.Digest, ""} {
-				var value any = map[string]any{"binding": "nonce.1", "contract": "same/Report", "digest": digest}
+				reference := map[string]any{"binding": "nonce.1", "contract": "same/Report"}
+				if digest != "" {
+					reference["digest"] = digest
+				}
+				var value any = reference
 				if row.wrap {
 					value = map[string]any{"item": value}
 				}

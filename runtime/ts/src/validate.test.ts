@@ -65,7 +65,7 @@ test('declaration digests survive imported and bound validation', () => {
   ];
   for (const row of cases) {
     for (const digest of [first.digest, second.digest, '']) {
-      const reference = { binding: 'nonce.1', contract: 'same/Report', digest };
+      const reference = { binding: 'nonce.1', contract: 'same/Report', ...(digest === '' ? {} : { digest }) };
       const check = (): void =>
         row.validate(row.expression, row.wrap ? { item: reference } : reference, '$', row.slots);
       if (digest !== second.digest) assert.doesNotThrow(check, row.name);
