@@ -833,6 +833,12 @@ func (p *Peer) startRequest(f frame) {
 	var answered sync.Once
 	respond := func(result any, err error) {
 		answered.Do(func() {
+			// The deadline has already won when it releases the body, even if
+			// that body beats the asynchronous deadline callback to this once.
+			// Explicit withdrawal still preserves a later public refusal.
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				result, err = nil, context.DeadlineExceeded
+			}
 			p.requestEnded(started, f.ID, f.Method, true, trace, err)
 			p.respond(f.ID, trace, result, err)
 		})

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -16,6 +17,37 @@ import (
 )
 
 type wireReplySink struct{ replies chan duplex.ProfileFrame }
+
+func TestReceiverDeadlineWinsImmediateHandlerRefusal(t *testing.T) {
+	previous := runtime.GOMAXPROCS(4)
+	t.Cleanup(func() { runtime.GOMAXPROCS(previous) })
+	ended := make(chan ws.RequestEnded, 1)
+	client, server := newPair(t, ws.Options{RequestTimeout: 100 * time.Microsecond, Observer: observerFunc(func(event ws.ObserverEvent) {
+		if e, ok := event.(ws.RequestEnded); ok && e.Incoming {
+			ended <- e
+		}
+	})}, ws.Options{})
+	if err := server.Handle("deadline", func(ctx context.Context, _ *ws.Peer, _ json.RawMessage) (any, error) {
+		<-ctx.Done()
+		return nil, &ws.PublicError{Code: "declined", Message: "Body completed at deadline"}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Exercise the real timer/body race: completion can run before the
+	// asynchronous deadline callback, but the deadline is already selected.
+	for i := range 1024 {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := client.Call(ctx, "deadline", nil, nil)
+		cancel()
+		var public *ws.PublicError
+		if !errors.As(err, &public) || public.Code != "cancelled" {
+			t.Fatalf("call %d deadline response = %v", i, err)
+		}
+		if e := receive(t, ended); e.Outcome != ws.OutcomeTimedOut || e.ErrorCode != "request_timeout" {
+			t.Fatalf("call %d deadline outcome = %+v", i, e)
+		}
+	}
+}
 
 func TestWireCancellationRetainsExecutingHandlerBudget(t *testing.T) {
 	for _, mode := range []string{"cancel", "caller-deadline", "receiver-deadline", "public-refusal"} {

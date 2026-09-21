@@ -26,6 +26,39 @@ function deferred<T = void>() {
   return { promise, resolve };
 }
 
+test('receiver deadline wins immediate handler refusal', async (t) => {
+  const endings: Extract<ObserverEvent, { type: 'request.ended' }>[] = [];
+  const pair = await paired(
+    {
+      requestTimeoutMs: 1,
+      observer: {
+        observe: (event) => {
+          if (event.type === 'request.ended' && event.incoming) endings.push(event);
+        },
+      },
+    },
+    { requestTimeoutMs: 5000 },
+  );
+  t.after(pair.close);
+  pair.server.handle(
+    'deadline',
+    (_params, context) =>
+      new Promise((_resolve, reject) => {
+        context.signal.addEventListener(
+          'abort',
+          () => reject(new DuplexError('declined', 'Body completed at deadline')),
+          { once: true },
+        );
+      }),
+  );
+  for (let i = 0; i < 32; i++) {
+    await assert.rejects(pair.client.call('deadline', null), { code: 'cancelled' });
+    assert.equal(endings.length, i + 1);
+    assert.equal(endings[i]!.outcome, 'timeout');
+    assert.equal(endings[i]!.errorCode, 'request_timeout');
+  }
+});
+
 for (const mode of ['cancel', 'caller-deadline', 'receiver-deadline', 'public-refusal']) {
   for (const route of ['wire', 'forwarded', 'peer']) {
     test(`wire cancellation retains executing handler budget (${mode}/${route})`, async (t) => {
