@@ -23,7 +23,8 @@
     ".": "./src/index.ts",
     "./grant": "./src/grant.ts",
     "./connection": "./src/connection.ts",
-    "./exposure": "./src/exposure.ts"
+    "./exposure": "./src/exposure.ts",
+    "./over": "./src/over.ts"
   },
   "types": "./src/index.ts",
   "sideEffects": false,
@@ -61,20 +62,27 @@
         "import": "./dist/exposure.js",
         "default": "./dist/exposure.js"
       },
+      "./over": {
+        "types": "./dist/over.d.ts",
+        "import": "./dist/over.js",
+        "default": "./dist/over.js"
+      },
       "./package.json": "./package.json"
     }
   },
   "dependencies": {
     "@bitspark/archon": "^0.7.0",
     "@bitspark/archon-sdk": "^0.7.0",
+    "@nightseam/runtime": "workspace:*",
     "@noble/hashes": "^2.2.0"
   },
   "devDependencies": {
+    "@nightseam/duplex": "workspace:*",
     "typescript": "^7.0.2"
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "check": "tsc -p tsconfig.check.json",
-    "test": "node --experimental-strip-types --test --test-timeout=20000 src/grant.test.ts src/connection.test.ts src/exposure.test.ts src/dependencies.test.ts"
+    "test": "node --experimental-strip-types --test --test-timeout=20000 src/grant.test.ts src/connection.test.ts src/exposure.test.ts src/over.test.ts src/dependencies.test.ts"
   }
 }

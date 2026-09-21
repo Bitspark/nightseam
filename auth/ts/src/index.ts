@@ -16,8 +16,11 @@
  * login — and beside it only the SHA-256 the grant's digest is, which Archon
  * does not export. Every module is pure and loads no transport, in a browser
  * or anywhere; each is also its own entry point, `@nightseam/auth/grant`,
- * `@nightseam/auth/connection`, `@nightseam/auth/exposure`.
+ * `@nightseam/auth/connection`, `@nightseam/auth/exposure`; `over` — the
+ * profile over a peer, the one module that imports the runtime — is
+ * `@nightseam/auth/over`.
  */
 export * as grant from './grant.ts';
 export * as connection from './connection.ts';
 export * as exposure from './exposure.ts';
+export * as over from './over.ts';
