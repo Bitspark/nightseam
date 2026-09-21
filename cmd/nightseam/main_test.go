@@ -324,7 +324,7 @@ func TestCommands(t *testing.T) {
 		t.Fatalf("check passed an ungenerated checkout: %v\n%s", err, errs)
 	}
 	out, _, err = run(t, root, "generate", "probe")
-	if err != nil || strings.Count(out, "generated ") != 13 {
+	if err != nil || strings.Count(out, "generated ") != 17 {
 		t.Fatalf("generate: %v\n%s", err, out)
 	}
 	if _, err := os.Stat(filepath.Join(root, "api", "ts", "probe-client", "src", "index.ts")); err != nil {
@@ -387,9 +387,10 @@ func TestImportDirection(t *testing.T) {
 		"render":             {"diag": true, "model": true, "analysis": true},
 		"emit":               {"diag": true},
 		"spi":                {"diag": true, "model": true, "render": true},
-		"targets/golang":     {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
-		"targets/typescript": {"diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
-		"doc":                {"diag": true, "model": true, "render": true, "spi": true, "pattern": true},
+		"targets/golang":     {"examples": true, "diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
+		"targets/typescript": {"examples": true, "diag": true, "model": true, "naming": true, "render": true, "spi": true, "emit": true},
+		"examples":           {"model": true, "render": true, "pattern": true},
+		"doc":                {"examples": true, "diag": true, "model": true, "render": true, "spi": true},
 		"targets/markdown":   {"doc": true, "model": true, "spi": true, "emit": true},
 		"targets/atlas":      {"doc": true, "spi": true},
 		"kernel":             {"diag": true, "model": true, "load": true, "analysis": true, "check": true, "render": true, "spi": true},

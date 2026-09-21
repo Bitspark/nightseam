@@ -38,6 +38,7 @@ internal/load/          files to families: the tier table, the shape schemas, th
 internal/analysis/      a family within its world: imports resolved, inheritance flattened, what is generic in it
 internal/check/         the rules, one function per tier and one for the override files
 internal/render/        a family as a target sees it, computed once
+internal/examples/      validated witnesses shared by the document and consumer test helpers
 internal/spi/           the seam between the kernel and a target
 internal/doc/           the language-neutral specification document and writer adapter
 internal/targets/       golang and typescript emit packages; markdown and atlas render the document

@@ -14,6 +14,12 @@
   ],
   "changed_files": [
     {
+      "path": "api/go/proof-binding/familytest/transparency_generated.go"
+    },
+    {
+      "path": "api/go/proof-client/familytest/transparency_generated.go"
+    },
+    {
       "path": "api/go/proof-protocol/types_generated.go",
       "removed_public_declarations": [
         "const PartKindImage PartKind = \"image\"",
@@ -42,6 +48,12 @@
     },
     {
       "path": "api/spec/proof/README.md"
+    },
+    {
+      "path": "api/ts/proof-binding/src/test.ts"
+    },
+    {
+      "path": "api/ts/proof-client/src/test.ts"
     },
     {
       "path": "api/ts/proof-client/src/types.ts",
