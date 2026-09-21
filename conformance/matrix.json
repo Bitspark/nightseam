@@ -74,7 +74,7 @@
       "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 210,
+          "passed": 214,
           "skipped": 0,
           "failed": 0
         },
