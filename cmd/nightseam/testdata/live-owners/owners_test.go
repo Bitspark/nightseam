@@ -267,7 +267,7 @@ func TestGeneratedOwnerSelectionIsConnectionLocal(t *testing.T) {
 						t.Fatal(err)
 					}
 					t.Cleanup(detach)
-					model, err := ownerbinding.FromWire(context.Background(), sb.Peer().Wire(), live.AdapterContext{Scope: sb})
+					model, err := ownerbinding.FromWire(context.Background(), sb.Peer().Wire(), runtime.AdapterContext{ValueEnvironment: live.ValueEnvironment(sb)})
 					if err != nil {
 						t.Fatal(err)
 					}

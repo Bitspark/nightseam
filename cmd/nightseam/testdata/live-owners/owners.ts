@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { pipe } from '@nightseam/duplex';
 import { DuplexPeer, DuplexError, handleWire } from '@nightseam/runtime';
-import { liveOver, type LiveScope } from '@nightseam/live';
+import { liveOver, valueEnvironment, type LiveScope } from '@nightseam/live';
 import * as combinator from './api/ts/combinator-client/src/index.ts';
 import * as owners from './api/ts/owners-client/src/index.ts';
 import { fromWire } from './api/ts/owners-binding/src/index.ts';
@@ -33,10 +33,10 @@ for (const path of ['callable', 'operation']) {
           const input = combinator.importUnary(serverOwner, (raw as {item: unknown}).item);
           return { metadata: { seed: 7 }, run: combinator.exportUnary(serverOwner, input) };
         });
-        const model = await fromWire(sb.peer.wire(), {scope: sb});
+        const model = await fromWire(sb.peer.wire(), {valueEnvironment: valueEnvironment(sb)});
         const server = model({methods: {}, events: {}});
         invoke = async (input, options) => (await server.methods.pack(
-          {item: input}, options && {...options, owner: options.owner ?? sb.owner()},
+          {item: input}, options && {signal: options.signal, valueContext: options.owner},
         )).run;
       }
       const foreign = sa.owner().child();
