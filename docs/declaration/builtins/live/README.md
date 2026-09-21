@@ -33,6 +33,7 @@ A record. A live value on the wire: one exported binding within one scope. It is
 |---|---|---|---|---|
 | `binding` | `string` | required | — | The binding, minted by the scope that exported it and opaque to everyone else: the scope's own evidence of identity, epoch and freshness lives in here, so a representation from an ended scope cannot resolve in a new one. |
 | `contract` | `string` | required | — | The declaration the binding implements, family/Type. It is nominal: a reference is usable exactly where the callable it was declared as is expected. |
+| `digest` | `string` | optional | — | The generated declaration digest, exactly 64 lowercase SHA-256 hexadecimal characters when present. Absence makes no revision claim. |
 
 ### Release
 

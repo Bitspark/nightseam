@@ -4,6 +4,7 @@ These specifications are rendered from the declarations embedded in the
 generator by the same `spec` target that documents a consumer's family:
 
 - [duplex](duplex/README.md): the profile's envelope and channel handle.
+- [identity](identity/README.md): declaration agreement before model interpretation.
 - [live](live/README.md): invoking and releasing a binding, and the reference
   a callable value travels as.
 - [tunnel](tunnel/README.md): opening channels, credit, and their wire types.

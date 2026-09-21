@@ -44,6 +44,7 @@ A record. What the side that opens a channel asks for.
 |---|---|---|---|---|
 | `channel` | `integer` | required | — | The id the opener chose: odd for the client of the outer connection, even for its server. |
 | `family` | `string` | required | — | The family the channel will speak. |
+| `digest` | `string` | optional | — | The generated declaration digest, exactly 64 lowercase SHA-256 hexadecimal characters when present. Absence makes no revision claim. |
 | `window` | `integer` | required | — | How many frames the opener will hold in flight before it returns credit. |
 
 ### Opened
@@ -91,7 +92,7 @@ The server implements these methods and emits these events.
 
 | Method | Request | Result | Errors | Description |
 |---|---|---|---|---|
-| `channel.open` | `Open` | `Opened` | `channel_invalid`, `channel_exists`, `channel_refused` | Opens a channel that speaks a family. |
+| `channel.open` | `Open` | `Opened` | `channel_invalid`, `channel_exists`, `channel_refused`, `contract_mismatch` | Opens a channel that speaks a family. |
 
 | Event | Data | Description |
 |---|---|---|
@@ -112,6 +113,7 @@ The client sends:
   "params": {
     "channel": 0,
     "family": "‹family›",
+    "digest": "‹digest›",
     "window": 0
   }
 }
@@ -172,6 +174,20 @@ Or refuses with `channel_refused`:
 }
 ```
 
+Or refuses with `contract_mismatch`:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "c:1",
+  "error": {
+    "code": "contract_mismatch",
+    "message": "The same family carries a different specified declaration digest."
+  }
+}
+```
+
 ### `channel.close` on the wire
 
 The server emits:
@@ -228,7 +244,7 @@ The client implements these methods, which the server calls, and emits these eve
 
 | Method | Request | Result | Errors | Description |
 |---|---|---|---|---|
-| `channel.open` | `Open` | `Opened` | `channel_invalid`, `channel_exists`, `channel_refused` | Opens a channel that speaks a family; either side may open. |
+| `channel.open` | `Open` | `Opened` | `channel_invalid`, `channel_exists`, `channel_refused`, `contract_mismatch` | Opens a channel that speaks a family; either side may open. |
 
 | Event | Data | Description |
 |---|---|---|
@@ -249,6 +265,7 @@ The server sends:
   "params": {
     "channel": 0,
     "family": "‹family›",
+    "digest": "‹digest›",
     "window": 0
   }
 }
@@ -305,6 +322,20 @@ Or refuses with `channel_refused`:
   "error": {
     "code": "channel_refused",
     "message": "Nobody here has taken the channels already opened, up to the accept capacity."
+  }
+}
+```
+
+Or refuses with `contract_mismatch`:
+
+```json
+{
+  "version": 1,
+  "kind": "response",
+  "id": "s:1",
+  "error": {
+    "code": "contract_mismatch",
+    "message": "The same family carries a different specified declaration digest."
   }
 }
 ```
@@ -368,3 +399,4 @@ The public errors of the family, by code: what a call may fail with.
 | `channel_exists` | The id is open. |
 | `channel_invalid` | The open is malformed, or names an id of the accepting side's parity. |
 | `channel_refused` | Nobody here has taken the channels already opened, up to the accept capacity. |
+| `contract_mismatch` | The same family carries a different specified declaration digest. |
