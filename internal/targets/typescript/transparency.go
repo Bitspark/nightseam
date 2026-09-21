@@ -27,10 +27,15 @@ func emitTransparency(f *file, side string) {
 	f.linef("import type { AnyFamily, FamilyBinding } from %s;", protocol)
 	f.imports(false)
 	f.line(tsTransparencySupport)
-	var bind, pass []string
+	var bind, pass, fields []string
 	for _, name := range parameters(f.family.Uses) {
-		bind = append(bind, bindingName(name)+": "+f.bindingType(name))
-		pass = append(pass, bindingName(name))
+		// Keep valid parameter names such as Inputs and Close separate from
+		// helper locals, while retaining the adapter receiver's property names.
+		field := bindingName(name)
+		argument := "binding_" + field
+		bind = append(bind, argument+": "+f.bindingType(name))
+		pass = append(pass, argument)
+		fields = append(fields, field+": "+argument)
 	}
 	binding, passing := "", ""
 	if len(bind) > 0 {
@@ -51,7 +56,7 @@ func emitTransparency(f *file, side string) {
 	emitExamples(f)
 	f.line("/** Exercise every method on two fresh equivalent models; missing evidence is an error. */")
 	f.w.Block(fmt.Sprintf("export async function smoke%s(model: Protocol.%sModel%s, opposite: Protocol.%s%s, options: Options%s): Promise<void> {", decl, side, args, opposite, args, binding), "}", func() {
-		f.linef("const bindings = {%s};", strings.Join(pass, ", "))
+		f.linef("const bindings = {%s};", strings.Join(fields, ", "))
 		f.line("const inputs = new Map<string,unknown>(); const seen = new Map<string,number>(); let inputError: unknown;")
 		f.linef("const observed: Protocol.%sModel%s = remote => { const value=model(remote);", side, args)
 		methods, _ := f.wireSide(side)
@@ -103,7 +108,8 @@ func emitTransparency(f *file, side string) {
 				}
 				f.linef("if (%s) throw new Error(%s);", condition, quote(m.Name+": requires an equal observer for live values"))
 			}
-			callArgs := fmt.Sprintf("input as Parameters<typeof remote.methods.%s>[0], options.callContext as Parameters<typeof remote.methods.%s>[1]", name, name)
+			// Reuse the model signature rather than the shadowable Parameters utility.
+			callArgs := fmt.Sprintf("input as %s, options.callContext as %s", f.request(m), f.lifetimeType("WireModelContext", "ValueContext", m.Request, m.Result))
 			f.linef("inputs.set(%s,input);", quote(m.Name))
 			f.linef("const before=seen.get(%s)??0;", quote(m.Name))
 			f.linef("const actual = await outcome(() => remote.methods.%s(%s));", name, callArgs)

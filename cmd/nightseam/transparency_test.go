@@ -26,6 +26,8 @@ func testTransparencyFixture(t *testing.T, tests string) {
 	writeFixture(t, directory, "api/contracts/meter/protocol.json", []byte(`{"profile":"nightseam.duplex/1","server":{"methods":{"echo":{"request":"Input","result":"Input"},"constant":{"request":"Input","result":"integer"},"decline":{"result":"integer","errors":["denied"]},"ping":{"result":"integer"}},"events":{"changed":{"type":"Input"}}},"client":{"methods":{"reverse":{"request":"Input","result":"Input"}},"events":{"noted":{"type":"Input"}}},"errors":{"denied":"declined"}}`))
 	writeFixture(t, directory, "api/contracts/cell/model.json", []byte(`{"nightseam":2}`))
 	writeFixture(t, directory, "api/contracts/cell/protocol.json", []byte(`{"profile":"nightseam.duplex/1","parameters":[{"name":"T"}],"types":{"Input":{"kind":"record","fields":[{"name":"value","type":"T"}]}},"server":{"methods":{"echo":{"request":"Input","result":"T"}}}}`))
+	writeFixture(t, directory, "api/contracts/names/model.json", []byte(`{"nightseam":2}`))
+	writeFixture(t, directory, "api/contracts/names/protocol.json", []byte(`{"profile":"nightseam.duplex/1","parameters":[{"name":"Inputs"},{"name":"Close"},{"name":"Parameters"}],"types":{"Input":{"kind":"record","fields":[{"name":"inputs","type":"Inputs"},{"name":"close","type":"Close"},{"name":"parameters","type":"Parameters"}]}},"server":{"methods":{"echo":{"request":"Input","result":"Input"}}}}`))
 	writeFixture(t, directory, "api/contracts/functions/model.json", []byte(`{"nightseam":2}`))
 	writeFixture(t, directory, "api/contracts/functions/protocol.json", []byte(`{"profile":"nightseam.duplex/1"}`))
 	writeFixture(t, directory, "api/contracts/functions/live.json", []byte(`{"types":{"Unary":{"kind":"callable","request":"integer","result":"integer"}}}`))
@@ -158,6 +160,7 @@ func(w mutatingWire)Send(path []string,m duplex.Message)error{if len(path)==1&&p
 const tsTransparencyProgram = `import * as test from '@example/meter-binding/test';
 import * as clientTest from '@example/meter-client/test';
 import * as cellTest from '@example/cell-binding/test';
+import * as namesTest from '@example/names-binding/test';
 import * as functionTest from '@example/functions-binding/test';
 import * as dataTest from '@example/data-client/test';
 import {adapterCount} from '@example/data-client/types';
@@ -192,6 +195,8 @@ await rejects(()=>test.pair(()=>{throw new Error('factory failed');},{}),'factor
  await rejects(()=>callWire(abandoned!,['ping'],{}));
 }
 const numbers=jsonAdapter<number>({type:'integer',validate:validateWire});
+const strings=jsonAdapter<string>({type:'string',validate:validateWire});
+await namesTest.smoke<string,string,string>(()=>({methods:{echo:input=>input},events:{}}),{methods:{},events:{}},{inputs:{echo:{inputs:'first',close:'second',parameters:'third'}}},strings,strings,strings);
 await cellTest.smoke<number>(()=>({methods:{echo:input=>input.value},events:{}}),{methods:{},events:{}},{inputs:{echo:{value:23}}},numbers);
 await clientTest.smoke(()=>opposite(),model(opposite()),{});
 {
