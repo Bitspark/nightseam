@@ -2,8 +2,12 @@ package runtime
 
 import (
 	"errors"
+	"strconv"
+	"sync/atomic"
 	"time"
 )
+
+var wireObservationSequence atomic.Uint64
 
 // WireCallOptions labels observations made by one model call. It does not
 // reconfigure the selected wire or its carrier's observer.
@@ -28,10 +32,14 @@ func observeWire(observer Observer, event ObserverEvent) {
 
 // The existing helper completion owns this observation; no routing state is
 // added, and an unobserved helper reads no clock.
-func observeWireRequest(observer Observer, family, id, method string, incoming bool, trace Trace) func(error) {
+func observeWireRequest(observer Observer, family, method string, incoming bool, trace Trace) func(error) {
 	if observer == nil {
 		return func(error) {}
 	}
+	// Logical frame identifiers belong to a return capability and can repeat
+	// across calls. An observer sees no capability, so its lifetime identifier
+	// is unique and distinct from the physical peer's c:/s: namespace.
+	id := "wire:" + strconv.FormatUint(wireObservationSequence.Add(1), 10)
 	started := time.Now()
 	finished := false
 	observeWire(observer, RequestStarted{At: started, ID: id, Method: method, Incoming: incoming, Trace: trace, Family: family})

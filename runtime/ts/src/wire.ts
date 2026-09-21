@@ -326,7 +326,7 @@ function callWireTraced<T>(
     return Promise.reject(new UnpublishedError(error));
   }
   const completion = requestCompletion<T>();
-  const finish = observeWireRequest(options.observer, options.family, 'c:1', name, false, trace);
+  const finish = observeWireRequest(options.observer, options.family, name, false, trace);
   let localOutcome: 'cancelled' | 'timeout' | undefined;
   void completion.promise.then(
     () => finish(),
@@ -424,14 +424,7 @@ export function registerWire(wire: Wire, path: Path, handlers: WireHandlers): ()
         calls?.get(frame.id)?.abort();
         return;
       }
-      const finish = observeWireRequest(
-        handlers.observer,
-        handlers.family,
-        frame.id,
-        encodePath(path),
-        true,
-        traceOf(frame),
-      );
+      const finish = observeWireRequest(handlers.observer, handlers.family, encodePath(path), true, traceOf(frame));
       if (!handlers.request) {
         const error = new DuplexError('method_not_found', 'An event has no request handler.');
         finish(error);

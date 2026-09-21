@@ -2,6 +2,8 @@ import { DuplexError } from './error.ts';
 import type { Observer, ObserverEvent } from './observer.ts';
 import type { Trace } from './trace.ts';
 
+let wireObservationSequence = 0n;
+
 /** @internal Diagnostics cannot determine whether a model operation succeeds. */
 export function observeWire(observer: Observer | undefined, event: ObserverEvent): void {
   try {
@@ -15,12 +17,14 @@ export function observeWire(observer: Observer | undefined, event: ObserverEvent
 export function observeWireRequest(
   observer: Observer | undefined,
   family: string | undefined,
-  id: string,
   method: string,
   incoming: boolean,
   trace: Trace | undefined,
 ): (error?: unknown, outcome?: 'ok' | 'error' | 'cancelled' | 'timeout') => void {
   if (!observer) return () => {};
+  // Frame IDs are scoped by return capability. Observer consumers have no
+  // capability, so each model lifetime needs its own nonphysical identity.
+  const id = `wire:${++wireObservationSequence}`;
   const started = performance.now(),
     label = family ?? '';
   let finished = false;
