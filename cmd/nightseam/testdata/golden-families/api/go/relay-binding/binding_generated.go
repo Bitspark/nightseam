@@ -301,7 +301,7 @@ func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](mode
 			_ = access.Close(duplex.CodeInternalError, "model construction failed")
 		}
 	}()
-	dispatcher, err := runtime.NewDispatcher(binding)
+	dispatcher, err := runtime.NewDispatcher(binding, runtime.DispatcherOptions{OwnEndpoint: true})
 	if err != nil {
 		return nil, err
 	}

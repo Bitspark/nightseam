@@ -348,7 +348,7 @@ export function toWire(model: Protocol.ClientModel, context: AdapterContext): En
   const adapter = makeAdapter(context);
   const [access, binding] = wirePair({ ...adapter.options, families: { ...adapter.options.families, [encodePath(["events.list"])]: "workbench", [encodePath(["me"])]: "workbench", [encodePath(["projects.create"])]: "workbench", [encodePath(["projects.list"])]: "workbench", [encodePath(["projects.update"])]: "workbench", [encodePath(["subscribe"])]: "workbench", [encodePath(["work.cancel"])]: "workbench", [encodePath(["work.create"])]: "workbench", [encodePath(["work.dependencies"])]: "workbench", [encodePath(["work.get"])]: "workbench", [encodePath(["work.list"])]: "workbench", [encodePath(["work.publish"])]: "workbench", [encodePath(["work.reopen"])]: "workbench", [encodePath(["work.steps"])]: "workbench", [encodePath(["work.update"])]: "workbench", [encodePath(["workbench.changed"])]: "workbench" } });
   try {
-    const dispatcher = createDispatcher(binding);
+    const dispatcher = createDispatcher(binding, { ownEndpoint: true });
     registerWire(dispatcher, [IDENTITY_METHOD], { request: identityHandler(adapter.identity) });
     const implementation = model(adapter.proxyServer(binding));
     adapter.validateClient(implementation);

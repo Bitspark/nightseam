@@ -974,7 +974,7 @@ func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (dup
 			_ = access.Close(duplex.CodeInternalError, "model construction failed")
 		}
 	}()
-	dispatcher, err := runtime.NewDispatcher(binding)
+	dispatcher, err := runtime.NewDispatcher(binding, runtime.DispatcherOptions{OwnEndpoint: true})
 	if err != nil {
 		return nil, err
 	}

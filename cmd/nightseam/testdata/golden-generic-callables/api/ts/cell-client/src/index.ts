@@ -105,7 +105,7 @@ export function toWire<T = unknown>(model: Protocol.ClientModel<T>, context: Ada
   const adapter = makeAdapter<T>(context, t);
   const [access, binding] = wirePair({ ...adapter.options, families: { ...adapter.options.families, [encodePath(["get"])]: "cell", [encodePath(["replace"])]: "cell" } });
   try {
-    const dispatcher = createDispatcher(binding);
+    const dispatcher = createDispatcher(binding, { ownEndpoint: true });
     registerWire(dispatcher, [IDENTITY_METHOD], { request: identityHandler(adapter.identity) });
     const implementation = model(adapter.proxyServer(binding));
     adapter.validateClient(implementation);

@@ -90,7 +90,7 @@ export function toWire<A extends AnyFamily = AnyFamily, B extends AnyFamily = An
   const adapter = makeAdapter<A, B>(context, a, b);
   const [access, binding] = wirePair({ ...adapter.options, families: { ...adapter.options.families, [encodePath(["look"])]: "album" } });
   try {
-    const dispatcher = createDispatcher(binding);
+    const dispatcher = createDispatcher(binding, { ownEndpoint: true });
     registerWire(dispatcher, [IDENTITY_METHOD], { request: identityHandler(adapter.identity) });
     const implementation = model(adapter.proxyServer(binding));
     adapter.validateClient(implementation);

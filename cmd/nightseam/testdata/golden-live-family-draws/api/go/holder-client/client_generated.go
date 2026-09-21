@@ -337,7 +337,7 @@ func ToWire[SJob runtime.Of[STag], SProgress runtime.Of[STag], STag any](model p
 			_ = access.Close(duplex.CodeInternalError, "model construction failed")
 		}
 	}()
-	dispatcher, err := runtime.NewDispatcher(binding)
+	dispatcher, err := runtime.NewDispatcher(binding, runtime.DispatcherOptions{OwnEndpoint: true})
 	if err != nil {
 		return nil, err
 	}

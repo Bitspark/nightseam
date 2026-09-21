@@ -207,7 +207,7 @@ export function toWire<S extends AnyFamily = AnyFamily, Item = unknown>(model: P
   const adapter = makeAdapter<S, Item>(context, s, item);
   const [access, binding] = wirePair({ ...adapter.options, families: { ...adapter.options.families, [encodePath(["echo"])]: "proof", [encodePath(["no_args"])]: "proof", [encodePath(["classify"])]: "proof", [encodePath(["classify_rich"])]: "proof", [encodePath(["parts"])]: "proof", [encodePath(["relay"])]: "proof", [encodePath(["changed"])]: "proof", [encodePath(["part.added"])]: "proof" } });
   try {
-    const dispatcher = createDispatcher(binding);
+    const dispatcher = createDispatcher(binding, { ownEndpoint: true });
     registerWire(dispatcher, [IDENTITY_METHOD], { request: identityHandler(adapter.identity) });
     const implementation = model(adapter.proxyClient(binding));
     adapter.validateServer(implementation);

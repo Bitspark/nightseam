@@ -132,7 +132,7 @@ export function toWire(model: Protocol.ClientModel, context: AdapterContext): En
   const adapter = makeAdapter(context);
   const [access, binding] = wirePair({ ...adapter.options, families: { ...adapter.options.families, [encodePath(["echo"])]: "probe", [encodePath(["no_args"])]: "probe", [encodePath(["reverse"])]: "probe", [encodePath(["changed"])]: "probe" } });
   try {
-    const dispatcher = createDispatcher(binding);
+    const dispatcher = createDispatcher(binding, { ownEndpoint: true });
     registerWire(dispatcher, [IDENTITY_METHOD], { request: identityHandler(adapter.identity) });
     const implementation = model(adapter.proxyServer(binding));
     adapter.validateClient(implementation);

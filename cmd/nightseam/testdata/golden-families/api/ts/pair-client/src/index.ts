@@ -122,7 +122,7 @@ export function toWire<S extends AnyFamily = AnyFamily, T extends AnyFamily = An
   const adapter = makeAdapter<S, T>(context, s, t);
   const [access, binding] = wirePair({ ...adapter.options, families: { ...adapter.options.families, [encodePath(["named"])]: "pair", [encodePath(["relay"])]: "pair", [encodePath(["echoed"])]: "pair" } });
   try {
-    const dispatcher = createDispatcher(binding);
+    const dispatcher = createDispatcher(binding, { ownEndpoint: true });
     registerWire(dispatcher, [IDENTITY_METHOD], { request: identityHandler(adapter.identity) });
     const implementation = model(adapter.proxyServer(binding));
     adapter.validateClient(implementation);
