@@ -31,10 +31,11 @@ run('javac', ['--release', '21', '-encoding', 'UTF-8', '-d', classes, `@${args}`
 const notices = join(out, 'notices');
 mkdirSync(notices, { recursive: true });
 copyFileSync(join(root, 'LICENSE'), join(notices, 'LICENSE'));
+copyFileSync(join(root, 'NOTICE'), join(notices, 'NOTICE'));
 const jars = [];
 for (const component of ['duplex', 'runtime']) {
   const artifact = join(out, `nightseam-${component}.jar`);
-  run('jar', ['--create', '--file', artifact, '-C', classes, `io/nightseam/${component}`, '-C', notices, 'LICENSE']);
+  run('jar', ['--create', '--file', artifact, '-C', classes, `io/nightseam/${component}`, '-C', notices, 'LICENSE', '-C', notices, 'NOTICE']);
   jars.push(artifact);
 }
 if (process.argv.includes('--test')) {

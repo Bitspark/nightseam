@@ -12,6 +12,7 @@ subprojects {
     tasks.named('jar') {
         archiveBaseName = "nightseam-${project.name}"
         from(rootProject.file('../../LICENSE'))
+        from(rootProject.file('../../NOTICE'))
     }
 }
 dependencies { implementation project(':runtime') }
