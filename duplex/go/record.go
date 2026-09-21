@@ -104,7 +104,7 @@ type RecordedWire struct {
 }
 
 // Record takes exclusive append ownership of log. Setup reads its initial head;
-// the target is this composition's carrier and closes when the recorder ends.
+// the target is borrowed send authority and remains usable when the recorder ends.
 func Record(setup context.Context, target Wire, log WireLog, options RecordOptions) (*RecordedWire, error) {
 	if target == nil || log == nil {
 		return nil, fmt.Errorf("record requires a target and storage")
