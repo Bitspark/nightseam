@@ -32,7 +32,7 @@ test('environment selection preserves active batches and nested child rollback',
   const env = valueEnvironment(p.a);
   const selected = p.a.owner().child();
   let callbacks = 0;
-  const prior = selected.export('test/Call', async (raw) => {
+  const prior = selected.export('test/Call', '', async (raw) => {
     callbacks++;
     return raw;
   });
@@ -40,8 +40,8 @@ test('environment selection preserves active batches and nested child rollback',
   for (const boundary of ['export', 'import'] as const) {
     const aliases: Invoke[] = [];
     const acquire = (context: unknown) => {
-      const reference = owner(context).export('test/Call', async (raw) => raw);
-      aliases.push(selected.import(reference, 'test/Call'));
+      const reference = owner(context).export('test/Call', '', async (raw) => raw);
+      aliases.push(selected.import(reference, 'test/Call', ''));
       return reference.toJSON();
     };
     assert.throws(
@@ -63,7 +63,7 @@ test('environment selection preserves active batches and nested child rollback',
         (error: unknown) => error instanceof DuplexError && error.code === 'reference_released',
       );
   }
-  assert.equal(await selected.import(prior, 'test/Call')(7), 7);
+  assert.equal(await selected.import(prior, 'test/Call', '')(7), 7);
   assert.equal(callbacks, 1);
   assert.deepEqual(
     env.export(selected, () => ({ value: 8 })),
@@ -76,23 +76,23 @@ test('failed environmental import releases fresh attachments and preserves borro
   const p = await pair();
   t.after(p.close);
   let callbacks = 0;
-  const prior = p.a.owner().export('test/Call', async (raw) => {
+  const prior = p.a.owner().export('test/Call', '', async (raw) => {
     callbacks++;
     return raw;
   });
-  const fresh = p.a.owner().export('test/Call', async (raw) => raw);
+  const fresh = p.a.owner().export('test/Call', '', async (raw) => raw);
   const priorAtB = p.b.decode(prior.toJSON());
   const freshAtB = p.b.decode(fresh.toJSON());
   const first = p.b.owner().child();
-  const alias = first.import(priorAtB, 'test/Call');
+  const alias = first.import(priorAtB, 'test/Call', '');
   assert.equal(await alias(1), 1);
   const second = p.b.owner().child();
   const env = valueEnvironment(p.b);
   assert.throws(
     () =>
       env.import(second, (view) => {
-        assert.equal(owner(view).import(priorAtB, 'test/Call'), alias);
-        owner(view).import(freshAtB, 'test/Call');
+        assert.equal(owner(view).import(priorAtB, 'test/Call', ''), alias);
+        owner(view).import(freshAtB, 'test/Call', '');
         throw new Error('later conversion failed');
       }),
     /later conversion failed/,
@@ -117,7 +117,7 @@ test('environment publication distinguishes unsent proof from uncertain cancella
       env.publish(
         selected,
         (view) => {
-          reference = owner(view).export('test/Call', async (raw) => {
+          reference = owner(view).export('test/Call', '', async (raw) => {
             callbacks++;
             return raw;
           });
@@ -131,7 +131,7 @@ test('environment publication distinguishes unsent proof from uncertain cancella
     );
     assert.deepEqual(selected.counts(), { exports: unpublished ? 0 : 1, imports: 0 });
     if (!unpublished) {
-      assert.equal(await selected.import(reference, 'test/Call')(3), 3);
+      assert.equal(await selected.import(reference, 'test/Call', '')(3), 3);
       assert.equal(callbacks, 1);
     }
     selected.release();
@@ -152,11 +152,11 @@ test('a publication batch ends before its publisher creates another allocation',
       (view) => {
         captured = view;
         return owner(view)
-          .export('test/Call', async (raw) => raw)
+          .export('test/Call', '', async (raw) => raw)
           .toJSON();
       },
       async () => {
-        later = owner(captured).export('test/Call', async (raw) => {
+        later = owner(captured).export('test/Call', '', async (raw) => {
           callbacks++;
           return raw;
         });
@@ -166,7 +166,7 @@ test('a publication batch ends before its publisher creates another allocation',
     UnpublishedError,
   );
   assert.deepEqual(selected.counts(), { exports: 1, imports: 0 });
-  assert.equal(await selected.import(later, 'test/Call')(4), 4);
+  assert.equal(await selected.import(later, 'test/Call', '')(4), 4);
   assert.equal(callbacks, 1);
 });
 
@@ -185,7 +185,7 @@ test('one environment keeps overlapping operation owners independent', async (t)
     first,
     (view) =>
       owner(view)
-        .export('test/Call', async (raw) => raw)
+        .export('test/Call', '', async (raw) => raw)
         .toJSON(),
     async () => {
       entered = true;
@@ -200,7 +200,7 @@ test('one environment keeps overlapping operation owners independent', async (t)
     await env.publish(
       second,
       (view) => {
-        retained = owner(view).export('test/Call', async (raw) => {
+        retained = owner(view).export('test/Call', '', async (raw) => {
           callbacks++;
           return raw;
         });
@@ -214,7 +214,7 @@ test('one environment keeps overlapping operation owners independent', async (t)
   await assert.rejects(sending, UnpublishedError);
   assert.deepEqual(first.counts(), { exports: 0, imports: 0 });
   assert.deepEqual(second.counts(), { exports: 1, imports: 0 });
-  assert.equal(await second.import(retained, 'test/Call')(5), 5);
+  assert.equal(await second.import(retained, 'test/Call', '')(5), 5);
   assert.equal(callbacks, 1);
 });
 
@@ -246,7 +246,7 @@ test('released selected owners stay terminal while new operations select a fresh
       (error: unknown) => error instanceof DuplexError && error.code === 'reference_released',
     );
   }
-  const scalar = jsonAdapter<string>({ type: 'string', validate: createValidator({ types: {} }) });
+  const scalar = jsonAdapter<string>({ type: 'string', validate: createValidator({ types: {} }, '') });
   assert.equal(scalar.import(first, scalar.export(first, 'still data')), 'still data');
   assert.deepEqual(p.a.counts(), { exports: 0, imports: 0 });
 });

@@ -18,7 +18,7 @@ func environmentPayload(ctx context.Context) (json.RawMessage, error) {
 	if !ok {
 		return nil, errors.New("conversion lost its active owner")
 	}
-	ref, err := owner.Export(environmentContract, func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) {
+	ref, err := owner.Export(environmentContract, "", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) {
 		return raw, nil
 	})
 	if err != nil {
@@ -33,7 +33,7 @@ func environmentAlias(t *testing.T, owner *live.Owner, raw json.RawMessage) live
 	if err != nil {
 		t.Fatal(err)
 	}
-	alias, err := owner.Import(ref, environmentContract)
+	alias, err := owner.Import(ref, environmentContract, "")
 	if err != nil {
 		t.Fatal(err)
 	}

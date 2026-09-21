@@ -16,7 +16,7 @@ function deferred<T>() {
 // The attempted composition keeps import-time interpretation and the active
 // owner explicit. This helper is evidence, not an additional shipped live API.
 function checkedBindingWire(t: TestContext, owner: LiveOwner, ref: Reference, contract: string): Wire {
-  const invoke = owner.import(ref, contract);
+  const invoke = owner.import(ref, contract, '');
   const { binding } = ref.toJSON();
   const [access, endpoint] = wirePair();
   t.after(() => access.close());
@@ -125,7 +125,7 @@ for (const carrier of ['local', 'socket']) {
       permitted = false;
     const entered = deferred<void>();
     const finish = deferred<void>();
-    let ref = target.export('test/Guarded', async (params) => {
+    let ref = target.export('test/Guarded', '', async (params) => {
       guards++;
       if (!permitted) throw new DuplexError('denied', 'guard denied');
       effects++;
@@ -159,7 +159,7 @@ for (const carrier of ['local', 'socket']) {
 test('live binding Wire construction checks interpretation and nonce', async (t) => {
   const p = await scopes(t);
   let effects = 0;
-  const ref = p.b.owner().export('test/Checked', async (value) => {
+  const ref = p.b.owner().export('test/Checked', '', async (value) => {
     effects++;
     return value;
   });
@@ -185,8 +185,8 @@ test('live binding Wire construction retains uncertain publication', async (t) =
   const target = p.a.owner().child();
   const outgoing = p.a.owner().child();
   const retained = deferred<ReturnType<LiveOwner['import']>>();
-  const ref = target.export('test/Retain', async (payload, options) => {
-    retained.resolve(target.import(p.a.decode(payload), 'test/Callback'));
+  const ref = target.export('test/Retain', '', async (payload, options) => {
+    retained.resolve(target.import(p.a.decode(payload), 'test/Callback', ''));
     await new Promise<void>((resolve) => {
       options!.signal!.addEventListener('abort', () => resolve(), { once: true });
       if (options!.signal!.aborted) resolve();
@@ -198,7 +198,7 @@ test('live binding Wire construction retains uncertain publication', async (t) =
   let callbacks = 0;
   const pending = outgoing.publishValue(
     (owner) =>
-      owner.export('test/Callback', async (value) => {
+      owner.export('test/Callback', '', async (value) => {
         callbacks++;
         return value;
       }),
@@ -224,14 +224,14 @@ test('exporting an imported binding Wire gives the destination its own lifetime'
   const forwardOwner = destination.a.owner().child();
   const forwardHolder = destination.b.owner().child();
   let calls = 0;
-  const ref = sourceOwner.export('test/Forward', async (value) => {
+  const ref = sourceOwner.export('test/Forward', '', async (value) => {
     calls++;
     return value;
   });
   const imported = checkedBindingWire(t, sourceHolder, origin.b.decode(ref.toJSON()), 'test/Forward');
   // Opaque JSON only: forwarding does not discover or translate references
   // hidden inside a model payload. Those positions need generated converters.
-  const forwarded = forwardOwner.export('test/Forward', (value, options) =>
+  const forwarded = forwardOwner.export('test/Forward', '', (value, options) =>
     callWire(imported, [], value, { signal: options?.signal }),
   );
   const access = checkedBindingWire(t, forwardHolder, destination.b.decode(forwarded.toJSON()), 'test/Forward');
@@ -262,7 +262,7 @@ test('closing a binding Wire exposure is not the live release barrier', async (t
   const entered = deferred<void>();
   const finish = deferred<void>();
   let calls = 0;
-  const ref = owner.export('test/Close', async (value) => {
+  const ref = owner.export('test/Close', '', async (value) => {
     if (++calls === 1) {
       entered.resolve();
       await finish.promise;
@@ -278,7 +278,7 @@ test('closing a binding Wire exposure is not the live release barrier', async (t
   assert.deepEqual(owner.counts(), { exports: 1, imports: 0 });
   // Carrier close ended the outstanding reply, but the intact live scope
   // still owns the binding. It therefore cannot stand in for owner release.
-  const invoke = owner.import(ref, 'test/Close');
+  const invoke = owner.import(ref, 'test/Close', '');
   assert.equal(await invoke(82), 82);
   assert.equal(calls, 2);
   owner.release();
