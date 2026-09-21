@@ -1,0 +1,78 @@
+{
+  "description": "The OpenTelemetry adapters' shared span topology. Times are milliseconds from 2026-09-21T00:00:00Z. Attributes are required subsets; span and event sequences are exact. Go's host-specific span-event names are normalized to the runtime event vocabulary. Consumer samplers remain authoritative.",
+  "cases": [
+    {
+      "name": "an idle connection retains event-only traffic and its own lifecycle",
+      "events": [
+        {"type":"connection.opened","at_ms":0,"role":"client"},
+        {"type":"event.emitted","at_ms":2,"name":"changed","bytes":42,"family":"probe","trace":{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}},
+        {"type":"event.delivered","at_ms":3,"name":"changed","bytes":42,"family":"probe","trace":{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}},
+        {"type":"backpressure","at_ms":4,"queued":2,"stalled":false,"deadlineMs":100},
+        {"type":"channel.opened","at_ms":5,"id":7,"family":"probe"},
+        {"type":"connection.closed","at_ms":8,"code":1000,"reason":"done","local":true}
+      ],
+      "spans": [
+        {"name":"changed","kind":"producer","start_ms":2,"end_ms":2,"trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","parent_span_id":"00f067aa0ba902b7","attributes":{"nightseam.name":"changed","nightseam.bytes":42,"nightseam.family":"probe"},"events":[]},
+        {"name":"changed","kind":"consumer","start_ms":3,"end_ms":3,"trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","parent_span_id":"00f067aa0ba902b7","attributes":{"nightseam.name":"changed","nightseam.bytes":42,"nightseam.family":"probe"},"events":[]},
+        {"name":"connection","kind":"internal","start_ms":0,"end_ms":8,"parent_span_id":"","attributes":{"nightseam.role":"client","nightseam.close.code":1000,"nightseam.close.reason":"done","nightseam.close.local":true},"events":[{"name":"backpressure","at_ms":4},{"name":"channel.opened","at_ms":5}]}
+      ]
+    },
+    {
+      "name": "only a unique open request encloses its frames and connection events never fan out",
+      "events": [
+        {"type":"connection.opened","at_ms":0,"role":"server"},
+        {"type":"request.started","at_ms":1,"id":"c:1","method":"call","incoming":false,"family":"probe"},
+        {"type":"request.started","at_ms":2,"id":"c:1","method":"serve","incoming":true,"family":"probe"},
+        {"type":"frame.sent","at_ms":3,"kind":"request","name":"call","bytes":10,"id":"c:1","family":"probe"},
+        {"type":"backpressure","at_ms":4,"queued":2,"stalled":false,"deadlineMs":100},
+        {"type":"channel.opened","at_ms":5,"id":7,"family":"probe"},
+        {"type":"request.ended","at_ms":6,"id":"c:1","method":"serve","incoming":true,"durationMs":4,"outcome":"ok","family":"probe"},
+        {"type":"frame.received","at_ms":7,"kind":"response","name":"","bytes":10,"id":"c:1","family":"probe"},
+        {"type":"request.ended","at_ms":8,"id":"c:1","method":"call","incoming":false,"durationMs":7,"outcome":"ok","family":"probe"},
+        {"type":"frame.received","at_ms":9,"kind":"response","name":"","bytes":10,"id":"c:1","family":"probe"},
+        {"type":"frame.received","at_ms":10,"kind":"response","name":"","bytes":10,"id":"c:9","family":"probe","trace":{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}},
+        {"type":"connection.closed","at_ms":11,"code":4011,"reason":"refused","local":false}
+      ],
+      "spans": [
+        {"name":"serve","kind":"server","start_ms":2,"end_ms":6,"parent_span_id":"","events":[]},
+        {"name":"call","kind":"client","start_ms":1,"end_ms":8,"parent_span_id":"","events":[{"name":"frame.received","at_ms":7}]},
+        {"name":"connection","kind":"internal","start_ms":0,"end_ms":11,"parent_span_id":"","attributes":{"nightseam.close.code":4011,"nightseam.close.reason":"refused","nightseam.close.local":false},"events":[{"name":"frame.sent","at_ms":3},{"name":"backpressure","at_ms":4},{"name":"channel.opened","at_ms":5},{"name":"frame.received","at_ms":9},{"name":"frame.received","at_ms":10}]}
+      ]
+    },
+    {
+      "name": "application events keep their frame trace without a physical connection",
+      "events": [
+        {"type":"event.emitted","at_ms":1,"name":"changed","bytes":42,"family":"probe","trace":{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}},
+        {"type":"event.delivered","at_ms":2,"name":"changed","bytes":42,"family":"probe","trace":{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}},
+        {"type":"backpressure","at_ms":3,"queued":2,"stalled":false,"deadlineMs":100},
+        {"type":"channel.opened","at_ms":4,"id":7,"family":"probe"},
+        {"type":"connection.closed","at_ms":5,"code":1000,"reason":"","local":true}
+      ],
+      "spans": [
+        {"name":"changed","kind":"producer","start_ms":1,"end_ms":1,"trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","parent_span_id":"00f067aa0ba902b7","events":[]},
+        {"name":"changed","kind":"consumer","start_ms":2,"end_ms":2,"trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","parent_span_id":"00f067aa0ba902b7","events":[]}
+      ]
+    },
+    {
+      "name": "a closed connection retains no later frame or layer event",
+      "events": [
+        {"type":"connection.opened","at_ms":0,"role":"client"},
+        {"type":"connection.closed","at_ms":1,"code":1000,"reason":"done","local":true},
+        {"type":"backpressure","at_ms":2,"queued":2,"stalled":false,"deadlineMs":100},
+        {"type":"channel.opened","at_ms":3,"id":7,"family":"probe"},
+        {"type":"frame.received","at_ms":4,"kind":"response","name":"","bytes":10,"id":"c:1","family":"probe"}
+      ],
+      "spans": [
+        {"name":"connection","kind":"internal","start_ms":0,"end_ms":1,"parent_span_id":"","events":[]}
+      ]
+    },
+    {
+      "name": "unsampled frame parents retain the consumer's sampling decision",
+      "events": [
+        {"type":"event.emitted","at_ms":1,"name":"changed","bytes":42,"family":"probe","trace":{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"}},
+        {"type":"event.delivered","at_ms":2,"name":"changed","bytes":42,"family":"probe","trace":{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"}}
+      ],
+      "spans": []
+    }
+  ]
+}
