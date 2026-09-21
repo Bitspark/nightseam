@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <functional>
+#include <clocale>
 
 using namespace nightseam::runtime;
 
@@ -93,6 +94,20 @@ int main(int argc, char** argv) {
         auto error = failure([&] { schema.validate(type, parse_value("1e9999")); });
         check(error == std::string("$: expected finite ") + (std::string(type) == "json" ? "JSON number" : "number"), error);
     }
+    for (auto source : {"1e-9999", "-1e-9999", "1e-324", "-1e-324"}) {
+        check(failure([&] { schema.validate("number", parse_value(source)); }).empty(),
+              std::string("finite numeric underflow ") + source);
+    }
+    // A host may select a decimal-comma locale; JSON remains decimal-dot.
+    const std::string previous_locale = std::setlocale(LC_NUMERIC, nullptr);
+    for (auto locale : {"de_DE.UTF-8", "de_DE.utf8", "German_Germany.1252", "de-DE"}) {
+        if (!std::setlocale(LC_NUMERIC, locale)) continue;
+        check(failure([&] { schema.validate("number", parse_value("1.5")); }).empty(), "decimal validation ignores the host locale");
+        check(failure([&] { schema.validate("integer", parse_value("123.00")); }).empty(), "integer validation ignores the host locale");
+        check(failure([&] { schema.validate("number", parse_value("1e-9999")); }).empty(), "underflow ignores the host locale");
+        break;
+    }
+    std::setlocale(LC_NUMERIC, previous_locale.c_str());
     auto bound = schema.bind({{"T", "integer"}}, {{"S", imports.at("peer")}});
     check(failure([&] { bound.validate("T", 7); }).empty(), "bound type parameter");
     check(failure([&] { bound.validate("S.Envelope", parse_value(R"({"version":1})")); }).empty(), "bound family parameter");

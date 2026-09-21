@@ -4,9 +4,10 @@
 #include <algorithm>
 #include <charconv>
 #include <cmath>
-#include <cstdlib>
 #include <functional>
+#include <locale>
 #include <set>
+#include <sstream>
 #include <stdexcept>
 #include <vector>
 
@@ -74,9 +75,19 @@ std::string number_text(const Value& value) { return value.is_string() ? value.a
 double number(const Value& value) {
     if (value.is_double()) return value.as<double>();
     auto source = number_text(value);
-    char* end = nullptr;
-    auto result = std::strtod(source.c_str(), &end);
-    if (end != source.data() + source.size()) return std::numeric_limits<double>::quiet_NaN();
+    double result = 0;
+    auto parsed = std::from_chars(source.data(), source.data() + source.size(), result);
+    if (parsed.ptr != source.data() + source.size()) return std::numeric_limits<double>::quiet_NaN();
+    if (parsed.ec == std::errc::result_out_of_range) {
+        // from_chars reports both overflow and underflow without assigning
+        // the result. The classic-locale facet distinguishes them, retaining
+        // finite signed zero for underflow and refusing overflow below.
+        std::istringstream conversion(source);
+        conversion.imbue(std::locale::classic());
+        conversion >> result;
+        if (std::abs(result) == std::numeric_limits<double>::max())
+            return std::copysign(std::numeric_limits<double>::infinity(), result);
+    } else if (parsed.ec != std::errc{}) return std::numeric_limits<double>::quiet_NaN();
     return result;
 }
 // Decimal precision is checked before conversion to binary64. Underflow
