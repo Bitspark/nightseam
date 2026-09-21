@@ -104,8 +104,11 @@ class WireCancellationTests(unittest.IsolatedAsyncioTestCase):
     async def test_inner_receiver_deadline_is_a_public_error_at_outer_carrier(self):
         near, peer, binding, observations = await self.setup_route(True, local_deadline=25)
         entered, release = asyncio.Event(), asyncio.Event()
+        physical_context = None
 
         async def work(value, context):
+            nonlocal physical_context
+            physical_context = peer._incoming["c:1"].context
             entered.set()
             await release.wait()
             return "too late"
@@ -117,7 +120,7 @@ class WireCancellationTests(unittest.IsolatedAsyncioTestCase):
             response = loads((await asyncio.wait_for(near.receive(), 1)).data)
             self.assertEqual(response["error"]["code"], "cancelled")
             self.assertEqual([event["outcome"] for event in self.incoming_ends(observations)], ["error"])
-            self.assertFalse(peer._incoming["c:1"].context.cancelled.is_set())
+            self.assertFalse(physical_context.cancelled.is_set())
         finally:
             release.set()
 
