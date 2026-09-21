@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import './live_record.ts';
 import './setup_record.ts';
+import './mixed_record.ts';
 import { readFileSync } from 'node:fs';
 import { MemoryWireLog, RecordError } from '@nightseam/duplex';
 import { DuplexError } from '@nightseam/runtime';

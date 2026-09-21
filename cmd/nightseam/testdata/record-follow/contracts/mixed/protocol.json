@@ -1,0 +1,6 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [{"name":"T"},{"name":"S","of":"live"}],
+  "types": {"Payload":{"kind":"record","fields":[{"name":"item","type":"T"},{"name":"callback","type":"S.Box"}]}},
+  "server": {"events":{"changed":{"type":"Payload"}}}
+}

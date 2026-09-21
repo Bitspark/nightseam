@@ -38,6 +38,11 @@ func TestGeneratedRecordedEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 		writeFixture(t, directory, "setup_record_test.go", setupProgram)
+		mixedProgram, err := os.ReadFile(filepath.Join(source, "mixed_record_test.go.txt"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFixture(t, directory, "mixed_record_test.go", mixedProgram)
 		runFixture(t, directory, "go", "test", "-count=1", ".")
 	})
 	t.Run("typescript", func(t *testing.T) {
@@ -66,6 +71,11 @@ func TestGeneratedRecordedEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 		writeFixture(t, directory, "setup_record.ts", setupProgram)
+		mixedProgram, err := os.ReadFile(filepath.Join(source, "mixed_record.ts"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFixture(t, directory, "mixed_record.ts", mixedProgram)
 		runFixture(t, directory, "node", tsc, "--project", "tsconfig.json")
 		runFixture(t, directory, "node", "--loader", "./runtime-loader.mjs", "record.ts")
 	})
