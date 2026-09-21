@@ -1,4 +1,4 @@
-import type { Message, Path, Receiver, Wire } from '@bitspark/bitwire';
+import type { Endpoint, Path, Receiver, Wire } from '@bitspark/bitwire';
 
 // The public Nightseam names present the shared contract's actual declarations.
 export type {
@@ -10,6 +10,7 @@ export type {
   Message,
   Receiver,
   Wire,
+  Endpoint,
 } from '@bitspark/bitwire';
 
 export class WireError extends Error {
@@ -70,104 +71,86 @@ export function decodePath(encoded: string): string[] {
   return path;
 }
 
-/** Selects a path. Closing the view closes its existing endpoint. */
+/** Selects send access without granting receive attachment or closure authority. */
 export function at(root: Wire, path: Path): Wire {
   const prefix = [...path];
   return {
     send: (suffix, message) => root.send([...prefix, ...suffix], message),
-    receive: (suffix, receiver) =>
-      root.receive([...prefix, ...suffix], {
-        ...receiver,
-        message: (delivered, message) => receiver.message?.(delivered.slice(prefix.length), message),
-      }),
-    close: (code, reason) => root.close(code, reason),
   };
 }
 
-interface Registration {
-  receiver: Receiver;
+interface ChildAttachment {
   active: boolean;
   detach?: () => void;
 }
+interface Attachment {
+  receiver: Receiver;
+  active: boolean;
+  children: ChildAttachment[];
+}
 /**
  * Consumes one path segment; [] has no leaf, and [''] can select an empty key.
- * Copies the map. Closing detaches this mount's registrations, never children.
+ * One owning receiver spans the borrowed children and sees their keys restored.
+ * Copies the map. Closing detaches this mount's attachment, never children.
  */
-export function mount(children: ReadonlyMap<string, Wire>): Wire {
+export function mount(children: ReadonlyMap<string, Endpoint>): Endpoint {
   const routes = new Map(children);
-  const registrations = new Set<Registration>();
+  let attachment: Attachment | undefined;
   let closed = false;
-  const destination = (path: Path): Wire => {
+  const destination = (path: Path): Endpoint => {
     if (closed) throw new WireError('closed');
     encodePath(path);
     const child = path.length ? routes.get(path[0]!) : undefined;
     if (!child) throw new WireError('no_route');
     return child;
   };
-  const remove = (registration: Registration, ending?: { code: number; reason: string }): void => {
-    if (!registration.active) return;
-    registration.active = false;
-    registrations.delete(registration);
-    registration.detach?.();
-    if (ending) registration.receiver.closed?.(ending.code, ending.reason);
+  const release = (child: ChildAttachment): void => {
+    child.active = false;
+    const detach = child.detach;
+    child.detach = undefined;
+    detach?.();
   };
-  const receive = (path: Path, receiver: Receiver): (() => void) => {
-    if (!path.length && receiver.namespace) {
-      if (closed) throw new WireError('closed');
-      const keys = [...routes.keys()];
-      const detaches: (() => void)[] = [];
-      const registration: Registration = {
-        receiver,
-        active: true,
-        detach: () => {
-          for (const detach of detaches.splice(0)) detach();
-        },
-      };
-      registrations.add(registration);
-      let remaining = keys.length;
-      try {
-        for (const key of keys) {
-          const detach = receive([key], {
-            namespace: true,
-            message: receiver.message,
-            closed: (code, reason) => {
-              if (--remaining === 0) remove(registration, { code, reason });
-            },
-          });
-          if (!registration.active) {
-            detach();
-            throw new WireError('closed');
-          }
-          detaches.push(detach);
-        }
-      } catch (error) {
-        remove(registration);
-        throw error;
-      }
-      return () => remove(registration);
-    }
-    const child = destination(path);
-    const registration: Registration = { receiver, active: true };
-    registrations.add(registration);
+  const remove = (held: Attachment, ending?: { code: number; reason: string }): void => {
+    if (!held.active) return;
+    held.active = false;
+    if (attachment === held) attachment = undefined;
+    for (const child of held.children) release(child);
+    if (ending) held.receiver.closed?.(ending.code, ending.reason);
+  };
+  const receive = (receiver: Receiver): (() => void) => {
+    if (closed) throw new WireError('closed');
+    if (attachment) throw new WireError('receiver_exists');
+    const held: Attachment = { receiver, active: true, children: [] };
+    attachment = held;
+    let remaining = routes.size;
     try {
-      registration.detach = child.receive(path.slice(1), {
-        namespace: receiver.namespace,
-        message: (suffix, message) => {
-          // Captured requests retain this receiver for later cancellation.
-          return receiver.message?.([path[0]!, ...suffix], message);
-        },
-        closed: (code, reason) => remove(registration, { code, reason }),
-      });
+      for (const [key, child] of routes) {
+        const slot: ChildAttachment = { active: true };
+        held.children.push(slot);
+        const detach = child.receive({
+          // The child's runtime owns admission and captured cancellation. Keep
+          // its captured receiver even after this attachment is detached.
+          message: (suffix, message) => receiver.message?.([key, ...suffix], message),
+          closed: (code, reason) => {
+            if (!held.active || !slot.active) return;
+            remaining--;
+            release(slot);
+            if (remaining === 0) remove(held, { code, reason });
+          },
+        });
+        // A child may synchronously end or close this mount while receiving.
+        // Its returned disposer still belongs to this acquisition attempt.
+        if (!held.active || !slot.active) {
+          detach();
+          throw new WireError('closed');
+        }
+        slot.detach = detach;
+      }
     } catch (error) {
-      registration.active = false;
-      registrations.delete(registration);
+      remove(held);
       throw error;
     }
-    if (!registration.active) {
-      registration.detach();
-      throw new WireError('closed');
-    }
-    return () => remove(registration);
+    return () => remove(held);
   };
   return {
     send: (path, message) => destination(path).send(path.slice(1), message),
@@ -175,11 +158,7 @@ export function mount(children: ReadonlyMap<string, Wire>): Wire {
     close: (code = 1000, reason = '') => {
       if (closed) return;
       closed = true;
-      const held = [...registrations];
-      registrations.clear();
-      for (const registration of held) registration.active = false;
-      for (const registration of held) registration.detach?.();
-      for (const registration of held) registration.receiver.closed?.(code, reason);
+      if (attachment) remove(attachment, { code, reason });
     },
   };
 }

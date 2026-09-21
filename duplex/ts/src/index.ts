@@ -1,5 +1,15 @@
 export { at, mount, encodePath, decodePath, WireError } from './wire.ts';
-export type { Path, ProfileKind, ProfileFrame, ProfileError, ReturnAddress, Message, Receiver, Wire } from './wire.ts';
+export type {
+  Path,
+  ProfileKind,
+  ProfileFrame,
+  ProfileError,
+  ReturnAddress,
+  Message,
+  Receiver,
+  Wire,
+  Endpoint,
+} from './wire.ts';
 export { record, MemoryWireLog, RecordError } from './record.ts';
 export type { WireRecord, WireLog, RecordOptions, RecordedWire, Follower } from './record.ts';
 
