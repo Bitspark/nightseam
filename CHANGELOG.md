@@ -6,6 +6,13 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Clarified
+
+- Language onboarding includes the live runtime and generated boundary
+  conversion, with shared scenario evidence for every profile. It separates
+  declaration tiers, planned language assignments and achieved support, and
+  explains that live needs a peer rather than a tunnel.
+
 ## 0.5.0 - 2026-09-21
 
 ### Clarified
