@@ -53,7 +53,7 @@ try {
             case 'record':
               return protocol.exportPair(sa.owner(), { first: fn, second: fn });
             case 'union':
-              return protocol.exportChoice(sa.owner(), { kind: 'pair', value: { first: fn, second: fn } });
+              return protocol.exportChoiceUnchecked(sa.owner(), { kind: 'pair', value: { first: fn, second: fn } });
             case 'generic':
               return protocol.exportGeneric(sa.owner(), [{ item: fn }, { item: fn }]);
             case 'generic-live':

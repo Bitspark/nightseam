@@ -16,8 +16,8 @@ import (
 // generated functions per live type, taking the owner the bindings belong
 // to, because a live value has no meaning apart from it:
 //
-//	export function exportJob(owner: LiveOwner, value: Job): unknown
-//	export function importJob(owner: LiveOwner, raw: unknown): Job
+//	export function exportJobUnchecked(owner: LiveOwner, value: Job): unknown
+//	export function importJobUnchecked(owner: LiveOwner, raw: unknown): Job
 //
 // Unlike Go, nothing here has to refuse an ordinary encoding: a TypeScript
 // function in a value would simply be dropped by `JSON.stringify`, silently,
@@ -41,6 +41,10 @@ func (p *plan) planLive() {
 		name := p.types[t.Name]
 		p.exports[t.Name] = "export" + name
 		p.imports_[t.Name] = "import" + name
+		if t.Kind != model.KindCallable {
+			p.exports[t.Name] += "Unchecked"
+			p.imports_[t.Name] += "Unchecked"
+		}
 		p.declare(p.module, p.exports[t.Name], t.At, "live export function")
 		p.declare(p.module, p.imports_[t.Name], t.At, "live import function")
 		if t.Kind == model.KindCallable {
@@ -205,6 +209,7 @@ func (f *file) emitLiveConversion(t *render.Type) {
 	if t.IsLive {
 		owner = "owner: LiveOwner, "
 	}
+	f.line("/** Conversion only: use the value adapter or validate the entire wire value inside the same operation batch. */")
 	if len(t.Uses) > 0 {
 		f.linef("/** Writes %s using the supplied conversion for each type argument. */", name)
 	} else {
@@ -224,6 +229,7 @@ func (f *file) emitLiveConversion(t *render.Type) {
 	} else {
 		f.linef("/** Reads %s as it arrived: each reference in it becomes a typed proxy of the binding it names, so a handler is given native values. */", name)
 	}
+	f.line("/** Conversion only: validation belongs to the value adapter or its caller. */")
 	f.w.Block(fmt.Sprintf("export function %s%s(%sraw: unknown%s): %s {", p.imports_[t.Name], f.declare(t.Uses), owner, f.converterParameters(t, false), self), "}", func() {
 		if t.IsLive {
 			f.w.Block("return owner.importValue((owner) => {", "});", func() {
@@ -364,7 +370,11 @@ func (f *file) liveCall(e model.TypeExpr, export bool) string {
 	if !export {
 		prefix = "import"
 	}
-	return liveAlias(family) + "." + prefix + naming.UpperCamel(name)
+	suffix := ""
+	if t, _ := f.family.Conversion(e); t != nil && t.Kind != model.KindCallable {
+		suffix = "Unchecked"
+	}
+	return liveAlias(family) + "." + prefix + naming.UpperCamel(name) + suffix
 }
 
 // liveUnion converts a union whose arms carry callables: the tag is written

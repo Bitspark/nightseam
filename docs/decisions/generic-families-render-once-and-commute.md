@@ -30,3 +30,23 @@ know which.
 its own idiom, held to the same equivalence.
 
 **Since.** v2 of the declaration language.
+
+## Complete associated interpretations
+
+The accepted [#367 A](https://github.com/Bitspark/nightseam/issues/367) contract
+extends a family slot to supply the identity, validator and both conversions
+of every associated type the consumer uses. The paired implementation in
+[#368](https://github.com/Bitspark/nightseam/issues/368) admits plain drawn
+records containing callables. It replaces the v0.5.0 `live_draw` refusal;
+direct alias, callable and generic-member draws remain outside that grammar.
+
+Go keeps its per-draw native type parameters and family-tag constraints,
+adding one neutral `ValueAdapter` per draw. TypeScript keeps one family type
+parameter and receives a dictionary of the required associated adapters.
+Both check the complete bound source family and member identities before
+model interpretation. Every conversion receives the active context and batch;
+the reusable recipes retain no owner, connection or principal. A data-only
+generic consumer therefore remains independent of live while interpreting a
+live provider through the same generated artifact. The public
+[generated surface](../declaration/generated.md#associated-type-interpretations)
+describes the concrete projections.

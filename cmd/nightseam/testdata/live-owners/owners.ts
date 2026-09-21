@@ -98,8 +98,8 @@ for (const side of ['exporter', 'caller', 'both']) {
       b.release();await assert.rejects(()=>page.items[0]!.cancel(),isCode('reference_released'));a.release();await zero(sa,sb);
       a=sa.owner().child();b=sb.owner().child();
       const bundle:combinator.Bundle<worker.Job>={metadata:{seed:job},run:async n=>n+1};
-      const raw=combinator.exportBundle(a,bundle,worker.exportJob);
-      const got=combinator.importBundle(b,raw,worker.importJob);
+      const raw=combinator.exportBundleUnchecked(a,bundle,worker.exportJobUnchecked);
+      const got=combinator.importBundleUnchecked(b,raw,worker.importJobUnchecked);
       await got.metadata.seed.cancel();assert.equal(await got.run(3),4);
       b.release();a.release();await zero(sa,sb);
     }
@@ -110,10 +110,10 @@ for (const side of ['exporter', 'caller', 'both']) {
   try {
     for(const borrow of [false,true]){
       const exporter=sa.owner().child();
-      const raw=combinator.exportBundle(exporter,{metadata:{seed:async()=>{}},run:async(n:number)=>n},worker.exportReport);
+      const raw=combinator.exportBundleUnchecked(exporter,{metadata:{seed:async()=>{}},run:async(n:number)=>n},worker.exportReport);
       const held=sb.owner().child(),batch=sb.owner().child();
       const retained=borrow?worker.importReport(held,(raw as {metadata:{seed:unknown}}).metadata.seed):undefined;
-      assert.throws(()=>combinator.importBundle(batch,raw,worker.importReport),isCode('too_many_imports'));
+      assert.throws(()=>combinator.importBundleUnchecked(batch,raw,worker.importReport),isCode('too_many_imports'));
       assert.deepEqual(batch.counts(),{exports:0,imports:0});assert.equal(sb.counts().imports,borrow?1:0);
       batch.release();if(retained)await retained(7);
       held.release();exporter.release();await zero(sa,sb);
