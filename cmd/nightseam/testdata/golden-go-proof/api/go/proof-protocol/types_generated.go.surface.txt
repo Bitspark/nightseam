@@ -71,6 +71,18 @@ func (RichPartTable) WireType() runtime.TypeBinding
 func (TextPart) MarshalJSON() ([]byte, error)
 func (TextPart) Of() Tag
 func (TextPart) WireType() runtime.TypeBinding
+func AdapterCarried[SEnvelope any, SHandle any, Item any](adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) runtime.ValueAdapter[Carried[SEnvelope, SHandle, Item]]
+func AdapterOptionNone() runtime.ValueAdapter[OptionNone]
+func AdapterOption[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[Option[T]]
+func AdapterPage[T any](adapterT runtime.ValueAdapter[T]) runtime.ValueAdapter[Page[T]]
+func AdapterPart() runtime.ValueAdapter[Part]
+func AdapterPartImage() runtime.ValueAdapter[PartImage]
+func AdapterParts() runtime.ValueAdapter[Parts]
+func AdapterPartsRequest() runtime.ValueAdapter[PartsRequest]
+func AdapterResult[T any, E any](adapterT runtime.ValueAdapter[T], adapterE runtime.ValueAdapter[E]) runtime.ValueAdapter[Result[T, E]]
+func AdapterRichPart() runtime.ValueAdapter[RichPart]
+func AdapterRichPartTable() runtime.ValueAdapter[RichPartTable]
+func AdapterTextPart() runtime.ValueAdapter[TextPart]
 func ExportCarried[SEnvelope any, SHandle any, Item any](v Carried[SEnvelope, SHandle, Item], convertSEnvelope func(SEnvelope) (json.RawMessage, error), typeSEnvelope runtime.TypeBinding, convertSHandle func(SHandle) (json.RawMessage, error), typeSHandle runtime.TypeBinding, convertItem func(Item) (json.RawMessage, error), typeItem runtime.TypeBinding) (json.RawMessage, error)
 func ExportOption[T any](v Option[T], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error)
 func ExportPage[T any](v Page[T], convertT func(T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error)
@@ -83,6 +95,10 @@ func IsError(err error, code string) bool
 func NarrowRichPartToPart(v RichPart) (Part, bool)
 func WidenRichPartFromPart(v Part) RichPart
 type Carried[SEnvelope any, SHandle any, Item any] struct{Message SEnvelope `json:"message"`; Back runtime.Nullable[SHandle] `json:"back"`; Page Page[Item] `json:"page"`}
+type ClientEvents[SEnvelope any, SHandle any, Item any] interface{Changed(ctx context.Context, data probeprotocol.Payload) error; PartAdded(ctx context.Context, data RichPart) error}
+type ClientMethods[SEnvelope any, SHandle any, Item any] interface{}
+type ClientModel[SEnvelope any, SHandle any, Item any] func(Server[SEnvelope, SHandle, Item]) (Client[SEnvelope, SHandle, Item], error)
+type Client[SEnvelope any, SHandle any, Item any] struct{Methods ClientMethods[SEnvelope, SHandle, Item]; Events ClientEvents[SEnvelope, SHandle, Item]}
 type Envelope struct{Version int64 `json:"version"`; Kind string `json:"kind"`; ID runtime.Optional[string] `json:"id,omitzero"`; Method runtime.Optional[string] `json:"method,omitzero"`; Params runtime.Optional[any] `json:"params,omitzero"`; Result runtime.Optional[any] `json:"result,omitzero"`; Error runtime.Optional[any] `json:"error,omitzero"`; Event runtime.Optional[string] `json:"event,omitzero"`; Data runtime.Optional[any] `json:"data,omitzero"`; Traceparent runtime.Optional[string] `json:"traceparent,omitzero"`; Tracestate runtime.Optional[string] `json:"tracestate,omitzero"`; Meta runtime.Optional[map[string]string] `json:"meta,omitzero"`}
 type Handle struct{Channel int64 `json:"channel"`}
 type LiteralText string
@@ -104,6 +120,10 @@ type Result[T any, E any] struct{Err *ResultErrValue[T, E]; Ok *ResultOkValue[T,
 type RichPart struct{Count *PartCountValue; Image *PartImage; Text *TextPart; Table *RichPartTable}
 type RichPartKind string
 type RichPartTable struct{Rows []runtime.Nullable[string] `json:"rows"`}
+type ServerEvents[SEnvelope any, SHandle any, Item any] interface{}
+type ServerMethods[SEnvelope any, SHandle any, Item any] interface{Classify(ctx context.Context, params Part) (string, error); ClassifyRich(ctx context.Context, params RichPart) (string, error); Echo(ctx context.Context, params probeprotocol.Payload) (probeprotocol.Payload, error); NoArgs(ctx context.Context) (string, error); Parts(ctx context.Context, params PartsRequest) (Result[Parts, string], error); Relay(ctx context.Context, params Carried[SEnvelope, SHandle, Item]) (Option[Envelope], error)}
+type ServerModel[SEnvelope any, SHandle any, Item any] func(Client[SEnvelope, SHandle, Item]) (Server[SEnvelope, SHandle, Item], error)
+type Server[SEnvelope any, SHandle any, Item any] struct{Methods ServerMethods[SEnvelope, SHandle, Item]; Events ServerEvents[SEnvelope, SHandle, Item]}
 type Tag struct{}
 type TextPart struct{Type LiteralText `json:"type"`; Body string `json:"body"`}
 var Errors = []string{…}
