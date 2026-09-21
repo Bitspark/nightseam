@@ -137,7 +137,7 @@ pairing.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `cpp` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
 | `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
-| `haskell` | 4 | ✓ | — 64 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
+| `haskell` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
 | `java` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
 | `python` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
 | `rust` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
