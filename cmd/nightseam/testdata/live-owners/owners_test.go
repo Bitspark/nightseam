@@ -246,7 +246,12 @@ func TestGeneratedOwnerSelectionIsConnectionLocal(t *testing.T) {
 					// The fixture's server uses generated converters. The call under
 					// test uses the generated Wire proxy and its owner selection.
 					serverOwner := sa.Owner().Child()
-					detach, err := runtime.HandleWire(sa.Peer().Wire(), []string{"pack"}, func(_ context.Context, raw json.RawMessage) (any, error) {
+					dispatcher, err := runtime.NewDispatcher(sa.Peer().Wire())
+					if err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(func() { _ = dispatcher.Close(duplex.CodeNormal, "") })
+					detach, err := runtime.HandleWire(dispatcher, []string{"pack"}, func(_ context.Context, raw json.RawMessage) (any, error) {
 						var value struct {
 							Item json.RawMessage `json:"item"`
 						}

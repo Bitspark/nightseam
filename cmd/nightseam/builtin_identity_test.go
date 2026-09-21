@@ -132,7 +132,8 @@ func TestConsumerConstructors(t *testing.T){
  for _,role:=range []string{"server","client"}{t.Run(role+" mismatch",func(t *testing.T){
   near,far,err:=runtime.NewWirePair(runtime.Options{});if err!=nil{t.Fatal(err)};defer near.Close(duplex.CodeNormal,"")
   handler,err:=runtime.IdentityHandler(runtime.DeclarationIdentity{Path:"consumer",Digest:strings.Repeat("0",64)});if err!=nil{t.Fatal(err)}
-  _,err=runtime.HandleWire(far,[]string{runtime.IdentityMethod},func(ctx context.Context,raw json.RawMessage)(any,error){return handler(ctx,nil,raw)});if err!=nil{t.Fatal(err)}
+  dispatcher,err:=runtime.NewDispatcher(far);if err!=nil{t.Fatal(err)};defer dispatcher.Close(duplex.CodeNormal,"")
+  _,err=runtime.HandleWire(dispatcher,[]string{runtime.IdentityMethod},func(ctx context.Context,raw json.RawMessage)(any,error){return handler(ctx,nil,raw)});if err!=nil{t.Fatal(err)}
   if role=="server"{_,err=binding.FromWire(ctx,near,runtime.AdapterContext{})}else{_,err=client.FromWire(ctx,near,runtime.AdapterContext{})}
   var public *runtime.PublicError;if !errors.As(err,&public)||public.Code!="contract_mismatch"{t.Fatalf("unguarded %s interpretation: %v",role,err)}
  })}
@@ -162,7 +163,7 @@ import {test} from 'node:test';
 import * as identity from '@example/identity-client';
 import * as binding from '@example/consumer-binding';
 import * as client from '@example/consumer-client';
-import {DuplexError,IDENTITY_METHOD,identityHandler,registerWire,wirePair} from '@nightseam/runtime';
+import {DuplexError,IDENTITY_METHOD,identityHandler,registerWire,wirePair,createDispatcher} from '@nightseam/runtime';
 
 test('bootstrap metadata', () => {
  for(const key of ['toWire','fromWire','prepareFromWire'])assert.equal(key in identity,false,key);
@@ -179,7 +180,7 @@ for (const [role, adapter] of [['server',binding], ['client',client]]) {
   } finally {wire.close()}
   const [near,far]=wirePair();
   try {
-   registerWire(far,[IDENTITY_METHOD],{request:identityHandler({path:'consumer',digest:'0'.repeat(64)})});
+   registerWire(createDispatcher(far),[IDENTITY_METHOD],{request:identityHandler({path:'consumer',digest:'0'.repeat(64)})});
    await assert.rejects(adapter.fromWire(near,{}),error=>error instanceof DuplexError&&error.code==='contract_mismatch');
   } finally {near.close()}
  });

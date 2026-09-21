@@ -78,7 +78,7 @@ func(c opposite)Mirror(ctx context.Context,p protocol.Input)(int64,error){if err
 func(c opposite)Changed(ctx context.Context,_ protocol.Input)error{err:=guard(ctx,c.identity);if len(runtime.MetaFrom(ctx))!=0{err=errors.New("received metadata became event credentials")};if err==nil{c.state.changed.Add(1)};c.state.events<-err==nil;return nil}
 func options(identity *principal, scope **live.Scope)runtime.Options{return runtime.Options{Propagator:fixed{identity},Prepare:func(p *runtime.Peer)(err error){*scope,err=live.Over(p,live.Options{});return}}}
 func pipePeers(t *testing.T,a,b runtime.Options)(*runtime.Peer,*runtime.Peer){t.Helper();left,right:=duplex.Pipe(1<<20);pa,err:=runtime.NewPeer(context.Background(),left,runtime.ClientRole,a);if err!=nil{t.Fatal(err)};pb,err:=runtime.NewPeer(context.Background(),right,runtime.ServerRole,b);if err!=nil{t.Fatal(err)};t.Cleanup(func(){_=pa.Close();_=pb.Close()});return pa,pb}
-func carriers(t *testing.T,mode string,caller,callee *principal)(duplex.Wire,duplex.Wire,*live.Scope,*live.Scope){
+func carriers(t *testing.T,mode string,caller,callee *principal)(duplex.Endpoint,duplex.Endpoint,*live.Scope,*live.Scope){
  t.Helper();var a,b *live.Scope
  if mode=="socket"{
   ready:=make(chan *runtime.Peer,1)
@@ -109,7 +109,9 @@ func TestGeneratedGuards(t *testing.T){for _,mode:=range []string{"local","socke
  wire,err:=binding.ToWire(func(remote protocol.Client)(protocol.Server,error){serverRemote=remote;s:=server{remote,serverIdentity,state};return protocol.Server{Methods:s,Events:s},nil},runtime.AdapterContext{ValueEnvironment:live.ValueEnvironment(sb),Options:modelOptions});if err!=nil{t.Fatal(err)};defer wire.Close(duplex.CodeNormal,"")
  if mode=="local"{outgoing=wire}else{off,err:=runtime.ForwardWire(incoming,wire);if err!=nil{t.Fatal(err)};defer off()}
  // All model code above is independent of this host-only presentation.
- selected:=duplex.At(duplex.Mount(map[string]duplex.Wire{"nested":duplex.Mount(map[string]duplex.Wire{"protected":outgoing})}),[]string{"nested","protected"})
+ inner:=duplex.Mount(map[string]duplex.Endpoint{"protected":outgoing});defer inner.Close(duplex.CodeNormal,"")
+ root:=duplex.Mount(map[string]duplex.Endpoint{"nested":inner});defer root.Close(duplex.CodeNormal,"")
+ dispatcher,err:=runtime.NewDispatcher(root);if err!=nil{t.Fatal(err)};defer dispatcher.Close(duplex.CodeNormal,"");selected:=dispatcher.Select([]string{"nested","protected"})
  factory,err:=binding.FromWire(ctx,selected,runtime.AdapterContext{ValueEnvironment:live.ValueEnvironment(sa)});if err!=nil{t.Fatal(err)};opposite:=opposite{callerIdentity,state};access,err:=factory(protocol.Client{Methods:opposite,Events:opposite});if err!=nil{t.Fatal(err)}
  forged:=runtime.WithMeta(ctx,map[string]string{"verified":"true","principal":"admin","credential":"forged"})
  n,err:=access.Methods.Step(forged,protocol.Input{Value:7})
@@ -138,8 +140,8 @@ func TestGeneratedGuards(t *testing.T){for _,mode:=range []string{"local","socke
 `
 
 const tsGeneratedGuardProgram = `import {createServer,createConnection,type Socket} from 'node:net';
-import {at,mount,pipe,type Wire,type FrameConnection,type ConnectionHandlers} from '@nightseam/duplex';
-import {DuplexPeer,DuplexError,defaultPropagator,forwardWire,type PeerOptions,type Propagator,type WireModelContext} from '@nightseam/runtime';
+import {mount,pipe,type Endpoint,type FrameConnection,type ConnectionHandlers} from '@nightseam/duplex';
+import {DuplexPeer,DuplexError,defaultPropagator,forwardWire,createDispatcher,type PeerOptions,type Propagator,type WireModelContext} from '@nightseam/runtime';
 import {liveOver,valueEnvironment,type LiveScope} from '@nightseam/live';
 import {Tunnel} from '@nightseam/tunnel';
 import * as binding from '@example/guarded-binding';
@@ -171,7 +173,7 @@ function textSocket(socket:Socket):FrameConnection{
  socket.on('error',()=>{for(const listener of listeners)listener.error?.();});socket.on('close',()=>{state='closed';for(const listener of listeners)listener.close?.(1000,'');});
  return{get state(){return state;},get buffered(){return socket.writableLength;},send(frame){check(state==='open'&&frame.kind==='text','text socket not writable');socket.write(frame.data+'\n');},close(){state='closed';socket.destroy();},listen(listener){listeners.add(listener);return()=>{listeners.delete(listener);};}};
 }
-type Carrier={outgoing:Wire;incoming:Wire;a:LiveScope;b:LiveScope;close:()=>void};
+type Carrier={outgoing:Endpoint;incoming:Endpoint;a:LiveScope;b:LiveScope;close:()=>void};
 async function carriers(mode:string,caller:Principal,callee:Principal):Promise<Carrier>{
  let a!:LiveScope,b!:LiveScope;const aOptions:PeerOptions={propagator:fixed(caller),prepare:peer=>{a=liveOver(peer);}},bOptions:PeerOptions={propagator:fixed(callee),prepare:peer=>{b=liveOver(peer);}};
  if(mode==='tunnel'){
@@ -189,11 +191,15 @@ async function run(mode:string,allowed:boolean,reverseAllowed=true){
  const carrier=await carriers(mode,callerIdentity,serverIdentity);const sa=carrier.a,sb=mode==='local'?sa:carrier.b;
  const modelOptions:PeerOptions={propagator:fixed(mode==='local'?serverIdentity:principal('untrusted local fallback',false))};
  let serverRemote!:Client;const construct=model(serverIdentity,state);const wire=binding.toWire(remote=>{serverRemote=remote;return construct(remote);},{options:modelOptions,valueEnvironment:valueEnvironment(sb)});
- let detach=()=>{};
+ let detach=()=>{},releaseView=()=>{};
  try{
-  let outgoing:Wire=wire;if(mode!=='local'){detach=forwardWire(carrier.incoming,wire);outgoing=carrier.outgoing;}
+  let outgoing:Endpoint=wire;if(mode!=='local'){detach=forwardWire(carrier.incoming,wire);outgoing=carrier.outgoing;}
   // The model and guards above never inspect the chosen carrier or path.
-  const selected=at(mount(new Map([['nested',mount(new Map([['protected',outgoing]]))]])),['nested','protected']);
+  const inner=mount(new Map([['protected',outgoing]]));
+  const root=mount(new Map([['nested',inner]]));
+  releaseView=()=>{root.close();inner.close();};
+  const dispatcher=createDispatcher(root),selected=dispatcher.select(['nested','protected']);
+  releaseView=()=>{dispatcher.close();root.close();inner.close();};
   const factory=await binding.fromWire(selected,{valueEnvironment:valueEnvironment(sa)}),access=factory(opposite(callerIdentity,state));
   const forged:WireModelContext&{valueContext:unknown}={signal:AbortSignal.timeout(8000),valueContext:sa.owner(),outgoingMeta:{verified:'true',principal:'admin',credential:'forged'}};
   if(allowed&&reverseAllowed){equal(await access.methods.step({value:7},forged),7,'ordinary result');await wait(()=>state.events.length===1);check(state.events.shift()===true,'reverse event denied');}else await denied(()=>Promise.resolve(access.methods.step({value:7},forged)));
@@ -212,7 +218,7 @@ async function run(mode:string,allowed:boolean,reverseAllowed=true){
   // no native-identity optimization unwraps the consumer's guard.
   const beforeA=sa.counts(),beforeB=sb.counts();const wantA=mode==='local'?{exports:allowed?6:1,imports:0}:{exports:allowed?3:1,imports:allowed?3:0};const wantB=mode==='local'?wantA:{exports:allowed?3:0,imports:allowed?3:1};equal(beforeA,wantA,'caller retained ownership');equal(beforeB,wantB,'server retained ownership');
   sa.owner().release();sb.owner().release();equal(sa.counts(),{exports:0,imports:0},'caller counts before teardown');equal(sb.counts(),{exports:0,imports:0},'server counts before teardown');
- }finally{detach();wire.close();carrier.close();}
+ }finally{releaseView();detach();wire.close();carrier.close();}
 }
 for(const mode of ['local','socket','tunnel'])for(const allowed of [false,true])await run(mode,allowed);
 for(const mode of ['socket','tunnel'])await run(mode,true,false);

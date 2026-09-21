@@ -172,7 +172,7 @@ import * as fixed from '@example/fixed-client';
 import * as childBinding from '@example/child-binding';
 import * as fixedBinding from '@example/fixed-binding';
 import * as probe from '@example/probe-client';
-import {DuplexPeer, handleWire, emitWire, callWire, onWireEvent} from '@nightseam/runtime';
+import {DuplexPeer, handleWire, emitWire, callWire, onWireEvent, createDispatcher} from '@nightseam/runtime';
 import {jsonAdapter} from '@nightseam/runtime';
 import {pipe} from '@nightseam/duplex';
 const binding = {type:'string', validate:probe.validateWire};
@@ -191,14 +191,15 @@ child.validateWire('FixedLiteral',{value:{value:['ok',null]}});
 assert.throws(() => child.validateWire('FixedLiteral',{value:{value:['wrong']}}));
 for (const kind of ['forwarded','fixed']) {
  const server = new DuplexPeer({role:'server'});
+const dispatcher = createDispatcher(server.wire());
  let requests = 0;
- handleWire(server.wire(), ['read'], data => {requests++;return {tag:'some',body:{item:data.values.first[0],owner:'entry'}};});
+ handleWire(dispatcher, ['read'], data => {requests++;return {tag:'some',body:{item:data.values.first[0],owner:'entry'}};});
  const [near,far] = pipe();
  await server.attach(far);
  let event, report;
  const updated = new Promise(resolve => {event=resolve;});
  const reported = new Promise(resolve => {report=resolve;});
- onWireEvent(server.wire(), ['report'], report);
+ onWireEvent(dispatcher, ['report'], report);
  const reverse = {reverse: data => data};
  const peer = new DuplexPeer(); await peer.attach(near);
  const model = kind === 'forwarded'
@@ -215,7 +216,7 @@ for (const kind of ['forwarded','fixed']) {
   assert.deepEqual(await reported,value);
   assert.deepEqual(await callWire(server.wire(),['reverse'],value),value);
   await assert.rejects(callWire(server.wire(),['reverse'],{...value,values:{first:[1]}}),{code:'invalid_params'});
- } finally {peer.close();server.close();}
+ } finally {dispatcher.close();peer.close();server.close();}
 }
 `
 
@@ -279,7 +280,7 @@ func TestTypeScriptLocalFamilyParametersAndDrawnNames(t *testing.T) {
 import type {Drawn, Filled, Local, Inline} from '@example/carrier-client';
 import {fromWire} from '@example/carrier-binding';
 import * as probe from '@example/probe-client';
-import {DuplexPeer, handleWire, emitWire, callWire, onWireEvent} from '@nightseam/runtime';
+import {DuplexPeer, handleWire, emitWire, callWire, onWireEvent, createDispatcher} from '@nightseam/runtime';
 import {jsonAdapter} from '@nightseam/runtime';
 const drawn: Drawn<probe.Family> = {payload:{text:'hello'}};
 const defaultDrawn: Drawn = drawn;
@@ -339,7 +340,7 @@ import assert from 'node:assert/strict';
 import {validateWire} from '@example/proof-client';
 import {fromWire} from '@example/proof-binding';
 import * as probe from '@example/probe-client';
-import {DuplexPeer, handleWire, emitWire, callWire, onWireEvent} from '@nightseam/runtime';
+import {DuplexPeer, handleWire, emitWire, callWire, onWireEvent, createDispatcher} from '@nightseam/runtime';
 import {jsonAdapter} from '@nightseam/runtime';
 import {pipe} from '@nightseam/duplex';
 const slots = {S:probe.family, Item:{type:'string',validate:probe.validateWire}};
@@ -363,7 +364,8 @@ for (const value of [{type:'text',body:'hello'},{type:'text',value:{type:'other'
 assert.throws(() => validateWire('Part', {type:'table',value:{rows:[]}}));
 assert.throws(() => validateWire({apply:'Option',with:{T:'string'}},{kind:'none'}));
 const server = new DuplexPeer({role:'server'});
-handleWire(server.wire(),['relay'], data => ({kind:'some',value:data.message}));
+const dispatcher = createDispatcher(server.wire());
+handleWire(dispatcher,['relay'], data => ({kind:'some',value:data.message}));
 const [near,far] = pipe();
 await server.attach(far);
 const peer = new DuplexPeer(); await peer.attach(near);
@@ -377,5 +379,5 @@ try {
  await assert.rejects(client.methods.relay({...data,message:{version:1}}));
  emitWire(server.wire(),['part.added'],part);
  assert.deepEqual(await received,part);
-} finally {peer.close();server.close();}
+} finally {dispatcher.close();peer.close();server.close();}
 `

@@ -95,6 +95,7 @@ reverse.close();
 follower.close();
 await follower.done;
 recorded.close();
+main.wire.close();second.wire.close();back.close();foreign.close();
 
 function deferred() {
   let resolve!: () => void;
@@ -119,12 +120,11 @@ const table = JSON.parse(readFileSync(new URL('./recorded-wire.json', import.met
   cases: Array<{ name: string; before: number[]; during: number[]; expected: number[]; after: number; head: number }>;
 };
 for (const row of table.cases) {
-  const source = target(),
+  const source = target(), subscriber = target(),
     store = new HeldLog();
   const record = await binding.record(source.wire, store, { maxQueuedMessages: 8 }, {});
   try {
     for (const value of row.before) await record.append({ name: 'tick', data: { value } });
-    const subscriber = target();
     const follow = await record.follow(row.after, subscriber.wire);
     assert.equal(follow.head, row.head);
     await store.entered.promise;
@@ -140,11 +140,12 @@ for (const row of table.cases) {
     await follow.done;
   } finally {
     record.close();
+    source.wire.close();subscriber.wire.close();
   }
 }
 
 {
-  const source = target(),
+  const source = target(), slowTarget = target(), fastTarget = target(),
     store = new HeldLog();
   const record = await binding.record(source.wire, store, { maxQueuedMessages: 2 }, {});
   try {
@@ -154,10 +155,8 @@ for (const row of table.cases) {
       await until(() => source.values.at(-1) === value);
     }
     await append(1);
-    const slowTarget = target();
     const slow = await record.follow(0, slowTarget.wire);
     await store.entered.promise;
-    const fastTarget = target();
     const fast = await record.follow(1, fastTarget.wire);
     for (const value of [2, 3, 4]) {
       await append(value);
@@ -172,5 +171,6 @@ for (const row of table.cases) {
     await fast.done;
   } finally {
     record.close();
+    source.wire.close();slowTarget.wire.close();fastTarget.wire.close();
   }
 }
