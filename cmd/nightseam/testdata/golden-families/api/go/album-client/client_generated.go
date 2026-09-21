@@ -30,7 +30,7 @@ func accessServer[AEnvelope, BEnvelope any](wire duplex.Wire, environment runtim
 }
 func (c *serverMethods[AEnvelope, BEnvelope]) Look(ctx context.Context, params protocol.Mine[AEnvelope]) (protocol.Both[AEnvelope, BEnvelope], error) {
 	var result protocol.Both[AEnvelope, BEnvelope]
-	if c.adapterAEnvelope.NeedsContext || c.adapterAEnvelope.NeedsContext || c.adapterBEnvelope.NeedsContext {
+	if c.adapterAEnvelope.NeedsContext || c.adapterBEnvelope.NeedsContext {
 		var err error
 		ctx, err = c.environment.ValueEnvironment.Select(ctx)
 		if err != nil {
@@ -145,7 +145,7 @@ func bindServer[AEnvelope, BEnvelope any](wire duplex.Wire, lookup func() protoc
 			if implementation.Methods == nil {
 				return nil, fmt.Errorf("model methods are required")
 			}
-			if adapterAEnvelope.NeedsContext || adapterAEnvelope.NeedsContext || adapterBEnvelope.NeedsContext {
+			if adapterAEnvelope.NeedsContext || adapterBEnvelope.NeedsContext {
 				var err error
 				ctx, err = environment.ValueEnvironment.Child(ctx)
 				if err != nil {
