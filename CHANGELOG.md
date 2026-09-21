@@ -11,6 +11,7 @@ are one number. Entries are in the words of the commits that landed them.
 - Go and TypeScript peer Wires retain canceled handlers in their concurrency
   budget until their application bodies finish, including caller and receiver
   deadlines. Caller cancellation still returns promptly and reaches the handler.
+- Give each language testee build its own bounded deadline.
 - The generated composition fixture waits for worker completion before
   asserting finished cancellation, preserving the final callback race.
 - The TypeScript OpenTelemetry adapter retains connection and event-only
@@ -19,6 +20,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Clarified
 
+- The shared Wire contract will be adopted from Bitwire when ready, as required
+  0.6.0 work; Nightseam retains its runtime, generator, declaration/identity and
+  optional-auth implementation. The repository-home decision distinguishes the
+  readiness conditions from completed contract adoption.
 - The profile documentation names 4011 for a binary frame rejected by the
   JSON peer, matching both reference runtimes. A shared core scenario holds
   the close code at both ends and verifies the request is never dispatched.

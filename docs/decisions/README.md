@@ -23,7 +23,7 @@ both, and says so at the top.
 
 | decision | serves | since |
 | --- | --- | --- |
-| [The reusable foundation lives in Nightseam](the-reusable-foundation-lives-in-nightseam.md) | [boundary](../goals/boundary.md), [layering](../goals/layering.md), [composability](../goals/composability.md), [agnosticism](../goals/agnosticism.md) | #381 |
+| [Nightseam implements the foundation and adopts the Bitwire contract](the-reusable-foundation-lives-in-nightseam.md) | [boundary](../goals/boundary.md), [layering](../goals/layering.md), [composability](../goals/composability.md), [agnosticism](../goals/agnosticism.md) | #381, revised by #421/#422 |
 | [A concept is admitted by composition](a-concept-is-admitted-by-composition.md) | [boundary](../goals/boundary.md), [composability](../goals/composability.md) | 0.5.0, #199 |
 | [Envelope members are what the peer acts on](envelope-members-are-what-the-peer-acts-on.md) | [layering](../goals/layering.md) | v2 |
 | [`meta` is a header, not a member](meta-is-a-header-not-a-member.md) | [layering](../goals/layering.md), [boundary](../goals/boundary.md) | 0.3.0, #49 |
