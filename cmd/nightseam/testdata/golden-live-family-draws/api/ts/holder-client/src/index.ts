@@ -137,8 +137,8 @@ import { checkIdentity } from "@nightseam/runtime";
 export type RecordedEvent<S extends AnyFamily & { "Job": unknown; "Progress": unknown } = AnyFamily & { "Job": unknown; "Progress": unknown }> = never;
 export interface Recorder<S extends AnyFamily & { "Job": unknown; "Progress": unknown } = AnyFamily & { "Job": unknown; "Progress": unknown }> extends RecordedWire { append(event: RecordedEvent<S>, context?: WireModelContext): Promise<void>; }
 /** Checks a prepared origin before typed append; failed setup leaves its carrier usable. */
-export async function record<S extends AnyFamily & { "Job": unknown; "Progress": unknown } = AnyFamily & { "Job": unknown; "Progress": unknown }>(target: Wire, log: WireLog, options: RecordOptions, context: AdapterContext, s: FamilyBinding<S, "Job" | "Progress">, setup?: WireCallOptions): Promise<Recorder<S>> {
-  const adapter = makeAdapter<S>(context, s);
+export async function record<S extends AnyFamily & { "Job": unknown; "Progress": unknown } = AnyFamily & { "Job": unknown; "Progress": unknown }>(target: Wire, log: WireLog, options: RecordOptions, context: AdapterContext, binding_s: FamilyBinding<S, "Job" | "Progress">, setup?: WireCallOptions): Promise<Recorder<S>> {
+  const adapter = makeAdapter<S>(context, binding_s);
   const preparation = prepareIdentity(target, adapter.identity, adapter.options);
   try {
     await preparation.check(setup); preparation.ready();

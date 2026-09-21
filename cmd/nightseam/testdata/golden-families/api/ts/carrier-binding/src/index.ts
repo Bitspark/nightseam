@@ -172,8 +172,8 @@ import { checkIdentity } from "@nightseam/runtime";
 export type RecordedEvent<S extends AnyFamily = AnyFamily> = { readonly name: "frame.relayed"; readonly data: Protocol.Frame<S> };
 export interface Recorder<S extends AnyFamily = AnyFamily> extends RecordedWire { append(event: RecordedEvent<S>, context?: ValueContext<Protocol.Frame<S>, WireModelContext>): Promise<void>; }
 /** Checks a prepared origin before typed append; failed setup leaves its carrier usable. */
-export async function record<S extends AnyFamily = AnyFamily>(target: Wire, log: WireLog, options: RecordOptions, context: AdapterContext, s: FamilyBinding<S, "Envelope" | "Handle">, setup?: WireCallOptions): Promise<Recorder<S>> {
-  const adapter = makeAdapter<S>(context, s);
+export async function record<S extends AnyFamily = AnyFamily>(target: Wire, log: WireLog, options: RecordOptions, context: AdapterContext, binding_s: FamilyBinding<S, "Envelope" | "Handle">, setup?: WireCallOptions): Promise<Recorder<S>> {
+  const adapter = makeAdapter<S>(context, binding_s);
   const preparation = prepareIdentity(target, adapter.identity, adapter.options);
   try {
     await preparation.check(setup); preparation.ready();
