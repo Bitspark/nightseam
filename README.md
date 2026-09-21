@@ -28,6 +28,13 @@ through family parameters remain unsupported; the
 [generated surface](docs/declaration/generated.md#generic-boundary-helpers)
 distinguishes those limits.
 
+Nightseam is also the implementation home for the adopted typed-access
+foundation and planned optional rooted-grant authentication. The
+[repository-home decision](docs/decisions/the-reusable-foundation-lives-in-nightseam.md)
+records that direction and its boundary: bare data and RPC remain independent
+of auth, and consumers choose trust and application policy. This is planned
+scope, not a claim that the auth packages are available yet.
+
 ### Declare it
 
 `api/contracts/probe/protocol.json`
