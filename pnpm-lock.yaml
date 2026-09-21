@@ -191,11 +191,11 @@ importers:
   auth/ts:
     dependencies:
       '@bitspark/archon':
-        specifier: '>=0.5.0 <1.0.0'
-        version: 0.5.0
+        specifier: ^0.7.0
+        version: 0.7.0
       '@bitspark/archon-sdk':
-        specifier: '>=0.5.0 <1.0.0'
-        version: 0.5.0
+        specifier: ^0.7.0
+        version: 0.7.0
       '@noble/hashes':
         specifier: ^2.2.0
         version: 2.4.0
@@ -314,11 +314,11 @@ importers:
 
 packages:
 
-  '@bitspark/archon-sdk@0.5.0':
-    resolution: {integrity: sha512-jpNVPgNqtqSckYRapX84HqStbjJsVnoVl2zdXHsuolLvONVo8nbWkttE8jqa+upzy76HL3vqAL7VFGuvyzzREw==, tarball: https://npm.pkg.github.com/download/@bitspark/archon-sdk/0.5.0/37509ca2eabb82a8c9ea72285760afa364d51d9b}
+  '@bitspark/archon-sdk@0.7.0':
+    resolution: {integrity: sha512-NzTp54F6yRHpA12Rgg4YjmSAEzyE7JeGPlx1xhJEH6gOAPKGZPIOI1MCzKtLBahDDOu1Nmj2xXmBNGpbWiFRUg==}
 
-  '@bitspark/archon@0.5.0':
-    resolution: {integrity: sha512-SLRIz4MVske5PbjZsCM50O6NRdhLYA2G3dou/PCs45ta3JII/jXSk8KrMEfek16vGQQDB3YrNgP3CJiKlhZKVg==, tarball: https://npm.pkg.github.com/download/@bitspark/archon/0.5.0/497d3b632c15ade9b6eafcfe961fe622bf052e8b}
+  '@bitspark/archon@0.7.0':
+    resolution: {integrity: sha512-TRKeeOi16PxlqU3KhciEPjlCQQs0sS0gawU3iP6nd1sW/bI2j73RAJ4Jcmu+ONJGcp8NanuaoTvY3qQ9Mczn0Q==}
 
   '@bitspark/bitwire@0.2.0':
     resolution: {integrity: sha512-1vKXTpkzzrrStbMOH1EetDngd957DQYIT2MtAhkfgQiym6HY7RHURDGY+9h2fBjAFdGq1Izg71FyumkumKUb5Q==}
@@ -522,11 +522,11 @@ packages:
 
 snapshots:
 
-  '@bitspark/archon-sdk@0.5.0':
+  '@bitspark/archon-sdk@0.7.0':
     dependencies:
-      '@bitspark/archon': 0.5.0
+      '@bitspark/archon': 0.7.0
 
-  '@bitspark/archon@0.5.0':
+  '@bitspark/archon@0.7.0':
     dependencies:
       '@noble/curves': 2.4.0
       '@noble/hashes': 2.4.0

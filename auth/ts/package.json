@@ -65,8 +65,8 @@
     }
   },
   "dependencies": {
-    "@bitspark/archon": ">=0.5.0 <1.0.0",
-    "@bitspark/archon-sdk": ">=0.5.0 <1.0.0",
+    "@bitspark/archon": "^0.7.0",
+    "@bitspark/archon-sdk": "^0.7.0",
     "@noble/hashes": "^2.2.0"
   },
   "devDependencies": {

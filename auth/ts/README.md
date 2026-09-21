@@ -45,8 +45,7 @@ connection's and the exposure's with the grant's beneath where a chain
 refused.
 
 The tests load the three tables and reproduce every case; the count of
-passing cases is the count of cases in the file. Archon is pinned as the
-latest published release the profile builds against — Go at v0.7.0, this
-package at what npm serves — and moves to one number the moment both
-registries do; the tables' cases do not reach the strict verification
-profile Archon's 0.7.0 adds, which #357's independent harness may.
+passing cases is the count of cases in the file. Archon is pinned at one
+release in both languages — `v0.7.0`, from the public registries; the
+workspace's `.npmrc` keeps a developer's own scoped configuration from
+steering the lockfile anywhere else.

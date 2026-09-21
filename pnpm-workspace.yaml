@@ -4,3 +4,7 @@ minimumReleaseAgeExclude:
   # The adopted public release is pinned and independently checked by the
   # contract conformance and installed-consumer gates.
   - '@bitspark/bitwire@0.2.0'
+  # The identity layer of the optional authority profile, pinned at one
+  # release in both languages and held to the shared auth tables.
+  - '@bitspark/archon-sdk@0.7.0'
+  - '@bitspark/archon@0.7.0'
