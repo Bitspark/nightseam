@@ -60,6 +60,22 @@ func (h *wireCarrierHandle) await(ctx context.Context) error {
 	}
 }
 func wireEmptyCounts() map[string]int { return map[string]int{"exports": 0, "imports": 0} }
+func wireCarrierDigest(slot string) (string, error) {
+	var binding runtime.TypeBinding
+	switch slot {
+	case "string":
+		binding = wireStrings().adapter.Binding
+	case "unary":
+		binding = wireUnaries().adapter.Binding
+	case "factory":
+		binding = wireFactories().adapter.Binding
+	case "nested":
+		binding = wireNested().adapter.Binding
+	default:
+		return "", fmt.Errorf("unknown wire slot %s", slot)
+	}
+	return cell.WireSchema().Bind(map[string]any{"T": binding}, nil).DeclarationDigest()
+}
 func wireCarrierEnvironment(peer *runtime.Peer, h *wireCarrierHandle, needsContext bool) (runtime.AdapterContext, *wireCarrierSide, error) {
 	options := runtime.Options{Observer: h.observer}
 	side := &wireCarrierSide{counts: wireEmptyCounts, release: func() error { return nil }}
@@ -237,14 +253,17 @@ func (t *testee) wireCarrierDispatch(op string, raw map[string]json.RawMessage) 
 	case "gen.wire_dial":
 		h := &wireCarrierHandle{ready: make(chan struct{}), observer: &wireAllocationObserver{}}
 		build := func(peer *runtime.Peer) (duplex.Wire, error) { return wireCarrierClient(peer, h, presentation, slot) }
-		var err error
+		digest, err := wireCarrierDigest(slot)
+		if err != nil {
+			return nil, err
+		}
 		if carrier == "socket" {
 			h.peer, _, err = runtime.Dial(context.Background(), str(raw, "url"), runtime.DialOptions{Options: wireCarrierPrepare(runtime.Options{Observer: h.observer}, h, presentation, build)})
 		} else if carrier == "channel" {
 			var multiplex *tunnel.Tunnel
 			h.peer, _, err = runtime.Dial(context.Background(), str(raw, "url"), runtime.DialOptions{Options: runtime.Options{Observer: h.observer, Prepare: func(peer *runtime.Peer) (err error) { multiplex, err = tunnel.New(peer, tunnel.Options{}); return }}})
 			if err == nil {
-				_, err = multiplex.Open(ctx, "wire-cell", wireCarrierPrepare(runtime.Options{Observer: h.observer}, h, presentation, build))
+				_, err = multiplex.Open(ctx, "cell", digest, wireCarrierPrepare(runtime.Options{Observer: h.observer}, h, presentation, build))
 			}
 		} else {
 			return nil, fmt.Errorf("unknown wire carrier %s", carrier)
