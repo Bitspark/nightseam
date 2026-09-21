@@ -16,6 +16,8 @@ public final class PeerTest {
     private static void check(boolean condition,String message) { if(!condition) throw new AssertionError(message); }
     public static void main(String[] args) throws Exception {
         closeOwnership();
+        closeDuringWrite();
+        closeFromWriteObservation();
         Path root=Path.of(args[0]); int rows=0;
         var table=Json.object(Json.parse(Files.readAllBytes(root.resolve("conformance/tables/frames.json"))));
         for(Object item:Json.array(table.get("rows"))) {
@@ -82,6 +84,7 @@ public final class PeerTest {
         }
         // Hold failure between its transport observation and terminal CAS,
         // then let an explicit close win. The loser must never abort it.
+        connection.ended.complete(new CloseInfo(1000,""));
         connection=new CloseProbe(); connection.inspect=true;
         try (var peer=new Peer(connection,"server",defaults)) {
             var failure=CompletableFuture.runAsync(peer::fail);
@@ -90,24 +93,70 @@ public final class PeerTest {
             failure.get(3,TimeUnit.SECONDS);
             check(connection.closes.get()==1 && connection.aborts.get()==0,"losing failure aborted graceful close");
         }
+        connection.ended.complete(new CloseInfo(1000,""));
+    }
+    private static void closeDuringWrite() throws Exception {
+        var connection=new CloseProbe(); connection.holdWrite=true;
+        try (var peer=new Peer(connection,"server",PeerOptions.defaults())) {
+            peer.emit("tick",null);
+            connection.writeStarted.get(3,TimeUnit.SECONDS);
+            peer.emit("queued",null);
+            peer.close();
+            connection.releaseWrite.countDown();
+            check(!connection.writeInterrupted.get(3,TimeUnit.SECONDS),"graceful close interrupted an admitted transport write");
+            connection.sender.join(3000);
+            check(!connection.sender.isAlive() && connection.writes.get()==1,"close admitted another queued transport write");
+            check(connection.closes.get()==1 && connection.aborts.get()==0,"active write changed graceful close ownership");
+        } finally {
+            connection.releaseWrite.countDown();
+            connection.ended.complete(new CloseInfo(1000,""));
+        }
+    }
+    private static void closeFromWriteObservation() throws Exception {
+        var connection=new CloseProbe();
+        var current=new java.util.concurrent.atomic.AtomicReference<Peer>();
+        var defaults=PeerOptions.defaults();
+        var options=new PeerOptions(defaults.maxConcurrentHandlers(),defaults.maxPendingRequests(),defaults.queueCapacity(),
+            defaults.maxFrameBytes(),defaults.requestTimeout(),defaults.writeTimeout(),Map.of(),event -> {
+                if (event.get("type").equals("frame.sent")) current.get().close();
+            });
+        try (var peer=new Peer(connection,"server",options)) {
+            current.set(peer); peer.emit("tick",null);
+            peer.closed().get(3,TimeUnit.SECONDS);
+            connection.transportClosed.get(3,TimeUnit.SECONDS).join(3000);
+            check(connection.writes.get()==0,"closing from observation admitted a new transport write");
+        } finally { connection.ended.complete(new CloseInfo(1000,"")); }
     }
     private static final class CloseProbe implements Connection {
         final java.util.concurrent.atomic.AtomicInteger closes=new java.util.concurrent.atomic.AtomicInteger();
         final java.util.concurrent.atomic.AtomicInteger aborts=new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.atomic.AtomicInteger writes=new java.util.concurrent.atomic.AtomicInteger();
+        final CompletableFuture<Thread> transportClosed=new CompletableFuture<>();
         final CompletableFuture<Void> inspected=new CompletableFuture<>(), resume=new CompletableFuture<>();
+        final CompletableFuture<Void> writeStarted=new CompletableFuture<>();
+        final CompletableFuture<Boolean> writeInterrupted=new CompletableFuture<>();
+        final java.util.concurrent.CountDownLatch releaseWrite=new java.util.concurrent.CountDownLatch(1);
         volatile boolean inspect;
+        volatile boolean holdWrite;
         volatile int code;
+        volatile Thread sender;
         final CompletableFuture<CloseInfo> ended=new CompletableFuture<>() {
             @Override public CloseInfo getNow(CloseInfo fallback) {
                 if (inspect) { inspected.complete(null); resume.join(); }
                 return super.getNow(fallback);
             }
         };
-        public void send(Frame frame,Duration timeout) {}
+        public void send(Frame frame,Duration timeout) throws InterruptedException {
+            sender=Thread.currentThread(); writes.incrementAndGet();
+            if (!holdWrite) return;
+            writeStarted.complete(null);
+            try { releaseWrite.await(); writeInterrupted.complete(false); }
+            catch (InterruptedException interrupted) { writeInterrupted.complete(true); throw interrupted; }
+        }
         public Frame receive(Duration timeout) throws InterruptedException {
             new java.util.concurrent.CountDownLatch(1).await(); throw new AssertionError("unreachable");
         }
-        public void close(int chosen,String reason) { code=chosen; closes.incrementAndGet(); }
+        public void close(int chosen,String reason) { code=chosen; closes.incrementAndGet(); transportClosed.complete(Thread.currentThread()); }
         public void abort() { aborts.incrementAndGet(); }
         public CompletableFuture<CloseInfo> closed() { return ended; }
     }

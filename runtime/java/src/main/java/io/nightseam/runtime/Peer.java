@@ -49,6 +49,7 @@ public final class Peer implements AutoCloseable {
         Thread t = new Thread(r,"nightseam-deadlines"); t.setDaemon(true); return t;
     });
     private final List<Thread> loops = new ArrayList<>();
+    private final Thread writer;
     private volatile PeerWire wire;
 
     public Peer(Connection connection,String role,PeerOptions options) {
@@ -57,9 +58,11 @@ public final class Peer implements AutoCloseable {
         deadlines.setRemoveOnCancelPolicy(true);
         output=new ArrayBlockingQueue<>(options.queueCapacity()); events=new ArrayBlockingQueue<>(options.queueCapacity());
         observe(map("type","connection.opened","role",role));
-        loops.add(Thread.ofVirtual().name("nightseam-writer").start(this::writeLoop));
-        loops.add(Thread.ofVirtual().name("nightseam-events").start(this::eventLoop));
-        loops.add(Thread.ofVirtual().name("nightseam-reader").start(this::readLoop));
+        writer=Thread.ofVirtual().name("nightseam-writer").unstarted(this::writeLoop);
+        loops.add(writer);
+        loops.add(Thread.ofVirtual().name("nightseam-events").unstarted(this::eventLoop));
+        loops.add(Thread.ofVirtual().name("nightseam-reader").unstarted(this::readLoop));
+        for (Thread loop:loops) loop.start();
     }
     boolean hasHandlerOrEvent(String name) { return handlers.containsKey(name) || eventHandlers.containsKey(name); }
     public String subprotocol() { return connection.subprotocol(); }
@@ -179,7 +182,10 @@ public final class Peer implements AutoCloseable {
     private void writeLoop() {
         try {
             while (!ended.get()) {
-                Queued value=output.take(); frameObserved("frame.sent",value.frame(),value.bytes().length);
+                Queued value=output.take();
+                if (ended.get()) return;
+                frameObserved("frame.sent",value.frame(),value.bytes().length);
+                if (ended.get()) return;
                 connection.send(new Frame("text",value.bytes()),options.writeTimeout());
             }
         } catch (Exception e) { if (!ended.get()) fail(); }
@@ -315,7 +321,13 @@ public final class Peer implements AutoCloseable {
         for (Call call:pending.values()) call.complete(null,new PublicError("disconnected","Connection closed"),false);
         for (RequestContext context:incoming.values()) context.cancel();
         deadlines.shutdownNow();
-        for (Thread loop:loops) if (loop!=Thread.currentThread()) loop.interrupt();
+        // An admitted transport write must finish under the close handshake's
+        // own deadline. Interrupting it early can abort the socket before the
+        // close frame is written; an idle writer is woken once closure settles.
+        if (local) connection.closed().whenComplete((closedInfo,failure) -> {
+            if (writer!=Thread.currentThread()) writer.interrupt();
+        });
+        for (Thread loop:loops) if (loop!=Thread.currentThread() && (!local || loop!=writer)) loop.interrupt();
         var observation=map("type","connection.closed","code",info.code(),"local",local);
         if (!info.reason().isEmpty()) observation.put("reason",info.reason());
         observe(observation); if(wire!=null) wire.ending(info); closed.complete(info);
