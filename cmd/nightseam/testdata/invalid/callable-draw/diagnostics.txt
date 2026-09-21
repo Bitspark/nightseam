@@ -1,2 +1,2 @@
-carrier/protocol.json#/types/Holder/fields/0/type: Type Cancel of S: in the live family worker it is a callable; draw a plain record containing the callable instead. [unresolved_type]
+consumer/protocol.json#/types/Invalid/type/with/S: Family worker cannot supply S.Cancel: it does not declare a plain record, entity, enum or union. [invalid_draw]
 error: 1 problems
