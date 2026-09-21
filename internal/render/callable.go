@@ -50,6 +50,11 @@ func (r *Family) callableExpression(e model.TypeExpr, scope []model.Parameter, s
 	}
 	seen[key] = true
 	defer delete(seen, key)
+	// A plain imported declaration may forward the caller's sole family slot.
+	// Materialize that existing argument rule before substituting its body.
+	if application.Family != "" && application.With == nil {
+		application.With = argumentBindings(r.arguments(application))
+	}
 	view, ok := r.Apply(application, scope)
 	if !ok {
 		return nil

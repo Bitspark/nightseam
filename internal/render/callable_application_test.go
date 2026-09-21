@@ -89,3 +89,23 @@ func TestCallableAliasViewKeepsPublicNameAndOriginalApplication(t *testing.T) {
 		}
 	}
 }
+
+func TestCallableAliasViewForwardsTheImplicitFamilyArgument(t *testing.T) {
+	world := analysis.World(modeltest.World(map[string]map[string]string{
+		"source": {
+			"model.json":    `{"nightseam":2}`,
+			"protocol.json": modeltest.Protocol(`"parameters":[{"name":"S","of":"live"}]`),
+			"live.json":     `{"types":{"Handler":{"kind":"callable","request":"S.Job"}}}`,
+		},
+		"consumer": {
+			"model.json":    `{"nightseam":2}`,
+			"protocol.json": modeltest.Protocol(`"parameters":[{"name":"R","of":"live"}]`),
+			"live.json":     `{"imports":["source"],"types":{"Forwarded":{"kind":"alias","type":"source.Handler"}}}`,
+		},
+	}))
+	family := Build(analysis.Resolve(world, "consumer"))
+	view, ok := family.CallableView(family.Type("Forwarded"))
+	if !ok || !reflect.DeepEqual(view.Request, model.Drawn{Parameter: "R", Name: "Job"}) {
+		t.Fatalf("implicit family argument did not reach callable signature: %+v", view)
+	}
+}
