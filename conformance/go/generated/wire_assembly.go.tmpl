@@ -1,0 +1,56 @@
+package main
+
+// These fixtures own transport assembly. Generated packages see only structured
+// wires, models, and explicitly supplied adapter contexts.
+import (
+	"context"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/live/go"
+	"github.com/Bitspark/nightseam/runtime/go"
+	"net/http"
+)
+
+type fixtureWireFactory func(*runtime.Peer) (duplex.Wire, error)
+
+func fixturePrepare(options runtime.Options, build fixtureWireFactory) runtime.Options {
+	prepare := options.Prepare
+	options.Prepare = func(peer *runtime.Peer) error {
+		if prepare != nil {
+			if err := prepare(peer); err != nil {
+				return err
+			}
+		}
+		wire, err := build(peer)
+		if err != nil {
+			return err
+		}
+		detach, err := runtime.ForwardWire(peer.Wire(), wire)
+		if err != nil {
+			_ = wire.Close(1000, "fixture assembly failed")
+			return err
+		}
+		go func() { <-peer.Done(); detach(); _ = wire.Close(1000, "fixture disconnected") }()
+		return nil
+	}
+	return options
+}
+func fixtureHandler(options runtime.ServerOptions, build fixtureWireFactory) (http.Handler, error) {
+	options.Options = fixturePrepare(options.Options, build)
+	return runtime.NewHandler(options)
+}
+func fixtureDial(ctx context.Context, endpoint string, options runtime.DialOptions, build fixtureWireFactory) (*runtime.Peer, error) {
+	options.Options = fixturePrepare(options.Options, build)
+	peer, _, err := runtime.Dial(ctx, endpoint, options)
+	return peer, err
+}
+func fixtureLiveContext(peer *runtime.Peer, options runtime.Options) (live.AdapterContext, error) {
+	scope, ok := live.ScopeOf(peer)
+	if !ok {
+		var err error
+		scope, err = live.Over(peer, live.Options{})
+		if err != nil {
+			return live.AdapterContext{}, err
+		}
+	}
+	return live.AdapterContext{AdapterContext: runtime.AdapterContext{Options: options}, Scope: scope, Owner: scope.Owner()}, nil
+}

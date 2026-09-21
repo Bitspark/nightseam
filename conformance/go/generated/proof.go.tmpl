@@ -13,18 +13,20 @@ import (
 	binding "example.test/generated/api/go/proof-binding"
 	client "example.test/generated/api/go/proof-client"
 	proof "example.test/generated/api/go/proof-protocol"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
-type proofRemote = binding.Remote[probe.Envelope, probe.Handle, string]
-type proofClient = client.Client[probe.Envelope, probe.Handle, string]
+type proofRemote = proof.Client[probe.Envelope, probe.Handle, string]
+type proofClient = proof.Server[probe.Envelope, probe.Handle, string]
 type proofServer struct{}
 
-func (proofServer) Echo(_ context.Context, _ *proofRemote, p probe.Payload) (probe.Payload, error) {
+func (proofServer) Echo(_ context.Context, p probe.Payload) (probe.Payload, error) {
 	return p, nil
 }
-func (proofServer) NoArgs(context.Context, *proofRemote) (string, error) { return "proof", nil }
-func (proofServer) Seen(context.Context, *proofRemote, probe.Seen) (probe.Payloads, error) {
+func (proofServer) NoArgs(context.Context) (string, error) { return "proof", nil }
+func (proofServer) Seen(context.Context, probe.Seen) (probe.Payloads, error) {
 	return probe.Payloads{}, nil
 }
 func classifyPart(p proof.Part) string {
@@ -39,10 +41,10 @@ func classifyPart(p proof.Part) string {
 		panic("generated decoder admitted no selected variant")
 	}
 }
-func (proofServer) Classify(_ context.Context, _ *proofRemote, p proof.Part) (string, error) {
+func (proofServer) Classify(_ context.Context, p proof.Part) (string, error) {
 	return classifyPart(p), nil
 }
-func (proofServer) ClassifyRich(_ context.Context, _ *proofRemote, p proof.RichPart) (string, error) {
+func (proofServer) ClassifyRich(_ context.Context, p proof.RichPart) (string, error) {
 	if base, ok := proof.NarrowRichPartToPart(p); ok {
 		return classifyPart(base), nil
 	}
@@ -51,14 +53,14 @@ func (proofServer) ClassifyRich(_ context.Context, _ *proofRemote, p proof.RichP
 	}
 	return "", fmt.Errorf("generated decoder admitted no selected variant")
 }
-func (proofServer) Parts(context.Context, *proofRemote, proof.PartsRequest) (proof.Result[proof.Parts, string], error) {
+func (proofServer) Parts(context.Context, proof.PartsRequest) (proof.Result[proof.Parts, string], error) {
 	return proof.Result[proof.Parts, string]{Ok: &proof.ResultOkValue[proof.Parts, string]{Value: proof.Parts{Items: []proof.Part{
 		{Text: &proof.TextPart{Type: proof.LiteralTextValue, Body: "hello 😀 �"}},
 		{Count: &proof.PartCountValue{Value: 7}},
 		{Image: &proof.PartImage{URL: "https://example.org/image", Alt: runtime.Some(runtime.Null[string]())}},
 	}}}}, nil
 }
-func (proofServer) Relay(_ context.Context, _ *proofRemote, p proof.Carried[probe.Envelope, probe.Handle, string]) (proof.Option[proof.Envelope], error) {
+func (proofServer) Relay(_ context.Context, p proof.Carried[probe.Envelope, probe.Handle, string]) (proof.Option[proof.Envelope], error) {
 	// Retain the envelope's complete generated type, crossing the family boundary
 	// through the codecs rather than a cast between differently named structs.
 	data, err := json.Marshal(p.Message)
@@ -75,36 +77,38 @@ func (proofServer) Relay(_ context.Context, _ *proofRemote, p proof.Carried[prob
 type proofServed struct {
 	http   *http.Server
 	remote chan *proofRemote
+	peers  []*runtime.Peer
 }
 
 func (s *proofServed) shutdown() {
 	_ = s.http.Close()
-	for {
-		select {
-		case r := <-s.remote:
-			_ = r.Peer.Close()
-		default:
-			return
-		}
+	for _, peer := range s.peers {
+		_ = peer.Close()
 	}
 }
 
 type proofDialled struct {
-	client *proofClient
+	client proofClient
+	peer   *runtime.Peer
 	events chan proof.RichPart
 	cancel context.CancelFunc
 }
 
-func (d *proofDialled) shutdown() { _ = d.client.Close(); d.cancel() }
+func (d *proofDialled) shutdown() { _ = d.peer.Close(); d.cancel() }
 
 func (t *testee) proofDispatch(op string, raw map[string]json.RawMessage) (any, error) {
 	switch op {
 	case "gen.proof_serve":
 		s := &proofServed{remote: make(chan *proofRemote, 16)}
-		handler, err := binding.NewHandler[probe.Envelope, probe.Handle, string](proofServer{}, runtime.ServerOptions{
+		handler, err := fixtureHandler(runtime.ServerOptions{
 			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 			CheckOrigin:  func(*http.Request) bool { return true },
-			OnConnect:    func(p *runtime.Peer) { s.remote <- &proofRemote{Peer: p} },
+		}, func(peer *runtime.Peer) (duplex.Wire, error) {
+			s.peers = append(s.peers, peer)
+			return binding.ToWire(func(remote proofRemote) (proofClient, error) {
+				s.remote <- &remote
+				return proofClient{Methods: proofServer{}}, nil
+			}, live.AdapterContext{}, live.JSONAdapter[string]())
 		})
 		if err != nil {
 			return nil, err
@@ -119,12 +123,17 @@ func (t *testee) proofDispatch(op string, raw map[string]json.RawMessage) (any, 
 	case "gen.proof_dial":
 		ctx, cancel := context.WithCancel(context.Background())
 		d := &proofDialled{events: make(chan proof.RichPart, 16), cancel: cancel}
-		c, err := client.Dial[probe.Envelope, probe.Handle, string](ctx, str(raw, "url"), runtime.DialOptions{}, nil, client.Events[probe.Envelope, probe.Handle, string]{PartAdded: func(_ context.Context, p proof.RichPart) { d.events <- p }})
+		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (duplex.Wire, error) {
+			return client.ToWire(func(remote proofClient) (proofRemote, error) {
+				d.client = remote
+				return proofRemote{Events: proofClientEvents{d}}, nil
+			}, live.AdapterContext{}, live.JSONAdapter[string]())
+		})
 		if err != nil {
 			cancel()
 			return nil, err
 		}
-		d.client = c
+		d.peer = peer
 		return map[string]any{"handle": t.mint("proofcl", d)}, nil
 	case "gen.proof_names":
 		names := []string{reflect.TypeOf(proof.OptionNone{}).Name(), reflect.TypeOf(proof.PartImage{}).Name(), reflect.TypeOf(proof.PartsRequest{}).Name(), reflect.TypeOf(proof.RichPartTable{}).Name()}
@@ -164,32 +173,32 @@ func (t *testee) proofDispatch(op string, raw map[string]json.RawMessage) (any, 
 		var rawCall bool
 		_ = json.Unmarshal(raw["raw"], &rawCall)
 		if rawCall {
-			err = d.client.Peer.Call(ctx, str(raw, "method"), raw["params"], &result)
+			err = runtime.CallWire(ctx, d.peer.Wire(), []string{str(raw, "method")}, raw["params"], &result)
 		} else {
 			switch str(raw, "method") {
 			case "classify":
 				var p proof.Part
 				err = json.Unmarshal(raw["params"], &p)
 				if err == nil {
-					result, err = d.client.Classify(ctx, p)
+					result, err = d.client.Methods.Classify(ctx, p)
 				}
 			case "classify_rich":
 				var p proof.RichPart
 				err = json.Unmarshal(raw["params"], &p)
 				if err == nil {
-					result, err = d.client.ClassifyRich(ctx, p)
+					result, err = d.client.Methods.ClassifyRich(ctx, p)
 				}
 			case "parts":
 				var p proof.PartsRequest
 				err = json.Unmarshal(raw["params"], &p)
 				if err == nil {
-					result, err = d.client.Parts(ctx, p)
+					result, err = d.client.Methods.Parts(ctx, p)
 				}
 			case "relay":
 				var p proof.Carried[probe.Envelope, probe.Handle, string]
 				err = json.Unmarshal(raw["params"], &p)
 				if err == nil {
-					result, err = d.client.Relay(ctx, p)
+					result, err = d.client.Methods.Relay(ctx, p)
 				}
 			default:
 				return nil, fail("invalid", "unknown proof method")
@@ -214,10 +223,18 @@ func (t *testee) proofDispatch(op string, raw map[string]json.RawMessage) (any, 
 		select {
 		case r := <-s.remote:
 			defer func() { s.remote <- r }()
-			return nil, r.EmitPartAdded(ctx, p)
+			return nil, r.Events.PartAdded(ctx, p)
 		case <-ctx.Done():
 			return nil, fail("timeout", "no proof client")
 		}
 	}
 	return nil, fail("unsupported", "no proof op %s", op)
 }
+
+type proofClientEvents struct{ dialled *proofDialled }
+
+func (e proofClientEvents) PartAdded(_ context.Context, p proof.RichPart) error {
+	e.dialled.events <- p
+	return nil
+}
+func (proofClientEvents) Changed(context.Context, probe.Payload) error { return nil }

@@ -15,6 +15,7 @@ import (
 	ownerclient "example.test/generated/api/go/owners-client"
 	owners "example.test/generated/api/go/owners-protocol"
 	worker "example.test/generated/api/go/worker-protocol"
+	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
@@ -39,7 +40,7 @@ func (s *ownersServer) retain(ctx context.Context) error {
 	return nil
 }
 
-func (s *ownersServer) Create(ctx context.Context, _ *ownerbinding.Remote, params worker.Start) (owners.Jobs, error) {
+func (s *ownersServer) Create(ctx context.Context, params worker.Start) (owners.Jobs, error) {
 	if err := s.retain(ctx); err != nil {
 		return owners.Jobs{}, err
 	}
@@ -52,7 +53,7 @@ func (s *ownersServer) Create(ctx context.Context, _ *ownerbinding.Remote, param
 	}}}, nil
 }
 
-func (s *ownersServer) Pack(ctx context.Context, _ *ownerbinding.Remote, params boxes.Box[combinator.Unary]) (combinator.Bundle[combinator.Count], error) {
+func (s *ownersServer) Pack(ctx context.Context, params boxes.Box[combinator.Unary]) (combinator.Bundle[combinator.Count], error) {
 	if err := s.retain(ctx); err != nil {
 		return combinator.Bundle[combinator.Count]{}, err
 	}
@@ -65,7 +66,7 @@ func (s *ownersServer) Pack(ctx context.Context, _ *ownerbinding.Remote, params 
 	}}, nil
 }
 
-func (s *ownersServer) Drop(context.Context, *ownerbinding.Remote) (bool, error) {
+func (s *ownersServer) Drop(context.Context) (bool, error) {
 	s.mu.Lock()
 	held := s.held
 	s.held = nil
@@ -81,7 +82,7 @@ func (s *ownersServer) Drop(context.Context, *ownerbinding.Remote) (bool, error)
 // References is controlled malformed-input plumbing. Its three tokens are
 // otherwise valid generated Report exports, so only the receiver's bound can
 // stop their conversion. It is not evidence for ordinary generated operations.
-func (s *ownersServer) References(context.Context, *ownerbinding.Remote) (any, error) {
+func (s *ownersServer) References(context.Context) (any, error) {
 	o := s.scope.Owner().Child()
 	s.mu.Lock()
 	s.held = append(s.held, o)
@@ -106,14 +107,15 @@ type ownersServed struct {
 func (s *ownersServed) shutdown() { _ = s.http.Close() }
 
 type ownersDialled struct {
-	client  *ownerclient.Client
+	client  owners.Server
+	peer    *runtime.Peer
 	scope   *live.Scope
 	owner   *live.Owner
 	job     worker.Job
 	reports int
 }
 
-func (d *ownersDialled) shutdown() { _ = d.client.Close() }
+func (d *ownersDialled) shutdown() { _ = d.peer.Close() }
 
 func ownerCounts(scope *live.Scope) map[string]int {
 	c := scope.Counts()
@@ -136,12 +138,20 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 	switch op {
 	case "gen.owners_serve":
 		s := &ownersServed{server: &ownersServer{}}
-		handler, err := ownerbinding.NewHandler(s.server, runtime.ServerOptions{
+		handler, err := fixtureHandler(runtime.ServerOptions{
 			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil }, CheckOrigin: func(*http.Request) bool { return true },
 			Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
 				s.server.scope, err = live.Over(peer, live.Options{MaxExports: 4, MaxImports: 4})
 				return
 			}},
+		}, func(peer *runtime.Peer) (duplex.Wire, error) {
+			environment, err := fixtureLiveContext(peer, runtime.Options{})
+			if err != nil {
+				return nil, err
+			}
+			return ownerbinding.ToWire(func(owners.Client) (owners.Server, error) {
+				return owners.Server{Methods: s.server}, nil
+			}, environment)
 		})
 		if err != nil {
 			return nil, err
@@ -159,14 +169,23 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 		if imports == 0 {
 			imports = 4
 		}
-		client, err := ownerclient.Dial(context.Background(), str(raw, "url"), runtime.DialOptions{Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
+		peer, err := fixtureDial(context.Background(), str(raw, "url"), runtime.DialOptions{Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
 			d.scope, err = live.Over(peer, live.Options{MaxExports: 4, MaxImports: imports})
 			return
-		}}}, nil, ownerclient.Events{})
+		}}}, func(peer *runtime.Peer) (duplex.Wire, error) {
+			environment, err := fixtureLiveContext(peer, runtime.Options{})
+			if err != nil {
+				return nil, err
+			}
+			return ownerclient.ToWire(func(remote owners.Server) (owners.Client, error) {
+				d.client = remote
+				return owners.Client{}, nil
+			}, environment)
+		})
 		if err != nil {
 			return nil, err
 		}
-		d.client = client
+		d.peer = peer
 		return map[string]any{"handle": t.mint("ownerscl", d)}, nil
 	case "gen.owners_counts":
 		s, err := liveOf[*ownersServed](t, raw)
@@ -188,7 +207,7 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 	switch op {
 	case "client.owners_create":
 		d.owner = d.scope.Owner().Child()
-		page, err := d.client.Create(live.WithOwner(ctx, d.owner), worker.Start{Ticket: worker.Ticket{ID: "owned", Label: "owned"}, Progress: worker.ProgressSink{Report: func(context.Context, worker.Percent) error { d.reports++; return nil }}})
+		page, err := d.client.Methods.Create(live.WithOwner(ctx, d.owner), worker.Start{Ticket: worker.Ticket{ID: "owned", Label: "owned"}, Progress: worker.ProgressSink{Report: func(context.Context, worker.Percent) error { d.reports++; return nil }}})
 		if err != nil {
 			return nil, err
 		}
@@ -206,7 +225,7 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 		return map[string]any{"label": renamed.Label, "reports": d.reports, "counts": ownerCounts(d.scope)}, nil
 	case "client.owners_pack":
 		d.owner = d.scope.Owner().Child()
-		bundle, err := d.client.Pack(live.WithOwner(ctx, d.owner), boxes.Box[combinator.Unary]{Item: func(_ context.Context, n combinator.Count) (combinator.Count, error) { return n + 3, nil }})
+		bundle, err := d.client.Methods.Pack(live.WithOwner(ctx, d.owner), boxes.Box[combinator.Unary]{Item: func(_ context.Context, n combinator.Count) (combinator.Count, error) { return n + 3, nil }})
 		if err != nil {
 			return nil, err
 		}
@@ -225,7 +244,7 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 		if err := d.owner.Release(); err != nil {
 			return nil, err
 		}
-		if _, err := d.client.Drop(ctx); err != nil {
+		if _, err := d.client.Methods.Drop(ctx); err != nil {
 			return nil, err
 		}
 		if err := ownersZero(d.scope, within(raw)); err != nil {
@@ -233,7 +252,7 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 		}
 		return ownerCounts(d.scope), nil
 	case "client.owners_revoke":
-		if _, err := d.client.Drop(ctx); err != nil {
+		if _, err := d.client.Methods.Drop(ctx); err != nil {
 			return nil, err
 		}
 		if err := ownersZero(d.scope, within(raw)); err != nil {
@@ -247,7 +266,7 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 	case "client.owners_imports":
 		codes := map[string]any{}
 		for _, kind := range []string{"fresh", "borrowed"} {
-			wire, err := d.client.References(ctx)
+			wire, err := d.client.Methods.References(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -308,7 +327,7 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 			if err := aliases[0](ctx, 3); err == nil || callError(err)["code"] != live.ErrorReferenceReleased {
 				return nil, fail("invalid", "releasing original owner did not revoke borrowed generated alias: %v", err)
 			}
-			if _, err := d.client.Drop(ctx); err != nil {
+			if _, err := d.client.Methods.Drop(ctx); err != nil {
 				return nil, err
 			}
 			if err := ownersZero(d.scope, within(raw)); err != nil {
