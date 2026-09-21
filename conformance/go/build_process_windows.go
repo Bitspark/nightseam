@@ -138,6 +138,10 @@ func windowsBuildExecutable(path, dir string) (string, error) {
 	if path == "" {
 		return "", errors.New("empty build executable")
 	}
+	path, err := windowsBuildExtension(path, dir)
+	if err != nil {
+		return "", err
+	}
 	if dir != "" && !filepath.IsAbs(path) {
 		absoluteDir, err := windows.FullPath(dir)
 		if err != nil {
@@ -155,10 +159,10 @@ func windowsBuildExecutable(path, dir string) (string, error) {
 			path = filepath.Join(absoluteDir, path[len(volume):])
 		}
 	}
-	path, err := windows.FullPath(path)
-	if err != nil {
-		return "", err
-	}
+	return windows.FullPath(path)
+}
+
+func windowsBuildExtension(path, dir string) (string, error) {
 	// Like Cmd.Start, an explicit executable suffix is final. Looking it up
 	// again could run missing.exe.exe when missing.exe does not exist.
 	extensions := os.Getenv("PATHEXT")
@@ -176,5 +180,19 @@ func windowsBuildExecutable(path, dir string) (string, error) {
 			return path, nil
 		}
 	}
-	return exec.LookPath(path)
+	lookup := path
+	if filepath.Base(lookup) == lookup {
+		lookup = "." + string(filepath.Separator) + lookup
+	}
+	// Cmd.Start resolves extensions before applying the command's drive.
+	// Rooted and drive-relative paths therefore use the calling process's
+	// drive context at this stage; only ordinary relative paths use Dir.
+	if dir != "" && filepath.VolumeName(lookup) == "" && !os.IsPathSeparator(lookup[0]) {
+		lookup = filepath.Join(dir, lookup)
+	}
+	resolved, err := exec.LookPath(lookup)
+	if err != nil {
+		return "", err
+	}
+	return path + strings.TrimPrefix(resolved, lookup), nil
 }

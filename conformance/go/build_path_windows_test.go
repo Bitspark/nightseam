@@ -38,15 +38,18 @@ func TestBuildWindowsExecutablePaths(t *testing.T) {
 		t.Run(path, func(t *testing.T) {
 			recipe.Build[0].Argv[0] = path
 			baseline := recipe.command(context.Background(), recipe.Build[0], Places{})
-			if output, err := baseline.CombinedOutput(); err != nil {
-				t.Fatalf("standard command rejected fixture path: %v: %s", err, output)
-			}
+			output, baselineErr := baseline.CombinedOutput()
 			_ = os.Remove(filepath.Join(dir, "success"))
-			if err := recipe.RunBuild(context.Background(), Places{}, false); err != nil {
-				t.Fatalf("owned command changed executable resolution: %v", err)
+			ownedErr := recipe.RunBuild(context.Background(), Places{}, false)
+			if (baselineErr == nil) != (ownedErr == nil) {
+				t.Fatalf("owned command changed executable resolution: standard %v (%s), owned %v", baselineErr, output, ownedErr)
 			}
-			if _, err := os.Stat(filepath.Join(dir, "success")); err != nil {
-				t.Fatal(err)
+			_, resultErr := os.Stat(filepath.Join(dir, "success"))
+			if baselineErr == nil && resultErr != nil {
+				t.Fatal(resultErr)
+			}
+			if baselineErr != nil && !os.IsNotExist(resultErr) {
+				t.Fatal("owned command executed a path the standard launcher refused")
 			}
 		})
 	}
