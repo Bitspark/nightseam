@@ -17,7 +17,7 @@
           "failed": 0
         },
         "generator": {
-          "passed": 32,
+          "passed": 166,
           "skipped": 0,
           "failed": 0
         },
@@ -49,7 +49,7 @@
         },
         "generator": {
           "passed": 0,
-          "skipped": 64,
+          "skipped": 332,
           "failed": 0
         },
         "live": {
@@ -80,7 +80,7 @@
         },
         "generator": {
           "passed": 0,
-          "skipped": 64,
+          "skipped": 332,
           "failed": 0
         },
         "live": {
@@ -110,7 +110,7 @@
           "failed": 0
         },
         "generator": {
-          "passed": 64,
+          "passed": 332,
           "skipped": 0,
           "failed": 0
         },
