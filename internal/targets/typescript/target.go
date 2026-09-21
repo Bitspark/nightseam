@@ -277,7 +277,7 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 	dependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion, t.config.Live: t.config.RuntimeVersion}
 	if protocol {
 		emitClient(client)
-		dependencies[t.config.Tunnel] = t.config.RuntimeVersion
+		dependencies["@nightseam/duplex"] = t.config.RuntimeVersion
 		if f.Live || familyValueSlots(f) {
 			// A family with a live tier renders a module that imports the live
 			// layer, so the package declares it. Everywhere the generated
@@ -316,7 +316,7 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 		if err != nil {
 			return nil, fmt.Errorf("locate binding protocol: %w", err)
 		}
-		bindingDependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion, t.config.pkg(f.Name): clientDependency}
+		bindingDependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion, "@nightseam/duplex": t.config.RuntimeVersion, t.config.pkg(f.Name): clientDependency}
 		if f.Live || familyValueSlots(f) {
 			bindingDependencies[t.config.Live] = t.config.RuntimeVersion
 		}

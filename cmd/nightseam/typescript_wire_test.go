@@ -50,23 +50,23 @@ import type {Server, Client, ServerMethods, ClientMethods, ServerEvents, ClientE
 
 type Equal<A,B>=(<T>()=>T extends A?1:2) extends (<T>()=>T extends B?1:2)?true:false;
 const serverInput:Equal<Parameters<typeof binding.toWire<number>>[0],ServerModel<number>>=true;
-const serverOutput:Equal<ReturnType<typeof binding.fromWire<number>>,ServerModel<number>>=true;
+const serverOutput:Equal<Awaited<ReturnType<typeof binding.fromWire<number>>>,ServerModel<number>>=true;
 const clientInput:Equal<Parameters<typeof client.toWire<number>>[0],ClientModel<number>>=true;
-const clientOutput:Equal<ReturnType<typeof client.fromWire<number>>,ClientModel<number>>=true;
+const clientOutput:Equal<Awaited<ReturnType<typeof client.fromWire<number>>>,ClientModel<number>>=true;
 const serverMethods:Equal<Server<number>['methods'],ServerMethods<number>>=true;
 const serverEvents:Equal<Server<number>['events'],ServerEvents<number>>=true;
 const clientMethods:Equal<Client<number>['methods'],ClientMethods<number>>=true;
 const clientEvents:Equal<Client<number>['events'],ClientEvents<number>>=true;
 const optionalContext:Equal<Parameters<ServerMethods<number>['put']>[1],WireModelContext|undefined>=true;
-const optionalEventContext:Equal<Parameters<ServerEvents<number>['changed']>[1],WireModelContext|undefined>=true;
+const optionalEventContext:Equal<Parameters<ServerEvents<number>['noted']>[1],WireModelContext|undefined>=true;
 const methodResult:Equal<ReturnType<ServerMethods<number>['put']>,number|Promise<number>>=true;
-const eventResult:Equal<ReturnType<ClientEvents<number>['noted']>,void|Promise<void>>=true;
+const eventResult:Equal<ReturnType<ClientEvents<number>['changed']>,void|Promise<void>>=true;
 const omittedRequest:Equal<Parameters<ServerMethods<number>['get']>[0],Record<string,never>>=true;
 
 function check(condition:unknown,message:string):asserts condition {if(!condition)throw new Error(message);}
 function equal(left:unknown,right:unknown,message:string){check(JSON.stringify(left)===JSON.stringify(right),message+': '+JSON.stringify(left)+' / '+JSON.stringify(right));}
 function rejectTwice(run:()=>unknown){let rejected=false;try{run();}catch{rejected=true;}check(rejected,'fromWire factory accepted a second opposite implementation');}
-const context:WireModelContext={};
+const context={};
 const callContext:WireModelContext={signal:AbortSignal.timeout(5000),timeoutMs:5000};
 type State={factories:number;reverse:number;events:number;observations:string[]};
 const state=():State=>({factories:0,reverse:0,events:0,observations:[]});
@@ -80,17 +80,17 @@ function serverModel<T>(log:State,initial:T):ServerModel<T>{
   let held=initial;
   return {
    methods:{
-    async put(params,context){log.observations.push('put:'+String(params.value));held=await remote.methods.mirror(params,context);await remote.events.noted({value:held},context);return held;},
+    async put(params,context){log.observations.push('put:'+String(params.value));held=await remote.methods.mirror(params,context);await remote.events.changed({value:held},context);return held;},
     get(_params,_context){log.observations.push('get:'+String(held));return held;},
    },
-   events:{changed(params,_context){log.events++;log.observations.push('changed:'+String(params.value));}},
+   events:{noted(params,_context){log.events++;log.observations.push('noted:'+String(params.value));}},
   };
  };
 }
 function clientImplementation<T>(log:State):Client<T>{
  return {
   methods:{mirror(params,_context){log.reverse++;log.observations.push('mirror:'+String(params.value));return params.value;}},
-  events:{noted(params,_context){log.events++;log.observations.push('noted:'+String(params.value));}},
+  events:{changed(params,_context){log.events++;log.observations.push('changed:'+String(params.value));}},
  };
 }
 async function serverRoute(roundtrip:boolean){
@@ -100,7 +100,7 @@ async function serverRoute(roundtrip:boolean){
   if(roundtrip){
    wire=binding.toWire(factory,context,adapterCount());
    check(log.factories===1,'toWire did not construct exactly one server model');
-   const restored:ServerModel<number>=binding.fromWire(wire,context,adapterCount());
+   const restored:ServerModel<number>=await binding.fromWire(wire,context,adapterCount());
    model=restored(opposite);
    rejectTwice(()=>restored(clientImplementation<number>(log)));
   }else model=factory(opposite);
@@ -108,7 +108,7 @@ async function serverRoute(roundtrip:boolean){
   check(await model.methods.put({value:41},callContext)===41,'first put');
   await delivered(()=>log.events===1);
   check(await model.methods.get({},callContext)===41,'state after first put');
-  await model.events.changed({value:7},callContext);
+  await model.events.noted({value:7},callContext);
   await delivered(()=>log.events===2);
   check(await model.methods.put({value:42})===42,'optional context put');
   await delivered(()=>log.events===3);
@@ -122,8 +122,8 @@ function clientModel<T>(log:State):ClientModel<T>{
  return remote=>{
   log.factories++;
   return {
-   methods:{async mirror(params,context){log.observations.push('mirror:'+String(params.value));const current=await remote.methods.get({},context);await remote.events.changed(params,context);return current;}},
-   events:{noted(params,_context){log.events++;log.observations.push('noted:'+String(params.value));}},
+   methods:{async mirror(params,context){log.observations.push('mirror:'+String(params.value));const current=await remote.methods.get({},context);await remote.events.noted(params,context);return current;}},
+   events:{changed(params,_context){log.events++;log.observations.push('changed:'+String(params.value));}},
   };
  };
 }
@@ -131,7 +131,7 @@ function serverImplementation<T>(log:State,initial:T):Server<T>{
  let held=initial;
  return {
   methods:{put(params,_context){held=params.value;return held;},get(_params,_context){log.reverse++;log.observations.push('get:'+String(held));return held;}},
-  events:{changed(params,_context){held=params.value;log.events++;log.observations.push('changed:'+String(held));}},
+  events:{noted(params,_context){held=params.value;log.events++;log.observations.push('noted:'+String(held));}},
  };
 }
 async function clientRoute(roundtrip:boolean){
@@ -141,15 +141,15 @@ async function clientRoute(roundtrip:boolean){
   if(roundtrip){
    wire=client.toWire(factory,context,adapterCount());
    check(log.factories===1,'toWire did not construct exactly one client model');
-   const restored:ClientModel<number>=client.fromWire(wire,context,adapterCount());
+   const restored:ClientModel<number>=await client.fromWire(wire,context,adapterCount());
    model=restored(opposite);
    rejectTwice(()=>restored(serverImplementation(log,99)));
   }else model=factory(opposite);
   check(await model.methods.mirror({value:20},callContext)===10,'client reverse call observed initial server state');
   await delivered(()=>log.events===1);
-  await model.events.noted({value:30},callContext);
+  await model.events.changed({value:30},callContext);
   await delivered(()=>log.events===2);
-  check(await model.methods.mirror({value:40})===20,'client reverse event changed server state');
+  check(await model.methods.mirror({value:40})===20,'client reverse event noted server state');
   await delivered(()=>log.events===3);
   check(log.factories===1&&log.reverse===2&&log.events===3,'client factory or callback multiplicity');
   return log;

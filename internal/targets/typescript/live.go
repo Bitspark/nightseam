@@ -2,7 +2,6 @@ package typescript
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/naming"
@@ -425,39 +424,6 @@ func (f *file) liveConversion(e model.TypeExpr, src string, export bool) string 
 	return f.liveExpr(e, src, export)
 }
 
-// liveScope locates the connection carrying the live values.
-func (f *file) liveScope() string {
-	return "const scope = scopeOf(this." + identPeer + "); if (!scope) throw new DuplexError('scope_closed', 'the connection carries no live scope');"
-}
-
-// liveOwner selects the caller's lifetime or gives an incoming handler a
-// child it can retain and release after the operation returns.
-func (f *file) liveOwner(incoming bool, parts ...model.TypeExpr) string {
-	var conditions []string
-	for _, part := range parts {
-		live := f.boundaryLive(part)
-		if live == "true" {
-			conditions = []string{"true"}
-			break
-		}
-		if live != "false" {
-			conditions = append(conditions, live)
-		}
-	}
-	if len(parts) > 0 && len(conditions) > 0 && conditions[0] != "true" {
-		condition := "(" + strings.Join(conditions, " || ") + ")"
-		prefix := "const scope = " + condition + " ? scopeOf(this." + identPeer + ") : undefined; if (" + condition + " && !scope) throw new DuplexError('scope_closed', 'the connection carries no live scope');"
-		if incoming {
-			return prefix + " const owner = scope?.owner().child(); const ownedContext = { ...context, ...(owner ? {owner} : {}) } as " + f.lifetimeType("RequestContext", "ValueContext", parts...) + ";"
-		}
-		return prefix + " const selectedOwner = (options as {owner?: LiveOwner} | undefined)?.owner; const owner = scope ? (selectedOwner?.scope === scope ? selectedOwner : scope.owner()) : undefined;"
-	}
-	if incoming {
-		return f.liveScope() + " const owner = scope.owner().child(); const ownedContext = { ...context, owner };"
-	}
-	return f.liveScope() + " const owner = options?.owner?.scope === scope ? options.owner : scope.owner();"
-}
-
 // liveNeeded reports whether an operation carries callables in either
 // direction.
 func (f *file) liveNeeded(parts ...model.TypeExpr) bool {
@@ -467,8 +433,4 @@ func (f *file) liveNeeded(parts ...model.TypeExpr) bool {
 		}
 	}
 	return false
-}
-
-func (f *file) liveEventOwner(parts ...model.TypeExpr) string {
-	return strings.ReplaceAll(f.liveOwner(true, parts...), "RequestContext", "EventContext")
 }

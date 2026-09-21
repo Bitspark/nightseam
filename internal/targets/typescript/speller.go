@@ -54,20 +54,20 @@ func (t *target) Invoke(f *render.Family, side, op string) spi.Invocation {
 		if side == "client" {
 			return spi.Invocation{Handle: scaffoldSignature(p, m)}
 		}
-		args := ""
+		args := "{}"
 		if m.Request != nil {
 			args = "params"
 		}
-		return spi.Invocation{Call: "await client." + p.operations[op] + "(" + args + ")"}
+		return spi.Invocation{Call: "await server.methods." + p.operations[op] + "(" + args + ")"}
 	}
 	for _, e := range operations.Events {
 		if e.Name != op {
 			continue
 		}
 		if side == "server" {
-			return spi.Invocation{Call: "client." + identOn + upperFirst(p.operations[op]) + "(handler)"}
+			return spi.Invocation{Handle: p.operations[op] + "(data, context)"}
 		}
-		return spi.Invocation{Call: "await client." + identEmit + upperFirst(p.operations[op]) + "(data)"}
+		return spi.Invocation{Call: "await server.events." + p.operations[op] + "(data)"}
 	}
 	return spi.Invocation{}
 }

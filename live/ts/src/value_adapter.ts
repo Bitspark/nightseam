@@ -1,5 +1,11 @@
-import type { TypeBinding } from '@nightseam/runtime';
-import type { LiveOwner } from './index.ts';
+import type { AdapterContext as RuntimeAdapterContext, TypeBinding } from '@nightseam/runtime';
+import type { LiveOwner, LiveScope } from './index.ts';
+
+/** Explicit lifetime environment; selection and mounting never infer its scope. */
+export interface AdapterContext extends RuntimeAdapterContext {
+  readonly scope?: LiveScope;
+  readonly owner?: LiveOwner;
+}
 
 /** A reusable value conversion; each invocation supplies its active owner. */
 export interface ValueAdapter<T> {
