@@ -247,3 +247,83 @@ class WireHelperTests(unittest.IsolatedAsyncioTestCase):
                 profile_frame(frame, "1:x")
         with self.assertRaises(PublicError):
             profile_frame({"version": 1, "kind": "event", "data": "x" * 100}, "1:x", 20)
+
+    async def test_observer_distinguishes_local_cancellation_from_same_code_refusal_once(self):
+        for local in (True, False):
+            observed, wire = [], StubWire()
+            context = RequestContext(None)
+            if not local:
+                wire.on_send = lambda path, message: response(message, error=PublicError("cancelled", "public"))
+            task = asyncio.create_task(
+                call_wire(
+                    wire,
+                    ["read"],
+                    {"secret": "hidden"},
+                    context=context,
+                    meta={"credential": "hidden"},
+                    observer=observed.append,
+                    family="family",
+                )
+            )
+            await asyncio.sleep(0)
+            if local:
+                context.cancelled.set()
+            with self.assertRaises(PublicError) as caught:
+                await task
+            self.assertEqual(caught.exception.code, "cancelled")
+            ended = [event for event in observed if event["type"] == "request.ended"]
+            self.assertEqual(len(ended), 1)
+            self.assertEqual(ended[0]["outcome"], "cancelled" if local else "error")
+            self.assertEqual(ended[0]["family"], "family")
+            self.assertEqual(ended[0]["method"], "4:read")
+            self.assertNotIn("hidden", str(observed))
+            self.assertEqual([event["type"] for event in observed], ["request.started", "request.ended"])
+
+    async def test_observers_cannot_interrupt_traffic_and_concurrent_ids_do_not_collide(self):
+        wire = StubWire()
+        wire.on_send = lambda path, message: response(message, 1)
+
+        def throwing(event):
+            raise ValueError("observer failure")
+
+        self.assertEqual(await call_wire(wire, ["read"], observer=throwing), 1)
+        observed = []
+        self.assertEqual(
+            await asyncio.gather(*(call_wire(wire, ["read"], observer=observed.append) for _ in range(4))), [1] * 4
+        )
+        identities = [event["id"] for event in observed if event["type"] == "request.started"]
+        self.assertEqual(len(set(identities)), 4)
+
+    async def test_cancel_refusal_never_replaces_local_timeout(self):
+        wire = StubWire()
+
+        def full_on_cancel(path, message):
+            if message.frame["kind"] == "cancel":
+                raise PublicError("busy", "no room for best-effort cancellation")
+
+        wire.on_send = full_on_cancel
+        with self.assertRaises(PublicError) as caught:
+            await call_wire(wire, ["hold"], timeout_ms=10)
+        self.assertEqual(caught.exception.code, "request_timeout")
+
+    async def test_handler_observer_reports_bounded_fallback_and_cancelled_lifetime(self):
+        wire, returning = StubWire(), StubWire()
+        returning.on_send = lambda path, message: profile_frame(message.frame, "", 180)
+        observed = []
+        register_wire(wire, ["read"], WireHandlers(request=lambda value, context: "x" * 1000, observer=observed.append))
+        await wire.registrations[0][1].message([], request(ReturnAddress(returning)))
+        self.assertEqual(observed[-1]["outcome"], "error")
+        self.assertEqual(observed[-1]["error_code"], "internal")
+
+        wire, observed = StubWire(), []
+        invoked = []
+        detach = register_wire(
+            wire, ["read"], WireHandlers(request=lambda value, context: invoked.append(value), observer=observed.append)
+        )
+        lifetime = wire.registrations[0][1].message([], request(ReturnAddress(returning)))
+        detach()
+        detach()
+        await lifetime
+        self.assertEqual(invoked, [])
+        self.assertEqual(wire.removed, 1)
+        self.assertEqual(observed[-1]["outcome"], "cancelled")
