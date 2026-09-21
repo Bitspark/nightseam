@@ -127,8 +127,8 @@ func compare(method string, expected, actual any, expectedErr, actualErr error, 
 }
 
 // Pair presents one fresh model over a frame pipe by default. The returned factory is bound once.
-func Pair[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, model protocol.ServerModel[SEnvelope, SHandle, Item], options Options, adapterItem runtime.ValueAdapter[Item]) (protocol.ServerModel[SEnvelope, SHandle, Item], func(), error) {
-	wire, err := adapter.ToWire[SEnvelope, SHandle, Item](model, options.Context, adapterItem)
+func Pair[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, model protocol.ServerModel[SEnvelope, SHandle, Item], options Options, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) (protocol.ServerModel[SEnvelope, SHandle, Item], func(), error) {
+	wire, err := adapter.ToWire[SEnvelope, SHandle, Item](model, options.Context, adapterSEnvelope, adapterSHandle, adapterItem)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -150,7 +150,7 @@ func Pair[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag a
 		}
 		_ = wire.Close(1000, "")
 	})
-	complete, unbind, err := adapter.PrepareFromWire[SEnvelope, SHandle, Item](view, options.RemoteContext, adapterItem)
+	complete, unbind, err := adapter.PrepareFromWire[SEnvelope, SHandle, Item](view, options.RemoteContext, adapterSEnvelope, adapterSHandle, adapterItem)
 	if err != nil {
 		close()
 		return nil, nil, err
@@ -246,7 +246,7 @@ func (o observingMethods[SEnvelope, SHandle, Item]) Relay(ctx context.Context, p
 	}
 	return o.inner.Relay(ctx, params)
 }
-func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, model protocol.ServerModel[SEnvelope, SHandle, Item], opposite protocol.Client[SEnvelope, SHandle, Item], options Options, adapterItem runtime.ValueAdapter[Item]) error {
+func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, model protocol.ServerModel[SEnvelope, SHandle, Item], opposite protocol.Client[SEnvelope, SHandle, Item], options Options, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) error {
 	if model == nil {
 		return fmt.Errorf("model factory is required")
 	}
@@ -282,7 +282,7 @@ func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag 
 		}
 		return value, err
 	}
-	paired, stop, err := Pair[SEnvelope, SHandle, Item](ctx, observed, options, adapterItem)
+	paired, stop, err := Pair[SEnvelope, SHandle, Item](ctx, observed, options, adapterSEnvelope, adapterSHandle, adapterItem)
 	if err != nil {
 		return err
 	}
@@ -471,14 +471,14 @@ func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag 
 				return fmt.Errorf("input relay has the wrong native type")
 			}
 		} else {
-			if adapterItem.NeedsContext {
+			if adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext || adapterItem.NeedsContext {
 				return fmt.Errorf("input relay needs a caller-supplied native value")
 			}
 			if err := json.Unmarshal([]byte("{\"message\":{\"version\":0,\"kind\":\"‹kind›\",\"id\":\"‹id›\",\"method\":\"‹method›\",\"params\":{},\"result\":{},\"error\":{},\"event\":\"‹event›\",\"data\":{},\"traceparent\":\"‹traceparent›\",\"tracestate\":\"‹tracestate›\",\"meta\":{\"‹key›\":\"‹meta›\"}},\"back\":{\"channel\":0},\"page\":{\"items\":[\"‹items›\"],\"next\":\"‹next›\"}}"), &input); err != nil {
 				return fmt.Errorf("input relay unavailable for this instantiation: %w", err)
 			}
 		}
-		if options.Equal == nil && (adapterItem.NeedsContext) {
+		if options.Equal == nil && (adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext || adapterItem.NeedsContext) {
 			return fmt.Errorf("relay: requires an Equal observer for live values")
 		}
 		mutex.Lock()

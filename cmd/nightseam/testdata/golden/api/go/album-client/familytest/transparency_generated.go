@@ -126,8 +126,8 @@ func compare(method string, expected, actual any, expectedErr, actualErr error, 
 }
 
 // Pair presents one fresh model over a frame pipe by default. The returned factory is bound once.
-func Pair[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, model protocol.ClientModel[AEnvelope, BEnvelope], options Options) (protocol.ClientModel[AEnvelope, BEnvelope], func(), error) {
-	wire, err := adapter.ToWire[AEnvelope, BEnvelope](model, options.Context)
+func Pair[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, model protocol.ClientModel[AEnvelope, BEnvelope], options Options, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) (protocol.ClientModel[AEnvelope, BEnvelope], func(), error) {
+	wire, err := adapter.ToWire[AEnvelope, BEnvelope](model, options.Context, adapterAEnvelope, adapterBEnvelope)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -149,7 +149,7 @@ func Pair[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any
 		}
 		_ = wire.Close(1000, "")
 	})
-	complete, unbind, err := adapter.PrepareFromWire[AEnvelope, BEnvelope](view, options.RemoteContext)
+	complete, unbind, err := adapter.PrepareFromWire[AEnvelope, BEnvelope](view, options.RemoteContext, adapterAEnvelope, adapterBEnvelope)
 	if err != nil {
 		close()
 		return nil, nil, err
@@ -195,7 +195,7 @@ type observingMethods[AEnvelope, BEnvelope any] struct {
 	check func(string, any) error
 }
 
-func Smoke[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, model protocol.ClientModel[AEnvelope, BEnvelope], opposite protocol.Server[AEnvelope, BEnvelope], options Options) error {
+func Smoke[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, model protocol.ClientModel[AEnvelope, BEnvelope], opposite protocol.Server[AEnvelope, BEnvelope], options Options, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) error {
 	if model == nil {
 		return fmt.Errorf("model factory is required")
 	}
@@ -228,7 +228,7 @@ func Smoke[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag an
 		}
 		return value, err
 	}
-	paired, stop, err := Pair[AEnvelope, BEnvelope](ctx, observed, options)
+	paired, stop, err := Pair[AEnvelope, BEnvelope](ctx, observed, options, adapterAEnvelope, adapterBEnvelope)
 	if err != nil {
 		return err
 	}

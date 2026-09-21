@@ -31,6 +31,7 @@ public final class SeamTest {
     private interface Action { void run() throws Exception; }
 
     public static void main(String[] args) throws Exception {
+        closeHandshake();
         transports("pipe", limit -> Pipe.pair(limit, 8));
         transports("WebSocket", limit -> {
             try (WebSocketTransport.Listener listener = WebSocketTransport.listen(limit, List.of("nightseam-test"))) {
@@ -47,6 +48,39 @@ public final class SeamTest {
         nativeClientProtocol();
         jdkInteroperation();
         System.out.println("Java seam: pipe, WebSocket, RFC6455 and path views passed");
+    }
+
+    private static void closeHandshake() throws Exception {
+        try (WebSocketTransport.Listener listener = WebSocketTransport.listen(1024, List.of()); Socket raw = upgrade(listener)) {
+            Connection connection = listener.accept(WAIT);
+            try {
+                // A consumer may release transport resources as soon as closed
+                // completes. That callback must not discard the close reply.
+                connection.closed().thenRun(connection::abort);
+                rawFrame(raw.getOutputStream(), 8, true, true, new byte[] { 3, (byte) 0xe8 });
+                equal(raw.getInputStream().read(), 0x88, "remote close acknowledged before callback");
+                equal(raw.getInputStream().read(), 2, "close acknowledgment length");
+                equal(raw.getInputStream().read(), 3, "close acknowledgment code high");
+                equal(raw.getInputStream().read(), 0xe8, "close acknowledgment code low");
+                equal(connection.closed().get(5, TimeUnit.SECONDS).code(), 1000, "chosen remote close code");
+            } finally { connection.abort(); }
+        }
+        for (boolean acknowledge : List.of(true, false)) {
+        try (WebSocketTransport.Listener listener = WebSocketTransport.listen(1024, List.of()); Socket raw = upgrade(listener)) {
+            Connection connection = listener.accept(WAIT);
+            try {
+                connection.close(1000, "");
+                equal(raw.getInputStream().read(), 0x88, "local close frame");
+                equal(raw.getInputStream().read(), 2, "local close length");
+                equal(raw.getInputStream().read(), 3, "local close code high");
+                equal(raw.getInputStream().read(), 0xe8, "local close code low");
+                check(!connection.closed().isDone(), "local close waits for acknowledgment");
+                if (acknowledge) rawFrame(raw.getOutputStream(), 8, true, true, new byte[] { 3, (byte) 0xe8 });
+                equal(connection.closed().get(5, TimeUnit.SECONDS).code(), 1000, "chosen local close code");
+                equal(raw.getInputStream().read(), -1, "close sent once before socket shutdown");
+            } finally { connection.abort(); }
+        }
+        }
     }
 
     private static void transports(String name, Connect connect) throws Exception {

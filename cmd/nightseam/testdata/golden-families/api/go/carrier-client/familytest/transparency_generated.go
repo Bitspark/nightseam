@@ -126,8 +126,8 @@ func compare(method string, expected, actual any, expectedErr, actualErr error, 
 }
 
 // Pair presents one fresh model over a frame pipe by default. The returned factory is bound once.
-func Pair[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, model protocol.ClientModel[SEnvelope, SHandle], options Options) (protocol.ClientModel[SEnvelope, SHandle], func(), error) {
-	wire, err := adapter.ToWire[SEnvelope, SHandle](model, options.Context)
+func Pair[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, model protocol.ClientModel[SEnvelope, SHandle], options Options, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle]) (protocol.ClientModel[SEnvelope, SHandle], func(), error) {
+	wire, err := adapter.ToWire[SEnvelope, SHandle](model, options.Context, adapterSEnvelope, adapterSHandle)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -149,7 +149,7 @@ func Pair[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx co
 		}
 		_ = wire.Close(1000, "")
 	})
-	complete, unbind, err := adapter.PrepareFromWire[SEnvelope, SHandle](view, options.RemoteContext)
+	complete, unbind, err := adapter.PrepareFromWire[SEnvelope, SHandle](view, options.RemoteContext, adapterSEnvelope, adapterSHandle)
 	if err != nil {
 		close()
 		return nil, nil, err
@@ -195,7 +195,7 @@ type observingMethods[SEnvelope, SHandle any] struct {
 	check func(string, any) error
 }
 
-func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, model protocol.ClientModel[SEnvelope, SHandle], opposite protocol.Server[SEnvelope, SHandle], options Options) error {
+func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx context.Context, model protocol.ClientModel[SEnvelope, SHandle], opposite protocol.Server[SEnvelope, SHandle], options Options, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle]) error {
 	if model == nil {
 		return fmt.Errorf("model factory is required")
 	}
@@ -228,7 +228,7 @@ func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], STag any](ctx c
 		}
 		return value, err
 	}
-	paired, stop, err := Pair[SEnvelope, SHandle](ctx, observed, options)
+	paired, stop, err := Pair[SEnvelope, SHandle](ctx, observed, options, adapterSEnvelope, adapterSHandle)
 	if err != nil {
 		return err
 	}
