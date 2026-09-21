@@ -26,8 +26,8 @@ inline callable expressions. Naming and nominality are not logically
 inseparable — a language could name callables yet compare normalized
 signatures, or give inline callables explicit identities — and Nightseam
 chooses neither of those combinations. Its named declaration supplies a
-direct, shared spelling for the nominal wire contract without specifying a
-structural signature digest.
+direct, shared spelling for the nominal wire contract rather than identifying
+callables solely by their structural signatures.
 
 The check distinguishes wire contract names. What it does not reach — native
 assignment, and what the path says about a signature that changed under it —
@@ -83,13 +83,23 @@ position rather than recovering a semantic identity from the function. The
 guarantee is nominal wire checking, not end-to-end nominal typing of native
 values.
 
-The contract path contains no signature fingerprint and no version. Moving or
-renaming a callable changes its wire identity; retaining the path while
-changing its signature leaves the identity string unchanged. Equality of that
-string therefore establishes no compatibility between incompatible signature
-revisions. Argument and result validation still applies, but a future
-contract-evolution strategy needs its own deliberate decision, and this one
-introduces neither host-type branding nor versioned identities.
+The contract-evolution decision reserved here was made in
+[#292](https://github.com/Bitspark/nightseam/issues/292#issuecomment-5753285816):
+declaration identity is `(path, digest)`, strict. The generator derives the
+SHA-256 digest from the family's rendered wire description and supplies it
+through `WireDigest()` in Go and `wireDigest` in TypeScript. Moving or renaming
+a callable still changes its nominal contract; retaining its path while the
+rendered description changes now produces a different digest. If the reference
+and its expected declaration both specify digests and those digests differ,
+import refuses `contract_mismatch` before allocating an attachment or invoking
+an implementation. An absent digest makes no revision claim.
+
+Even an optional member added to the description is a different identity.
+Which revisions may be used together is a consumer's compatibility policy;
+the core comparison does not infer it from assignability or successful value
+validation. Argument and result validation still applies. The digest does not
+brand native function values, authenticate a peer or prove how an implementation
+behaves.
 
 `worker` in the generator's corpus is the whole of #196's example — a supplied
 `ProgressSink`, a returned `Job`, callables in a record, a union, an array, a
@@ -107,4 +117,8 @@ it with `contract_mismatch`. Together with the shared runtime case *a contract
 the binding does not carry is refused* in
 [Go](../../live/go/livetest/conformance.go) and
 [TypeScript](../../live/ts/src/conformance.ts), this holds both the accepted
-native assignment and the rejected mismatched descriptor.
+native assignment and the rejected mismatched descriptor. The same test also
+generates two revisions of one family, differing only by an optional member,
+and holds digest agreement and refusal through both generated languages over
+a real socket. The shared [digest vectors](../../conformance/tables/digests.json)
+hold the generator's bytes and both runtime validators to one identity.
