@@ -120,6 +120,20 @@ test("an issue that declared None is silent however the reason is worded", () =>
   assert.equal(changelogNote({ number: 3, body: "### Changelog\n\nNone.\n" }, ["runtime/go/peer.go"]), "");
 });
 
+test("a lane that declared an entry is not noted for the changelog it must land", () => {
+  // Dogfooding #378 on its own PR: the Changelog field makes CHANGELOG.md a
+  // file the lane has to touch, so noting it would be noise this check made.
+  assert.equal(scopeNote({ number: 378, body: declares }, ["CHANGELOG.md", "runtime/go"]), "");
+  const note = scopeNote({ number: 378, body: declares }, ["CHANGELOG.md", "otel/go"]);
+  assert.match(note, /changes `otel\/go`/);
+  assert.doesNotMatch(note, /CHANGELOG\.md/);
+});
+
+test("a lane that declared None is still noted for touching the changelog", () => {
+  const note = scopeNote({ number: 2, body: declines }, ["CHANGELOG.md"]);
+  assert.match(note, /changes `CHANGELOG\.md`/);
+});
+
 test("an issue with no Changelog field is silent, unlike one naming no Touches", () => {
   // Every issue in the tree predates the field. A check that fired on all of
   // them would be turned off the day it landed.

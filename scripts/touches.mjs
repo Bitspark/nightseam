@@ -76,7 +76,13 @@ export function scopeNote(issue, areas) {
   if (!paths.length) {
     return `Scope note (not a refusal): #${issue.number} names no **Touches**, so the ${areas.length} ${areas.length === 1 ? "area" : "areas"} this PR changes (${tick(areas)}) were held against nothing. Add the line to the issue so the next lane through these files can be.`;
   }
-  const outside = areas.filter(area => !paths.some(path => area.startsWith(path) || path.startsWith(area)));
+  // A lane that declared a changelog entry declared `CHANGELOG.md` with it:
+  // the entry has to land somewhere. Noting every such lane for the one file
+  // its own Changelog field promised would be noise this check itself created,
+  // which is what dogfooding #378 on its own pull request showed. The note
+  // still names only the paths the issue wrote, never this implied one.
+  const scope = declared(issue.body) === "entry" ? [...paths, "CHANGELOG.md"] : paths;
+  const outside = areas.filter(area => !scope.some(path => area.startsWith(path) || path.startsWith(area)));
   if (!outside.length) return "";
   return `Scope note (not a refusal): this PR changes ${tick(outside)}, which #${issue.number}'s **Touches** does not name (${tick(paths)}). If that is right, fine — say so in a line here so the next reader knows it was meant; if it is another lane's file, take it out.`;
 }
