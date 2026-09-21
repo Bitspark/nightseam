@@ -24,7 +24,7 @@ const client = model({
   methods: { reverse: ({ text, count }: Payload): Payload => ({ text: [...text].reverse().join(''), count }) },
   events: { changed: onChanged },
 });
-await peer.dial(url);
+await peer.connect(url);
 
 const result = await client.methods.echo({ text: 'hello', count: 1 });
 
