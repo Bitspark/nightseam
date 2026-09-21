@@ -97,6 +97,18 @@ The input side: the tier files, the tool, and what comes out.
 | [rust.md](languages/rust.md) | Rust core crates, checkout use, Cargo packaging and the outside WebSocket consumer smoke |
 | [python.md](languages/python.md) | Python 3.11+, installing the source or wheel, using an asyncio peer and checking the installed distribution |
 
+## What an authority proves — `auth/`
+
+The optional rooted-grant profile: what a consumer that opts in signs,
+carries and checks, in bytes both verifiers are held to. Bare data and RPC
+need none of it. The contracts are specified here before either verifier
+is written; a page is the packet its issue owes, and its table is what the
+implementations are held to.
+
+| page | what |
+| --- | --- |
+| [grant.md](auth/grant.md) | the grant: an Archon envelope in the `nightseam-grant/1` domain around a canonical body — subject, parent digest, scope, actions, delegable, depth, validity — the chain, the order it is held in and each refusal, issuance and inherit, the bounds, the interface both verifiers export, and the table of 72 cases |
+
 ## Why it is this way — `decisions/`
 
 The record of what was decided and why, one page per decision: the
