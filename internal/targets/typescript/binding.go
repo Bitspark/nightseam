@@ -83,6 +83,8 @@ func emitWireAdapter(f *file, side, protocol string) {
 	}
 	f.w.Block(fmt.Sprintf("function makeAdapter%s(context: AdapterContext%s) {", decl, binding), "}", func() {
 		f.line("const observer = context.options?.observer;")
+		f.line("const propagator = context.options?.propagator;")
+		f.line("const requestTimeoutMs = context.options?.requestTimeoutMs;")
 		f.linef("const bindings = { %s };", strings.Join(pass, ", "))
 		f.linef("const slots: Slots = { %s };", strings.Join(values, ", "))
 		if live {
@@ -147,7 +149,7 @@ func (f *file) emitWireProxy(side, args string) {
 			f.w.Block("methods: {", "},", func() {
 				for _, m := range methods {
 					f.w.Block(fmt.Sprintf("async %s(params, context) {", f.plan.operations[m.Name]), "},", func() {
-						f.linef("const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs, meta: context?.outgoingMeta, observer, family: %s };", quote(f.family.Name))
+						f.linef("const options = { context, signal: context?.signal, timeoutMs: context?.timeoutMs ?? requestTimeoutMs, meta: context?.outgoingMeta, observer, propagator, family: %s };", quote(f.family.Name))
 						if f.liveNeeded(m.Request, m.Result) {
 							f.line(f.wireOwner(false, m.Request, m.Result))
 							f.linef("const result = await %s;", f.livePublish(m.Request, "params", slots, fmt.Sprintf("callWire(wire, [%s], %%s, options)", quote(m.Name))))
@@ -165,7 +167,7 @@ func (f *file) emitWireProxy(side, args string) {
 			f.w.Block("events: {", "},", func() {
 				for _, e := range events {
 					f.w.Block(fmt.Sprintf("async %s(data, context) {", f.plan.operations[e.Name]), "},", func() {
-						f.linef("const options = { context, meta: context?.outgoingMeta, observer, family: %s };", quote(f.family.Name))
+						f.linef("const options = { context, meta: context?.outgoingMeta, observer, propagator, family: %s };", quote(f.family.Name))
 						if f.liveNeeded(e.Type) {
 							f.line(f.wireOwner(false, e.Type))
 							f.linef("await %s;", f.livePublish(e.Type, "data", slots, fmt.Sprintf("(async () => { emitWire(wire, [%s], %%s, options); })()", quote(e.Name))))
