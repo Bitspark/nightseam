@@ -45,3 +45,47 @@ func TestCallableApplicationKeepsOriginAndSubstitutesSignature(t *testing.T) {
 		t.Fatalf("nominal application lost arguments: %+v", got.Arguments)
 	}
 }
+
+func TestCallableAliasViewKeepsPublicNameAndOriginalApplication(t *testing.T) {
+	world := analysis.World(modeltest.World(map[string]map[string]string{
+		"functions": {
+			"model.json":    `{"nightseam":2}`,
+			"protocol.json": modeltest.Protocol(``),
+			"live.json":     `{"types":{"Function":{"kind":"callable","parameters":[{"name":"A"},{"name":"B"}],"request":"A","result":"B"}}}`,
+		},
+		"payload": {"model.json": `{"nightseam":2,"types":{"Input":{"kind":"record","fields":[]}}}`},
+		"consumer": {
+			"model.json":    `{"nightseam":2}`,
+			"protocol.json": modeltest.Protocol(``),
+			"live.json": `{"imports":["functions","payload"],"types":{
+				"Closed":{"kind":"alias","type":{"apply":"functions.Function","with":{"A":"payload.Input","B":{"array":"integer"}}}},
+				"Twice":{"kind":"alias","type":"Closed"},
+				"Generic":{"kind":"alias","parameters":[{"name":"X"}],"type":{"apply":"functions.Function","with":{"A":"X","B":"string"}}}
+			}}`,
+		},
+	}))
+	family := Build(analysis.Resolve(world, "consumer"))
+	for _, name := range []string{"Closed", "Twice", "Generic"} {
+		original := family.Type(name)
+		view, ok := family.CallableView(original)
+		if !ok {
+			t.Fatalf("%s was not resolved as callable", name)
+		}
+		if view.Name != name || view.Declaration != original.Declaration || view.Kind != model.KindCallable || view.Origin.Family != "functions" || view.Origin.Declaration != "Function" || len(view.Arguments) != 2 {
+			t.Fatalf("alias metadata lost public declaration or nominal application: %+v", view)
+		}
+		if !reflect.DeepEqual(view.Uses, original.Uses) || !reflect.DeepEqual(view.Parameters, original.Parameters) {
+			t.Fatalf("alias lost its own type scope: %+v", view)
+		}
+		if name == "Generic" {
+			if !reflect.DeepEqual(view.Request, model.Named{Name: "X"}) || !reflect.DeepEqual(view.Result, model.Primitive("string")) {
+				t.Fatalf("generic alias signature: %#v -> %#v", view.Request, view.Result)
+			}
+		} else if !reflect.DeepEqual(view.Request, model.Imported{Family: "payload", Name: "Input"}) || !reflect.DeepEqual(view.Result, model.Array{Elem: model.Primitive("integer")}) {
+			t.Fatalf("closed alias signature: %#v -> %#v", view.Request, view.Result)
+		}
+		if original.Kind != model.KindAlias {
+			t.Fatal("view mutated source declaration")
+		}
+	}
+}
