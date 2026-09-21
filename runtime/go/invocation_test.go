@@ -406,6 +406,38 @@ func TestSequentialCompletionsBeyondCapacityRetainNothing(t *testing.T) {
 	}
 }
 
+// A bound the runtime's own facility keeps is a busy refusal: something to
+// try again at, not a request that was malformed.
+func TestATraversalPastTheCaptureBoundIsRefusedAsBusy(t *testing.T) {
+	endpoint := newInvocationEndpoint(ws.InvocationLimits{Captures: 1, Bodies: 8})
+	outer, err := ws.NewDispatcher(endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner, err := ws.NewDispatcher(outer.Select([]string{"a"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	delivered := make(chan struct{}, 1)
+	if _, err := inner.Register([]string{"read"}, duplex.Receiver{Message: func([]string, duplex.Message) { delivered <- struct{}{} }}); err != nil {
+		t.Fatal(err)
+	}
+	_, outcome := endpoint.admit([]string{"a", "read"}, nil)
+	select {
+	case answer := <-outcome:
+		if answer.Frame.Error == nil || answer.Frame.Error.Code != "busy" {
+			t.Fatalf("a traversal past the bound answered %+v", answer.Frame.Error)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no refusal")
+	}
+	select {
+	case <-delivered:
+		t.Fatal("the inner receiver was reached past the bound")
+	default:
+	}
+}
+
 func TestADispatcherRefusesAnInvocationWithoutALifecycle(t *testing.T) {
 	endpoint := newInvocationEndpoint(ws.DefaultInvocationLimits())
 	dispatch, err := ws.NewDispatcher(endpoint)

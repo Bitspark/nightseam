@@ -266,6 +266,26 @@ test('sequential completions beyond capacity retain nothing', async () => {
   assert.equal(endpoint.retirements, 32);
 });
 
+test('a traversal past the capture bound is refused as busy', async () => {
+  const endpoint = new LedgerEndpoint({ captures: 1, bodies: 8 });
+  const outer = createDispatcher(endpoint);
+  const inner = createDispatcher(outer.select(['a']));
+  let routed = false;
+  inner.register(['read'], {
+    message() {
+      routed = true;
+    },
+  });
+  const { id } = endpoint.admit(['a', 'read']);
+  await settled();
+  assert.equal(routed, false, 'the inner receiver was reached past the bound');
+  const outcomes = endpoint.outcomes.get(id) ?? [];
+  assert.equal(outcomes.length, 1);
+  const outcome = outcomes[0]!.frame;
+  assert.equal(outcome.kind, 'response');
+  if (outcome.kind === 'response') assert.equal(outcome.error?.code, 'busy');
+});
+
 test('a dispatcher refuses an invocation whose return capability carries no lifecycle', async () => {
   const endpoint = new LedgerEndpoint();
   const dispatch = createDispatcher(endpoint);

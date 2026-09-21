@@ -322,6 +322,9 @@ test('a bound past which a traversal cannot capture refuses instead of routing',
   assert.equal(call.outcomes.length, 1);
   const outcome = call.outcomes[0]!.frame;
   assert.equal(outcome.kind, 'response');
+  // The refusal is this integration's own: a dispatcher reports `busy` for a
+  // bound it can recognize as one, and `invalid_message` for a refusal whose
+  // reason a facility did not spell in the agreed vocabulary.
   if (outcome.kind === 'response') assert.equal(outcome.error?.code, 'invalid_message');
   assert.ok(endpoint.refusals > 0, 'the bound was never exercised');
 });

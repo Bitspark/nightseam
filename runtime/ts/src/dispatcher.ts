@@ -1,7 +1,7 @@
 import { encodePath, WireError } from '@nightseam/duplex';
 import type { Endpoint, Message, Path, Receiver, Wire } from '@nightseam/duplex';
 import { DuplexError } from './error.ts';
-import { captureInvocation, relayInvocationControl } from './invocation.ts';
+import { InvocationError, captureInvocation, relayInvocationControl } from './invocation.ts';
 import { response } from './wire.ts';
 
 /** Registration authority; close releases this registry, never its borrowed carrier. */
@@ -109,11 +109,16 @@ export class WireDispatcher implements HandlerRegistry {
       capture = captureInvocation(message, (control) => {
         void registration.receiver.message?.([...delivered], control);
       });
-    } catch {
+    } catch (error) {
+      // A bound reached is a refusal to try again at; a capability that
+      // carries no lifecycle is a request this dispatcher cannot route with
+      // the guarantees it advertises.
       response(
         message,
         undefined,
-        new DuplexError('invalid_message', 'Invocation requires the lifecycle its return capability carries.'),
+        error instanceof InvocationError && error.code === 'limit'
+          ? new DuplexError('busy', 'Invocation participation limit reached.')
+          : new DuplexError('invalid_message', 'Invocation requires the lifecycle its return capability carries.'),
       );
       return;
     }

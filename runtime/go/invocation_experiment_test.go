@@ -547,8 +547,11 @@ func TestCaptureBoundRefusesRatherThanGrowing(t *testing.T) {
 	_, outcome := endpoint.admit([]string{"a", "read"}, nil)
 	select {
 	case answer := <-outcome:
-		if answer.Frame.Error == nil {
-			t.Fatal("a traversal past the capture bound was routed")
+		// The refusal is this integration's own: a dispatcher reports busy for
+		// a bound it can recognize as one, and invalid_message for a refusal
+		// whose reason a facility did not spell in the agreed vocabulary.
+		if answer.Frame.Error == nil || answer.Frame.Error.Code != "invalid_message" {
+			t.Fatalf("a traversal past the capture bound answered %+v", answer.Frame.Error)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("no refusal")

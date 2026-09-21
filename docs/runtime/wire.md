@@ -144,6 +144,10 @@ it rather than resolving a route, which is what keeps a detach or a rebind from
 retargeting an admitted request. A dispatcher refuses a request whose return
 capability carries no lifecycle, rather than routing it with weaker
 guarantees — generic addressed delivery remains usable without the facility.
+It reports `busy` for a bound it recognizes as one and `invalid_message`
+otherwise, so a refusal a facility did not spell in the agreed vocabulary is
+reported as what it is: a request this dispatcher cannot route with the
+guarantees it advertises.
 
 ## Ownership and bounds
 

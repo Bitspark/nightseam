@@ -154,7 +154,14 @@ func (d *Dispatcher) deliver(path []string, message duplex.Message) {
 		registration.receiver.Message(slices.Clone(delivered), control)
 	})
 	if err != nil {
-		_ = sendWireResponse(message, nil, &PublicError{Code: "invalid_message", Message: "Invocation requires the lifecycle its return capability carries"})
+		// A bound reached is a refusal to try again at; a capability that
+		// carries no lifecycle is a request this dispatcher cannot route with
+		// the guarantees it advertises.
+		refusal := &PublicError{Code: "invalid_message", Message: "Invocation requires the lifecycle its return capability carries"}
+		if errors.Is(err, ErrInvocationLimit) {
+			refusal = &PublicError{Code: "busy", Message: "Invocation participation limit reached"}
+		}
+		_ = sendWireResponse(message, nil, refusal)
 		return
 	}
 	defer capture.Ready()
