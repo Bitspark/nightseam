@@ -260,7 +260,12 @@ func TestWireHandlerPanicStaysPrivateAndObserved(t *testing.T) {
 	}
 }
 
-func (s *wireReplySink) Send(_ []string, message duplex.Message) error {
+// A return capability refuses what it does not implement, as every addressed
+// receiver in this profile does; this one carries outcomes and nothing else.
+func (s *wireReplySink) Send(path []string, message duplex.Message) error {
+	if len(path) != 0 {
+		return errors.New("this return capability carries outcomes only")
+	}
 	s.replies <- message.Frame
 	return nil
 }

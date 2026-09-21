@@ -71,6 +71,7 @@ type localWireCall struct {
 	returning    *duplex.ReturnAddress
 	registration *localRegistration
 	dispatch     *wireDispatchContext
+	invocation   *Invocation
 	cancel       context.CancelFunc
 	timer        *time.Timer
 	completed    bool
@@ -133,7 +134,7 @@ func (w *localWire) admit(path []string, message duplex.Message) error {
 			} else if len(w.calls) >= p.options.MaxPendingRequests {
 				delivery.refusal = &PublicError{Code: "busy", Message: "Outstanding call limit reached"}
 			} else {
-				call := &localWireCall{key: key, path: path, message: message}
+				call := &localWireCall{key: key, path: path, message: message, invocation: NewInvocation(DefaultInvocationLimits(), nil)}
 				call.returning = &duplex.ReturnAddress{Wire: &localReturn{wire: w, call: call}}
 				w.calls[key] = call
 				delivery.call, delivery.message.Return = call, call.returning
@@ -157,9 +158,8 @@ func (w *localWire) retireLocked(call *localWireCall) {
 		return
 	}
 	delete(w.calls, call.key)
-	if call.dispatch != nil {
-		call.dispatch.routes.retire()
-	}
+	call.invocation.Settle()
+	call.invocation.DispatchDone()
 }
 func (w *localWire) complete(call *localWireCall) {
 	w.pair.mu.Lock()
@@ -257,7 +257,6 @@ func (w *localWire) run() {
 					w.pair.observe(HandlerPanic{At: time.Now(), Method: name, Value: fmt.Sprint(value), Family: w.pair.options.Families[name]})
 				}}
 			}
-			call.dispatch.routes = newWireRouteContext()
 			call.timer = time.AfterFunc(w.pair.options.RequestTimeout, func() { w.timeout(call) })
 		}
 		w.pair.mu.Unlock()
@@ -404,9 +403,8 @@ func (p *localWirePair) end(code duplex.Code, reason string) {
 				call.responded = true
 			}
 			call.completed = true
-			if call.dispatch != nil {
-				call.dispatch.routes.retire()
-			}
+			call.invocation.Settle()
+			call.invocation.DispatchDone()
 		}
 		end.receiver = nil
 		end.calls = map[returnKey]*localWireCall{}
@@ -432,8 +430,16 @@ type localReturn struct {
 }
 
 func (r *localReturn) wireDispatch() *wireDispatchContext { return r.call.dispatch }
+
+// Invocation exposes this return capability's lifecycle to the pair that owns
+// it. Participants reach the same state through the vocabulary on Send.
+func (r *localReturn) Invocation() *Invocation { return r.call.invocation }
+
 func (r *localReturn) Send(path []string, message duplex.Message) (err error) {
-	if len(path) != 0 || message.Frame.Kind != duplex.ProfileResponse || message.Frame.ID != r.call.message.Frame.ID {
+	if len(path) != 0 {
+		return r.call.invocation.Deliver(path, message)
+	}
+	if message.Frame.Kind != duplex.ProfileResponse || message.Frame.ID != r.call.message.Frame.ID {
 		return errors.New("invalid wire response")
 	}
 	if err := validateWireFrame("", message.Frame, r.wire.pair.options.MaxFrameBytes); err != nil {
@@ -454,6 +460,7 @@ func (r *localReturn) Send(path []string, message duplex.Message) (err error) {
 	}
 	r.call.responded = true
 	r.wire.pair.mu.Unlock()
+	r.call.invocation.Settle()
 	message.Frame.Result = append(json.RawMessage(nil), message.Frame.Result...)
 	if message.Frame.Error != nil {
 		copied := *message.Frame.Error

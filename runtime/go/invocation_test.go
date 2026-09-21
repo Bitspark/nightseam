@@ -1,132 +1,487 @@
 package runtime_test
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Bitspark/nightseam/duplex/go"
 	ws "github.com/Bitspark/nightseam/runtime/go"
 )
 
-func TestInvocationRetirementNeedsBodyAndControlDrain(t *testing.T) {
-	for _, late := range []bool{false, true} {
-		var retired atomic.Int32
-		owner, routing, execution, err := ws.NewInvocation(ws.InvocationLimits{Captures: 3, Bodies: 1}, func() { retired.Add(1) })
-		if err != nil {
-			t.Fatal(err)
+// invocationEndpoint is an endpoint written against the public contract alone.
+// It admits requests, answers the invocation vocabulary out of its own ledger,
+// and imports nothing of Nightseam's but the vocabulary's paths. It is one of
+// the two independent integrations #439 requires.
+type invocationEndpoint struct {
+	mu          sync.Mutex
+	receiver    *duplex.Receiver
+	closed      bool
+	limits      ws.InvocationLimits
+	admitted    map[string]*ws.Invocation
+	returns     map[string]*duplex.ReturnAddress
+	outcomes    map[string]chan duplex.Message
+	retirements atomic.Int64
+	next        atomic.Uint64
+}
+
+func newInvocationEndpoint(limits ws.InvocationLimits) *invocationEndpoint {
+	return &invocationEndpoint{limits: limits, admitted: map[string]*ws.Invocation{},
+		returns: map[string]*duplex.ReturnAddress{}, outcomes: map[string]chan duplex.Message{}}
+}
+
+// invocationReturn is this endpoint's return capability. The empty path is the
+// outcome; every other path is the invocation's own vocabulary.
+type invocationReturn struct {
+	owner      *invocationEndpoint
+	identifier string
+	invocation *ws.Invocation
+}
+
+func (r *invocationReturn) Send(path []string, message duplex.Message) error {
+	if len(path) != 0 {
+		return r.invocation.Deliver(path, message)
+	}
+	if message.Frame.Kind != duplex.ProfileResponse {
+		return errors.New("invalid outcome")
+	}
+	r.owner.mu.Lock()
+	outcome := r.owner.outcomes[r.identifier]
+	r.owner.mu.Unlock()
+	if outcome != nil {
+		select {
+		case outcome <- message:
+		default:
 		}
-		if _, ok := routing.(ws.InvocationOwner); ok {
-			t.Fatal("routing grants owner authority")
+	}
+	r.invocation.Settle()
+	return nil
+}
+
+// Send loops back into this endpoint's own attachment, asynchronously, so a
+// composition above it can be traversed more than once in one invocation
+// without running destination code on the sender's stack.
+func (e *invocationEndpoint) Send(path []string, message duplex.Message) error {
+	go e.deliver(path, message)
+	return nil
+}
+
+func (e *invocationEndpoint) Receive(receiver duplex.Receiver) (func(), error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.closed {
+		return nil, ws.ErrClosed
+	}
+	if e.receiver != nil {
+		return nil, duplex.ErrReceiverExists
+	}
+	held := receiver
+	e.receiver = &held
+	return func() {
+		e.mu.Lock()
+		if e.receiver == &held {
+			e.receiver = nil
 		}
-		if _, ok := routing.(ws.InvocationExecution); ok {
-			t.Fatal("routing grants execution authority")
-		}
-		body, err := execution.Begin()
-		if err != nil {
-			t.Fatal(err)
-		}
-		entered, release, drained := make(chan struct{}), make(chan struct{}), make(chan struct{})
-		capture, err := routing.Capture(func(duplex.Message) { close(entered); <-release })
-		if err != nil {
-			t.Fatal(err)
-		}
-		control, err := owner.QueueControl(duplex.Message{Frame: duplex.ProfileFrame{Kind: duplex.ProfileCancel}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if late {
-			control.Deliver()
-			go func() { capture.Delivered(); close(drained) }()
-		} else {
-			capture.Delivered()
-			go func() { control.Deliver(); close(drained) }()
-		}
-		<-entered
-		owner.DispatchDone()
-		owner.DispatchDone()
-		owner.Settle()
-		body.Done()
-		body.Done()
-		if retired.Load() != 0 {
-			t.Fatal("retired while cancellation callback is running")
-		}
-		close(release)
-		<-drained
-		if retired.Load() != 1 {
-			t.Fatal("did not retire exactly once after control drain")
-		}
-		control.Deliver()
-		capture.Delivered()
-		if _, err := routing.Capture(nil); !errors.Is(err, ws.ErrInvocationEnded) {
-			t.Fatal(err)
-		}
-		if _, err := execution.Begin(); !errors.Is(err, ws.ErrInvocationEnded) {
-			t.Fatal(err)
-		}
+		e.mu.Unlock()
+	}, nil
+}
+
+func (e *invocationEndpoint) Close(code duplex.Code, reason string) error {
+	e.mu.Lock()
+	if e.closed {
+		e.mu.Unlock()
+		return nil
+	}
+	e.closed = true
+	receiver := e.receiver
+	e.receiver = nil
+	e.mu.Unlock()
+	if receiver != nil && receiver.Closed != nil {
+		receiver.Closed(code, reason)
+	}
+	return nil
+}
+
+// admit delivers one request through the attached receiver with a fresh
+// invocation, and returns the channel its outcome arrives on.
+func (e *invocationEndpoint) admit(path []string, params json.RawMessage) (string, chan duplex.Message) {
+	identifier := fmt.Sprintf("x:%d", e.next.Add(1))
+	outcome := make(chan duplex.Message, 1)
+	invocation := ws.NewInvocation(e.limits, func() { e.retirements.Add(1) })
+	address := &duplex.ReturnAddress{Wire: &invocationReturn{owner: e, identifier: identifier, invocation: invocation}}
+	e.mu.Lock()
+	e.admitted[identifier] = invocation
+	e.returns[identifier] = address
+	e.outcomes[identifier] = outcome
+	receiver := e.receiver
+	e.mu.Unlock()
+	message := duplex.Message{
+		Frame:  duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: identifier, Params: params},
+		Return: address,
+	}
+	if receiver != nil && receiver.Message != nil {
+		receiver.Message(path, message)
+	}
+	invocation.DispatchDone()
+	return identifier, outcome
+}
+
+// deliver hands a message to the attachment exactly as it arrived, without
+// admitting an invocation of this endpoint's own.
+func (e *invocationEndpoint) deliver(path []string, message duplex.Message) {
+	e.mu.Lock()
+	receiver := e.receiver
+	e.mu.Unlock()
+	if receiver != nil && receiver.Message != nil {
+		receiver.Message(path, message)
 	}
 }
 
-func TestInvocationBoundsAndReentrantCancellation(t *testing.T) {
-	retired := 0
-	owner, routing, execution, err := ws.NewInvocation(ws.InvocationLimits{Captures: 2, Bodies: 1}, func() { retired++ })
-	if err != nil {
-		t.Fatal(err)
+func (e *invocationEndpoint) cancel(identifier string) {
+	e.mu.Lock()
+	invocation, address := e.admitted[identifier], e.returns[identifier]
+	e.mu.Unlock()
+	if invocation == nil {
+		return
 	}
-	body, _ := execution.Begin()
-	if _, err := execution.Begin(); !errors.Is(err, ws.ErrInvocationLimit) {
-		t.Fatal(err)
-	}
-	var ticket ws.InvocationControl
-	seen := 0
-	first, _ := routing.Capture(func(duplex.Message) { seen++; ticket.Deliver() })
-	first.Delivered()
-	ticket, err = owner.QueueControl(duplex.Message{Frame: duplex.ProfileFrame{Kind: duplex.ProfileCancel}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ticket.Deliver()
-	second, err := routing.Capture(func(message duplex.Message) {
-		seen++
-		if next, err := owner.QueueControl(message); next != nil || err != nil {
-			t.Errorf("control was not coalesced: %v", err)
-		}
-		owner.Settle()
-		body.Done()
+	_ = invocation.Deliver([]string{ws.InvocationControl}, duplex.Message{
+		Frame:  duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileCancel, ID: identifier},
+		Return: address,
 	})
+}
+
+func (e *invocationEndpoint) invocation(identifier string) *ws.Invocation {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.admitted[identifier]
+}
+
+// opaqueEndpoint wraps another endpoint with nothing but the contract. It
+// passes the complete message, its return capability and its relative path
+// through, and recognizes no concrete type on either side.
+type opaqueEndpoint struct{ inner duplex.Endpoint }
+
+func (o opaqueEndpoint) Send(path []string, message duplex.Message) error {
+	return o.inner.Send(path, message)
+}
+func (o opaqueEndpoint) Receive(receiver duplex.Receiver) (func(), error) {
+	return o.inner.Receive(receiver)
+}
+func (o opaqueEndpoint) Close(code duplex.Code, reason string) error {
+	return o.inner.Close(code, reason)
+}
+
+func TestIndependentEndpointParticipatesThroughThePublicVocabulary(t *testing.T) {
+	endpoint := newInvocationEndpoint(ws.DefaultInvocationLimits())
+	dispatch, err := ws.NewDispatcher(opaqueEndpoint{endpoint})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := routing.Capture(nil); !errors.Is(err, ws.ErrInvocationLimit) {
+	started, release := make(chan struct{}, 1), make(chan struct{})
+	cancelled := make(chan error, 1)
+	if _, err := ws.HandleWire(dispatch, []string{"read"}, func(ctx context.Context, _ json.RawMessage) (any, error) {
+		started <- struct{}{}
+		<-release
+		cancelled <- ctx.Err()
+		return "answer", nil
+	}); err != nil {
 		t.Fatal(err)
 	}
-	owner.DispatchDone()
-	second.Delivered()
-	if seen != 2 || retired != 1 {
-		t.Fatalf("controls=%d retired=%d", seen, retired)
+	identifier, outcome := endpoint.admit([]string{"read"}, nil)
+	<-started
+	invocation := endpoint.invocation(identifier)
+	if invocation.Retired() {
+		t.Fatal("an invocation retired while its body was still running")
+	}
+	endpoint.cancel(identifier)
+	close(release)
+	if err := <-cancelled; err == nil {
+		t.Fatal("cancellation did not reach the captured traversal")
+	}
+	select {
+	case <-outcome:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no outcome")
+	}
+	waitRetired(t, invocation)
+	if endpoint.retirements.Load() != 1 {
+		t.Fatalf("retirements: %d", endpoint.retirements.Load())
 	}
 }
 
-func TestInvocationSequentialCompletionDoesNotRetainCapacity(t *testing.T) {
-	retired := 0
-	var retained []ws.InvocationRouting
-	for range 256 {
-		owner, routing, execution, err := ws.NewInvocation(ws.InvocationLimits{Captures: 1, Bodies: 1}, func() { retired++ })
-		if err != nil {
-			t.Fatal(err)
-		}
-		capture, _ := routing.Capture(func(duplex.Message) { t.Error("completed invocation received control") })
-		body, _ := execution.Begin()
-		capture.Delivered()
-		owner.DispatchDone()
-		owner.Settle()
-		if retired != len(retained) {
-			t.Fatal("outcome released unfinished body")
-		}
-		body.Done()
-		retained = append(retained, routing)
+func TestCapturedTraversalSurvivesDetachAndRebind(t *testing.T) {
+	endpoint := newInvocationEndpoint(ws.DefaultInvocationLimits())
+	dispatch, err := ws.NewDispatcher(endpoint)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if retired != len(retained) {
-		t.Fatal("completed invocations retained admission")
+	first, second := make(chan duplex.Message, 4), make(chan duplex.Message, 4)
+	detach, err := dispatch.Register([]string{"read"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) { first <- m }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	identifier, _ := endpoint.admit([]string{"read"}, nil)
+	if got := (<-first).Frame.Kind; got != duplex.ProfileRequest {
+		t.Fatalf("first receiver saw %q", got)
+	}
+	detach()
+	if _, err := dispatch.Register([]string{"read"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) { second <- m }}); err != nil {
+		t.Fatal(err)
+	}
+	endpoint.cancel(identifier)
+	select {
+	case m := <-first:
+		if m.Frame.Kind != duplex.ProfileCancel || m.Frame.ID != identifier {
+			t.Fatalf("captured receiver got %q %q", m.Frame.Kind, m.Frame.ID)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("cancellation did not reach the receiver that was captured")
+	}
+	select {
+	case <-second:
+		t.Fatal("cancellation reached the rebound receiver")
+	default:
+	}
+}
+
+func TestEachTraversalOfOneDispatcherCapturesSeparately(t *testing.T) {
+	endpoint := newInvocationEndpoint(ws.DefaultInvocationLimits())
+	dispatch, err := ws.NewDispatcher(endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// One dispatcher visited twice in one traversal: its outer route forwards
+	// back into its own inner route. Each visit is a capture of its own.
+	seen := make(chan string, 8)
+	if _, err := dispatch.Register([]string{"outer"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
+		if m.Frame.Kind == duplex.ProfileRequest {
+			go func() { _ = dispatch.Send([]string{"inner"}, m) }()
+		}
+		seen <- "outer:" + string(m.Frame.Kind)
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dispatch.Register([]string{"inner"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
+		seen <- "inner:" + string(m.Frame.Kind)
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	identifier, _ := endpoint.admit([]string{"outer"}, nil)
+	collect(t, seen, 2, map[string]bool{"outer:request": true, "inner:request": true})
+	endpoint.cancel(identifier)
+	collect(t, seen, 2, map[string]bool{"outer:cancel": true, "inner:cancel": true})
+}
+
+func TestLatchedCancellationReachesACaptureInstalledAfterIt(t *testing.T) {
+	endpoint := newInvocationEndpoint(ws.DefaultInvocationLimits())
+	dispatch, err := ws.NewDispatcher(endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner, err := ws.NewDispatcher(dispatch.Select([]string{"a"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	controls := make(chan duplex.Message, 4)
+	var identifier atomic.Value
+	identifier.Store("")
+	// The outer receiver cancels the invocation before the inner capture is
+	// installed. The latch is what carries the control to the later capture.
+	if _, err := inner.Register([]string{"read"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
+		if m.Frame.Kind == duplex.ProfileRequest {
+			endpoint.cancel(m.Frame.ID)
+			return
+		}
+		controls <- m
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	endpoint.admit([]string{"a", "read"}, nil)
+	_ = identifier
+	select {
+	case m := <-controls:
+		if m.Frame.Kind != duplex.ProfileCancel {
+			t.Fatalf("latched control was %q", m.Frame.Kind)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a capture installed while cancellation was latched never received it")
+	}
+}
+
+func TestInvocationBoundsCapturesAndBodies(t *testing.T) {
+	endpoint := newInvocationEndpoint(ws.InvocationLimits{Captures: 2, Bodies: 1})
+	identifier, _ := endpoint.admit([]string{"read"}, nil)
+	invocation := endpoint.invocation(identifier)
+	message := duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: identifier},
+		Return: &duplex.ReturnAddress{Wire: &invocationReturn{owner: endpoint, identifier: identifier, invocation: invocation}}}
+	for i := range 2 {
+		if _, err := ws.CaptureInvocation(message, func(duplex.Message) {}); err != nil {
+			t.Fatalf("capture %d refused: %v", i, err)
+		}
+	}
+	if _, err := ws.CaptureInvocation(message, func(duplex.Message) {}); !errors.Is(err, ws.ErrInvocationLimit) {
+		t.Fatalf("capture beyond the bound: %v", err)
+	}
+	body, err := ws.BeginInvocationBody(message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ws.BeginInvocationBody(message); !errors.Is(err, ws.ErrInvocationLimit) {
+		t.Fatalf("body beyond the bound: %v", err)
+	}
+	// A released capture gives back no slot: the bound is a total, so neither
+	// depth nor shallow fan-out can grow what one invocation retains.
+	body.Done()
+	if _, err := ws.BeginInvocationBody(message); !errors.Is(err, ws.ErrInvocationLimit) {
+		t.Fatalf("a finished body returned its slot: %v", err)
+	}
+}
+
+func TestRetirementWaitsForTheBodyAndTheControlDrain(t *testing.T) {
+	endpoint := newInvocationEndpoint(ws.DefaultInvocationLimits())
+	identifier, _ := endpoint.admit([]string{"read"}, nil)
+	invocation := endpoint.invocation(identifier)
+	message := duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: identifier},
+		Return: &duplex.ReturnAddress{Wire: &invocationReturn{owner: endpoint, identifier: identifier, invocation: invocation}}}
+	capture, err := ws.CaptureInvocation(message, func(duplex.Message) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := ws.BeginInvocationBody(message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invocation.Settle()
+	if invocation.Retired() {
+		t.Fatal("retired with an undelivered capture and a running body")
+	}
+	capture.Ready()
+	if invocation.Retired() {
+		t.Fatal("retired while the body was still running")
+	}
+	body.Done()
+	if !invocation.Retired() {
+		t.Fatal("did not retire once settled with nothing outstanding")
+	}
+	if _, err := ws.CaptureInvocation(message, func(duplex.Message) {}); !errors.Is(err, ws.ErrInvocationEnded) {
+		t.Fatalf("a retired invocation admitted a capture: %v", err)
+	}
+	if _, err := ws.BeginInvocationBody(message); !errors.Is(err, ws.ErrInvocationEnded) {
+		t.Fatalf("a retired invocation admitted a body: %v", err)
+	}
+}
+
+func TestSequentialCompletionsBeyondCapacityRetainNothing(t *testing.T) {
+	endpoint := newInvocationEndpoint(ws.InvocationLimits{Captures: 2, Bodies: 2})
+	dispatch, err := ws.NewDispatcher(endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ws.HandleWire(dispatch, []string{"read"}, func(context.Context, json.RawMessage) (any, error) { return "answer", nil }); err != nil {
+		t.Fatal(err)
+	}
+	var invocations []*ws.Invocation
+	for range 32 {
+		identifier, outcome := endpoint.admit([]string{"read"}, nil)
+		select {
+		case <-outcome:
+		case <-time.After(5 * time.Second):
+			t.Fatal("no outcome")
+		}
+		invocations = append(invocations, endpoint.invocation(identifier))
+	}
+	for i, invocation := range invocations {
+		waitRetired(t, invocation)
+		if i == 0 {
+			continue
+		}
+	}
+	if got := endpoint.retirements.Load(); got != 32 {
+		t.Fatalf("retirements after 32 sequential completions: %d", got)
+	}
+}
+
+func TestADispatcherRefusesAnInvocationWithoutALifecycle(t *testing.T) {
+	endpoint := newInvocationEndpoint(ws.DefaultInvocationLimits())
+	dispatch, err := ws.NewDispatcher(endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delivered := make(chan struct{}, 1)
+	if _, err := dispatch.Register([]string{"read"}, duplex.Receiver{Message: func([]string, duplex.Message) { delivered <- struct{}{} }}); err != nil {
+		t.Fatal(err)
+	}
+	answered := make(chan duplex.Message, 1)
+	bare := &bareReturn{answer: func(m duplex.Message) { answered <- m }}
+	// A request arrives through the contract alone, with a return capability
+	// that carries no lifecycle. It is refused explicitly, on its own original
+	// return capability, rather than routed with weaker guarantees.
+	endpoint.deliver([]string{"read"}, duplex.Message{
+		Frame:  duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: "b:1", Params: []byte("null")},
+		Return: &duplex.ReturnAddress{Wire: bare},
+	})
+	select {
+	case refusal := <-answered:
+		if refusal.Frame.Error == nil || refusal.Frame.Error.Code != "invalid_message" {
+			t.Fatalf("refusal was %+v", refusal.Frame.Error)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("an unmanaged invocation was neither routed nor refused")
+	}
+	select {
+	case <-delivered:
+		t.Fatal("an unmanaged invocation was routed with weaker guarantees")
+	default:
+	}
+	if bare.uses.Load() != 1 {
+		t.Fatalf("the refusal did not use the original return capability once: %d", bare.uses.Load())
+	}
+}
+
+type bareReturn struct {
+	answer func(duplex.Message)
+	uses   atomic.Int64
+}
+
+func (b *bareReturn) Send(path []string, message duplex.Message) error {
+	if len(path) != 0 {
+		return errors.New("this return capability carries no lifecycle")
+	}
+	b.uses.Add(1)
+	b.answer(message)
+	return nil
+}
+
+func waitRetired(t *testing.T, invocation *ws.Invocation) {
+	t.Helper()
+	for range 500 {
+		if invocation.Retired() {
+			return
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	t.Fatal("invocation never retired")
+}
+
+func collect(t *testing.T, seen chan string, count int, want map[string]bool) {
+	t.Helper()
+	got := map[string]bool{}
+	for range count {
+		select {
+		case value := <-seen:
+			got[value] = true
+		case <-time.After(5 * time.Second):
+			t.Fatalf("saw %v, wanted %v", got, want)
+		}
+	}
+	for value := range want {
+		if !got[value] {
+			t.Fatalf("saw %v, wanted %v", got, want)
+		}
 	}
 }

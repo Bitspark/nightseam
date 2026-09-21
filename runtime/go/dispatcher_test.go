@@ -75,27 +75,6 @@ func TestDispatcherClosesAnExplicitlyOwnedEndpoint(t *testing.T) {
 	}
 }
 
-func TestDispatcherRefusesUnmanagedInvocationWithoutReplacingReturn(t *testing.T) {
-	root := &unmanagedDispatchEndpoint{}
-	dispatch, err := ws.NewDispatcher(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	called := false
-	if _, err := dispatch.Register(nil, duplex.Receiver{Message: func([]string, duplex.Message) { called = true }}); err != nil {
-		t.Fatal(err)
-	}
-	replies := &wireReplySink{replies: make(chan duplex.ProfileFrame, 1)}
-	address := &duplex.ReturnAddress{Wire: replies}
-	root.receiver.Message(nil, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: "one", Params: json.RawMessage(`null`)}, Return: address})
-	if called {
-		t.Fatal("unmanaged invocation dispatched without a lifetime association")
-	}
-	if reply := receive(t, replies.replies); reply.Error == nil || reply.Error.Code != "invalid_message" {
-		t.Fatalf("unmanaged refusal = %+v", reply)
-	}
-}
-
 type unmanagedDispatchEndpoint struct{ receiver duplex.Receiver }
 
 func (*unmanagedDispatchEndpoint) Send([]string, duplex.Message) error { return nil }

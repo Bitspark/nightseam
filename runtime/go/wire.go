@@ -58,7 +58,6 @@ type wireDispatchContext struct {
 	panic         func(any)
 	maxFrameBytes int64
 	completion    *wireCompletion
-	routes        *wireRouteContext
 }
 
 // Only a local handler can supply the cause of its cancellation. Serialized
@@ -453,17 +452,25 @@ func (w *receiverWire) Send(path []string, message duplex.Message) error {
 }
 
 type replyWire struct {
-	id       string
-	reply    chan pendingResult
-	done     chan struct{}
-	once     sync.Once
-	dispatch *wireDispatchContext
+	id         string
+	reply      chan pendingResult
+	done       chan struct{}
+	once       sync.Once
+	dispatch   *wireDispatchContext
+	invocation *Invocation
 }
+
+// Invocation exposes this return capability's lifecycle to the runtime that
+// owns it. The vocabulary reaches it through Send like any participant's.
+func (w *replyWire) Invocation() *Invocation { return w.invocation }
 
 func (w *replyWire) wireDispatch() *wireDispatchContext { return w.dispatch }
 
 func (w *replyWire) Send(path []string, message duplex.Message) error {
-	if len(path) != 0 || message.Frame.Kind != duplex.ProfileResponse || message.Frame.ID != w.id {
+	if len(path) != 0 {
+		return w.invocation.Deliver(path, message)
+	}
+	if message.Frame.Kind != duplex.ProfileResponse || message.Frame.ID != w.id {
 		return errors.New("invalid wire response")
 	}
 	var limit int64
@@ -495,6 +502,7 @@ func (w *replyWire) Send(path []string, message duplex.Message) error {
 	}
 	select {
 	case w.reply <- r:
+		w.invocation.Settle()
 		return nil
 	default:
 		return errors.New("duplicate wire response")
@@ -503,9 +511,8 @@ func (w *replyWire) Send(path []string, message duplex.Message) error {
 func (w *replyWire) finish() error {
 	w.once.Do(func() {
 		close(w.done)
-		if w.dispatch != nil {
-			w.dispatch.routes.retire()
-		}
+		w.invocation.Settle()
+		w.invocation.DispatchDone()
 	})
 	return nil
 }
@@ -550,10 +557,9 @@ func callWire(ctx context.Context, wire duplex.Wire, path []string, params, resu
 	if dispatch != nil {
 		copied := *dispatch
 		copied.completion = &wireCompletion{}
-		copied.routes = newWireRouteContext()
 		dispatch = &copied
 	}
-	returning := &replyWire{id: "c:1", reply: make(chan pendingResult, 1), done: make(chan struct{}), dispatch: dispatch}
+	returning := &replyWire{id: "c:1", reply: make(chan pendingResult, 1), done: make(chan struct{}), dispatch: dispatch, invocation: NewInvocation(DefaultInvocationLimits(), nil)}
 	defer returning.finish()
 	address := &duplex.ReturnAddress{Wire: returning}
 	var trace Trace
@@ -723,8 +729,23 @@ func RegisterWire(wire HandlerRegistry, path []string, handlers WireHandlers) (f
 			}
 			incoming[key] = cancel
 			mu.Unlock()
+			// The body runs after this receiver returns, so returning is not
+			// completion. The lease says so to whoever admitted the request:
+			// an early answer to the caller cannot retire an invocation whose
+			// body is still running. A return capability that carries no
+			// lifecycle still gets ordinary addressed delivery.
+			body, leaseErr := BeginInvocationBody(message)
+			if leaseErr != nil && !errors.Is(leaseErr, ErrInvocationUnsupported) {
+				mu.Lock()
+				delete(incoming, key)
+				mu.Unlock()
+				cancel()
+				err := &PublicError{Code: "busy", Message: "Invocation participation limit reached"}
+				finish(sendWireResponse(message, nil, err))
+				return
+			}
 			go func() {
-				defer func() { cancel(); mu.Lock(); delete(incoming, key); mu.Unlock() }()
+				defer func() { body.Done(); cancel(); mu.Lock(); delete(incoming, key); mu.Unlock() }()
 				result, err := invokeWireHandler(ctx, handlers.Request, message.Frame.Params, dispatch)
 				if err == nil {
 					err = ctx.Err()

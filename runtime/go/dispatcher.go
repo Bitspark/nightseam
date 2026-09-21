@@ -24,52 +24,14 @@ type dispatchRoute struct {
 	name   string
 	prefix bool
 }
-type dispatchCaptureKey struct {
-	owner *Dispatcher
-	path  string
-}
-type dispatchCapture struct {
-	registration *dispatchRegistration
-	path         []string
-}
-
-// Each admitted runtime call owns this state. It is not a dispatcher-wide
-// correlation table. A new carrier admission gets a fresh state even when it
-// inherits verified context from an upstream call.
-type wireRouteContext struct {
-	mu       sync.Mutex
-	retired  bool
-	captures map[dispatchCaptureKey]dispatchCapture
-}
-
-func newWireRouteContext() *wireRouteContext {
-	return &wireRouteContext{captures: map[dispatchCaptureKey]dispatchCapture{}}
-}
-func (c *wireRouteContext) retire() {
-	if c == nil {
-		return
-	}
-	c.mu.Lock()
-	c.retired = true
-	c.captures = nil
-	c.mu.Unlock()
-}
-func routeContext(message duplex.Message) *wireRouteContext {
-	if message.Return != nil {
-		if owner, ok := message.Return.Wire.(interface{ wireDispatch() *wireDispatchContext }); ok {
-			if context := owner.wireDispatch(); context != nil {
-				return context.routes
-			}
-		}
-	}
-	return nil
-}
 
 // Dispatcher owns one endpoint attachment and an explicit exact/longest-prefix
-// routing policy. Invocation routing uses the Nightseam profile's admitted-call
-// lifetime association; an unmanaged request is refused, never silently given
-// weaker detach/cancellation guarantees. Opaque endpoint wrappers are supported
-// because the association accompanies the unchanged return capability.
+// routing policy. It captures each request's traversal on the invocation its
+// return capability carries, through the public vocabulary alone, and refuses a
+// request whose return capability carries none rather than routing it with
+// weaker detach and cancellation guarantees. An opaque wrapper is therefore as
+// good as a native endpoint: the lifecycle travels with the unchanged return
+// capability, and nothing here recognizes a concrete type.
 type Dispatcher struct {
 	root        duplex.Endpoint
 	ownEndpoint bool
@@ -164,39 +126,17 @@ func (d *Dispatcher) deliver(path []string, message duplex.Message) {
 	if err != nil {
 		return
 	}
-	key := dispatchCaptureKey{d, name}
-	context := routeContext(message)
+	// A control belongs to the traversal that captured it, never to the
+	// registration in force now. Handing it to the invocation is what keeps a
+	// detach or a rebind from retargeting an admitted request.
 	if message.Frame.Kind == duplex.ProfileCancel {
-		if context == nil {
-			return
-		}
-		context.mu.Lock()
-		capture, exists := context.captures[key]
-		context.mu.Unlock()
-		if exists && capture.registration.receiver.Message != nil {
-			capture.registration.receiver.Message(slices.Clone(capture.path), message)
-		}
-		return
-	}
-	if message.Frame.Kind == duplex.ProfileRequest && context == nil {
-		_ = sendWireResponse(message, nil, &PublicError{Code: "invalid_message", Message: "Invocation requires a profile-owned lifetime association"})
+		_ = RelayInvocationControl(message)
 		return
 	}
 	d.mu.Lock()
 	var registration *dispatchRegistration
 	if !d.closed {
 		registration = d.match(path, name)
-	}
-	if registration != nil && message.Frame.Kind == duplex.ProfileRequest {
-		context.mu.Lock()
-		if context.retired {
-			registration = nil
-		} else if previous, exists := context.captures[key]; exists {
-			registration = previous.registration
-		} else {
-			context.captures[key] = dispatchCapture{registration, slices.Clone(path)}
-		}
-		context.mu.Unlock()
 	}
 	d.mu.Unlock()
 	if registration == nil || registration.receiver.Message == nil {
@@ -205,7 +145,20 @@ func (d *Dispatcher) deliver(path []string, message duplex.Message) {
 		}
 		return
 	}
-	registration.receiver.Message(slices.Clone(path), message)
+	delivered := slices.Clone(path)
+	if message.Frame.Kind != duplex.ProfileRequest {
+		registration.receiver.Message(delivered, message)
+		return
+	}
+	capture, err := CaptureInvocation(message, func(control duplex.Message) {
+		registration.receiver.Message(slices.Clone(delivered), control)
+	})
+	if err != nil {
+		_ = sendWireResponse(message, nil, &PublicError{Code: "invalid_message", Message: "Invocation requires the lifecycle its return capability carries"})
+		return
+	}
+	defer capture.Ready()
+	registration.receiver.Message(delivered, message)
 }
 
 func (d *Dispatcher) Close(code duplex.Code, reason string) error {
