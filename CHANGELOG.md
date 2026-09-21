@@ -14,6 +14,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Clarified
 
+- The profile documentation names 4011 for a binary frame rejected by the
+  JSON peer, matching both reference runtimes. A shared core scenario holds
+  the close code at both ends and verifies the request is never dispatched.
 - Nightseam is the implementation home for its reusable typed-access
   foundation and optional rooted-grant authentication, with public
   self-contained contracts and consumer-owned application policy. The
@@ -35,6 +38,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Go and TypeScript ship a bounded Wire record/follow composition with
+  consumer-owned storage, an atomic replay-to-live handoff and independent
+  subscriber failure. Opaque messages retain their existing reference scope.
 - Generated Go and TypeScript families expose the canonical declaration and its
   SHA-256 digest, covering operations, events, errors and reachable imported
   declarations. Bound arguments retain their own declaration content and scope.
