@@ -422,7 +422,8 @@ incomingRequest peer frame = do
     let awaitBody = atomically (readTMVar completed)
         answerBody outcome = do
           cancelled <- atomically (not <$> isEmptyTMVar (contextCancelled ctx))
-          let answer = if cancelled then Left (failure "cancelled" "request cancelled") else case outcome of
+          let answer = case outcome of
+                Right _ | cancelled -> Left (failure "cancelled" "request cancelled")
                 Right value -> Right value
                 Left err -> Left (fromMaybe (failure "internal" "Internal error") (fromException err))
           respond (either (\err -> ["error" .= publicErrorValue err]) (\value -> ["result" .= value]) answer)

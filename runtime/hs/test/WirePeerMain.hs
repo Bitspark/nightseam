@@ -66,12 +66,13 @@ refused action = do
 
 main :: IO ()
 main = do
-  failures <- forM [(routed, deadline) | routed <- [False, True], deadline <- [True, False]] $ \(routed, deadline) -> do
-    result <- try (incomingBudget routed deadline) :: IO (Either SomeException ())
+  failures <- forM [(routed, deadline, declines) | routed <- [False, True], deadline <- [True, False], declines <- [False, True]] $ \(routed, deadline, declines) -> do
+    result <- try (incomingBudget routed deadline declines) :: IO (Either SomeException ())
     case result of
-      Left err -> putStrLn ("incoming budget " ++ show (routed, deadline) ++ ": " ++ show err) >> pure True
+      Left err -> putStrLn ("incoming budget " ++ show (routed, deadline, declines) ++ ": " ++ show err) >> pure True
       Right () -> pure False
   assert "incoming cancellation and deadline preserve active work" (not (or failures))
+  forM_ [False, True] $ \routed -> replicateM_ 16 (receiverDeadlineRefusal routed)
   requestOrderAndCancellation
   reservedCancellation
   overflowIsAsynchronous
@@ -85,8 +86,8 @@ main = do
 
 -- A response deadline and actual application completion are separate: the
 -- former settles the caller, while only the latter retires admitted work.
-incomingBudget :: Bool -> Bool -> IO ()
-incomingBudget routed deadline = do
+incomingBudget :: Bool -> Bool -> Bool -> IO ()
+incomingBudget routed deadline declines = do
   let opts = defaultOptions {maxConcurrentHandlers = 1, requestTimeoutMs = if deadline then 75 else 5000}
   (peer, sent, inject, _) <- fixture opts False
   entered <- newEmptyTMVarIO
@@ -97,7 +98,7 @@ incomingBudget routed deadline = do
         awaitCancellation ctx
         atomically (putTMVar cancelled ())
         atomically (readTMVar released)
-        pure Null
+        if declines then throwIO (PublicError "declined" "Application refusal" Nothing) else pure Null
       cleanup = atomically (void (tryPutTMVar released ())) >> closePeer peer
       request :: Text -> Text -> IO ()
       request ident method = inject (object ["version" .= (1 :: Int), "kind" .= ("request" :: Text),
@@ -105,16 +106,7 @@ incomingBudget routed deadline = do
       next = within (atomically (readTQueue sent))
       refusal ident code answer = field "id" answer == String ident && field "code" (field "error" answer) == String code
   flip finally cleanup $ do
-    if routed then void $ wireReceive (peerWire peer) ["hold"] (Receiver False
-      (\_ incoming -> when (field "kind" (messageFrame incoming) == String "request") $ do
-        ctx <- maybe (fail "incoming Wire lost its context") pure (messageContext incoming >>= fromDynamic)
-        address <- maybe (fail "incoming Wire lost its return address") pure (messageReturn incoming)
-        void $ forkIO $ void (try (do
-          value <- body ctx
-          wireSend (returnWire address) [] (Message (object ["version" .= (1 :: Int), "kind" .= ("response" :: Text),
-            "id" .= field "id" (messageFrame incoming), "result" .= value]) Nothing Nothing)) :: IO (Either SomeException ())))
-      (\_ _ -> pure ()))
-    else handle peer "hold" (\ctx _ _ -> body ctx)
+    incomingBody peer routed body
     handle peer "echo" (\_ _ _ -> pure (String "released"))
     request ("s:1" :: Text) (if routed then "4:hold" else "hold")
     within (atomically (readTMVar entered))
@@ -126,7 +118,7 @@ incomingBudget routed deadline = do
     premature <- timeout 50000 (atomically (readTQueue sent))
     assert "no early or duplicate answer while the body remains active" (premature == Nothing)
     atomically (putTMVar released ())
-    unless deadline $ next >>= assert "explicit cancellation answers on application return" . refusal "s:1" "cancelled"
+    unless deadline $ next >>= assert "explicit cancellation preserves an application refusal" . refusal "s:1" (if declines then "declined" else "cancelled")
     let retryEcho n = do
           let ident = "s:" <> T.pack (show n)
           request ident ("echo" :: Text)
@@ -135,6 +127,35 @@ incomingBudget routed deadline = do
           if refusal ident "busy" answer then threadDelay 1000 >> retryEcho (n + 1)
           else assert "application return restores capacity" (field "result" answer == String "released")
     within (retryEcho (3 :: Int))
+
+incomingBody :: Peer -> Bool -> (CallContext -> IO Value) -> IO ()
+incomingBody peer routed body =
+  if routed then void $ wireReceive (peerWire peer) ["hold"] (Receiver False
+    (\_ incoming -> when (field "kind" (messageFrame incoming) == String "request") $ do
+      ctx <- maybe (fail "incoming Wire lost its context") pure (messageContext incoming >>= fromDynamic)
+      address <- maybe (fail "incoming Wire lost its return address") pure (messageReturn incoming)
+      void $ forkIO $ void (try (do
+        outcome <- try (body ctx) :: IO (Either PublicError Value)
+        let answer = either (\err -> ["error" .= publicErrorValue err]) (\value -> ["result" .= value]) outcome
+        wireSend (returnWire address) [] (Message (object (["version" .= (1 :: Int), "kind" .= ("response" :: Text),
+          "id" .= field "id" (messageFrame incoming)] ++ answer)) Nothing Nothing)) :: IO (Either SomeException ())))
+    (\_ _ -> pure ()))
+  else handle peer "hold" (\ctx _ _ -> body ctx)
+
+-- The body refuses as soon as its receiver deadline wakes it. The deadline
+-- response must already be decided, independently of that late refusal.
+receiverDeadlineRefusal :: Bool -> IO ()
+receiverDeadlineRefusal routed = do
+  (peer, sent, inject, _) <- fixture defaultOptions {requestTimeoutMs = 10} False
+  flip finally (closePeer peer) $ do
+    incomingBody peer routed $ \ctx -> do
+      awaitCancellation ctx
+      throwIO (PublicError "declined" "Too late" Nothing)
+    inject (object ["version" .= (1 :: Int), "kind" .= ("request" :: Text), "id" .= ("s:1" :: Text),
+      "method" .= (if routed then "4:hold" else "hold" :: Text), "params" .= Null])
+    answer <- within (atomically (readTQueue sent))
+    assert "receiver deadline wins over a body refusal after cancellation"
+      (field "id" answer == String "s:1" && field "code" (field "error" answer) == String "cancelled")
 
 requestOrderAndCancellation :: IO ()
 requestOrderAndCancellation = do
