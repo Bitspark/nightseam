@@ -152,17 +152,20 @@ Every protected call is decided where its effect or disclosure happens,
 against the context's chain, at that moment:
 
 ```
-verified, refusal = grant.Verify(root, context.chain, {domain, action, scope}, now)
+held    = grant.Inspect(root, context.chain, now)          — structure and time
+          held.subject == context.subject                   — identity
+verified = grant.Verify(root, context.chain, {domain, action, scope}, now)   — coverage
 ```
 
-with the request the exposure policy derives for that member, and one more
-rule: **`verified.subject` must be `context.subject`**. A chain that Verify
-accepts but that does not end at the connection's proved subject is refused
-`auth.subject_mismatch` — the rule that makes cross-user reuse of a
-connection, a pooled peer serving two people, or a context installed by
-construction with the wrong chain, fail at the call rather than succeed
-quietly. A grant refusal at the call is `auth.denied`, carrying the grant
-code and hop.
+with the request the exposure policy derives for that member, in that
+order: a chain that does not hold is `auth.denied` with the grant code and
+hop; one that holds but **does not end at the connection's proved subject**
+is `auth.subject_mismatch`, decided before coverage so that a mismatched
+chain learns nothing about what it would have covered; one that holds and
+is the subject's but does not cover the request is `auth.denied`. The
+identity rule is what makes cross-user reuse of a connection, a pooled peer
+serving two people, or a context installed by construction with the wrong
+chain, fail at the call rather than succeed quietly.
 
 Because the decision is made at use, **expiry is enforced at use**: a
 connection established at `now < expires_at` whose chain expires while the
