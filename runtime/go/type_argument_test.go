@@ -24,11 +24,11 @@ var argumentTestSchema = MustSchema(`{"types":{
  "Box":{"kind":"record","parameters":[{"name":"T"}],"fields":[{"name":"item","type":"T","required":true}]},
  "Bound":{"kind":"record","fields":[{"name":"item","type":"string","required":true}]},
  "Tag":{"kind":"alias","type":{"literal":"fixed"}}
-}}`, nil)
+}}`, "", nil)
 
 type declaredArgument string
 
-var foreignArgumentSchema = MustSchema(`{"types":{"Tag":{"kind":"alias","type":{"literal":"foreign"}}}}`, nil)
+var foreignArgumentSchema = MustSchema(`{"types":{"Tag":{"kind":"alias","type":{"literal":"foreign"}}}}`, "", nil)
 
 type foreignArgument string
 
@@ -39,7 +39,7 @@ func (foreignArgument) WireType() TypeBinding {
 var treeArgumentSchema = MustSchema(`{"types":{"Tree":{"kind":"record","parameters":[{"name":"T"}],"fields":[
  {"name":"value","type":"T","required":true},
  {"name":"children","type":{"array":{"apply":"Tree","with":{"T":"T"}}},"required":true}
-]}}}`, nil)
+]}}}`, "", nil)
 
 type treeArgument[T any] struct {
 	Value    T
@@ -107,11 +107,11 @@ func TestAutomaticTypeArguments(t *testing.T) {
 }
 
 func TestDrawnTypeArgumentsForwardAsFamilyBindings(t *testing.T) {
-	other := MustSchema(`{"types":{"Frame":{"kind":"record","parameters":[{"name":"S","of":"protocol"}],"fields":[{"name":"item","type":"S.Value","required":true}]}}}`, nil)
+	other := MustSchema(`{"types":{"Frame":{"kind":"record","parameters":[{"name":"S","of":"protocol"}],"fields":[{"name":"item","type":"S.Value","required":true}]}}}`, "", nil)
 	outer := MustSchema(`{"parameters":[{"name":"Root","of":"protocol"}],"types":{
  "Forward":{"kind":"alias","parameters":[{"name":"Family","of":"protocol"}],"type":{"apply":"other.Frame","with":{"S":"Family"}}},
  "Implicit":{"kind":"alias","type":"other.Frame"}
-}}`, map[string]*Schema{"other": other})
+}}`, "", map[string]*Schema{"other": other})
 	for _, c := range []struct{ name, draw string }{{"Forward", "Family.Value"}, {"Implicit", "Root.Value"}} {
 		bound := outer.Bind(map[string]any{c.draw: TypeArgument[string]()}, nil)
 		if err := bound.ValidateRaw(c.name, []byte(`{"item":"hello"}`)); err != nil {
@@ -126,8 +126,8 @@ func TestDrawnTypeArgumentsForwardAsFamilyBindings(t *testing.T) {
 func TestChainedDrawnTypeBindingsRetainEveryMember(t *testing.T) {
 	inner := MustSchema(`{"types":{"Pair":{"kind":"record","parameters":[{"name":"S","of":"protocol"}],"fields":[
  {"name":"first","type":"S.First","required":true},{"name":"second","type":"S.Second","required":true}
-]}}}`, nil)
-	outer := MustSchema(`{"types":{"Forward":{"kind":"alias","parameters":[{"name":"Family","of":"protocol"}],"type":{"apply":"inner.Pair","with":{"S":"Family"}}}}}`, map[string]*Schema{"inner": inner})
+]}}}`, "", nil)
+	outer := MustSchema(`{"types":{"Forward":{"kind":"alias","parameters":[{"name":"Family","of":"protocol"}],"type":{"apply":"inner.Pair","with":{"S":"Family"}}}}}`, "", map[string]*Schema{"inner": inner})
 	first := outer.Bind(map[string]any{"Family.First": TypeArgument[foreignArgument]()}, nil)
 	bound := first.Bind(map[string]any{"Family.Second": TypeArgument[string]()}, nil)
 	if err := bound.ValidateRaw("Forward", []byte(`{"first":"foreign","second":"hello"}`)); err != nil {

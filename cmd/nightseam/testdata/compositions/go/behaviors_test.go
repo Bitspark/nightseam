@@ -316,7 +316,7 @@ func TestRepeatedImportAndRelease(t *testing.T) {
 }
 
 // Repeated channel acquisition now shares one eagerly prepared Wire. Two
-// scalar interpretations use that same correlation owner and both answer; the
+// successive scalar interpretations use that same correlation owner and both answer; the
 // consumer table above separately owns aliasing and release.
 func TestGeneratedModelsSharePreparedChannel(t *testing.T) {
 	ctx := testContext(t)
@@ -344,16 +344,27 @@ func TestGeneratedModelsSharePreparedChannel(t *testing.T) {
 	if one.Family != "job" {
 		t.Fatalf("the channel speaks %q", one.Family)
 	}
+	if one.Digest != jobprotocol.WireDigest() {
+		t.Fatalf("the channel lost its declaration digest: %q", one.Digest)
+	}
 	for range 2 {
-		factory, err := jobbinding.FromWire(ctx, one, runtime.AdapterContext{})
+		complete, cleanup, err := jobbinding.PrepareFromWire(one, runtime.AdapterContext{})
 		if err != nil {
+			t.Fatal(err)
+		}
+		factory, err := complete(ctx)
+		if err != nil {
+			cleanup()
 			t.Fatal(err)
 		}
 		model, err := factory(jobprotocol.Client{Methods: struct{}{}, Events: struct{}{}})
 		if err != nil {
+			cleanup()
 			t.Fatal(err)
 		}
-		if _, err := model.Methods.Status(ctx); err != nil {
+		_, err = model.Methods.Status(ctx)
+		cleanup()
+		if err != nil {
 			t.Fatal(err)
 		}
 	}

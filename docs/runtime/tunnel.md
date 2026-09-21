@@ -33,10 +33,10 @@ await peer.connect(url);
 
 | Operation | Go | TypeScript |
 | --- | --- | --- |
-| open a prepared Wire | `carrier.Open(ctx, family, runtime.Options{})` | `await carrier.open(family, options)` |
+| open a prepared Wire | `carrier.Open(ctx, family, digest, runtime.Options{})` | `await carrier.open(family, digest, options)` |
 | accept a prepared Wire | `carrier.Accept(ctx, runtime.Options{})` | `await carrier.accept(options)` |
 | resolve a prepared Wire by id | `carrier.Channel(id, options)` → `(*Channel, bool, error)` | `await carrier.channel(id, options)` → `Channel \| undefined` |
-| identify a channel | `channel.ID`, `channel.Family` | `channel.id`, `channel.family` |
+| identify a channel | `channel.ID`, `channel.Family`, `channel.Digest` | `channel.id`, `channel.family`, `channel.digest` |
 | use its Wire | `Send(path, message)`, `Receive(path, receiver)`, `Close(code, reason)` | `send`, `receive`, `close` |
 
 Acquisition constructs one inner peer eagerly. Its options and `Prepare` /
@@ -55,9 +55,9 @@ assembly and lifetime belong to the host; the generated
 
 ### Raw connections
 
-The lower frame transport is separate. `OpenConnection(ctx, family)`,
+The lower frame transport is separate. `OpenConnection(ctx, family, digest)`,
 `AcceptConnection(ctx)` and `Connection(id)` expose a Go `*Connection`
-implementing `duplex.Conn`. TypeScript's `openConnection(family)`,
+implementing `duplex.Conn`. TypeScript's `openConnection(family, digest)`,
 `acceptConnection()` and `connection(id)` expose a `Connection` implementing
 `FrameConnection`. Use these for a raw protocol or transport conformance work.
 
@@ -75,6 +75,15 @@ channel immediately and the other side sees 1006.
 | `MaxFrameBytes` | `maxFrameBytes` | 1 MiB | bound on a received inner frame |
 | `Window` | `window` | 32 | frames the other side may have in flight on a channel |
 | `AcceptCapacity` | `acceptCapacity` | 64 | channels the other side opened that nobody here took |
+| `Contracts` | `contracts` | empty map | known family names mapped to generated digests, copied when the tunnel is created |
+
+Supply generated `WireDigest()` / `wireDigest` values for the families the
+tunnel expects. A different nonempty incoming digest is refused
+`contract_mismatch` before channel allocation or admission. An empty digest
+argument represents no revision claim and is omitted on the wire; absence
+on either side does not cause this refusal. Both raw connections and prepared
+channels retain the opener's digest beside the family name. The digest check
+is independent of which side opened the channel.
 
 These are tunnel options. Each prepared channel also takes ordinary runtime
 options for its inner peer's queue, pending-call, handler and frame bounds.

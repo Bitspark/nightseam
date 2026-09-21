@@ -1,0 +1,2 @@
+x/protocol.json#/server/methods/identity.check: Operation identity.check is in the namespace of the built-in identity family, which is the wire vocabulary of a layer; a layer owns its namespace and a consumer declares no operation in one. [reserved_name]
+error: 1 problems

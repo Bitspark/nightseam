@@ -38,7 +38,7 @@ func (t *target) Declare(f *render.Family, declaration *model.Type) string {
 
 func (t *target) Invoke(f *render.Family, side, op string) spi.Invocation {
 	p, diagnostics := newPlan(f)
-	if len(diagnostics) != 0 || !f.HasProtocol() {
+	if len(diagnostics) != 0 || !f.HasModel() {
 		return spi.Invocation{}
 	}
 	operations := f.Server

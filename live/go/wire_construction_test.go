@@ -22,7 +22,7 @@ import (
 // A path alone does not replace that checked interpretation or its lifetime.
 func checkedBindingWire(t *testing.T, owner *live.Owner, ref live.Reference, contract string) (duplex.Wire, error) {
 	t.Helper()
-	invoke, err := owner.Import(ref, contract)
+	invoke, err := owner.Import(ref, contract, "")
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func TestLiveBindingWireConstructionRetainsGuardsAndReleaseBarrier(t *testing.T)
 			var guards, effects atomic.Int32
 			var permitted atomic.Bool
 			entered, finish := make(chan struct{}), make(chan struct{})
-			ref, err := target.Export("test/Guarded", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) {
+			ref, err := target.Export("test/Guarded", "", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) {
 				guards.Add(1)
 				if !permitted.Load() {
 					return nil, &runtime.PublicError{Code: "denied", Message: "guard denied"}
@@ -191,7 +191,7 @@ func TestLiveBindingWireConstructionChecksInterpretationAndNonce(t *testing.T) {
 	p := over(t, live.Options{})
 	defer p.Close()
 	var effects atomic.Int32
-	ref, err := p.B.Owner().Export("test/Checked", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) { effects.Add(1); return raw, nil })
+	ref, err := p.B.Owner().Export("test/Checked", "", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) { effects.Add(1); return raw, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,12 +232,12 @@ func TestLiveBindingWireConstructionRetainsUncertainPublication(t *testing.T) {
 	defer p.Close()
 	target, outgoing := p.A.Owner().Child(), p.A.Owner().Child()
 	retained := make(chan live.Invoke, 1)
-	ref, err := target.Export("test/Retain", func(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
+	ref, err := target.Export("test/Retain", "", func(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
 		arrived, err := p.A.Decode(raw)
 		if err != nil {
 			return nil, err
 		}
-		invoke, err := target.Import(arrived, "test/Callback")
+		invoke, err := target.Import(arrived, "test/Callback", "")
 		if err != nil {
 			return nil, err
 		}
@@ -258,7 +258,7 @@ func TestLiveBindingWireConstructionRetainsUncertainPublication(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		_, err := outgoing.PublishValue(func(batch *live.Owner) (json.RawMessage, error) {
-			callback, err := batch.Export("test/Callback", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) {
+			callback, err := batch.Export("test/Callback", "", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) {
 				callbacks.Add(1)
 				return raw, nil
 			})
@@ -305,7 +305,7 @@ func TestLiveBindingWireConstructionForwardRetainsIndependentLifetime(t *testing
 	sourceOwner, sourceHolder := origin.A.Owner().Child(), origin.B.Owner().Child()
 	forwardOwner, forwardHolder := destination.A.Owner().Child(), destination.B.Owner().Child()
 	var calls atomic.Int32
-	ref, err := sourceOwner.Export("test/Forward", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) { calls.Add(1); return raw, nil })
+	ref, err := sourceOwner.Export("test/Forward", "", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) { calls.Add(1); return raw, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +320,7 @@ func TestLiveBindingWireConstructionForwardRetainsIndependentLifetime(t *testing
 	}
 	// Opaque JSON only: nested reference positions still require generated
 	// conversions. Forwarding cannot discover those positions from a Wire.
-	forwarded, err := forwardOwner.Export("test/Forward", func(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
+	forwarded, err := forwardOwner.Export("test/Forward", "", func(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
 		var result json.RawMessage
 		err := runtime.CallWire(ctx, imported, nil, raw, &result)
 		return result, err
@@ -366,7 +366,7 @@ func TestLiveBindingWireConstructionCloseIsNotRelease(t *testing.T) {
 	owner := p.A.Owner().Child()
 	entered, finish := make(chan struct{}), make(chan struct{})
 	var calls atomic.Int32
-	ref, err := owner.Export("test/Close", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) {
+	ref, err := owner.Export("test/Close", "", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) {
 		if calls.Add(1) == 1 {
 			close(entered)
 			<-finish
@@ -402,7 +402,7 @@ func TestLiveBindingWireConstructionCloseIsNotRelease(t *testing.T) {
 	}
 	// The same live binding is still reachable through its intact scope. This
 	// is the concrete mismatch in replacing release with a routing carrier close.
-	invoke, err := owner.Import(ref, "test/Close")
+	invoke, err := owner.Import(ref, "test/Close", "")
 	if err != nil {
 		t.Fatal(err)
 	}

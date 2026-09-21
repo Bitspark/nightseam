@@ -28,7 +28,7 @@ func TestRefusedInvocationUnwindsUnpublishedArguments(t *testing.T) {
 				defer target.Release()
 			}
 			var dispatched atomic.Int32
-			ref, err := target.Export("test/Target", func(context.Context, json.RawMessage) (json.RawMessage, error) {
+			ref, err := target.Export("test/Target", "", func(context.Context, json.RawMessage) (json.RawMessage, error) {
 				dispatched.Add(1)
 				return nil, nil
 			})
@@ -42,7 +42,7 @@ func TestRefusedInvocationUnwindsUnpublishedArguments(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			invoke, err := holder.Import(ref, "test/Target")
+			invoke, err := holder.Import(ref, "test/Target", "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -54,13 +54,13 @@ func TestRefusedInvocationUnwindsUnpublishedArguments(t *testing.T) {
 				_ = holder.Release()
 			}
 			echo := func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) { return raw, nil }
-			prior, err := outgoing.Export("test/Call", echo)
+			prior, err := outgoing.Export("test/Call", "", echo)
 			if err != nil {
 				t.Fatal(err)
 			}
 			for range 12 {
 				_, err := outgoing.PublishValue(func(batch *live.Owner) (json.RawMessage, error) {
-					ref, err := batch.Export("test/Call", echo)
+					ref, err := batch.Export("test/Call", "", echo)
 					if err != nil {
 						return nil, err
 					}
@@ -82,7 +82,7 @@ func TestRefusedInvocationUnwindsUnpublishedArguments(t *testing.T) {
 					t.Fatal("refused invocation sent a frame")
 				}
 			}
-			kept, err := outgoing.Import(prior, "test/Call")
+			kept, err := outgoing.Import(prior, "test/Call", "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -100,7 +100,7 @@ func TestPublishValueOnlyUnwindsItsFreshUnsentExports(t *testing.T) {
 	owner := p.A.Owner().Child()
 	defer owner.Release()
 	echo := func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) { return raw, nil }
-	prior, err := owner.Export("test/Call", echo)
+	prior, err := owner.Export("test/Call", "", echo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestPublishValueOnlyUnwindsItsFreshUnsentExports(t *testing.T) {
 	cancel()
 	for range 12 {
 		_, err := owner.PublishValue(func(batch *live.Owner) (json.RawMessage, error) {
-			ref, err := batch.Export("test/Call", echo)
+			ref, err := batch.Export("test/Call", "", echo)
 			if err != nil {
 				return nil, err
 			}
@@ -129,7 +129,7 @@ func TestPublishValueOnlyUnwindsItsFreshUnsentExports(t *testing.T) {
 			t.Fatal("unsent rollback emitted live.release")
 		}
 	}
-	invoke, err := owner.Import(prior, "test/Call")
+	invoke, err := owner.Import(prior, "test/Call", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,12 +147,12 @@ func TestDispatchedReleaseRefusalRetainsArguments(t *testing.T) {
 			target = p.B.Owner().Child()
 		}
 		retained := make(chan live.Invoke, 1)
-		ref, err := target.Export("test/Target", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) {
+		ref, err := target.Export("test/Target", "", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) {
 			ref, err := target.Scope().Decode(raw)
 			if err != nil {
 				return nil, err
 			}
-			alias, err := target.Import(ref, "test/Call")
+			alias, err := target.Import(ref, "test/Call", "")
 			if err != nil {
 				return nil, err
 			}
@@ -169,12 +169,12 @@ func TestDispatchedReleaseRefusalRetainsArguments(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		invoke, err := holder.Import(ref, "test/Target")
+		invoke, err := holder.Import(ref, "test/Target", "")
 		if err != nil {
 			t.Fatal(err)
 		}
 		_, err = outgoing.PublishValue(func(batch *live.Owner) (json.RawMessage, error) {
-			ref, err := batch.Export("test/Call", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) { return raw, nil })
+			ref, err := batch.Export("test/Call", "", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) { return raw, nil })
 			if err != nil {
 				return nil, err
 			}
@@ -216,7 +216,7 @@ func TestPublishValueUnknownPublisherFailureRetains(t *testing.T) {
 				}
 			}()
 			_, err := owner.PublishValue(func(batch *live.Owner) (json.RawMessage, error) {
-				ref, err := batch.Export("test/Call", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) { return raw, nil })
+				ref, err := batch.Export("test/Call", "", func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) { return raw, nil })
 				if err != nil {
 					return nil, err
 				}

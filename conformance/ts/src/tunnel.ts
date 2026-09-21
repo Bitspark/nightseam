@@ -53,6 +53,17 @@ export function tunnelOps(t: Testee): Record<string, Op> {
       if (raw !== undefined) {
         if (typeof raw !== 'object' || raw === null) throw invalid('options is an object');
         for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+          if (key === 'contracts') {
+            if (
+              value === null ||
+              typeof value !== 'object' ||
+              Array.isArray(value) ||
+              Object.values(value).some((digest) => typeof digest !== 'string')
+            )
+              throw invalid('options.contracts maps family names to digests');
+            options.contracts = value as Record<string, string>;
+            continue;
+          }
           if (typeof value !== 'number') throw invalid(`options.${key} is an integer`);
           switch (key) {
             case 'window':
@@ -74,10 +85,11 @@ export function tunnelOps(t: Testee): Record<string, Op> {
     'tunnel.open': async (args) => {
       const tn = t.lookup(args.on, isTunnel, 'a tunnel');
       const family = stringOf(args, 'family', true);
+      const digest = stringOf(args, 'digest');
       const lazy = lazyChannel(args);
       let channel: Connection;
       try {
-        channel = await within(withinOf(args), tn.tunnel.openConnection(family), 'the open');
+        channel = await within(withinOf(args), tn.tunnel.openConnection(family, digest), 'the open');
       } catch (error) {
         throw tunnelError(error);
       }
@@ -96,6 +108,7 @@ export function tunnelOps(t: Testee): Record<string, Op> {
         handle: t.mint('ch', new ChannelConn(channel, lazy)),
         id: channel.id,
         family: channel.family,
+        digest: channel.digest,
       };
     },
   };

@@ -98,7 +98,7 @@ func (f *file) emitCallable(t *render.Type) {
 		f.linef("if owner == nil { return nil, %s.Errorf(\"%s: a live value is exported into an owner\") }", f.std("fmt"), name)
 		f.linef("if v == nil { return nil, %s.Errorf(\"%s: no implementation to export\") }", f.std("fmt"), name)
 		f.w.Block(fmt.Sprintf("return owner.ExportValue(func(owner *%s) (%s.RawMessage, error) {", owner, json), "})", func() {
-			f.w.Block(fmt.Sprintf("reference, err := owner.Export(%s, func(ctx %s.Context, request %s.RawMessage) (%s.RawMessage, error) {", f.plan.contracts[t.Name], f.std("context"), json, json), "})", func() {
+			f.w.Block(fmt.Sprintf("reference, err := owner.Export(%s, %s(), func(ctx %s.Context, request %s.RawMessage) (%s.RawMessage, error) {", f.plan.contracts[t.Name], identWireDigest, f.std("context"), json, json), "})", func() {
 				f.line("owner := owner.Child()")
 				f.linef("ctx = %s.WithOwner(ctx, owner)", f.live())
 				if t.Request != nil {
@@ -129,7 +129,7 @@ func (f *file) emitCallable(t *render.Type) {
 		f.linef("if owner == nil { return nil, %s.Errorf(\"%s: a live value is imported into an owner\") }", f.std("fmt"), name)
 		f.line("reference, err := owner.Scope().Decode(raw)")
 		f.line("if err != nil { return nil, err }")
-		f.linef("invoke, err := owner.Import(reference, %s)", f.plan.contracts[t.Name])
+		f.linef("invoke, err := owner.Import(reference, %s, %s())", f.plan.contracts[t.Name], identWireDigest)
 		f.line("if err != nil { return nil, err }")
 		carriesLive := f.needsConversion(t.Request) || f.needsConversion(t.Result)
 		if carriesLive {

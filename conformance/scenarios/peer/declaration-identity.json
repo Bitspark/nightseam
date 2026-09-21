@@ -1,0 +1,21 @@
+{
+  "name": "ordinary connection identity exchange accepts agreement or absence and refuses differing declarations",
+  "layer": "peer",
+  "needs": ["peer"],
+  "steps": [
+    {"on":"runner","op":"pair.peers","args":{"server":"a"},"bind":{"server":"pa","client":"pb"}},
+    {"on":"a","op":"peer.identity","args":{"on":"$pa","path":"same","digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
+    {"on":"b","op":"peer.check_identity","args":{"on":"$pb","path":"same","digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
+    {"on":"b","op":"peer.check_identity","args":{"on":"$pb","path":"same","digest":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"expect_error":{"code":"contract_mismatch"}},
+    {"on":"b","op":"peer.check_identity","args":{"on":"$pb","path":"different","digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"expect_error":{"code":"contract_mismatch"}},
+    {"on":"b","op":"peer.check_identity","args":{"on":"$pb","path":"same"}},
+    {"on":"a","op":"peer.check_identity","args":{"on":"$pa","path":"same","digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"note":"A raw endpoint with no identity.check handler carries no digest."},
+    {"on":"b","op":"peer.identity","args":{"on":"$pb","path":"same"}},
+    {"on":"a","op":"peer.check_identity","args":{"on":"$pa","path":"same","digest":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"note":"An identity answer with no digest is also accepted without revision comparison."},
+    {"on":"b","op":"peer.call","args":{"on":"$pb","method":"identity.check","params":{"path":"same","digest":""}},"bind":"malformed"},
+    {"on":"b","op":"call.await","args":{"on":"$malformed"},"expect":{"error":{"code":"contract_invalid"}}},
+    {"on":"a","op":"peer.handle","args":{"on":"$pa","method":"echo","behavior":{"kind":"echo"}}},
+    {"on":"b","op":"peer.call","args":{"on":"$pb","method":"echo","params":{"value":"agreed"}},"bind":"echo"},
+    {"on":"b","op":"call.await","args":{"on":"$echo"},"expect":{"result":{"value":"agreed"}}}
+  ]
+}

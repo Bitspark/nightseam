@@ -5,6 +5,7 @@
 // conformance/tables/validator.json. TypeScript's runtime slots supply the
 // bindings that generated Go codecs also carry in their instantiated types.
 import { scalarValue } from './unicode.ts';
+import { DuplexError } from './error.ts';
 
 /** An expression as the declaration writes it, including unnamed shapes. */
 export type TypeExpression =
@@ -70,6 +71,7 @@ export interface AnyFamily {
 export interface FamilyBinding<F extends AnyFamily> {
   readonly name: F['name'];
   readonly validate: Validator;
+  readonly slots?: Slots;
 }
 
 /** A type argument interpreted in the family whose validator is supplied. */
@@ -84,7 +86,9 @@ export type Slots = { readonly [parameter: string]: FamilyBinding<AnyFamily> | T
 const descriptor = Symbol('validator descriptor');
 interface Schema {
   family: WireFamily;
+  digest: string;
   imported: Record<string, Validator>;
+  scope?: Scope;
 }
 type Scope = Record<string, { type: Expression } | { family: Schema }>;
 interface Expression {
@@ -102,6 +106,11 @@ interface Resolved extends Expression {
 export interface Validator {
   (type: TypeExpression, value: unknown, location?: string, slots?: Slots): void;
   readonly [descriptor]: Schema;
+}
+
+// Internal declaration provenance access; the public helpers live in declaration_identity.
+export function validatorMetadata(validator: Validator): Schema {
+  return validator[descriptor];
 }
 function timestamp(value: unknown): boolean {
   if (typeof value !== 'string') return false;
@@ -337,7 +346,7 @@ function named(expression: Expression, name: string, location: string): [Express
       if (!schema) bad(location, 'known family');
     }
     name = name.slice(dot + 1);
-    expression = { schema, value: name, scope: {} };
+    expression = { schema, value: name, scope: { ...schema.scope } };
     if (/^[a-z]/.test(family)) {
       const source = singleFamilyParameter(caller.schema),
         target = schema.family.types[name];
@@ -470,7 +479,8 @@ function validate(expression: Expression, value: unknown, location: string): voi
         // A live value on the wire is a reference to one binding: the
         // binding, opaque here, and the contract it implements. The contract
         // is nominal, so the only reference this position accepts is one
-        // declared as this callable. Validation resolves nothing, registers
+        // declared as this callable, with the same declaration digest when
+        // both carry one. Validation resolves nothing, registers
         // nothing and reaches no network; whether the binding exists, is
         // still alive or belongs to this scope is the live runtime's to
         // answer when it imports it.
@@ -492,8 +502,29 @@ function validate(expression: Expression, value: unknown, location: string): voi
               ' is expected',
           );
         }
+        const digest = Object.hasOwn(reference, 'digest') ? reference['digest'] : '';
+        if (
+          Object.hasOwn(reference, 'digest') &&
+          (typeof digest !== 'string' || digest === '' || !validDeclarationDigest(digest))
+        ) {
+          throw new Error(location + '.digest: expected lowercase SHA-256 digest');
+        }
+        if (digest !== '' && resolved.schema.digest !== '' && digest !== resolved.schema.digest) {
+          throw new DuplexError(
+            'contract_mismatch',
+            location +
+              '.digest: the reference to ' +
+              definition.contract +
+              ' carries declaration digest ' +
+              digest +
+              ' where ' +
+              resolved.schema.digest +
+              ' is expected',
+          );
+        }
         for (const key of Object.keys(reference).sort()) {
-          if (key !== 'binding' && key !== 'contract') throw new Error(location + '.' + key + ': unknown field');
+          if (key !== 'binding' && key !== 'contract' && key !== 'digest')
+            throw new Error(location + '.' + key + ': unknown field');
         }
         return;
       }
@@ -625,27 +656,23 @@ function validate(expression: Expression, value: unknown, location: string): voi
   }
 }
 
-/** Creates a validator whose imports retain both values and declaration scope. */
+function validDeclarationDigest(digest: string): boolean {
+  return digest === '' || /^[0-9a-f]{64}$/.test(digest);
+}
+
 function boundScope(slots: Slots, active = new Set<Slots>()): Scope {
   if (active.has(slots)) throw new Error('cyclic type argument bindings');
   active.add(slots);
+  const scope: Scope = Object.create(null) as Scope;
   try {
-    const scope: Scope = Object.create(null) as Scope;
     for (const [parameter, binding] of Object.entries(slots)) {
       scalarValue(parameter);
+      const nested = boundScope(binding.slots ?? {}, active);
       if ('type' in binding) {
         scalarValue(binding.type);
         checkPatterns(binding.type);
-        scope[parameter] = {
-          type: {
-            schema: binding.validate[descriptor],
-            value: binding.type,
-            scope: boundScope(binding.slots ?? {}, active),
-          },
-        };
-      } else {
-        scope[parameter] = { family: binding.validate[descriptor] };
-      }
+        scope[parameter] = { type: { schema: binding.validate[descriptor], value: binding.type, scope: nested } };
+      } else scope[parameter] = { family: { ...binding.validate[descriptor], scope: nested } };
     }
     return scope;
   } finally {
@@ -653,12 +680,20 @@ function boundScope(slots: Slots, active = new Set<Slots>()): Scope {
   }
 }
 
-export function createValidator(family: WireFamily, imported: Record<string, Validator> = {}): Validator {
+/** Creates a validator whose imports retain their declaration scope and generated
+ * digest. An empty digest leaves identity unspecified. */
+export function createValidator(
+  family: WireFamily,
+  digest: string,
+  imported: Record<string, Validator> = {},
+): Validator {
+  if (typeof digest !== 'string' || !validDeclarationDigest(digest))
+    throw new Error('schema.digest: expected empty or lowercase SHA-256 digest');
   scalarValue(family);
   scalarValue(Object.keys(imported));
   if (!family.types) throw new Error('expected family descriptor with types');
   checkPatterns(family.types);
-  const schema: Schema = { family, imported };
+  const schema: Schema = { family, digest, imported };
   const validateWire = (type: TypeExpression, value: unknown, location = '$', slots: Slots = {}): void => {
     scalarValue(type);
     scalarValue(value);

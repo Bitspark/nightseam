@@ -7,6 +7,7 @@
       "fields": [
         {"name": "channel", "description": "The id the opener chose: odd for the client of the outer connection, even for its server.", "type": "integer"},
         {"name": "family", "description": "The family the channel will speak.", "type": "string"},
+        {"name": "digest", "description": "The generated declaration digest, exactly 64 lowercase SHA-256 hexadecimal characters when present. Absence makes no revision claim.", "type": "string", "required": false},
         {"name": "window", "description": "How many frames the opener will hold in flight before it returns credit.", "type": "integer"}
       ]
     },

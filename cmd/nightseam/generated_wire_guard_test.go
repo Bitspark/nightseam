@@ -90,7 +90,7 @@ func carriers(t *testing.T,mode string,caller,callee *principal)(duplex.Wire,dup
   // The outer accepted principal never supplies the inner application's grant.
   outer:=&principal{"outer allowed",true};var ta,tb *tunnel.Tunnel
   pa,pb:=pipePeers(t,runtime.Options{Propagator:fixed{outer},Prepare:func(p *runtime.Peer)(err error){ta,err=tunnel.New(p,tunnel.Options{});return}},runtime.Options{Propagator:fixed{outer},Prepare:func(p *runtime.Peer)(err error){tb,err=tunnel.New(p,tunnel.Options{});return}});_ =pa;_ =pb
-  left,err:=ta.Open(context.Background(),"guarded",options(caller,&a));if err!=nil{t.Fatal(err)};right,err:=tb.Accept(context.Background(),options(callee,&b));if err!=nil{t.Fatal(err)};return left,right,a,b
+  left,err:=ta.Open(context.Background(),"guarded",protocol.WireDigest(),options(caller,&a));if err!=nil{t.Fatal(err)};right,err:=tb.Accept(context.Background(),options(callee,&b));if err!=nil{t.Fatal(err)};return left,right,a,b
  }
  if mode=="local"{pa,pb:=pipePeers(t,options(caller,&a),runtime.Options{});return pa.Wire(),pb.Wire(),a,a}
  pa,pb:=pipePeers(t,options(caller,&a),options(callee,&b));return pa.Wire(),pb.Wire(),a,b
@@ -176,7 +176,7 @@ async function carriers(mode:string,caller:Principal,callee:Principal):Promise<C
  let a!:LiveScope,b!:LiveScope;const aOptions:PeerOptions={propagator:fixed(caller),prepare:peer=>{a=liveOver(peer);}},bOptions:PeerOptions={propagator:fixed(callee),prepare:peer=>{b=liveOver(peer);}};
  if(mode==='tunnel'){
   const outer=principal('outer allowed',true);const [left,right]=pipe();const pa=new DuplexPeer({propagator:fixed(outer)}),pb=new DuplexPeer({role:'server',propagator:fixed(outer)});const ta=new Tunnel(pa),tb=new Tunnel(pb);await Promise.all([pa.attach(left),pb.attach(right)]);
-  const outgoing=await ta.open('guarded',aOptions),incoming=await tb.accept(bOptions);return{outgoing,incoming,a,b,close(){pa.close();pb.close();}};
+  const outgoing=await ta.open('guarded',binding.wireDigest,aOptions),incoming=await tb.accept(bOptions);return{outgoing,incoming,a,b,close(){pa.close();pb.close();}};
  }
  let connections:[FrameConnection,FrameConnection],closeHost=()=>{};
  if(mode==='socket'){

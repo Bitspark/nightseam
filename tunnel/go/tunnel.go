@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -46,13 +47,18 @@ const (
 
 // The public errors an open is refused with.
 const (
-	ErrorRefused = "channel_refused"
-	ErrorExists  = "channel_exists"
-	ErrorInvalid = "channel_invalid"
+	ErrorRefused          = "channel_refused"
+	ErrorExists           = "channel_exists"
+	ErrorInvalid          = "channel_invalid"
+	ErrorContractMismatch = "contract_mismatch"
 )
 
 // Options limit a tunnel. Zero values select the defaults.
 type Options struct {
+	// Contracts names the locally known family digests used to check an
+	// incoming channel before admitting it. An absent digest on either side
+	// makes no revision claim. Values come from generated WireDigest functions.
+	Contracts map[string]string
 	// MaxFrameBytes bounds a frame received over a channel: a larger one is
 	// refused before delivery and the channel with it, as the seam requires.
 	// The outer peer's own limit bounds the event that carries a frame, and
@@ -69,6 +75,12 @@ type Options struct {
 }
 
 func (o Options) normalized() (Options, error) {
+	o.Contracts = maps.Clone(o.Contracts)
+	for family, digest := range o.Contracts {
+		if family == "" || (digest != "" && !validDigest(digest)) {
+			return o, errors.New("a tunnel contract needs a family and an absent or lowercase SHA-256 digest")
+		}
+	}
 	if o.MaxFrameBytes < 0 || o.Window < 0 || o.AcceptCapacity < 0 {
 		return o, errors.New("tunnel limits must not be negative")
 	}
@@ -144,6 +156,7 @@ func (t *Tunnel) watch() {
 type openParams struct {
 	Channel int64  `json:"channel"`
 	Family  string `json:"family"`
+	Digest  string `json:"digest,omitempty"`
 	Window  int    `json:"window"`
 }
 
@@ -170,18 +183,21 @@ type closePayload struct {
 
 // Open opens a channel to the other side, saying what family it speaks, and
 // returns it once the other side accepted it.
-func (t *Tunnel) openConnection(ctx context.Context, family string) (*Connection, error) {
+func (t *Tunnel) openConnection(ctx context.Context, family, digest string) (*Connection, error) {
 	if family == "" {
 		return nil, t.refused(family, errors.New("a channel is opened for a family"))
+	}
+	if digest != "" && !validDigest(digest) {
+		return nil, t.refuse(family, ErrorInvalid, "a channel digest is lowercase SHA-256 hex")
 	}
 	t.mu.Lock()
 	id := t.next
 	t.next += 2
-	c := t.newConnection(id, family, 0)
+	c := t.newConnection(id, family, digest, 0)
 	t.table[id] = c
 	t.mu.Unlock()
 	var result openResult
-	if err := t.peer.Call(ctx, OpenMethod, openParams{Channel: id, Family: family, Window: t.options.Window}, &result); err != nil {
+	if err := t.peer.Call(ctx, OpenMethod, openParams{Channel: id, Family: family, Digest: digest, Window: t.options.Window}, &result); err != nil {
 		t.remove(id)
 		c.endLocal(duplex.CodeNormal, "")
 		return nil, t.refused(family, err)
@@ -274,6 +290,14 @@ func (t *Tunnel) onOpen(_ context.Context, _ *runtime.Peer, raw json.RawMessage)
 	if err := json.Unmarshal(raw, &params); err != nil || params.Channel <= 0 || params.Family == "" || params.Window <= 0 {
 		return nil, t.refuse(params.Family, ErrorInvalid, "channel.open needs a positive channel id of the opener's parity, a family and a window")
 	}
+	var members map[string]json.RawMessage
+	_ = json.Unmarshal(raw, &members)
+	if _, present := members["digest"]; present && !validDigest(params.Digest) {
+		return nil, t.refuse(params.Family, ErrorInvalid, "a channel digest is lowercase SHA-256 hex")
+	}
+	if expected := t.options.Contracts[params.Family]; expected != "" && params.Digest != "" && params.Digest != expected {
+		return nil, t.refuse(params.Family, ErrorContractMismatch, fmt.Sprintf("the declaration digest for %s differs", params.Family))
+	}
 	c, code, message := t.admit(params)
 	if c == nil {
 		return nil, t.refuse(params.Family, code, message)
@@ -298,7 +322,7 @@ func (t *Tunnel) admit(params openParams) (*Connection, string, string) {
 	if len(t.pending) >= t.options.AcceptCapacity {
 		return nil, ErrorRefused, "no room for a channel nobody has accepted"
 	}
-	c := t.newConnection(params.Channel, params.Family, params.Window)
+	c := t.newConnection(params.Channel, params.Family, params.Digest, params.Window)
 	t.table[params.Channel] = c
 	t.pending = append(t.pending, c)
 	select {
@@ -381,6 +405,7 @@ func (t *Tunnel) onClose(_ context.Context, _ *runtime.Peer, raw json.RawMessage
 type Connection struct {
 	ID             int64
 	Family         string
+	Digest         string
 	presentationMu sync.Mutex
 	raw            bool
 	channel        *Channel
@@ -401,8 +426,20 @@ type Connection struct {
 	opened   bool
 }
 
-func (t *Tunnel) newConnection(id int64, family string, credit int) *Connection {
-	return &Connection{ID: id, Family: family, t: t, inbox: make(chan duplex.Frame, t.options.Window), credit: credit, wake: make(chan struct{}, 1), done: make(chan struct{})}
+func (t *Tunnel) newConnection(id int64, family, digest string, credit int) *Connection {
+	return &Connection{ID: id, Family: family, Digest: digest, t: t, inbox: make(chan duplex.Frame, t.options.Window), credit: credit, wake: make(chan struct{}, 1), done: make(chan struct{})}
+}
+
+func validDigest(digest string) bool {
+	if len(digest) != 64 {
+		return false
+	}
+	for _, c := range digest {
+		if !('0' <= c && c <= '9' || 'a' <= c && c <= 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 var _ duplex.Conn = (*Connection)(nil)

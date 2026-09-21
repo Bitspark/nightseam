@@ -48,7 +48,7 @@ func TestModelsOverAChannel(t *testing.T){
  ctx,cancel:=context.WithTimeout(context.Background(),10*time.Second);defer cancel()
  ct,st:=tunnels(t,ctx);served:=make(chan error,1)
  go func(){_,err:=st.Accept(ctx,runtime.Options{Prepare:prepareTunnelProbe});served<-err}()
- channel,err:=ct.Open(ctx,"probe",runtime.Options{});if err!=nil{t.Fatal(err)}
+ channel,err:=ct.Open(ctx,"probe","",runtime.Options{});if err!=nil{t.Fatal(err)}
  defer channel.Close(duplex.CodeNormal,"")
  if err:=<-served;err!=nil{t.Fatal(err)}
  model,err:=interpretTunnelProbe(ctx,channel);if err!=nil{t.Fatal(err)}
@@ -58,7 +58,7 @@ func TestModelsOverAChannel(t *testing.T){
 func TestChannelResolutionInterpretsAHandle(t *testing.T){
  ctx,cancel:=context.WithTimeout(context.Background(),10*time.Second);defer cancel()
  ct,st:=tunnels(t,ctx)
- opened,err:=st.Open(ctx,"probe",runtime.Options{Prepare:prepareTunnelProbe});if err!=nil{t.Fatal(err)}
+ opened,err:=st.Open(ctx,"probe","",runtime.Options{Prepare:prepareTunnelProbe});if err!=nil{t.Fatal(err)}
  handle:=protocol.Handle{Channel:opened.ID}
  channel,ok,err:=ct.Channel(handle.Channel,runtime.Options{});if err!=nil||!ok{t.Fatalf("channel %v: %v",ok,err)}
  defer channel.Close(duplex.CodeNormal,"")
@@ -73,7 +73,7 @@ func TestGeneratedTypeScriptOverATunnel(t *testing.T){
   peer,err:=runtime.Accept(w,r,runtime.ServerOptions{Options:runtime.Options{Prepare:func(peer *runtime.Peer)(err error){tn,err=tunnel.New(peer,tunnel.Options{});return err}},Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}});if err!=nil{return}
   ctx:=peer.Context()
   if _,err:=tn.Accept(ctx,runtime.Options{Prepare:prepareTunnelProbe});err!=nil{failures<-err;return}
-  outbound,err:=tn.Open(ctx,"probe",runtime.Options{Prepare:prepareTunnelProbe});if err!=nil{failures<-err;return}
+  outbound,err:=tn.Open(ctx,"probe","",runtime.Options{Prepare:prepareTunnelProbe});if err!=nil{failures<-err;return}
   if err:=peer.Emit(ctx,"opened",map[string]int64{"channel":outbound.ID});err!=nil{failures<-err;return}
   <-peer.Done()
  })
@@ -94,7 +94,7 @@ const opened=new Promise(resolve=>{outer.onEvent('opened',resolve);});
 const tunnel=new Tunnel(outer);
 await outer.connect(process.argv[2]);
 const reverse={methods:{reverse(params){return {...params,text:'typescript:'+params.text};}},events:{changed(){}}};
-const channel=await tunnel.open('probe',{});
+const channel=await tunnel.open('probe','',{});
 const attached=(await fromWire(channel,{}))(reverse).methods;
 const echoed=await attached.echo({text:'value',count:7,note:null});
 assert.equal(echoed.text,'typescript:value');

@@ -57,15 +57,15 @@ selecting or mounting that Wire does not change the chosen environment.
 | the root lifetime | `scope.Owner()` → `*Owner` | `scope.owner()` → `LiveOwner` |
 | a nested lifetime | `owner.Child()` → `*Owner` | `owner.child()` → `LiveOwner` |
 | its connection scope | `owner.Scope()` → `*Scope` | `owner.scope` |
-| export a function, and name it | `owner.Export(contract, invoke)` → `Reference` | `owner.export(contract, invoke)` |
+| export a function, and name it | `owner.Export(contract, digest, invoke)` → `Reference` | `owner.export(contract, digest, invoke)` |
 | construct an unpublished payload | `owner.ExportValue(build)` → `(json.RawMessage, error)` | `owner.exportValue(build)` → `unknown` |
 | construct and attempt publication | `owner.PublishValue(build, publish)` → `(json.RawMessage, error)` | `owner.publishValue(build, publish)` → the publisher's result |
 | import a value as one batch | `owner.ImportValue(build)` → `error` | `owner.importValue(build)` → the callback's result |
 | read a reference out of a payload | `scope.Decode(raw)` → `Reference` | `scope.decode(raw)` |
-| attach to one | `owner.Import(reference, contract)` → `Invoke` | `owner.import(reference, contract)` |
+| attach to one | `owner.Import(reference, contract, digest)` → `Invoke` | `owner.import(reference, contract, digest)` |
 | end a binding | `scope.Release(reference)` | `scope.release(reference)` |
 | end a lifetime and its children | `owner.Release()` | `owner.release()` or `owner[Symbol.dispose]()` |
-| hand one on to a destination owner | `live.Forward(destination, contract, origin)` | `forward(destination, contract, origin)` |
+| hand one on to a destination owner | `live.Forward(destination, contract, digest, origin)` | `forward(destination, contract, digest, origin)` |
 | what this owner allocated directly | `owner.Counts()` → `Counts` | `owner.counts()` |
 | what the whole scope holds | `scope.Counts()` → `Counts` | `scope.counts()` |
 | supply a model's value environment | `live.ValueEnvironment(scope)` | `valueEnvironment(scope)` |
@@ -89,14 +89,25 @@ scope that created it; importing that native object through an owner in another
 scope is refused locally as `reference_foreign` and creates no attachment.
 
 Its serialized form is ordinary data. Go's `MarshalJSON` and TypeScript's
-`toJSON` expose the binding and contract, and the public `Decode` / `decode`
+`toJSON` expose the binding, contract and optional digest, and the public `Decode` / `decode`
 accepts caller-supplied data with that shape. Decode associates the receiving
 scope; it does not prove that the bytes arrived in an inbound message, that a
 binding exists, or that the caller is authorized. Valid bytes may be saved or
 handed around out of band and decoded again on the original, still-open
 connection while the binding remains live.
 
-Import checks the expected contract and local reference state. For a remote
+Import checks the expected contract, digest and local reference state. The
+generated exporter and importer supply their family's `WireDigest()` /
+`wireDigest`; callers of the raw API pass an empty string for an unspecified
+revision. `Reference.Digest()` / `reference.digest` retains the received
+digest. Two specified digests that differ are `contract_mismatch` before any
+attachment is allocated or an implementation is invoked. Reusing an attachment
+cannot erase its known digest: a later conflicting digest is refused even if
+another import left its expectation unspecified. The
+[paired socket scenario](../../conformance/scenarios/live/declaration-digest.json)
+holds revision agreement, refusal and unchanged allocation counts.
+
+For a remote
 binding it creates or reuses an attachment without asking the remote scope
 whether that binding exists. A reference to this scope's own export resolves
 locally and creates no import attachment. Remote invocation looks up the

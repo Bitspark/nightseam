@@ -88,7 +88,7 @@ func (f *file) imports(validators bool) {
 // family's wire description by the runtime.
 func emitTypes(f *file) {
 	p, fam := f.plan, f.family
-	f.linef("import { createValidator, DuplexError, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
+	f.linef("import { createValidator, withDeclaration, DuplexError, type %s, type %s, type %s, type %s, type TypeExpression, type WireFamily } from %s;", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, quote(f.config.Runtime))
 	f.linef("export type { %s, %s, %s, %s, TypeExpression };", identAnyFamily, identFamilyBinding, identTypeBinding, identSlots)
 	f.imports(true)
 	f.liveImports()
@@ -96,7 +96,7 @@ func emitTypes(f *file) {
 	if fam.Live {
 		f.linef("import { LiveOwner } from %s;", quote(f.config.Live))
 	}
-	if fam.HasProtocol() {
+	if fam.HasModel() {
 		f.linef("import type { WireModelContext } from %s;", quote(f.config.Runtime))
 	}
 	for _, t := range fam.Types {
@@ -114,17 +114,21 @@ func emitTypes(f *file) {
 	f.linef("export interface %s { readonly name: %s; %s }", identFamily, quote(fam.Name), strings.Join(drawn, "; "))
 	f.emitLive()
 	f.emitValueAdapters()
-	if fam.HasProtocol() {
+	if fam.HasModel() {
 		f.emitWireModelTypes()
 	}
 	f.line("")
 	f.linef("const contractTypes = %s as unknown as WireFamily;", fam.Wire)
+	f.line("/** Canonical language-neutral declaration bytes, the input to wireDigest. */")
+	f.linef("export const %s = %s;", identWireDeclaration, quote(fam.Declaration))
+	f.line("/** SHA-256 of the canonical full declaration's exact UTF-8 bytes. */")
+	f.linef("export const %s = %s;", identWireDigest, quote(fam.WireDigest))
 	var validators []string
 	for _, family := range fam.References {
 		validators = append(validators, quote(family)+": validate_"+alias(family))
 	}
 	f.line("/** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */")
-	f.linef("export const %s = createValidator(contractTypes, { %s });", identValidateWire, strings.Join(validators, ", "))
+	f.linef("export const %s = withDeclaration(createValidator(contractTypes, %s, { %s }), %s);", identValidateWire, identWireDigest, strings.Join(validators, ", "), identWireDeclaration)
 	f.line("/** This family bound: its name and its validator, to fill a family slot in another family's client. */")
 	f.linef("export const %s = { name: %s, validate: %s } as const;", identFamilyValue, quote(fam.Name), identValidateWire)
 }

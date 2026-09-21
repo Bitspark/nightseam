@@ -23,6 +23,8 @@ const (
 	identAdditionalFields      = "AdditionalFields"
 	identValidateRaw           = "ValidateRaw"
 	identWireSchema            = "WireSchema"
+	identWireDigest            = "WireDigest"
+	identWireDeclaration       = "WireDeclaration"
 	identValidateExpressionRaw = "ValidateExpressionRaw"
 	identValidateValue         = "ValidateValue"
 	identMustTypeExpression    = "MustTypeExpression"
@@ -38,6 +40,7 @@ const (
 	identClientModel           = "ClientModel"
 	identToWire                = "ToWire"
 	identFromWire              = "FromWire"
+	identPrepareFromWire       = "PrepareFromWire"
 	identExport                = "Export"
 	identImport                = "Import"
 	identContract              = "Contract"
@@ -73,10 +76,10 @@ type plan struct {
 func Reserved() []string {
 	return []string{
 		identTag, identOf, identWireType, identMarshalJSON, identUnmarshalJSON, identAdditionalFields,
-		identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identErrors, identIsError,
+		identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identWireDigest, identWireDeclaration, identErrors, identIsError,
 		identServer, identClient, identServerMethods, identClientMethods,
 		identServerEvents, identClientEvents, identServerModel, identClientModel,
-		identToWire, identFromWire,
+		identToWire, identFromWire, identPrepareFromWire,
 	}
 }
 
@@ -96,8 +99,8 @@ func planFamily(f *render.Family, seen map[*render.Family]bool) (*plan, []diag.D
 		exports: map[string]string{}, imports_: map[string]string{}, contracts: map[string]string{},
 		List: diag.List{Family: f.Name},
 	}
-	p.packages.Fix("generated declaration", identTag, identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identErrors, identIsError)
-	if f.HasProtocol() {
+	p.packages.Fix("generated declaration", identTag, identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identWireDigest, identWireDeclaration, identErrors, identIsError)
+	if f.HasModel() {
 		p.packages.Fix("generated model declaration", identServer, identClient, identServerMethods, identClientMethods, identServerEvents, identClientEvents, identServerModel, identClientModel)
 	}
 	p.plan()
@@ -226,7 +229,7 @@ func (p *plan) plan() {
 	// the tag an entry point takes for each.
 	generated := map[string]string{}
 	entries := emit.NewNamespace("entry-point packages")
-	entries.Fix("generated declaration", identToWire, identFromWire)
+	entries.Fix("generated declaration", identToWire, identFromWire, identPrepareFromWire)
 	for _, use := range f.Uses {
 		p.typeParams[use] = parameterName(use)
 		at := diag.Location{}

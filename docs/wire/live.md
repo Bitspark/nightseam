@@ -17,7 +17,7 @@ outlives it. A **reference** names a binding of a scope, and travels as an
 ordinary value of whatever message holds it:
 
 ```json
-{"binding": "9f2c4ab11e07d3a5.3", "contract": "probe/Report"}
+{"binding": "9f2c4ab11e07d3a5.3", "contract": "probe/Report", "digest": "4433469c3fb5e66b667a7b4463cb878ab59d214bb1f9163e92bc2005b9987cc3"}
 ```
 
 Each export mints a separate binding, including repeated exports of the same
@@ -35,11 +35,18 @@ tiers](../declaration/families.md#livejson)) and which is not this layer's. Both
 compared before an invocation is dispatched, and neither is an authorization:
 the layer proves *which binding of which contract*, never *who may call it*.
 
-Contract equality is equality of that declaration path, not a signature
-comparison. Different paths are refused even for identical signatures;
-renaming or moving a declaration changes the contract. The descriptor has
-no signature fingerprint or version, so an unchanged path does not prove
-compatibility after a signature change. Generated native function aliases
+The declaration identity is its path and generated digest. Different paths
+are refused even for identical signatures; renaming or moving a declaration
+changes the contract. The optional `digest` is exactly 64 lowercase SHA-256
+hex characters. Import refuses `contract_mismatch`, naming the contract,
+when the reference and expected declaration both carry nonempty digests
+and they differ. It does so before allocating an attachment or interpreting
+an invocation. A malformed present digest, including an empty string or null,
+is `contract_invalid`; absence makes no revision claim and does not itself
+cause a mismatch. The digest is declaration identity, not authorization or
+proof of a remote endpoint's behavior.
+
+Generated native function aliases
 remain assignable by signature, and the exporter supplies the destination
 contract; it does not infer semantic identity from the function. The
 [callable decision](../decisions/a-callable-is-a-declared-kind.md#native-assignment-and-contract-evolution)
@@ -109,8 +116,8 @@ stands before a frame is sent. The same eight codes in every language:
 
 | code | when |
 | --- | --- |
-| `contract_invalid` | an export or an import of no contract, or an invocation naming neither a binding nor a contract |
-| `contract_mismatch` | the reference carries one contract where another is expected, or names a binding exported for another |
+| `contract_invalid` | an export or an import of no contract, a malformed digest, or an invocation naming neither a binding nor a contract |
+| `contract_mismatch` | the reference carries another contract or a differing nonempty declaration digest, or conflicts with an already held binding's identity |
 | `reference_unknown` | invocation found no export of that id in the receiving scope — a token of an ended connection among them |
 | `reference_foreign` | a native reference object associated with another scope, refused locally before a frame is sent; serialized bytes are decoded separately |
 | `reference_released` | an invocation of a binding that was released |

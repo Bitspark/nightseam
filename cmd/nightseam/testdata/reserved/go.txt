@@ -9,6 +9,8 @@ ValidateExpressionRaw
 ValidateValue
 MustTypeExpression
 WireSchema
+WireDigest
+WireDeclaration
 Errors
 IsError
 Server
@@ -21,3 +23,4 @@ ServerModel
 ClientModel
 ToWire
 FromWire
+PrepareFromWire

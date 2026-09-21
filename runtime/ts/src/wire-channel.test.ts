@@ -55,7 +55,7 @@ async function channelHarness(t: TestContext) {
   const client = new Tunnel(outerClient, { window: 1 }),
     server = new Tunnel(outerServer, { window: 1 });
   const open = async () => {
-    const a = await client.openConnection('wire-channel-test');
+    const a = await client.openConnection('wire-channel-test', '');
     const b = await server.acceptConnection();
     assert.equal(a.id, b.id);
     return { a, b };

@@ -23,7 +23,7 @@ func TestUnicodeDomain(t *testing.T) {
 	if err := json.Unmarshal(data, &table); err != nil {
 		t.Fatal(err)
 	}
-	schema := MustSchema(`{"types":{}}`, nil)
+	schema := MustSchema(`{"types":{}}`, "", nil)
 	for _, row := range table.Rows {
 		t.Run(row.Name, func(t *testing.T) {
 			err := schema.ValidateExpressionRaw("json", []byte(row.Raw))
@@ -39,7 +39,7 @@ func TestUnicodeDomain(t *testing.T) {
 				t.Fatalf("frame valid=%v: %v", row.Valid, err)
 			}
 			// Even an unused descriptor extension cannot normalize a string.
-			_, err = NewSchema([]byte(`{"types":{},"extension":`+row.Raw+`}`), nil)
+			_, err = NewSchema([]byte(`{"types":{},"extension":`+row.Raw+`}`), "", nil)
 			if (err == nil) != row.Valid {
 				t.Fatalf("descriptor valid=%v: %v", row.Valid, err)
 			}
@@ -48,12 +48,12 @@ func TestUnicodeDomain(t *testing.T) {
 }
 
 func TestUnicodeBeforeGoJSONReplacement(t *testing.T) {
-	schema := MustSchema(`{"types":{}}`, nil)
+	schema := MustSchema(`{"types":{}}`, "", nil)
 	for _, raw := range [][]byte{[]byte{'"', 0xff, '"'}, []byte{'"', 0xed, 0xa0, 0x80, '"'}} {
 		if err := schema.ValidateExpressionRaw("json", raw); err == nil {
 			t.Fatal("accepted malformed UTF-8")
 		}
-		if _, err := NewSchema(append(append([]byte(`{"types":{},"x":`), raw...), '}'), nil); err == nil {
+		if _, err := NewSchema(append(append([]byte(`{"types":{},"x":`), raw...), '}'), "", nil); err == nil {
 			t.Fatal("accepted malformed descriptor UTF-8")
 		}
 	}
@@ -68,7 +68,7 @@ func TestUnicodeBeforeGoJSONReplacement(t *testing.T) {
 		}
 	}
 	for _, raw := range []string{`{"types":{"Literal":{"kind":"alias","type":{"literal":"\uD800"}}}}`, `{"types":{"Enum":{"kind":"enum","values":["\uDC00"]}}}`, `{"types":{"Union":{"kind":"union","tag":"kind","value":"value","variants":{"\uD800":{"empty":true}}}}}`} {
-		if _, err := NewSchema([]byte(raw), nil); err == nil {
+		if _, err := NewSchema([]byte(raw), "", nil); err == nil {
 			t.Fatalf("descriptor normalized: %s", raw)
 		}
 	}

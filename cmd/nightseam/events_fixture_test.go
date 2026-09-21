@@ -24,9 +24,11 @@ func TestEventsBeforeReading(t *testing.T) {
    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second); defer cancel()
    received := make(chan protocol.Payload, 1)
    prepared := false
+   var complete func(context.Context)(protocol.ServerModel,error)
+   var cleanup func()
    options := runtime.Options{Prepare: func(p *runtime.Peer) error {
-    bind,err:=binding.FromWire(ctx,p.Wire(),runtime.AdapterContext{});if err!=nil{return err}
-    if _,err=bind(protocol.Client{Methods:clientHandler{},Events:initialEvents{func(p protocol.Payload){received<-p}}});err!=nil{return err}
+    var err error
+    complete,cleanup,err=binding.PrepareFromWire(p.Wire(),runtime.AdapterContext{});if err!=nil{return err}
     // The generated callback is installed before the rest of host preparation.
     if _,err=p.Wire().Receive([]string{"changed"},duplex.Receiver{Message:func([]string,duplex.Message){}});err==nil{return errors.New("typed event was not installed before host preparation")}
     prepared = true
@@ -43,14 +45,18 @@ func TestEventsBeforeReading(t *testing.T) {
     var near, far duplex.Conn
     if mode == "channel" {
      ct, st := tunnels(t, ctx)
-     channel, e := st.OpenConnection(ctx,"probe"); if e != nil { t.Fatal(e) }; far = channel
+     channel, e := st.OpenConnection(ctx,"probe", ""); if e != nil { t.Fatal(e) }; far = channel
      accepted, e := ct.AcceptConnection(ctx); if e != nil { t.Fatal(e) }; near = accepted
     } else { near,far=duplex.Pipe(1<<20);defer far.Abort() }
     if e:=far.Send(ctx,duplex.Frame{Kind:duplex.Text,Data:[]byte("{\"version\":1,\"kind\":\"event\",\"event\":\"7:changed\",\"data\":{\"text\":\"first\",\"count\":1}}")});e!=nil{t.Fatal(e)}
+    // A raw peer has no identity handler and answers method_not_found.
+    remote,e:=runtime.NewPeer(ctx,far,runtime.ServerRole,runtime.Options{});if e!=nil{t.Fatal(e)};defer remote.Close()
     peer,err=runtime.NewPeer(ctx,near,runtime.ClientRole,options)
    }
    if err != nil { t.Fatal(err) }; defer peer.Close()
-   if !prepared { t.Fatal("caller Prepare was lost") }
+   if !prepared { t.Fatal("caller Prepare was lost") };defer cleanup()
+   bind,err:=complete(ctx);if err!=nil{t.Fatal(err)}
+   if _,err=bind(protocol.Client{Methods:clientHandler{},Events:initialEvents{func(p protocol.Payload){received<-p}}});err!=nil{t.Fatal(err)}
    select { case p := <-received: if p.Text != "first" { t.Fatalf("received %+v",p) }; case <-ctx.Done(): t.Fatal("first event was lost") }
   })
  }
@@ -62,8 +68,7 @@ func TestEventPreparationErrors(t *testing.T) {
   sentinel := errors.New("prepare failed")
   options := runtime.Options{Prepare:func(p *runtime.Peer)error{
    if duplicate { if _,err:=p.Wire().Receive([]string{"changed"},duplex.Receiver{Message:func([]string,duplex.Message){}});err!=nil{return err} }
-   bind,err:=binding.FromWire(ctx,p.Wire(),runtime.AdapterContext{});if err!=nil{return err}
-   if _,err=bind(protocol.Client{Methods:clientHandler{},Events:initialEvents{func(protocol.Payload){}}});err!=nil{return err}
+   _,cleanup,err:=binding.PrepareFromWire(p.Wire(),runtime.AdapterContext{});if err!=nil{return err};defer cleanup()
    return sentinel
   }}
   peer,err := runtime.NewPeer(ctx,near,runtime.ClientRole,options)
@@ -75,22 +80,28 @@ func TestEventPreparationErrors(t *testing.T) {
 `
 
 const tsEventsFixture = `import assert from 'node:assert/strict';
-import {fromWire} from './api/ts/probe-binding/src/index.ts';
+import {prepareFromWire} from './api/ts/probe-binding/src/index.ts';
 import {DuplexPeer} from './runtime/ts/src/index.ts';
-import {at,mount,encodePath} from '@nightseam/duplex';
+import {at,mount,encodePath,pipe} from '@nightseam/duplex';
 for (const mounted of [false,true]) {
- let seen;
- const connection = {state: 'open', send() {}, close() {}, abort() {}, listen(listener) {
+ let receive;
+ const received=new Promise(resolve=>{receive=resolve;});
+ const [near,far]=pipe();
+ const remote=new DuplexPeer({role:'server'});
+ await remote.attach(far);
+ const connection = {get state(){return near.state;},get buffered(){return near.buffered;},send(frame){near.send(frame);},close(code,reason){near.close(code,reason);},listen(listener) {
   listener.frame({kind:'text',data:JSON.stringify({version:1,kind:'event',event:encodePath(['changed']),data:{text:'first',count:1}})});
-  return () => {};
+  return near.listen(listener);
  }};
  const peer = new DuplexPeer();
  const wire=mounted?at(mount(new Map([['view',peer.wire()]])),['view']):peer.wire();
- const bind=await fromWire(wire,{});
- bind({methods:{reverse:p=>p},events:{changed:data=>{seen=data;}}});
+ const prepared=prepareFromWire(wire,{});
  await peer.attach(connection);
- await new Promise(resolve => setImmediate(resolve));
- assert.deepEqual(seen,{text:'first',count:1},'host preparation lost the initial event');
+ const bind=await prepared.complete();
+ bind({methods:{reverse:p=>p},events:{changed:data=>{receive(data);}}});
+ assert.deepEqual(await received,{text:'first',count:1},'host preparation lost the initial event');
+ prepared.close();
  peer.close();
+ remote.close();
 }
 `

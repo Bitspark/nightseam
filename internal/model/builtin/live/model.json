@@ -6,7 +6,8 @@
       "description": "A live value on the wire: one exported binding within one scope. It is the language's projection of the callable kind — what a value of a callable type is when it crosses the seam — and no family declares it or names it.",
       "fields": [
         {"name": "binding", "description": "The binding, minted by the scope that exported it and opaque to everyone else: the scope's own evidence of identity, epoch and freshness lives in here, so a representation from an ended scope cannot resolve in a new one.", "type": "string"},
-        {"name": "contract", "description": "The declaration the binding implements, family/Type. It is nominal: a reference is usable exactly where the callable it was declared as is expected.", "type": "string"}
+        {"name": "contract", "description": "The declaration the binding implements, family/Type. It is nominal: a reference is usable exactly where the callable it was declared as is expected.", "type": "string"},
+        {"name": "digest", "description": "The generated declaration digest, exactly 64 lowercase SHA-256 hexadecimal characters when present. Absence makes no revision claim.", "type": "string", "required": false}
       ]
     },
     "Invoke": {

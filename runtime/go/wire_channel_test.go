@@ -58,7 +58,7 @@ func newWireChannelHarness(t *testing.T) *wireChannelHarness {
 
 func (h *wireChannelHarness) open(t *testing.T) (*tunnel.Connection, *tunnel.Connection) {
 	t.Helper()
-	a, err := h.client.OpenConnection(h.ctx, "wire-channel-test")
+	a, err := h.client.OpenConnection(h.ctx, "wire-channel-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}

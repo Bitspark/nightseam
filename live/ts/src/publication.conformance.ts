@@ -63,11 +63,11 @@ async function waitCounts(scope: LiveScope, exports: number, imports: number): P
 }
 
 function payload(owner: LiveOwner): unknown {
-  return owner.exportValue((build) => build.export(CONTRACT, async (request) => request ?? null).toJSON());
+  return owner.exportValue((build) => build.export(CONTRACT, '', async (request) => request ?? null).toJSON());
 }
 
 function importPayload(owner: LiveOwner, raw: unknown): Invoke {
-  return owner.import(owner.scope.decode(raw), CONTRACT);
+  return owner.import(owner.scope.decode(raw), CONTRACT, '');
 }
 
 function refused(t: T, error: unknown, code: string): void {
@@ -249,7 +249,7 @@ async function provenUnpublishedIsUnwound(t: T, p: Pair): Promise<void> {
       let refused = false;
       try {
         owner.exportValue((build) => {
-          build.export(CONTRACT, async (request) => request);
+          build.export(CONTRACT, '', async (request) => request);
           const cyclic: Record<string, unknown> = {};
           cyclic.self = cyclic;
           return cyclic;
@@ -317,13 +317,13 @@ async function localInvocationRetainsNestedRefusal(t: T, p: Pair): Promise<void>
   const outgoing = p.a.owner().child();
   try {
     let alias!: Invoke;
-    const reference = implementation.export('probe/Local', async (raw) => {
+    const reference = implementation.export('probe/Local', '', async (raw) => {
       alias = importPayload(implementation, raw);
       const controller = new AbortController();
       controller.abort();
       return p.a.peer.call('publication.nested', undefined, { signal: controller.signal });
     });
-    const invoke = implementation.import(reference, 'probe/Local');
+    const invoke = implementation.import(reference, 'probe/Local', '');
     const error = await outgoing
       .publishValue(payload, (raw) => invoke(raw))
       .then(

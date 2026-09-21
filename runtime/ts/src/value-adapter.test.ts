@@ -3,8 +3,8 @@ import test from 'node:test';
 import { createValidator, jsonAdapter, type TypeBinding, type ValueContext, type ValueOptions } from './index.ts';
 
 test('scalar adapters retain supplied declaration bindings and need no environment', () => {
-  const count = createValidator({ types: { Count: { kind: 'alias', type: 'integer' } } });
-  const validate = createValidator({ parameters: [{ name: 'T' }], types: {} });
+  const count = createValidator({ types: { Count: { kind: 'alias', type: 'integer' } } }, '');
+  const validate = createValidator({ parameters: [{ name: 'T' }], types: {} }, '');
   const binding: TypeBinding = { type: 'T', validate, slots: { T: { type: 'Count', validate: count } } };
   const adapter = jsonAdapter<number>(binding);
   assert.equal(adapter.binding, binding);

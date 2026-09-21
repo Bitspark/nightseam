@@ -136,6 +136,7 @@ const goProofDiagram = `package generated
 import (
  "context"
  "encoding/json"
+ "errors"
  "net/http"
  "net/http/httptest"
  "os/exec"
@@ -182,7 +183,7 @@ func TestMixedStructureAndCodecs(t *testing.T){
   if le==nil{a,_:=json.Marshal(l);b,_:=json.Marshal(r);if string(a)!=string(b){t.Fatalf("left %s right %s",a,b)}}
  }
 }
-func TestMixedClientsCrossBothPaths(t *testing.T){
+func TestMixedClientsRoundtripBothDeclarations(t *testing.T){
  serve:=func(build func(*runtime.Peer)(duplex.Wire,error))*httptest.Server{
   options:=runtime.ServerOptions{Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}}
   options.Options.Prepare=func(peer *runtime.Peer)error{
@@ -196,18 +197,29 @@ func TestMixedClientsCrossBothPaths(t *testing.T){
  defer ls.Close();defer rs.Close()
  leftURL,rightURL:="ws"+strings.TrimPrefix(ls.URL,"http"),"ws"+strings.TrimPrefix(rs.URL,"http")
  ctx,cancel:=context.WithTimeout(context.Background(),15*time.Second);defer cancel()
- var l left.Server;var r right.Server[E,H,string]
- lpPeer,_,err:=runtime.Dial(ctx,rightURL,runtime.DialOptions{Options:runtime.Options{Prepare:func(peer *runtime.Peer)error{
-  factory,err:=lb.FromWire(ctx,peer.Wire(),runtime.AdapterContext{});if err!=nil{return err};l,err=factory(left.Client{Methods:struct{}{},Events:discardLeftEvents{}});return err
+ var lc func(context.Context)(left.ServerModel,error);var lclose func()
+ lpPeer,_,err:=runtime.Dial(ctx,leftURL,runtime.DialOptions{Options:runtime.Options{Prepare:func(peer *runtime.Peer)error{
+  var err error;lc,lclose,err=lb.PrepareFromWire(peer.Wire(),runtime.AdapterContext{});return err
  }}});if err!=nil{t.Fatal(err)};defer lpPeer.Close()
- rpPeer,_,err:=runtime.Dial(ctx,leftURL,runtime.DialOptions{Options:runtime.Options{Prepare:func(peer *runtime.Peer)error{
-  factory,err:=rb.FromWire[E,H,string](ctx,peer.Wire(),runtime.AdapterContext{},runtime.JSONAdapter[string]());if err!=nil{return err};r,err=factory(right.Client[E,H,string]{Methods:struct{}{},Events:discardRightEvents{}});return err
+ defer lclose();lf,err:=lc(ctx);if err!=nil{t.Fatal(err)};l,err:=lf(left.Client{Methods:struct{}{},Events:discardLeftEvents{}});if err!=nil{t.Fatal(err)}
+ var rc func(context.Context)(right.ServerModel[E,H,string],error);var rclose func()
+ rpPeer,_,err:=runtime.Dial(ctx,rightURL,runtime.DialOptions{Options:runtime.Options{Prepare:func(peer *runtime.Peer)error{
+  var err error;rc,rclose,err=rb.PrepareFromWire[E,H,string](peer.Wire(),runtime.AdapterContext{},runtime.JSONAdapter[string]());return err
  }}});if err!=nil{t.Fatal(err)};defer rpPeer.Close()
+ defer rclose();rf,err:=rc(ctx);if err!=nil{t.Fatal(err)};r,err:=rf(right.Client[E,H,string]{Methods:struct{}{},Events:discardRightEvents{}});if err!=nil{t.Fatal(err)}
  var lp left.Carried;var rp right.Carried[E,H,string];_ = json.Unmarshal(good,&lp);_ = json.Unmarshal(good,&rp)
  lv,err:=l.Methods.Relay(ctx,lp);if err!=nil{t.Fatal(err)};rv,err:=r.Methods.Relay(ctx,rp);if err!=nil{t.Fatal(err)}
  a,_:=json.Marshal(lv);b,_:=json.Marshal(rv);if string(a)!=string(b){t.Fatalf("left %s right %s",a,b)}
  command:=exec.CommandContext(ctx,"node","--loader","./loader.mjs","diagram.mjs",leftURL,rightURL)
  if output,err:=command.CombinedOutput();err!=nil{t.Fatalf("TypeScript mixed diagram: %v\n%s",err,output)}
+}
+func TestMixedDeclarationsRefuseCrossInterpretation(t *testing.T){
+ ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second);defer cancel()
+ plain,err:=lb.ToWire(func(left.Client)(left.Server,error){return left.Server{Methods:leftServer{},Events:struct{}{}},nil},runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer plain.Close(duplex.CodeNormal,"")
+ generic,err:=rb.ToWire[E,H,string](func(right.Client[E,H,string])(right.Server[E,H,string],error){return right.Server[E,H,string]{Methods:rightServer{},Events:struct{}{}},nil},runtime.AdapterContext{},runtime.JSONAdapter[string]());if err!=nil{t.Fatal(err)};defer generic.Close(duplex.CodeNormal,"")
+ _,leftErr:=lb.FromWire(ctx,generic,runtime.AdapterContext{})
+ _,rightErr:=rb.FromWire[E,H,string](ctx,plain,runtime.AdapterContext{},runtime.JSONAdapter[string]())
+ for _,err:=range []error{leftErr,rightErr}{var public *runtime.PublicError;if !errors.As(err,&public)||public.Code!="contract_mismatch"{t.Fatalf("cross-interpretation: %v",err)}}
 }
 `
 
@@ -244,15 +256,22 @@ for(const value of [good,{...good,page:{items:[7]}},{...good,message:{version:1}
 }
 const plainPeer=new DuplexPeer();const genericPeer=new DuplexPeer();
 const reverse={methods:{},events:{changed(){},partAdded(){}}};
-const plain=(await leftBinding.fromWire(plainPeer.wire(),{}))(reverse).methods;
-const generic=(await rightBinding.fromWire(genericPeer.wire(),{},probe.family,jsonAdapter(slots.Item)))(reverse).methods;
-await plainPeer.connect(process.argv[3]);await genericPeer.connect(process.argv[2]);
+const plainPreparation=leftBinding.prepareFromWire(plainPeer.wire(),{});
+const genericPreparation=rightBinding.prepareFromWire(genericPeer.wire(),{},probe.family,jsonAdapter(slots.Item));
+await plainPeer.connect(process.argv[2]);await genericPeer.connect(process.argv[3]);
 try{
+ const plain=(await plainPreparation.complete())(reverse).methods;
+ const generic=(await genericPreparation.complete())(reverse).methods;
  for(const client of [plain,generic]){
   assert.deepEqual(await client.relay(good),{kind:'some',value:good.message});
   await assert.rejects(client.relay({...good,page:{items:[7]}}));
  }
 }finally{plainPeer.close();genericPeer.close();}
+for(const [url,prepare] of [[process.argv[3],wire=>leftBinding.prepareFromWire(wire,{})],[process.argv[2],wire=>rightBinding.prepareFromWire(wire,{},probe.family,jsonAdapter(slots.Item))]]){
+ const peer=new DuplexPeer();const preparation=prepare(peer.wire());
+ try{await peer.connect(url);await assert.rejects(preparation.complete(),error=>error.code==='contract_mismatch');}
+ finally{preparation.close();peer.close();}
+}
 `
 
 const proofDiagramLoader = `import {resolve as base} from './runtime-loader.mjs';

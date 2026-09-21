@@ -9,6 +9,8 @@ The runtime unit suites and the conformance driver hold the same wire facts:
 | `tables/validator.json` | type expressions, values and their expected validation verdicts |
 | `tables/frames.json` | envelopes a peer accepts or refuses |
 | `tables/naming.json` | generated naming conventions |
+| `tables/digests.json` | paired revision descriptors and their full canonical declaration identities |
+| `tables/declaration-digests.json` | declaration coverage, normalized applications, exact canonical bytes and digest equality controls |
 | `tables/examples.json` | every example value, union arm and operation frame of the corpus documents, with its concrete parameter bindings or an explicit unavailable reason |
 
 `examples.json` is derived by `go generate ./cmd/nightseam`. The generator's
@@ -219,6 +221,8 @@ The profile: `runtime/go`'s `Peer`, `@nightseam/runtime`'s `DuplexPeer`.
 | `peer.dial` | **`url`**, `options`, `subprotocols` | `{"handle", "subprotocol"}` the client peer, connected |
 | `peer.over` | **`on`** connection or channel, **`role`** `"client"`\|`"server"`, `options` | `{"handle"}` a peer speaking the profile over that connection |
 | `peer.handle` | **`on`**, **`method`**, **`behavior`** | `{}` — registers a canned handler, see below |
+| `peer.identity` | **`on`**, **`path`**, `digest` | `{}` — installs the runtime's ordinary `identity.check` handler for this declaration |
+| `peer.check_identity` | **`on`**, **`path`**, `digest`, `within_ms` | `{}` — performs the bounded identity exchange, accepting `method_not_found` as an endpoint carrying no digest; other errors retain their codes |
 | `peer.on_event` | **`on`**, **`name`**, `behavior` | `{}` — how an event is taken: `record` (default), `block`, `panic` |
 | `peer.call` | **`on`**, **`method`**, `params`, `timeout_ms`, `meta` | `{"handle"}` a call, in flight |
 | `call.await` | **`on`**, `within_ms` | `{"result": …}` or `{"error": {"code", "message", "data"}}` |
@@ -342,9 +346,9 @@ Channels multiplexed over one peer: `tunnel/go`, `@nightseam/tunnel`.
 
 | op | arguments | answer |
 |---|---|---|
-| `tunnel.over` | **`on`** peer, `options` (`window`, `max_frame_bytes`, `accept_capacity`) | `{"handle"}` |
-| `tunnel.open` | **`on`**, **`family`**, `consume`, `within_ms` | `{"handle", "id"}` — the channel, a connection handle |
-| `tunnel.accept` | **`on`**, `consume`, `within_ms` | `{"handle", "id", "family"}` |
+| `tunnel.over` | **`on`** peer, `options` (`window`, `max_frame_bytes`, `accept_capacity`, `contracts`: family-to-digest map) | `{"handle"}` |
+| `tunnel.open` | **`on`**, **`family`**, `digest`, `consume`, `within_ms` | `{"handle", "id"}` — the channel, a connection handle |
+| `tunnel.accept` | **`on`**, `consume`, `within_ms` | `{"handle", "id", "family", "digest"}` — empty digest means unspecified |
 
 A channel takes every `conn.*` op, and `peer.over` makes a peer of it. A
 tunnel observes through its peer's observer; its events reach
@@ -373,12 +377,12 @@ scope is made over a **peer** and needs no tunnel.
 | `live.owner` | **`on`** scope, `owner` parent handle, `root` | `{"handle"}` — a child of the parent (the root by default), or the root itself when `root: true` |
 | `live.owner_release` | **`on`** owner | `{}` — release this owner and its descendants, idempotently |
 | `live.owner_counts` | **`on`** owner | `{"exports", "imports"}` — bindings owned here, excluding borrows |
-| `live.import_value` | **`on`** scope, `owner`, **`references`**, **`contract`**, `fail` | `{"handles"}` — imports in one batch; `fail: true` refuses after the imports to exercise rollback |
-| `live.export` | **`on`** scope, **`contract`**, `behavior` | `{"reference"}` — the reference as it travels in a payload |
-| `live.import` | **`on`** scope, **`reference`**, **`contract`** | `{"handle"}` an attachment |
+| `live.import_value` | **`on`** scope, `owner`, **`references`**, **`contract`**, `digest`, `fail` | `{"handles"}` — imports in one batch; `fail: true` refuses after the imports to exercise rollback |
+| `live.export` | **`on`** scope, **`contract`**, `digest`, `behavior` | `{"reference"}` — the reference as it travels in a payload |
+| `live.import` | **`on`** scope, **`reference`**, **`contract`**, `digest` | `{"handle"}` an attachment |
 | `live.invoke` | **`on`** attachment, `request`, `timeout_ms`, `cancelled` | `{"handle"}` a call, in flight |
 | `live.release` | **`on`** scope, **`reference`** | `{}` |
-| `live.forward` | **`on`** the destination scope, **`contract`**, **`attachment`** | `{"reference"}` |
+| `live.forward` | **`on`** the destination scope, **`contract`**, `digest`, **`attachment`** | `{"reference"}` |
 | `live.counts` | **`on`** scope | `{"exports", "imports"}` |
 | `live.await_invocation` | **`on`** scope, `contract`, `within_ms` | `{"contract", "outcome"}` — what an exported binding was asked |
 | `live.close` | **`on`** scope | `{}` |
@@ -397,6 +401,12 @@ A `reference` is the value a `live.export` answered with, passed along by the
 scenario; a testee decodes it through the scope it is importing into, since a
 reference of no scope is not a reference. A scenario may also write one by hand
 to name a binding nobody exported, which is the stale token.
+
+`digest` is the generated declaration digest to export or expect at import.
+The driver omits a revision claim when the argument is absent. A mismatch
+between two nonempty digests is `contract_mismatch` before an attachment is
+allocated or an implementation runs. A present wire member is 64 lowercase
+hex characters; an unspecified revision omits the member.
 
 `behavior` is the same canned set a peer's handler takes, plus `through`. A
 binding that `wait`s never settles of its own accord, and one that `hold`s waits

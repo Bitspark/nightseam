@@ -1,0 +1,93 @@
+{
+  "name": "channel admission compares generated declaration digests before accepting any inner frame",
+  "layer": "tunnel",
+  "needs": ["peer", "tunnel"],
+  "steps": [
+    { "on": "runner", "op": "pair.peers", "args": { "server": "a" }, "bind": { "server": "pa", "client": "pb" } },
+    {
+      "on": "a",
+      "op": "tunnel.over",
+      "args": {
+        "on": "$pa",
+        "options": {
+          "accept_capacity": 1,
+          "contracts": { "same": "8666a8fbdacb02b4e8c807fc3b01d56d31bf2fef60626d163b896b0c939a84a6" }
+        }
+      },
+      "bind": "ta"
+    },
+    { "on": "b", "op": "tunnel.over", "args": { "on": "$pb" }, "bind": "tb" },
+    {
+      "on": "b",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$tb",
+        "family": "same",
+        "digest": "2652993925b416656e545667c44375ad6e07430586b4416433d0df4534a8303d"
+      },
+      "expect_error": { "code": "contract_mismatch", "message": "the declaration digest for same differs" },
+      "note": "tables/digests.json's canonical full-declaration digests differ because the second record revision adds an optional member; the original value still fits both separately held validator descriptors"
+    },
+    {
+      "on": "b",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$tb",
+        "family": "same",
+        "digest": "8666a8fbdacb02b4e8c807fc3b01d56d31bf2fef60626d163b896b0c939a84a6"
+      },
+      "bind": { "handle": "cb", "id": "opened" }
+    },
+    {
+      "on": "a",
+      "op": "tunnel.accept",
+      "args": { "on": "$ta" },
+      "expect": {
+        "id": "$opened",
+        "family": "same",
+        "digest": "8666a8fbdacb02b4e8c807fc3b01d56d31bf2fef60626d163b896b0c939a84a6"
+      },
+      "bind": { "handle": "ca" },
+      "note": "the refused channel occupied no capacity and never reached an acceptor"
+    },
+    { "on": "a", "op": "peer.over", "args": { "on": "$ca", "role": "server" }, "bind": "innera" },
+    { "on": "b", "op": "peer.over", "args": { "on": "$cb", "role": "client" }, "bind": "innerb" },
+    { "on": "a", "op": "peer.handle", "args": { "on": "$innera", "method": "echo", "behavior": { "kind": "echo" } } },
+    {
+      "on": "b",
+      "op": "peer.call",
+      "args": { "on": "$innerb", "method": "echo", "params": { "text": "both revisions accept this value" } },
+      "bind": "call"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": { "on": "$call" },
+      "expect": { "result": { "text": "both revisions accept this value" } }
+    },
+    { "on": "b", "op": "tunnel.open", "args": { "on": "$tb", "family": "same" }, "bind": { "handle": "untyped" } },
+    {
+      "on": "a",
+      "op": "tunnel.accept",
+      "args": { "on": "$ta" },
+      "expect": { "family": "same", "digest": "" },
+      "note": "absence is not a revision mismatch"
+    },
+    {
+      "on": "a",
+      "op": "tunnel.open",
+      "args": {
+        "on": "$ta",
+        "family": "same",
+        "digest": "8666a8fbdacb02b4e8c807fc3b01d56d31bf2fef60626d163b896b0c939a84a6"
+      }
+    },
+    {
+      "on": "b",
+      "op": "tunnel.accept",
+      "args": { "on": "$tb" },
+      "expect": { "family": "same", "digest": "8666a8fbdacb02b4e8c807fc3b01d56d31bf2fef60626d163b896b0c939a84a6" },
+      "note": "a receiver carrying no expected digest also accepts"
+    }
+  ]
+}

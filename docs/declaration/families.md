@@ -40,7 +40,7 @@ is refused, and so is a file where a family directory should be.
 ```json
 {
   "nightseam": 2,
-  "imports": ["identity"],
+  "imports": ["accounts"],
   "types": {
     "Payload": {"kind": "record", "extends": ["Base"], "description": "…", "fields": [
       {"name": "count", "type": "integer"},
@@ -91,7 +91,7 @@ A type expression is one of:
 | --- | --- |
 | `"string"` | a primitive: `string`, `boolean`, `integer`, `number`, `timestamp`, `json` |
 | `"Payload"` | a name in scope: a parameter of this declaration or of the family, else a type of this family |
-| `"identity.User"` | a type of an imported family |
+| `"accounts.User"` | a type of an imported family |
 | `"duplex.Envelope"` | a type this family carries from a built-in family (below) |
 | `"S.Envelope"` | a type drawn through a family parameter |
 | `{"array": T}` | an ordered list |

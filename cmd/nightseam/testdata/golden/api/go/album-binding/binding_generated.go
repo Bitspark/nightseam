@@ -4,6 +4,7 @@ package albumbinding
 import (
 	context "context"
 	json "encoding/json"
+	errors "errors"
 	protocol "example.test/generated/api/go/album-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
@@ -40,10 +41,7 @@ func (c *serverMethods[AEnvelope, BEnvelope]) Look(ctx context.Context, params p
 	}
 	return result, nil
 }
-func bindServer[AEnvelope, BEnvelope any](wire duplex.Wire, implementation protocol.Server[AEnvelope, BEnvelope], environment runtime.AdapterContext) error {
-	if implementation.Methods == nil {
-		return fmt.Errorf("Server methods are required")
-	}
+func bindServer[AEnvelope, BEnvelope any](wire duplex.Wire, lookup func() protocol.Server[AEnvelope, BEnvelope], environment runtime.AdapterContext) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -56,11 +54,23 @@ func bindServer[AEnvelope, BEnvelope any](wire duplex.Wire, implementation proto
 	{
 		handlers := runtime.WireHandlers{Observer: environment.Options.Observer, Family: "album"}
 		handlers.Request = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			implementation := lookup()
+			if implementation.Methods == nil {
+				return nil, fmt.Errorf("model methods are required")
+			}
 			if err := protocol.WireSchema().Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Mine\""), raw); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			var params protocol.Mine[AEnvelope]
 			if err := json.Unmarshal(raw, &params); err != nil {
+				var public *runtime.PublicError
+				if errors.As(err, &public) && public.Code == "contract_mismatch" {
+					return nil, err
+				}
 				return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 			}
 			result, err := implementation.Methods.Look(ctx, params)
@@ -96,7 +106,7 @@ type clientEvents[AEnvelope, BEnvelope any] struct {
 func accessClient[AEnvelope, BEnvelope any](wire duplex.Wire, environment runtime.AdapterContext) protocol.Client[AEnvelope, BEnvelope] {
 	return protocol.Client[AEnvelope, BEnvelope]{Methods: &clientMethods[AEnvelope, BEnvelope]{wire: wire, environment: environment}, Events: &clientEvents[AEnvelope, BEnvelope]{wire: wire, environment: environment}}
 }
-func bindClient[AEnvelope, BEnvelope any](wire duplex.Wire, implementation protocol.Client[AEnvelope, BEnvelope], environment runtime.AdapterContext) error {
+func bindClient[AEnvelope, BEnvelope any](wire duplex.Wire, lookup func() protocol.Client[AEnvelope, BEnvelope], environment runtime.AdapterContext) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -125,6 +135,10 @@ func ToWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag a
 	if err != nil {
 		return nil, err
 	}
+	identity, err := declarationIdentity[AEnvelope, BEnvelope]()
+	if err != nil {
+		return nil, err
+	}
 	options := environment.Options
 	families := map[string]string{}
 	for name, existing := range options.Families {
@@ -142,40 +156,104 @@ func ToWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag a
 			_ = access.Close(duplex.CodeInternalError, "model construction failed")
 		}
 	}()
+	if _, err := registerIdentity(binding, identity); err != nil {
+		return nil, err
+	}
 	implementation, err := model(accessClient[AEnvelope, BEnvelope](binding, environment))
 	if err != nil {
 		return nil, err
 	}
-	if err := bindServer[AEnvelope, BEnvelope](binding, implementation, environment); err != nil {
+	if implementation.Methods == nil {
+		return nil, fmt.Errorf("Server methods are required")
+	}
+	if err := bindServer[AEnvelope, BEnvelope](binding, func() protocol.Server[AEnvelope, BEnvelope] { return implementation }, environment); err != nil {
 		return nil, err
 	}
 	complete = true
 	return access, nil
 }
-
-// FromWire interprets a wire as a factory that may be bound once.
-func FromWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ServerModel[AEnvelope, BEnvelope], error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("context is required")
+func declarationIdentity[AEnvelope, BEnvelope any]() (runtime.DeclarationIdentity, error) {
+	digest, err := protocol.WireSchema().Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).DeclarationDigest()
+	if err != nil {
+		return runtime.DeclarationIdentity{}, err
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if wire == nil {
-		return nil, fmt.Errorf("wire is required")
-	}
-	environment, err := normalizeContext[AEnvelope, BEnvelope](environment)
+	return runtime.DeclarationIdentity{Path: "album", Digest: digest}, nil
+}
+func registerIdentity(wire duplex.Wire, identity runtime.DeclarationIdentity) (func(), error) {
+	handler, err := runtime.IdentityHandler(identity)
 	if err != nil {
 		return nil, err
 	}
-	var bound atomic.Bool
-	return func(implementation protocol.Client[AEnvelope, BEnvelope]) (protocol.Server[AEnvelope, BEnvelope], error) {
-		if !bound.CompareAndSwap(false, true) {
-			return protocol.Server[AEnvelope, BEnvelope]{}, fmt.Errorf("model factory is already bound")
+	return runtime.HandleWire(wire, []string{runtime.IdentityMethod}, func(ctx context.Context, raw json.RawMessage) (any, error) { return handler(ctx, nil, raw) })
+}
+
+// PrepareFromWire registers receivers synchronously, before the wire is attached.
+// Complete checks identity and returns a factory that may be bound once. Both steps
+// must finish within environment.Options.RequestTimeout. Cleanup detaches this
+// interpretation's registrations, including after success, and never closes the wire.
+func PrepareFromWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](wire duplex.Wire, environment runtime.AdapterContext) (complete func(context.Context) (protocol.ServerModel[AEnvelope, BEnvelope], error), cleanup func(), err error) {
+	if wire == nil {
+		return nil, nil, fmt.Errorf("wire is required")
+	}
+	environment, err = normalizeContext[AEnvelope, BEnvelope](environment)
+	if err != nil {
+		return nil, nil, err
+	}
+	identity, err := declarationIdentity[AEnvelope, BEnvelope]()
+	if err != nil {
+		return nil, nil, err
+	}
+	preparation, err := runtime.PrepareIdentity(wire, identity, environment.Options)
+	if err != nil {
+		return nil, nil, err
+	}
+	cleanup = preparation.Close
+	var implementation atomic.Pointer[protocol.Client[AEnvelope, BEnvelope]]
+	lookup := func() protocol.Client[AEnvelope, BEnvelope] {
+		if current := implementation.Load(); current != nil {
+			return *current
 		}
-		if err := bindClient[AEnvelope, BEnvelope](wire, implementation, environment); err != nil {
-			return protocol.Server[AEnvelope, BEnvelope]{}, err
+		return protocol.Client[AEnvelope, BEnvelope]{}
+	}
+	if err = bindClient[AEnvelope, BEnvelope](preparation.Wire(), lookup, environment); err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	var checking, bound atomic.Bool
+	complete = func(ctx context.Context) (protocol.ServerModel[AEnvelope, BEnvelope], error) {
+		if !checking.CompareAndSwap(false, true) {
+			return nil, fmt.Errorf("identity completion is already started")
 		}
-		return accessServer[AEnvelope, BEnvelope](wire, environment), nil
-	}, nil
+		if err := preparation.Check(ctx); err != nil {
+			cleanup()
+			return nil, err
+		}
+		return func(value protocol.Client[AEnvelope, BEnvelope]) (protocol.Server[AEnvelope, BEnvelope], error) {
+			if !bound.CompareAndSwap(false, true) {
+				return protocol.Server[AEnvelope, BEnvelope]{}, fmt.Errorf("model factory is already bound")
+			}
+			implementation.Store(&value)
+			if err := preparation.Ready(); err != nil {
+				cleanup()
+				return protocol.Server[AEnvelope, BEnvelope]{}, err
+			}
+			return accessServer[AEnvelope, BEnvelope](preparation.Wire(), environment), nil
+		}, nil
+	}
+	return complete, cleanup, nil
+}
+
+// FromWire checks identity and returns a factory that may be bound once.
+// Use PrepareFromWire before attachment when incoming delivery can begin immediately.
+func FromWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ServerModel[AEnvelope, BEnvelope], error) {
+	complete, cleanup, err := PrepareFromWire[AEnvelope, BEnvelope](wire, environment)
+	if err != nil {
+		return nil, err
+	}
+	model, err := complete(ctx)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+	return model, nil
 }

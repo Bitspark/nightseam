@@ -1,6 +1,6 @@
 /** One generic model and its generated adapters across wire presentations and carriers. */
 import { at, mount, pipe, type Wire } from '@nightseam/duplex';
-import { DuplexPeer, forwardWire, jsonAdapter, wirePair, type Observer, type ValueAdapter, type WebSocketLike } from '@nightseam/runtime';
+import { DuplexPeer, declarationDigest, forwardWire, jsonAdapter, wirePair, type Observer, type ValueAdapter, type WebSocketLike } from '@nightseam/runtime';
 import { liveOver, type LiveScope } from '@nightseam/live';
 import { Tunnel } from '@nightseam/tunnel';
 import * as cell from './api/ts/cell-client/src/index.ts';
@@ -259,7 +259,8 @@ class WireEndpoint<T> {
       else await peer.attach(socketOrURL);
       if (tunnel) {
         const options = { observer: this.observer, prepare: (prepared: DuplexPeer) => this.install(prepared) };
-        const channel = this.serving ? await tunnel.accept(options) : await tunnel.open('wire-cell', options);
+        const digest = declarationDigest(cell.validateWire, { T: this.slot.adapter.binding });
+        const channel = this.serving ? await tunnel.accept(options) : await tunnel.open('cell', digest, options);
         this.owned.push(channel);
       }
       this.setupAllocations = this.snapshot();
@@ -357,8 +358,10 @@ class ModelBridge {
       this.origin = origin;
       this.originScope = liveOver(origin);
       const source = this.select(origin, presentation);
-      const imported = await binding.fromWire(source, adapterContext(this.originScope, { observer: this.observer }), factorySlot.adapter);
+      const preparation = binding.prepareFromWire(source, adapterContext(this.originScope, { observer: this.observer }), factorySlot.adapter);
+      this.detaches.push(() => preparation.close());
       await origin.connect(String(args.origin));
+      const imported = await preparation.complete();
       this.served = await new Served(async socket => {
         const destination = new DuplexPeer({ role: 'server', observer: this.observer });
         this.destination = destination;

@@ -102,18 +102,26 @@ func dialWorkers(t *testing.T, ctx context.Context, w *workers) *caller {
 	t.Helper()
 	var carrier *tunnel.Tunnel
 	var access workerprotocol.Server
+	var complete func(context.Context) (workerprotocol.ServerModel, error)
+	var cleanup func()
 	peer, _, err := runtime.Dial(ctx, w.url(), runtime.DialOptions{Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
 		carrier, err = tunnel.New(peer, tunnel.Options{})
 		if err != nil {
 			return err
 		}
-		factory, err := workerbinding.FromWire(ctx, peer.Wire(), runtime.AdapterContext{})
-		if err != nil {
-			return err
-		}
-		access, err = factory(workerprotocol.Client{Methods: struct{}{}, Events: struct{}{}})
+		complete, cleanup, err = workerbinding.PrepareFromWire(peer.Wire(), runtime.AdapterContext{})
 		return err
 	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanup)
+	t.Cleanup(func() { _ = peer.Close() })
+	factory, err := complete(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	access, err = factory(workerprotocol.Client{Methods: struct{}{}, Events: struct{}{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,18 +159,26 @@ func dialCells(t *testing.T, ctx context.Context, c *cells) *cellCaller {
 	t.Helper()
 	var carrier *tunnel.Tunnel
 	var access cellprotocol.Server
+	var complete func(context.Context) (cellprotocol.ServerModel, error)
+	var cleanup func()
 	peer, _, err := runtime.Dial(ctx, "ws"+strings.TrimPrefix(c.server.URL, "http"), runtime.DialOptions{Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
 		carrier, err = tunnel.New(peer, tunnel.Options{})
 		if err != nil {
 			return err
 		}
-		factory, err := cellbinding.FromWire(ctx, peer.Wire(), runtime.AdapterContext{})
-		if err != nil {
-			return err
-		}
-		access, err = factory(cellprotocol.Client{Methods: struct{}{}, Events: struct{}{}})
+		complete, cleanup, err = cellbinding.PrepareFromWire(peer.Wire(), runtime.AdapterContext{})
 		return err
 	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanup)
+	t.Cleanup(func() { _ = peer.Close() })
+	factory, err := complete(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	access, err = factory(cellprotocol.Client{Methods: struct{}{}, Events: struct{}{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,18 +212,26 @@ func dialTopics(t *testing.T, ctx context.Context, tp *topics) *topicCaller {
 	t.Helper()
 	var carrier *tunnel.Tunnel
 	var access topicprotocol.Server
+	var complete func(context.Context) (topicprotocol.ServerModel, error)
+	var cleanup func()
 	peer, _, err := runtime.Dial(ctx, "ws"+strings.TrimPrefix(tp.server.URL, "http"), runtime.DialOptions{Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
 		carrier, err = tunnel.New(peer, tunnel.Options{})
 		if err != nil {
 			return err
 		}
-		factory, err := topicbinding.FromWire(ctx, peer.Wire(), runtime.AdapterContext{})
-		if err != nil {
-			return err
-		}
-		access, err = factory(topicprotocol.Client{Methods: struct{}{}, Events: struct{}{}})
+		complete, cleanup, err = topicbinding.PrepareFromWire(peer.Wire(), runtime.AdapterContext{})
 		return err
 	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanup)
+	t.Cleanup(func() { _ = peer.Close() })
+	factory, err := complete(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	access, err = factory(topicprotocol.Client{Methods: struct{}{}, Events: struct{}{}})
 	if err != nil {
 		t.Fatal(err)
 	}

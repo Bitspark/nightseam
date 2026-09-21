@@ -106,34 +106,40 @@ type Counts struct {
 // Reference names one binding of one scope. It has no exported field and no
 // public constructor: it is minted by Export or by Scope.Decode, carries the
 // scope it was minted in, and is refused reference_foreign in another scope.
-// MarshalJSON exposes its binding and contract without that native association;
+// MarshalJSON exposes its binding, contract and any declaration digest without that native association;
 // decoding those bytes creates a reference associated with the decoding scope.
 type Reference struct {
 	binding  string
 	contract string
+	digest   string
 	scope    *Scope
 }
 
 // Contract is the declared contract the reference carries.
 func (r Reference) Contract() string { return r.contract }
 
-// MarshalJSON writes the binding and contract as an ordinary payload value.
+// Digest is the declaration digest the reference carries, or empty when absent.
+func (r Reference) Digest() string { return r.digest }
+
+// MarshalJSON writes the binding, contract and any digest as an ordinary payload value.
 // It does not serialize the native reference's scope association.
 func (r Reference) MarshalJSON() ([]byte, error) {
 	if r.binding == "" {
 		return nil, errors.New("a live reference names no binding")
 	}
-	return json.Marshal(referenceWire{Binding: r.binding, Contract: r.contract})
+	return json.Marshal(referenceWire{Binding: r.binding, Contract: r.contract, Digest: r.digest})
 }
 
 type referenceWire struct {
 	Binding  string `json:"binding"`
 	Contract string `json:"contract"`
+	Digest   string `json:"digest,omitempty"`
 }
 
 type binding struct {
 	owner    *ownerState
 	contract string
+	digest   string
 	invoke   Invoke
 	released bool
 }
@@ -141,6 +147,7 @@ type binding struct {
 type attachment struct {
 	owner    *ownerState
 	contract string
+	digest   string
 	invoke   Invoke
 	released bool
 }
@@ -280,11 +287,15 @@ func (s *Scope) Counts() Counts {
 // Export makes a binding of a native function and returns the reference that
 // names it. Exporting the same function twice makes two bindings: native
 // identity is nobody's guarantee across a wire, and two bindings are two
-// lifetimes, which is what separate release needs.
-func (o *Owner) Export(contract string, invoke Invoke) (Reference, error) {
+// lifetimes, which is what separate release needs. An empty digest leaves the
+// declaration revision unspecified; otherwise it is lower-case SHA-256 hex.
+func (o *Owner) Export(contract, digest string, invoke Invoke) (Reference, error) {
 	s := o.Scope()
 	if contract == "" {
 		return Reference{}, s.refuse(contract, ErrorContractInvalid, "a binding is exported for a contract")
+	}
+	if !validDigest(digest) {
+		return Reference{}, s.refuse(contract, ErrorContractInvalid, "a declaration digest is lower-case SHA-256 hex")
 	}
 	if invoke == nil {
 		return Reference{}, s.refuse(contract, ErrorContractInvalid, "a binding is a function")
@@ -304,26 +315,36 @@ func (o *Owner) Export(contract string, invoke Invoke) (Reference, error) {
 	}
 	id := s.nonce + "." + strconv.FormatInt(s.next, 10)
 	s.next++
-	s.exports[id] = &binding{contract: contract, invoke: invoke, owner: o.state}
+	s.exports[id] = &binding{contract: contract, digest: digest, invoke: invoke, owner: o.state}
 	o.record(id, false)
 	s.mu.Unlock()
 	s.observeExported(contract, id)
-	return Reference{binding: id, contract: contract, scope: s.root}, nil
+	return Reference{binding: id, contract: contract, digest: digest, scope: s.root}, nil
 }
 
-// Decode validates serialized binding and contract strings and associates the
+// Decode validates serialized binding, contract and optional digest and associates the
 // resulting reference with this scope. It accepts caller-supplied bytes without
 // proving they arrived in a message, name an existing binding, or authorize its
 // use. Import checks the native association; invocation checks the export table.
 func (s *Scope) Decode(raw json.RawMessage) (Reference, error) {
-	var wire referenceWire
+	var wire struct {
+		Binding  string          `json:"binding"`
+		Contract string          `json:"contract"`
+		Digest   json.RawMessage `json:"digest"`
+	}
 	if err := json.Unmarshal(raw, &wire); err != nil {
 		return Reference{}, &runtime.PublicError{Code: ErrorContractInvalid, Message: "a live reference is a binding and a contract"}
 	}
 	if wire.Binding == "" || wire.Contract == "" {
 		return Reference{}, &runtime.PublicError{Code: ErrorContractInvalid, Message: "a live reference is a binding and a contract"}
 	}
-	return Reference{binding: wire.Binding, contract: wire.Contract, scope: s.root}, nil
+	digest := ""
+	if len(wire.Digest) > 0 {
+		if err := json.Unmarshal(wire.Digest, &digest); err != nil || digest == "" || !validDigest(digest) {
+			return Reference{}, &runtime.PublicError{Code: ErrorContractInvalid, Message: "a declaration digest is lower-case SHA-256 hex"}
+		}
+	}
+	return Reference{binding: wire.Binding, contract: wire.Contract, digest: digest, scope: s.root}, nil
 }
 
 // Import is the attachment to a binding, as a function to call it with. The
@@ -332,10 +353,15 @@ func (s *Scope) Decode(raw json.RawMessage) (Reference, error) {
 // A reference this side exported resolves to the function behind it, with
 // nothing crossing the wire. Attaching to a remote binding does not establish
 // that it exists: that lookup occurs when the imported function is invoked.
-func (o *Owner) Import(r Reference, contract string) (Invoke, error) {
+// Two specified declaration digests must agree before an attachment is reused
+// or created. An empty digest leaves that side's revision unspecified.
+func (o *Owner) Import(r Reference, contract, digest string) (Invoke, error) {
 	s := o.Scope()
 	if contract == "" {
 		return nil, s.refuse(contract, ErrorContractInvalid, "a binding is imported for a contract")
+	}
+	if !validDigest(digest) {
+		return nil, s.refuse(contract, ErrorContractInvalid, "a declaration digest is lower-case SHA-256 hex")
 	}
 	if r.scope == nil || r.scope != s.root {
 		return nil, s.refuse(contract, ErrorReferenceForeign, "the reference was minted in another scope")
@@ -343,10 +369,13 @@ func (o *Owner) Import(r Reference, contract string) (Invoke, error) {
 	if r.contract != contract {
 		return nil, s.refuse(contract, ErrorContractMismatch, "the reference carries "+r.contract+" where "+contract+" is expected")
 	}
+	if digestMismatch(r.digest, digest) {
+		return nil, s.refuse(contract, ErrorContractMismatch, "the reference carries a different declaration digest for "+contract)
+	}
 	// The table is the scope's own and nobody is told while it is held: an
 	// observer runs where the event happened, and this one would otherwise run
 	// under the lock every invocation of the scope waits on.
-	invoke, fresh, code, message := o.attach(r, contract)
+	invoke, fresh, code, message := o.attach(r, contract, digest)
 	switch {
 	case code != "":
 		return nil, s.refuse(contract, code, message)
@@ -356,7 +385,7 @@ func (o *Owner) Import(r Reference, contract string) (Invoke, error) {
 	return invoke, nil
 }
 
-func (o *Owner) attach(r Reference, contract string) (invoke Invoke, fresh bool, code, message string) {
+func (o *Owner) attach(r Reference, contract, digest string) (invoke Invoke, fresh bool, code, message string) {
 	s := o.Scope()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -373,18 +402,27 @@ func (o *Owner) attach(r Reference, contract string) (invoke Invoke, fresh bool,
 		if own.contract != contract {
 			return nil, false, ErrorContractMismatch, "the binding carries " + own.contract
 		}
+		if digestMismatch(own.digest, r.digest) || digestMismatch(own.digest, digest) {
+			return nil, false, ErrorContractMismatch, "the binding carries a different declaration digest for " + contract
+		}
 		return s.local(own), false, "", ""
 	}
 	if held, ok := s.imports[r.binding]; ok {
 		if held.contract != contract {
 			return nil, false, ErrorContractMismatch, "the binding is attached as " + held.contract
 		}
+		if digestMismatch(held.digest, r.digest) || digestMismatch(held.digest, digest) {
+			return nil, false, ErrorContractMismatch, "the binding is attached with a different declaration digest for " + contract
+		}
+		if held.digest == "" {
+			held.digest = knownDigest(r.digest, digest)
+		}
 		return held.invoke, false, "", ""
 	}
 	if len(s.imports) >= s.options.MaxImports {
 		return nil, false, ErrorTooManyImports, "no room for another imported binding"
 	}
-	held := &attachment{contract: contract, owner: o.state}
+	held := &attachment{contract: contract, digest: knownDigest(r.digest, digest), owner: o.state}
 	held.invoke = s.remote(r.binding, held)
 	s.imports[r.binding] = held
 	o.record(r.binding, true)
@@ -596,14 +634,42 @@ func (s *Scope) notifyRelease(notice releaseNotice) {
 // Releasing the forwarded binding does not release the origin; an invocation
 // through a released or ended origin fails with the origin's refusal, which is
 // what the destination's caller is told.
-func Forward(destination *Owner, contract string, origin Invoke) (Reference, error) {
+func Forward(destination *Owner, contract, digest string, origin Invoke) (Reference, error) {
 	if destination == nil {
 		return Reference{}, errors.New("forwarding needs a destination owner")
 	}
 	if origin == nil {
 		return Reference{}, &runtime.PublicError{Code: ErrorContractInvalid, Message: "forwarding needs the origin's function"}
 	}
-	return destination.Export(contract, origin)
+	return destination.Export(contract, digest, origin)
+}
+
+func validDigest(digest string) bool {
+	if digest == "" {
+		return true
+	}
+	if len(digest) != 64 {
+		return false
+	}
+	for _, c := range digest {
+		if c < '0' || c > '9' {
+			if c < 'a' || c > 'f' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func digestMismatch(left, right string) bool {
+	return left != "" && right != "" && left != right
+}
+
+func knownDigest(received, expected string) string {
+	if received != "" {
+		return received
+	}
+	return expected
 }
 
 func (s *Scope) refuse(contract, code, message string) error {

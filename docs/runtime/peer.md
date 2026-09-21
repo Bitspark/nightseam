@@ -75,11 +75,16 @@ same explicit construction order: a
 `DuplexPeer` is made, `handle` and `onEvent` register on it, and `attach` or
 `connect` gives it a connection — handlers first, frames second.
 
-Generated packages bind model sessions through `ToWire`/`FromWire`
-(`toWire`/`fromWire`), independently of carrier construction. Bind the complete
-model, including its reverse methods and events, during preparation before
-attaching a physical carrier. The [generated surface](../declaration/generated.md)
-describes the once-bound factory and explicit adapter context.
+Generated adapters use [wire preparation](wire.md#preparing-an-interpretation)
+to install receivers before reading while checking identity over the live
+carrier. Call `PrepareFromWire` inside Go's `Prepare`, retain its completion
+and cleanup functions, then complete after the peer constructor returns.
+In TypeScript, call `prepareFromWire(peer.wire(), context, ...bindings)`
+before `attach` or `connect`, and await its `complete()` afterwards. Bind
+the returned model factory once to release its deferred requests and events.
+Preparation cleanup leaves the peer's lifetime with the host. Calling the
+combined `FromWire` / `fromWire` after attachment cannot recover an event
+that reached the peer before the generated receivers were installed.
 
 ## Structured Wire access
 
@@ -226,9 +231,9 @@ adapter](observer.md#the-opentelemetry-adapter) is the one that ships.
 ## The validator
 
 The wire validator lives in each runtime, once, and reads the family's wire
-description the protocol package embeds: `runtime.NewSchema(wire, imported)`
+description the protocol package embeds: `runtime.NewSchema(wire, digest, imported)`
 and `MustSchema` in Go, with `ValidateRaw`, `ValidateExpressionRaw` and
-`ValidateValue`; `createValidator(description, imported)` in TypeScript, which
+`ValidateValue`; `createValidator(description, digest, imported)` in TypeScript, which
 validates calls, replies, reverse calls and events alike. Both are held to
 one conformance table, `conformance/tables/validator.json`. `Optional[T]` and
 `Nullable[T]` in Go carry presence and nullness as the two facts the

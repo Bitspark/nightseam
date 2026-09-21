@@ -180,7 +180,7 @@ func TestWireAdaptersLabelEveryNameWithItsFamily(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const labels = `{ ...context.options, families: { ...context.options?.families, [encodePath(["run"])]: "x", [encodePath(["back"])]: "x", [encodePath(["changed"])]: "x", [encodePath(["noticed"])]: "x" } }`
+	const labels = `{ ...adapter.options, families: { ...adapter.options.families, [encodePath(["run"])]: "x", [encodePath(["back"])]: "x", [encodePath(["changed"])]: "x", [encodePath(["noticed"])]: "x" } }`
 	for _, file := range files {
 		if !strings.HasSuffix(file.Path, "/src/index.ts") {
 			continue

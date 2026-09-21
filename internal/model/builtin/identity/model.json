@@ -1,0 +1,13 @@
+{
+  "nightseam": 2,
+  "types": {
+    "Declaration": {
+      "kind": "record",
+      "description": "The declaration a generated adapter interprets at one wire origin. Identity is independent of the carrier and of authentication.",
+      "fields": [
+        {"name": "path", "description": "The nominal declaration path.", "type": "string"},
+        {"name": "digest", "description": "The generated SHA-256 declaration digest, exactly 64 lowercase hexadecimal characters. Absence makes no revision claim; an empty present string is invalid.", "type": "string", "required": false}
+      ]
+    }
+  }
+}

@@ -12,6 +12,7 @@ import (
 type Channel struct {
 	ID     int64
 	Family string
+	Digest string
 	wire   duplex.Wire
 }
 
@@ -27,8 +28,8 @@ func (c *Channel) Close(code duplex.Code, reason string) error { return c.wire.C
 
 // Open opens a prepared wire. The wait context bounds acquisition; the inner
 // peer lives with the outer peer. Prepare installs handlers before reading.
-func (t *Tunnel) Open(ctx context.Context, family string, options runtime.Options) (*Channel, error) {
-	c, err := t.openConnection(ctx, family)
+func (t *Tunnel) Open(ctx context.Context, family, digest string, options runtime.Options) (*Channel, error) {
+	c, err := t.openConnection(ctx, family, digest)
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +57,8 @@ func (t *Tunnel) Channel(id int64, options runtime.Options) (*Channel, bool, err
 }
 
 // OpenConnection opens raw frame transport without starting a profile reader.
-func (t *Tunnel) OpenConnection(ctx context.Context, family string) (*Connection, error) {
-	c, err := t.openConnection(ctx, family)
+func (t *Tunnel) OpenConnection(ctx context.Context, family, digest string) (*Connection, error) {
+	c, err := t.openConnection(ctx, family, digest)
 	if err != nil {
 		return nil, err
 	}
@@ -120,6 +121,6 @@ func (c *Connection) asWire(options runtime.Options) (*Channel, error) {
 		_ = c.Abort()
 		return nil, err
 	}
-	c.channel = &Channel{ID: c.ID, Family: c.Family, wire: peer.Wire()}
+	c.channel = &Channel{ID: c.ID, Family: c.Family, Digest: c.Digest, wire: peer.Wire()}
 	return c.channel, nil
 }

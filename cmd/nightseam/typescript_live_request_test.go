@@ -41,7 +41,7 @@ func TestGeneratedTypeScriptEmptyLiveRequests(t *testing.T) {
 
 const tsEmptyLiveRequestsFixture = `import {pipe} from '@nightseam/duplex';
 import {DuplexPeer, DuplexError, callWire, forwardWire} from '@nightseam/runtime';
-import {toWire, fromWire} from '@example/service-binding';
+import {toWire, prepareFromWire} from '@example/service-binding';
 import type {Client} from '@example/service-client/types';
 import {liveOver, valueEnvironment} from '@nightseam/live';
 
@@ -66,11 +66,12 @@ const modelWire = toWire(client => {
  }}, events: {}};
 }, {valueEnvironment: valueEnvironment(scopes[1])});
 const detach = forwardWire(peer.wire(), modelWire);
-const client = (await fromWire(clientPeer.wire(), {valueEnvironment: valueEnvironment(scopes[0])}))({methods: {reverse(params) {
+const prepared = prepareFromWire(clientPeer.wire(), {valueEnvironment: valueEnvironment(scopes[0])});
+await Promise.all([peer.attach(far), clientPeer.attach(near)]);
+const client = (await prepared.complete(options))({methods: {reverse(params) {
   check(Object.keys(params).length === 0, 'reverse request was not empty');
   return async value => value + 2;
 }}, events: {}});
-await Promise.all([peer.attach(far), clientPeer.attach(near)]);
 try {
  for (const side of [0, 1] as const) {
   const scope = scopes[side];
@@ -88,5 +89,5 @@ try {
  }
  await refuses(callWire(clientPeer.wire(), ['create'], {extra: 1}, options), 'invalid_params');
  await refuses(callWire(peer.wire(), ['reverse'], {extra: 1}, options), 'invalid_params');
-} finally { detach(); modelWire.close(); clientPeer.close(); peer.close(); }
+} finally { prepared.close(); detach(); modelWire.close(); clientPeer.close(); peer.close(); }
 `

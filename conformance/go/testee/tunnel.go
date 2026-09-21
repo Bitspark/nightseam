@@ -84,6 +84,12 @@ func (t *testee) tunnelOps() map[string]func(request) (any, error) {
 			}
 			options := tunnel.Options{}
 			for key, value := range raw {
+				if key == "contracts" {
+					if err := json.Unmarshal(value, &options.Contracts); err != nil {
+						return nil, invalid("options.contracts maps family names to digests")
+					}
+					continue
+				}
 				var n int64
 				if err := json.Unmarshal(value, &n); err != nil {
 					return nil, invalid("options.%s is an integer", key)
@@ -114,6 +120,10 @@ func (t *testee) tunnelOps() map[string]func(request) (any, error) {
 			if err != nil {
 				return nil, err
 			}
+			digest, err := r.string("digest")
+			if err != nil {
+				return nil, err
+			}
 			within, err := r.within()
 			if err != nil {
 				return nil, err
@@ -124,7 +134,7 @@ func (t *testee) tunnelOps() map[string]func(request) (any, error) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), within)
 			defer cancel()
-			ch, err := tn.OpenConnection(ctx, family)
+			ch, err := tn.OpenConnection(ctx, family, digest)
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
 					return nil, fail("timeout", "the open was not answered within %s", within)
@@ -155,7 +165,7 @@ func (t *testee) tunnelOps() map[string]func(request) (any, error) {
 				}
 				return nil, tunnelError(err)
 			}
-			return map[string]any{"handle": t.mint("ch", wrap(ch, lazy)), "id": ch.ID, "family": ch.Family}, nil
+			return map[string]any{"handle": t.mint("ch", wrap(ch, lazy)), "id": ch.ID, "family": ch.Family, "digest": ch.Digest}, nil
 		},
 	}
 }

@@ -3,6 +3,7 @@ package tunnel_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -26,7 +27,8 @@ func TestChannelIsAPreparedWireBeforeSelection(t *testing.T) {
 	defer cancel()
 	observer := &wireOpens{}
 	acquired, stopAcquisition := context.WithCancel(ctx)
-	opened, err := client.Open(acquired, "wire", runtime.Options{Observer: observer})
+	digest := strings.Repeat("a", 64)
+	opened, err := client.Open(acquired, "wire", digest, runtime.Options{Observer: observer})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,6 +52,9 @@ func TestChannelIsAPreparedWireBeforeSelection(t *testing.T) {
 	}
 	if err := <-result; err != nil {
 		t.Fatal(err)
+	}
+	if opened.Digest != digest || accepted.Digest != digest {
+		t.Fatal("prepared channel lost declaration digest")
 	}
 	var _ duplex.Wire = (*tunnel.Channel)(nil)
 	if observer.count.Load() != 2 {
@@ -79,7 +84,7 @@ func TestRawConnectionCannotAcquireASecondWireReader(t *testing.T) {
 	client, _ := peers(t, tunnel.Options{})
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	raw, err := client.OpenConnection(ctx, "raw")
+	raw, err := client.OpenConnection(ctx, "raw", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +104,7 @@ func TestServerOpenedWireChannelUsesOnePreparedPeerOnEachSide(t *testing.T) {
 		_, err := runtime.HandleWire(peer.Wire(), []string{"echo"}, func(_ context.Context, raw json.RawMessage) (any, error) { return raw, nil })
 		return err
 	}}
-	opened, err := server.Open(ctx, "reverse", prepare)
+	opened, err := server.Open(ctx, "reverse", "", prepare)
 	if err != nil {
 		t.Fatal(err)
 	}

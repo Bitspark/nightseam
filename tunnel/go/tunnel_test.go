@@ -55,7 +55,7 @@ func pair(t *testing.T, client, server *tunnel.Tunnel) (opened, accepted *tunnel
 		}
 		done <- c
 	}()
-	opened, err := client.OpenConnection(ctx, "probe")
+	opened, err := client.OpenConnection(ctx, "probe", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestChannelIsAConnOverWebSocket(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { peer.Close() })
-		opened, err := tn.OpenConnection(ctx, "probe")
+		opened, err := tn.OpenConnection(ctx, "probe", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -136,11 +136,11 @@ func TestBothSidesOpen(t *testing.T) {
 	client, server := peers(t, tunnel.Options{})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	fromClient, err := client.OpenConnection(ctx, "probe")
+	fromClient, err := client.OpenConnection(ctx, "probe", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	fromServer, err := server.OpenConnection(ctx, "codex")
+	fromServer, err := server.OpenConnection(ctx, "codex", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,15 +274,15 @@ func TestOpenIsRefusedWhenNobodyAccepts(t *testing.T) {
 	client, _ := peers(t, tunnel.Options{AcceptCapacity: 1})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if _, err := client.OpenConnection(ctx, "probe"); err != nil {
+	if _, err := client.OpenConnection(ctx, "probe", ""); err != nil {
 		t.Fatal(err)
 	}
-	_, err := client.OpenConnection(ctx, "probe")
+	_, err := client.OpenConnection(ctx, "probe", "")
 	var public *runtime.PublicError
 	if !errors.As(err, &public) || public.Code != tunnel.ErrorRefused {
 		t.Fatalf("the second open: %v", err)
 	}
-	if _, err := client.OpenConnection(ctx, ""); err == nil {
+	if _, err := client.OpenConnection(ctx, "", ""); err == nil {
 		t.Fatal("a channel of no family opened")
 	}
 }

@@ -70,6 +70,7 @@ func TestGoParametersRespectDeclarationAndEntryScopes(t *testing.T) {
 	for name, files := range map[string]map[string]string{
 		"own parameter shadows package type":  {"model.json": `{"nightseam":2,"types":{"T":{"kind":"record","fields":[]},"Box":{"kind":"record","parameters":[{"name":"T"}],"fields":[{"name":"item","type":"T"}]}}}`},
 		"entry parameter shadows client type": {"protocol.json": modeltest.Protocol(`"parameters":[{"name":"Client"}],"server":{"methods":{"echo":{"result":"Client"}}}`)},
+		"entry parameter shadows preparation": {"protocol.json": modeltest.Protocol(`"parameters":[{"name":"PrepareFromWire"}],"server":{"methods":{"echo":{"result":"PrepareFromWire"}}}`)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, diagnostics := newPlan(family(files))

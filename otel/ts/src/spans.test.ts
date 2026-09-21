@@ -63,7 +63,7 @@ async function carried(tracer: Tracer) {
   const opening = new Tunnel(near, {});
   const accepting = new Tunnel(far, {});
   const accepted = accepting.acceptConnection();
-  const client: Connection = await opening.openConnection('probe');
+  const client: Connection = await opening.openConnection('probe', '');
   const server: Connection = await accepted;
   return {
     client,

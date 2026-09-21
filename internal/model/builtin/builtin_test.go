@@ -16,10 +16,10 @@ import (
 // namespace its operations are named in.
 func TestBuiltinsDecode(t *testing.T) {
 	families := Families()
-	if len(families) != 3 {
-		t.Fatalf("the built-in families are %v; they are duplex, tunnel and live", Names())
+	if len(families) != 4 {
+		t.Fatalf("the built-in families are %v; they are duplex, tunnel, live and identity", Names())
 	}
-	for _, name := range []string{"duplex", "tunnel", "live"} {
+	for _, name := range []string{"duplex", "tunnel", "live", "identity"} {
 		if _, ok := families[name]; !ok {
 			t.Fatalf("the built-in %s family is missing", name)
 		}
@@ -150,12 +150,12 @@ func TestFramesTableIsDuplexsDeclaration(t *testing.T) {
 // envelope is not a namespace.
 func TestNamespacesAreReadOffTheBuiltins(t *testing.T) {
 	namespaces := Namespaces()
-	for prefix, family := range map[string]string{"channel": "tunnel", "live": "live"} {
+	for prefix, family := range map[string]string{"channel": "tunnel", "live": "live", "identity": "identity"} {
 		if got := namespaces[prefix]; got != family {
 			t.Errorf("the %s. namespace is owned by %q; it is the %s layer's", prefix, got, family)
 		}
 	}
-	if len(namespaces) != 2 {
-		t.Fatalf("the reserved namespaces are %v; they are channel. and live.", namespaces)
+	if len(namespaces) != 3 {
+		t.Fatalf("the reserved namespaces are %v; they are channel., live. and identity.", namespaces)
 	}
 }

@@ -23,7 +23,7 @@ func TestGeneratedTypeScriptBinding(t *testing.T) {
 
 const tsBindingFixture = `import {pipe, encodePath, type FrameConnection} from '@nightseam/duplex';
 import {DuplexPeer, DuplexError, callWire, forwardWire} from '@nightseam/runtime';
-import {toWire, fromWire, type Client, type ServerModel} from '@example/service-binding';
+import {toWire, prepareFromWire, type Client, type ServerModel} from '@example/service-binding';
 
 function check(value: unknown, message: string): asserts value { if (!value) throw new Error(message); }
 async function refuses(call: Promise<unknown>, code?: string) {
@@ -57,9 +57,10 @@ const peer = new DuplexPeer({role:'server', dispatch: async method => {
 const wire=toWire(model,{});
 forwardWire(peer.wire(),wire);
 const consumer=new DuplexPeer({role:'client'});
-const bind=await fromWire(consumer.wire(),{});
-const client=bind({methods:{reverse:value=>value.value+1},events:{changed:value=>{changed=value;}}});
+const prepared=prepareFromWire(consumer.wire(),{});
 await Promise.all([peer.attach(far),consumer.attach(near)]);
+const bind=await prepared.complete(options);
+const client=bind({methods:{reverse:value=>value.value+1},events:{changed:value=>{changed=value;}}});
 try {
  check(await client.methods.run({value:4}, options) === 5 && changed === 4, 'typed served and reverse call failed');
  await client.events.noticed(7);
@@ -68,7 +69,7 @@ try {
  await refuses(callWire(consumer.wire(), ['run'], 'invalid', options), 'invalid_params');
  await refuses(Promise.resolve(client.methods.broken({},options)));
  await refuses(Promise.resolve(reverse.methods.reverse({value:NaN}, options)));
-} finally { consumer.close(); peer.close(); wire.close(); }
+} finally { prepared.close(); consumer.close(); peer.close(); wire.close(); }
 
 // The host binds generated incoming events before attach reads its first frame.
 let first = 0;

@@ -1,0 +1,83 @@
+{
+  "name": "a same-name different-digest reference is refused at import before reaching its implementation",
+  "layer": "live",
+  "needs": ["live", "peer"],
+  "steps": [
+    { "on": "runner", "op": "pair.peers", "args": { "server": "a" }, "bind": { "server": "pa", "client": "pb" } },
+    { "on": "a", "op": "live.over", "args": { "on": "$pa" }, "bind": "la" },
+    { "on": "b", "op": "live.over", "args": { "on": "$pb", "options": { "max_imports": 1 } }, "bind": "lb" },
+    {
+      "on": "a",
+      "op": "live.export",
+      "args": {
+        "on": "$la",
+        "contract": "same/Report",
+        "digest": "dba2fd6f12d09fb58455bc67f96cd0b6db007050e64c3d0a10b553f06c933cfc",
+        "behavior": { "kind": "echo" }
+      },
+      "bind": { "reference": "exported" }
+    },
+    { "on": "a", "op": "peer.emit", "args": { "on": "$pa", "event": "reference", "data": "$exported" } },
+    {
+      "on": "b",
+      "op": "peer.await_event",
+      "args": { "on": "$pb", "name": "reference" },
+      "bind": { "data": "carried" },
+      "note": "the reference crosses the real socket as ordinary payload before it is imported"
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": "$carried",
+        "contract": "same/Report",
+        "digest": "ef49baa1d813f43084fd46df10305134de7601e18b059f066f082b3515630e3e"
+      },
+      "expect_error": { "code": "contract_mismatch" },
+      "note": "the two generated digests hash tables/digests.json's canonical full-declaration documents for the callable revisions, differing only by an optional record member; the validator descriptors are held separately"
+    },
+    { "on": "b", "op": "live.counts", "args": { "on": "$lb" }, "expect": { "exports": 0, "imports": 0 } },
+    {
+      "on": "a",
+      "op": "live.await_invocation",
+      "args": { "on": "$la", "within_ms": 30 },
+      "expect_error": { "code": "timeout" }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": {
+        "on": "$lb",
+        "reference": "$carried",
+        "contract": "same/Report",
+        "digest": "dba2fd6f12d09fb58455bc67f96cd0b6db007050e64c3d0a10b553f06c933cfc"
+      },
+      "bind": "same"
+    },
+    {
+      "on": "b",
+      "op": "live.invoke",
+      "args": { "on": "$same", "request": { "text": "both validators accept this" } },
+      "bind": "call"
+    },
+    {
+      "on": "b",
+      "op": "call.await",
+      "args": { "on": "$call" },
+      "expect": { "result": { "text": "both validators accept this" } }
+    },
+    {
+      "on": "b",
+      "op": "live.import",
+      "args": { "on": "$lb", "reference": "$carried", "contract": "same/Report" },
+      "bind": "unspecified",
+      "note": "an absent expected digest does not erase or conflict with held identity"
+    },
+    { "on": "b", "op": "live.counts", "args": { "on": "$lb" }, "expect": { "exports": 0, "imports": 1 } },
+    { "on": "a", "op": "live.close", "args": { "on": "$la" } },
+    { "on": "b", "op": "live.close", "args": { "on": "$lb" } },
+    { "on": "a", "op": "live.counts", "args": { "on": "$la" }, "expect": { "exports": 0, "imports": 0 } },
+    { "on": "b", "op": "live.counts", "args": { "on": "$lb" }, "expect": { "exports": 0, "imports": 0 } }
+  ]
+}

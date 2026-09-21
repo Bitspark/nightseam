@@ -16,11 +16,11 @@ import (
 func TestScopedInvocationRetainsPanicBoundary(t *testing.T) {
 	p := over(t, live.Options{})
 	defer p.Close()
-	reference, err := p.A.Owner().Export("probe/Panic", func(context.Context, json.RawMessage) (json.RawMessage, error) { panic("private body panic") })
+	reference, err := p.A.Owner().Export("probe/Panic", "", func(context.Context, json.RawMessage) (json.RawMessage, error) { panic("private body panic") })
 	if err != nil {
 		t.Fatal(err)
 	}
-	local, err := p.A.Owner().Import(reference, "probe/Panic")
+	local, err := p.A.Owner().Import(reference, "probe/Panic", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestScopedInvocationRetainsPanicBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	remote, err := p.B.Owner().Import(arrived, "probe/Panic")
+	remote, err := p.B.Owner().Import(arrived, "probe/Panic", "")
 	if err != nil {
 		t.Fatal(err)
 	}

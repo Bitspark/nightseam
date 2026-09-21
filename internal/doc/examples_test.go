@@ -28,7 +28,7 @@ func TestExampleArrayLengthBelongsToTheArray(t *testing.T) {
 	if string(got) != want {
 		t.Errorf("got %s, want %s", got, want)
 	}
-	if err := runtime.MustSchema(f.Wire, nil).ValidateRaw("Lists", got); err != nil {
+	if err := runtime.MustSchema(f.Wire, f.WireDigest, nil).ValidateRaw("Lists", got); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -55,7 +55,8 @@ func TestExampleAppliedFamilyRetainsTheCallersBindings(t *testing.T) {
 	}
 	schemas := map[string]*runtime.Schema{}
 	for _, name := range []string{"item", "box", "x"} {
-		schemas[name] = runtime.MustSchema(render.Build(analysis.Resolve(w, name)).Wire, schemas)
+		family := render.Build(analysis.Resolve(w, name))
+		schemas[name] = runtime.MustSchema(family.Wire, family.WireDigest, schemas)
 	}
 	if err := schemas["x"].ValidateRaw("Bound", got); err != nil {
 		t.Fatal(err)

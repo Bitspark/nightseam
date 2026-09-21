@@ -1,0 +1,43 @@
+{
+  "description": "SHA-256 lowercase hex over the exact UTF-8 canonical full-declaration document in each canonical member, with no added newline or reserialization. wire retains the validator descriptor bytes independently of identity. The generator and renderer check canonical bytes and digests; both runtime validators consume the supplied digest without hashing the descriptor. Optional declaration members preserve the source input where the descriptor adds a nominal callable contract. Every row names the same family. The paired revisions differ by one optional record member, so the original payload fits both schemas while their canonical declaration identities differ. Broader operation, scope and application coverage is in declaration-digests.json.",
+  "cases": [
+    {
+      "name": "empty family",
+      "wire": "{\"types\":{}}",
+      "canonical": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "f06693efc59b8ecf4f7b519556f34823e21d82dcf34225a735d0d1a11f03ef4e"
+    },
+    {
+      "name": "UTF-8 enum",
+      "wire": "{\"types\":{\"Greeting\":{\"kind\":\"enum\",\"values\":[\"Grüße\",\"你好\"]}}}",
+      "canonical": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Greeting\":{\"ref\":\"same/Greeting\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Greeting\":{\"kind\":\"enum\",\"parameters\":[],\"values\":[\"Grüße\",\"你好\"]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "631f465892dc8f6904eac7e89ac96241c60e997b14ab1eda53659aae9293a339"
+    },
+    {
+      "name": "record revision one",
+      "wire": "{\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true}]}}}",
+      "canonical": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"name\":\"text\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "8666a8fbdacb02b4e8c807fc3b01d56d31bf2fef60626d163b896b0c939a84a6"
+    },
+    {
+      "name": "record revision two adds an optional member",
+      "wire": "{\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true},{\"name\":\"hint\",\"type\":\"string\",\"required\":false}]}}}",
+      "canonical": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"name\":\"text\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false},{\"name\":\"hint\",\"nullable\":false,\"required\":false,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "2652993925b416656e545667c44375ad6e07430586b4416433d0df4534a8303d"
+    },
+    {
+      "name": "callable revision 1",
+      "declaration": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true}]},\"Report\":{\"kind\":\"callable\",\"request\":\"Payload\"}}}",
+      "wire": "{\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true}]},\"Report\":{\"kind\":\"callable\",\"contract\":\"same/Report\",\"request\":\"Payload\"}}}",
+      "canonical": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"},\"Report\":{\"ref\":\"same/Report\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"name\":\"text\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"same/Report\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[],\"request\":{\"ref\":\"same/Payload\"},\"result\":{\"empty\":true}}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "dba2fd6f12d09fb58455bc67f96cd0b6db007050e64c3d0a10b553f06c933cfc"
+    },
+    {
+      "name": "callable revision 2",
+      "declaration": "{\"nightseam\":2,\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true},{\"name\":\"hint\",\"type\":\"string\",\"required\":false}]},\"Report\":{\"kind\":\"callable\",\"request\":\"Payload\"}}}",
+      "wire": "{\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true},{\"name\":\"hint\",\"type\":\"string\",\"required\":false}]},\"Report\":{\"kind\":\"callable\",\"contract\":\"same/Report\",\"request\":\"Payload\"}}}",
+      "canonical": "{\"definitions\":{\"same\":{\"client\":{\"ref\":\"same/$client\"},\"errors\":[],\"kind\":\"family\",\"parameters\":[],\"server\":{\"ref\":\"same/$server\"},\"types\":{\"Payload\":{\"ref\":\"same/Payload\"},\"Report\":{\"ref\":\"same/Report\"}}},\"same/$client\":{\"direction\":\"client\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/$server\":{\"direction\":\"server\",\"events\":{},\"extends\":[],\"kind\":\"side\",\"methods\":{},\"parameters\":[]},\"same/Payload\":{\"fields\":[{\"name\":\"text\",\"nullable\":false,\"required\":true,\"type\":{\"primitive\":\"string\"},\"unique\":false},{\"name\":\"hint\",\"nullable\":false,\"required\":false,\"type\":{\"primitive\":\"string\"},\"unique\":false}],\"kind\":\"record\",\"open\":false,\"parameters\":[]},\"same/Report\":{\"errors\":[],\"kind\":\"callable\",\"parameters\":[],\"request\":{\"ref\":\"same/Payload\"},\"result\":{\"empty\":true}}},\"root\":{\"ref\":\"same\"},\"version\":1}",
+      "digest": "ef49baa1d813f43084fd46df10305134de7601e18b059f066f082b3515630e3e"
+    }
+  ]
+}

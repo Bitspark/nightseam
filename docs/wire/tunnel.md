@@ -23,16 +23,26 @@ profile under the `channel.` prefix ([how a layer speaks](vocabulary.md)).
 **`channel.open`** — a request, from the side that opens:
 
 ```json
-{"channel": 12, "family": "chat", "window": 32}
+{"channel": 12, "family": "chat", "digest": "68025e009ca0e1d178ab57548a507c65dcaefb7b62f3867207b26fdbe5739cb0", "window": 32}
 ```
 
 `channel` is the id the opener chose (§ ids), `family` the family the
 channel will speak, and `window` how many frames the opener will hold in
-flight from the other side before it returns credit. An open carries nothing
+flight from the other side before it returns credit. `digest`, when present,
+is the declaration digest, exactly 64 lowercase SHA-256 hex characters;
+an empty string, null or another shape is `channel_invalid`. A known local
+digest for the same family is compared before admitting the channel or
+interpreting an inner frame. Two nonempty digests that differ are refused
+`contract_mismatch`, naming the family. An absent digest on either side is
+not refused by this rule; it makes no revision claim. The digest is generated
+declaration identity, not authentication or a compatibility policy.
+
+An open carries nothing
 for what runs above it: a layer that must resume says so in its own
 vocabulary. The result is `{"window": 32}`, the accepting side's
 window. An open is refused with `channel_invalid` (a malformed open, or an
-id of the accepting side's parity), `channel_exists` (the id is open) or
+id of the accepting side's parity), `channel_exists` (the id is open),
+`contract_mismatch` (different declaration digests for one family), or
 `channel_refused` (nobody here has taken the channels already opened, up
 to the accept capacity).
 

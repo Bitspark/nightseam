@@ -2,7 +2,7 @@
   "profile": "nightseam.duplex/1",
   "server": {
     "methods": {
-      "channel.open": {"description": "Opens a channel that speaks a family.", "request": "Open", "result": "Opened", "errors": ["channel_invalid", "channel_exists", "channel_refused"]}
+      "channel.open": {"description": "Opens a channel that speaks a family.", "request": "Open", "result": "Opened", "errors": ["channel_invalid", "channel_exists", "channel_refused", "contract_mismatch"]}
     },
     "events": {
       "channel.frame": {"description": "One inner frame, opaque to the tunnel.", "type": "Frame"},
@@ -12,7 +12,7 @@
   },
   "client": {
     "methods": {
-      "channel.open": {"description": "Opens a channel that speaks a family; either side may open.", "request": "Open", "result": "Opened", "errors": ["channel_invalid", "channel_exists", "channel_refused"]}
+      "channel.open": {"description": "Opens a channel that speaks a family; either side may open.", "request": "Open", "result": "Opened", "errors": ["channel_invalid", "channel_exists", "channel_refused", "contract_mismatch"]}
     },
     "events": {
       "channel.frame": {"description": "One inner frame, opaque to the tunnel.", "type": "Frame"},
@@ -21,6 +21,7 @@
     }
   },
   "errors": {
+    "contract_mismatch": "The same family carries a different specified declaration digest.",
     "channel_invalid": "The open is malformed, or names an id of the accepting side's parity.",
     "channel_exists": "The id is open.",
     "channel_refused": "Nobody here has taken the channels already opened, up to the accept capacity."

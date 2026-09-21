@@ -81,6 +81,7 @@ export interface Counts {
 interface ReferenceWire {
   binding: string;
   contract: string;
+  digest?: string;
 }
 
 const MINTED: unique symbol = Symbol('nightseam.live.reference');
@@ -97,24 +98,27 @@ export class Reference {
   /** @internal */ readonly binding: string;
   /** @internal */ readonly scope: LiveScope | undefined;
   readonly contract: string;
+  readonly digest: string;
 
   /** @internal */
-  constructor(binding: string, contract: string, scope: LiveScope | undefined, minted: typeof MINTED) {
+  constructor(binding: string, contract: string, digest: string, scope: LiveScope | undefined, minted: typeof MINTED) {
     if (minted !== MINTED) throw new DuplexError(CONTRACT_INVALID, 'A live reference is minted by a scope.');
     this.binding = binding;
     this.contract = contract;
+    this.digest = digest;
     this.scope = scope;
   }
 
-  /** The binding and contract as an ordinary payload value, without the native scope association. */
+  /** The binding, contract and any digest as an ordinary payload value, without the native scope association. */
   toJSON(): ReferenceWire {
-    return { binding: this.binding, contract: this.contract };
+    return { binding: this.binding, contract: this.contract, ...(this.digest ? { digest: this.digest } : {}) };
   }
 }
 
 interface Binding {
   owner: OwnerState;
   contract: string;
+  digest: string;
   invoke: Invoke;
   released: boolean;
 }
@@ -122,6 +126,7 @@ interface Binding {
 interface Attachment {
   owner: OwnerState;
   contract: string;
+  digest: string;
   invoke: Invoke;
   released: boolean;
 }
@@ -156,8 +161,20 @@ interface ReleaseNotice {
 
 interface ScopeState {
   rootOwner?: OwnerState;
-  exportBinding(owner: OwnerState, batch: ValueBatch | undefined, contract: string, invoke: Invoke): Reference;
-  importBinding(owner: OwnerState, batch: ValueBatch | undefined, reference: Reference, contract: string): Invoke;
+  exportBinding(
+    owner: OwnerState,
+    batch: ValueBatch | undefined,
+    contract: string,
+    digest: string,
+    invoke: Invoke,
+  ): Reference;
+  importBinding(
+    owner: OwnerState,
+    batch: ValueBatch | undefined,
+    reference: Reference,
+    contract: string,
+    digest: string,
+  ): Invoke;
   releaseBindings(bindings: { id: string; tell: boolean }[]): void;
   refuse(contract: string, code: string, reason: string): DuplexError;
   root: LiveScope;
@@ -221,14 +238,14 @@ export class LiveOwner {
     this.release();
   }
 
-  /** Creates a binding owned by this lifetime, independent of native identity. */
-  export(contract: string, invoke: Invoke): Reference {
-    return this.state.scope.exportBinding(this.state, this.batch, contract, invoke);
+  /** Creates a binding owned by this lifetime. An empty digest leaves the declaration revision unspecified. */
+  export(contract: string, digest: string, invoke: Invoke): Reference {
+    return this.state.scope.exportBinding(this.state, this.batch, contract, digest, invoke);
   }
 
-  /** Owns a fresh attachment, or borrows the existing attachment for this binding. */
-  import(reference: Reference, contract: string): Invoke {
-    return this.state.scope.importBinding(this.state, this.batch, reference, contract);
+  /** Owns a fresh attachment or borrows an existing one; two specified digests must agree before either. */
+  import(reference: Reference, contract: string, digest: string): Invoke {
+    return this.state.scope.importBinding(this.state, this.batch, reference, contract, digest);
   }
 
   /**
@@ -375,9 +392,19 @@ export function scopeOf(peer: DuplexPeer): LiveScope | undefined {
  * released or ended origin fails with the origin's refusal, which is what the
  * destination's caller is told.
  */
-export function forward(destination: LiveOwner, contract: string, origin: Invoke): Reference {
+export function forward(destination: LiveOwner, contract: string, digest: string, origin: Invoke): Reference {
   if (!origin) throw new DuplexError(CONTRACT_INVALID, "Forwarding needs the origin's function.");
-  return destination.export(contract, origin);
+  return destination.export(contract, digest, origin);
+}
+
+const DIGEST = /^[0-9a-f]{64}$/;
+
+function validDigest(digest: string): boolean {
+  return typeof digest === 'string' && (digest === '' || DIGEST.test(digest));
+}
+
+function digestMismatch(left: string, right: string): boolean {
+  return left !== '' && right !== '' && left !== right;
 }
 
 /** The live layer over one peer: what this side exported over that connection, what it imported, and nothing that outlives it. */
@@ -428,8 +455,10 @@ export class LiveScope {
     if (!peer) throw new DuplexError(CONTRACT_INVALID, 'A live scope needs a peer.');
     this.state = {
       root: this,
-      exportBinding: (owner, batch, contract, invoke) => this.exportBinding(owner, batch, contract, invoke),
-      importBinding: (owner, batch, reference, contract) => this.importBinding(owner, batch, reference, contract),
+      exportBinding: (owner, batch, contract, digest, invoke) =>
+        this.exportBinding(owner, batch, contract, digest, invoke),
+      importBinding: (owner, batch, reference, contract, digest) =>
+        this.importBinding(owner, batch, reference, contract, digest),
       releaseBindings: (bindings) => this.releaseBindings(bindings),
       refuse: (contract, code, reason) => this.refuse(contract, code, reason),
       peer,
@@ -471,22 +500,30 @@ export class LiveScope {
    * is nobody's guarantee across a wire, and two bindings are two lifetimes,
    * which is what separate release needs.
    */
-  private exportBinding(owner: OwnerState, batch: ValueBatch | undefined, contract: string, invoke: Invoke): Reference {
+  private exportBinding(
+    owner: OwnerState,
+    batch: ValueBatch | undefined,
+    contract: string,
+    digest: string,
+    invoke: Invoke,
+  ): Reference {
     if (!contract) throw this.refuse(contract, CONTRACT_INVALID, 'A binding is exported for a contract.');
+    if (!validDigest(digest))
+      throw this.refuse(contract, CONTRACT_INVALID, 'A declaration digest is lower-case SHA-256 hex.');
     if (typeof invoke !== 'function') throw this.refuse(contract, CONTRACT_INVALID, 'A binding is a function.');
     if (this.closed) throw this.refuse(contract, SCOPE_CLOSED, 'The scope ended.');
     if (ownerEnded(owner)) throw this.refuse(contract, REFERENCE_RELEASED, 'The owner was released.');
     if (this.exports.size >= this.maxExports)
       throw this.refuse(contract, TOO_MANY_EXPORTS, 'No room for another exported binding.');
     const id = `${this.nonce}.${this.next++}`;
-    this.exports.set(id, { contract, invoke, released: false, owner });
+    this.exports.set(id, { contract, digest, invoke, released: false, owner });
     record(owner, batch, id, false);
     this.observe({ type: 'live.exported', at: new Date(), contract, binding: id });
-    return new Reference(id, contract, this.state.root, MINTED);
+    return new Reference(id, contract, digest, this.state.root, MINTED);
   }
 
   /**
-   * Reads a caller-supplied binding and contract into a native reference of
+   * Reads a caller-supplied binding, contract and optional digest into a native reference of
    * this scope. It checks shape and associates the receiving scope; it proves
    * neither inbound-message provenance nor binding existence or authorization.
    * Import checks the expected contract; invocation resolves the binding.
@@ -499,7 +536,10 @@ export class LiveScope {
     if (!wire.binding || !wire.contract) {
       throw new DuplexError(CONTRACT_INVALID, 'A live reference is a binding and a contract.');
     }
-    return new Reference(wire.binding, wire.contract, this.state.root, MINTED);
+    if ('digest' in wire && (typeof wire.digest !== 'string' || !DIGEST.test(wire.digest))) {
+      throw new DuplexError(CONTRACT_INVALID, 'A declaration digest is lower-case SHA-256 hex.');
+    }
+    return new Reference(wire.binding, wire.contract, wire.digest ?? '', this.state.root, MINTED);
   }
 
   /**
@@ -515,8 +555,11 @@ export class LiveScope {
     batch: ValueBatch | undefined,
     reference: Reference,
     contract: string,
+    digest: string,
   ): Invoke {
     if (!contract) throw this.refuse(contract, CONTRACT_INVALID, 'A binding is imported for a contract.');
+    if (!validDigest(digest))
+      throw this.refuse(contract, CONTRACT_INVALID, 'A declaration digest is lower-case SHA-256 hex.');
     if (!(reference instanceof Reference) || reference.scope !== this.state.root)
       throw this.refuse(contract, REFERENCE_FOREIGN, 'The reference was minted in another scope.');
     if (reference.contract !== contract)
@@ -524,6 +567,12 @@ export class LiveScope {
         contract,
         CONTRACT_MISMATCH,
         `The reference carries ${reference.contract} where ${contract} is expected.`,
+      );
+    if (digestMismatch(reference.digest, digest))
+      throw this.refuse(
+        contract,
+        CONTRACT_MISMATCH,
+        `The reference carries a different declaration digest for ${contract}.`,
       );
     if (this.closed) throw this.refuse(contract, SCOPE_CLOSED, 'The scope ended.');
     if (ownerEnded(owner)) throw this.refuse(contract, REFERENCE_RELEASED, 'The owner was released.');
@@ -533,17 +582,36 @@ export class LiveScope {
     if (own) {
       if (own.contract !== contract)
         throw this.refuse(contract, CONTRACT_MISMATCH, `The binding carries ${own.contract}.`);
+      if (digestMismatch(own.digest, reference.digest) || digestMismatch(own.digest, digest))
+        throw this.refuse(
+          contract,
+          CONTRACT_MISMATCH,
+          `The binding carries a different declaration digest for ${contract}.`,
+        );
       return this.local(own);
     }
     const held = this.imports.get(reference.binding);
     if (held) {
       if (held.contract !== contract)
         throw this.refuse(contract, CONTRACT_MISMATCH, `The binding is attached as ${held.contract}.`);
+      if (digestMismatch(held.digest, reference.digest) || digestMismatch(held.digest, digest))
+        throw this.refuse(
+          contract,
+          CONTRACT_MISMATCH,
+          `The binding is attached with a different declaration digest for ${contract}.`,
+        );
+      if (!held.digest) held.digest = reference.digest || digest;
       return held.invoke;
     }
     if (this.imports.size >= this.maxImports)
       throw this.refuse(contract, TOO_MANY_IMPORTS, 'No room for another imported binding.');
-    const fresh: Attachment = { contract, invoke: async () => undefined, released: false, owner };
+    const fresh: Attachment = {
+      contract,
+      digest: reference.digest || digest,
+      invoke: async () => undefined,
+      released: false,
+      owner,
+    };
     fresh.invoke = this.remote(reference.binding, fresh);
     this.imports.set(reference.binding, fresh);
     record(owner, batch, reference.binding, true);

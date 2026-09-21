@@ -54,7 +54,7 @@ func TestValidatorConformance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = NewSchema(description, nil)
+		_, err = NewSchema(description, "", nil)
 		if (err == nil) != row.Valid {
 			t.Errorf("pattern %q: valid=%v, got %v", row.Pattern, row.Valid, err)
 		}
@@ -66,7 +66,7 @@ func TestValidatorConformance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		schema, err := NewSchema(description, nil)
+		schema, err := NewSchema(description, "", nil)
 		if err != nil {
 			t.Errorf("pattern %q: %v", row.Pattern, err)
 			continue
@@ -78,13 +78,13 @@ func TestValidatorConformance(t *testing.T) {
 	}
 	imported := map[string]*Schema{}
 	for family, wire := range table.Imported {
-		schema, err := NewSchema(wire, imported)
+		schema, err := NewSchema(wire, "", imported)
 		if err != nil {
 			t.Fatal(err)
 		}
 		imported[family] = schema
 	}
-	schema, err := NewSchema(table.Wire, imported)
+	schema, err := NewSchema(table.Wire, "", imported)
 	if err != nil {
 		t.Fatal(err)
 	}

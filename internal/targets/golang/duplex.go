@@ -16,7 +16,7 @@ func emitClient(f *file)  { f.emitWireAdapter("Client", "Server") }
 func (f *file) adapterContext() string { return f.runtime() + ".AdapterContext" }
 
 func (f *file) emitWireModels() {
-	if !f.family.HasProtocol() {
+	if !f.family.HasModel() {
 		return
 	}
 	decl, args := declare(f.family.Uses), apply(f.family.Uses)
@@ -80,31 +80,27 @@ func (f *file) emitWireAdapter(side, opposite string) {
 		f.linef("if model == nil { return nil, %s.Errorf(\"model factory is required\") }", f.std("fmt"))
 		f.linef("environment, err := normalizeContext%s(environment%s)", args, f.slotArguments())
 		f.line("if err != nil { return nil, err }")
+		f.linef("identity, err := declarationIdentity%s(%s)", args, identityArguments(f))
+		f.line("if err != nil { return nil, err }")
 		f.line("options := environment.Options")
 		f.labels()
 		f.linef("access, binding, err := %s.NewWirePair(options)", rt)
 		f.line("if err != nil { return nil, err }")
 		f.line("complete := false")
 		f.linef("defer func() { if !complete { _ = access.Close(%s.CodeInternalError, \"model construction failed\") } }()", seam)
+		f.line("if _, err := registerIdentity(binding, identity); err != nil { return nil, err }")
 		f.linef("implementation, err := model(access%s%s(binding,environment%s))", opposite, args, f.slotArguments())
 		f.line("if err != nil { return nil, err }")
-		f.linef("if err := bind%s%s(binding,implementation,environment%s); err != nil { return nil, err }", side, args, f.slotArguments())
+		f.wireValidateImplementation(side, "return nil, ")
+		f.linef("if err := bind%s%s(binding,func() %s%s%s { return implementation },environment%s); err != nil { return nil, err }", side, args, proto, side, args, f.slotArguments())
 		f.line("complete = true; return access, nil")
 	})
-	f.linef("// FromWire interprets a wire as a factory that may be bound once.")
-	f.w.Block(fmt.Sprintf("func FromWire%s(ctx %s.Context, wire %s.Wire, environment %s%s) (%s%sModel%s, error) {", open, f.std("context"), seam, contextType, f.slotParameters(), proto, side, args), "}", func() {
-		f.linef("if ctx == nil { return nil, %s.Errorf(\"context is required\") }", f.std("fmt"))
-		f.line("if err := ctx.Err(); err != nil { return nil, err }")
-		f.linef("if wire == nil { return nil, %s.Errorf(\"wire is required\") }", f.std("fmt"))
-		f.linef("environment, err := normalizeContext%s(environment%s)", args, f.slotArguments())
-		f.line("if err != nil { return nil, err }")
-		f.linef("var bound %s.Bool", f.use("atomic", "sync/atomic"))
-		f.w.Block(fmt.Sprintf("return func(implementation %s%s%s) (%s%s%s,error) {", proto, opposite, args, proto, side, args), "}, nil", func() {
-			f.linef("if !bound.CompareAndSwap(false,true) { return %s%s%s{}, %s.Errorf(\"model factory is already bound\") }", proto, side, args, f.std("fmt"))
-			f.linef("if err := bind%s%s(wire,implementation,environment%s); err != nil { return %s%s%s{}, err }", opposite, args, f.slotArguments(), proto, side, args)
-			f.linef("return access%s%s(wire,environment%s), nil", side, args, f.slotArguments())
-		})
-	})
+	f.emitWireIdentity(side, opposite)
+}
+
+// Declaration identity failures retain their public refusal through validation.
+func (f *file) invalidParams() string {
+	return fmt.Sprintf("var public *%s.PublicError; if %s.As(err, &public) && public.Code == \"contract_mismatch\" { return nil, err }; return nil, &%s.PublicError{Code: \"invalid_params\", Message: err.Error()}", f.runtime(), f.std("errors"), f.runtime())
 }
 
 func (f *file) labels() {
@@ -206,10 +202,7 @@ func (f *file) wireEmitter(e render.Event, receiver string) {
 func (f *file) wireRegistration(side string, methods []render.Method, events []render.Event) {
 	rt := f.runtime()
 	decl, args := declare(f.family.Uses), apply(f.family.Uses)
-	f.w.Block(fmt.Sprintf("func bind%s%s(wire %s.Wire, implementation %s%s%s, environment %s%s) error {", side, decl, f.seam(), f.proto(), side, args, f.adapterContext(), f.slotParameters()), "}", func() {
-		if len(methods) > 0 {
-			f.linef("if implementation.Methods == nil { return %s.Errorf(\"%s methods are required\") }", f.std("fmt"), side)
-		}
+	f.w.Block(fmt.Sprintf("func bind%s%s(wire %s.Wire, lookup func() %s%s%s, environment %s%s) error {", side, decl, f.seam(), f.proto(), side, args, f.adapterContext(), f.slotParameters()), "}", func() {
 		f.line("var detach []func(); complete := false")
 		f.line("defer func(){if !complete{for _,off:=range detach{off()}}}()")
 		byName := map[string]bool{}
@@ -247,22 +240,24 @@ func (f *file) wireRegistration(side string, methods []render.Method, events []r
 	})
 }
 func (f *file) wireRequest(m render.Method) {
-	rt, json := f.runtime(), f.std("json")
+	json := f.std("json")
 	f.w.Block(fmt.Sprintf("handlers.Request = func(ctx %s.Context,raw %s.RawMessage)(any,error){", f.std("context"), json), "}", func() {
+		f.line("implementation := lookup()")
+		f.linef("if implementation.Methods == nil { return nil, %s.Errorf(\"model methods are required\") }", f.std("fmt"))
 		f.wireOwner([]model.TypeExpr{m.Request, m.Result}, true, "", "nil, ")
 		params := ""
 		if m.Request != nil {
 			if f.needsConversion(m.Request) {
 				f.liveBoundary(m.Request, "raw", "params", false)
-				f.linef("if err!=nil{return nil,&%s.PublicError{Code:\"invalid_params\",Message:err.Error()}}", rt)
+				f.linef("if err!=nil{%s}", f.invalidParams())
 			} else {
-				f.linef("if err:=%s.ValidateExpressionRaw(%sMustTypeExpression(%s),raw);err!=nil{return nil,&%s.PublicError{Code:\"invalid_params\",Message:err.Error()}}", f.boundSchema(f.uses), f.proto(), expression(m.Request), rt)
+				f.linef("if err:=%s.ValidateExpressionRaw(%sMustTypeExpression(%s),raw);err!=nil{%s}", f.boundSchema(f.uses), f.proto(), expression(m.Request), f.invalidParams())
 				f.linef("var params %s", f.spell(m.Request))
-				f.linef("if err:=%s.Unmarshal(raw,&params);err!=nil{return nil,&%s.PublicError{Code:\"invalid_params\",Message:err.Error()}}", json, rt)
+				f.linef("if err:=%s.Unmarshal(raw,&params);err!=nil{%s}", json, f.invalidParams())
 			}
 			params = ",params"
 		} else {
-			f.linef("if err:=%s.ValidateExpressionRaw(map[string]any{\"empty\":true},raw);err!=nil{return nil,&%s.PublicError{Code:\"invalid_params\",Message:err.Error()}}", f.boundSchema(f.uses), rt)
+			f.linef("if err:=%s.ValidateExpressionRaw(map[string]any{\"empty\":true},raw);err!=nil{%s}", f.boundSchema(f.uses), f.invalidParams())
 		}
 		f.linef("result,err:=implementation.Methods.%s(ctx%s)", f.plan.operations[m.Name], params)
 		f.line("if err!=nil{return nil,err}")
@@ -276,18 +271,18 @@ func (f *file) wireRequest(m render.Method) {
 	})
 }
 func (f *file) wireEvent(e render.Event) {
-	f.w.Block("if implementation.Events != nil {", "}", func() {
-		f.w.Block(fmt.Sprintf("handlers.Event=func(ctx %s.Context,raw %s.RawMessage)error{", f.std("context"), f.std("json")), "}", func() {
-			f.wireOwner([]model.TypeExpr{e.Type}, true, "", "")
-			if f.needsConversion(e.Type) {
-				f.liveBoundary(e.Type, "raw", "data", false)
-				f.line("if err!=nil{return err}")
-			} else {
-				f.linef("if err:=%s.ValidateExpressionRaw(%sMustTypeExpression(%s),raw);err!=nil{return err}", f.boundSchema(f.uses), f.proto(), expression(e.Type))
-				f.linef("var data %s", f.spell(e.Type))
-				f.linef("if err:=%s.Unmarshal(raw,&data);err!=nil{return err}", f.std("json"))
-			}
-			f.linef("return implementation.Events.%s(ctx,data)", f.plan.operations[e.Name])
-		})
+	f.w.Block(fmt.Sprintf("handlers.Event=func(ctx %s.Context,raw %s.RawMessage)error{", f.std("context"), f.std("json")), "}", func() {
+		f.line("implementation := lookup()")
+		f.line("if implementation.Events == nil { return nil }")
+		f.wireOwner([]model.TypeExpr{e.Type}, true, "", "")
+		if f.needsConversion(e.Type) {
+			f.liveBoundary(e.Type, "raw", "data", false)
+			f.line("if err!=nil{return err}")
+		} else {
+			f.linef("if err:=%s.ValidateExpressionRaw(%sMustTypeExpression(%s),raw);err!=nil{return err}", f.boundSchema(f.uses), f.proto(), expression(e.Type))
+			f.linef("var data %s", f.spell(e.Type))
+			f.linef("if err:=%s.Unmarshal(raw,&data);err!=nil{return err}", f.std("json"))
+		}
+		f.linef("return implementation.Events.%s(ctx,data)", f.plan.operations[e.Name])
 	})
 }

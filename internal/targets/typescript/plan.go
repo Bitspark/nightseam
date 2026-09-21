@@ -15,24 +15,26 @@ import (
 // so may not see shadowed, which a family may not name: the emitters write
 // these constants and nothing else of their own.
 const (
-	identFamily        = "Family"
-	identAnyFamily     = "AnyFamily"
-	identFamilyBinding = "FamilyBinding"
-	identTypeBinding   = "TypeBinding"
-	identSlots         = "Slots"
-	identErrorCode     = "ErrorCode"
-	identErrors        = "errors"
-	identFamilyValue   = "family"
-	identValidateWire  = "validateWire"
-	identProtocol      = "Protocol"
+	identFamily          = "Family"
+	identAnyFamily       = "AnyFamily"
+	identFamilyBinding   = "FamilyBinding"
+	identTypeBinding     = "TypeBinding"
+	identSlots           = "Slots"
+	identErrorCode       = "ErrorCode"
+	identErrors          = "errors"
+	identFamilyValue     = "family"
+	identValidateWire    = "validateWire"
+	identWireDigest      = "wireDigest"
+	identWireDeclaration = "wireDeclaration"
+	identProtocol        = "Protocol"
 )
 
 // imported are the names the generated module imports from its runtimes;
 // globals are the ones of the language it uses. A type of
 // either name would shadow them.
-var imported = []string{"DuplexError", "Wire", "WireModelContext", "AdapterContext", "LiveOwner", "ValueAdapter", "ValueContext", "ValueOptions", "callWire", "emitWire", "registerWire", "wirePair", "encodePath", "conversion", "createValidator", "TypeExpression", "WireFamily"}
+var imported = []string{"DuplexError", "Wire", "WireModelContext", "WireCallOptions", "AdapterContext", "LiveOwner", "ValueAdapter", "ValueContext", "ValueOptions", "callWire", "emitWire", "registerWire", "wirePair", "encodePath", "conversion", "createValidator", "withDeclaration", "declarationDigest", "identityHandler", "IDENTITY_METHOD", "prepareIdentity", "TypeExpression", "WireFamily"}
 var globals = []string{"Array", "Record", "Promise", "Set", "Error", "String", "Object"}
-var modelNames = []string{"Server", "Client", "ServerMethods", "ClientMethods", "ServerEvents", "ClientEvents", "ServerModel", "ClientModel", "toWire", "fromWire", "makeAdapter"}
+var modelNames = []string{"Server", "Client", "ServerMethods", "ClientMethods", "ServerEvents", "ClientEvents", "ServerModel", "ClientModel", "toWire", "fromWire", "prepareFromWire", "makeAdapter"}
 
 // Inherited Object members must not satisfy a declared event accidentally.
 // A consumer supplies each event deliberately, including ignored no-ops.
@@ -45,7 +47,7 @@ var eventObjectMembers = []string{
 // Reserved is every identifier the generated module declares of itself,
 // imports, or uses of the language.
 func Reserved() []string {
-	names := []string{identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identProtocol}
+	names := []string{identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identWireDigest, identWireDeclaration, identProtocol}
 	names = append(names, modelNames...)
 	names = append(names, imported...)
 	names = append(names, globals...)
@@ -77,7 +79,7 @@ type plan struct {
 
 func newPlan(f *render.Family) (*plan, []diag.Diagnostic) {
 	p := &plan{family: f, module: emit.NewNamespace("module"), client: emit.NewNamespace("client"), remote: emit.NewNamespace("remote"), types: map[string]string{}, operations: map[string]string{}, errors: map[string]string{}, List: diag.List{Family: f.Name}}
-	p.module.Fix("generated declaration", identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identProtocol)
+	p.module.Fix("generated declaration", identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identWireDigest, identWireDeclaration, identProtocol)
 	p.module.Fix("generated model declaration", modelNames...)
 	p.module.Fix("generated import", imported...)
 	p.module.Fix("generated use of a global", globals...)
@@ -134,7 +136,7 @@ func (p *plan) plan() {
 	// A parameter becomes a type parameter of the generated declarations;
 	// its binding is an argument retained by the adapter closure.
 	bindings := emit.NewNamespace("adapter arguments")
-	bindings.Fix("generated adapter local", "context", "bindings", "slots", "environment", "observer", "propagator", "requestTimeoutMs", "hasModelHandler", "proxyServer", "proxyClient", "bindServer", "bindClient", "wire", "model", "adapter", "access", "binding", "bound")
+	bindings.Fix("generated adapter local", "context", "options", "identity", "bindings", "slots", "environment", "observer", "propagator", "requestTimeoutMs", "hasModelHandler", "proxyServer", "proxyClient", "validateServer", "validateClient", "bindServer", "bindClient", "wire", "model", "adapter", "access", "binding", "bound", "gate", "implementation", "completed", "closed", "detach", "cleanup", "preparation")
 	for _, parameter := range f.Parameters {
 		if what, taken := p.module.Reserved(parameter.Name); taken {
 			p.Addf(parameter.At.Sub("name"), "generated_name_collision", "Generated type parameter %s collides with the %s.", parameter.Name, what)

@@ -30,7 +30,8 @@ test('channel is a prepared wire before its first selection or mounted use', asy
       if (event.type === 'connection.opened') opens++;
     },
   };
-  const opened: Wire & { id: number } = await pair.client.open('wire', { observer });
+  const digest = 'a'.repeat(64);
+  const opened: Wire & { id: number; digest: string } = await pair.client.open('wire', digest, { observer });
   const pending = callWire(opened, ['deep', 'echo'], 'ok');
   await Promise.resolve();
   const accepted = await pair.server.accept({
@@ -40,6 +41,8 @@ test('channel is a prepared wire before its first selection or mounted use', asy
     },
   });
   assert.equal(await pending, 'ok');
+  assert.equal(opened.digest, digest);
+  assert.equal(accepted.digest, digest);
   assert.equal(opens, 2);
   const selected = at(mount(new Map([['route', opened]])), ['route', 'deep']);
   assert.equal(await callWire(selected, ['echo'], 'selected'), 'selected');
@@ -54,7 +57,7 @@ test('channel is a prepared wire before its first selection or mounted use', asy
 test('raw connection refuses a second wire reader and retains its identity', async (t) => {
   const pair = await tunnels();
   t.after(pair.close);
-  const raw = await pair.client.openConnection('raw');
+  const raw = await pair.client.openConnection('raw', '');
   await assert.rejects(pair.client.channel(raw.id), { code: 'channel_invalid' });
   assert.equal(pair.client.connection(raw.id), raw);
 });
@@ -104,7 +107,7 @@ test('server-opened wire channel preserves channel parity and carries calls in b
       handleWire(peer.wire(), ['echo'], (value) => value);
     },
   };
-  const opened = await pair.server.open('reverse', options),
+  const opened = await pair.server.open('reverse', '', options),
     accepted = await pair.client.accept(options);
   assert.equal(opened.id % 2, 0);
   for (const wire of [opened, accepted]) assert.equal(await callWire(wire, ['echo'], 'both ways'), 'both ways');

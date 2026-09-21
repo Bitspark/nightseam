@@ -55,7 +55,7 @@ func emitWireAdapter(f *file, side, protocol string) {
 		opposite = "Server"
 	}
 	live := fam.Live || familyValueSlots(fam)
-	f.linef("import { DuplexError, callWire, emitWire, registerWire, wirePair, type WireModelContext } from %s;", quote(f.config.Runtime))
+	f.linef("import { DuplexError, callWire, emitWire, registerWire, wirePair, declarationDigest, identityHandler, IDENTITY_METHOD, prepareIdentity, type WireModelContext, type WireCallOptions } from %s;", quote(f.config.Runtime))
 	f.line("import { encodePath, type Wire } from '@nightseam/duplex';")
 	f.linef("import type { AdapterContext, ValueAdapter, ValueContext } from %s;", quote(f.config.Runtime))
 	if fam.Live {
@@ -82,11 +82,13 @@ func emitWireAdapter(f *file, side, protocol string) {
 		passing = ", " + strings.Join(pass, ", ")
 	}
 	f.w.Block(fmt.Sprintf("function makeAdapter%s(context: AdapterContext%s) {", decl, binding), "}", func() {
-		f.line("const observer = context.options?.observer;")
-		f.line("const propagator = context.options?.propagator;")
-		f.line("const requestTimeoutMs = context.options?.requestTimeoutMs;")
+		f.line("const options = { ...context.options };")
+		f.line("const observer = options.observer;")
+		f.line("const propagator = options.propagator;")
+		f.line("const requestTimeoutMs = options.requestTimeoutMs;")
 		f.linef("const bindings = { %s };", strings.Join(pass, ", "))
 		f.linef("const slots: Slots = { %s };", strings.Join(values, ", "))
+		f.linef("const identity = { path: %s, digest: declarationDigest(validateWire, slots) };", quote(fam.Name))
 		if live {
 			f.line("const environment = context.valueEnvironment;")
 			f.linef("if ((%s) && !environment) throw new DuplexError('scope_closed', 'model adaptation requires an explicit value environment');", f.familyLiveCondition())
@@ -101,29 +103,9 @@ func emitWireAdapter(f *file, side, protocol string) {
 			f.emitWireProxy(name, args)
 			f.emitWireRegistration(name, args)
 		}
-		f.line("return { proxyServer, proxyClient, bindServer, bindClient };")
+		f.line("return { options, identity, proxyServer, proxyClient, validateServer, validateClient, bindServer, bindClient };")
 	})
-	f.line("/** Exposes one model session at a new local wire origin. */")
-	f.w.Block(fmt.Sprintf("export function toWire%s(model: Protocol.%sModel%s, context: AdapterContext%s): Wire {", decl, side, args, binding), "}", func() {
-		f.linef("const adapter = makeAdapter%s(context%s);", args, passing)
-		labels := []string{"...context.options?.families"}
-		for _, name := range operations(fam) {
-			labels = append(labels, "[encodePath(["+quote(name)+"])]: "+quote(fam.Name))
-		}
-		f.linef("const [access, binding] = wirePair({ ...context.options, families: { %s } });", strings.Join(labels, ", "))
-		f.linef("try { const implementation = model(adapter.proxy%s(binding)); adapter.bind%s(binding, implementation); return access; } catch (error) { access.close(); throw error; }", opposite, side)
-	})
-	f.line("/** Interprets a wire as the same model factory; the resulting session binds once. */")
-	f.w.Block(fmt.Sprintf("export async function fromWire%s(wire: Wire, context: AdapterContext%s): Promise<Protocol.%sModel%s> {", decl, binding, side, args), "}", func() {
-		f.linef("const adapter = makeAdapter%s(context%s);", args, passing)
-		f.line("let bound = false;")
-		f.w.Block("return remote => {", "};", func() {
-			f.line("if (bound) throw new DuplexError('already_bound', 'model already bound');")
-			f.line("bound = true;")
-			f.linef("adapter.bind%s(wire, remote);", opposite)
-			f.linef("return adapter.proxy%s(wire);", side)
-		})
-	})
+	emitWireIdentity(f, side, opposite, decl, args, binding, passing)
 	if len(fam.Errors) > 0 {
 		var members []string
 		for _, e := range fam.Errors {
@@ -197,7 +179,7 @@ func (f *file) emitWireRegistration(side, args string) {
 		}
 		byEvent[e.Name] = e
 	}
-	f.w.Block(fmt.Sprintf("function bind%s(wire: Wire, implementation: Protocol.%s%s): void {", side, side, args), "}", func() {
+	f.w.Block(fmt.Sprintf("function validate%s(implementation: Protocol.%s%s): void {", side, side, args), "}", func() {
 		f.line("if (!implementation?.methods || !implementation.events) throw new Error('model methods and events are required');")
 		for _, m := range methods {
 			f.linef("if (!hasModelHandler(implementation.methods, %s)) throw new Error(%s);", quote(f.plan.operations[m.Name]), quote("handler for "+m.Name+" is required"))
@@ -205,6 +187,8 @@ func (f *file) emitWireRegistration(side, args string) {
 		for _, e := range events {
 			f.linef("if (!hasModelHandler(implementation.events, %s)) throw new Error(%s);", quote(f.plan.operations[e.Name]), quote("event handler for "+e.Name+" is required"))
 		}
+	})
+	f.w.Block(fmt.Sprintf("function bind%s(wire: Wire, implementation: () => Protocol.%s%s): () => void {", side, side, args), "}", func() {
 		f.line("const detach: Array<() => void> = [];")
 		f.w.Block("try {", "} catch (error) { for (const remove of detach.reverse()) remove(); throw error; }", func() {
 			for _, name := range names {
@@ -214,31 +198,34 @@ func (f *file) emitWireRegistration(side, args string) {
 					f.linef("observer, family: %s,", quote(f.family.Name))
 					if hasMethod {
 						f.w.Block("request: async (raw, context) => {", "},", func() {
-							f.linef("try { validateWire(%s, raw%s); } catch (error) { throw new DuplexError('invalid_params', String(error)); }", requestExpression(m), slots)
+							f.line("const target = implementation();")
+							f.linef("try { validateWire(%s, raw%s); } catch (error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); }", requestExpression(m), slots)
 							ctx := "context"
 							if f.liveNeeded(m.Request, m.Result) {
 								f.line(f.wireOwner(true, m.Request, m.Result))
 								ctx = "ownedContext"
 							}
 							f.linef("const params = %s;", f.liveConversion(m.Request, "raw", false))
-							f.linef("const result = await implementation.methods.%s(params as %s, %s);", f.plan.operations[m.Name], f.request(m), ctx)
+							f.linef("const result = await target.methods.%s(params as %s, %s);", f.plan.operations[m.Name], f.request(m), ctx)
 							f.linef("return %s;", f.liveExport(m.Result, "result", slots))
 						})
 					}
 					if hasEvent {
 						f.w.Block("event: async (raw, context) => {", "},", func() {
+							f.line("const target = implementation();")
 							f.linef("try { validateWire(%s, raw%s); } catch (error) { wire.close(); throw error; }", expression(e.Type), slots)
 							ctx := "context"
 							if f.liveNeeded(e.Type) {
 								f.line(f.wireOwner(true, e.Type))
 								ctx = "ownedContext"
 							}
-							f.linef("await implementation.events.%s(%s, %s);", f.plan.operations[e.Name], f.liveConversion(e.Type, "raw", false), ctx)
+							f.linef("await target.events.%s(%s, %s);", f.plan.operations[e.Name], f.liveConversion(e.Type, "raw", false), ctx)
 						})
 					}
 				})
 			}
 		})
+		f.line("return () => { for (const remove of detach.reverse()) remove(); };")
 	})
 }
 

@@ -10,13 +10,11 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"sort"
 	"strings"
 
 	"github.com/Bitspark/nightseam/internal/diag"
 	"github.com/Bitspark/nightseam/internal/emit"
-	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/render"
 	"github.com/Bitspark/nightseam/internal/spi"
 )
@@ -259,8 +257,8 @@ func (t *target) Check(f *render.Family) []diag.Diagnostic {
 	return diagnostics
 }
 
-// Render emits the client and shared types, plus the server binding when
-// the family declares a protocol. Each role has its own package manifest.
+// Render emits shared types and application-model adapters when the family
+// has a model. Bootstrap vocabulary retains its type package and metadata.
 func (t *target) Render(f *render.Family) ([]spi.File, error) {
 	if err := t.config.Validate(); err != nil {
 		return nil, err
@@ -273,12 +271,12 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 	types := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("  ")}
 	emitTypes(types)
 	client := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("  "), prefix: "Protocol."}
-	protocol := slices.Contains(f.Files, model.ProtocolFile)
+	hasModel := f.HasModel()
 	dependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion}
 	if f.Live {
 		dependencies[t.config.Live] = t.config.RuntimeVersion
 	}
-	if protocol {
+	if hasModel {
 		emitClient(client)
 		dependencies["@nightseam/duplex"] = t.config.RuntimeVersion
 	} else {
@@ -301,7 +299,7 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 		{Path: path.Join(dir, "package.json"), Data: append(manifest, '\n')},
 		{Path: path.Join(dir, "tsconfig.json"), Data: []byte("{\"compilerOptions\":{\"target\":\"ES2022\",\"module\":\"NodeNext\",\"moduleResolution\":\"NodeNext\",\"strict\":true,\"skipLibCheck\":true,\"noEmit\":true,\"allowImportingTsExtensions\":true,\"lib\":[\"ES2022\",\"DOM\"]},\"include\":[\"src/**/*.ts\"]}\n")},
 	}
-	if protocol {
+	if hasModel {
 		binding := &file{plan: p, family: f, config: t.config, w: emit.NewWriter("  "), prefix: "Protocol."}
 		emitBinding(binding)
 		bindingDir := t.config.bindingDir(f.Name)

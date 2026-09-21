@@ -20,7 +20,7 @@ func (t *target) Scaffold(f *render.Family, dir string) ([]spi.File, error) {
 	if err := t.config.Validate(); err != nil {
 		return nil, err
 	}
-	if !f.HasProtocol() {
+	if !f.HasModel() {
 		return nil, nil
 	}
 	p, diagnostics := newPlan(f)

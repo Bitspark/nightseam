@@ -8,6 +8,8 @@
 package render
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"sort"
 
@@ -37,6 +39,8 @@ type Family struct {
 	References     []string    // families whose generated packages this one's refer to, sorted
 	Carries        []string    // the built-in families the tiers bring, sorted
 	Wire           string      // the wire description of every type, canonical JSON, what a validator reads
+	Declaration    string      // canonical declaration graph, independent of backend presentation
+	WireDigest     string      // lower-case hex SHA-256 of Declaration's exact UTF-8 bytes
 	overrides      map[string]model.Overrides
 	f              *analysis.Family
 	types          map[string]*Type
@@ -217,6 +221,9 @@ func (b *builder) build(f *analysis.Family) *Family {
 	r.References = f.References()
 	r.Carries = f.Carries
 	r.Wire = wire(f)
+	r.Declaration = CanonicalDeclaration(f)
+	digest := sha256.Sum256([]byte(r.Declaration))
+	r.WireDigest = hex.EncodeToString(digest[:])
 	for target, raw := range f.Overrides {
 		if raw == nil {
 			continue
@@ -260,6 +267,13 @@ func (r *Family) IsParameter(name string) bool { return r.f.HasParameter(name) }
 
 // HasProtocol reports whether the family has a protocol tier.
 func (r *Family) HasProtocol() bool { return r.f.Protocol != nil }
+
+// HasModel reports whether the family has an application model to adapt.
+// Identity is the runtime-owned bootstrap vocabulary used before a model is
+// interpreted; its ordinary declaration still supplies types, schema and spec.
+func (r *Family) HasModel() bool {
+	return r.HasProtocol() && !(r.Builtin && r.Name == "identity")
+}
 
 // UsesOf is what an expression is generic in.
 func (r *Family) UsesOf(e model.TypeExpr) []Use { return r.uses(e, r.f.Parameters()) }
@@ -455,8 +469,8 @@ func (r *Family) IsLive(e model.TypeExpr) bool { return r.f.IsLive(e) }
 // usable exactly where the callable it was declared as is expected, so a
 // `setVolume` reference cannot arrive where a `report` is expected even
 // though both take an integer and answer nothing. Every callable has a
-// declaration site, which is why the identity needs no derived name and no
-// structural digest: the declaration *is* the identity.
+// declaration site, which is why its nominal name needs no structural
+// fingerprint. WireDigest identifies the separately carried revision.
 func Contract(declaringFamily, family, name string) string {
 	if declaringFamily != "" {
 		family = declaringFamily

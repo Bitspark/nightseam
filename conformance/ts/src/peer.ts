@@ -4,6 +4,9 @@ import { WebSocketServer } from 'ws';
 import {
   DuplexError,
   DuplexPeer,
+  identityHandler,
+  checkIdentity,
+  IDENTITY_METHOD,
   type EventContext,
   type Meta,
   type Observer,
@@ -410,6 +413,34 @@ export function peerOps(t: Testee): Record<string, Op> {
         throw fail('failed', String(error));
       });
       return { handle: t.mint('p', wrapped) };
+    },
+    'peer.identity': (args) => {
+      const p = peerOf(args);
+      const path = stringOf(args, 'path', true);
+      const digest = stringOf(args, 'digest');
+      try {
+        p.peer.handle(IDENTITY_METHOD, identityHandler({ path, ...(digest ? { digest } : {}) }));
+      } catch (error) {
+        if (error instanceof DuplexError) throw fail(error.code, error.message);
+        throw error;
+      }
+      return {};
+    },
+    'peer.check_identity': async (args) => {
+      const p = peerOf(args);
+      const path = stringOf(args, 'path', true);
+      const digest = stringOf(args, 'digest');
+      try {
+        await checkIdentity(
+          p.peer.call.bind(p.peer),
+          { path, ...(digest ? { digest } : {}) },
+          { timeoutMs: withinOf(args) },
+        );
+      } catch (error) {
+        if (error instanceof DuplexError) throw fail(error.code, error.message);
+        throw error;
+      }
+      return {};
     },
     'peer.handle': (args) => {
       const p = peerOf(args);

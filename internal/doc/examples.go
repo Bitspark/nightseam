@@ -68,7 +68,7 @@ func newExampleBuilder(f *render.Family) *exampleBuilder {
 	}
 	collect(f)
 	for name, family := range b.families {
-		b.schemas[name] = runtime.MustSchema(family.Wire, b.schemas)
+		b.schemas[name] = runtime.MustSchema(family.Wire, family.WireDigest, b.schemas)
 		if !family.Builtin && len(family.Parameters) == 0 {
 			b.candidates = append(b.candidates, name)
 		}

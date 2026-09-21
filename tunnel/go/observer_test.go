@@ -165,7 +165,7 @@ func opening(t *testing.T, ctx context.Context, from, to *tunnel.Tunnel, family 
 		}
 		taken <- c
 	}()
-	opened, err := from.OpenConnection(ctx, family)
+	opened, err := from.OpenConnection(ctx, family, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,10 +246,10 @@ func TestARefusedOpenIsToldOf(t *testing.T) {
 	client, _, atClient, atServer := watched(t, tunnel.Options{AcceptCapacity: 1})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if _, err := client.OpenConnection(ctx, "probe"); err != nil {
+	if _, err := client.OpenConnection(ctx, "probe", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.OpenConnection(ctx, "probe"); err == nil {
+	if _, err := client.OpenConnection(ctx, "probe", ""); err == nil {
 		t.Fatal("the second open was not refused")
 	}
 	refused, ok := heard[tunnel.OpenRefused](atClient)
@@ -261,7 +261,7 @@ func TestARefusedOpenIsToldOf(t *testing.T) {
 		t.Fatalf("the refuser was told %+v, %t", atRefuser, ok)
 	}
 	// An open this side will not make at all is refused here and told of here.
-	if _, err := client.OpenConnection(ctx, ""); err == nil {
+	if _, err := client.OpenConnection(ctx, "", ""); err == nil {
 		t.Fatal("a channel of no family opened")
 	}
 	lines := atClient.lines()

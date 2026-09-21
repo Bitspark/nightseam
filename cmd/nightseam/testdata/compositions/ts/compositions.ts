@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import { DuplexPeer, forwardWire } from '@nightseam/runtime';
 import type { Wire } from '@nightseam/duplex';
 import { Tunnel, type Channel } from '@nightseam/tunnel';
-import { fromWire as workerFromWire, type Handle, type Held } from './api/ts/worker-binding/src/index.ts';
-import { toWire as sinkToWire, type Ending, type ReportRequest } from './api/ts/sink-client/src/index.ts';
+import { prepareFromWire as prepareWorker, type Handle, type Held } from './api/ts/worker-binding/src/index.ts';
+import { toWire as sinkToWire, wireDigest as sinkDigest, type Ending, type ReportRequest } from './api/ts/sink-client/src/index.ts';
 import { fromWire as jobFromWire } from './api/ts/job-binding/src/index.ts';
 
 const url = process.argv[2];
@@ -39,14 +39,14 @@ class Scope {
   }
 
   /** Opens a channel, serves an implementation over it, answers the reference. */
-  async export(family: string, model: Wire): Promise<number> {
+  async export(family: string, digest: string, model: Wire): Promise<number> {
     if (this.closed) {
       model.close();
       throw new Error('the scope is closed');
     }
     let channel: Channel;
     try {
-      channel = await this.carrier.open(family, {
+      channel = await this.carrier.open(family, digest, {
         prepare(peer) {
           forwardWire(peer.wire(), model);
           peer.onClose(() => model.close());
@@ -131,14 +131,16 @@ class Recorder {
 
 const peer = new DuplexPeer();
 const carrier = new Tunnel(peer);
-const workerModel = await workerFromWire(peer.wire(), {});
-const client = workerModel({ methods: {}, events: {} }).methods;
+const workerPreparation = prepareWorker(peer.wire(), {});
 await peer.connect(url);
+const workerModel = await workerPreparation.complete();
+const client = workerModel({ methods: {}, events: {} }).methods;
 const scope = new Scope(carrier);
 
 const exportSink = (sink: Recorder) =>
   scope.export(
     'sink',
+    sinkDigest,
     sinkToWire(() => ({
       methods: { report: params => sink.report(params), end: params => sink.end(params) },
       events: {},

@@ -193,7 +193,9 @@ export function liveOps(t: Testee): Record<string, Op> {
       const references = args.references;
       try {
         const imports = ownerOf(args, s).importValue((batch) => {
-          const imports = references.map((raw) => batch.import(s.scope.decode(raw), stringOf(args, 'contract')));
+          const imports = references.map((raw) =>
+            batch.import(s.scope.decode(raw), stringOf(args, 'contract'), stringOf(args, 'digest')),
+          );
           if (boolOf(args, 'fail')) throw new DuplexError('fixture_failed', 'failed after imports');
           return imports;
         });
@@ -219,7 +221,11 @@ export function liveOps(t: Testee): Record<string, Op> {
       const contract = stringOf(args, 'contract');
       const behavior = (args.behavior ?? {}) as Args;
       try {
-        const reference = ownerOf(args, s).export(contract, cannedInvoke(t, s, contract, behavior));
+        const reference = ownerOf(args, s).export(
+          contract,
+          stringOf(args, 'digest'),
+          cannedInvoke(t, s, contract, behavior),
+        );
         return { reference: JSON.parse(JSON.stringify(reference)) };
       } catch (error) {
         throw liveError(error);
@@ -230,7 +236,12 @@ export function liveOps(t: Testee): Record<string, Op> {
       const contract = stringOf(args, 'contract');
       const reference = referenceOf(args, s);
       try {
-        return { handle: t.mint('at', new BindingOn(ownerOf(args, s).import(reference, contract), s)) };
+        return {
+          handle: t.mint(
+            'at',
+            new BindingOn(ownerOf(args, s).import(reference, contract, stringOf(args, 'digest')), s),
+          ),
+        };
       } catch (error) {
         throw liveError(error);
       }
@@ -261,7 +272,11 @@ export function liveOps(t: Testee): Record<string, Op> {
       const contract = stringOf(args, 'contract');
       const a = bindingOf(args, 'attachment');
       try {
-        return { reference: JSON.parse(JSON.stringify(forward(ownerOf(args, s), contract, a.invoke))) };
+        return {
+          reference: JSON.parse(
+            JSON.stringify(forward(ownerOf(args, s), contract, stringOf(args, 'digest'), a.invoke)),
+          ),
+        };
       } catch (error) {
         throw liveError(error);
       }

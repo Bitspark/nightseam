@@ -155,6 +155,34 @@ parameter. Those forms are separate work in
 [#369](https://github.com/Bitspark/nightseam/issues/369); adapters do not add
 either declaration form implicitly.
 
+## Identity of a bound application
+
+A generated generic adapter renders once. Its supplied family and type
+bindings determine the [closed declaration identity](declaration-identity.md)
+when `ToWire` / `toWire` or `PrepareFromWire` / `prepareFromWire` is called.
+The constructor and ordered arguments retain their nominal declaration
+paths and reachable content, including nested applications. Changing an
+argument's declaration can therefore change the application digest even
+when the generated generic adapter itself is unchanged.
+
+Missing required bindings or canonical declaration metadata fail before
+model construction or dispatch. A custom codec supplies a `TypeBinding`
+with the declaration used to interpret its wire values. Validation and
+export/import functions alone do not establish that identity. Generated
+`WireType()` metadata in Go and the TypeScript validator's declaration
+metadata preserve it; a Go reflection shape or host type-name hash is not
+a declaration identity. The family template's digest is never substituted
+for a closed application whose arguments are missing.
+
+Go's bound schema exposes `BoundDeclaration()` and `DeclarationDigest()`;
+TypeScript exposes `boundDeclaration(validator, slots)` and
+`declarationDigest(validator, slots)`. `TypeBinding.Declaration()` in Go and
+`typeDeclaration(binding)` in TypeScript select an argument's declaration
+while retaining its binding scope. These use the shared canonical graph,
+so supplying bindings at runtime produces the same identity in either
+language. Identity grants no authority and performs no compatibility
+negotiation between distinct declarations.
+
 ## The diagram commutes
 
 The two ways to a concrete package — binding the parameters into the

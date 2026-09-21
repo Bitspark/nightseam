@@ -1,0 +1,17 @@
+{
+  "profile": "nightseam.duplex/1",
+  "server": {
+    "methods": {
+      "identity.check": {"description": "Compares the caller's expected declaration identity before model interpretation and answers with the serving identity.", "request": "Declaration", "result": "Declaration", "errors": ["contract_invalid", "contract_mismatch"]}
+    }
+  },
+  "client": {
+    "methods": {
+      "identity.check": {"description": "Compares the caller's expected declaration identity before reverse model interpretation and answers with the serving identity.", "request": "Declaration", "result": "Declaration", "errors": ["contract_invalid", "contract_mismatch"]}
+    }
+  },
+  "errors": {
+    "contract_invalid": "The declaration identity is malformed.",
+    "contract_mismatch": "The declared path or specified digest differs from the expected identity."
+  }
+}
