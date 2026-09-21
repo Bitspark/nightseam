@@ -167,6 +167,8 @@ export class DuplexPeer {
   private generation = 0;
   private negotiated = '';
   private relativeWire?: Wire;
+  private wireRequest?: (method: string) => RequestHandler | undefined;
+  private wireEvent?: (name: string) => EventListener | undefined;
 
   constructor(options: PeerOptions = {}) {
     this.options = options;
@@ -200,6 +202,12 @@ export class DuplexPeer {
       maxPendingRequests: this.limits.maxPendingRequests,
       maxFrameBytes: this.limits.maxFrameBytes,
       requestTimeoutMs: this.limits.requestTimeoutMs,
+      call: (method, params, options, trace) => this.callWithTrace(method, params, options, () => trace),
+      emit: (name, data, options, trace) => this.emitWithTrace(name, data, options, trace),
+      dispatch: (request, event) => {
+        this.wireRequest = request;
+        this.wireEvent = event;
+      },
       fail: (error) => this.fail(error),
       pressure: (waiting) => {
         if (this.observer) this.pressure(waiting, true);
@@ -374,6 +382,15 @@ export class DuplexPeer {
    * connection ended first.
    */
   call<T = unknown>(method: string, params: unknown = {}, options: CallOptions = {}): Promise<T> {
+    return this.callWithTrace(method, params, options, () => this.propagator.inject(options.context));
+  }
+
+  private callWithTrace<T>(
+    method: string,
+    params: unknown,
+    options: CallOptions,
+    traceSource: () => Trace | undefined,
+  ): Promise<T> {
     try {
       requireName(method, 'method');
       if (options.timeoutMs !== undefined) positiveInteger(options.timeoutMs, 'timeoutMs', true);
@@ -396,7 +413,7 @@ export class DuplexPeer {
     }
     const id = this.localPrefix + (++this.nextID).toString(10);
     // One trace for the exchange: the request carries it and its cancel repeats it.
-    const trace = this.propagator.inject(options.context);
+    const trace = traceSource();
     let request: Envelope;
     try {
       request = carrying(traced({ version: 1, kind: 'request', id, method, params }, trace), options.meta);
@@ -452,14 +469,16 @@ export class DuplexPeer {
    */
   emit(event: string, data: unknown = null, options: EmitOptions = {}): Promise<void> {
     try {
+      return this.emitWithTrace(event, data, options, this.propagator.inject(options.context));
+    } catch (error) {
+      return Promise.reject(new UnpublishedError(error));
+    }
+  }
+
+  private emitWithTrace(event: string, data: unknown, options: EmitOptions, trace?: Trace): Promise<void> {
+    try {
       requireName(event, 'event');
-      return this.send(
-        carrying(
-          traced({ version: 1, kind: 'event', event, data }, this.propagator.inject(options.context)),
-          options.meta,
-        ),
-        event,
-      );
+      return this.send(carrying(traced({ version: 1, kind: 'event', event, data }, trace), options.meta), event);
     } catch (error) {
       return Promise.reject(new UnpublishedError(error));
     }
@@ -712,6 +731,8 @@ export class DuplexPeer {
         }
         const handler = this.handlers.get(method);
         if (handler) return handler(params, context);
+        const wireHandler = this.wireRequest?.(method);
+        if (wireHandler) return wireHandler(params, context);
         if (this.options.dispatch) return this.options.dispatch(method, params, context);
         throw new DuplexError('method_not_found', `Unknown method ${method}.`);
       })
@@ -854,6 +875,8 @@ export class DuplexPeer {
       this.fail(new DuplexError('stalled_consumer', 'Event handler deadline exceeded.'));
     }, this.limits.writeTimeoutMs);
     const listeners = [...this.listeners];
+    const wireListener = this.wireEvent?.(event.name);
+    if (wireListener) listeners.push(wireListener);
     const context: EventContext = { peer: this };
     if (event.trace) context.trace = event.trace;
     if (event.meta) context.meta = event.meta;

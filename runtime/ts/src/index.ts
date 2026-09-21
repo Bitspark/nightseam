@@ -16,8 +16,10 @@ export type { Observer, ObserverEvent, ObserverEvents } from './observer.ts';
 export { consoleObserver } from './console.ts';
 export { defaultPropagator } from './trace.ts';
 export type { Trace, TraceContext, Propagator } from './trace.ts';
-export { callWire, handleWire, emitWire, onWireEvent } from './wire.ts';
+export { callWire, handleWire, emitWire, onWireEvent, forwardWire, registerWire } from './wire.ts';
 export type {
+  AdapterContext,
+  WireModelContext,
   WireRequestContext,
   WireCallOptions,
   WireEmitOptions,
