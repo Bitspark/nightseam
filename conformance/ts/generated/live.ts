@@ -3,17 +3,17 @@
  * renders for the worker family, driven over the live ops of
  * conformance/DRIVER.md.
  *
- * Nothing here touches the live runtime. Every callable is an ordinary
- * function — one written here and handed across, one received and called —
- * which is the whole claim the live tier makes, and the reason this file can
- * be read as a consumer would write it.
+ * The fixture assembles the connection and its explicit live scope. Every
+ * model callable is an ordinary function, supplied or received through the
+ * same generated wire adapters.
  *
  * Both generated roles run here: a callable supplied by this peer is invoked
  * by the other, and one returned by the other is invoked here.
  */
 import * as worker from './api/ts/worker-client/src/index.ts';
 import * as binding from './api/ts/worker-binding/src/index.ts';
-import { Served } from './server.ts';
+import { Served, Session } from './server.ts';
+import { liveOver, scopeOf } from '@nightseam/live';
 
 type Args = Record<string, unknown>;
 
@@ -29,7 +29,8 @@ export class LiveFailure extends Error {
 }
 
 class LiveDialled {
-  client!: worker.Client;
+  connection!: Session<worker.Server>;
+  get client(): worker.Server { return this.connection.model; }
   /** What this peer's own callback was told, in the order it was told. */
   readonly reports: number[] = [];
   private readonly jobs = new Map<string, worker.Job>();
@@ -58,19 +59,20 @@ class LiveDialled {
   }
 
   shutdown(): void {
-    this.client.close();
+    this.connection.close();
   }
 }
 
 const handles = new Map<string, LiveDialled>();
-class LiveServer implements binding.Handler {
+type ServerMethods = worker.Server['methods'];
+class LiveServer implements ServerMethods {
   sink?: worker.ProgressSink;
   started = 0;
   readonly calls: string[] = [];
 
   describe(ticket: worker.Ticket): string { return ticket.label; }
-  start: binding.Handler['start'] = async (params, _remote, context) => {
-    await params.progress.report(50, { signal: context.signal });
+  start: ServerMethods['start'] = async (params, context) => {
+    await params.progress.report(50, { signal: context?.signal });
     this.sink = params.progress;
     this.started += 1;
     return {
@@ -80,7 +82,7 @@ class LiveServer implements binding.Handler {
     };
   };
 }
-const servers = new Map<string, { served: Served<binding.Remote>; server: LiveServer }>();
+const servers = new Map<string, { served: Served<Session<worker.Client>>; server: LiveServer }>();
 let next = 0;
 
 export function resetLive(): void {
@@ -107,7 +109,7 @@ function callError(error: unknown): Record<string, unknown> {
 }
 
 /** The worker family's client side, which the server calls on this peer. */
-const handler: worker.Handler = {
+const handler: worker.Client['methods'] = {
   async supervise(params: worker.Supervise): Promise<worker.Outcome> {
     for (const name of Object.keys(params.sinks).sort()) await params.sinks[name]!.report(1);
     return { state: 'finished' };
@@ -117,7 +119,15 @@ const handler: worker.Handler = {
 export const liveOps: Record<string, (args: Args) => unknown | Promise<unknown>> = {
   'gen.live_serve': async () => {
     const server = new LiveServer();
-    const served = await new Served(socket => binding.serve(socket, {}, server, {}).then(peer => new binding.Remote(peer))).listen();
+    const served = await new Served(socket => {
+      const connection = new Session<worker.Client>({ role: 'server' });
+      const scope = liveOver(connection.peer);
+      connection.expose(binding.toWire(remote => {
+        connection.model = remote;
+        return { methods: server, events: {} };
+      }, { scope }));
+      return connection.attach(socket);
+    }).listen();
     const handle = 'livesrv' + String(++next);
     servers.set(handle, { served, server });
     return { handle, url: served.url };
@@ -142,13 +152,19 @@ export const liveOps: Record<string, (args: Args) => unknown | Promise<unknown>>
       report: async (percent: number) => { server.calls.push(name + ':' + String(percent)); },
     }]));
     try {
-      const outcome = await remote.supervise({ sinks }, { signal });
+      const outcome = await remote.model.methods.supervise({ sinks }, { signal, owner: scopeOf(remote.peer)!.owner() });
       return { state: outcome.state };
     } catch (error) { return { error: callError(error) }; }
   },
   'gen.live_dial': async (args: Args) => {
     const d = new LiveDialled();
-    d.client = await worker.Client.dial(String(args.url), {}, handler, {});
+    d.connection = new Session<worker.Server>();
+    const scope = liveOver(d.connection.peer);
+    d.connection.expose(worker.toWire(remote => {
+      d.connection.model = remote;
+      return { methods: handler, events: { settled: () => {} } };
+    }, { scope }));
+    await d.connection.connect(String(args.url));
     next += 1;
     const handle = 'livecl' + String(next);
     handles.set(handle, d);
@@ -156,12 +172,12 @@ export const liveOps: Record<string, (args: Args) => unknown | Promise<unknown>>
   },
   'client.live_describe': async (args: Args) => {
     const d = lookup(args);
-    const label = await d.client.describe({ id: String(args.ticket), label: String(args.label) });
+    const label = await d.client.methods.describe({ id: String(args.ticket), label: String(args.label) });
     return { label };
   },
   'client.live_start': async (args: Args) => {
     const d = lookup(args);
-    const job = await d.client.start({
+    const job = await d.client.methods.start({
       ticket: { id: String(args.ticket), label: String(args.label) },
       progress: d.sink(),
     });

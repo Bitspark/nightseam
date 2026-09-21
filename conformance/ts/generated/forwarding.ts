@@ -4,9 +4,10 @@
  */
 import * as combinator from './api/ts/combinator-client/src/index.ts';
 import * as binding from './api/ts/combinator-binding/src/index.ts';
-import { scopeOf, type LiveScope } from '@nightseam/live';
+import { liveOver, type LiveScope } from '@nightseam/live';
+import { callWire, handleWire } from '@nightseam/runtime';
 import { CombinatorServer } from './combinator.ts';
-import { Served } from './server.ts';
+import { Served, Session } from './server.ts';
 
 type Args = Record<string, unknown>;
 
@@ -19,8 +20,8 @@ export class ForwardingFailure extends Error {
 }
 
 interface Middle {
-  origin: combinator.Client;
-  destination: combinator.Client;
+  origin: Session<combinator.Server>;
+  destination: Session<combinator.Server>;
   upstream: LiveScope;
   downstream: LiveScope;
   toolkit: combinator.Toolkit;
@@ -30,7 +31,7 @@ interface Middle {
 
 class Endpoint {
   readonly server = new CombinatorServer();
-  served!: Served<binding.Remote>;
+  served!: Served<Session<combinator.Client>>;
   scope?: LiveScope;
   retained?: combinator.Toolkit;
   twice?: combinator.Unary;
@@ -74,19 +75,20 @@ function ordered(value: unknown): unknown {
 export const forwardingOps: Record<string, (args: Args) => unknown | Promise<unknown>> = {
   'gen.forwarding_serve': async () => {
     const endpoint = new Endpoint();
-    endpoint.served = await new Served(socket => binding.serve(socket, {
-      dispatch: (method, wire, context) => {
-        if (method !== 'fixture.forwarding.retain') throw new combinator.DuplexError('method_not_found', 'unknown method ' + method);
-        const scope = scopeOf(context.peer);
-        if (!scope) throw new ForwardingFailure('invalid', 'generated binding installed no scope');
+    endpoint.served = await new Served(socket => {
+      const connection = new Session<combinator.Client>({ role: 'server' });
+      const scope = liveOver(connection.peer);
+      endpoint.scope = scope;
+      handleWire(connection.peer.wire(), ['fixture.forwarding.retain'], wire => {
         combinator.validateWire('Toolkit', wire);
         endpoint.retained = combinator.importToolkit(scope.owner(), wire);
-      },
-    }, endpoint.server, {}).then(peer => {
-      endpoint.scope = scopeOf(peer);
-      if (!endpoint.scope) { peer.close(); throw new ForwardingFailure('invalid', 'generated binding installed no scope'); }
-      return new binding.Remote(peer);
-    })).listen();
+      });
+      connection.expose(binding.toWire(remote => {
+        connection.model = remote;
+        return { methods: endpoint.server, events: {} };
+      }, { scope }));
+      return connection.attach(socket);
+    }).listen();
     const handle = 'forwardendpoint' + String(++next);
     handles.set(handle, endpoint);
     return { handle, url: endpoint.served.url };
@@ -121,22 +123,29 @@ export const forwardingOps: Record<string, (args: Args) => unknown | Promise<unk
     }
   },
   'gen.forwarding_dial': async args => {
-    let origin: combinator.Client | undefined;
-    let destination: combinator.Client | undefined;
+    let origin: Session<combinator.Server> | undefined;
+    let destination: Session<combinator.Server> | undefined;
     try {
-      origin = await combinator.Client.dial(String(args.origin), {}, {}, {});
-      destination = await combinator.Client.dial(String(args.destination), {}, {}, {});
-      const upstream = scopeOf(origin.peer);
-      const downstream = scopeOf(destination.peer);
-      if (!upstream || !downstream) throw new ForwardingFailure('invalid', 'generated client installed no scope');
+      origin = new Session<combinator.Server>();
+      destination = new Session<combinator.Server>();
+      const upstream = liveOver(origin.peer);
+      const downstream = liveOver(destination.peer);
+      for (const [connection, scope] of [[origin, upstream], [destination, downstream]] as const) {
+        connection.expose(combinator.toWire(remote => {
+          connection.model = remote;
+          return { methods: {}, events: {} };
+        }, { scope }));
+      }
+      await origin.connect(String(args.origin));
+      await destination.connect(String(args.destination));
       const options = { signal: AbortSignal.timeout(within(args)) };
-      const source = await origin.peer.call('toolkit', { seed: 3 }, options);
+      const source = await callWire(origin.peer.wire(), ['toolkit'], { seed: 3 }, options);
       combinator.validateWire('Toolkit', source);
       const toolkit = combinator.importToolkit(upstream.owner(), source);
       // Exporting the typed proxies installs wrappers that translate callable
       // requests and results between these scopes, unlike raw forward().
       const target = combinator.exportToolkit(downstream.owner(), toolkit);
-      await destination.peer.call('fixture.forwarding.retain', target, options);
+      await callWire(destination.peer.wire(), ['fixture.forwarding.retain'], target, options);
       const from = source as Record<string, unknown>;
       const to = target as Record<string, unknown>;
       const handle = 'forwardmiddle' + String(++next);

@@ -1,8 +1,48 @@
-/** The fixture owns HTTP upgrade and its open test policy; generated bindings
- * receive only accepted connections and own the protocol dispatch above them. */
+/** The fixture owns HTTP upgrade, peers and their wires. Generated bindings
+ * receive model factories and explicit conversion contexts. */
 import { createServer, type Server } from 'node:http';
 import { WebSocketServer } from 'ws';
-import type { WebSocketLike } from '@nightseam/runtime';
+import { DuplexPeer, forwardWire, type PeerOptions, type WebSocketLike } from '@nightseam/runtime';
+import type { Wire } from '@nightseam/duplex';
+
+/** Test transport assembly is separate from every generated model. The model
+ * factory captures its opposite side while toWire installs the local model,
+ * before attach/connect allows the physical connection to dispatch frames. */
+export class Session<M> {
+  readonly peer: DuplexPeer;
+  model!: M;
+  private local?: Wire;
+  private detach?: () => void;
+
+  constructor(options: PeerOptions = {}) {
+    this.peer = new DuplexPeer(options);
+    this.peer.onClose(() => this.release());
+  }
+
+  expose(wire: Wire): void {
+    this.local = wire;
+    this.detach = forwardWire(this.peer.wire(), wire);
+  }
+
+  async attach(socket: WebSocketLike): Promise<this> {
+    try { await this.peer.attach(socket); return this; }
+    catch (error) { this.close(); throw error; }
+  }
+
+  async connect(url: string): Promise<this> {
+    try { await this.peer.connect(url); return this; }
+    catch (error) { this.close(); throw error; }
+  }
+
+  private release(): void {
+    this.detach?.();
+    this.detach = undefined;
+    this.local?.close();
+    this.local = undefined;
+  }
+
+  close(): void { this.release(); this.peer.close(); }
+}
 
 interface Remote { close(): void; }
 

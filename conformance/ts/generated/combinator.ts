@@ -14,7 +14,8 @@
  */
 import * as combinator from './api/ts/combinator-client/src/index.ts';
 import * as binding from './api/ts/combinator-binding/src/index.ts';
-import { Served } from './server.ts';
+import { Served, Session } from './server.ts';
+import { liveOver } from '@nightseam/live';
 
 type Args = Record<string, unknown>;
 
@@ -30,7 +31,8 @@ export class CombinatorFailure extends Error {
 }
 
 class CombinatorDialled {
-  client!: combinator.Client;
+  connection!: Session<combinator.Server>;
+  get client(): combinator.Server { return this.connection.model; }
   private readonly toolkits = new Map<string, combinator.Toolkit>();
   private next = 0;
 
@@ -48,16 +50,17 @@ class CombinatorDialled {
   }
 
   shutdown(): void {
-    this.client.close();
+    this.connection.close();
   }
 }
 
 const handles = new Map<string, CombinatorDialled>();
 /** Ordinary functions and containers implementing the declaration's server. */
-export class CombinatorServer implements binding.Handler {
+type ServerMethods = combinator.Server['methods'];
+export class CombinatorServer implements ServerMethods {
   readonly applied: number[] = [];
   name(): string { return 'combinator'; }
-  pack: binding.Handler['pack'] = params => ({
+  pack: combinator.Server['methods']['pack'] = params => ({
     label: 'retained',
     items: [
       { kind: 'none' },
@@ -75,7 +78,7 @@ export class CombinatorServer implements binding.Handler {
     };
   }
 }
-const servers = new Map<string, { served: Served<binding.Remote>; server: CombinatorServer }>();
+const servers = new Map<string, { served: Served<Session<combinator.Client>>; server: CombinatorServer }>();
 let next = 0;
 
 export function resetCombinator(): void {
@@ -94,7 +97,7 @@ function lookup(args: Args): CombinatorDialled {
 export const combinatorOps: Record<string, (args: Args) => unknown | Promise<unknown>> = {
   'client.combinator_pack': async (args: Args) => {
     const add = Number(args.add);
-    const batch = await lookup(args).client.pack({ item: async (value: number) => value + add });
+    const batch = await lookup(args).client.methods.pack({ item: async (value: number) => value + add });
     const some = batch.items[1];
     if (some?.kind !== 'some') throw new CombinatorFailure('invalid', 'the generic result lost its payload');
     const members = some.value.item;
@@ -102,7 +105,15 @@ export const combinatorOps: Record<string, (args: Args) => unknown | Promise<unk
   },
   'gen.combinator_serve': async () => {
     const server = new CombinatorServer();
-    const served = await new Served(socket => binding.serve(socket, {}, server, {}).then(peer => new binding.Remote(peer))).listen();
+    const served = await new Served(socket => {
+      const connection = new Session<combinator.Client>({ role: 'server' });
+      const scope = liveOver(connection.peer);
+      connection.expose(binding.toWire(remote => {
+        connection.model = remote;
+        return { methods: server, events: {} };
+      }, { scope }));
+      return connection.attach(socket);
+    }).listen();
     const handle = 'combsrv' + String(++next);
     servers.set(handle, { served, server });
     return { handle, url: served.url };
@@ -114,7 +125,13 @@ export const combinatorOps: Record<string, (args: Args) => unknown | Promise<unk
   },
   'gen.combinator_dial': async (args: Args) => {
     const d = new CombinatorDialled();
-    d.client = await combinator.Client.dial(String(args.url), {}, undefined, {});
+    d.connection = new Session<combinator.Server>();
+    const scope = liveOver(d.connection.peer);
+    d.connection.expose(combinator.toWire(remote => {
+      d.connection.model = remote;
+      return { methods: {}, events: {} };
+    }, { scope }));
+    await d.connection.connect(String(args.url));
     next += 1;
     const handle = 'combcl' + String(next);
     handles.set(handle, d);
@@ -122,7 +139,7 @@ export const combinatorOps: Record<string, (args: Args) => unknown | Promise<unk
   },
   'client.combinator_toolkit': async (args: Args) => {
     const d = lookup(args);
-    const toolkit = await d.client.toolkit({ seed: Number(args.seed) });
+    const toolkit = await d.client.methods.toolkit({ seed: Number(args.seed) });
     return { toolkit: d.hold(toolkit) };
   },
   'client.combinator_twice': async (args: Args) => {
