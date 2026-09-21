@@ -1,0 +1,210 @@
+# Temporary, branch-only administration for the operator-approved #363 ruling.
+# No checkout, production source edits, secrets access, or release operations.
+name: connect approved composition plan
+on:
+  push:
+    branches: [issue-363-composition-plan-metadata]
+    paths: [.github/workflows/composition-363-metadata.yml]
+permissions:
+  issues: write
+jobs:
+  metadata:
+    if: github.ref == 'refs/heads/issue-363-composition-plan-metadata'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Connect and verify the approved issue plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, time, urllib.request, urllib.error
+          base = 'https://api.github.com/repos/Bitspark/nightseam'
+          assert os.environ['GITHUB_REPOSITORY'] == 'Bitspark/nightseam'
+          headers = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'composition-363-planning'}
+          writable = {34, 320, 321, 323, 337, 343, 355, 357, 363, 365, 366, 367, 368, 369, 370}
+          def api(path, method='GET', payload=None, missing=False):
+              if method != 'GET':
+                  m = re.match(r'^/issues/(\d+)(?:$|/(?:sub_issues|dependencies/blocked_by)$)', path)
+                  assert (m and int(m.group(1)) in writable) or path == '/milestones/5', path
+                  assert method in ('POST', 'PATCH'), method
+              req = urllib.request.Request(base + path, data=None if payload is None else json.dumps(payload).encode(), headers=headers, method=method)
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      raw = response.read()
+                      result = json.loads(raw) if raw else None
+              except urllib.error.HTTPError as exc:
+                  if missing and exc.code == 404:
+                      return None
+                  raise RuntimeError(f'{method} {path}: HTTP {exc.code}: {exc.read().decode()}') from None
+              if method != 'GET':
+                  time.sleep(1)
+              return result
+          def pages(path):
+              out = []
+              for page in range(1, 11):
+                  sep = '&' if '?' in path else '?'
+                  batch = api(path + sep + f'per_page=100&page={page}')
+                  assert isinstance(batch, list), path
+                  out += batch
+                  if len(batch) < 100:
+                      return out
+              raise RuntimeError('Refusing partial pagination: ' + path)
+          current = {n: api(f'/issues/{n}') for n in sorted(writable)}
+          for n, issue in current.items():
+              assert 'pull_request' not in issue, n
+          milestone = api('/milestones/5')
+          assert milestone['title'] in ('0.6.0', 'v0.6.0') and milestone['state'] == 'open'
+          parents = {365: 320, 366: 365, 367: 365, 368: 365, 369: 365, 370: 365}
+          for child, parent in parents.items():
+              old = api(f'/issues/{child}/parent', missing=True)
+              assert old is None or old['number'] == parent, f'#{child} already belongs to another parent'
+              assert current[child]['state'] == 'open', f'#{child} is no longer open'
+              assert current[child]['milestone']['number'] == 5, child
+          desired = {366: [343], 368: [367], 369: [366, 367], 370: [321, 323, 368, 369], 323: [366]}
+          graph = {}
+          def dependencies(n):
+              if n not in graph:
+                  graph[n] = {x['number'] for x in pages(f'/issues/{n}/dependencies/blocked_by')}
+              return graph[n] | set(desired.get(n, []))
+          def reaches(start, target, seen=None):
+              if start == target:
+                  return True
+              seen = set() if seen is None else seen
+              if start in seen:
+                  return False
+              assert len(seen) < 100, 'Unexpected dependency graph size'
+              seen.add(start)
+              return any(reaches(n, target, seen) for n in dependencies(start))
+          for n, blockers in desired.items():
+              for blocker in blockers:
+                  assert not reaches(blocker, n), f'Cycle: {n} -> {blocker}'
+          for n in range(365, 371):
+              wanted = 'Epic' if n == 365 else 'Task'
+              old_type = current[n].get('type')
+              assert not old_type or old_type['name'] == wanted, f'Unexpected issue type #{n}'
+              if not old_type:
+                  updated = api(f'/issues/{n}', 'PATCH', {'type': wanted})
+                  assert updated.get('type', {}).get('name') == wanted, n
+          for child, parent in parents.items():
+              existing = {x['number'] for x in pages(f'/issues/{parent}/sub_issues')}
+              if child not in existing:
+                  api(f'/issues/{parent}/sub_issues', 'POST', {'sub_issue_id': current[child]['id'], 'replace_parent': False})
+          for n, blockers in desired.items():
+              existing = {x['number'] for x in pages(f'/issues/{n}/dependencies/blocked_by')}
+              for blocker in blockers:
+                  if blocker not in existing:
+                      api(f'/issues/{n}/dependencies/blocked_by', 'POST', {'issue_id': current[blocker]['id']})
+          blocks = {
+              320: '''## Approved generic-composition delivery — #363 B
+
+          The operator ruled B on 2026-09-21. **#365 is required 0.6.0 delivery**, with #366 applied identity, #367 complete family binding, #368 live-draw implementation, #369 generic-callable implementation and #370 combined conformance/candidate-smoke evidence. Both new forms are required; family draws first is sequencing, not permanent deferral of generic callables.
+
+          #321's access construction can land independently and state the grammar exercised by its table. It does not discharge #363 while the new forms remain refused. #323 must coordinate the bound-application contract with #366 before final identity completion; #366 follows #343's outstanding coverage decision, not the other way around. #367 reviews the family/owner seam with #321 before affected signatures freeze. Current implementers retain their work; no parallel core rewrite is authorized.
+
+          Completion/candidate checklist: accepted #366/#367 contracts; paired #368/#369 delivery; #370's independent construction, identity, ownership, full access-product and packed-consumer evidence; current docs and supported-grammar inventory. The actual future 0.6 candidate issue must name #370 as a prerequisite. Do not close this epic or drop the work from the milestone on the strength of a closed design question or the older restricted table. A deliberate scope change requires an explicit recorded decision, not an implicit postponement to 0.7.0. No dependency on finished 0.7 authentication is added.''',
+              321: '''## Scope alignment after #363 B
+
+          #363 is adopted; #365 delivers both newly admitted type forms in 0.6.0. This lane remains the shared-access construction, with #368/#369 owning the distinct generator changes and #370 their combined acceptance. Its present generic table may use fixed declared callables, but must state the exercised grammar and not claim that it covers still-refused forms.
+
+          Before freezing affected signatures, record the public family/type binding and operation-local scope/owner attachment points reviewed with #367; preserve both converter directions, validation and same-family association, without capturing a permanent owner or principal. Coordinate expected bound-application identity with #366/#323. Record a precise obstruction and a smallest owned remedy if composition cannot hold. Keep one generated access contract rather than an additional carrier-specific API.
+
+          No completion prerequisite on #368/#369 or finished 0.7 auth is added to this lane. #370 holds the final new-type-by-access product; #365 is part of #320's release completion. Existing owners and worktrees remain untouched.''',
+              323: '''## Applied-identity contract checkpoint — #363 B
+
+          #363 now adopts parameterized nominal callables and complete family draws; #365 delivers them in 0.6.0. **#366 is the applied-identity contract prerequisite for finalizing the shared identity surface.** It follows #343's coverage verdict and coordinates with this lane; it does not wait for this lane's finished implementation. Existing settled mechanics may proceed while the contract is resolved. Do not create a cycle by making #366 wait on this implementation.
+
+          The contract must distinguish nominal constructor origin, canonical applied arguments and relevant reachable wire-visible revisions, including same-named argument declarations with changed meaning. A template digest alone does not identify a bound instance. Specialization retains origin/application provenance; an unrelated same-signature declaration is not equivalent. The canonical representation and diagnostic spelling cannot become separate host-language conventions.
+
+          Record the accepted #366 contract and where the expected bound interpretation is retained/checked before final completion. #369 owns generic-callable generation; #370 supplies combined identity/conversion evidence. No need to wait for both generator implementations to land this lane once its agreed contract and own acceptance are satisfied. No new auth fields, grant policy, structural callable identity, or implicit amendment of #343/#339 is introduced.''',
+              343: '''## Coordination with the adopted generic-closure decision
+
+          #363 B is recorded and delivered by #365. #366 owns the remaining applied-callable identity contract and follows this issue's coverage verdict. This ruling does not silently resolve this issue's A/B choice. Please explicitly cover template-versus-bound instance, canonical arguments, retained nominal provenance and changed reachable revisions behind the same type name in the shared account. #323 consumes the agreed result; avoid a second callable-only identity system or a circular implementation dependency. #370 holds the corresponding cross-language cases.''',
+              355: '''## New generic routes from #363 B
+
+          #365 makes live family draws (#368) and closed generic callables (#369) part of the 0.6.0 foundation. Review #367's per-operation context/binding surface now, without waiting for completed implementations or crypto. When available, exercise a guarded callable through both forms, including nested conversion, two contexts, forwarding and local/self-reference optimization; a type round trip must not unwrap a guard or capture one principal in a reusable interpretation.
+
+          If this task's initial report precedes those implementations, mark the new routes not yet exercised and link their final synthetic coverage in #370 and real-auth coverage in #357. Do not claim the old fixture covered them. #370 owns the generic-composition completion requirement; this early review still starts now and does not create a blanket 0.6-to-0.7 release dependency. Authority, expiry and connection ownership remain outside nominal type identity.''',
+              337: '''## Generic interpretation alignment — #363 B
+
+          Consume #365's adopted full interpretation model and coordinate the per-operation guard/context seam with #367. Both live family draws (#368) and generic callable instances (#369) need coverage by the supported auth adapters. #355 reviews the seam early, #370 tests synthetic guard preservation through the new converters, and #357 must exercise real authentication/expiry on the corresponding supported routes. A reusable type binding contains no ambient principal or permanent owner; proxy/local optimizations must retain explicit guards. Nominal contract identity is not authentication or permission. No new grant algebra or compulsory auth dependency is introduced.''',
+              357: '''## Required additional converter coverage from #363 B
+
+          Include #368 live family draws and #369 closed generic callables in the supported-role auth scenarios, using the accepted #366/#367 identity/interpretation contracts and the actual generator. Reuse #370's nested container, retained callback, mixed-family refusal, two-scope and local/self-reference shapes rather than a handwritten substitute. Verify a supplied/returned guard survives conversion and denies effects/disclosure after applicable expiry, with no principal crossover or broadened forwarding authority. #370's synthetic guard success is not crypto evidence. Draft now; final real runs use the actual implementations. Unsupported routes must be explicit, not counted as passes.''',
+              34: '''## Adopted generic foundation — #363 B / #365
+
+          The reference type-and-adapter contract now includes closed applications of nominal generic callables and live associated types drawn through family parameters. #366 defines shared applied identity, #367 complete family interpretation with operation-local ownership, #368/#369 implement both reference languages and #370 holds the cross-language construction/access evidence.
+
+          Applicable generator/live port tasks must consume those exact contracts and shared vectors before finalizing their corresponding public bindings or claiming support. Do not encode v0.5.0's callable_parameters/live_draw refusals as permanent language-specific semantics, invent host-language identity spellings, or reduce a family binding to validation alone. Record explicit limitations against existing profile/tier policy; a skipped required case is not coverage.
+
+          This does not add live or auth requirements to unrelated core-only work, change language/tier targets, or move existing owners. The existing #321 access prerequisite remains. Add precise dependencies to actual affected generator/live children when scoped, rather than blocking every language on all of 0.7.0.''',
+              365: '''## Canonical delivery index and dependency meaning
+
+          | Responsibility | Issue | Gate |
+          | --- | --- | --- |
+          | Applied nominal identity contract | #366 | Draft now; final account follows #343 |
+          | Complete family interpretation/context contract | #367 | Start now with #321/#355 |
+          | Live family draws, paired implementation | #368 | Accepted #367 interface |
+          | Closed generic callables, paired implementation | #369 | Accepted #366/#367 interfaces |
+          | Combined conformance/docs/candidate smoke | #370 | Final acceptance after #368/#369/#321/#323 |
+
+          This epic is a native child of #320; the five entries are its delivery children in milestone 0.6.0. #363 remains the historical decision child of #320 and can close as decided without closing this delivery work. #323's added contract checkpoint is #366, not completion of #369. Do not introduce a reverse #366-to-#323 implementation dependency.
+
+          A coordinator must obtain explicit owner claims for the contract work and fill exact exported signatures, test commands and file ownership into #368/#369 before dispatch. No implementation task is claimed by this planning pass. Completion of #365/#320 requires the combined evidence in #370; later release preparation must carry that native prerequisite forward. Both forms remain mandatory absent a new explicit scope ruling.'''
+          }
+          start, end = '<!-- composition-363:start -->', '<!-- composition-363:end -->'
+          def add_block(n, text, prepend=False):
+              fresh = api(f'/issues/{n}')
+              body = fresh.get('body') or ''
+              section = start + '\n' + text.strip() + '\n' + end
+              if start in body:
+                  a, b = body.index(start), body.index(end) + len(end)
+                  updated = body[:a] + section + body[b:]
+              else:
+                  updated = section + '\n\n' + body if prepend else body.rstrip() + '\n\n' + section + '\n'
+              if updated != body:
+                  api(f'/issues/{n}', 'PATCH', {'body': updated})
+          for n, text in blocks.items():
+              add_block(n, text)
+          add_block(363, '''## Decision status — B adopted, 2026-09-21
+
+          The operator's verbatim approval and the approved decision are recorded at https://github.com/Bitspark/nightseam/issues/363#issuecomment-5754101081 . Generic callable applications and live family draws are both required. Live draws first is sequencing, not indefinite deferral.
+
+          Delivery is **#365**, with exact identity #366, complete family binding #367, paired implementations #368/#369 and combined evidence #370, all in milestone 0.6.0 under #320. The original problem/options below remain the proposal history; the current decision is no longer pending. Closing this design issue means the question is decided, not that the current runtime supports the forms. Exact remaining representations and signatures stay with #366/#367; no implementation or passed test is claimed.''', prepend=True)
+          fresh = api('/issues/363')
+          body = fresh['body']
+          empty = '## Verdict\n\n## Waits on / Unblocks'
+          if empty in body:
+              approved = api('/issues/comments/5754101081')['body']
+              approved = approved.split('\n', 1)[1].strip()
+              body = body.replace(empty, '## Verdict\n\n' + approved + '\n\nDelivery index: #365, #366, #367, #368, #369, #370. The following original scheduling text is historical; the native delivery plan and status above supersede it.\n\n## Waits on / Unblocks', 1)
+              api('/issues/363', 'PATCH', {'body': body})
+          elif '5754101081' not in body.split('## Verdict', 1)[-1]:
+              raise RuntimeError('An unexpected verdict is present; review without overwriting it')
+          description = (api('/milestones/5').get('description') or '').rstrip()
+          marker = '#363 B / #365'
+          if marker not in description:
+              api('/milestones/5', 'PATCH', {'description': description + '\n\nCurrent scope addition (2026-09-21): #363 B / #365 requires complete generic type-and-adapter composition in both reference languages: live family draws and closed generic callables. Contracts #366/#367, implementations #368/#369 and combined conformance/candidate evidence #370 accompany #320 shared-wire work. Both forms are required; closing the design or passing the earlier restricted table is not delivery. Align #321/#323 and relevant language/0.7 auth consumers now, without making completed 0.7 auth a prerequisite. Existing language targets and due date are unchanged.'})
+          verified = {'milestone': 5, 'epic': 365, 'parents': {}, 'dependencies': {}, 'types': {}, 'body_updates': sorted(blocks), 'main_modified': False}
+          for child, parent in parents.items():
+              actual = api(f'/issues/{child}/parent')
+              assert actual['number'] == parent
+              issue = api(f'/issues/{child}')
+              assert issue['milestone']['number'] == 5
+              assert issue['type']['name'] == ('Epic' if child == 365 else 'Task')
+              verified['parents'][child] = parent
+              verified['types'][child] = issue['type']['name']
+          for n, blockers in desired.items():
+              actual = {x['number'] for x in pages(f'/issues/{n}/dependencies/blocked_by')}
+              assert set(blockers) <= actual
+              verified['dependencies'][n] = sorted(actual)
+          assert marker in api('/milestones/5')['description']
+          decision = api('/issues/363')
+          if decision['state'] == 'open':
+              decision = api('/issues/363', 'PATCH', {'state': 'closed', 'state_reason': 'completed'})
+          assert decision['state'] == 'closed'
+          verified['decision_state'] = 'closed as decided; delivery remains open'
+          print('VERIFIED', json.dumps(verified, sort_keys=True), flush=True)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write('## Verified approved composition plan\n\n```json\n' + json.dumps(verified, indent=2) + '\n```\n')
+          PY
