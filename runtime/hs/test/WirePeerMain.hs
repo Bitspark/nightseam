@@ -3,13 +3,14 @@
 module Main (main) where
 
 import Control.Concurrent.STM
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Exception hiding (assert, handle)
 import Control.Monad
 import Data.Aeson hiding (Options, defaultOptions)
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Lazy as L
-import Data.Dynamic (toDyn)
+import Data.Dynamic (fromDynamic, toDyn)
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -65,6 +66,12 @@ refused action = do
 
 main :: IO ()
 main = do
+  failures <- forM [(routed, deadline) | routed <- [False, True], deadline <- [True, False]] $ \(routed, deadline) -> do
+    result <- try (incomingBudget routed deadline) :: IO (Either SomeException ())
+    case result of
+      Left err -> putStrLn ("incoming budget " ++ show (routed, deadline) ++ ": " ++ show err) >> pure True
+      Right () -> pure False
+  assert "incoming cancellation and deadline preserve active work" (not (or failures))
   requestOrderAndCancellation
   reservedCancellation
   overflowIsAsynchronous
@@ -75,6 +82,58 @@ main = do
   cancellationAfterDetach
   boundedExplicitClose
   putStrLn "peer Wire tests passed"
+
+-- A response deadline and actual application completion are separate: the
+-- former settles the caller, while only the latter retires admitted work.
+incomingBudget :: Bool -> Bool -> IO ()
+incomingBudget routed deadline = do
+  let opts = defaultOptions {maxConcurrentHandlers = 1, requestTimeoutMs = if deadline then 75 else 5000}
+  (peer, sent, inject, _) <- fixture opts False
+  entered <- newEmptyTMVarIO
+  cancelled <- newEmptyTMVarIO
+  released <- newEmptyTMVarIO
+  let body ctx = do
+        atomically (putTMVar entered ())
+        awaitCancellation ctx
+        atomically (putTMVar cancelled ())
+        atomically (readTMVar released)
+        pure Null
+      cleanup = atomically (void (tryPutTMVar released ())) >> closePeer peer
+      request ident method = inject (object ["version" .= (1 :: Int), "kind" .= ("request" :: Text),
+        "id" .= ident, "method" .= method, "params" .= Null])
+      next = within (atomically (readTQueue sent))
+      refusal ident code answer = field "id" answer == String ident && field "code" (field "error" answer) == String code
+  flip finally cleanup $ do
+    if routed then void $ wireReceive (peerWire peer) ["hold"] (Receiver False
+      (\_ incoming -> when (field "kind" (messageFrame incoming) == String "request") $ do
+        ctx <- maybe (fail "incoming Wire lost its context") pure (messageContext incoming >>= fromDynamic)
+        address <- maybe (fail "incoming Wire lost its return address") pure (messageReturn incoming)
+        void $ forkIO $ void (try (do
+          value <- body ctx
+          wireSend (returnWire address) [] (Message (object ["version" .= (1 :: Int), "kind" .= ("response" :: Text),
+            "id" .= field "id" (messageFrame incoming), "result" .= value]) Nothing Nothing)) :: IO (Either SomeException ())))
+      (\_ _ -> pure ()))
+    else handle peer "hold" (\ctx _ _ -> body ctx)
+    handle peer "echo" (\_ _ _ -> pure (String "released"))
+    request ("s:1" :: Text) (if routed then "4:hold" else "hold")
+    within (atomically (readTMVar entered))
+    unless deadline $ inject (object ["version" .= (1 :: Int), "kind" .= ("cancel" :: Text), "id" .= ("s:1" :: Text)])
+    within (atomically (readTMVar cancelled))
+    when deadline $ next >>= assert "receiver deadline answers before application return" . refusal "s:1" "cancelled"
+    request ("s:2" :: Text) ("echo" :: Text)
+    next >>= assert "cancelled application still owns its handler slot" . refusal "s:2" "busy"
+    premature <- timeout 50000 (atomically (readTQueue sent))
+    assert "no early or duplicate answer while the body remains active" (premature == Nothing)
+    atomically (putTMVar released ())
+    unless deadline $ next >>= assert "explicit cancellation answers on application return" . refusal "s:1" "cancelled"
+    let retryEcho n = do
+          let ident = "s:" <> T.pack (show n)
+          request ident ("echo" :: Text)
+          answer <- next
+          assert "deadline response is sent only once" (field "id" answer == String ident)
+          if refusal ident "busy" answer then threadDelay 1000 >> retryEcho (n + 1)
+          else assert "application return restores capacity" (field "result" answer == String "released")
+    within (retryEcho (3 :: Int))
 
 requestOrderAndCancellation :: IO ()
 requestOrderAndCancellation = do
