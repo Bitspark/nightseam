@@ -89,6 +89,12 @@ and supplies child lifetimes, conversion batches and publication. Reusable
 value adapters carry validation and both conversions, not a permanent owner.
 Standalone acquired conversions run inside an explicit environment batch.
 
+Generated calls and events use the adapter's configured propagator and
+observer. Calls retain its request timeout, with an explicit operation
+deadline taking precedence. Local composition preserves the propagator's
+trace context; a physical hop serializes only the profile trace fields and
+extracts a new incoming context at the destination.
+
 Verified request and event context survives local selection, mounting,
 forwarding and pair dispatch. A physical outgoing hop sends only profile
 fields and establishes a new incoming context. Received metadata is not
