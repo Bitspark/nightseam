@@ -42,9 +42,12 @@ test('an unmanaged invocation is explicitly refused with its original return cap
     },
   });
   let reply: Message | undefined;
+  // A return capability refuses what it does not implement, as every addressed
+  // receiver in this profile does; this one carries outcomes and nothing else.
   const address = {
     wire: {
-      send(_path: readonly string[], message: Message) {
+      send(path: readonly string[], message: Message) {
+        if (path.length) throw new Error('this return capability carries outcomes only');
         reply = message;
       },
     },

@@ -1,7 +1,8 @@
 import { encodePath, WireError } from '@nightseam/duplex';
 import type { Endpoint, Message, Path, Receiver, Wire } from '@nightseam/duplex';
 import { DuplexError } from './error.ts';
-import { response, wireContext } from './wire.ts';
+import { captureInvocation, relayInvocationControl } from './invocation.ts';
+import { response } from './wire.ts';
 
 /** Registration authority; close releases this registry, never its borrowed carrier. */
 export interface HandlerRegistry extends Wire {
@@ -12,31 +13,21 @@ interface Registration {
   path: Path;
   receiver: Receiver;
 }
-interface Capture {
-  registration: Registration;
-  path: Path;
-}
-/** @internal Owned by one admitted runtime invocation, not a global router ledger. */
-export interface DispatchRoutes {
-  retired: boolean;
-  captures: Map<WireDispatcher, Map<string, Capture>>;
-}
-/** @internal Every new carrier admission has a fresh capture lifetime. */
-export function createDispatchRoutes(): DispatchRoutes {
-  return { retired: false, captures: new Map() };
-}
-/** @internal Called at terminal retirement, after queued cancellation drains. */
-export function retireDispatchRoutes(routes: DispatchRoutes | undefined): void {
-  if (!routes) return;
-  routes.retired = true;
-  routes.captures.clear();
-}
 
-/** One attachment, with explicit exact-before-longest-prefix dispatch. */
+/** One attachment's options. */
 export interface DispatcherOptions {
   /** Explicit closure authority over an endpoint owned by the caller. */
   ownEndpoint?: boolean;
 }
+/**
+ * One attachment, with explicit exact-before-longest-prefix dispatch. Each
+ * request's traversal is captured on the invocation its return capability
+ * carries, through the public vocabulary alone; a request whose return
+ * capability carries none is refused rather than routed with weaker detach and
+ * cancellation guarantees. An opaque wrapper is therefore as good as a native
+ * endpoint: the lifecycle travels with the unchanged return capability, and
+ * nothing here recognizes a concrete type.
+ */
 export class WireDispatcher implements HandlerRegistry {
   private readonly exact = new Map<string, Registration>();
   private readonly prefixes = new Map<string, Registration>();
@@ -94,40 +85,52 @@ export class WireDispatcher implements HandlerRegistry {
   }
   private deliver(path: Path, message: Message): void | Promise<void> {
     const name = encodePath(path);
-    const lifetime = message.return ? wireContext(message.return)?.routes : undefined;
+    // A control belongs to the traversal that captured it, never to the
+    // registration in force now. Handing it to the invocation is what keeps a
+    // detach or a rebind from retargeting an admitted request.
     if (message.frame.kind === 'cancel') {
-      const capture = lifetime?.captures.get(this)?.get(name);
-      return capture?.registration.receiver.message?.([...capture.path], message);
-    }
-    if (message.frame.kind === 'request' && !lifetime) {
-      response(
-        message,
-        undefined,
-        new DuplexError('invalid_message', 'Invocation requires a profile-owned lifetime association.'),
-      );
+      try {
+        relayInvocationControl(message);
+      } catch {
+        /* A carrier with no lifecycle has nothing to route it to. */
+      }
       return;
     }
-    let registration = this.ended ? undefined : this.match(path, name);
-    if (registration && message.frame.kind === 'request') {
-      if (lifetime!.retired) registration = undefined;
-      else {
-        let captures = lifetime!.captures.get(this);
-        if (!captures) {
-          captures = new Map();
-          lifetime!.captures.set(this, captures);
-        }
-        const previous = captures.get(name);
-        if (previous) registration = previous.registration;
-        else captures.set(name, { registration, path: [...path] });
-      }
-    }
+    const registration = this.ended ? undefined : this.match(path, name);
     if (!registration?.receiver.message) {
       if (message.frame.kind === 'request')
         response(message, undefined, new DuplexError('method_not_found', 'Unknown method.'));
       return;
     }
-    return registration.receiver.message([...path], message);
+    const delivered = [...path];
+    if (message.frame.kind !== 'request') return registration.receiver.message(delivered, message);
+    let capture;
+    try {
+      capture = captureInvocation(message, (control) => {
+        void registration.receiver.message?.([...delivered], control);
+      });
+    } catch {
+      response(
+        message,
+        undefined,
+        new DuplexError('invalid_message', 'Invocation requires the lifecycle its return capability carries.'),
+      );
+      return;
+    }
+    let pending: void | Promise<void>;
+    try {
+      pending = registration.receiver.message(delivered, message);
+    } catch (error) {
+      capture.ready();
+      throw error;
+    }
+    if (!pending) {
+      capture.ready();
+      return;
+    }
+    return pending.finally(() => capture.ready());
   }
+
   select(path: Path): SelectedEndpoint {
     return new SelectedEndpoint(this, [...path]);
   }

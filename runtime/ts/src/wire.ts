@@ -1,6 +1,7 @@
 import { decodePath, encodePath, WireError } from '@nightseam/duplex';
 import type { Message, Path, ProfileFrame, Receiver, ReturnAddress, Wire, Endpoint } from '@nightseam/duplex';
-import { createDispatchRoutes, retireDispatchRoutes, type DispatchRoutes, type HandlerRegistry } from './dispatcher.ts';
+import { type HandlerRegistry } from './dispatcher.ts';
+import { Invocation, InvocationError, beginInvocationBody, defaultInvocationLimits } from './invocation.ts';
 import { DuplexError, UnpublishedError } from './error.ts';
 import { carrying, decodeEnvelope, isObject } from './envelope.ts';
 import { scalarJSON } from './unicode.ts';
@@ -35,7 +36,6 @@ export interface WireDispatchContext {
   panic: (error: unknown) => void;
   maxFrameBytes: number;
   completion?: { cancelled: boolean };
-  routes?: DispatchRoutes;
 }
 // This is a local capability association, never a field a caller can serialize
 // or supply as ambient outgoing metadata. Keep non-enumerable verified values.
@@ -82,10 +82,7 @@ export function wireContext(address: ReturnAddress): WireDispatchContext | undef
 export function setWireContext(address: ReturnAddress, context: WireDispatchContext): () => void {
   dispatchContexts.set(address, context);
   return () => {
-    if (dispatchContexts.get(address) === context) {
-      dispatchContexts.delete(address);
-      retireDispatchRoutes(context.routes);
-    }
+    if (dispatchContexts.get(address) === context) dispatchContexts.delete(address);
   };
 }
 
@@ -353,7 +350,8 @@ function callWireTraced<T>(
   }
   if (!dispatch && trace) outgoingTraces.set(frame, trace);
   const completion = requestCompletion<T>();
-  if (dispatch) dispatch = { ...dispatch, completion: { cancelled: false }, routes: createDispatchRoutes() };
+  if (dispatch) dispatch = { ...dispatch, completion: { cancelled: false } };
+  const invocation = new Invocation(defaultInvocationLimits());
   const finish = observeWireRequest(options.observer, options.family, name, false, trace);
   let localOutcome: 'cancelled' | 'timeout' | undefined;
   void completion.promise.then(
@@ -362,30 +360,29 @@ function callWireTraced<T>(
   );
   const returning: Wire = {
     send: (suffix, message) => {
+      if (suffix.length) {
+        invocation.deliver(suffix, message);
+        return;
+      }
       const frame = profileFrame(message.frame, '', dispatch?.maxFrameBytes);
-      if (suffix.length || frame.kind !== 'response' || frame.id !== 'c:1')
+      if (frame.kind !== 'response' || frame.id !== 'c:1')
         throw new DuplexError('invalid_message', 'Invalid wire response.');
       if (completion.settled) throw new WireError('closed');
       if (frame.error?.code === 'cancelled' && dispatch?.context.signal.aborted && dispatch.completion?.cancelled)
         completion.resolve(undefined as T);
       else if (frame.error) completion.reject(new DuplexError(frame.error.code, frame.error.message, frame.error.data));
       else completion.resolve(frame.result as T);
+      invocation.settle();
     },
   };
   const address: ReturnAddress = { wire: returning };
-  if (dispatch) {
-    dispatchContexts.set(address, dispatch);
-    void completion.promise.then(
-      () => {
-        dispatchContexts.delete(address);
-        retireDispatchRoutes(dispatch?.routes);
-      },
-      () => {
-        dispatchContexts.delete(address);
-        retireDispatchRoutes(dispatch?.routes);
-      },
-    );
-  }
+  const retire = () => {
+    dispatchContexts.delete(address);
+    invocation.settle();
+    invocation.dispatchDone();
+  };
+  if (dispatch) dispatchContexts.set(address, dispatch);
+  void completion.promise.then(retire, retire);
   try {
     wire.send(path, { frame, return: address });
   } catch (error) {
@@ -494,6 +491,23 @@ export function registerWire(wire: HandlerRegistry, path: Path, handlers: WireHa
         requestId: { value: dispatch?.context.requestId ?? frame.id, enumerable: true },
       });
       if (!dispatch) defaultPropagator.extract(context, traceOf(frame));
+      // The body runs after this receiver returns, so returning is not
+      // completion. The lease says so to whoever admitted the request: an
+      // early answer to the caller cannot retire an invocation whose body is
+      // still running. A return capability that carries no lifecycle still
+      // gets ordinary addressed delivery.
+      let body: { done(): void } | undefined;
+      try {
+        body = beginInvocationBody(message);
+      } catch (error) {
+        if (error instanceof InvocationError && error.code !== 'unsupported') {
+          calls.delete(frame.id);
+          if (!calls.size) incoming.delete(message.return);
+          controller.abort();
+          finish(response(message, undefined, new DuplexError('busy', 'Invocation participation limit reached.')));
+          return;
+        }
+      }
       let cancelledBeforeHandler = false;
       void Promise.resolve()
         .then(() => {
@@ -520,6 +534,7 @@ export function registerWire(wire: HandlerRegistry, path: Path, handlers: WireHa
           },
         )
         .finally(() => {
+          body?.done();
           calls!.delete(frame.id);
           if (!calls!.size) incoming.delete(message.return!);
         });

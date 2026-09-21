@@ -243,7 +243,11 @@ test('closing immediately after ready answers each deferred request only once', 
             // Spy in place, retaining this runtime-created Message and return
             // capability with their existing private invocation association.
             const sending = t.mock.method(message.return.wire, 'send');
-            responseCount = () => sending.mock.callCount();
+            // The outcome is what this counts: the same capability also
+            // carries the invocation's own lifecycle vocabulary at its other
+            // paths, which is not an answer to the request.
+            responseCount = () =>
+              sending.mock.calls.filter((call) => (call.arguments[0] as readonly string[]).length === 0).length;
             arrived.resolve();
           }
           return receiver.message?.(path, message);

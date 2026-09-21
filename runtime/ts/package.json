@@ -50,7 +50,7 @@
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "check": "tsc -p tsconfig.check.json",
-    "test": "node --experimental-strip-types --test --test-timeout=10000 src/carriage.test.ts src/console.test.ts src/peer.test.ts src/peer-pacing.test.ts src/trace.test.ts src/unicode.test.ts src/validate.test.ts src/document-examples.test.ts src/publication.test.ts src/identity.test.ts src/identity_wire.test.ts src/declaration_identity.test.ts src/callable_identity.test.ts src/dispatcher.test.ts src/invocation.test.ts src/wire.test.ts src/wire-channel.test.ts src/wire-forward.test.ts src/wire-pair.test.ts src/wire-event-context.test.ts src/value-adapter.test.ts src/wire-observer.test.ts"
+    "test": "node --experimental-strip-types --test --test-timeout=10000 src/carriage.test.ts src/console.test.ts src/peer.test.ts src/peer-pacing.test.ts src/trace.test.ts src/unicode.test.ts src/validate.test.ts src/document-examples.test.ts src/publication.test.ts src/identity.test.ts src/identity_wire.test.ts src/declaration_identity.test.ts src/callable_identity.test.ts src/dispatcher.test.ts src/invocation.test.ts src/invocation-experiment.test.ts src/wire.test.ts src/wire-channel.test.ts src/wire-forward.test.ts src/wire-pair.test.ts src/wire-event-context.test.ts src/value-adapter.test.ts src/wire-observer.test.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

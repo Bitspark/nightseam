@@ -1,6 +1,6 @@
 import { encodePath, WireError } from '@nightseam/duplex';
 import type { Message, Path, Receiver, ReturnAddress, Wire, Endpoint as WireEndpoint } from '@nightseam/duplex';
-import { createDispatchRoutes } from './dispatcher.ts';
+import { Invocation, defaultInvocationLimits } from './invocation.ts';
 import { DUPLEX_DEFAULTS, positiveInteger } from './peer.ts';
 import type { PeerOptions } from './peer.ts';
 import { DuplexError } from './error.ts';
@@ -25,6 +25,7 @@ interface LocalCall {
   original: Message;
   path: Path;
   returning: ReturnAddress;
+  invocation: Invocation;
   source?: WireDispatchContext;
   cleanup: () => void;
   controller: AbortController;
@@ -92,6 +93,8 @@ export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint
           clearTimeout(call.timer);
           call.controller.abort();
           call.cleanup();
+          call.invocation.settle();
+          call.invocation.dispatchDone();
           if (!call.responded) requests.push(call.original);
           call.responded = call.completed = true;
         }
@@ -127,6 +130,8 @@ export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint
     if (!calls.size) endpoint.calls.delete(call.original.return!);
     endpoint.retained--;
     call.cleanup();
+    call.invocation.settle();
+    call.invocation.dispatchDone();
   };
   const complete = (endpoint: Endpoint, call: LocalCall) => {
     if (!call.completed) {
@@ -230,7 +235,6 @@ export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint
         if (!call!.source) propagator.extract(context, traceOf(frame));
         call!.cleanup = setWireContext(call!.returning, {
           context,
-          routes: createDispatchRoutes(),
           completion: call!.source?.completion,
           maxFrameBytes: limits.maxFrameBytes,
           panic:
@@ -313,10 +317,15 @@ export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint
         else if (endpoint.retained >= limits.maxPendingRequests)
           refusal = new DuplexError('busy', 'Outstanding call limit reached.');
         else {
+          const invocation = new Invocation(defaultInvocationLimits());
           const returning: ReturnAddress = {
             wire: {
               send: (suffix, reply) => {
-                if (suffix.length || reply.frame.kind !== 'response' || reply.frame.id !== frame.id)
+                if (suffix.length) {
+                  invocation.deliver(suffix, reply);
+                  return;
+                }
+                if (reply.frame.kind !== 'response' || reply.frame.id !== frame.id)
                   throw new DuplexError('invalid_message', 'Invalid wire response.');
                 // A refused encoding may be retried as the shared bounded
                 // internal-error fallback; only an admitted response completes.
@@ -329,6 +338,7 @@ export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint
                   } catch (error) {
                     throw error instanceof DuplexError ? publicError(error) : error;
                   }
+                  invocation.settle();
                 } finally {
                   complete(endpoint, call!);
                 }
@@ -340,6 +350,7 @@ export function wirePair(options: PeerOptions = {}): [WireEndpoint, WireEndpoint
             original: message,
             path: [...path],
             returning,
+            invocation,
             source: wireContext(message.return!),
             cleanup: () => {},
             controller: new AbortController(),
