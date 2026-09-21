@@ -349,6 +349,32 @@ const raw = environment.export(owner, active => adapter.export(active, value));
 Use `Publish` / `publish` instead when that same operation will attempt to
 send the value, so only definite non-publication can unwind fresh exports.
 
+### Associated type interpretations
+
+A family-generic `Holder` drawing `S.Job` and `S.Progress` takes those two
+interpretations through the same value-adapter surface. In Go, its generated
+`ToWire`, `FromWire` and `PrepareFromWire` take `adapterSJob` and
+`adapterSProgress`, each a `runtime.ValueAdapter` of its native type. The
+existing `runtime.Of[STag]` constraint ties both types to one family.
+`AdapterHeld(provider.AdapterJob(), provider.AdapterProgress())` composes a
+record containing them without importing the provider into the generic package.
+
+TypeScript supplies `FamilyBinding<S, "Job" | "Progress">`. Its `types`
+dictionary contains both `ValueAdapter<S["Job"]>` and
+`ValueAdapter<S["Progress"]>`; the generated provider's `family` value already
+contains adapters for its closed types. For example,
+`adapterHeld<provider.Family>(provider.family)` composes the same record.
+The runtime's `familyTypeAdapter` lookup verifies both the selected member and
+the complete bound source declaration. Descriptor-only `FamilyBinding<S>`
+remains useful for validation metadata, but does not satisfy a constructor
+requiring associated converters.
+
+Missing converters and inconsistent source families, revisions or member names
+fail before a model factory or a conversion effect runs. Conversion preserves
+the active operation batch rather than storing a scope or owner in the family
+dictionary. A protocol-only generic package therefore stays independent of
+live while a supplied live record receives the host's explicit environment.
+
 ## Live values
 
 A family with a live tier renders one more thing in each language: a callable
@@ -390,8 +416,8 @@ func ImportJob(owner *live.Owner, raw json.RawMessage) (Job, error)
 ```
 
 ```ts
-export function exportJob(owner: LiveOwner, value: Job): unknown;
-export function importJob(owner: LiveOwner, raw: unknown): Job;
+export function exportJobUnchecked(owner: LiveOwner, value: Job): unknown;
+export function importJobUnchecked(owner: LiveOwner, raw: unknown): Job;
 ```
 
 Export walks the value, makes a binding of each local function and writes the
@@ -450,8 +476,8 @@ func ImportPage[T any](raw json.RawMessage, convertT func(json.RawMessage) (T, e
 ```
 
 ```ts
-export function exportPage<T = unknown>(value: Page<T>, convert_T_: (value: T) => unknown): unknown;
-export function importPage<T = unknown>(raw: unknown, convert_T_: (value: unknown) => T): Page<T>;
+export function exportPageUnchecked<T = unknown>(value: Page<T>, convert_T_: (value: T) => unknown): unknown;
+export function importPageUnchecked<T = unknown>(raw: unknown, convert_T_: (value: unknown) => T): Page<T>;
 ```
 
 The same package emits `ExportBox`/`ImportBox` for a record,
@@ -460,8 +486,9 @@ and `ExportBatch`/`ImportBatch` for a nested generic alias; TypeScript uses
 the corresponding `exportX`/`importX` names. Each forwards the supplied
 converters through the declared container structure. Go pairs each converter
 with a `runtime.TypeBinding`, whose `Schema` and `Type` retain the argument's
-declaration context for validation. TypeScript's conversion helpers take
-no binding argument and do not validate the whole value: the generated
+declaration context for validation. TypeScript's record, union and alias helpers
+carry the `Unchecked` suffix: they take no binding argument and do not validate
+the whole value. The generated
 operation validates before import and after export. A direct TypeScript
 caller must perform that validation with the appropriate `TypeBinding`
 slots too; conversion alone is not a validation API.
@@ -495,13 +522,13 @@ function importJobs(owner: LiveOwner, raw: unknown): boxes.Page<worker.Job> {
     boxes.validateWire("Page", raw, "", {
       T: { type: "Job", validate: worker.validateWire },
     });
-    return boxes.importPage(raw, (item) => worker.importJob(batch, item));
+    return boxes.importPageUnchecked(raw, (item) => worker.importJobUnchecked(batch, item));
   });
 }
 ```
 
 Export uses the opposite converter: `worker.ExportJob(batch, value)` in Go
-or `worker.exportJob(batch, value)` in TypeScript, followed by whole-value
+or `worker.exportJobUnchecked(batch, value)` in TypeScript, followed by whole-value
 validation. For direct data-helper exports, enclose the whole conversion and
 validation in [an export build](../runtime/live.md#constructing-a-payload-before-publication)
 and close the converters over its owner view, so an unpublished failure can
@@ -520,8 +547,8 @@ func ImportBundle[T any](owner *live.Owner, raw json.RawMessage, convertT func(*
 ```
 
 ```ts
-export function exportBundle<T = unknown>(owner: LiveOwner, value: Bundle<T>, convert_T_: (owner: LiveOwner, value: T) => unknown): unknown;
-export function importBundle<T = unknown>(owner: LiveOwner, raw: unknown, convert_T_: (owner: LiveOwner, value: unknown) => T): Bundle<T>;
+export function exportBundleUnchecked<T = unknown>(owner: LiveOwner, value: Bundle<T>, convert_T_: (owner: LiveOwner, value: T) => unknown): unknown;
+export function importBundleUnchecked<T = unknown>(owner: LiveOwner, raw: unknown, convert_T_: (owner: LiveOwner, value: unknown) => T): Bundle<T>;
 ```
 
 The live helper passes its active owner view to each import and export
@@ -544,7 +571,7 @@ keeps three cases separate:
 | --- | --- |
 | A generic container applied to a live type, such as `Page<Job>` | Supported in the live tier; argument converters carry the owner dependency. |
 | A callable declaration with its own parameters | Temporarily refused as [`callable_parameters`](../../cmd/nightseam/testdata/invalid/callable-parameters/diagnostics.txt); applied callable identities are not defined by the current contract. This does not rule out future generic callables. |
-| A live type drawn through a family parameter, such as `S.Job` | Separately refused as [`live_draw`](../../cmd/nightseam/testdata/invalid/live-draw/diagnostics.txt); the family-binding contract does not supply its live boundary converter. This is a missing conversion surface, not a consequence of nominal identity or a requirement that all generic containers remain data-only. |
+| A plain associated record containing live values, such as `S.Job` | Supported through complete family-supplied value adapters, with coherent declaration identity and operation-local ownership. Direct callable, alias and generic-member draws remain refused. |
 
 ## Errors
 

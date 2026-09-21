@@ -4,6 +4,7 @@ package relayprotocol
 import (
 	context "context"
 	json "encoding/json"
+	fmt "fmt"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -204,6 +205,15 @@ func AdapterCarried[SEnvelope, SHandle any](adapterSEnvelope runtime.ValueAdapte
 		Binding:      binding,
 		NeedsContext: adapterSEnvelope.NeedsContext || adapterSHandle.NeedsContext,
 		Export: func(ctx context.Context, value Carried[SEnvelope, SHandle]) (json.RawMessage, error) {
+			if adapterSEnvelope.Export == nil || adapterSEnvelope.Import == nil {
+				return nil, fmt.Errorf("SEnvelope: both conversion recipes are required")
+			}
+			if adapterSHandle.Export == nil || adapterSHandle.Import == nil {
+				return nil, fmt.Errorf("SHandle: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return nil, err
+			}
 			raw, err := ExportCarried[SEnvelope, SHandle](value, func(value SEnvelope) (json.RawMessage, error) { return adapterSEnvelope.Export(ctx, value) }, typeSEnvelope, func(value SHandle) (json.RawMessage, error) { return adapterSHandle.Export(ctx, value) }, typeSHandle)
 			if err == nil {
 				err = binding.Schema.ValidateExpressionRaw(binding.Type, raw)
@@ -212,6 +222,15 @@ func AdapterCarried[SEnvelope, SHandle any](adapterSEnvelope runtime.ValueAdapte
 		},
 		Import: func(ctx context.Context, raw json.RawMessage) (Carried[SEnvelope, SHandle], error) {
 			var zero Carried[SEnvelope, SHandle]
+			if adapterSEnvelope.Export == nil || adapterSEnvelope.Import == nil {
+				return zero, fmt.Errorf("SEnvelope: both conversion recipes are required")
+			}
+			if adapterSHandle.Export == nil || adapterSHandle.Import == nil {
+				return zero, fmt.Errorf("SHandle: both conversion recipes are required")
+			}
+			if _, err := binding.Declaration(); err != nil {
+				return zero, err
+			}
 			if err := binding.Schema.ValidateExpressionRaw(binding.Type, raw); err != nil {
 				return zero, err
 			}

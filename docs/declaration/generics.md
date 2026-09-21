@@ -100,8 +100,11 @@ instantiates it:
   with `message: S["Envelope"]` and `last: S["Payload"]`, the bound narrowed
   to `AnyFamily & { "Payload": unknown }` where a type beyond the ones every
   family carries is drawn and the parameter defaulting to that same bound,
-  and one family binding argument per family parameter on `toWire` and
-  `fromWire`. A type parameter instead takes a `ValueAdapter<T>`, carrying its
+  and one `FamilyBinding<S, K>` argument per family parameter on `toWire` and
+  `fromWire`, where `K` is the set of associated types that consumer uses.
+  Its `types` dictionary supplies a `ValueAdapter<S[P]>` for every `P` in `K`.
+  The generated provider's `family` value carries these recipes for its closed
+  members. A type parameter instead takes a `ValueAdapter<T>`, carrying its
   declaration binding and both native/wire conversions. The validators use
   those bindings to check what fills each slot.
 - Go has none, so a family parameter becomes one type parameter per type
@@ -114,13 +117,17 @@ instantiates it:
   package's `Tag` from `Of`, and `ToWire` and `FromWire` hold every type
   parameter drawn from `S` to `runtime.Of[STag]`, so
   an `Envelope` of one family beside a `Handle` of another does not compile.
+  Each drawn type also takes a `runtime.ValueAdapter[T]` argument, including
+  carried envelopes and handles. `runtime.JSONAdapter[T]()` supplies ordinary
+  data; a provider's generated `AdapterJob()` supplies a live record.
 
 A type parameter is the plainer case: both languages have one, and a type
 that declares parameters renders as a type with type parameters.
 
-A type drawn from a family parameter is validated by the binding of the
-family that fills it in TypeScript, and by that family's codec where the
-generic type is instantiated in Go.
+A type drawn from a family parameter receives its declaration, validation and
+both conversions together. Construction checks that all supplied members
+belong to one complete bound family interpretation, including its revision.
+A missing recipe or a mismatched member fails before the model factory runs.
 
 ## Conversion at a generic operation
 
@@ -147,13 +154,15 @@ environment batch and pass its active callback context into every adapter.
 The [generated surface](generated.md#value-adapters-and-generic-operations)
 shows both languages and the lower direct conversion helpers.
 
-This covers type arguments containing fixed declared callables, including
-callables that take or return other callables. The grammar still refuses a
-callable declaration's own parameters and live types drawn through a family
-parameter. Those forms are separate work in
-[#368](https://github.com/Bitspark/nightseam/issues/368) and
-[#369](https://github.com/Bitspark/nightseam/issues/369); adapters do not add
-either declaration form implicitly.
+This covers type arguments containing fixed declared callables and plain
+associated records containing them, including callables that take or return
+other callables. A generic operation drawing `S.Job` remains in
+`protocol.json`: its supplied interpretation decides whether a live context is
+needed. Its generated package imports neither a concrete provider nor live.
+Direct draws of aliases, callable declarations and generic members remain
+refused; a plain associated record can contain a callable. A callable
+declaration's own parameters remain separate work in
+[#369](https://github.com/Bitspark/nightseam/issues/369).
 
 ## Identity of a bound application
 

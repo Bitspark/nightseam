@@ -40,6 +40,12 @@ are one number. Entries are in the words of the commits that landed them.
   WebSockets, a symmetric peer, exact JSON/schema validation, relative-path
   Wires and declaration identity. The shared core suite holds both Java/Go
   roles; native tests and an isolated jar consumer hold the artifacts.
+- Generated Go and TypeScript family parameters supply complete interpretations
+  of plain associated records containing callables. Constructors reject missing
+  or mixed-family converters before model construction, and nested conversions
+  use the active operation's ownership batch without adding live dependencies
+  to generic consumers. TypeScript conversion-only record, union and alias
+  helpers explicitly carry the `Unchecked` suffix.
 - Python enters at tier 4 with bounded asyncio frame connections, peers,
   descriptor validation, Wire path views and declaration identity exchange,
   held against Go in both socket roles and by an installed-wheel smoke.

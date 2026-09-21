@@ -65,6 +65,9 @@ func (f *file) peer(family string) string {
 // its package, a type drawn from a parameter as the type parameter it
 // becomes, an application with its arguments filled.
 func (f *file) spell(e model.TypeExpr) string {
+	if native, ok := slotAliasArgument(f.family, e); ok {
+		return f.spell(native)
+	}
 	switch x := e.(type) {
 	case model.Primitive:
 		switch x {
@@ -113,6 +116,50 @@ func (f *file) spell(e model.TypeExpr) string {
 		return f.named(t.Origin.Family, t.Name) + arguments
 	}
 	return "any"
+}
+
+// Go forbids an alias whose right side is a type parameter. Such a declaration
+// remains a wire alias with its own conversion helpers, while every native use
+// spells the supplied argument directly; wrapping it would invent a new type.
+func slotAlias(family *render.Family, t *render.Type) (render.Use, bool) {
+	if t == nil || t.Kind != model.KindAlias {
+		return render.Use{}, false
+	}
+	expression := t.Alias
+	if native, ok := slotAliasArgument(family, expression); ok {
+		expression = native
+	}
+	for _, use := range t.Uses {
+		switch x := expression.(type) {
+		case model.Named:
+			if use.Type == "" && use.Parameter == x.Name {
+				return use, true
+			}
+		case model.Drawn:
+			if use.Parameter == x.Parameter && use.Type == x.Name {
+				return use, true
+			}
+		}
+	}
+	return render.Use{}, false
+}
+
+// Resolve the alias in its declaration's scope, then return the corresponding
+// argument in the caller's scope, including applications and imported aliases.
+func slotAliasArgument(family *render.Family, expression model.TypeExpr) (model.TypeExpr, bool) {
+	t, arguments := family.Conversion(expression)
+	if t == nil || t.Kind != model.KindAlias {
+		return nil, false
+	}
+	source := family.ReferencedFamily(t.Origin.Family)
+	if use, ok := slotAlias(source, t); ok {
+		for _, argument := range arguments {
+			if argument.Use == use {
+				return argument.Expression(), true
+			}
+		}
+	}
+	return nil, false
 }
 
 func (f *file) named(family, name string) string {

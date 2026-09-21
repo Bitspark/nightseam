@@ -1,0 +1,26 @@
+{
+  "profile": "nightseam.duplex/1",
+  "parameters": [{"name": "S", "of": "live"}],
+  "types": {
+    "Jobs": {"kind": "alias", "type": {"array": "S.Job"}},
+    "Choice": {"kind": "union", "tag": "kind", "variants": {"job": "S.Job", "none": {"empty": true}}},
+    "Nested": {
+      "kind": "record",
+      "fields": [
+        {"name": "jobs", "type": "Jobs"},
+        {"name": "progress", "type": {"map": {"nullable": "S.Progress"}}},
+        {"name": "choice", "type": "Choice"},
+        {"name": "absent", "type": "S.Job", "required": false}
+      ]
+    },
+    "Held": {
+      "kind": "record",
+      "fields": [
+        {"name": "job", "type": "S.Job"},
+        {"name": "progress", "type": "S.Progress"},
+        {"name": "nested", "type": "Nested"}
+      ]
+    }
+  },
+  "server": {"methods": {"exchange": {"request": "Held", "result": "Held"}}}
+}

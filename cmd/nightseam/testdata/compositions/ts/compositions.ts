@@ -146,7 +146,7 @@ const exportSink = (sink: Recorder) =>
       events: {},
     }), {}),
   );
-const importJob = (id: number) =>
+const importJobUnchecked = (id: number) =>
   scope.import(id, 'job', async channel => {
     const factory = await jobFromWire(channel, {});
     return factory({ methods: {}, events: {} }).methods;
@@ -167,7 +167,7 @@ const sink = new Recorder();
 const reference = await exportSink(sink);
 const started = await client.start({ ticket: { label: 'typescript', steps: 4 }, progress: { channel: reference } });
 assert.equal(started.accepted, true);
-const job = await importJob(started.job.channel);
+const job = await importJobUnchecked(started.job.channel);
 
 await settle('four reports and one ending', () => sink.ended === 'done' && sink.endings === 1);
 assert.deepEqual(sink.items, [1, 2, 3, 4], 'the sink was told out of order');
@@ -184,11 +184,11 @@ await assert.rejects(
   }),
   /speaks job/,
 );
-await assert.rejects(importJob(reference), /minted here/);
-await assert.rejects(importJob(4242), /names no channel/);
+await assert.rejects(importJobUnchecked(reference), /minted here/);
+await assert.rejects(importJobUnchecked(4242), /names no channel/);
 
 // 3. Aliasing and release, by the same rules as the Go scope.
-const again = await importJob(started.job.channel);
+const again = await importJobUnchecked(started.job.channel);
 assert.equal(again, job, 'two imports of one reference gave two attachments');
 assert.equal(scope.aliases(started.job.channel), 2);
 assert.equal(scope.release(started.job.channel), true);
@@ -229,7 +229,7 @@ assert.equal(counted.refused, 1, 'the worker refused ' + counted.refused + ' inv
 const cancellable = new Recorder();
 const cancellableReference = await exportSink(cancellable);
 const long = await client.start({ ticket: { label: 'cancel', steps: 16 }, progress: { channel: cancellableReference } });
-const longJob = await importJob(long.job.channel);
+const longJob = await importJobUnchecked(long.job.channel);
 const cancelled = await longJob.cancel({});
 await settle('the cancelled job ended its sink once', () => cancellable.ended !== '' && cancellable.endings === 1);
 assert.equal(cancelled.stopped, cancellable.ended === 'cancelled', 'the answer and the sink disagree about the ending');

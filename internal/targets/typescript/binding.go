@@ -55,7 +55,7 @@ func emitWireAdapter(f *file, side, protocol string) {
 		opposite = "Server"
 	}
 	live := fam.Live || familyValueSlots(fam)
-	f.linef("import { DuplexError, callWire, emitWire, registerWire, wirePair, declarationDigest, identityHandler, IDENTITY_METHOD, prepareIdentity, type WireModelContext, type WireCallOptions } from %s;", quote(f.config.Runtime))
+	f.linef("import { DuplexError, callWire, emitWire, registerWire, wirePair, declarationDigest, familyTypeAdapter, identityHandler, IDENTITY_METHOD, prepareIdentity, type WireModelContext, type WireCallOptions } from %s;", quote(f.config.Runtime))
 	f.line("import { encodePath, type Wire } from '@nightseam/duplex';")
 	f.linef("import type { AdapterContext, ValueAdapter, ValueContext } from %s;", quote(f.config.Runtime))
 	if fam.Live {
@@ -88,6 +88,14 @@ func emitWireAdapter(f *file, side, protocol string) {
 		f.line("const requestTimeoutMs = options.requestTimeoutMs;")
 		f.linef("const bindings = { %s };", strings.Join(pass, ", "))
 		f.linef("const slots: Slots = { %s };", strings.Join(values, ", "))
+		for _, use := range fam.Uses {
+			if use.Type != "" {
+				f.linef("familyTypeAdapter(%s, %s);", bindingName(use.Parameter), quote(use.Type))
+			} else {
+				name := bindingName(use.Parameter)
+				f.linef("if (typeof %s.export !== 'function' || typeof %s.import !== 'function') throw new Error('missing complete value interpretation for %s');", name, name, use.Parameter)
+			}
+		}
 		f.linef("const identity = { path: %s, digest: declarationDigest(validateWire, slots) };", quote(fam.Name))
 		if live {
 			f.line("const environment = context.valueEnvironment;")
