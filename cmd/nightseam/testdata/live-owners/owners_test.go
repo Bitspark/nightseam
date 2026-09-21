@@ -93,11 +93,11 @@ func TestNestedAndGenericOwnerConversions(t *testing.T) {
 		zero(t, sa, sb)
 		a, b = sa.Owner().Child(), sb.Owner().Child()
 		bundle := combinator.Bundle[worker.Job]{Metadata: combinator.BundleMetadata[worker.Job]{Seed: job}, Run: func(_ context.Context, n combinator.Count) (combinator.Count, error) { return n + 1, nil }}
-		raw, err = combinator.ExportBundle(a, bundle, worker.ExportJob, job.WireType())
+		raw, err = combinator.ExportBundle(a, bundle, worker.AdapterJob())
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := combinator.ImportBundle(b, raw, worker.ImportJob, job.WireType())
+		got, err := combinator.ImportBundle(b, raw, worker.AdapterJob())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -120,8 +120,8 @@ func TestGenericImportBatchOwnsConverterAcquisitions(t *testing.T) {
 	for _, borrow := range []bool{false, true} {
 		exporter := sa.Owner().Child()
 		bundle := combinator.Bundle[worker.Report]{Metadata: combinator.BundleMetadata[worker.Report]{Seed: func(context.Context, worker.Percent) error { return nil }}, Run: func(_ context.Context, n combinator.Count) (combinator.Count, error) { return n, nil }}
-		typeReport := runtime.TypeBinding{Schema: worker.WireSchema(), Type: "Report"}
-		raw, err := combinator.ExportBundle(exporter, bundle, worker.ExportReport, typeReport)
+		reportAdapter := worker.AdapterReport()
+		raw, err := combinator.ExportBundle(exporter, bundle, reportAdapter)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -141,7 +141,7 @@ func TestGenericImportBatchOwnsConverterAcquisitions(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		_, err = combinator.ImportBundle(batch, raw, worker.ImportReport, typeReport)
+		_, err = combinator.ImportBundle(batch, raw, reportAdapter)
 		refusal(t, err, live.ErrorTooManyImports)
 		if batch.Counts() != (live.Counts{}) {
 			t.Fatalf("failed converter retained %+v", batch.Counts())

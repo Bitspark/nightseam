@@ -148,6 +148,39 @@ each graph's reachable content again and uses the exact same encoding as
 `CanonicalExpression`. Source aliases normalize before this composition;
 callable-template applications and their pure aliases produce identical roots.
 
+## Printable callable applications
+
+`CallableIdentity(TypeBinding)` in Go and `callableIdentity(TypeBinding)` in
+TypeScript require a closed callable root and return its path and digest.
+An application prints its qualified constructor path followed by ordered
+argument names in angle brackets, separated by commas with no spaces:
+`worker/Function<integer,string>`. Captured family parameters precede the
+constructor's own parameters, just as in the canonical graph.
+
+Argument names are rendered from normalized expression roots without expanding
+referenced definitions. Scoped `graph` children contribute their root expression.
+
+| Expression | Printable name |
+|---|---|
+| reference or primitive | its qualified path or primitive spelling |
+| application | `path<A,B>` |
+| array, map, nullable | `[T]`, `{T}`, `T?` |
+| literal string | its canonical JSON string spelling |
+| entity-key reference | `&T` |
+| carried projection | the family name followed by `/Envelope` or `/Handle` |
+| empty expression | `()` |
+| anonymous shape | `shape(` followed by its canonical expression JSON and `)` |
+
+An anonymous shape removes scoped graph wrappers recursively from its expression
+before printing; it introduces no generated nominal name. Missing parameters,
+unresolved draws and incomplete applications are errors. Referenced definition
+content stays in the digest, so a changed revision may retain the same printable
+name. Applied callables hash their selected canonical application graph;
+nongeneric declared callables retain the digest of their declaring family.
+Aliases select their original callable and retain both identities. The shared
+[callable identity fixtures](../../conformance/tables/callable-identities.json)
+hold these byte spellings and the separate nominal and revision comparisons.
+
 References to carried `Envelope` or `Handle` select the associated abstract
 family contract, not the current JSON envelope or channel identifier layout.
 An empty protocol tier consequently does not change an otherwise equal family
