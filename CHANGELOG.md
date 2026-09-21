@@ -64,9 +64,6 @@ are one number. Entries are in the words of the commits that landed them.
   directions under each invocation's context. Applied names and digests retain
   nominal origin and argument revisions; source aliases emit independent
   specialized conversion bodies with the same identity.
-- Go and TypeScript ship a bounded Wire record/follow composition with
-  consumer-owned storage, an atomic replay-to-live handoff and independent
-  subscriber failure. Opaque messages retain their existing reference scope.
 - Generated Go and TypeScript family parameters supply complete interpretations
   of plain associated records containing callables. Constructors reject missing
   or mixed-family converters before model construction, and nested conversions
@@ -76,13 +73,12 @@ are one number. Entries are in the words of the commits that landed them.
   Draw constraints follow the actual supplied family, so generic consumers
   derive independently of providers and unrelated families. Missing or nonplain
   members and non-object drawn RPC requests fail before model construction.
-- Generated Go and TypeScript model sides include consumer transparency helpers
-  with validated document examples, pipe pairs and smoke checks of method
-  inputs, results and public errors across local and carrier presentations.
-
 - Haskell enters at tier 4 with bounded pipes and WebSockets, the native peer,
   relative-path Wires and strict shared-table validation, held against Go in
   both roles and by an outside source-distribution consumer.
+- Generated Go and TypeScript model sides include consumer transparency helpers
+  with validated document examples, pipe pairs and smoke checks of method
+  inputs, results and public errors across local and carrier presentations.
 - Rust enters at tier 4 with bounded pipe and WebSocket connections, the
   duplex peer, schema validation, declaration identity, and relative-path
   Wire composition. Its private testee runs the shared core scenarios in
@@ -187,10 +183,6 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
-- Generated Go and TypeScript side packages derive typed outgoing event unions
-  and record/follow helpers. Closed declaration identity is checked before
-  history setup or replay; ordinary event conversion preserves live-reference
-  scope and owner lifetime without retaining or rebinding callables.
 - Live publication batches in Go and TypeScript unwind fresh bindings only
   when a local `UnpublishedError` proves rejection before queuing or dispatch.
   Generated methods, events and callable requests retain callbacks after
@@ -571,10 +563,6 @@ generation and paired value validation for those forms remain in
 
 ### Added
 
-- Generated Go and TypeScript side packages derive typed outgoing event unions
-  and record/follow helpers. Closed declaration identity is checked before
-  history setup or replay; ordinary event conversion preserves live-reference
-  scope and owner lifetime without retaining or rebinding callables.
 - The conformance suite, `conformance/`: one Go runner drives a **testee** per
   language — a peer under remote control, speaking `DRIVER.md`'s JSON lines —
   through scenarios that are data, over a real socket, and holds every
