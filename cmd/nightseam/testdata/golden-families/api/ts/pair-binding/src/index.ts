@@ -166,3 +166,31 @@ export async function fromWire<S extends AnyFamily = AnyFamily, T extends AnyFam
   const preparation = prepareFromWire<S, T>(wire, context, s, t);
   try { return await preparation.complete(); } catch (error) { preparation.close(); throw error; }
 }
+import { record as recordWire, type WireLog, type RecordOptions, type RecordedWire } from '@nightseam/duplex';
+import { checkIdentity } from "@nightseam/runtime";
+/** The closed union of this side's outgoing native event payloads. */
+export type RecordedEvent<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyFamily> = { readonly name: "echoed"; readonly data: Protocol.Echo<T> };
+export interface Recorder<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyFamily> extends RecordedWire { append(event: RecordedEvent<S, T>, context?: ValueContext<Protocol.Echo<T>, WireModelContext>): Promise<void>; }
+/** Checks a prepared origin before typed append; failed setup leaves its carrier usable. */
+export async function record<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyFamily>(target: Wire, log: WireLog, options: RecordOptions, context: AdapterContext, binding_s: FamilyBinding<S, "Envelope" | "Handle">, binding_t: FamilyBinding<T, "Envelope">, setup?: WireCallOptions): Promise<Recorder<S, T>> {
+  const adapter = makeAdapter<S, T>(context, binding_s, binding_t);
+  const preparation = prepareIdentity(target, adapter.identity, adapter.options);
+  try {
+    await preparation.check(setup); preparation.ready();
+    const wire = await recordWire(preparation.wire, log, { ...options, onClose(error) { preparation.close(); options.onClose?.(error); } }, setup?.signal);
+    const events = adapter.proxyClient(wire).events;
+    return {
+      ...wire,
+      async append(event, context) {
+        switch (event.name) {
+          case "echoed": await events.echoed(event.data, context); return;
+          default: throw new Error('Unknown recorded event.');
+        }
+      },
+      async follow(after, subscriber, signal) {
+        await checkIdentity((method, params, options) => callWire(subscriber, [method], params, { ...options, observer: adapter.options.observer, propagator: adapter.options.propagator }), adapter.identity, { signal, timeoutMs: adapter.options.requestTimeoutMs });
+        return wire.follow(after, subscriber, signal);
+      },
+    };
+  } catch (error) { preparation.close(); throw error; }
+}

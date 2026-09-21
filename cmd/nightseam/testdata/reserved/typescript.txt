@@ -22,6 +22,14 @@ toWire
 fromWire
 prepareFromWire
 makeAdapter
+RecordedEvent
+Recorder
+record
+recordWire
+WireLog
+RecordOptions
+RecordedWire
+checkIdentity
 DuplexError
 Wire
 WireModelContext

@@ -441,3 +441,66 @@ func FromWire[T any](ctx context.Context, wire duplex.Wire, environment runtime.
 	}
 	return model, nil
 }
+
+// RecordedEvent is the closed union of this side's outgoing event payloads.
+type RecordedEvent[T any] interface{ recordedEvent(T) }
+
+// Recorder records converted messages without retaining or rebinding their live values.
+type Recorder[T any] struct {
+	*duplex.RecordedWire
+	events   protocol.ServerEvents[T]
+	identity runtime.DeclarationIdentity
+	options  runtime.Options
+}
+
+func (r *Recorder[T]) Append(ctx context.Context, event RecordedEvent[T]) error {
+	return fmt.Errorf("this side declares no outgoing events")
+}
+
+// Follow checks the subscriber's declaration before registering any replay.
+func (r *Recorder[T]) Follow(ctx context.Context, after uint64, target duplex.Wire) (*duplex.Follower, error) {
+	if err := runtime.CheckIdentity(ctx, func(ctx context.Context, method string, params, result any) error {
+		return runtime.CallWire(ctx, target, []string{method}, params, result, runtime.WireCallOptions{RequestTimeout: r.options.RequestTimeout, Observer: r.options.Observer, Propagator: r.options.Propagator})
+	}, r.identity); err != nil {
+		return nil, err
+	}
+	return r.RecordedWire.Follow(ctx, after, target)
+}
+
+// Record checks a prepared origin before exposing typed event append. Setup
+// failure detaches this interpretation and leaves the borrowed target usable.
+func Record[T any](ctx context.Context, target duplex.Wire, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (*Recorder[T], error) {
+	environment, err := normalizeContext[T](environment, adapterT)
+	if err != nil {
+		return nil, err
+	}
+	identity, err := declarationIdentity[T](adapterT)
+	if err != nil {
+		return nil, err
+	}
+	preparation, err := runtime.PrepareIdentity(target, identity, environment.Options)
+	if err != nil {
+		return nil, err
+	}
+	if err := preparation.Check(ctx); err != nil {
+		preparation.Close()
+		return nil, err
+	}
+	if err := preparation.Ready(); err != nil {
+		preparation.Close()
+		return nil, err
+	}
+	onClose := options.OnClose
+	options.OnClose = func(err error) {
+		preparation.Close()
+		if onClose != nil {
+			onClose(err)
+		}
+	}
+	wire, err := duplex.Record(ctx, preparation.Wire(), log, options)
+	if err != nil {
+		preparation.Close()
+		return nil, err
+	}
+	return &Recorder[T]{RecordedWire: wire, events: accessServer[T](wire, environment, adapterT).Events, identity: identity, options: environment.Options}, nil
+}

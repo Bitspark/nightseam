@@ -134,3 +134,28 @@ export async function fromWire<A extends AnyFamily = AnyFamily, B extends AnyFam
   const preparation = prepareFromWire<A, B>(wire, context, a, b);
   try { return await preparation.complete(); } catch (error) { preparation.close(); throw error; }
 }
+import { record as recordWire, type WireLog, type RecordOptions, type RecordedWire } from '@nightseam/duplex';
+import { checkIdentity } from "@nightseam/runtime";
+/** The closed union of this side's outgoing native event payloads. */
+export type RecordedEvent<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily> = never;
+export interface Recorder<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily> extends RecordedWire { append(event: RecordedEvent<A, B>, context?: WireModelContext): Promise<void>; }
+/** Checks a prepared origin before typed append; failed setup leaves its carrier usable. */
+export async function record<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(target: Wire, log: WireLog, options: RecordOptions, context: AdapterContext, binding_a: FamilyBinding<A, "Envelope">, binding_b: FamilyBinding<B, "Envelope">, setup?: WireCallOptions): Promise<Recorder<A, B>> {
+  const adapter = makeAdapter<A, B>(context, binding_a, binding_b);
+  const preparation = prepareIdentity(target, adapter.identity, adapter.options);
+  try {
+    await preparation.check(setup); preparation.ready();
+    const wire = await recordWire(preparation.wire, log, { ...options, onClose(error) { preparation.close(); options.onClose?.(error); } }, setup?.signal);
+    const events = adapter.proxyClient(wire).events;
+    return {
+      ...wire,
+      async append(event, context) {
+        throw new Error('This side declares no outgoing events.');
+      },
+      async follow(after, subscriber, signal) {
+        await checkIdentity((method, params, options) => callWire(subscriber, [method], params, { ...options, observer: adapter.options.observer, propagator: adapter.options.propagator }), adapter.identity, { signal, timeoutMs: adapter.options.requestTimeoutMs });
+        return wire.follow(after, subscriber, signal);
+      },
+    };
+  } catch (error) { preparation.close(); throw error; }
+}

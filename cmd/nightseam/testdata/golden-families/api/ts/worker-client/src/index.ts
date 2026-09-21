@@ -182,5 +182,30 @@ export async function fromWire(wire: Wire, context: AdapterContext): Promise<Pro
   const preparation = prepareFromWire(wire, context);
   try { return await preparation.complete(); } catch (error) { preparation.close(); throw error; }
 }
+import { record as recordWire, type WireLog, type RecordOptions, type RecordedWire } from '@nightseam/duplex';
+import { checkIdentity } from "@nightseam/runtime";
+/** The closed union of this side's outgoing native event payloads. */
+export type RecordedEvent = never;
+export interface Recorder extends RecordedWire { append(event: RecordedEvent, context?: WireModelContext): Promise<void>; }
+/** Checks a prepared origin before typed append; failed setup leaves its carrier usable. */
+export async function record(target: Wire, log: WireLog, options: RecordOptions, context: AdapterContext, setup?: WireCallOptions): Promise<Recorder> {
+  const adapter = makeAdapter(context);
+  const preparation = prepareIdentity(target, adapter.identity, adapter.options);
+  try {
+    await preparation.check(setup); preparation.ready();
+    const wire = await recordWire(preparation.wire, log, { ...options, onClose(error) { preparation.close(); options.onClose?.(error); } }, setup?.signal);
+    const events = adapter.proxyServer(wire).events;
+    return {
+      ...wire,
+      async append(event, context) {
+        throw new Error('This side declares no outgoing events.');
+      },
+      async follow(after, subscriber, signal) {
+        await checkIdentity((method, params, options) => callWire(subscriber, [method], params, { ...options, observer: adapter.options.observer, propagator: adapter.options.propagator }), adapter.identity, { signal, timeoutMs: adapter.options.requestTimeoutMs });
+        return wire.follow(after, subscriber, signal);
+      },
+    };
+  } catch (error) { preparation.close(); throw error; }
+}
 export const errors = { denied: "denied", gone: "gone" } as const;
 export type ErrorCode = (typeof errors)[keyof typeof errors];

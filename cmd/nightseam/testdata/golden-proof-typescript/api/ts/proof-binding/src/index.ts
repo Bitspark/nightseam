@@ -251,5 +251,34 @@ export async function fromWire<S extends AnyFamily = AnyFamily, Item = unknown>(
   const preparation = prepareFromWire<S, Item>(wire, context, s, item);
   try { return await preparation.complete(); } catch (error) { preparation.close(); throw error; }
 }
+import { record as recordWire, type WireLog, type RecordOptions, type RecordedWire } from '@nightseam/duplex';
+import { checkIdentity } from "@nightseam/runtime";
+/** The closed union of this side's outgoing native event payloads. */
+export type RecordedEvent<S extends AnyFamily = AnyFamily, Item = unknown> = { readonly name: "changed"; readonly data: probe.Payload } | { readonly name: "part.added"; readonly data: Protocol.RichPart };
+export interface Recorder<S extends AnyFamily = AnyFamily, Item = unknown> extends RecordedWire { append(event: RecordedEvent<S, Item>, context?: WireModelContext): Promise<void>; }
+/** Checks a prepared origin before typed append; failed setup leaves its carrier usable. */
+export async function record<S extends AnyFamily = AnyFamily, Item = unknown>(target: Wire, log: WireLog, options: RecordOptions, context: AdapterContext, binding_s: FamilyBinding<S, "Envelope" | "Handle">, binding_item: ValueAdapter<Item>, setup?: WireCallOptions): Promise<Recorder<S, Item>> {
+  const adapter = makeAdapter<S, Item>(context, binding_s, binding_item);
+  const preparation = prepareIdentity(target, adapter.identity, adapter.options);
+  try {
+    await preparation.check(setup); preparation.ready();
+    const wire = await recordWire(preparation.wire, log, { ...options, onClose(error) { preparation.close(); options.onClose?.(error); } }, setup?.signal);
+    const events = adapter.proxyClient(wire).events;
+    return {
+      ...wire,
+      async append(event, context) {
+        switch (event.name) {
+          case "changed": await events.changed(event.data, context); return;
+          case "part.added": await events.partAdded(event.data, context); return;
+          default: throw new Error('Unknown recorded event.');
+        }
+      },
+      async follow(after, subscriber, signal) {
+        await checkIdentity((method, params, options) => callWire(subscriber, [method], params, { ...options, observer: adapter.options.observer, propagator: adapter.options.propagator }), adapter.identity, { signal, timeoutMs: adapter.options.requestTimeoutMs });
+        return wire.follow(after, subscriber, signal);
+      },
+    };
+  } catch (error) { preparation.close(); throw error; }
+}
 export const errors = { denied: "denied" } as const;
 export type ErrorCode = (typeof errors)[keyof typeof errors];

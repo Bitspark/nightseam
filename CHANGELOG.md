@@ -57,6 +57,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Generated Go and TypeScript side packages derive typed outgoing event unions
+  and record/follow helpers. Closed declaration identity is checked before
+  history setup or replay; ordinary event conversion preserves live-reference
+  scope and owner lifetime without retaining or rebinding callables.
 - Declared Go and TypeScript callables accept fixed type arguments, including
   nested callables and live values. Complete adapters compose both conversion
   directions under each invocation's context. Applied names and digests retain

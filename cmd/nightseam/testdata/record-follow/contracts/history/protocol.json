@@ -1,0 +1,1 @@
+{"profile":"nightseam.duplex/1","server":{"methods":{"subscribe":{"request":"Subscription","result":"integer"}},"events":{"tick":{"type":"Payload"}}},"client":{"events":{"tick":{"type":"string"}}}}

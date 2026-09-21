@@ -1,0 +1,86 @@
+package recording_test
+
+import (
+	"context"
+	handles "example.test/generated/api/go/handles-protocol"
+	binding "example.test/generated/api/go/mixed-binding"
+	client "example.test/generated/api/go/mixed-client"
+	protocol "example.test/generated/api/go/mixed-protocol"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/live/go"
+	"github.com/Bitspark/nightseam/runtime/go"
+	"testing"
+	"time"
+)
+
+type mixedDestination struct {
+	values chan protocol.Payload[string, handles.Box]
+}
+
+func (d mixedDestination) Changed(_ context.Context, value protocol.Payload[string, handles.Box]) error {
+	d.values <- value
+	return nil
+}
+func TestMixedTypeAndFamilyRecording(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	scope := localScope(t)
+	owner := scope.Owner().Child()
+	defer owner.Release()
+	environment := runtime.AdapterContext{ValueEnvironment: live.ValueEnvironment(scope)}
+	values := make(chan protocol.Payload[string, handles.Box], 4)
+	makeTarget := func() (duplex.Wire, error) {
+		return client.ToWire(func(protocol.Server[string, handles.Box]) (protocol.Client[string, handles.Box], error) {
+			return protocol.Client[string, handles.Box]{Events: mixedDestination{values}}, nil
+		}, environment, runtime.JSONAdapter[string](), handles.AdapterBox())
+	}
+	target, err := makeTarget()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close(1000, "")
+	store := duplex.NewMemoryWireLog()
+	if _, err := binding.Record[string, handles.Box, handles.Tag](ctx, target, store, duplex.RecordOptions{}, environment, runtime.JSONAdapter[string](), runtime.ValueAdapter[handles.Box]{}); err == nil {
+		t.Fatal("missing family interpretation accepted")
+	}
+	if head, err := store.Head(ctx); err != nil || head != 0 {
+		t.Fatalf("failed setup touched history: %d %v", head, err)
+	}
+	recorder, err := binding.Record(ctx, target, store, duplex.RecordOptions{}, environment, runtime.JSONAdapter[string](), handles.AdapterBox())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer recorder.Close(1000, "")
+	payload := protocol.Payload[string, handles.Box]{Item: "native", Callback: handles.Box{Invoke: func(_ context.Context, n int64) (int64, error) { return n + 10, nil }}}
+	if err := recorder.Append(live.WithOwner(ctx, owner), binding.RecordedChanged[string, handles.Box]{Data: payload}); err != nil {
+		t.Fatal(err)
+	}
+	receive := func() {
+		select {
+		case value := <-values:
+			if value.Item != "native" {
+				t.Fatal(value.Item)
+			}
+			if got, err := value.Callback.Invoke(ctx, 2); err != nil || got != 12 {
+				t.Fatalf("callback: %d %v", got, err)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	receive()
+	second, err := makeTarget()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close(1000, "")
+	follower, err := recorder.Follow(ctx, 0, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer follower.Close()
+	receive()
+	if owner.Counts().Exports != 1 {
+		t.Fatalf("recording duplicated conversion: %+v", owner.Counts())
+	}
+}
