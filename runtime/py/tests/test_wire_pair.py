@@ -261,7 +261,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
         cancel(left, address, path=["different"])
         for _ in range(4):
             cancel(left, address)
-            cancel(left, address, "unknown")
+            cancel(left, address, "c:999")
         detach()
         right.receive(["call"], Receiver(message=lambda path, message: self.fail("cancel was rerouted")))
         release.set()
@@ -400,16 +400,16 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
         left, right = self.pair(max_pending_requests=1)
         held = asyncio.Queue()
         right.receive(["call"], Receiver(message=lambda path, message: held.put_nowait(message)))
-        failure = RuntimeError("return refused")
+        failure = PublicError("busy", "return refused")
 
         def fail(path, message):
             raise unpublished(failure)
 
         request(left, ReturnAddress(Sink(fail)))
         message = await held.get()
-        with self.assertRaises(RuntimeError) as result:
+        with self.assertRaises(PublicError) as result:
             respond(message)
-        self.assertIs(result.exception, failure)
+        self.assertEqual((result.exception.code, str(result.exception)), ("busy", "return refused"))
         self.assertNotIsInstance(result.exception, UnpublishedError)
         sink = Sink()
         request(left, ReturnAddress(sink))
