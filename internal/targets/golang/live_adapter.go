@@ -178,11 +178,13 @@ func (f *file) expressionLive(e model.TypeExpr) string {
 func liveOr(values ...string) string {
 	var parts []string
 	seen := map[string]bool{}
-	for _, value := range values {
+	// Each child is itself a disjunction of literal flags or adapter fields.
+	// Flatten before deduplicating so shared request/result draws occur once.
+	for _, value := range strings.Split(strings.Join(values, " || "), " || ") {
 		if value == "true" {
 			return "true"
 		}
-		if value != "false" && !seen[value] {
+		if value != "" && value != "false" && !seen[value] {
 			seen[value] = true
 			parts = append(parts, value)
 		}
